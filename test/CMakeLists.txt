@@ -276,6 +276,12 @@ ei_add_test(lru_cache)
 ei_add_test(maxsizevector)
 ei_add_test(numext)
 ei_add_test(numext_fma_off)
+# Fused residuals must not depend on optional compiler contraction.
+set(twoprod_test_flags "")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(twoprod_test_flags "-ffp-contract=off")
+endif()
+ei_add_test(twoprod "${twoprod_test_flags}")
 # Reuse the existing GCC AVX2 configuration's -mfma for a small scalar contraction regression.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND EIGEN_TEST_AVX2)
   ei_add_test(numext_fma_contraction "-ffp-contract=fast -DEIGEN_DONT_VECTORIZE")
@@ -301,6 +307,7 @@ check_cxx_source_compiles("
   int main() { return __builtin_vectorelements(v4sf{}); }
 " COMPILER_SUPPORTS_VECTOR_EXTENSIONS)
 if(COMPILER_SUPPORTS_VECTOR_EXTENSIONS)
+  ei_add_test(twoprod_generic "${twoprod_test_flags}")
   ei_add_test(packetmath_generic_16 "-DEIGEN_FAST_MATH=1")
   ei_add_test(packetmath_generic_32 "-DEIGEN_FAST_MATH=1")
   ei_add_test(packetmath_generic_64 "-DEIGEN_FAST_MATH=1")

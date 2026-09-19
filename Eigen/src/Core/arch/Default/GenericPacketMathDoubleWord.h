@@ -206,10 +206,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Pac
 
 // This function implements the multiplication of two double word
 // numbers represented by {x_hi, x_lo} and {y_hi, y_lo}.
-// It returns the result as a pair {p_hi, p_lo} such that
-// (x_hi + x_lo) * (y_hi + y_lo) = p_hi + p_lo holds with a relative error
-// of less than 2*2^{-2p}, where p is the number of significand bits
-// in the floating point type.
+// For normalized inputs (x_hi = RN(x_hi + x_lo), likewise for y), the result
+// {p_hi, p_lo} has relative error < 5*u^2 for p-bit significands, u = 2^{-p}, p >= 8.
+// This assumes round-to-nearest, no overflow/underflow, an exact two-product
+// residual, and separately rounded operations outside that residual.
+// Each DW*FP product has relative error <= (3/2 + 4*u)*u^2: Joldes, Muller,
+// and Popescu (2017), "Tight and rigorous error bounds for basic building
+// blocks of double-word arithmetic", Theorem 4.1, https://hal.science/hal-01351529.
+// The final sum adds absolute error <= u^2*((3+3*u+u^2)*abs(p_hi_hi)
+// + (4+3*u+u^2)*abs(p_lo_hi)); using abs(y_lo) <= u*abs(y_hi) gives the bound above.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
                                                    const Packet& y_lo, Packet& p_hi, Packet& p_lo) {

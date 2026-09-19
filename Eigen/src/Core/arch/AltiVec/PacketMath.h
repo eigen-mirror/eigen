@@ -1173,11 +1173,16 @@ EIGEN_STRONG_INLINE Packet8us pmadd(const Packet8us& a, const Packet8us& b, cons
   return vec_madd(a, b, c);
 }
 
-#ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+#ifdef EIGEN_VECTORIZE_VSX
   return vec_msub(a, b, c);
+#else
+  return vec_madd(a, b, pnegate(c));
+#endif
 }
+
+#ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_nmsub(a, b, c);
