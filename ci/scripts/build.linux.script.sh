@@ -12,11 +12,40 @@ cd ${EIGEN_CI_BUILDDIR}
 # The GitLab cache holds ${CCACHE_DIR}, keyed on content and compiler, so it
 # still hits after the fresh per-job clone re-stamps every source mtime
 # (which makes any cached ninja state rebuild from scratch).
+# EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
+# set standard CCACHE_* variables (e.g. CCACHE_DIR to a persistent host bind-mount)
+# in the runner's config.toml without being overridden by the YAML template.
+export CCACHE_DIR="${CCACHE_DIR:-${EIGEN_CI_CCACHE_DIR}}"
+export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-${EIGEN_CI_CCACHE_MAXSIZE}}"
+export CCACHE_BASEDIR="${CCACHE_BASEDIR:-${EIGEN_CI_CCACHE_BASEDIR}}"
+export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-${EIGEN_CI_CCACHE_COMPRESSLEVEL}}"
+for v in CCACHE_DIR CCACHE_MAXSIZE CCACHE_BASEDIR CCACHE_COMPRESSLEVEL; do
+  [[ -n "${!v}" ]] || unset "${v}"
+done
 launchers=""
 if [[ "${EIGEN_CI_CCACHE}" == "on" ]] && command -v ccache >/dev/null 2>&1; then
   launchers="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-  ccache --zero-stats
+  # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
+  # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
+  # mix each other's counters. Fall back to global counters if ccache predates
+  # --show-log-stats (ccache < 4.4, e.g. Ubuntu 20.04).
+  export CCACHE_STATSLOG="${PWD}/ccache-stats.log"
+  rm -f "${CCACHE_STATSLOG}"
+  if ! ccache --show-log-stats >/dev/null 2>&1; then
+    unset CCACHE_STATSLOG
+    ccache --zero-stats
+  fi
 fi
+show_ccache_stats() {
+  if [[ -n "${launchers}" ]]; then
+    if [[ -n "${CCACHE_STATSLOG}" ]]; then
+      ccache --show-log-stats
+      rm -f "${CCACHE_STATSLOG}"
+    else
+      ccache --show-stats
+    fi
+  fi
+}
 
 cmake -G Ninja                                                   \
   -DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}                  \
@@ -240,9 +269,7 @@ if [[ -n "${deps}" ]]; then
       echo "Some batches failed."
       # The cache is pushed even on failure (cache:when: always), so the
       # stats still describe what the next attempt can reuse.
-      if [[ -n "${launchers}" ]]; then
-        ccache --show-stats
-      fi
+      show_ccache_stats
       exit 1
     fi
   fi
@@ -254,9 +281,7 @@ if [[ "$shuffled" != "true" ]]; then
 fi
 
 # Hit/miss summary for judging what the cache pays for on this job.
-if [[ -n "${launchers}" ]]; then
-  ccache --show-stats
-fi
+show_ccache_stats
 
 cd ${rootdir}
 

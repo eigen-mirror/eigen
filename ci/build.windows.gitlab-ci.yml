@@ -17,14 +17,14 @@
     EIGEN_CI_CCACHE: "on"
     # cache:policy of the .ccache/ pool; see the Linux build template.
     EIGEN_CI_CCACHE_POLICY: pull-push
-    CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
+    EIGEN_CI_CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
     # Runner-local cache, so no archive-size limit applies; 4G holds a full
     # MSVC buildtests run with headroom and only bounds runner disk use.
-    CCACHE_MAXSIZE: 4G
+    EIGEN_CI_CCACHE_MAXSIZE: 4G
     # Hash compile paths relative to the project directory: absolute paths are
     # part of ccache's hash, so without this a checkout-path change (runner
     # layout, concurrent build slots) turns every compile into a miss.
-    CCACHE_BASEDIR: ${CI_PROJECT_DIR}
+    EIGEN_CI_CCACHE_BASEDIR: ${CI_PROJECT_DIR}
     # Don't re-compress the already-zstd-compressed ccache payload when
     # archiving; see the Linux build template for the measured rationale.
     FF_USE_FASTZIP: "true"
