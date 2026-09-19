@@ -275,6 +275,7 @@ ei_add_test(preprocessor_directives)
 ei_add_test(lru_cache)
 ei_add_test(maxsizevector)
 ei_add_test(numext)
+ei_add_test(complex_sqrt)
 ei_add_test(numext_fma_off)
 # Fused residuals must not depend on optional compiler contraction.
 set(twoprod_test_flags "")
