@@ -435,7 +435,11 @@ build:linux:rocm-latest:gcc-11:
     EIGEN_CI_C_COMPILER: gcc-11
     EIGEN_CI_CXX_COMPILER: g++-11
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
-    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
+    # HIP Clang reports each `#pragma unroll` loop in TensorConvolution.h whose
+    # trip count is not constant ("loop not unrolled") once per kernel
+    # instantiation: over half of this job's log, which overran GitLab's 4 MB
+    # log limit and so cut off the end of the build.
+    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on -DCMAKE_HIP_FLAGS=-Wno-pass-failed
   rules: !reference [.rules:libeigen:gpu, rules]
   # Disable cache for ROCm, since it fails whenever the image updates.  As with
   # the ASAN build above, this and EIGEN_CI_CCACHE: "off" are both needed: one
