@@ -120,7 +120,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     // Update solution
     p_oold = p_old;
     p_old = p;
-    p.noalias() = (w - r2 * p_old - r3 * p_oold) / r1;  // IS NOALIAS REQUIRED?
+    p = (w - r2 * p_old - r3 * p_oold) / r1;
     x += (residualScale * beta_one * c * eta) * p;
 
     /* Update the estimated residual norm. Note that this is the estimated

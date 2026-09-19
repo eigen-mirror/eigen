@@ -248,7 +248,7 @@ class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > 
 
     // Apply the column permutation
     if (m_perm_c.size())
-      dest = colsPermutation() * y.topRows(cols());
+      dest.noalias() = colsPermutation() * y.topRows(cols());
     else
       dest = y.topRows(cols());
 

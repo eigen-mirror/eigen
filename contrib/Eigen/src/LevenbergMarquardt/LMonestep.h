@@ -110,7 +110,7 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeOneStep
 
     /* compute the scaled predicted reduction and */
     /* the scaled directional derivative. */
-    m_wa3 = m_rfactor.template triangularView<Upper>() * (m_permutation.inverse() * m_wa1);
+    m_wa3.noalias() = m_rfactor.template triangularView<Upper>() * (m_permutation.inverse() * m_wa1);
     temp1 = numext::abs2(m_wa3.stableNorm() / m_fnorm);
     temp2 = numext::abs2(sqrt(m_par) * pnorm / m_fnorm);
     prered = temp1 + temp2 / Scalar(.5);

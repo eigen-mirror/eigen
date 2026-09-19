@@ -136,6 +136,10 @@ void testGonioFunctions(const MatrixType& A) {
 
   ComplexMatrix sinAc = A.sin().template cast<ComplexScalar>();
   VERIFY_IS_APPROX_SCALED(sinAc, (exp_iA - exp_miA) / (two * imagUnit), scale);
+  ComplexMatrix result(A.rows(), A.cols());
+  MatrixBase<ComplexMatrix>& destination = result;
+  Ac.sin().evalTo(destination);
+  VERIFY_IS_APPROX_SCALED(result, (exp_iA - exp_miA) / (two * imagUnit), scale);
 
   ComplexMatrix cosAc = A.cos().template cast<ComplexScalar>();
   VERIFY_IS_APPROX_SCALED(cosAc, (exp_iA + exp_miA) / 2, scale);

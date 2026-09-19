@@ -1288,16 +1288,16 @@ struct selfadjoint_diagonal_product_impl {
     EIGEN_IF_CONSTEXPR (ProductOrder == OnTheRight) {
       auto scaled = srcAdjoint * diagonal.segment(jb, bc).asDiagonal();
       EIGEN_IF_CONSTEXPR (Accumulate) {
-        dstBlock.noalias() += alpha * scaled;
+        dstBlock += alpha * scaled;
       } else {
-        dstBlock.noalias() = scaled;
+        dstBlock = scaled;
       }
     } else {
       auto scaled = diagonal.segment(ib, br).asDiagonal() * srcAdjoint;
       EIGEN_IF_CONSTEXPR (Accumulate) {
-        dstBlock.noalias() += alpha * scaled;
+        dstBlock += alpha * scaled;
       } else {
-        dstBlock.noalias() = scaled;
+        dstBlock = scaled;
       }
     }
   }

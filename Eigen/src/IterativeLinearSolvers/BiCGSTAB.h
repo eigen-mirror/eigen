@@ -70,7 +70,7 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
     if (Eigen::numext::abs(rho) / Eigen::numext::maxi(r0_norm, r_norm) < eps * Eigen::numext::mini(r0_norm, r_norm)) {
       // The new residual vector became too orthogonal to the arbitrarily chosen direction r0
       // Let's restart with a new r0:
-      r = rhs - mat * x;
+      r.noalias() = rhs - mat * x;
       r0 = r;
       rho = r.squaredNorm();
       r0_norm = r.stableNorm();
@@ -88,7 +88,7 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
     // For small angles ∠(r0, v) < eps, random restart.
     RealScalar v_norm = v.stableNorm();
     if (Eigen::numext::abs(theta) / Eigen::numext::maxi(r0_norm, v_norm) < eps * Eigen::numext::mini(r0_norm, v_norm)) {
-      r = rhs - mat * x;
+      r.noalias() = rhs - mat * x;
       r0.setRandom();
       r0_norm = r0.stableNorm();
       rho = Scalar(1);

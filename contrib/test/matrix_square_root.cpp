@@ -16,6 +16,10 @@ void testMatrixSqrt(const MatrixType& m) {
   generateTestMatrix<MatrixType>::run(A, m.rows());
   MatrixType sqrtA = A.sqrt();
   VERIFY_IS_APPROX(sqrtA * sqrtA, A);
+  MatrixType result(m.rows(), m.cols());
+  MatrixBase<MatrixType>& destination = result;
+  A.sqrt().evalTo(destination);
+  VERIFY_IS_APPROX(result, sqrtA);
 }
 
 EIGEN_DECLARE_TEST(matrix_square_root) {

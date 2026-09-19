@@ -176,10 +176,10 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
     DenseMatrix x = m_luInit.solve(b.topRows(m_k0));
     DenseMatrix rhs, a, xn;
     for (const Step& s : m_steps) {
-      rhs = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
+      rhs.noalias() = b.middleRows(s.k, s.p) - s.WspEk * x;  // (27): b_p - S_p^T E_k x_k
       a = s.luGamma.solve(rhs);
       xn.resize(s.k + s.p, nrhs);
-      xn.topRows(s.k) = x + s.EkYp * a;  // [E_k Y_p; I_p] a_p
+      xn.topRows(s.k).noalias() = x + s.EkYp * a;  // [E_k Y_p; I_p] a_p
       xn.bottomRows(s.p) = a;
       x = xn;
     }

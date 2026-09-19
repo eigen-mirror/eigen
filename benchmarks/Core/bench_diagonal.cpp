@@ -47,7 +47,7 @@ static void BM_DiagonalTimesMatrix(benchmark::State& state) {
   Mat A = Mat::Random(n, n);
   Mat C(n, n);
   for (auto _ : state) {
-    C.noalias() = d.asDiagonal() * A;
+    C = d.asDiagonal() * A;
     benchmark::DoNotOptimize(C.data());
   }
   state.SetBytesProcessed(state.iterations() * 2 * n * n * sizeof(Scalar));
@@ -63,7 +63,7 @@ static void BM_MatrixTimesDiagonal(benchmark::State& state) {
   Mat A = Mat::Random(n, n);
   Mat C(n, n);
   for (auto _ : state) {
-    C.noalias() = A * d.asDiagonal();
+    C = A * d.asDiagonal();
     benchmark::DoNotOptimize(C.data());
   }
   state.SetBytesProcessed(state.iterations() * 2 * n * n * sizeof(Scalar));

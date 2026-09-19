@@ -613,7 +613,7 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     // columns of m_qr.middleCols(k, n_remain)) to bring to the front.
     auto Y_curr = Y.middleCols(k, n_remain);
     auto Y_T = YT.topRows(n_remain);
-    Y_T.noalias() = Y_curr.transpose();
+    Y_T = Y_curr.transpose();
 
     typename IpivType::StorageIndex nb_lu_transp = 0;
     internal::partial_lu_inplace(Y_T, ipiv, nb_lu_transp);

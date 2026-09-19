@@ -748,8 +748,8 @@ void tridiagonal_rayleigh_ritz_refine(const DiagType& diag, const SubdiagType& s
       //   (T V_c)(i,:) = e_{i-1} V_c(i-1,:) + d_i V_c(i,:) + e_i V_c(i+1,:).
       Vc = eivecs.middleCols(s, c);  // copy so the write-back below cannot alias
       TVc = diag.asDiagonal() * Vc;
-      TVc.topRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.bottomRows(n - 1);
-      TVc.bottomRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.topRows(n - 1);
+      TVc.topRows(n - 1) += subdiag.asDiagonal() * Vc.bottomRows(n - 1);
+      TVc.bottomRows(n - 1) += subdiag.asDiagonal() * Vc.topRows(n - 1);
       // Worst per-vector residual in the cluster (scaled by 1/||T|| so it cannot overflow). Skip the
       // refinement when the cluster is already at machine precision -- refining it would only add the
       // subspace error to vectors that are individually more accurate.

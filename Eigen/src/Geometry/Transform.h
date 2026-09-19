@@ -820,7 +820,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  linearExt().noalias() = linearExt() * other.asDiagonal();
+  linearExt() = linearExt() * other.asDiagonal();
   return *this;
 }
 
@@ -846,7 +846,7 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
     const MatrixBase<OtherDerived>& other) {
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, int(Dim))
   EIGEN_STATIC_ASSERT(Mode != int(Isometry), THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS)
-  affine().noalias() = other.asDiagonal() * affine();
+  affine() = other.asDiagonal() * affine();
   return *this;
 }
 
@@ -1535,7 +1535,7 @@ struct transform_transform_product_impl<Transform<Scalar, Dim, LhsMode, LhsOptio
   static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs) {
     ResultType res;
     res.linear().noalias() = lhs.linear() * rhs.linear();
-    res.translation() = lhs.linear() * rhs.translation() + lhs.translation();
+    res.translation().noalias() = lhs.linear() * rhs.translation() + lhs.translation();
     res.makeAffine();
     return res;
   }
@@ -1560,7 +1560,7 @@ struct transform_transform_product_impl<Transform<Scalar, Dim, AffineCompact, Lh
   using ResultType = Transform<Scalar, Dim, Projective>;
   static EIGEN_DEVICE_FUNC ResultType run(const Lhs& lhs, const Rhs& rhs) {
     ResultType res;
-    res.matrix().template topRows<Dim>() = lhs.matrix() * rhs.matrix();
+    res.matrix().template topRows<Dim>().noalias() = lhs.matrix() * rhs.matrix();
     res.matrix().row(Dim) = rhs.matrix().row(Dim);
     return res;
   }

@@ -326,13 +326,13 @@ void matrix_function_compute_above_diagonal(const MatrixType& T, const VectorTyp
       DynMatrixType B = -T.block(blockStart(i + k), blockStart(i + k), clusterSize(i + k), clusterSize(i + k));
       DynMatrixType C = fT.block(blockStart(i), blockStart(i), clusterSize(i), clusterSize(i)) *
                         T.block(blockStart(i), blockStart(i + k), clusterSize(i), clusterSize(i + k));
-      C -= T.block(blockStart(i), blockStart(i + k), clusterSize(i), clusterSize(i + k)) *
-           fT.block(blockStart(i + k), blockStart(i + k), clusterSize(i + k), clusterSize(i + k));
+      C.noalias() -= T.block(blockStart(i), blockStart(i + k), clusterSize(i), clusterSize(i + k)) *
+                     fT.block(blockStart(i + k), blockStart(i + k), clusterSize(i + k), clusterSize(i + k));
       for (Index m = i + 1; m < i + k; m++) {
-        C += fT.block(blockStart(i), blockStart(m), clusterSize(i), clusterSize(m)) *
-             T.block(blockStart(m), blockStart(i + k), clusterSize(m), clusterSize(i + k));
-        C -= T.block(blockStart(i), blockStart(m), clusterSize(i), clusterSize(m)) *
-             fT.block(blockStart(m), blockStart(i + k), clusterSize(m), clusterSize(i + k));
+        C.noalias() += fT.block(blockStart(i), blockStart(m), clusterSize(i), clusterSize(m)) *
+                       T.block(blockStart(m), blockStart(i + k), clusterSize(m), clusterSize(i + k));
+        C.noalias() -= T.block(blockStart(i), blockStart(m), clusterSize(i), clusterSize(m)) *
+                       fT.block(blockStart(m), blockStart(i + k), clusterSize(m), clusterSize(i + k));
       }
       fT.block(blockStart(i), blockStart(i + k), clusterSize(i), clusterSize(i + k)) =
           matrix_function_solve_triangular_sylvester(A, B, C);
@@ -438,7 +438,7 @@ struct matrix_function_compute<MatrixType, 1> {
     MatrixType fT;  // matrix function applied to T
     matrix_function_compute_block_atomic(T, atomic, blockStart, clusterSize, fT);
     matrix_function_compute_above_diagonal(T, blockStart, clusterSize, fT);
-    result = U * (fT.template triangularView<Upper>() * U.adjoint());
+    call_assignment_no_alias(result.derived(), U * (fT.template triangularView<Upper>() * U.adjoint()));
   }
 };
 

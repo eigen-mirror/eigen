@@ -128,7 +128,7 @@ static void BM_RowwiseBroadcastAdd(benchmark::State& state) {
   Mat m = Mat::Random(rows, cols);
   Vec v = Vec::Random(cols);
   for (auto _ : state) {
-    m.noalias() = m.rowwise() + v;
+    m = m.rowwise() + v;
     benchmark::DoNotOptimize(m.data());
   }
   state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar) * 2);
@@ -143,7 +143,7 @@ static void BM_ColwiseBroadcastAdd(benchmark::State& state) {
   Mat m = Mat::Random(rows, cols);
   Vec v = Vec::Random(rows);
   for (auto _ : state) {
-    m.noalias() = m.colwise() + v;
+    m = m.colwise() + v;
     benchmark::DoNotOptimize(m.data());
   }
   state.SetBytesProcessed(state.iterations() * rows * cols * sizeof(Scalar) * 2);

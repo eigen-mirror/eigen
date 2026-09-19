@@ -1801,7 +1801,7 @@ struct generic_product_impl<Lhs, Rhs, BlockSparseShape, DenseShape, ProductType>
           using TmpType = Matrix<Scalar, BR, Rhs::ColsAtCompileTime>;
           TmpType tmp(BR, rhs.cols());
           tmp.noalias() = lhs.blockRef(id) * rhs_seg;
-          dst_seg.noalias() += alpha * tmp;
+          dst_seg += alpha * tmp;
         }
       }
     }
@@ -1840,7 +1840,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, BlockSparseShape, ProductType>
           using TmpType = Matrix<Scalar, Lhs::RowsAtCompileTime, BC>;
           TmpType tmp(lhs.rows(), BC);
           tmp.noalias() = lhs_seg * rhs.blockRef(id);
-          dst_seg.noalias() += alpha * tmp;
+          dst_seg += alpha * tmp;
         }
       }
     }

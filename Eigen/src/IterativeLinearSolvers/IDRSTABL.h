@@ -104,7 +104,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   */
   // Set up the initial residual
   VectorType x0 = x;
-  r.col(0) = rhs - mat * x;
+  r.col(0).noalias() = rhs - mat * x;
   x.setZero();  // The final solution will be x0+x
 
   tol_error = r.col(0).stableNorm();
@@ -226,20 +226,20 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
       // Obtain the update coefficients alpha
       if (j == 1) {
         // alpha=inverse(sigma)*(R_T*r_0);
-        alpha.noalias() = lu_solver.solve(R_T * r.col(0));
+        alpha = lu_solver.solve(R_T * r.col(0));
       } else {
         // alpha=inverse(sigma)*(AR_T*r_{j-2})
-        alpha.noalias() = lu_solver.solve(AR_T * precond.solve(r.col(j - 2)));
+        alpha = lu_solver.solve(AR_T * precond.solve(r.col(j - 2)));
       }
 
       // Obtain new solution and residual from this update
       update.noalias() = U.topRows(N) * alpha;
-      r.col(0) -= mat * precond.solve(update);
+      r.col(0).noalias() -= mat * precond.solve(update);
       x += update;
 
       for (Index i = 1; i <= j - 2; ++i) {
         // This only affects the case L>2
-        r.col(i) -= U.block(N * (i + 1), 0, N, S) * alpha;
+        r.col(i).noalias() -= U.block(N * (i + 1), 0, N, S) * alpha;
       }
       if (j > 1) {
         // r=[r;A*r_{j-2}]
@@ -297,7 +297,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
           u.leftCols(j + 1) /= normalization_constant;
         }
 
-        V.col(q - 1).head(N * (j + 1)).noalias() = u.leftCols(j + 1).reshaped();
+        V.col(q - 1).head(N * (j + 1)) = u.leftCols(j + 1).reshaped();
       }
 
       if (!break_normalization) {
@@ -315,12 +315,12 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
             The polynomial step
     */
     ColPivHouseholderQR<DenseMatrixType> qr_solver(r.rightCols(L));
-    gamma.noalias() = qr_solver.solve(r.col(0));
+    gamma = qr_solver.solve(r.col(0));
 
     // Update solution and residual using the "minimized residual coefficients"
     update.noalias() = r.leftCols(L) * gamma;
     x += update;
-    r.col(0) -= mat * precond.solve(update);
+    r.col(0).noalias() -= mat * precond.solve(update);
 
     // Update iteration info
     ++k;
