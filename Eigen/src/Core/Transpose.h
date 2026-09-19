@@ -283,7 +283,7 @@ struct inplace_transpose_selector<MatrixType, false, MatchPacketSize> {  // non 
     using Scalar = typename MatrixType::Scalar;
     if (m.rows() == m.cols()) {
       const Index PacketSize = internal::packet_traits<Scalar>::size;
-      EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
+      EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex && (internal::evaluator<MatrixType>::Flags & PacketAccessBit)) {
         if (m.rows() >= PacketSize) {
           if ((m.rows() % PacketSize) == 0)
             BlockedInPlaceTranspose<MatrixType, internal::evaluator<MatrixType>::Alignment>(m);

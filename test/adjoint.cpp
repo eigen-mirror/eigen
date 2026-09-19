@@ -390,6 +390,35 @@ void transposeInPlace_boundary() {
   }
 }
 
+template <typename Scalar, int Order, int InnerStride>
+void transposeInPlace_strided() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  using MapType = Map<MatrixType, Unaligned, Stride<Dynamic, InnerStride>>;
+  STATIC_CHECK(!(internal::evaluator<MapType>::Flags & PacketAccessBit));
+  const Index packetSize = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {1, packetSize, packetSize + 1, 2 * packetSize, 2 * packetSize + 1};
+  for (Index size : sizes) {
+    for (Index innerStride : {1, 2, 3}) {
+      if (InnerStride != Dynamic && innerStride != InnerStride) continue;
+      const Index outerStride = size * innerStride + 3;
+      Matrix<Scalar, Dynamic, 1> storage(size * outerStride + 2);
+      for (Index i = 0; i < storage.size(); ++i) storage(i) = Scalar(i + 1);
+      const Matrix<Scalar, Dynamic, 1> original = storage;
+      Matrix<Scalar, Dynamic, 1> expected = original;
+      // Include padding and interleaved coefficients in the exact comparison.
+      for (Index outer = 0; outer < size; ++outer)
+        for (Index inner = 0; inner < size; ++inner)
+          expected(1 + outer * outerStride + inner * innerStride) =
+              original(1 + inner * outerStride + outer * innerStride);
+      MapType mapped(storage.data() + 1, size, size, Stride<Dynamic, InnerStride>(outerStride, innerStride));
+      mapped.transposeInPlace();
+      VERIFY(storage == expected);
+      mapped.transposeInPlace();
+      VERIFY(storage == original);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(adjoint) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(adjoint(Matrix<float, 1, 1>()));
@@ -442,4 +471,13 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_18(transposeInPlace_boundary<float>());
   CALL_SUBTEST_18(transposeInPlace_boundary<double>());
   CALL_SUBTEST_18(transposeInPlace_boundary<std::complex<float>>());
+
+  CALL_SUBTEST_19((transposeInPlace_strided<float, ColMajor, Dynamic>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<float, RowMajor, Dynamic>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<double, ColMajor, Dynamic>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<double, RowMajor, Dynamic>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<float, ColMajor, 2>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<float, RowMajor, 2>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<double, ColMajor, 2>()));
+  CALL_SUBTEST_19((transposeInPlace_strided<double, RowMajor, 2>()));
 }
