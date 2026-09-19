@@ -27,6 +27,14 @@ The recurring authoring mistake is trailing punctuation absorbed into a cross-re
 `\ref adjoint. The ...` resolves. Separate a reference from following prose with a space, comma, or period. Punctuation
 inside the name itself is fine — `\ref MatrixBase::cross()` is a qualified symbol, not a glued colon.
 
+A second way to break the job without editing a comment is to insert a declaration between a Doxygen block and the
+entity it describes. A block without a structural command (`\class`, `\fn`, `\ingroup`, ...) documents whatever
+declaration follows it. When that is `namespace internal {`, the whole `Eigen::internal` namespace becomes documented,
+every internal doc block enters the output, and their latent `\param` mismatches fail the build far from the edit:
+8f8d4ed4c placed helper structs under the `Transform::rotate` block and surfaced a stale `\param` in `GMRES.h`. After
+inserting code near a doc block, confirm the block still directly precedes its declaration; a trace that prints
+`Generating docs for namespace Eigen::internal` means it does not.
+
 The `doc` target also compiles and runs the configured examples and snippets, by way of the `all_snippets` and
 `all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks
 the documentation build even when every comment is well formed, so search those directories before changing one.

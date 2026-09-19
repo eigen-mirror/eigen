@@ -153,16 +153,16 @@ struct triangular_solve_packet_kernel {
                                         Index otherStride) {
     PacketBlock<Packet, RhsPackets> work[Traits::WorkspaceRows];
     for (int p = 0; p < RhsPackets; ++p) {
-      Index i = 0;
-      for (; i + PacketSize <= size; i += PacketSize) {
+      Index row = 0;
+      for (; row + PacketSize <= size; row += PacketSize) {
         PacketBlock<Packet, PacketSize> block;
         for (int c = 0; c < PacketSize; ++c)
-          block.packet[c] = ploadu<Packet>(other + i + (p * PacketSize + c) * otherStride);
+          block.packet[c] = ploadu<Packet>(other + row + (p * PacketSize + c) * otherStride);
         ptranspose(block);
-        for (int r = 0; r < PacketSize; ++r) work[i + r].packet[p] = block.packet[r];
+        for (int r = 0; r < PacketSize; ++r) work[row + r].packet[p] = block.packet[r];
       }
-      for (; i < size; ++i)
-        work[i].packet[p] = pgather<Scalar, Packet>(other + i + p * PacketSize * otherStride, otherStride);
+      for (; row < size; ++row)
+        work[row].packet[p] = pgather<Scalar, Packet>(other + row + p * PacketSize * otherStride, otherStride);
     }
     Index i = 0;
     const Index step = IsLower ? 1 : -1;
@@ -221,15 +221,15 @@ struct triangular_solve_packet_kernel {
       }
     }
     for (int p = 0; p < RhsPackets; ++p) {
-      Index i = 0;
-      for (; i + PacketSize <= size; i += PacketSize) {
+      Index row = 0;
+      for (; row + PacketSize <= size; row += PacketSize) {
         PacketBlock<Packet, PacketSize> block;
-        for (int r = 0; r < PacketSize; ++r) block.packet[r] = work[i + r].packet[p];
+        for (int r = 0; r < PacketSize; ++r) block.packet[r] = work[row + r].packet[p];
         ptranspose(block);
-        for (int c = 0; c < PacketSize; ++c) pstoreu(other + i + (p * PacketSize + c) * otherStride, block.packet[c]);
+        for (int c = 0; c < PacketSize; ++c) pstoreu(other + row + (p * PacketSize + c) * otherStride, block.packet[c]);
       }
-      for (; i < size; ++i)
-        pscatter<Scalar, Packet>(other + i + p * PacketSize * otherStride, work[i].packet[p], otherStride);
+      for (; row < size; ++row)
+        pscatter<Scalar, Packet>(other + row + p * PacketSize * otherStride, work[row].packet[p], otherStride);
     }
   }
 

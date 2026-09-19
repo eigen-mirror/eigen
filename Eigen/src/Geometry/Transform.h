@@ -899,23 +899,6 @@ EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, 
   return *this;
 }
 
-/** Applies on the right the rotation represented by the rotation \a rotation
- * to \c *this and returns a reference to \c *this.
- *
- * The template parameter \a RotationType is the type of the rotation which
- * must be known by internal::toRotationMatrix<>.
- *
- * Natively supported types includes:
- *   - any scalar (2D),
- *   - a Dim x Dim matrix expression,
- *   - a Quaternion (3D),
- *   - a AngleAxis (3D)
- *
- * This mechanism is easily extendable to support user types such as Euler angles,
- * or a pair of Quaternion for 4D rotations.
- *
- * \sa rotate(Scalar), class Quaternion, class AngleAxis, prerotate(RotationType)
- */
 namespace internal {
 
 template <typename TransformType, typename RotationType, typename Enable = void>
@@ -994,6 +977,23 @@ struct transform_prerotate_impl<TransformType, OtherScalar, std::enable_if_t<std
 
 }  // end namespace internal
 
+/** Applies on the right the rotation represented by the rotation \a rotation
+ * to \c *this and returns a reference to \c *this.
+ *
+ * The template parameter \a RotationType is the type of the rotation which
+ * must be known by internal::toRotationMatrix<>.
+ *
+ * Natively supported types includes:
+ *   - any scalar (2D),
+ *   - a Dim x Dim matrix expression,
+ *   - a Quaternion (3D),
+ *   - a AngleAxis (3D)
+ *
+ * This mechanism is easily extendable to support user types such as Euler angles,
+ * or a pair of Quaternion for 4D rotations.
+ *
+ * \sa rotate(Scalar), class Quaternion, class AngleAxis, prerotate(RotationType)
+ */
 template <typename Scalar, int Dim, int Mode, int Options>
 template <typename RotationType>
 EIGEN_DEVICE_FUNC Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::rotate(

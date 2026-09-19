@@ -30,7 +30,7 @@ namespace internal {
  *  \param precond   preconditioner used
  *  \param iters     on input: maximum number of iterations to perform
  *                   on output: number of iterations performed
- *  \param restart   number of iterations for a restart, capped by the problem size
+ *  \param restart_  number of iterations for a restart, clamped to [1, mat.rows()]
  *  \param tol_error on input: relative tolerance for the preconditioned residual, normalized by the preconditioned
  *                   right-hand side
  *                   on output: relative preconditioned residual achieved
