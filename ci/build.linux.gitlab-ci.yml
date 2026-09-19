@@ -672,6 +672,8 @@ build:linux:cross:aarch64:clang-14:default:
 # architecturally legal but unimplemented, and compile-only coverage of them
 # bought two latent compile fixes at the cost of running nothing -- if a wider
 # part ships, add it here with a test job rather than as a build on its own.
+# 128-bit SVE matches native ARMv9 hardware (Neoverse V2 / Axion) and runs natively
+# on our ARM runner without QEMU emulation.
 build:linux:cross:sve:gcc-13:vl128:
   extends: .build:linux:cross:sve:gcc-13
   variables:
@@ -679,7 +681,6 @@ build:linux:cross:sve:gcc-13:vl128:
       -DEIGEN_TEST_SVE=ON
       -DEIGEN_TEST_SVE_VL=128
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv8.2-a+sve
-      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
 
 build:linux:cross:sve:gcc-13:vl512:
   extends: .build:linux:cross:sve:gcc-13

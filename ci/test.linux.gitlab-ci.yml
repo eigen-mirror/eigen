@@ -616,11 +616,20 @@ test:linux:sme512:gcc-14:full:contrib:
 # job would silently run at the wrong width and pass against packet types built
 # for another. The sve_vector_length test compares RDVL against
 # EIGEN_ARM64_SVE_VL and fails if this is ever wrong.
+# 128-bit SVE matches native ARMv9 hardware (Neoverse V2 / Axion) and runs natively
+# on our dedicated ARM runner with zero QEMU emulation.
 .test:linux:sve:vl128:
-  extends: .test:linux:sve
+  extends: .test:linux
   needs: [ build:linux:cross:sve:gcc-13:vl128 ]
   variables:
-    QEMU_CPU: max,sve128=on,sve-default-vector-length=16
+    EIGEN_CI_TARGET_ARCH: aarch64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: aarch64-linux-gnu
+    EIGEN_CI_INSTALL: g++-13
+  tags:
+    - eigen-runner
+    - linux
+    - aarch64
+    - sve
 
 .test:linux:sve:vl256:
   extends: .test:linux:sve
