@@ -18,30 +18,7 @@ namespace Eigen {
 
 namespace internal {
 
-// recursively searches for the largest simd type that does not exceed Size, or the smallest if no such type exists
-template <typename Scalar, int Size, typename Packet = typename packet_traits<Scalar>::type,
-          bool Stop = (unpacket_traits<Packet>::size <= Size) ||
-                      std::is_same<Packet, typename unpacket_traits<Packet>::half>::value>
-struct find_inner_product_packet_helper;
-
-template <typename Scalar, int Size, typename Packet>
-struct find_inner_product_packet_helper<Scalar, Size, Packet, false> {
-  using type = typename find_inner_product_packet_helper<Scalar, Size, typename unpacket_traits<Packet>::half>::type;
-};
-
-template <typename Scalar, int Size, typename Packet>
-struct find_inner_product_packet_helper<Scalar, Size, Packet, true> {
-  using type = Packet;
-};
-
-template <typename Scalar, int Size>
-struct find_inner_product_packet : find_inner_product_packet_helper<Scalar, Size> {};
-
-template <typename Scalar>
-struct find_inner_product_packet<Scalar, Dynamic> {
-  using type = typename packet_traits<Scalar>::type;
-};
-
+// Shared accumulation kernel for dot() (Conj = true) and vector products (Conj = false).
 template <typename Lhs, typename Rhs>
 struct inner_product_assert {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Lhs)
@@ -67,7 +44,7 @@ struct inner_product_evaluator {
   static constexpr int RhsAlignment = evaluator<Rhs>::Alignment;
 
   using Scalar = typename Func::result_type;
-  using Packet = typename find_inner_product_packet<Scalar, SizeAtCompileTime>::type;
+  using Packet = typename find_largest_packet<Scalar, SizeAtCompileTime>::type;
 
   static constexpr bool Vectorize =
       bool(LhsFlags & RhsFlags & PacketAccessBit) && Func::PacketAccess &&
@@ -182,37 +159,15 @@ struct inner_product_impl<Evaluator, true> {
   }
 };
 
-template <typename Scalar, bool Conj>
-struct conditional_conj;
-
-template <typename Scalar>
-struct conditional_conj<Scalar, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a) { return numext::conj(a); }
-  template <typename Packet>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a) {
-    return pconj(a);
-  }
-};
-
-template <typename Scalar>
-struct conditional_conj<Scalar, false> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a) { return a; }
-  template <typename Packet>
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a) {
-    return a;
-  }
-};
-
 template <typename LhsScalar, typename RhsScalar, bool Conj>
 struct scalar_inner_product_op {
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
-  using conj_helper = conditional_conj<LhsScalar, Conj>;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type coeff(const LhsScalar& a, const RhsScalar& b) const {
-    return (conj_helper::coeff(a) * b);
+    return (conj_if<Conj>()(a) * b);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type coeff(const result_type& accum, const LhsScalar& a,
                                                           const RhsScalar& b) const {
-    return (conj_helper::coeff(a) * b) + accum;
+    return (conj_if<Conj>()(a) * b) + accum;
   }
   static constexpr bool PacketAccess = false;
 };
@@ -225,20 +180,19 @@ struct scalar_inner_product_op<
     std::enable_if_t<std::is_same<typename ScalarBinaryOpTraits<Scalar, Scalar>::ReturnType, Scalar>::value, Scalar>,
     Conj> {
   using result_type = Scalar;
-  using conj_helper = conditional_conj<Scalar, Conj>;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& a, const Scalar& b) const {
-    return pmul(conj_helper::coeff(a), b);
+    return pmul(conj_if<Conj>()(a), b);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(const Scalar& accum, const Scalar& a, const Scalar& b) const {
-    return pmadd(conj_helper::coeff(a), b, accum);
+    return pmadd(conj_if<Conj>()(a), b, accum);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& a, const Packet& b) const {
-    return pmul(conj_helper::packet(a), b);
+    return pmul(conj_if<Conj>().pconj(a), b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(const Packet& accum, const Packet& a, const Packet& b) const {
-    return pmadd(conj_helper::packet(a), b, accum);
+    return pmadd(conj_if<Conj>().pconj(a), b, accum);
   }
   static constexpr bool PacketAccess = packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd;
 };
@@ -298,24 +252,44 @@ struct rewrap_unary<CwiseUnaryOp<Op, Xpr>, Target> {
   }
 };
 
-template <typename Lhs, typename Rhs, bool MayMap = false>
-struct dot_impl_helper {
-  using LhsScalar = typename traits<Lhs>::Scalar;
-  using RhsScalar = typename traits<Rhs>::Scalar;
-  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+// Rewrap coefficient-wise unary operations around contiguous maps only when both
+// operands expose storage and at least one lacks a compile-time unit inner stride.
+template <typename Lhs, typename Rhs, bool Conj,
+          bool MayMap = unwrap_unary<Lhs>::HasDirectAccess && unwrap_unary<Rhs>::HasDirectAccess &&
+                        (inner_stride_at_compile_time<typename unwrap_unary<Lhs>::type>::value != 1 ||
+                         inner_stride_at_compile_time<typename unwrap_unary<Rhs>::type>::value != 1)>
+struct inner_product_dispatch : default_inner_product_impl<Lhs, Rhs, Conj> {};
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
-    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
+template <typename Lhs, typename Rhs, bool Conj>
+struct inner_product_dispatch<Lhs, Rhs, Conj, true> {
+  using Impl = default_inner_product_impl<Lhs, Rhs, Conj>;
+  using result_type = typename Impl::result_type;
+
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+    EIGEN_IF_CONSTEXPR (Conj) {
+      return run_general(a, b);
+    }
+    // Keep tiny products inlined without the remapping and packet-loop setup.
+    if (a.size() <= 4) {
+      typename Impl::Evaluator eval(a.derived(), b.derived());
+      if (eval.size() == 0) return result_type(0);
+      result_type result = eval.coeff(0);
+      if (eval.size() > 1) result = eval.coeff(result, 1);
+      if (eval.size() > 2) result = eval.coeff(result, 2);
+      if (eval.size() > 3) result = eval.coeff(result, 3);
+      return result;
+    }
+    return run_large_product(a, b);
   }
-};
 
-template <typename Lhs, typename Rhs>
-struct dot_impl_helper<Lhs, Rhs, true> {
-  using LhsScalar = typename traits<Lhs>::Scalar;
-  using RhsScalar = typename traits<Rhs>::Scalar;
-  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  // Keep the larger product kernel out of tiny callers, while dot() retains its existing inlining.
+  static EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE result_type run_large_product(const MatrixBase<Lhs>& a,
+                                                                           const MatrixBase<Rhs>& b) {
+    return run_general(a, b);
+  }
 
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type run_general(const MatrixBase<Lhs>& a,
+                                                                       const MatrixBase<Rhs>& b) {
     using LhsUnwrapper = unwrap_unary<Lhs>;
     using RhsUnwrapper = unwrap_unary<Rhs>;
     using LhsInner = typename LhsUnwrapper::type;
@@ -336,30 +310,11 @@ struct dot_impl_helper<Lhs, Rhs, true> {
       using LhsRewrap = rewrap_unary<Lhs, LhsMap>;
       using RhsRewrap = rewrap_unary<Rhs, RhsMap>;
 
-      return default_inner_product_impl<typename LhsRewrap::type, typename RhsRewrap::type, true>::run(
+      return default_inner_product_impl<typename LhsRewrap::type, typename RhsRewrap::type, Conj>::run(
           LhsRewrap::apply(a.derived(), lhs_map), RhsRewrap::apply(b.derived(), rhs_map));
     }
 
-    return default_inner_product_impl<Lhs, Rhs, true>::run(a, b);
-  }
-};
-
-template <typename Lhs, typename Rhs>
-struct dot_impl {
-  using LhsScalar = typename traits<Lhs>::Scalar;
-  using RhsScalar = typename traits<Rhs>::Scalar;
-  using ResultType = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
-
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType run(const MatrixBase<Lhs>& a, const MatrixBase<Rhs>& b) {
-    using LhsUnwrapper = unwrap_unary<Lhs>;
-    using RhsUnwrapper = unwrap_unary<Rhs>;
-
-    constexpr bool has_dynamic_or_nonunit_stride =
-        inner_stride_at_compile_time<typename LhsUnwrapper::type>::value != 1 ||
-        inner_stride_at_compile_time<typename RhsUnwrapper::type>::value != 1;
-    constexpr bool MayMap = LhsUnwrapper::HasDirectAccess && RhsUnwrapper::HasDirectAccess && has_dynamic_or_nonunit_stride;
-
-    return dot_impl_helper<Lhs, Rhs, MayMap>::run(a, b);
+    return Impl::run(a, b);
   }
 };
 

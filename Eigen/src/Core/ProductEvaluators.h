@@ -235,7 +235,7 @@ EIGEN_CATCH_ASSIGN_XPR_OP_PRODUCT(sub_assign_op, scalar_difference_op, add_assig
 
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, InnerProduct> {
-  using impl = default_inner_product_impl<Lhs, Rhs, false>;
+  using impl = inner_product_dispatch<Lhs, Rhs, false>;
   template <typename Dst>
   static EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     dst.coeffRef(0, 0) = impl::run(lhs, rhs);

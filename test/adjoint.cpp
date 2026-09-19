@@ -266,6 +266,91 @@ void inner_product_adjoint_rewrap() {
   VERIFY_IS_APPROX(v.dot(column.adjoint()), numext::conj((m.col(r).transpose() * v).value()));
 }
 
+template <typename Lhs, typename Rhs>
+void check_inner_product(const MatrixBase<Lhs>& lhs, const MatrixBase<Rhs>& rhs) {
+  using Scalar = typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Wide = std::complex<long double>;
+  const auto widen = [](const auto& value) {
+    return Wide(static_cast<long double>(numext::real(value)), static_cast<long double>(numext::imag(value)));
+  };
+  Wide dot(0), product(0);
+  long double magnitude = 0;
+  for (Index i = 0; i < lhs.size(); ++i) {
+    const Wide a = widen(lhs.coeff(i)), b = widen(rhs.coeff(i));
+    dot += std::conj(a) * b;
+    product += a * b;
+    magnitude += std::abs(a) * std::abs(b);
+  }
+  // Complex multiply/add and the reference reduction fit within 8*n*eps*sum(|a_i|*|b_i|).
+  const long double bound = 8 * lhs.size() * static_cast<long double>(NumTraits<RealScalar>::epsilon()) * magnitude;
+  VERIFY(std::abs(widen(lhs.dot(rhs)) - dot) <= bound);
+  VERIFY(std::abs(widen((lhs.adjoint() * rhs).value()) - dot) <= bound);
+  VERIFY(std::abs(widen((lhs.transpose() * rhs).value()) - product) <= bound);
+  Matrix<Scalar, 1, 1> result;
+  result.noalias() = lhs.transpose() * rhs;
+  VERIFY(std::abs(widen(result.value()) - product) <= bound);
+  result.noalias() += lhs.transpose() * rhs;
+  VERIFY(std::abs(widen(result.value()) - 2.0L * product) <= 2 * bound);
+  result.noalias() -= lhs.transpose() * rhs;
+  VERIFY(std::abs(widen(result.value()) - product) <= 3 * bound);
+}
+
+template <typename Scalar>
+void inner_product_runtime_stride() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using StridedMap = Map<const Vec, Unaligned, InnerStride<Dynamic>>;
+  const Index packetSize = internal::packet_traits<Scalar>::size;
+  const Index sizes[] = {
+      0, 1, 2, 3, 4, 5, packetSize - 1, packetSize, packetSize + 1, 4 * packetSize, 9 * packetSize + 1};
+  for (Index n : sizes) {
+    Vec a = Vec::Random(2 * n + 2), b = Vec::Random(2 * n + 2);
+    for (Index lhsStride : {1, 2, -2}) {
+      for (Index rhsStride : {1, 2, -2}) {
+        const StridedMap lhs(a.data() + (lhsStride < 0 && n > 0 ? 2 * n : 1), n, InnerStride<Dynamic>(lhsStride));
+        const StridedMap rhs(b.data() + (rhsStride < 0 && n > 0 ? 2 * n : 1), n, InnerStride<Dynamic>(rhsStride));
+        check_inner_product(lhs, rhs);
+        check_inner_product(-lhs.conjugate(), -rhs);
+        // A functor with state must survive rewrapping, including when it has no packet support.
+        const Scalar shift = internal::random<Scalar>();
+        check_inner_product(lhs.unaryExpr([=](Scalar x) { return x + shift; }), rhs);
+        check_inner_product(lhs.real(), rhs);
+        check_inner_product(lhs, rhs.real());
+      }
+    }
+    Map<const Vec, AlignedMax, InnerStride<Dynamic>> aligned(a.data(), n, InnerStride<Dynamic>(1));
+    Ref<const Vec, Unaligned, InnerStride<Dynamic>> ref(aligned);
+    check_inner_product(aligned, ref);
+    check_inner_product(ref, b.head(n));
+    check_inner_product(a.head(n), ref);
+    // Rows and columns can both become contiguous through their runtime outer dimension.
+    Matrix<Scalar, Dynamic, Dynamic, ColMajor> row = a.head(n).transpose();
+    Matrix<Scalar, Dynamic, Dynamic, RowMajor> col = b.head(n);
+    check_inner_product(row.row(0).transpose(), col.col(0));
+    VERIFY_RAISES_ASSERT(ref.dot(b));
+  }
+}
+
+template <typename Scalar>
+void inner_product_exact_values() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  for (Index n : {0, 1, 2, 3, 4, 5, 17, 65}) {
+    Vec a(2 * n), b(2 * n);
+    for (Index i = 0; i < 2 * n; ++i) {
+      a(i) = Scalar(i % 3 == 0);
+      b(i) = Scalar(i % 2 == 0);
+    }
+    for (Index stride : {1, 2}) {
+      const Map<const Vec, Unaligned, InnerStride<Dynamic>> lhs(a.data(), n, InnerStride<Dynamic>(stride));
+      const Map<const Vec, Unaligned, InnerStride<Dynamic>> rhs(b.data(), n, InnerStride<Dynamic>(stride));
+      Index count = 0;
+      for (Index i = 0; i < n; ++i) count += (i * stride) % 6 == 0;
+      VERIFY_IS_EQUAL(lhs.dot(rhs), Scalar(count));
+      VERIFY_IS_EQUAL((lhs.transpose() * rhs).value(), Scalar(count));
+    }
+  }
+}
+
 // Test transposeInPlace at vectorization boundary sizes.
 // BlockedInPlaceTranspose uses PacketSize-blocked loops with a scalar remainder (line 273),
 // exercising off-by-one-prone transitions.
@@ -342,6 +427,16 @@ EIGEN_DECLARE_TEST(adjoint) {
     CALL_SUBTEST_19(inner_product_adjoint_rewrap<std::complex<float>>());
     CALL_SUBTEST_19(inner_product_adjoint_rewrap<std::complex<double>>());
   }
+
+  CALL_SUBTEST_20(inner_product_runtime_stride<float>());
+  CALL_SUBTEST_21(inner_product_runtime_stride<double>());
+  CALL_SUBTEST_22(inner_product_runtime_stride<std::complex<float>>());
+  CALL_SUBTEST_23(inner_product_runtime_stride<std::complex<double>>());
+
+  CALL_SUBTEST_24(inner_product_exact_values<int>());
+  CALL_SUBTEST_24(inner_product_exact_values<bool>());
+  CALL_SUBTEST_24(inner_product_exact_values<half>());
+  CALL_SUBTEST_24(inner_product_exact_values<bfloat16>());
 
   // transposeInPlace at vectorization boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_18(transposeInPlace_boundary<float>());
