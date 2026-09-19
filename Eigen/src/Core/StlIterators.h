@@ -409,17 +409,22 @@ class pointer_based_stl_iterator {
 
   bool operator==(const pointer_based_stl_iterator& other) const { return m_ptr == other.m_ptr; }
   bool operator!=(const pointer_based_stl_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const pointer_based_stl_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const pointer_based_stl_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const pointer_based_stl_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const pointer_based_stl_iterator& other) const { return m_ptr >= other.m_ptr; }
+  bool operator<(const pointer_based_stl_iterator& other) const {
+    // Iterator order follows the stride, not necessarily increasing addresses.
+    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+  }
+  bool operator<=(const pointer_based_stl_iterator& other) const { return !(other < *this); }
+  bool operator>(const pointer_based_stl_iterator& other) const { return other < *this; }
+  bool operator>=(const pointer_based_stl_iterator& other) const { return !(*this < other); }
 
   bool operator==(const other_iterator& other) const { return m_ptr == other.m_ptr; }
   bool operator!=(const other_iterator& other) const { return m_ptr != other.m_ptr; }
-  bool operator<(const other_iterator& other) const { return m_ptr < other.m_ptr; }
-  bool operator<=(const other_iterator& other) const { return m_ptr <= other.m_ptr; }
-  bool operator>(const other_iterator& other) const { return m_ptr > other.m_ptr; }
-  bool operator>=(const other_iterator& other) const { return m_ptr >= other.m_ptr; }
+  bool operator<(const other_iterator& other) const {
+    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+  }
+  bool operator<=(const other_iterator& other) const { return !(other < *this); }
+  bool operator>(const other_iterator& other) const { return other < *this; }
+  bool operator>=(const other_iterator& other) const { return !(*this < other); }
 
  protected:
   pointer m_ptr = nullptr;
@@ -507,6 +512,7 @@ class subvector_stl_iterator : public indexed_based_stl_iterator_base<subvector_
 
   subvector_stl_iterator() = default;
   subvector_stl_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  subvector_stl_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
 
   reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
   reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
@@ -553,9 +559,10 @@ class subvector_stl_reverse_iterator
 
   subvector_stl_reverse_iterator() = default;
   subvector_stl_reverse_iterator(XprType& xpr, Index index) : Base(xpr, index) {}
+  subvector_stl_reverse_iterator(const typename Base::non_const_iterator& other) : Base(other) {}
 
   reference operator*() const { return (*mp_xpr).template subVector<Direction>(m_index); }
-  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index + i); }
+  reference operator[](Index i) const { return (*mp_xpr).template subVector<Direction>(m_index - i); }
   pointer operator->() const { return (*mp_xpr).template subVector<Direction>(m_index); }
 };
 

@@ -31,6 +31,17 @@ std::reverse_iterator<Iterator> make_reverse_iterator(Iterator i) {
 
 using std::is_sorted;
 
+template <typename VectorwiseType>
+void check_reverse_subscript(VectorwiseType xpr) {
+  const Index size = xpr.end() - xpr.begin();
+  for (Index i = 0; i < size; ++i) {
+    VERIFY_IS_EQUAL(xpr.rbegin()[i], xpr.begin()[size - 1 - i]);
+    VERIFY_IS_EQUAL(xpr.crbegin()[i], xpr.cbegin()[size - 1 - i]);
+    VERIFY_IS_EQUAL((xpr.rend() - 1)[-i], xpr.begin()[i]);
+    VERIFY_IS_EQUAL((xpr.crend() - 1)[-i], xpr.cbegin()[i]);
+  }
+}
+
 template <typename XprType>
 bool is_pointer_based_stl_iterator(const internal::pointer_based_stl_iterator<XprType>&) {
   return true;
@@ -113,6 +124,81 @@ void check_begin_end_for_loop(Xpr xpr) {
     VERIFY(!(xpr.begin() > xpr.cend()));
     VERIFY(!(xpr.begin() >= xpr.cend()));
   }
+}
+
+template <typename Iterator, typename OtherIterator>
+void check_iterator_order(Iterator first, OtherIterator otherFirst, Index size) {
+  for (Index i = 0; i <= size; ++i) {
+    for (Index j = 0; j <= size; ++j) {
+      const auto a = first + i;
+      const auto b = otherFirst + j;
+      VERIFY_IS_EQUAL(a - b, i - j);
+      VERIFY_IS_EQUAL(a == b, i == j);
+      VERIFY_IS_EQUAL(a != b, i != j);
+      VERIFY_IS_EQUAL(a < b, i < j);
+      VERIFY_IS_EQUAL(a <= b, i <= j);
+      VERIFY_IS_EQUAL(a > b, i > j);
+      VERIFY_IS_EQUAL(a >= b, i >= j);
+    }
+  }
+}
+
+template <int Stride, int Options>
+void test_strided_iterator_order(Index stride) {
+  using VectorType = Matrix<int, Dynamic, 1>;
+  using MappedVector = Matrix<int, Options == RowMajor ? 1 : Dynamic, Options == RowMajor ? Dynamic : 1, Options>;
+  VectorType storage = VectorType::Random(20);
+  // Keep both forward and reverse end pointers within the allocation, including with negative strides.
+  Map<MappedVector, Unaligned, InnerStride<Stride>> map(storage.data() + 9, 4, InnerStride<Stride>(stride));
+  const auto& constMap = map;
+  check_begin_end_for_loop(map);
+  check_iterator_order(map.begin(), map.begin(), map.size());
+  check_iterator_order(map.begin(), constMap.begin(), map.size());
+  check_iterator_order(constMap.begin(), map.begin(), map.size());
+  check_iterator_order(constMap.begin(), constMap.begin(), map.size());
+  const auto reverseBegin = make_reverse_iterator(map.end());
+  const auto constReverseBegin = make_reverse_iterator(constMap.end());
+  check_iterator_order(reverseBegin, reverseBegin, map.size());
+  check_iterator_order(reverseBegin, constReverseBegin, map.size());
+  check_iterator_order(constReverseBegin, reverseBegin, map.size());
+  check_iterator_order(constReverseBegin, constReverseBegin, map.size());
+  Map<const MappedVector, Unaligned, InnerStride<Stride>> readOnly(map.data(), map.size(), InnerStride<Stride>(stride));
+  check_iterator_order(readOnly.begin(), readOnly.end() - readOnly.size(), readOnly.size());
+
+  std::sort(map.begin(), map.end());
+  for (Index i = 1; i < map.size(); ++i) VERIFY(map[i - 1] <= map[i]);
+}
+
+template <typename Iterator, typename ConstIterator>
+void check_iterator_const_conversion(Iterator first, Iterator last, ConstIterator constFirst) {
+  STATIC_CHECK((std::is_convertible<Iterator, ConstIterator>::value));
+  STATIC_CHECK((std::is_assignable<ConstIterator&, Iterator>::value));
+  STATIC_CHECK((
+      std::is_same<decltype(std::declval<ConstIterator&>() = std::declval<const Iterator&>()), ConstIterator&>::value));
+  STATIC_CHECK((!std::is_convertible<ConstIterator, Iterator>::value));
+  STATIC_CHECK((!std::is_assignable<Iterator&, ConstIterator>::value));
+  const Index size = last - first;
+  for (Index i = 0; i <= size; ++i) {
+    const Iterator it = first + i;
+    ConstIterator converted = it;
+    ConstIterator assigned;
+    VERIFY(&(assigned = it) == &assigned);
+    VERIFY(converted == constFirst + i);
+    VERIFY(assigned == converted);
+    VERIFY(converted == it && it == converted);
+    VERIFY_IS_EQUAL(converted - first, i);
+    VERIFY_IS_EQUAL(last - converted, size - i);
+    if (i < size) {
+      VERIFY_IS_EQUAL(*converted, *it);
+      VERIFY_IS_EQUAL(*(assigned = it), *it);
+    }
+  }
+}
+
+template <typename VectorwiseType>
+void check_subvector_const_conversion(VectorwiseType xpr) {
+  check_iterator_const_conversion(xpr.begin(), xpr.end(), xpr.cbegin());
+  check_iterator_const_conversion(xpr.rbegin(), xpr.rend(), xpr.crbegin());
 }
 
 template <typename Scalar, int Rows, int Cols>
@@ -473,6 +559,22 @@ void test_stl_iterators(int rows = Rows, int cols = Cols) {
     }
   }
 
+  check_subvector_const_conversion(A.rowwise());
+  check_subvector_const_conversion(A.colwise());
+  check_subvector_const_conversion(B.rowwise());
+  check_subvector_const_conversion(B.colwise());
+
+  check_reverse_subscript(A.rowwise());
+  check_reverse_subscript(A.colwise());
+  check_reverse_subscript(B.rowwise());
+  check_reverse_subscript(B.colwise());
+  const ColMatrixType& constA = A;
+  const RowMatrixType& constB = B;
+  check_reverse_subscript(constA.rowwise());
+  check_reverse_subscript(constA.colwise());
+  check_reverse_subscript(constB.rowwise());
+  check_reverse_subscript(constB.colwise());
+
   // check rows/cols iterators with STL algorithms
   {
     RowVectorType row = random_for_arithmetic<RowVectorType>(cols);
@@ -634,6 +736,13 @@ void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
 #endif
 
 EIGEN_DECLARE_TEST(stl_iterators) {
+  for (Index stride : {-2, -1, 1, 2}) {
+    CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, ColMajor>(stride)));
+    CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, RowMajor>(stride)));
+  }
+  CALL_SUBTEST_1((test_strided_iterator_order<-2, ColMajor>(-2)));
+  CALL_SUBTEST_1((test_strided_iterator_order<2, ColMajor>(2)));
+  CALL_SUBTEST_1((test_strided_iterator_order<1, ColMajor>(1)));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_stl_iterators<double, 2, 3>()));
     CALL_SUBTEST_1((test_stl_iterators<float, 7, 5>()));
