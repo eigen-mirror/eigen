@@ -898,7 +898,10 @@ void householder_essential_expressions() {
     Scalar tau;
     typename NumTraits<Scalar>::Real beta;
     VectorType essential(rows - 1);
-    VectorType::Random(rows).makeHouseholder(essential, tau, beta);
+    // Materialize first: makeHouseholder reads its argument several times, and a lazy Random expression
+    // redraws on every read, so essential and tau would not describe one reflector.
+    const VectorType reflected = VectorType::Random(rows);
+    reflected.makeHouseholder(essential, tau, beta);
 
     Mat column(rows + 1, 3);
     column.col(1).tail(rows - 1) = essential;
