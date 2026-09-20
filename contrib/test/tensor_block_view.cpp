@@ -108,8 +108,9 @@ struct functor_traits<BlockViewOverloadedFunctor<Vectorized>> : functor_traits<B
 
 template <int Layout, bool Vectorized, typename Device>
 static void test_view_functor_forwarding(const Device& device) {
+  using TensorType = Tensor<float, 2, Layout>;
   const Index rows = 129, cols = 193;
-  Tensor<float, 2, Layout> input(cols, rows), bias(rows, cols), output(rows, cols);
+  TensorType input(cols, rows), bias(rows, cols), output(rows, cols);
   for (Index j = 0; j < cols; ++j) {
     for (Index i = 0; i < rows; ++i) {
       input(j, i) = float((i * 3 + j) % 17);
@@ -119,7 +120,8 @@ static void test_view_functor_forwarding(const Device& device) {
   const array<int, 2> transpose{{1, 0}};
   const auto check = [&](const auto& functor) {
     auto expression = input.shuffle(transpose) + bias.unaryExpr(functor);
-    using Assign = TensorAssignOp<decltype(output), const decltype(expression)>;
+    // MSVC 19.29 treats decltype(output) as a reference inside this generic lambda.
+    using Assign = TensorAssignOp<TensorType, const decltype(expression)>;
     static_assert(internal::IsTileable<Device, const Assign>::value == internal::TiledEvaluation::On,
                   "Functor forwarding must reach block evaluation");
     static_assert(internal::IsVectorizable<Device, const Assign>::value ==
