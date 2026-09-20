@@ -17,3 +17,5 @@
 #include "cholesky.inc"
 #include "lu.inc"
 #include "svd.inc"
+#include "householder.inc"
+#include "utilities.inc"
