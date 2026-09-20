@@ -21,15 +21,23 @@ bare `$...$` does not render on gitlab.com), display equations go in a fenced ` 
 actual code (`eps`, `numext::maxi`, `nrhs`) stay in code spans; do not dress a code-level statement up in LaTeX, and do
 not invent a symbol for a single sentence.
 
+Show headline before/after measurements in a clear table near the top of performance merge requests. Include the
+measured cases, units, and speedup or change; report regressions as clearly as improvements.
+
 Bulk evidence goes in a collapsible appendix, and only bulk evidence: benchmark tables, validation matrices, ULP
 sweeps, exhaustive case enumerations. Reasoning the reviewer needs in order to judge the change stays on the page.
-Paste raw benchmark output in a fenced block, variance and p-value columns intact, rather than retyping the numbers.
+Use tables for benchmark measurements in appendices too, never raw benchmark dumps. Generate tables from the recorded
+data and retain available variability and statistical information. Raw artifacts may supplement, but do not replace,
+the tables.
 
 ```markdown
 <details>
 <summary>Appendix A: AVX2 benchmark numbers</summary>
 
-...raw output...
+| Case | Before (ns) | After (ns) | Change |
+|---|---:|---:|---:|
+| ... | ... | ... | ... |
+
 </details>
 ```
 
