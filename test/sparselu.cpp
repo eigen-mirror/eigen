@@ -17,6 +17,7 @@
 #endif
 
 #include "sparse_solver.h"
+#include "fp_control.h"
 #include <Eigen/SparseLU>
 
 template <typename T>
@@ -121,6 +122,61 @@ void test_sparselu_clear_error_state() {
   VERIFY(solver.lastErrorMessage().empty());
 }
 
+// A = M diag(1, .., s, .., 1), M = n I + ones, with s and the pivot of the scaled column subnormal: A is well
+// conditioned up to that column scaling, but 1 / pivot overflows, which used to fill the column of L with Inf
+// while info() reported Success. det A = +-2 n^n s, and the solve is judged by its componentwise backward error
+// max_i |b - A x|_i / (|A| |x| + |b|)_i, which a column scaling leaves unchanged.
+template <typename T, typename Ordering>
+void test_sparselu_subnormal_pivot(Index n, Index scaledColumn, const T& phase) {
+  using Real = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
+  using RealVector = Matrix<Real, Dynamic, 1>;
+
+  if (!subnormalDivisionIsExact<Real>() || underflowProbe<Real>() == Real(0)) {
+    std::cout << "SKIP: test_sparselu_subnormal_pivot needs gradual underflow and IEEE 754 division by subnormals."
+              << std::endl;
+    return;
+  }
+
+  // 1 / pivot overflows for |pivot| < min / 4, and the pivot is about (n + 1) s. A subnormal near s carries
+  // only log2(s / denorm_min) bits, hence the unit roundoff u.
+  const Real s = (std::numeric_limits<Real>::min)() / Real(32);
+  const Real u = numext::maxi(NumTraits<Real>::epsilon(), (std::numeric_limits<Real>::denorm_min)() / s);
+  const Real tolerance = Real(16 * n) * u;
+  Real detM = Real(2);
+  for (Index i = 0; i < n; ++i) detM *= Real(n);
+
+  for (int swap = 0; swap < 2; ++swap) {
+    DenseMatrix dense = DenseMatrix::Ones(n, n);
+    dense.diagonal().array() += T(Real(n));
+    dense.col(scaledColumn) *= T(s) * phase;
+    if (swap) dense.row(0).swap(dense.row(1));
+    // Inserted explicitly: sparseView() prunes on a squared magnitude, which underflows here.
+    SparseMatrix<T> sparse(n, n);
+    sparse.reserve(VectorXi::Constant(n, int(n)));
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i) sparse.insert(i, j) = dense(i, j);
+    sparse.makeCompressed();
+
+    SparseLU<SparseMatrix<T>, Ordering> lu(sparse);
+    VERIFY_IS_EQUAL(lu.info(), Success);
+
+    const T expectedDet = T(swap ? -detM : detM) * T(s) * phase;
+    VERIFY(numext::abs(lu.determinant() - expectedDet) <= tolerance * numext::abs(expectedDet));
+
+    // x = (.., 2^-10 / s, ..) keeps both A x and the solution representable.
+    DenseVector x = DenseVector::Ones(n);
+    x(scaledColumn) = T(Real(1) / (Real(1024) * s));
+    const DenseVector b = dense * x;
+    x = lu.solve(b);
+    VERIFY(x.allFinite());
+    const RealVector residual = (b - dense * x).cwiseAbs();
+    const RealVector scale = dense.cwiseAbs() * x.cwiseAbs() + b.cwiseAbs();
+    VERIFY((residual.array() <= tolerance * scale.array()).all());
+  }
+}
+
 EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_1(test_sparselu_T<float>());
   CALL_SUBTEST_2(test_sparselu_T<double>());
@@ -132,4 +188,13 @@ EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_8(test_sparselu_colmajor_uncompressed_input<double>());
   CALL_SUBTEST_9(test_sparselu_clear_error_state<float>());
   CALL_SUBTEST_10(test_sparselu_clear_error_state<double>());
+  // The scaled column leads a supernode (0) or lies inside one (1); COLAMD is free to move it.
+  for (Index scaledColumn = 0; scaledColumn < 2; ++scaledColumn) {
+    CALL_SUBTEST_9((test_sparselu_subnormal_pivot<float, NaturalOrdering<int> >(4, scaledColumn, 1.0f)));
+    CALL_SUBTEST_9((test_sparselu_subnormal_pivot<float, COLAMDOrdering<int> >(2, scaledColumn, 1.0f)));
+    CALL_SUBTEST_10((test_sparselu_subnormal_pivot<double, NaturalOrdering<int> >(4, scaledColumn, 1.0)));
+    CALL_SUBTEST_10((test_sparselu_subnormal_pivot<double, COLAMDOrdering<int> >(2, scaledColumn, 1.0)));
+    CALL_SUBTEST_10((test_sparselu_subnormal_pivot<std::complex<double>, NaturalOrdering<int> >(
+        4, scaledColumn, std::complex<double>(0, 1))));
+  }
 }

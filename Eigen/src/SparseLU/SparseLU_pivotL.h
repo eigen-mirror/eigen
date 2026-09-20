@@ -125,9 +125,15 @@ Index SparseLUImpl<Scalar, StorageIndex>::pivotL(const Index jcol, const RealSca
       std::swap(lu_sup_ptr[itemp], lu_sup_ptr[nsupc + icol * lda]);
     }
   }
-  // cdiv operations
-  Scalar temp = Scalar(1.0) / lu_col_ptr[nsupc];
-  for (k = nsupc + 1; k < nsupr; k++) lu_col_ptr[k] *= temp;
+  // cdiv operations. As in LAPACK's xGETF2: below the smallest normal number the
+  // reciprocal of the pivot may overflow, so divide instead.
+  const Scalar pivot = lu_col_ptr[nsupc];
+  if (numext::abs(pivot) >= (std::numeric_limits<RealScalar>::min)()) {
+    const Scalar temp = Scalar(1.0) / pivot;
+    for (k = nsupc + 1; k < nsupr; k++) lu_col_ptr[k] *= temp;
+  } else {
+    for (k = nsupc + 1; k < nsupr; k++) lu_col_ptr[k] /= pivot;
+  }
   return 0;
 }
 
