@@ -210,34 +210,85 @@ void boolRedux(Index rows, Index cols) {
   }
 }
 
+// Compare the vectorized reductions of v against scalar references. v_for_prod carries the same
+// values shifted near one, so that prod() neither underflows (float) nor overflows (int).
+template <typename VecType>
+void redux_vec_boundary_check(const VecType& v, const VecType& v_for_prod) {
+  typedef typename VecType::Scalar Scalar;
+  const Index n = v.size();
+  Scalar ref_sum(0), ref_prod(1);
+  typename NumTraits<Scalar>::Real ref_min = numext::real(v(0)), ref_max = numext::real(v(0));
+  for (Index k = 0; k < n; ++k) {
+    ref_sum += v(k);
+    ref_prod *= v_for_prod(k);
+    ref_min = (std::min)(ref_min, numext::real(v(k)));
+    ref_max = (std::max)(ref_max, numext::real(v(k)));
+  }
+  VERIFY_IS_APPROX(v.sum(), ref_sum);
+  VERIFY_IS_APPROX(v_for_prod.prod(), ref_prod);
+  VERIFY_IS_APPROX(v.real().minCoeff(), ref_min);
+  VERIFY_IS_APPROX(v.real().maxCoeff(), ref_max);
+}
+
 // Test reductions at sizes that hit vectorization boundaries in Redux.h:
-// LinearVectorizedTraversal with 2-way unrolled packet loop, scalar pre/post loops.
+// LinearVectorizedTraversal with a 4-way unrolled packet loop, scalar pre/post loops.
 template <typename Scalar>
 void redux_vec_boundary() {
   const Index PS = internal::packet_traits<Scalar>::size;
-  // Critical sizes: around packet multiples and at 2-way unroll boundaries
-  const Index sizes[] = {1,      PS - 1,     PS,         PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1,
-                         3 * PS, 3 * PS + 1, 4 * PS - 1, 4 * PS, 4 * PS + 1, 8 * PS, 8 * PS + 1};
-  for (int si = 0; si < 14; ++si) {
-    const Index n = sizes[si];
+  // Critical sizes: around packet multiples, at the 4-way unroll boundary, and at each of the one-,
+  // two- and three-packet residuals that the 4-way loop leaves to the straight-line merge.
+  const Index sizes[] = {1,          PS - 1, PS,         PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 3 * PS,    3 * PS + 1,
+                         4 * PS - 1, 4 * PS, 4 * PS + 1, 5 * PS, 6 * PS,     7 * PS, 8 * PS,     8 * PS + 1};
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  for (const Index n : sizes) {
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
     Vec v = Vec::Random(n);
     // For prod, use values near 1 to avoid underflow (float) or overflow (int).
     Vec v_for_prod = Vec::Ones(n) + Scalar(typename NumTraits<Scalar>::Real(0.2)) * v;
-    // Reference: scalar loops
-    Scalar ref_sum(0), ref_prod(1);
-    typename NumTraits<Scalar>::Real ref_min = numext::real(v(0)), ref_max = numext::real(v(0));
-    for (Index k = 0; k < n; ++k) {
-      ref_sum += v(k);
-      ref_prod *= v_for_prod(k);
-      ref_min = (std::min)(ref_min, numext::real(v(k)));
-      ref_max = (std::max)(ref_max, numext::real(v(k)));
+    redux_vec_boundary_check(v, v_for_prod);
+
+    // Vec::Random() is always default-aligned, so a Map at a non-zero offset is the only way to
+    // reach alignedStart > 0 together with the 4-way loop.
+    Vec buf = Vec::Random(n + PS);
+    Vec buf_for_prod = Vec::Ones(n + PS) + Scalar(typename NumTraits<Scalar>::Real(0.2)) * buf;
+    for (Index offset = 1; offset < PS; ++offset) {
+      Map<const Vec, Unaligned> mapped(buf.data() + offset, n);
+      Map<const Vec, Unaligned> mapped_for_prod(buf_for_prod.data() + offset, n);
+      redux_vec_boundary_check(mapped, mapped_for_prod);
     }
-    VERIFY_IS_APPROX(v.sum(), ref_sum);
-    VERIFY_IS_APPROX(v_for_prod.prod(), ref_prod);
-    VERIFY_IS_APPROX(v.real().minCoeff(), ref_min);
-    VERIFY_IS_APPROX(v.real().maxCoeff(), ref_max);
+  }
+}
+
+// Test block reductions at sizes that hit the boundaries of SliceVectorizedTraversal in Redux.h:
+// panels of one to eight packets, the 4-way unroll inside a panel and each of its residuals, and
+// the narrow panels whose accumulators have to come from the outer dimension instead.
+template <typename Scalar>
+void redux_block_boundary() {
+  const Index PS = internal::packet_traits<Scalar>::size;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const Index innerSizes[] = {1,      PS - 1, PS,     PS + 1, 2 * PS,     3 * PS,    4 * PS - 1,
+                              4 * PS, 5 * PS, 6 * PS, 7 * PS, 8 * PS - 1, 8 * PS + 1};
+  // Panel counts below, at and above the four the outer-dimension accumulators consume at a time.
+  const Index outerSizes[] = {1, 2, 3, 4, 5, 8, 9};
+  for (const Index rows : innerSizes) {
+    for (const Index cols : outerSizes) {
+      // A strict sub-block keeps the reduction off the linear path.
+      Mat m = Mat::Random(rows + 3, cols + 3);
+      Scalar ref_sum(0);
+      RealScalar ref_min = numext::real(m(0, 0)), ref_max = numext::real(m(0, 0)), ref_sqnorm(0);
+      for (Index j = 0; j < cols; ++j)
+        for (Index i = 0; i < rows; ++i) {
+          ref_sum += m(i, j);
+          ref_sqnorm += numext::abs2(m(i, j));
+          ref_min = (std::min)(ref_min, numext::real(m(i, j)));
+          ref_max = (std::max)(ref_max, numext::real(m(i, j)));
+        }
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).sum(), ref_sum);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).squaredNorm(), ref_sqnorm);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).real().minCoeff(), ref_min);
+      VERIFY_IS_APPROX(m.block(0, 0, rows, cols).real().maxCoeff(), ref_max);
+    }
   }
 }
 
@@ -663,6 +714,9 @@ EIGEN_DECLARE_TEST(redux) {
   // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.
   CALL_SUBTEST_12(redux_vec_boundary<float>());
   CALL_SUBTEST_12(redux_vec_boundary<double>());
+  CALL_SUBTEST_12(redux_block_boundary<float>());
+  CALL_SUBTEST_12(redux_block_boundary<double>());
+  CALL_SUBTEST_12(redux_block_boundary<std::complex<float>>());
 
   // Strided (non-contiguous) reductions.
   CALL_SUBTEST_13(redux_strided<float>());

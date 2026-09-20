@@ -443,24 +443,52 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling> {
             : int(Unaligned);
     constexpr int alignment = plain_enum_max(alignment0, Evaluator::Alignment);
     const Index alignedStart = internal::first_default_aligned(xpr);
-    const Index alignedSize2 = ((size - alignedStart) / (2 * packetSize)) * (2 * packetSize);
-    const Index alignedSize = ((size - alignedStart) / (packetSize)) * (packetSize);
-    const Index alignedEnd2 = alignedStart + alignedSize2;
+    const Index alignedSize4 = numext::round_down(size - alignedStart, 4 * packetSize);
+    const Index alignedSize = numext::round_down(size - alignedStart, packetSize);
+    const Index alignedEnd4 = alignedStart + alignedSize4;
     const Index alignedEnd = alignedStart + alignedSize;
     Scalar res;
     if (alignedSize) {
       PacketScalar packet_res0 = eval.template packet<alignment, PacketScalar>(alignedStart);
-      if (alignedSize > packetSize)  // we have at least two packets to partly unroll the loop
+      if (alignedSize4)  // four independent accumulators keep the loop off the packetOp latency chain
       {
         PacketScalar packet_res1 = eval.template packet<alignment, PacketScalar>(alignedStart + packetSize);
-        for (Index index = alignedStart + 2 * packetSize; index < alignedEnd2; index += 2 * packetSize) {
+        PacketScalar packet_res2 = eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize);
+        PacketScalar packet_res3 = eval.template packet<alignment, PacketScalar>(alignedStart + 3 * packetSize);
+        for (Index index = alignedStart + 4 * packetSize; index < alignedEnd4; index += 4 * packetSize) {
           packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(index));
           packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(index + packetSize));
+          packet_res2 =
+              func.packetOp(packet_res2, eval.template packet<alignment, PacketScalar>(index + 2 * packetSize));
+          packet_res3 =
+              func.packetOp(packet_res3, eval.template packet<alignment, PacketScalar>(index + 3 * packetSize));
         }
 
+        // The one to three leftover packets go into accumulators that are still independent, so they
+        // cost a packetOp each rather than extending the merge below.
+        const Index remSize = alignedSize - alignedSize4;
+        if (remSize >= packetSize) {
+          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedEnd4));
+          if (remSize >= 2 * packetSize) {
+            packet_res1 =
+                func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(alignedEnd4 + packetSize));
+            if (remSize == 3 * packetSize)
+              packet_res2 = func.packetOp(packet_res2,
+                                          eval.template packet<alignment, PacketScalar>(alignedEnd4 + 2 * packetSize));
+          }
+        }
+
+        // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
         packet_res0 = func.packetOp(packet_res0, packet_res1);
-        if (alignedEnd > alignedEnd2)
-          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedEnd2));
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else if (alignedSize > packetSize) {
+        // Two or three packets: straight-line, with none of the trip-count setup a loop would need.
+        packet_res0 =
+            func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + packetSize));
+        if (alignedSize > 2 * packetSize)
+          packet_res0 =
+              func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize));
       }
       res = func.predux(packet_res0);
 
@@ -484,21 +512,89 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
   using Scalar = typename Evaluator::Scalar;
   using PacketType = typename redux_traits<Func, Evaluator>::PacketType;
 
+  static constexpr Index PacketSize = redux_traits<Func, Evaluator>::PacketSize;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE PacketType packetAt(const Evaluator& eval, Index j, Index i) {
+    return eval.template packetByOuterInner<Unaligned, PacketType>(j, i);
+  }
+
   template <typename XprType>
   EIGEN_DEVICE_FUNC static Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
-    constexpr Index packetSize = redux_traits<Func, Evaluator>::PacketSize;
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
-    const Index packetedInnerSize = ((innerSize) / packetSize) * packetSize;
+    const Index packetedInnerSize = numext::round_down(innerSize, PacketSize);
+    const Index quadInnerSize = numext::round_down(innerSize, 4 * PacketSize);
     Scalar res;
     if (packetedInnerSize) {
-      PacketType packet_res = eval.template packet<Unaligned, PacketType>(0, 0);
-      for (Index j = 0; j < outerSize; ++j)
-        for (Index i = (j == 0 ? packetSize : 0); i < packetedInnerSize; i += Index(packetSize))
-          packet_res = func.packetOp(packet_res, eval.template packetByOuterInner<Unaligned, PacketType>(j, i));
+      // A single accumulator leaves one packetOp latency between consecutive iterations, so carry
+      // four of them across the whole (j, i) traversal and merge them once.
+      PacketType packet_res0 = packetAt(eval, 0, 0);
+      if (quadInnerSize) {
+        // Four packets or more per panel: each accumulator takes one packet of every group of four.
+        PacketType packet_res1 = packetAt(eval, 0, PacketSize);
+        PacketType packet_res2 = packetAt(eval, 0, 2 * PacketSize);
+        PacketType packet_res3 = packetAt(eval, 0, 3 * PacketSize);
+        // Every panel has the same number of packets left over, so this is loop-invariant and the
+        // branches on it do not wait on the packet loop below.
+        const Index remSize = packetedInnerSize - quadInnerSize;
+        for (Index j = 0; j < outerSize; ++j) {
+          for (Index i = (j == 0) ? 4 * PacketSize : 0; i < quadInnerSize; i += 4 * PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, i + PacketSize));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, i + 2 * PacketSize));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j, i + 3 * PacketSize));
+          }
+          // This panel's one to three leftover packets, into accumulators that are still
+          // independent of each other.
+          if (remSize >= PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, quadInnerSize));
+            if (remSize >= 2 * PacketSize) {
+              packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, quadInnerSize + PacketSize));
+              if (remSize == 3 * PacketSize)
+                packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, quadInnerSize + 2 * PacketSize));
+            }
+          }
+        }
+        // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else if (outerSize >= 4) {
+        // Panels of one to three packets cannot supply four independent packets, so the
+        // independence comes from the outer dimension: each accumulator takes its own panel.
+        PacketType packet_res1 = packetAt(eval, 1, 0);
+        PacketType packet_res2 = packetAt(eval, 2, 0);
+        PacketType packet_res3 = packetAt(eval, 3, 0);
+        for (Index i = PacketSize; i < packetedInnerSize; i += PacketSize) {
+          packet_res0 = func.packetOp(packet_res0, packetAt(eval, 0, i));
+          packet_res1 = func.packetOp(packet_res1, packetAt(eval, 1, i));
+          packet_res2 = func.packetOp(packet_res2, packetAt(eval, 2, i));
+          packet_res3 = func.packetOp(packet_res3, packetAt(eval, 3, i));
+        }
+        Index j = 4;
+        for (; j + 4 <= outerSize; j += 4)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j + 1, i));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j + 2, i));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j + 3, i));
+          }
+        for (; j < outerSize; ++j)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
 
-      res = func.predux(packet_res);
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else {
+        // Fewer than four narrow panels: at most nine packets in total, not worth a merge.
+        for (Index j = 0; j < outerSize; ++j)
+          for (Index i = (j == 0 ? PacketSize : 0); i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+      }
+
+      res = func.predux(packet_res0);
       for (Index j = 0; j < outerSize; ++j)
         for (Index i = packetedInnerSize; i < innerSize; ++i) res = func(res, eval.coeffByOuterInner(j, i));
     } else  // too small to vectorize anything.
