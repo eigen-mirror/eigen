@@ -198,3 +198,158 @@ static void BM_KroneckerSolveDense(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_KroneckerSolveDense)->Arg(8)->Arg(16)->Arg(32);
+
+// ---- Sparse factors -----------------------------------------------------------
+// I_n (x) A and A (x) I_n for a tridiagonal sparse A of order n: the
+// sparse-factor operator against the materialized sparse Kronecker product, for
+// the matrix-vector product and the one-shot direct solve (SparseLU per call).
+
+using SpMat = SparseMatrix<double>;
+
+static SpMat tridiagonal(Index n) {
+  SpMat A(n, n);
+  A.reserve(VectorXi::Constant(n, 3));
+  for (Index j = 0; j < n; ++j) {
+    if (j > 0) A.insert(j - 1, j) = -1.0;
+    A.insert(j, j) = 2.0;
+    if (j + 1 < n) A.insert(j + 1, j) = -1.0;
+  }
+  A.makeCompressed();
+  return A;
+}
+
+static void BM_KroneckerProductIdentityLeftSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(Vec::Ones(n).asDiagonal(), A);
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityLeftSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+
+static void BM_KroneckerProductIdentityLeftSparseMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  SpMat K;
+  K = makeKroneckerOperator(Vec::Ones(n).asDiagonal(), A);  // materialized once, outside the loop
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityLeftSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+
+static void BM_KroneckerProductIdentityRightSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(A, Vec::Ones(n).asDiagonal());
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityRightSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+
+static void BM_KroneckerProductIdentityRightSparseMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  SpMat K;
+  K = makeKroneckerOperator(A, Vec::Ones(n).asDiagonal());
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+
+static void BM_KroneckerMaterializeSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(Vec::Ones(n).asDiagonal(), A);
+  SpMat M;
+  for (auto _ : state) {
+    M = K;
+    benchmark::DoNotOptimize(M.valuePtr());
+  }
+}
+BENCHMARK(BM_KroneckerMaterializeSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+
+static void BM_KroneckerSolveIdentityLeftSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(Vec::Ones(n).asDiagonal(), A);
+  Vec b = Vec::Random(n * n), x(n * n);
+  for (auto _ : state) {
+    x = K.solve(b);
+    benchmark::DoNotOptimize(x.data());
+  }
+}
+BENCHMARK(BM_KroneckerSolveIdentityLeftSparse)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerSolveIdentityLeftSparseMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  SpMat K;
+  K = makeKroneckerOperator(Vec::Ones(n).asDiagonal(), A);
+  Vec b = Vec::Random(n * n), x(n * n);
+  for (auto _ : state) {
+    SparseLU<SpMat> lu(K);
+    x = lu.solve(b);
+    benchmark::DoNotOptimize(x.data());
+  }
+}
+BENCHMARK(BM_KroneckerSolveIdentityLeftSparseMaterialized)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerSolveIdentityRightSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(A, Vec::Ones(n).asDiagonal());
+  Vec b = Vec::Random(n * n), x(n * n);
+  for (auto _ : state) {
+    x = K.solve(b);
+    benchmark::DoNotOptimize(x.data());
+  }
+}
+BENCHMARK(BM_KroneckerSolveIdentityRightSparse)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerSolveIdentityRightSparseMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  SpMat K;
+  K = makeKroneckerOperator(A, Vec::Ones(n).asDiagonal());
+  Vec b = Vec::Random(n * n), x(n * n);
+  for (auto _ : state) {
+    SparseLU<SpMat> lu(K);
+    x = lu.solve(b);
+    benchmark::DoNotOptimize(x.data());
+  }
+}
+BENCHMARK(BM_KroneckerSolveIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerProductNonFiniteSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A(n, n);
+  for (Index i = 1; i < n; ++i) A.insert(i, i) = 2.0;
+  Mat B = Mat::Identity(2, 2);
+  B(0, 0) = NumTraits<double>::infinity();
+  auto K = makeKroneckerOperator(B, A);
+  Vec x = Vec::Ones(2 * n), y = K * x;
+  Vec expected = Vec::Constant(2 * n, 2.0);
+  expected.head(n).setConstant(NumTraits<double>::infinity());
+  expected[0] = expected[n] = 0.0;  // The empty sparse row annihilates Inf.
+  if (!(y.array() == expected.array()).all()) {
+    state.SkipWithError("non-finite product did not preserve structural zeros");
+    return;
+  }
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductNonFiniteSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
