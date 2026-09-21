@@ -47,6 +47,33 @@ struct coeff_wise {
   }
 };
 
+template <int Order>
+struct scaled_structured_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using Mat = Eigen::Matrix<float, 3, 3, Order>;
+    const Eigen::Map<const Mat> matrix(in + i);
+    Eigen::Map<Mat> result(out + i * 9);
+    result.noalias() = 3.0f * (matrix.template triangularView<Eigen::UnitLower>() * matrix.diagonal().asDiagonal());
+    result += 2.0f * (matrix.diagonal().asDiagonal() * matrix) + Mat::Zero();
+  }
+};
+
+template <int Order>
+struct scaled_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    // More than 16 rows select the scaled outer-product functor.
+    using Lhs = Eigen::Matrix<float, 17, 1>;
+    using Rhs = Eigen::RowVector3f;
+    using ProductImpl =
+        Eigen::internal::generic_product_impl<Lhs, Rhs, Eigen::DenseShape, Eigen::DenseShape, Eigen::OuterProduct>;
+    const Lhs lhs(in + i);
+    const Rhs rhs(in + i + 17);
+    Eigen::Map<Eigen::Matrix<float, 17, 3, Order>> result(out + i * 51);
+    result.setZero();
+    ProductImpl::scaleAndAddTo(result, lhs, rhs, 2.0f);
+  }
+};
+
 struct make_householder_small_tail {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
     Eigen::Vector3f vector;
@@ -338,6 +365,39 @@ struct diagonal {
     res += x1.diagonal();
   }
 };
+
+template <typename T>
+struct jacobi_rotations {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using Scalar = typename T::Scalar;
+    constexpr int size = T::SizeAtCompileTime;
+    const Eigen::JacobiRotation<Scalar> rotation(Scalar(3) / Scalar(5), Scalar(4) / Scalar(5));
+
+    T fixed(in + i);
+    fixed.applyOnTheLeft(0, 1, rotation);
+    fixed.applyOnTheRight(0, 1, rotation);
+    Eigen::Map<T>(out + 2 * i * size) = fixed;
+
+    using DynamicMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, T::Options>;
+    Eigen::Map<DynamicMatrix> dynamic(out + (2 * i + 1) * size, T::RowsAtCompileTime, T::ColsAtCompileTime);
+    dynamic = T(in + i);
+    dynamic.applyOnTheLeft(0, 1, rotation);
+    dynamic.applyOnTheRight(0, 1, rotation);
+  }
+};
+
+template <typename Scalar, int Options>
+void test_jacobi_rotations() {
+  constexpr int n = 4;
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * 512), out(n * 512);
+  in.setRandom();
+  out.setZero();
+
+  // Sizes 3, 4 and 9 cover scalar fallback, aligned packets, and dynamic packets with a tail.
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 3, 3, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 4, 4, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 9, 9, Options>>(), n, in, out);
+}
 
 template <typename T>
 struct eigenvalues_direct {
@@ -646,6 +706,10 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix3f, Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix4f, Vector4f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<ColMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<ColMajor>(), nthreads, in, out));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));
@@ -653,6 +717,11 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix2f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix4f>(), nthreads, in, out));
+
+  CALL_SUBTEST((test_jacobi_rotations<float, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<float, RowMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, RowMajor>()));
 
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix2f>(), nthreads, in, out));

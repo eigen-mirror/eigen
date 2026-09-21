@@ -43,7 +43,38 @@ struct evaluator<Product<Lhs, Rhs, Options>> : public product_evaluator<Product<
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
-// Catch "scalar * ( A * B )" and transform it to "(A*scalar) * B"
+// A scalar factor cannot be folded into a unit diagonal or a permutation.
+template <typename Lhs, typename Shape = typename evaluator_traits<Lhs>::Shape>
+struct product_can_fold_scalar
+    : bool_constant<std::is_same<Shape, DenseShape>::value || std::is_same<Shape, SparseShape>::value ||
+                    std::is_same<Shape, DiagonalShape>::value || std::is_same<Shape, SelfAdjointShape>::value> {};
+
+template <typename Lhs>
+struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
+
+// The lazy selfadjoint/diagonal evaluator would conjugate a folded complex factor.
+template <typename Lhs, typename Rhs>
+struct product_evaluator_can_fold_scalar
+    : bool_constant<product_can_fold_scalar<Lhs>::value &&
+                    !(std::is_same<typename evaluator_traits<Lhs>::Shape, SelfAdjointShape>::value &&
+                      std::is_same<typename evaluator_traits<Rhs>::Shape, DiagonalShape>::value)> {};
+
+template <typename Xpr,
+          bool Fold = product_evaluator_can_fold_scalar<typename Xpr::Rhs::Lhs, typename Xpr::Rhs::Rhs>::value>
+struct scaled_product_evaluator_type {
+  // The assignment kernel extracts selfadjoint factors; materializing also protects nested aliases.
+  using type = std::conditional_t<product_can_fold_scalar<typename Xpr::Rhs::Lhs>::value, evaluator<EvalToTemp<Xpr>>,
+                                  binary_evaluator<Xpr>>;
+};
+
+template <typename Xpr>
+struct scaled_product_evaluator_type<Xpr, true> {
+  using type =
+      evaluator<remove_all_t<decltype((std::declval<Xpr>().lhs().functor().m_other * std::declval<Xpr>().rhs().lhs()) *
+                                      std::declval<Xpr>().rhs().rhs())>>;
+};
+
+// Catch "scalar * ( A * B )" and transform it to "(scalar*A) * B"
 // TODO: we should apply that rule only if that's really helpful
 template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typename Plain1>
 struct evaluator_assume_aliasing<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
@@ -53,16 +84,20 @@ template <typename Lhs, typename Rhs, typename Scalar1, typename Scalar2, typena
 struct evaluator<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                const Product<Lhs, Rhs, DefaultProduct>>>
-    : public evaluator<Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs,
-                               DefaultProduct>> {
+    : scaled_product_evaluator_type<CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
+                                                  const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
+                                                  const Product<Lhs, Rhs, DefaultProduct>>>::type {
   using XprType = CwiseBinaryOp<internal::scalar_product_op<Scalar1, Scalar2>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<Scalar1>, Plain1>,
                                 const Product<Lhs, Rhs, DefaultProduct>>;
-  using Base = evaluator<
-      Product<EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(Scalar1, Lhs, internal::scalar_product_op), Rhs, DefaultProduct>>;
+  using Base = typename scaled_product_evaluator_type<XprType>::type;
 
+  template <bool Fold = product_evaluator_can_fold_scalar<Lhs, Rhs>::value, std::enable_if_t<Fold, int> = 0>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr)
       : Base(xpr.lhs().functor().m_other * xpr.rhs().lhs() * xpr.rhs().rhs()) {}
+
+  template <bool Fold = product_evaluator_can_fold_scalar<Lhs, Rhs>::value, std::enable_if_t<!Fold, int> = 0>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit evaluator(const XprType& xpr) : Base(xpr) {}
 };
 
 template <typename Lhs, typename Rhs, int DiagIndex>
@@ -174,7 +209,7 @@ struct Assignment<DstXprType,
                   CwiseBinaryOp<internal::scalar_product_op<ScalarBis, Scalar>,
                                 const CwiseNullaryOp<internal::scalar_constant_op<ScalarBis>, Plain>,
                                 const Product<Lhs, Rhs, DefaultProduct>>,
-                  AssignFunc, Dense2Dense> {
+                  AssignFunc, Dense2Dense, std::enable_if_t<product_can_fold_scalar<Lhs>::value>> {
   using SrcXprType = CwiseBinaryOp<internal::scalar_product_op<ScalarBis, Scalar>,
                                    const CwiseNullaryOp<internal::scalar_constant_op<ScalarBis>, Plain>,
                                    const Product<Lhs, Rhs, DefaultProduct>>;
@@ -345,7 +380,7 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   struct adds {
     Scalar m_scale;
     /** Constructor */
-    explicit adds(const Scalar& s) : m_scale(s) {}
+    EIGEN_DEVICE_FUNC explicit adds(const Scalar& s) : m_scale(s) {}
     /** Scaled add to dst. */
     template <typename Dst, typename Src>
     void EIGEN_DEVICE_FUNC operator()(const Dst& dst, const Src& src) const {
