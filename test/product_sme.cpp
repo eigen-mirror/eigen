@@ -247,6 +247,85 @@ static Scalar pack_sentinel() {
   return pack_sentinel_impl<Scalar>::run();
 }
 
+// ---------------------------------------------------------------------------
+// NEON small-block path: sme_gebp_neon called directly on hand-packed panels,
+// over every row, column and depth tail of the tile ladder, both conjugation
+// flags, a non-trivial alpha, panel-mode stride/offset and a general-stride C.
+// ---------------------------------------------------------------------------
+template <typename Scalar, bool ConjLhs, bool ConjRhs>
+static void verify_neon_small_block(Index rows, Index cols, Index depth, bool panel_mode, bool strided_c) {
+  const Index MR = sme_mr<Scalar>();
+  const Index NR = sme_nr<Scalar>();
+  const Index strideA = panel_mode ? depth + 3 : depth;
+  const Index strideB = panel_mode ? depth + 5 : depth;
+  const Index offsetA = panel_mode ? 2 : 0;
+  const Index offsetB = panel_mode ? 1 : 0;
+  const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(rows, depth);
+  const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, cols);
+
+  SmeVector<Scalar> packedA =
+      SmeVector<Scalar>::Constant((rows + MR) * strideA + offsetA * MR, pack_sentinel<Scalar>());
+  SmeVector<Scalar> packedB =
+      SmeVector<Scalar>::Constant((cols + NR) * strideB + offsetB * NR, pack_sentinel<Scalar>());
+  for (Index i = 0; i < rows; i += MR) {
+    const Index w = numext::mini(MR, rows - i);
+    for (Index k = 0; k < depth; ++k)
+      for (Index r = 0; r < w; ++r) set_packed(packedA.data() + i * strideA + offsetA * w, w, k, r, A(i + r, k));
+  }
+  for (Index j = 0; j < cols; j += NR) {
+    const Index w = numext::mini(NR, cols - j);
+    for (Index k = 0; k < depth; ++k)
+      for (Index c = 0; c < w; ++c) set_packed(packedB.data() + j * strideB + offsetB * w, w, k, c, B(k, j + c));
+  }
+
+  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
+  const Index rs = strided_c ? 2 : 1;
+  const Index cs = strided_c ? 3 * rows : rows;
+  SmeVector<Scalar> storage = SmeVector<Scalar>::Random(cs * cols);
+  SmeColMajorStridedMat<Scalar> C(storage.data(), rows, cols, Stride<Dynamic, Dynamic>(cs, rs));
+  const SmeColMajorMat<Scalar> c_before = C;
+  const SmeVector<Scalar> storage_before = storage;
+
+  internal::sme_gebp_neon<Scalar, ConjLhs, ConjRhs, Index>(storage.data(), rs, cs, packedA.data(), packedB.data(), rows,
+                                                           depth, cols, alpha, strideA, strideB, offsetA, offsetB);
+
+  const SmeColMajorMat<Scalar> Ac = ConjLhs ? A.conjugate().eval() : A;
+  const SmeColMajorMat<Scalar> Bc = ConjRhs ? B.conjugate().eval() : B;
+  const SmeColMajorMat<Scalar> ref = c_before + alpha * Ac.lazyProduct(Bc);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), ref);
+
+  // Cells the strided map skips stay untouched.
+  if (strided_c) {
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i)
+        VERIFY_IS_EQUAL(storage(j * cs + i * rs + 1), storage_before(j * cs + i * rs + 1));
+  }
+}
+
+template <typename Scalar>
+static void test_neon_small_blocks() {
+  const Index PS = Index(internal::packet_traits<typename NumTraits<Scalar>::Real>::size);
+  const Index MR = sme_mr<Scalar>();
+  const Index NR = sme_nr<Scalar>();
+  const Index widths[] = {1, 2, 3, PS, PS + 1, 2 * PS + 1, 4 * PS, 4 * PS + 3, MR - 1, MR, MR + 1, 2 * MR + 5};
+  const Index col_widths[] = {1, 2, 3, 4, 5, 9, NR - 1, NR, NR + 1, 2 * NR + 2};
+  const Index depths[] = {1, 2, 3, 4, 5, 8, 9, 35};
+  for (Index rows : widths) {
+    for (Index cols : col_widths) {
+      for (Index depth : depths) {
+        const bool panel_mode = (rows + cols + depth) % 2 == 0;
+        const bool strided_c = (rows + depth) % 3 == 0;
+        verify_neon_small_block<Scalar, false, false>(rows, cols, depth, panel_mode, strided_c);
+        if (NumTraits<Scalar>::IsComplex) {
+          verify_neon_small_block<Scalar, true, false>(rows, cols, depth, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, false, true>(rows, cols, depth, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, true, true>(rows, cols, depth, panel_mode, strided_c);
+        }
+      }
+    }
+  }
+}
+
 // Lower-triangular n x n operand plus the dense selfadjoint reference the packer
 // must emit. The unused triangle is filled with the sentinel so a packer that
 // copies the dense matrix and never mirrors fails VERIFY_IS_EQUAL.
@@ -606,7 +685,9 @@ static void test_pack_direct() {
   // Widths around the tile side and both panel widths, which differ for
   // complex scalars.
   const int widths[] = {1, TILE - 1, TILE, TILE + 1, MR, MR + 1, NR, NR + 1, 2 * NR + 1};
-  const int depths[] = {1, 3, 8, 35};
+  // Depths up to sme_neon_max_depth (24 / 16 / 16 / 8 by scalar) reach pack_neon,
+  // the deeper ones the streaming pack_direct and its predicated tails.
+  const int depths[] = {1, 3, 8, 9, 17, 25, 27, 35};
   for (int d : depths) {
     for (int n : widths) {
       sweep_pack_direct<Scalar, ColMajor>(n, d);
@@ -776,6 +857,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_symm_pack<float>());
   CALL_SUBTEST_1(test_pack_direct<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
+  CALL_SUBTEST_1(test_neon_small_blocks<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -787,6 +869,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_symm_pack<double>());
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
+  CALL_SUBTEST_2(test_neon_small_blocks<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
@@ -794,6 +877,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_symm_pack<std::complex<float>>());
   CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
+  CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -803,6 +887,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_symm_pack<std::complex<double>>());
   CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
+  CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the

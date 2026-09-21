@@ -114,6 +114,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    temporary buffers, dynamic memory allocation is employed as a fall back; setting the limit to 0 disables stack
    allocation for them, so every such temporary is heap-allocated. For fixed-size matrices or arrays, exceeding this
    threshold raises a compile time assertion; there, 0 disables the check. Default is 128 KB.
+ - \b \c EIGEN_STACK_ALIGN_BYTES - alignment of the internal temporary buffers allocated on the stack. Defaults to
+   \c EIGEN_DEFAULT_ALIGN_BYTES, except in ARM SME builds where it is 64: the SME GEMM kernel reads its packed panels a
+   streaming vector at a time and slows by 35-50% when they straddle 64-byte lines. It does not affect the ABI.
  - \b \c EIGEN_NO_CUDA - disables CUDA support when defined. Might be useful in .cu files for which Eigen is used on the host only,
    and never called from device code.
  - \b \c EIGEN_NO_HIP - disables HIP support when defined. Analogous to \c EIGEN_NO_CUDA for AMD's HIP compiler.
@@ -127,6 +130,12 @@ run time. However, these assertions do cost time and can thus be turned off.
  - \b \c EIGEN_SME_MAX_KC - Maximum depth (k) blocking size used by the ARM SME GEMM kernel, expressed in \c float
    elements and scaled by the scalar width for wider types. The default (2048) is empirically tuned for Apple M4;
    override to retune for other SME implementations.
+ - \b \c EIGEN_SME_NEON_MAX_DEPTH, \c EIGEN_SME_NEON_MAX_PANEL, \c EIGEN_SME_NEON_MAX_WIDTH, \c EIGEN_SME_NEON_SHALLOW_DEPTH,
+   \c EIGEN_SME_NEON_SHALLOW_WIDTH, \c EIGEN_SME_NEON_THIN_DIM - Bounds below which the ARM SME GEMM backend packs
+   and multiplies a block with NEON instead of the ZA tiles (panels no deeper than the depth bound and no wider than
+   the panel bound; a block of such panels no wider than the width bound, or the shallow width up to the shallow
+   depth, or narrower than the thin bound on one side). One value overrides the per-scalar defaults, which are fitted
+   for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs.
  - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME GEMM kernel, which needs the optional
    FEAT_SME_F64F64 extension. %Eigen enables it whenever the compiler reports that extension; define this macro when
    the build target is wider than the run target, so that \c double keeps the generic kernel.

@@ -768,21 +768,33 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
  */
 #if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
 
-#if EIGEN_DEFAULT_ALIGN_BYTES > 0
+// Stack temporaries hold the GEMM packed panels. The SME kernel loads them a
+// streaming vector at a time and runs 35-50% slower when they straddle
+// 64-byte lines, so SME builds align them to that rather than to the ABI's
+// EIGEN_DEFAULT_ALIGN_BYTES.
+#ifndef EIGEN_STACK_ALIGN_BYTES
+#if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
+#define EIGEN_STACK_ALIGN_BYTES 64
+#else
+#define EIGEN_STACK_ALIGN_BYTES EIGEN_DEFAULT_ALIGN_BYTES
+#endif
+#endif
+
+#if EIGEN_STACK_ALIGN_BYTES > 0
 // We always manually re-align the result of EIGEN_ALLOCA.
 // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
 
 #if ((EIGEN_COMP_GNUC || EIGEN_COMP_CLANG) && !EIGEN_COMP_NVHPC && !EIGEN_COMP_ICC)
-#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_DEFAULT_ALIGN_BYTES)
+#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_STACK_ALIGN_BYTES)
 #else
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* ptr) {
-  constexpr std::uintptr_t mask = EIGEN_DEFAULT_ALIGN_BYTES - 1;
+  constexpr std::uintptr_t mask = EIGEN_STACK_ALIGN_BYTES - 1;
   std::uintptr_t ptr_int = std::uintptr_t(ptr);
   std::uintptr_t aligned_ptr_int = (ptr_int + mask) & ~mask;
   std::uintptr_t offset = aligned_ptr_int - ptr_int;
   return static_cast<void*>(static_cast<uint8_t*>(ptr) + offset);
 }
-#define EIGEN_ALIGNED_ALLOCA(SIZE) eigen_aligned_alloca_helper(EIGEN_ALLOCA(SIZE + EIGEN_DEFAULT_ALIGN_BYTES - 1))
+#define EIGEN_ALIGNED_ALLOCA(SIZE) eigen_aligned_alloca_helper(EIGEN_ALLOCA(SIZE + EIGEN_STACK_ALIGN_BYTES - 1))
 #endif
 
 #else

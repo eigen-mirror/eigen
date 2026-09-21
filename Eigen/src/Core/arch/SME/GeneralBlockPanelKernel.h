@@ -589,6 +589,82 @@ static void tail_transpose_pack(std::complex<RealScalar>* EIGEN_RESTRICT dst_pan
                                       tail);
 }
 
+// De-interleaving load and interleaving store of PS complex values.
+static EIGEN_ALWAYS_INLINE void sme_neon_ld2(const float* p, Packet4f& re, Packet4f& im) {
+  const float32x4x2_t v = vld2q_f32(p);
+  re = v.val[0];
+  im = v.val[1];
+}
+static EIGEN_ALWAYS_INLINE void sme_neon_st2(float* p, Packet4f re, Packet4f im) {
+  float32x4x2_t v;
+  v.val[0] = re;
+  v.val[1] = im;
+  vst2q_f32(p, v);
+}
+static EIGEN_ALWAYS_INLINE void sme_neon_ld2(const double* p, Packet2d& re, Packet2d& im) {
+  const float64x2x2_t v = vld2q_f64(p);
+  re = v.val[0];
+  im = v.val[1];
+}
+static EIGEN_ALWAYS_INLINE void sme_neon_st2(double* p, Packet2d re, Packet2d im) {
+  float64x2x2_t v;
+  v.val[0] = re;
+  v.val[1] = im;
+  vst2q_f64(p, v);
+}
+
+// NEON copy packers for the direct-access, unit-stride case: dst[k*w + r] =
+// src[r + k*src_stride], w contiguous scalars per depth step; complex panels
+// split into the depth step's real then imaginary halves, conjugated if asked.
+template <bool Conjugate, typename Scalar, typename Index>
+static void neon_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src, Index src_stride, Index depth,
+                            Index w) {
+  using Packet = typename packet_traits<Scalar>::type;
+  constexpr Index PS = Index(packet_traits<Scalar>::size);
+  const Index peeled4 = (w / (4 * PS)) * (4 * PS);
+  const Index peeled = (w / PS) * PS;
+  for (Index k = 0; k < depth; ++k) {
+    const Scalar* s = src + k * src_stride;
+    Scalar* d = dst + k * w;
+    Index r = 0;
+    for (; r < peeled4; r += 4 * PS) {
+      const Packet p0 = ploadu<Packet>(s + r), p1 = ploadu<Packet>(s + r + PS);
+      const Packet p2 = ploadu<Packet>(s + r + 2 * PS), p3 = ploadu<Packet>(s + r + 3 * PS);
+      pstoreu(d + r, p0);
+      pstoreu(d + r + PS, p1);
+      pstoreu(d + r + 2 * PS, p2);
+      pstoreu(d + r + 3 * PS, p3);
+    }
+    for (; r < peeled; r += PS) pstoreu(d + r, ploadu<Packet>(s + r));
+    for (; r < w; ++r) d[r] = s[r];
+  }
+}
+template <bool Conjugate, typename RealScalar, typename Index>
+static void neon_copy_panel(std::complex<RealScalar>* EIGEN_RESTRICT dst,
+                            const std::complex<RealScalar>* EIGEN_RESTRICT src, Index src_stride, Index depth,
+                            Index w) {
+  using Packet = typename packet_traits<RealScalar>::type;
+  constexpr Index PS = Index(packet_traits<RealScalar>::size);
+  RealScalar* rd = reinterpret_cast<RealScalar*>(dst);
+  const RealScalar* rs = reinterpret_cast<const RealScalar*>(src);
+  const Index peeled = (w / PS) * PS;
+  for (Index k = 0; k < depth; ++k) {
+    const RealScalar* s = rs + k * 2 * src_stride;
+    RealScalar* d = rd + k * 2 * w;
+    Index r = 0;
+    for (; r < peeled; r += PS) {
+      Packet re, im;
+      sme_neon_ld2(s + 2 * r, re, im);
+      pstoreu(d + r, re);
+      pstoreu(d + w + r, Conjugate ? pnegate(im) : im);
+    }
+    for (; r < w; ++r) {
+      d[r] = s[2 * r];
+      d[w + r] = Conjugate ? -s[2 * r + 1] : s[2 * r + 1];
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Generic (mapper-based) packing fallback.
 //
@@ -742,26 +818,144 @@ void sme_pack_rhs_fallback(Scalar* dst_base, const DataMapper& rhs, Index depth,
   }
 }
 
+// NEON dispatch invariant, constants fitted on Apple M4 (SVL 512). Packers: panel depth (the stride in
+// panel mode) <= sme_neon_max_depth && width <= sme_neon_max_panel. Kernel: both sides pass the packer
+// test with strideA / strideB as the panel depths && (max(rows, cols) <= w(depth) || min <= thin_dim).
+// So a NEON kernel reads NEON-packed panels, and ZA over NEON-packed panels (~40 ns/KB) is bounded by
+// sme_neon_max_panel; the exception is SYRK, which packs B at the full size but runs 32x32 diagonal blocks.
+#ifndef EIGEN_SME_NEON_MAX_DEPTH
+template <typename Scalar>
+struct sme_neon_max_depth : std::integral_constant<int, 16> {};
+template <>
+struct sme_neon_max_depth<float> : std::integral_constant<int, 24> {};
+template <>
+struct sme_neon_max_depth<std::complex<double>> : std::integral_constant<int, 8> {};
+#else
+template <typename Scalar>
+struct sme_neon_max_depth : std::integral_constant<int, EIGEN_SME_NEON_MAX_DEPTH> {};
+#endif
+#ifndef EIGEN_SME_NEON_MAX_WIDTH
+template <typename Scalar>
+struct sme_neon_max_width : std::integral_constant<int, 48> {};
+template <>
+struct sme_neon_max_width<double> : std::integral_constant<int, 40> {};
+template <>
+struct sme_neon_max_width<std::complex<float>> : std::integral_constant<int, 16> {};
+template <>
+struct sme_neon_max_width<std::complex<double>> : std::integral_constant<int, 24> {};
+#else
+template <typename Scalar>
+struct sme_neon_max_width : std::integral_constant<int, EIGEN_SME_NEON_MAX_WIDTH> {};
+#endif
+// Up to sme_neon_shallow_depth the NEON range widens to sme_neon_shallow_width:
+// the blocked decompositions update sub-blocks of that depth in place, at
+// offsets the ZA slice stores handle poorly.
+#ifndef EIGEN_SME_NEON_SHALLOW_DEPTH
+template <typename Scalar>
+struct sme_neon_shallow_depth : std::integral_constant<int, 8> {};
+#else
+template <typename Scalar>
+struct sme_neon_shallow_depth : std::integral_constant<int, EIGEN_SME_NEON_SHALLOW_DEPTH> {};
+#endif
+#ifndef EIGEN_SME_NEON_SHALLOW_WIDTH
+template <typename Scalar>
+struct sme_neon_shallow_width : std::integral_constant<int, 96> {};
+template <>
+struct sme_neon_shallow_width<double> : std::integral_constant<int, 64> {};
+template <>
+struct sme_neon_shallow_width<std::complex<float>> : std::integral_constant<int, 32> {};
+template <>
+struct sme_neon_shallow_width<std::complex<double>> : std::integral_constant<int, 24> {};
+#else
+template <typename Scalar>
+struct sme_neon_shallow_width : std::integral_constant<int, EIGEN_SME_NEON_SHALLOW_WIDTH> {};
+#endif
+// No panel wider than this is packed with NEON at any depth: the triangular solvers slice a tall
+// panel into depth-8 pieces for ZA. The packers cannot mirror the kernel's width rule, or a thin
+// block's wide side would be streaming-packed and read by NEON, the costly direction; the price is
+// a shallow panel in (w, this] read by ZA, 1.4x the streaming-packed time at 128x128x16 float.
+#ifndef EIGEN_SME_NEON_MAX_PANEL
+template <typename Scalar>
+struct sme_neon_max_panel : std::integral_constant<int, 256> {};
+template <typename RealScalar>
+struct sme_neon_max_panel<std::complex<RealScalar>> : std::integral_constant<int, 128> {};
+#else
+template <typename Scalar>
+struct sme_neon_max_panel : std::integral_constant<int, EIGEN_SME_NEON_MAX_PANEL> {};
+#endif
+// A block this narrow on one side runs on NEON whatever its other side: the
+// blocked decompositions update long strips of that width in place.
+#ifndef EIGEN_SME_NEON_THIN_DIM
+template <typename Scalar>
+struct sme_neon_thin_dim : std::integral_constant<int, 32> {};
+template <>
+struct sme_neon_thin_dim<std::complex<float>> : std::integral_constant<int, 8> {};
+template <>
+struct sme_neon_thin_dim<std::complex<double>> : std::integral_constant<int, 4> {};
+#else
+template <typename Scalar>
+struct sme_neon_thin_dim : std::integral_constant<int, EIGEN_SME_NEON_THIN_DIM> {};
+#endif
+
+// `width` is the panel's rows (LHS) or cols (RHS).
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_pack_with_neon(Index depth, Index width) {
+#if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS)
+  EIGEN_UNUSED_VARIABLE(depth);
+  EIGEN_UNUSED_VARIABLE(width);
+  return false;
+#elif defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS)
+  EIGEN_UNUSED_VARIABLE(depth);
+  EIGEN_UNUSED_VARIABLE(width);
+  return true;
+#else
+  return depth <= Index(sme_neon_max_depth<Scalar>::value) && width <= Index(sme_neon_max_panel<Scalar>::value);
+#endif
+}
+
+// strideA / strideB are the packed panels' depths, which exceed `depth` when
+// the caller packed them in panel mode and runs the kernel on a slice.
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_kernel_with_neon(Index rows, Index cols, Index depth, Index strideA, Index strideB) {
+#if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS) || defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS)
+  EIGEN_UNUSED_VARIABLE(depth);
+  return sme_pack_with_neon<Scalar>(strideA, rows) && sme_pack_with_neon<Scalar>(strideB, cols);
+#else
+  const Index wide = numext::maxi(rows, cols);
+  const Index w = depth <= Index(sme_neon_shallow_depth<Scalar>::value) ? Index(sme_neon_shallow_width<Scalar>::value)
+                                                                        : Index(sme_neon_max_width<Scalar>::value);
+  return sme_pack_with_neon<Scalar>(strideA, rows) && sme_pack_with_neon<Scalar>(strideB, cols) &&
+         (wide <= w || numext::mini(rows, cols) <= Index(sme_neon_thin_dim<Scalar>::value));
+#endif
+}
+
 // Shared dispatch for the four gemm_pack specializations: raw-pointer walk
 // when the mapper grants direct unit-inner-stride access, otherwise the
 // packet/element fallback. Tag-dispatched so &m(0,0) is only compiled for
 // lvalue mappers. UsePacketPath records whether the mapper's packets advance
 // the index the fallback needs, independently of its direct-access category.
-template <bool UsePacketPath, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
-          typename FallbackFn>
-EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn direct, FallbackFn fallback, Scalar* block, const DataMapper& m,
-                                           Index depth, Index n, Index stride, Index offset,
+// In panel mode the call packs one depth slice of a panel `stride` deep that the
+// kernel consumes whole (the triangular solvers and TRMM), so the mode decision
+// uses the panel's depth, not the slice's.
+template <bool UsePacketPath, bool PanelMode, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
+          typename NeonFn, typename FallbackFn>
+EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn direct, NeonFn neon, FallbackFn fallback, Scalar* block,
+                                           const DataMapper& m, Index depth, Index n, Index stride, Index offset,
                                            std::true_type /* direct access */) {
   if (sme_mapper_incr<Index>(m) == 1) {
     const Scalar* src = (n > 0 && depth > 0) ? &m(0, 0) : nullptr;
-    direct(block, src, m.stride(), depth, n, stride, offset);
+    if (sme_pack_with_neon<Scalar>(PanelMode ? stride : depth, n)) {
+      neon(block, src, m.stride(), depth, n, stride, offset);
+    } else {
+      direct(block, src, m.stride(), depth, n, stride, offset);
+    }
   } else {
     fallback(block, m, depth, n, stride, offset, UsePacketPath);
   }
 }
-template <bool UsePacketPath, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
-          typename FallbackFn>
-EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn, FallbackFn fallback, Scalar* block, const DataMapper& m,
+template <bool UsePacketPath, bool PanelMode, typename Scalar, typename Index, typename DataMapper, typename DirectFn,
+          typename NeonFn, typename FallbackFn>
+EIGEN_ALWAYS_INLINE void sme_dispatch_pack(DirectFn, NeonFn, FallbackFn fallback, Scalar* block, const DataMapper& m,
                                            Index depth, Index n, Index stride, Index offset,
                                            std::false_type /* no direct access */) {
   fallback(block, m, depth, n, stride, offset, UsePacketPath);
@@ -887,6 +1081,17 @@ static_assert(int(gebp_traits<double, std::complex<double>>::nr) != kSmeNrCD,
 
 template <typename Scalar, int MR, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct sme_pack_lhs_colmajor {
+  // Non-streaming NEON copy of every panel, for the shallow blocks the NEON
+  // kernel consumes.
+  static EIGEN_ALWAYS_INLINE void pack_neon(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
+                                            Index depth, Index rows, Index dst_stride, Index dst_offset) {
+    for (Index i = 0; i < rows; i += MR) {
+      const Index w = numext::mini(Index(MR), rows - i);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * w : dst_base + i * depth;
+      neon_copy_panel<Conjugate>(dst_panel, src + i, src_stride, depth, w);
+    }
+  }
+
   __arm_locally_streaming static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
                                                   Index depth, Index rows, Index dst_stride, Index dst_offset) {
     const Index peeled_rows = (rows / MR) * MR;
@@ -913,9 +1118,9 @@ struct sme_pack_lhs_colmajor {
     }
     // Inner-strided ColMajor blas mappers' packets advance the row index, so
     // the fallback may use them.
-    sme_dispatch_pack<true>(&pack_direct, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>,
-                            blockA, lhs, depth, rows, stride, offset,
-                            bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
+    sme_dispatch_pack<true, PanelMode>(
+        &pack_direct, &pack_neon, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>, blockA,
+        lhs, depth, rows, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -929,6 +1134,17 @@ struct sme_pack_lhs_colmajor {
 // sme_transpose_pack).
 template <typename Scalar, int MR, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct sme_pack_lhs_rowmajor {
+  // Non-streaming NEON copy of every panel, for the shallow blocks the NEON
+  // kernel consumes.
+  static EIGEN_ALWAYS_INLINE void pack_neon(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
+                                            Index depth, Index rows, Index dst_stride, Index dst_offset) {
+    for (Index i = 0; i < rows; i += MR) {
+      const Index w = numext::mini(Index(MR), rows - i);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * w : dst_base + i * depth;
+      tail_transpose_pack<Conjugate>(dst_panel, src + i * src_stride, src_stride, depth, w);
+    }
+  }
+
   __arm_locally_streaming __arm_new("za") static void pack_full_panels(Scalar* dst_base,
                                                                        const Scalar* EIGEN_RESTRICT src,
                                                                        Index src_stride, Index depth, Index peeled_rows,
@@ -968,9 +1184,9 @@ struct sme_pack_lhs_rowmajor {
     // Inner-strided RowMajor blas mappers' packets advance the depth index, not
     // the row index, so the fallback must stay scalar (see
     // sme_pack_lhs_fallback).
-    sme_dispatch_pack<false>(&pack_direct, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>,
-                             blockA, lhs, depth, rows, stride, offset,
-                             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
+    sme_dispatch_pack<false, PanelMode>(
+        &pack_direct, &pack_neon, &sme_pack_lhs_fallback<Scalar, MR, Index, DataMapper, Conjugate, PanelMode>, blockA,
+        lhs, depth, rows, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -985,6 +1201,17 @@ struct sme_pack_lhs_rowmajor {
 
 template <typename Scalar, int NR, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct sme_pack_rhs_colmajor {
+  // Non-streaming NEON copy of every panel, for the shallow blocks the NEON
+  // kernel consumes.
+  static EIGEN_ALWAYS_INLINE void pack_neon(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
+                                            Index depth, Index cols, Index dst_stride, Index dst_offset) {
+    for (Index i = 0; i < cols; i += NR) {
+      const Index w = numext::mini(Index(NR), cols - i);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * w : dst_base + i * depth;
+      tail_transpose_pack<Conjugate>(dst_panel, src + i * src_stride, src_stride, depth, w);
+    }
+  }
+
   __arm_locally_streaming __arm_new("za") static void pack_full_panels(Scalar* dst_base,
                                                                        const Scalar* EIGEN_RESTRICT src,
                                                                        Index src_stride, Index depth, Index peeled_cols,
@@ -1022,9 +1249,9 @@ struct sme_pack_rhs_colmajor {
     }
     // Inner-strided ColMajor blas mappers' LinearMapper packets advance the
     // depth index, which is what the fallback transposes.
-    sme_dispatch_pack<true>(&pack_direct, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>,
-                            blockB, rhs, depth, cols, stride, offset,
-                            bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
+    sme_dispatch_pack<true, PanelMode>(
+        &pack_direct, &pack_neon, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>, blockB,
+        rhs, depth, cols, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -1032,6 +1259,17 @@ struct sme_pack_rhs_colmajor {
 // Rows are contiguous in the source, so each depth-step is NR contiguous scalars.
 template <typename Scalar, int NR, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct sme_pack_rhs_rowmajor {
+  // Non-streaming NEON copy of every panel, for the shallow blocks the NEON
+  // kernel consumes.
+  static EIGEN_ALWAYS_INLINE void pack_neon(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
+                                            Index depth, Index cols, Index dst_stride, Index dst_offset) {
+    for (Index i = 0; i < cols; i += NR) {
+      const Index w = numext::mini(Index(NR), cols - i);
+      Scalar* dst_panel = PanelMode ? dst_base + i * dst_stride + dst_offset * w : dst_base + i * depth;
+      neon_copy_panel<Conjugate>(dst_panel, src + i, src_stride, depth, w);
+    }
+  }
+
   __arm_locally_streaming static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
                                                   Index depth, Index cols, Index dst_stride, Index dst_offset) {
     const Index peeled_cols = (cols / NR) * NR;
@@ -1057,9 +1295,9 @@ struct sme_pack_rhs_rowmajor {
     // Inner-strided RowMajor blas mappers' LinearMapper packets advance the
     // column index, not depth, so the fallback must stay scalar (see
     // sme_pack_rhs_fallback).
-    sme_dispatch_pack<false>(&pack_direct, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>,
-                             blockB, rhs, depth, cols, stride, offset,
-                             bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
+    sme_dispatch_pack<false, PanelMode>(
+        &pack_direct, &pack_neon, &sme_pack_rhs_fallback<Scalar, NR, Index, DataMapper, Conjugate, PanelMode>, blockB,
+        rhs, depth, cols, stride, offset, bool_constant<sme_mapper_has_direct_access<DataMapper, Index>::value>{});
   }
 };
 
@@ -1636,6 +1874,403 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
   }
 }
 
+// NEON path for small blocks: a shallow block pays the ZA enable and a dependent FMOPA chain per
+// tile for little work, so its panels are consumed with NEON in the SME layout (one depth step is
+// pw contiguous scalars, complex ones as pw reals then pw imaginaries).
+// The NCol columns of one depth step, loaded once; each column is then an
+// immediate lane of a fused multiply-add (nmadd: acc - a * b[lane]).
+template <typename Scalar, int NCol>
+struct sme_neon_cols;
+template <>
+struct sme_neon_cols<float, 4> {
+  using Vec = float32x4_t;
+  static EIGEN_ALWAYS_INLINE Vec load(const float* b) { return vld1q_f32(b); }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f madd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmaq_laneq_f32(acc, a, b, C);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f nmadd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmsq_laneq_f32(acc, a, b, C);
+  }
+};
+template <>
+struct sme_neon_cols<float, 2> {
+  using Vec = float32x2_t;
+  static EIGEN_ALWAYS_INLINE Vec load(const float* b) { return vld1_f32(b); }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f madd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmaq_lane_f32(acc, a, b, C);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f nmadd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmsq_lane_f32(acc, a, b, C);
+  }
+};
+template <>
+struct sme_neon_cols<float, 1> {
+  using Vec = float32x4_t;
+  static EIGEN_ALWAYS_INLINE Vec load(const float* b) { return vld1q_dup_f32(b); }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f madd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmaq_f32(acc, a, b);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f nmadd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmsq_f32(acc, a, b);
+  }
+};
+template <>
+struct sme_neon_cols<double, 4> {
+  struct Vec {
+    float64x2_t lo, hi;
+  };
+  static EIGEN_ALWAYS_INLINE Vec load(const double* b) { return {vld1q_f64(b), vld1q_f64(b + 2)}; }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d madd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmaq_laneq_f64(acc, a, C < 2 ? b.lo : b.hi, C & 1);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d nmadd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmsq_laneq_f64(acc, a, C < 2 ? b.lo : b.hi, C & 1);
+  }
+};
+template <>
+struct sme_neon_cols<double, 2> {
+  using Vec = float64x2_t;
+  static EIGEN_ALWAYS_INLINE Vec load(const double* b) { return vld1q_f64(b); }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d madd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmaq_laneq_f64(acc, a, b, C);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d nmadd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmsq_laneq_f64(acc, a, b, C);
+  }
+};
+template <>
+struct sme_neon_cols<double, 1> {
+  using Vec = float64x2_t;
+  static EIGEN_ALWAYS_INLINE Vec load(const double* b) { return vld1q_dup_f64(b); }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d madd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmaq_f64(acc, a, b);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d nmadd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmsq_f64(acc, a, b);
+  }
+};
+
+template <>
+struct sme_neon_cols<float, 8> {
+  struct Vec {
+    float32x4_t lo, hi;
+  };
+  static EIGEN_ALWAYS_INLINE Vec load(const float* b) { return {vld1q_f32(b), vld1q_f32(b + 4)}; }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f madd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmaq_laneq_f32(acc, a, C < 4 ? b.lo : b.hi, C & 3);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet4f nmadd(Packet4f acc, Packet4f a, Vec b) {
+    return vfmsq_laneq_f32(acc, a, C < 4 ? b.lo : b.hi, C & 3);
+  }
+};
+template <>
+struct sme_neon_cols<double, 8> {
+  struct Vec {
+    float64x2_t v[4];
+  };
+  static EIGEN_ALWAYS_INLINE Vec load(const double* b) {
+    return {{vld1q_f64(b), vld1q_f64(b + 2), vld1q_f64(b + 4), vld1q_f64(b + 6)}};
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d madd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmaq_laneq_f64(acc, a, b.v[C >> 1], C & 1);
+  }
+  template <int C>
+  static EIGEN_ALWAYS_INLINE Packet2d nmadd(Packet2d acc, Packet2d a, Vec b) {
+    return vfmsq_laneq_f64(acc, a, b.v[C >> 1], C & 1);
+  }
+};
+
+// Compile-time loop over the columns of a tile (lane numbers are immediates).
+template <int C, int NCol>
+struct sme_neon_col_loop {
+  template <typename Cols, typename Packet, int NPack>
+  static EIGEN_ALWAYS_INLINE void real(Packet (&acc)[NPack][NCol], const Packet (&av)[NPack], typename Cols::Vec b) {
+    for (int p = 0; p < NPack; ++p) acc[p][C] = Cols::template madd<C>(acc[p][C], av[p], b);
+    sme_neon_col_loop<C + 1, NCol>::template real<Cols, Packet, NPack>(acc, av, b);
+  }
+  template <bool ConjLhs, bool ConjRhs, typename Cols, typename Packet, int NPack>
+  static EIGEN_ALWAYS_INLINE void cplx(Packet (&acc_re)[NPack][NCol], Packet (&acc_im)[NPack][NCol],
+                                       const Packet (&are)[NPack], const Packet (&aim)[NPack], typename Cols::Vec bre,
+                                       typename Cols::Vec bim) {
+    for (int p = 0; p < NPack; ++p) {
+      acc_re[p][C] = Cols::template madd<C>(acc_re[p][C], are[p], bre);
+      acc_re[p][C] = (ConjLhs != ConjRhs) ? Cols::template madd<C>(acc_re[p][C], aim[p], bim)
+                                          : Cols::template nmadd<C>(acc_re[p][C], aim[p], bim);
+      acc_im[p][C] = ConjLhs ? Cols::template nmadd<C>(acc_im[p][C], aim[p], bre)
+                             : Cols::template madd<C>(acc_im[p][C], aim[p], bre);
+      acc_im[p][C] = ConjRhs ? Cols::template nmadd<C>(acc_im[p][C], are[p], bim)
+                             : Cols::template madd<C>(acc_im[p][C], are[p], bim);
+    }
+    sme_neon_col_loop<C + 1, NCol>::template cplx<ConjLhs, ConjRhs, Cols, Packet, NPack>(acc_re, acc_im, are, aim, bre,
+                                                                                         bim);
+  }
+};
+template <int NCol>
+struct sme_neon_col_loop<NCol, NCol> {
+  template <typename Cols, typename Packet, int NPack>
+  static EIGEN_ALWAYS_INLINE void real(Packet (&)[NPack][NCol], const Packet (&)[NPack], typename Cols::Vec) {}
+  template <bool ConjLhs, bool ConjRhs, typename Cols, typename Packet, int NPack>
+  static EIGEN_ALWAYS_INLINE void cplx(Packet (&)[NPack][NCol], Packet (&)[NPack][NCol], const Packet (&)[NPack],
+                                       const Packet (&)[NPack], typename Cols::Vec, typename Cols::Vec) {}
+};
+
+// One (NPack * PacketSize) x NCol micro-tile of a real block; NPack == 0 is a
+// single scalar row. Pointers arrive offset to the tile's first row and column.
+template <typename Scalar, typename Index, int NPack, int NCol>
+struct sme_neon_tile {
+  using Packet = typename packet_traits<Scalar>::type;
+  using Cols = sme_neon_cols<Scalar, NCol>;
+  static constexpr int PS = packet_traits<Scalar>::size;
+  // Narrow tiles split the depth over KU accumulator chains to hide FMA latency.
+  static constexpr int KU = (NPack * NCol >= 4) ? 1 : 4 / (NPack * NCol);
+  static EIGEN_ALWAYS_INLINE void step(Packet (&acc)[NPack][NCol], const Scalar* a, const Scalar* b) {
+    Packet av[NPack];
+    for (int p = 0; p < NPack; ++p) av[p] = ploadu<Packet>(a + p * PS);
+    sme_neon_col_loop<0, NCol>::template real<Cols, Packet, NPack>(acc, av, Cols::load(b));
+  }
+  static EIGEN_ALWAYS_INLINE void run(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB, Index depth,
+                                      Scalar alpha, Index pw, Index cw) {
+    Packet acc[KU][NPack][NCol];
+    for (int u = 0; u < KU; ++u)
+      for (int p = 0; p < NPack; ++p)
+        for (int c = 0; c < NCol; ++c) acc[u][p][c] = pset1<Packet>(Scalar(0));
+    Index k = 0;
+    for (; k + KU <= depth; k += KU) {
+      for (int u = 0; u < KU; ++u) step(acc[u], blA + (k + u) * pw, blB + (k + u) * cw);
+    }
+    for (; k < depth; ++k) step(acc[0], blA + k * pw, blB + k * cw);
+    for (int u = 1; u < KU; ++u)
+      for (int p = 0; p < NPack; ++p)
+        for (int c = 0; c < NCol; ++c) acc[0][p][c] = padd(acc[0][p][c], acc[u][p][c]);
+    const Packet valpha = pset1<Packet>(alpha);
+    for (int c = 0; c < NCol; ++c) {
+      for (int p = 0; p < NPack; ++p) {
+        Scalar* pc = C + Index(p * PS) * rs + Index(c) * cs;
+        if (rs == 1) {
+          pstoreu(pc, pmadd(acc[0][p][c], valpha, ploadu<Packet>(pc)));
+        } else {
+          pscatter<Scalar, Packet>(pc, pmadd(acc[0][p][c], valpha, pgather<Scalar, Packet>(pc, rs)), rs);
+        }
+      }
+    }
+  }
+};
+
+template <typename Scalar, typename Index, int NCol>
+struct sme_neon_tile<Scalar, Index, 0, NCol> {
+  static EIGEN_ALWAYS_INLINE void run(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB, Index depth,
+                                      Scalar alpha, Index pw, Index cw) {
+    EIGEN_UNUSED_VARIABLE(rs);
+    constexpr int KU = (NCol >= 4) ? 1 : 4 / NCol;
+    Scalar acc[KU][NCol];
+    for (int u = 0; u < KU; ++u)
+      for (int c = 0; c < NCol; ++c) acc[u][c] = Scalar(0);
+    Index k = 0;
+    for (; k + KU <= depth; k += KU) {
+      for (int u = 0; u < KU; ++u) {
+        const Scalar a = blA[(k + u) * pw];
+        const Scalar* b = blB + (k + u) * cw;
+        for (int c = 0; c < NCol; ++c) acc[u][c] += a * b[c];
+      }
+    }
+    for (; k < depth; ++k) {
+      const Scalar a = blA[k * pw];
+      const Scalar* b = blB + k * cw;
+      for (int c = 0; c < NCol; ++c) acc[0][c] += a * b[c];
+    }
+    for (int u = 1; u < KU; ++u)
+      for (int c = 0; c < NCol; ++c) acc[0][c] += acc[u][c];
+    for (int c = 0; c < NCol; ++c) C[Index(c) * cs] += alpha * acc[0][c];
+  }
+};
+
+// Complex counterpart over the real view of the panels. Conjugation is folded
+// into the signs of the four real products.
+template <typename RealScalar, typename Index, bool ConjLhs, bool ConjRhs, int NPack, int NCol>
+struct sme_neon_ctile {
+  using Scalar = std::complex<RealScalar>;
+  using Packet = typename packet_traits<RealScalar>::type;
+  using Cols = sme_neon_cols<RealScalar, NCol>;
+  static constexpr int PS = packet_traits<RealScalar>::size;
+  static EIGEN_ALWAYS_INLINE void run(Scalar* C, Index rs, Index cs, const RealScalar* rA, const RealScalar* rB,
+                                      Index depth, Scalar alpha, Index pw, Index cw) {
+    Packet acc_re[NPack][NCol], acc_im[NPack][NCol];
+    for (int p = 0; p < NPack; ++p) {
+      for (int c = 0; c < NCol; ++c) {
+        acc_re[p][c] = pset1<Packet>(RealScalar(0));
+        acc_im[p][c] = pset1<Packet>(RealScalar(0));
+      }
+    }
+    for (Index k = 0; k < depth; ++k) {
+      const RealScalar* a = rA + k * 2 * pw;
+      const RealScalar* b = rB + k * 2 * cw;
+      Packet are[NPack], aim[NPack];
+      for (int p = 0; p < NPack; ++p) {
+        are[p] = ploadu<Packet>(a + p * PS);
+        aim[p] = ploadu<Packet>(a + pw + p * PS);
+      }
+      sme_neon_col_loop<0, NCol>::template cplx<ConjLhs, ConjRhs, Cols, Packet, NPack>(
+          acc_re, acc_im, are, aim, Cols::load(b), Cols::load(b + cw));
+    }
+    const RealScalar ar = numext::real(alpha), ai = numext::imag(alpha);
+    const Packet valpha_re = pset1<Packet>(ar), valpha_im = pset1<Packet>(ai);
+    for (int c = 0; c < NCol; ++c) {
+      for (int p = 0; p < NPack; ++p) {
+        RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(p * PS) * rs + Index(c) * cs);
+        if (rs == 1) {
+          // Unit row stride: the column is PS interleaved (re, im) pairs.
+          Packet cre, cim;
+          sme_neon_ld2(pc, cre, cim);
+          cre = pnmadd(valpha_im, acc_im[p][c], pmadd(valpha_re, acc_re[p][c], cre));
+          cim = pmadd(valpha_im, acc_re[p][c], pmadd(valpha_re, acc_im[p][c], cim));
+          sme_neon_st2(pc, cre, cim);
+        } else {
+          RealScalar re[PS], im[PS];
+          pstoreu(re, acc_re[p][c]);
+          pstoreu(im, acc_im[p][c]);
+          for (int l = 0; l < PS; ++l) {
+            RealScalar* pl = pc + Index(l) * 2 * rs;
+            pl[0] += ar * re[l] - ai * im[l];
+            pl[1] += ar * im[l] + ai * re[l];
+          }
+        }
+      }
+    }
+  }
+};
+
+template <typename RealScalar, typename Index, bool ConjLhs, bool ConjRhs, int NCol>
+struct sme_neon_ctile<RealScalar, Index, ConjLhs, ConjRhs, 0, NCol> {
+  using Scalar = std::complex<RealScalar>;
+  static EIGEN_ALWAYS_INLINE void run(Scalar* C, Index rs, Index cs, const RealScalar* rA, const RealScalar* rB,
+                                      Index depth, Scalar alpha, Index pw, Index cw) {
+    EIGEN_UNUSED_VARIABLE(rs);
+    constexpr int KU = (NCol >= 4) ? 1 : 4 / NCol;
+    RealScalar acc_re[KU][NCol], acc_im[KU][NCol];
+    for (int u = 0; u < KU; ++u)
+      for (int c = 0; c < NCol; ++c) acc_re[u][c] = acc_im[u][c] = RealScalar(0);
+    for (Index k = 0; k < depth; ++k) {
+      const int u = int(k % KU);
+      const RealScalar* a = rA + k * 2 * pw;
+      const RealScalar* b = rB + k * 2 * cw;
+      const RealScalar are = a[0], aim = ConjLhs ? -a[pw] : a[pw];
+      for (int c = 0; c < NCol; ++c) {
+        const RealScalar bre = b[c], bim = ConjRhs ? -b[cw + c] : b[cw + c];
+        acc_re[u][c] += are * bre - aim * bim;
+        acc_im[u][c] += are * bim + aim * bre;
+      }
+    }
+    for (int u = 1; u < KU; ++u)
+      for (int c = 0; c < NCol; ++c) {
+        acc_re[0][c] += acc_re[u][c];
+        acc_im[0][c] += acc_im[u][c];
+      }
+    const RealScalar ar = numext::real(alpha), ai = numext::imag(alpha);
+    for (int c = 0; c < NCol; ++c) {
+      RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(c) * cs);
+      pc[0] += ar * acc_re[0][c] - ai * acc_im[0][c];
+      pc[1] += ar * acc_im[0][c] + ai * acc_re[0][c];
+    }
+  }
+};
+
+// Row loop of one column group: 3, 2 and 1 packets of rows, then scalar rows.
+template <bool ConjLhs, bool ConjRhs, int NCol, typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_neon_column_group(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
+                                               Index depth, Scalar alpha, Index pw, Index cw) {
+  constexpr Index PS = Index(packet_traits<Scalar>::size);
+  Index r = 0;
+  for (; r + 3 * PS <= pw; r += 3 * PS)
+    sme_neon_tile<Scalar, Index, 3, NCol>::run(C + r * rs, rs, cs, blA + r, blB, depth, alpha, pw, cw);
+  for (; r + 2 * PS <= pw; r += 2 * PS)
+    sme_neon_tile<Scalar, Index, 2, NCol>::run(C + r * rs, rs, cs, blA + r, blB, depth, alpha, pw, cw);
+  for (; r + PS <= pw; r += PS)
+    sme_neon_tile<Scalar, Index, 1, NCol>::run(C + r * rs, rs, cs, blA + r, blB, depth, alpha, pw, cw);
+  for (; r < pw; ++r)
+    sme_neon_tile<Scalar, Index, 0, NCol>::run(C + r * rs, rs, cs, blA + r, blB, depth, alpha, pw, cw);
+}
+
+template <bool ConjLhs, bool ConjRhs, int NCol, typename RealScalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_neon_column_group(std::complex<RealScalar>* C, Index rs, Index cs, const RealScalar* rA,
+                                               const RealScalar* rB, Index depth, std::complex<RealScalar> alpha,
+                                               Index pw, Index cw) {
+  // Two accumulators per packet, so the ladder stops at two packets of rows.
+  constexpr Index PS = Index(packet_traits<RealScalar>::size);
+  Index r = 0;
+  for (; r + 2 * PS <= pw; r += 2 * PS)
+    sme_neon_ctile<RealScalar, Index, ConjLhs, ConjRhs, 2, NCol>::run(C + r * rs, rs, cs, rA + r, rB, depth, alpha, pw,
+                                                                      cw);
+  for (; r + PS <= pw; r += PS)
+    sme_neon_ctile<RealScalar, Index, ConjLhs, ConjRhs, 1, NCol>::run(C + r * rs, rs, cs, rA + r, rB, depth, alpha, pw,
+                                                                      cw);
+  for (; r < pw; ++r)
+    sme_neon_ctile<RealScalar, Index, ConjLhs, ConjRhs, 0, NCol>::run(C + r * rs, rs, cs, rA + r, rB, depth, alpha, pw,
+                                                                      cw);
+}
+
+// One pw x cw block: columns in groups of eight, four, two, then single columns.
+template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_neon_block(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
+                                        Index depth, Scalar alpha, Index pw, Index cw) {
+  Index c = 0;
+  for (; c + 8 <= cw; c += 8)
+    sme_neon_column_group<ConjLhs, ConjRhs, 8>(C + c * cs, rs, cs, blA, blB + c, depth, alpha, pw, cw);
+  for (; c + 4 <= cw; c += 4)
+    sme_neon_column_group<ConjLhs, ConjRhs, 4>(C + c * cs, rs, cs, blA, blB + c, depth, alpha, pw, cw);
+  for (; c + 2 <= cw; c += 2)
+    sme_neon_column_group<ConjLhs, ConjRhs, 2>(C + c * cs, rs, cs, blA, blB + c, depth, alpha, pw, cw);
+  for (; c < cw; ++c)
+    sme_neon_column_group<ConjLhs, ConjRhs, 1>(C + c * cs, rs, cs, blA, blB + c, depth, alpha, pw, cw);
+}
+
+template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
+EIGEN_ALWAYS_INLINE void sme_neon_block(std::complex<RealScalar>* C, Index rs, Index cs,
+                                        const std::complex<RealScalar>* blA, const std::complex<RealScalar>* blB,
+                                        Index depth, std::complex<RealScalar> alpha, Index pw, Index cw) {
+  const RealScalar* rA = reinterpret_cast<const RealScalar*>(blA);
+  const RealScalar* rB = reinterpret_cast<const RealScalar*>(blB);
+  Index c = 0;
+  for (; c + 4 <= cw; c += 4)
+    sme_neon_column_group<ConjLhs, ConjRhs, 4>(C + c * cs, rs, cs, rA, rB + c, depth, alpha, pw, cw);
+  for (; c + 2 <= cw; c += 2)
+    sme_neon_column_group<ConjLhs, ConjRhs, 2>(C + c * cs, rs, cs, rA, rB + c, depth, alpha, pw, cw);
+  for (; c < cw; ++c) sme_neon_column_group<ConjLhs, ConjRhs, 1>(C + c * cs, rs, cs, rA, rB + c, depth, alpha, pw, cw);
+}
+
+// Same panel walk as sme_gebp_impl, outside any streaming region.
+template <typename Scalar, bool ConjLhs, bool ConjRhs, typename Index>
+EIGEN_ALWAYS_INLINE void sme_gebp_neon(Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA,
+                                       const Scalar* blockB, Index rows, Index depth, Index cols, Scalar alpha,
+                                       Index strideA, Index strideB, Index offsetA, Index offsetB) {
+  constexpr Index MR = Index(sme_block<Scalar>::mr);
+  constexpr Index NR = Index(sme_block<Scalar>::nr);
+  for (Index j = 0; j < cols; j += NR) {
+    const Index cw = numext::mini(cols - j, NR);
+    const Scalar* blB = blockB + j * strideB + offsetB * cw;
+    for (Index i = 0; i < rows; i += MR) {
+      const Index pw = numext::mini(rows - i, MR);
+      const Scalar* blA = blockA + i * strideA + offsetA * pw;
+      sme_neon_block<ConjLhs, ConjRhs>(C + i * C_stride_row + j * C_stride_col, C_stride_row, C_stride_col, blA, blB,
+                                       depth, alpha, pw, cw);
+    }
+  }
+}
+
 template <typename Scalar, typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct sme_gebp_kernel {
   using ResScalar = Scalar;
@@ -1658,6 +2293,12 @@ struct sme_gebp_kernel {
     Scalar* C_base = const_cast<Scalar*>(&res(0, 0));
     const Index C_stride_row = &res(1, 0) - &res(0, 0);
     const Index C_stride_col = &res(0, 1) - &res(0, 0);
+
+    if (sme_kernel_with_neon<Scalar>(rows, cols, depth, strideA, strideB)) {
+      sme_gebp_neon<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
+                                                        cols, alpha, strideA, strideB, offsetA, offsetB);
+      return;
+    }
 
     sme_gebp_impl<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
                                                       cols, alpha, strideA, strideB, offsetA, offsetB);
