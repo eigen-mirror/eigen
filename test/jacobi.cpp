@@ -91,7 +91,7 @@ void jacobi_makegivens_safe_scaling() {
   const Scalar rtmax = sqrt(safmax / Scalar(2));
   const Scalar one(1);
   const Scalar two(2);
-  const Scalar half(0.5);
+  const Scalar half(0.5L);
 
   // Safe-range cases (regression — must keep existing fast path working).
   verify_makeGivens<Scalar>(Scalar(0), Scalar(0));
@@ -124,6 +124,81 @@ void jacobi_makegivens_safe_scaling() {
   // Mixed: subnormal and near-overflow simultaneously.
   verify_makeGivens<Scalar>(safmin, rtmax);
   verify_makeGivens<Scalar>(rtmax, safmin);
+}
+
+template <typename Scalar>
+void jacobi_makegivens_subnormal() {
+  const Scalar minimum = (std::numeric_limits<Scalar>::min)();
+  const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
+  JacobiRotation<Scalar> zero;
+  zero.makeGivens(-Scalar(0), Scalar(0));
+  VERIFY_IS_EQUAL(zero.c(), Scalar(1));
+  VERIFY_IS_EQUAL(zero.s(), Scalar(0));
+  for (Scalar scale : {minimum, Scalar(minimum / Scalar(16)), tiny}) {
+    for (int i = -3; i <= 3; ++i) {
+      for (int j = -3; j <= 3; ++j) {
+        if (i == 0 && j == 0) continue;
+        const Scalar p = i == 0 ? -Scalar(0) : Scalar(i) * scale;
+        const Scalar q = Scalar(j) * scale;
+        const long double expected = std::sqrt(static_cast<long double>(i * i + j * j));
+        for (int mode = 0; mode < 4; ++mode) {
+          JacobiRotation<Scalar> rotation, withoutR;
+          Scalar r;
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+    (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
+          {
+            struct RestoreMxcsr {
+              unsigned saved = _mm_getcsr();
+              ~RestoreMxcsr() { _mm_setcsr(saved); }
+            } restore;
+            const unsigned mask = _MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
+            const unsigned requested = ((mode & 1) ? _MM_FLUSH_ZERO_ON : 0) | ((mode & 2) ? _MM_DENORMALS_ZERO_ON : 0);
+            _mm_setcsr((restore.saved & ~mask) | requested);
+            VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+            rotation.makeGivens(p, q, &r);
+            withoutR.makeGivens(p, q);
+            VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+          }
+#else
+          if (mode > 1) continue;
+          if (mode == 1) {
+            ScopedFlushToZero flush;
+            if (!flush.isSupported()) continue;
+            rotation.makeGivens(p, q, &r);
+            withoutR.makeGivens(p, q);
+          } else {
+            rotation.makeGivens(p, q, &r);
+            withoutR.makeGivens(p, q);
+          }
+#endif
+          const long double c = static_cast<long double>(rotation.c()), s = static_cast<long double>(rotation.s());
+          const long double tolerance = 16 * static_cast<long double>(NumTraits<Scalar>::epsilon());
+          VERIFY(numext::abs(c * c + s * s - 1) <= tolerance);
+          VERIFY(numext::abs(s * i + c * j) <= tolerance * expected);
+          VERIFY(numext::abs(c * i - s * j - expected) <= tolerance * expected);
+          VERIFY_IS_EQUAL(rotation.c(), withoutR.c());
+          VERIFY_IS_EQUAL(rotation.s(), withoutR.s());
+          const long double normalizedR = static_cast<long double>(r) / static_cast<long double>(scale);
+          const long double quantum = static_cast<long double>(tiny) / static_cast<long double>(scale);
+          VERIFY(normalizedR > 0);
+          VERIFY(numext::abs(normalizedR - expected) <= tolerance * expected + quantum / 2);
+          if (i == 0 || j == 0) VERIFY_IS_EQUAL(r, numext::abs(i == 0 ? q : p));
+        }
+      }
+    }
+  }
+  const Scalar maximum = NumTraits<Scalar>::highest();
+  verify_makeGivens(Scalar(maximum / Scalar(2)), Scalar(maximum / Scalar(3)));
+  JacobiRotation<Scalar> overflow, withoutR;
+  Scalar r;
+  overflow.makeGivens(maximum, maximum, &r);
+  withoutR.makeGivens(maximum, maximum);
+  VERIFY((numext::isinf)(r));
+  VERIFY_IS_EQUAL(overflow.c(), withoutR.c());
+  VERIFY_IS_EQUAL(overflow.s(), withoutR.s());
+  VERIFY(numext::abs(overflow.c() + overflow.s()) <= NumTraits<Scalar>::epsilon());
+  VERIFY(numext::abs(overflow.c() * overflow.c() + overflow.s() * overflow.s() - Scalar(1)) <=
+         Scalar(8) * NumTraits<Scalar>::epsilon());
 }
 
 template <typename Scalar>
@@ -228,7 +303,10 @@ void jacobi_makejacobi_ratio_boundaries() {
 EIGEN_DECLARE_TEST(jacobi) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<float>()));
+    CALL_SUBTEST_7((jacobi_makegivens_subnormal<float>()));
+    CALL_SUBTEST_7((jacobi_makegivens_subnormal<double>()));
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<double>()));
+    CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<long double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<float>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<float>()));

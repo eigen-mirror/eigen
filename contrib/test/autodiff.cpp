@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include <Eigen/Jacobi>
 #include <contrib/Eigen/AutoDiff>
 
 template <typename Scalar>
@@ -344,6 +345,31 @@ void test_autodiff_selfadjoint_l1norm() {
   VERIFY(llt.info() == Success);
 }
 
+template <typename Derivatives>
+void test_autodiff_makegivens() {
+  using AD = AutoDiffScalar<Derivatives>;
+  // Exercise both ratio branches and compare analytical first derivatives.
+  for (int swap = 0; swap < 2; ++swap) {
+    const double x = swap ? 4.0 : 3.0;
+    const double y = swap ? 3.0 : 4.0;
+    const AD p(x, Derivatives(Vector2d::UnitX()));
+    const AD q(y, Derivatives(Vector2d::UnitY()));
+    AD r;
+    JacobiRotation<AD> rotation;
+    rotation.makeGivens(p, q, &r);
+    VERIFY_IS_APPROX(rotation.c().value(), x / 5.0);
+    VERIFY_IS_APPROX(rotation.s().value(), -y / 5.0);
+    VERIFY_IS_APPROX(r.value(), 5.0);
+    VERIFY_IS_APPROX(r.derivatives(), Vector2d(x / 5.0, y / 5.0));
+    VERIFY_IS_APPROX(rotation.c().derivatives(), Vector2d(y * y / 125.0, -x * y / 125.0));
+    VERIFY_IS_APPROX(rotation.s().derivatives(), Vector2d(x * y / 125.0, -x * x / 125.0));
+    JacobiRotation<AD> without_norm;
+    without_norm.makeGivens(p, q);
+    VERIFY_IS_APPROX(without_norm.c().derivatives(), rotation.c().derivatives());
+    VERIFY_IS_APPROX(without_norm.s().derivatives(), rotation.s().derivatives());
+  }
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<1>());
@@ -358,4 +384,6 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(bug_1261());
   CALL_SUBTEST_5(bug_1281());
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
+  CALL_SUBTEST_6(test_autodiff_makegivens<Vector2d>());
+  CALL_SUBTEST_6(test_autodiff_makegivens<VectorXd>());
 }

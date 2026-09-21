@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include "twoprod_helpers.h"
+#include "fp_control.h"
 
 #if EIGEN_COMP_MSVC
 #include <cfenv>
@@ -594,8 +595,78 @@ void check_strict_equal() {
 
   VERIFY(numext::is_exactly_zero(zero));
   VERIFY(!numext::is_exactly_zero(one));
+  VERIFY(numext::is_exactly_zero_no_flush(zero));
+  VERIFY(!numext::is_exactly_zero_no_flush(one));
   VERIFY(numext::is_exactly_one(one));
   VERIFY(!numext::is_exactly_one(zero));
+}
+
+void check_zero_no_flush_custom_scalar() {
+  struct EqualityOnly {
+    explicit EqualityOnly(int x) : value(x) {}
+    ~EqualityOnly() {}  // Non-trivially-copyable: encoding-based classification must not be instantiated.
+    bool operator==(const EqualityOnly& other) const { return value == other.value; }
+    int value;
+  };
+  VERIFY(numext::is_exactly_zero_no_flush(EqualityOnly(0)));
+  VERIFY(!numext::is_exactly_zero_no_flush(EqualityOnly(1)));
+}
+
+template <typename Scalar>
+EIGEN_DONT_INLINE bool zero_no_flush_predicate(Scalar value) {
+  return numext::is_exactly_zero_no_flush(value);
+}
+
+template <typename Scalar>
+EIGEN_DONT_INLINE void check_zero_no_flush_values(const Scalar* values, int count) {
+  for (int i = 0; i < count; ++i) {
+    VERIFY_IS_EQUAL(numext::is_exactly_zero_no_flush(values[i]), i < 2);
+    VERIFY_IS_EQUAL(zero_no_flush_predicate(values[i]), i < 2);
+  }
+}
+
+template <typename Scalar>
+void check_zero_no_flush() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  const Scalar largest_subnormal = numext::bit_cast<Scalar>(Binary::kFractionMask);
+  const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
+  const Scalar minimum = (std::numeric_limits<Scalar>::min)();
+  const Scalar infinity = std::numeric_limits<Scalar>::infinity();
+  const Scalar values[] = {Scalar(0),
+                           -Scalar(0),
+                           tiny,
+                           -tiny,
+                           largest_subnormal,
+                           numext::bit_cast<Scalar>(Binary::kSignBit | Binary::kFractionMask),
+                           minimum,
+                           -minimum,
+                           Scalar(1),
+                           -Scalar(1),
+                           infinity,
+                           -infinity,
+                           std::numeric_limits<Scalar>::quiet_NaN()};
+  const int count = sizeof(values) / sizeof(values[0]);
+  for (int mode = 0; mode < 4; ++mode) {
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+    defined(_MM_SET_DENORMALS_ZERO_MODE)
+    ScopedFlushToZero restore;
+    const unsigned mask = _MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
+    const unsigned requested = ((mode & 1) ? _MM_FLUSH_ZERO_ON : 0) | ((mode & 2) ? _MM_DENORMALS_ZERO_ON : 0);
+    _mm_setcsr((_mm_getcsr() & ~mask) | requested);
+    VERIFY(restore.isSupported());
+    VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+    check_zero_no_flush_values(values, count);
+    VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
+#else
+    if (mode > 1) continue;
+    if (mode == 1) {
+      ScopedFlushToZero flush;
+      if (flush.isSupported()) check_zero_no_flush_values(values, count);
+    } else {
+      check_zero_no_flush_values(values, count);
+    }
+#endif
+  }
 }
 
 template <typename T>
@@ -756,6 +827,11 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_strict_equal<float>());
     CALL_SUBTEST(check_strict_equal<double>());
     CALL_SUBTEST(check_strict_equal<long double>());
+    CALL_SUBTEST(check_strict_equal<int>());
+    CALL_SUBTEST(check_strict_equal<std::complex<double>>());
+    CALL_SUBTEST(check_zero_no_flush<float>());
+    CALL_SUBTEST(check_zero_no_flush<double>());
+    CALL_SUBTEST(check_zero_no_flush_custom_scalar());
 
     CALL_SUBTEST(check_shift<int8_t>());
     CALL_SUBTEST(check_shift<int16_t>());

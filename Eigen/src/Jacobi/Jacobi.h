@@ -79,6 +79,7 @@ class JacobiRotation {
  protected:
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type);
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::false_type);
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void makeGivensScaled(const Scalar& p, const Scalar& q, Scalar* r);
 
   Scalar m_c, m_s;
 };
@@ -225,13 +226,23 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
                                                           std::false_type) {
   using std::abs;
   using std::sqrt;
-  if (numext::is_exactly_zero(q)) {
+  if (numext::is_exactly_zero_no_flush(q)) {
+    // DAZ can hide the sign; MSVC's non-intrinsic abs(float) can flush the
+    // result through a float->double->float conversion even with FTZ alone.
+    if (abs(p) < (std::numeric_limits<Scalar>::min)() && !numext::is_exactly_zero_no_flush(p)) {
+      makeGivensScaled(p, q, r);
+      return;
+    }
     m_c = p < Scalar(0) ? Scalar(-1) : Scalar(1);
     m_s = Scalar(0);
     if (r) *r = abs(p);
     return;
   }
-  if (numext::is_exactly_zero(p)) {
+  if (numext::is_exactly_zero_no_flush(p)) {
+    if (abs(q) < (std::numeric_limits<Scalar>::min)()) {
+      makeGivensScaled(p, q, r);
+      return;
+    }
     m_c = Scalar(0);
     m_s = q < Scalar(0) ? Scalar(1) : Scalar(-1);
     if (r) *r = abs(q);
@@ -242,8 +253,8 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
   // in the Level 1 BLAS", ACM TOMS 44(1), 2017.  When both |p| and |q| lie
   // in (rtmin, rtmax), the direct formula r = p * sqrt(1 + (q/p)^2) cannot
   // over- or underflow before the true result would.  Outside that range
-  // we prescale by max(|p|, |q|) (clamped into [safmin, safmax]) so that
-  // the squared sum stays in the representable range.  This preserves the
+  // we prescale with safe_scaling (normal powers of two for supported binary
+  // scalars), preserving significant float/double subnormal inputs under FTZ/DAZ. This preserves the
   // existing Eigen sign convention (r >= 0, sign carried in c).
   const Scalar safmin = (std::numeric_limits<Scalar>::min)();
   const Scalar safmax = Scalar(1) / safmin;
@@ -272,25 +283,41 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
       if (r) *r = q * u;
     }
   } else {
-    // Out of safe range: prescale by max(|p|, |q|) clamped into [safmin, safmax].
-    const Scalar scale = numext::mini(safmax, numext::maxi(safmin, numext::maxi(abs_p, abs_q)));
-    const Scalar ps = p / scale;
-    const Scalar qs = q / scale;
-    if (abs_p > abs_q) {
-      Scalar t = qs / ps;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (ps < Scalar(0)) u = -u;
-      m_c = Scalar(1) / u;
-      m_s = -t * m_c;
-      if (r) *r = (ps * u) * scale;
-    } else {
-      Scalar t = ps / qs;
-      Scalar u = sqrt(Scalar(1) + numext::abs2(t));
-      if (qs < Scalar(0)) u = -u;
-      m_s = -Scalar(1) / u;
-      m_c = -t * m_s;
-      if (r) *r = (qs * u) * scale;
-    }
+    makeGivensScaled(p, q, r);
+  }
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void JacobiRotation<Scalar>::makeGivensScaled(const Scalar& p, const Scalar& q,
+                                                                                  Scalar* r) {
+  using Scaling = internal::safe_scaling<Scalar>;
+  Matrix<Scalar, 2, 1> scaled;
+  scaled << p, q;
+  const Scalar maximum = Scaling::recover_flushed_max_coeff(scaled, scaled.cwiseAbs().maxCoeff());
+  const auto factors = Scaling::scale_to(scaled, scaled, maximum);
+  const Scalar ps = scaled.x(), qs = scaled.y();
+  Scalar norm;
+  if (numext::abs(ps) > numext::abs(qs)) {
+    const Scalar t = qs / ps;
+    Scalar u = numext::sqrt<Scalar>(Scalar(1) + numext::abs2(t));
+    if (ps < Scalar(0)) u = -u;
+    m_c = Scalar(1) / u;
+    m_s = -t * m_c;
+    if (r) norm = ps * u;
+  } else {
+    const Scalar t = ps / qs;
+    Scalar u = numext::sqrt<Scalar>(Scalar(1) + numext::abs2(t));
+    if (qs < Scalar(0)) u = -u;
+    m_s = -Scalar(1) / u;
+    m_c = -t * m_s;
+    if (r) norm = qs * u;
+  }
+  if (r) {
+    // Restore subnormal r through the same FTZ/DAZ-safe path as the inputs.
+    Matrix<Scalar, 1, 1> result;
+    result[0] = norm;
+    Scaling::unscale_in_place(result, maximum, factors);
+    *r = result[0];
   }
 }
 

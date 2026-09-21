@@ -424,6 +424,12 @@ constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool is_exactly_zero(const X& x)
   return equal_strict(x, typename NumTraits<X>::Literal{0});
 }
 
+// Unlike is_exactly_zero, inspect supported binary float/double encodings so DAZ cannot hide a subnormal.
+// Both signed zeros compare as zero. Other scalar types retain their usual equality semantics.
+// Defined in MathFunctions.h, after binary_floating_point_traits.
+template <typename X>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush(const X& x);
+
 /**
  * \internal Performs an exact comparison of x to one, e.g. to decide whether a factor needs to be multiplied.
  * Use this to to bypass -Wfloat-equal warnings when exact one is what needs to be tested.

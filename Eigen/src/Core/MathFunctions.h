@@ -1042,6 +1042,24 @@ struct binary_floating_point_traits {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Bits magnitude(const Scalar& value) { return bits(value) & ~kSignBit; }
 };
 
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const Scalar& value, false_type) {
+  return numext::is_exactly_zero(value);
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE bool is_zero_magnitude_bits(
+    typename binary_floating_point_traits<Scalar>::Bits magnitude) {
+  // Keep the integer comparison out of line: Clang can otherwise fold it into a
+  // floating-point comparison that treats subnormals as zero under DAZ/FZ.
+  return magnitude == 0;
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const Scalar& value, true_type) {
+  return is_zero_magnitude_bits<Scalar>(binary_floating_point_traits<Scalar>::magnitude(value));
+}
+
 }  // end namespace internal
 
 /****************************************************************************
@@ -1049,6 +1067,14 @@ struct binary_floating_point_traits {
  ****************************************************************************/
 
 namespace numext {
+
+template <typename X>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush(const X& x) {
+  constexpr bool HasBinaryEncoding = (std::is_same<X, float>::value || std::is_same<X, double>::value) &&
+                                     std::numeric_limits<X>::is_iec559 && std::numeric_limits<X>::radix == 2 &&
+                                     (sizeof(X) == sizeof(uint32_t) || sizeof(X) == sizeof(uint64_t));
+  return internal::is_exactly_zero_no_flush_impl(x, internal::bool_constant<HasBinaryEncoding>());
+}
 
 #if !defined(EIGEN_GPUCC)
 template <typename T>
