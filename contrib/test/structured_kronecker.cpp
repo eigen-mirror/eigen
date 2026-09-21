@@ -1718,6 +1718,10 @@ void test_kron_sparse_determinant_subnormal(const Scalar& phase) {
   // Non-dyadic entries near tiny = min * 2^-(digits/2), which carry about
   // digits/2 bits: eliminating there would lose the other half, the exact
   // scale-up does not. The reference is the determinant of the stored data.
+  // ARMv7 NEON flushes subnormal inputs regardless of FPSCR.FZ: the packet
+  // exponent bound then sees a zero factor, skips the scale-up, and the
+  // elimination keeps only those digits/2 bits.
+  if (!subnormalDivisionIsExact<Real>()) return;
   const Real tiny = std::ldexp(normalMin, -(std::numeric_limits<Real>::digits / 2));
   const Real huge = std::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 1);
   a << Real(4.1), Real(1.3), Real(1.1), Real(5.3);

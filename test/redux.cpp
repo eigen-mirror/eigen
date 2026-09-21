@@ -272,6 +272,7 @@ void redux_block_boundary() {
   // Panel counts below, at and above the four the outer-dimension accumulators consume at a time.
   const Index outerSizes[] = {1, 2, 3, 4, 5, 8, 9};
   for (const Index rows : innerSizes) {
+    if (rows <= 0) continue;  // PS - 1 where Scalar is not vectorized
     for (const Index cols : outerSizes) {
       // A strict sub-block keeps the reduction off the linear path.
       Mat m = Mat::Random(rows + 3, cols + 3);
