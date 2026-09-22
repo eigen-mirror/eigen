@@ -320,6 +320,31 @@ ei_add_test(vectorization_logic)
 ei_add_test(basicstuff)
 ei_add_test(constexpr)
 ei_add_test(constructor)
+function(eigen_check_std_variant)
+  if(NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 17)
+    set(CMAKE_CXX_STANDARD 17)
+  endif()
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  check_cxx_source_compiles("
+    #include <variant>
+    int main() {
+      std::variant<int, double> value(1);
+      return std::get<int>(value) != 1;
+    }" EIGEN_TEST_HAS_STD_VARIANT)
+endfunction()
+
+if("cxx_std_17" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+  eigen_check_std_variant()
+  if(EIGEN_TEST_HAS_STD_VARIANT)
+    # Keep constructor_variant unsplit: the C++17 feature applies to this executable target.
+    ei_add_test(constructor_variant)
+    target_compile_features(constructor_variant PRIVATE cxx_std_17)
+  else()
+    message(STATUS "Skipping constructor_variant: std::variant is unavailable")
+  endif()
+else()
+  message(STATUS "Skipping constructor_variant: C++17 is unavailable")
+endif()
 ei_add_test(linearstructure)
 ei_add_test(integer_types)
 ei_add_test(unalignedcount)

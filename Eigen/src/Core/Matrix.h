@@ -389,9 +389,12 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
   EIGEN_DEVICE_FUNC constexpr Matrix(const Matrix&) = default;
 
   /** \brief Copy constructor for generic expressions.
+   * For coefficient-wise dense expressions, implicit conversion requires compatible scalar types.
+   * Use \c .cast<NewScalar>() to convert between scalar types.
    * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
    */
-  template <typename OtherDerived>
+  template <typename OtherDerived,
+            std::enable_if_t<internal::is_valid_dense_conversion<Scalar, OtherDerived>::value, int> = 0>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Matrix(const EigenBase<OtherDerived>& other)
       : Base(other.derived()) {}
 

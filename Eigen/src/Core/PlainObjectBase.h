@@ -32,6 +32,20 @@ namespace Eigen {
 
 namespace internal {
 
+// Dense coefficient assignment requires scalar compatibility; evalTo expressions may
+// implement their own conversion instead.
+template <typename Scalar, typename OtherDerived, bool = std::is_base_of<DenseBase<OtherDerived>, OtherDerived>::value>
+struct is_valid_dense_conversion : std::true_type {};
+
+template <typename Scalar, typename OtherDerived>
+struct is_valid_dense_conversion<Scalar, OtherDerived, true>
+    : bool_constant<has_ReturnType<ScalarBinaryOpTraits<Scalar, typename OtherDerived::Scalar,
+                                                        assign_op<Scalar, typename OtherDerived::Scalar>>>::value &&
+                    std::is_assignable<Scalar&, const typename OtherDerived::Scalar&>::value> {};
+
+template <typename Scalar, typename OtherDerived>
+struct is_valid_dense_conversion<Scalar, ReturnByValue<OtherDerived>, true> : std::true_type {};
+
 #ifndef EIGEN_NO_DEBUG
 template <int MaxSizeAtCompileTime, int MaxRowsAtCompileTime, int MaxColsAtCompileTime>
 struct check_rows_cols_for_overflow {
