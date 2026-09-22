@@ -1,0 +1,19 @@
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
+#define EIGEN_NO_STATIC_ASSERT
+#include "../Eigen/Core"
+
+int main() {
+  Eigen::Transpositions<2> transpositions;
+  transpositions.setIdentity();
+  Eigen::Matrix2d matrix = Eigen::Matrix2d::Identity();
+#ifdef EIGEN_SHOULD_FAIL_TO_BUILD
+  auto operand = matrix.triangularView<Eigen::Lower>();
+#else
+  auto operand = matrix;
+#endif
+  Eigen::Matrix2d result = Eigen::Matrix2d::Constant(42);
+  result.noalias() = Eigen::Product<decltype(transpositions), decltype(operand)>(transpositions, operand);
+  return result.isIdentity() ? 0 : 1;
+}

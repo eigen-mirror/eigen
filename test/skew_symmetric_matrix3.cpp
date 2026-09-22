@@ -151,6 +151,34 @@ void multiplyScale() {
   VERIFY((sk2 * v2).isZero());
 }
 
+template <typename Scalar>
+void skewSymmetricDiagonalProducts() {
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
+
+  const Vector v = Vector::Random();
+  const Vector d = Vector::Random();
+  const SkewSymmetricMatrix3<Scalar> sk = v.asSkewSymmetric();
+  const DiagonalMatrix<Scalar, 3> dm(d);
+  const SquareMatrix skDense = sk.toDenseMatrix();
+  const SquareMatrix dmDense = dm.toDenseMatrix();
+
+  SquareMatrix result = sk * dm;
+  VERIFY_IS_APPROX(result, skDense * dmDense);
+  result = dm * sk;
+  VERIFY_IS_APPROX(result, dmDense * skDense);
+  result = v.asSkewSymmetric() * d.asDiagonal();
+  VERIFY_IS_APPROX(result, skDense * dmDense);
+  result = d.asDiagonal() * v.asSkewSymmetric();
+  VERIFY_IS_APPROX(result, dmDense * skDense);
+
+  result.setZero();
+  result += sk * dm;
+  result -= dm * sk;
+  VERIFY_IS_APPROX(result, skDense * dmDense - dmDense * skDense);
+  VERIFY_IS_APPROX((sk * dm) * v, skDense * (dmDense * v));
+}
+
 template <typename Matrix>
 void skewSymmetricMultiplication(const Matrix& m) {
   typedef Eigen::Matrix<typename Matrix::Scalar, 3, 1> Vector;
@@ -238,6 +266,8 @@ EIGEN_DECLARE_TEST(skew_symmetric_matrix3) {
     CALL_SUBTEST_2(multiplyScale<double>());
     CALL_SUBTEST_2(skewSymmetricMultiplication(MatrixXf(3, internal::random<int>(3, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_2(skewSymmetricMultiplication(MatrixXd(3, internal::random<int>(3, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_2(skewSymmetricDiagonalProducts<float>());
+    CALL_SUBTEST_2(skewSymmetricDiagonalProducts<double>());
     CALL_SUBTEST_2(traceAndDet<float>());
     CALL_SUBTEST_2(traceAndDet<double>());
     CALL_SUBTEST_2(transpose<float>());

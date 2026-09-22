@@ -1784,10 +1784,18 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalSha
 /** \internal
  * \class permutation_matrix_product
  * Internal helper class implementing the product between a permutation matrix and a matrix.
- * This class is specialized for DenseShape below and for SparseShape in SparseCore/SparsePermutation.h
+ * This class is specialized for DenseShape below and for SparseShape in SparseCore/SparsePermutation.h.
+ * The generic_product_impl cells for PermutationShape accept any operand shape, so the primary template
+ * turns a missing specialization into a static assertion instead of an incomplete-type error.
  */
 template <typename ExpressionType, int Side, bool Transposed, typename ExpressionShape>
-struct permutation_matrix_product;
+struct permutation_matrix_product {
+  template <typename Dest, typename PermutationType>
+  static EIGEN_DEVICE_FUNC void run(Dest&, const PermutationType&, const ExpressionType&) {
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "PERMUTATION_PRODUCTS_ARE_NOT_IMPLEMENTED_FOR_THIS_OPERAND_SHAPE");
+  }
+};
 
 template <typename ExpressionType, int Side, bool Transposed>
 struct permutation_matrix_product<ExpressionType, Side, Transposed, DenseShape> {
@@ -1894,6 +1902,9 @@ struct transposition_matrix_product {
   template <typename Dest, typename TranspositionType>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const TranspositionType& tr,
                                                         const ExpressionType& xpr) {
+    // The in-place row/column swaps below need a dense operand.
+    static_assert(std::is_same<ExpressionShape, DenseShape>::value,
+                  "TRANSPOSITIONS_PRODUCTS_ARE_ONLY_IMPLEMENTED_FOR_DENSE_OPERANDS");
     MatrixType mat(xpr);
     using StorageIndex = typename TranspositionType::StorageIndex;
     const Index size = tr.size();
@@ -1946,14 +1957,15 @@ struct generic_product_impl<Lhs, Transpose<Rhs>, MatrixShape, TranspositionsShap
 
 /***************************************************************************
  * skew symmetric products
- * for now we just call the generic implementation
+ * The 3x3 skew-symmetric operand is densified and the product is re-dispatched on the other
+ * operand's shape, so shapes whose products with a dense matrix are evaluator-only (DiagonalShape)
+ * resolve too.
  ***************************************************************************/
 template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, SkewSymmetricShape, MatrixShape, ProductTag> {
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    generic_product_impl<typename Lhs::DenseMatrixType, Rhs, DenseShape, MatrixShape, ProductTag>::evalTo(dst, lhs,
-                                                                                                          rhs);
+    call_assignment_no_alias(dst, typename Lhs::DenseMatrixType(lhs) * rhs);
   }
 };
 
@@ -1961,8 +1973,7 @@ template <typename Lhs, typename Rhs, int ProductTag, typename MatrixShape>
 struct generic_product_impl<Lhs, Rhs, MatrixShape, SkewSymmetricShape, ProductTag> {
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dest& dst, const Lhs& lhs, const Rhs& rhs) {
-    generic_product_impl<Lhs, typename Rhs::DenseMatrixType, MatrixShape, DenseShape, ProductTag>::evalTo(dst, lhs,
-                                                                                                          rhs);
+    call_assignment_no_alias(dst, lhs * typename Rhs::DenseMatrixType(rhs));
   }
 };
 

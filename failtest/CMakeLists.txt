@@ -13,6 +13,8 @@ ei_add_failtest("bool_subtract_noalias_inner")
 ei_add_failtest("bool_array_subtract")
 ei_add_failtest("bool_array_negate")
 ei_add_failtest("bool_array_subtract_scalar")
+ei_add_failtest("permutation_unsupported_shape")
+ei_add_failtest("transpositions_unsupported_shape")
 
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_0")
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_1")
