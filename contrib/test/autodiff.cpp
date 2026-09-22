@@ -43,8 +43,8 @@ struct TestFunc1 {
   TestFunc1() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
   TestFunc1(int inputs_, int values_) : m_inputs(inputs_), m_values(values_) {}
 
-  int inputs() const { return m_inputs; }
-  int values() const { return m_values; }
+  int inputs() const { return InputsAtCompileTime == Dynamic ? m_inputs : InputsAtCompileTime; }
+  int values() const { return ValuesAtCompileTime == Dynamic ? m_values : ValuesAtCompileTime; }
 
   template <typename T>
   void operator()(const Matrix<T, InputsAtCompileTime, 1>& x, Matrix<T, ValuesAtCompileTime, 1>* _v) const {
@@ -216,6 +216,9 @@ void test_autodiff_jacobian() {
   CALL_SUBTEST((forward_jacobian(TestFunc1<double, 2, 3>())));
   CALL_SUBTEST((forward_jacobian(TestFunc1<double, 3, 2>())));
   CALL_SUBTEST((forward_jacobian(TestFunc1<double, 3, 3>())));
+  CALL_SUBTEST((forward_jacobian(TestFunc1<double>(2, 2))));
+  CALL_SUBTEST((forward_jacobian(TestFunc1<double>(2, 3))));
+  CALL_SUBTEST((forward_jacobian(TestFunc1<double>(3, 2))));
   CALL_SUBTEST((forward_jacobian(TestFunc1<double>(3, 3))));
   CALL_SUBTEST((forward_jacobian_with_scalar_arg(integratorFunctor<double>(10))));
 }

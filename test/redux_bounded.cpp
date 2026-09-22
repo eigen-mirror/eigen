@@ -109,6 +109,29 @@ void complementary_reduction_bounds() {
   STATIC_CHECK(internal::redux_max_size<HugeExpression>::Size == Dynamic);
 }
 
+template <typename Scalar, int Capacity>
+void mixed_packet_reductions() {
+  using Bounded = Matrix<Scalar, Dynamic, 1, ColMajor, Capacity, 1>;
+  using DynamicVector = Matrix<Scalar, Dynamic, 1>;
+  for (Index size = 0; size <= Capacity; ++size) {
+    Bounded bounded(size);
+    DynamicVector dynamic(size);
+    Scalar expected = 0;
+    for (Index i = 0; i < size; ++i) {
+      bounded(i) = Scalar(i % 5 - 2);
+      dynamic(i) = Scalar(i % 3 + 1);
+      expected += bounded(i) * dynamic(i);
+    }
+    const auto left = dynamic.cwiseProduct(bounded);
+    const auto right = bounded.cwiseProduct(dynamic);
+    STATIC_CHECK(decltype(left)::MaxSizeAtCompileTime == Dynamic);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(left)>>::Size == Capacity);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(right)>>::Size == Capacity);
+    VERIFY_IS_EQUAL(left.sum(), expected);
+    VERIFY_IS_EQUAL(right.sum(), expected);
+  }
+}
+
 template <int Order>
 void bounded_reductions() {
   for (Index size : {1, 4, 15, 16, 31, 32, 33, 64}) {
@@ -123,6 +146,14 @@ void bounded_reductions() {
 }
 
 EIGEN_DECLARE_TEST(redux_bounded) {
+  mixed_packet_reductions<float, 3>();
+  mixed_packet_reductions<float, 7>();
+  mixed_packet_reductions<float, 15>();
+  mixed_packet_reductions<float, 17>();
+  mixed_packet_reductions<double, 3>();
+  mixed_packet_reductions<double, 7>();
+  mixed_packet_reductions<double, 15>();
+  mixed_packet_reductions<double, 17>();
   for (Index size = 0; size <= 3; ++size) {
     const MatrixXd vertices = MatrixXd::Random(size, 10);
     const BoundedMatrix4d transform = BoundedMatrix4d::Random(size + 1, size + 1);

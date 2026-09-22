@@ -44,6 +44,22 @@ class BlockImpl<XprType, BlockRows, BlockCols, true, Sparse>
   EIGEN_STRONG_INLINE Index cols() const { return IsRowMajor ? m_matrix.cols() : m_outerSize.value(); }
 
   Index nonZeros() const {
+    return nonZerosImpl(std::integral_constant<bool, (internal::traits<XprType>::Flags & CompressedAccessBit) != 0>());
+  }
+
+ protected:
+  Index nonZerosImpl(std::true_type) const {
+    if (m_outerSize.value() == 0) return 0;
+    const StorageIndex* outer = m_matrix.outerIndexPtr();
+    if (!outer) return m_matrix.nonZeros();
+    const StorageIndex* innerNonZeros = m_matrix.innerNonZeroPtr();
+    if (!innerNonZeros) return outer[m_outerStart + m_outerSize.value()] - outer[m_outerStart];
+    Index nnz = 0;
+    for (Index j = m_outerStart; j < m_outerStart + m_outerSize.value(); ++j) nnz += innerNonZeros[j];
+    return nnz;
+  }
+
+  Index nonZerosImpl(std::false_type) const {
     using EvaluatorType = internal::evaluator<XprType>;
     EvaluatorType matEval(m_matrix);
     Index nnz = 0;
@@ -53,6 +69,7 @@ class BlockImpl<XprType, BlockRows, BlockCols, true, Sparse>
     return nnz;
   }
 
+ public:
   inline const Scalar coeff(Index row, Index col) const {
     return m_matrix.coeff(row + (IsRowMajor ? m_outerStart : 0), col + (IsRowMajor ? 0 : m_outerStart));
   }

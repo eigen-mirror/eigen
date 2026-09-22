@@ -33,7 +33,31 @@ static int nb_storeu;
 
 #include "main.h"
 
+template <typename Scalar>
+void assignment_packet_boundaries() {
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  constexpr int packetSize = internal::packet_traits<Scalar>::size;
+  for (Index offset = 0; offset < packetSize; ++offset) {
+    for (Index size = 0; size <= 2 * packetSize + 1; ++size) {
+      VectorType source(size), storage(size + 2 * packetSize);
+      for (Index i = 0; i < size; ++i) source(i) = Scalar(i + 1);
+      storage.setConstant(Scalar(-1));
+      Map<VectorType> destination(storage.data() + offset, size);
+      destination = source;
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i + 1));
+      destination += source;
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(2 * (i + 1)));
+      destination -= source;
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i + 1));
+      for (Index i = 0; i < offset; ++i) VERIFY_IS_EQUAL(storage(i), Scalar(-1));
+      for (Index i = offset + size; i < storage.size(); ++i) VERIFY_IS_EQUAL(storage(i), Scalar(-1));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(unalignedcount) {
+  CALL_SUBTEST(assignment_packet_boundaries<float>());
+  CALL_SUBTEST(assignment_packet_boundaries<double>());
 #if defined(EIGEN_VECTORIZE_AVX512)
   VectorXf a(48), b(48);
   a.fill(0);

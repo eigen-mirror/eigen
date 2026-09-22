@@ -134,10 +134,9 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
       : m_impl(op.expression(), device), m_dim(op.dim()), m_device(device) {
     EIGEN_STATIC_ASSERT((NumInputDims >= 1), YOU_MADE_A_PROGRAMMING_MISTAKE);
-    eigen_assert(NumInputDims > m_dim.actualDim());
 
     const typename TensorEvaluator<ArgType, Device>::Dimensions& input_dims = m_impl.dimensions();
-    eigen_assert(op.offset() < input_dims[m_dim.actualDim()]);
+    eigen_assert(NumInputDims > m_dim.actualDim() && op.offset() < input_dims[m_dim.actualDim()]);
 
     int j = 0;
     for (int i = 0; i < NumInputDims; ++i) {

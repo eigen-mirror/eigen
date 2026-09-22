@@ -111,6 +111,7 @@ struct inner_product_impl<Evaluator, true> {
   using Scalar = typename Evaluator::Scalar;
   using Packet = typename Evaluator::Packet;
   static constexpr int PacketSize = unpacket_traits<Packet>::size;
+  static constexpr int MaxSize = Evaluator::MaxSizeAtCompileTime;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval) {
     const UnsignedIndex size = static_cast<UnsignedIndex>(eval.size());
     if (size < PacketSize) return inner_product_impl<Evaluator, false>::run(eval);
@@ -121,33 +122,46 @@ struct inner_product_impl<Evaluator, true> {
     const UnsignedIndex numRemPackets = (packetEnd - quadEnd) / PacketSize;
 
     Packet presult0 = eval.template packet<Packet>(0 * PacketSize);
-    if (numPackets >= 2) {
-      Packet presult1 = eval.template packet<Packet>(1 * PacketSize);
-      if (numPackets >= 3) {
-        Packet presult2 = eval.template packet<Packet>(2 * PacketSize);
-        if (numPackets >= 4) {
-          Packet presult3 = eval.template packet<Packet>(3 * PacketSize);
+    // Exclude unreachable packet loads for bounded vectors (also avoids GCC bounds warnings).
+    EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 2) {
+      if (numPackets >= 2) {
+        Packet presult1 = eval.template packet<Packet>(1 * PacketSize);
+        EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 3) {
+          if (numPackets >= 3) {
+            Packet presult2 = eval.template packet<Packet>(2 * PacketSize);
+            EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 4) {
+              if (numPackets >= 4) {
+                Packet presult3 = eval.template packet<Packet>(3 * PacketSize);
 
-          for (UnsignedIndex k = 4 * PacketSize; k < quadEnd; k += 4 * PacketSize) {
-            presult0 = eval.packet(presult0, k + 0 * PacketSize);
-            presult1 = eval.packet(presult1, k + 1 * PacketSize);
-            presult2 = eval.packet(presult2, k + 2 * PacketSize);
-            presult3 = eval.packet(presult3, k + 3 * PacketSize);
-          }
+                for (UnsignedIndex k = 4 * PacketSize; k < quadEnd; k += 4 * PacketSize) {
+                  presult0 = eval.packet(presult0, k + 0 * PacketSize);
+                  presult1 = eval.packet(presult1, k + 1 * PacketSize);
+                  presult2 = eval.packet(presult2, k + 2 * PacketSize);
+                  presult3 = eval.packet(presult3, k + 3 * PacketSize);
+                }
 
-          if (numRemPackets >= 1) {
-            presult0 = eval.packet(presult0, quadEnd + 0 * PacketSize);
-            if (numRemPackets >= 2) {
-              presult1 = eval.packet(presult1, quadEnd + 1 * PacketSize);
-              if (numRemPackets == 3) presult2 = eval.packet(presult2, quadEnd + 2 * PacketSize);
+                EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 5) {
+                  if (numRemPackets >= 1) {
+                    presult0 = eval.packet(presult0, quadEnd + 0 * PacketSize);
+                    EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 6) {
+                      if (numRemPackets >= 2) {
+                        presult1 = eval.packet(presult1, quadEnd + 1 * PacketSize);
+                        EIGEN_IF_CONSTEXPR (MaxSize == Dynamic || MaxSize / PacketSize >= 7) {
+                          if (numRemPackets == 3) presult2 = eval.packet(presult2, quadEnd + 2 * PacketSize);
+                        }
+                      }
+                    }
+                  }
+                }
+
+                presult2 = padd(presult2, presult3);
+              }
             }
+            presult1 = padd(presult1, presult2);
           }
-
-          presult2 = padd(presult2, presult3);
         }
-        presult1 = padd(presult1, presult2);
+        presult0 = padd(presult0, presult1);
       }
-      presult0 = padd(presult0, presult1);
     }
 
     Scalar result = predux(presult0);

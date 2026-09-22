@@ -516,13 +516,14 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     const Index size = kernel.size();
     const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
     head_loop::run(kernel, 0, alignedStart);
 
-    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+    for (Index index = alignedStart; index <= size - PacketSize; index += PacketSize)
       kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
 
+    // Derive the tail bound directly; GCC can lose its range when it comes from the packet-loop induction variable.
+    const Index alignedEnd = size - (size - alignedStart) % PacketSize;
     tail_loop::run(kernel, alignedEnd, size);
   }
 };

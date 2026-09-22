@@ -862,7 +862,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   while (!finished) {
     finished = true;
 
-    {
+    EIGEN_IF_CONSTEXPR (MaxDiagSizeAtCompileTime == Dynamic || MaxDiagSizeAtCompileTime > kBlockSize) {
       // Sweep with optional blocking for large matrices.
       // Use blocking when the matrix is large enough that individual left rotations
       // (strided row operations on column-major data) cause significant cache misses.
@@ -884,10 +884,11 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
         // the blocking code from interfering with the compiler's optimization of
         // the non-blocking scalar sweep below.
         finished = !blocked_sweep(considerAsZero, precision, maxDiagEntry);
-      } else
-        finished = !internal::jacobi_svd_nonblocking_sweep(m_workMatrix, m_matrixU, m_matrixV, computeU(), computeV(),
-                                                           considerAsZero, precision, maxDiagEntry);
+        continue;
+      }
     }
+    finished = !internal::jacobi_svd_nonblocking_sweep(m_workMatrix, m_matrixU, m_matrixV, computeU(), computeV(),
+                                                       considerAsZero, precision, maxDiagEntry);
   }
 
   /*** step 3. The work matrix is now diagonal, so ensure it's positive so its diagonal entries are the singular values
