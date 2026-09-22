@@ -10,6 +10,17 @@
 
 default:
   interruptible: true
+  # Auto-retry infrastructure drops (e.g. GCP Spot VM preemption or runner loss).
+  # Genuine compile or test failures exit with script_failure and are not retried.
+  # `stuck_or_timeout_failure` is a deprecated alias (GitLab 19.1) that lints with
+  # a warning; `no_updates_running` is the member of it that matters here.
+  retry:
+    max: 2  # Up to 2 retries (3 attempts total) before failing
+    when:
+      - runner_system_failure               # Runner setup or environment errors (e.g. Docker crash)
+      - runner_interrupted                  # Runner restart, shutdown or host reclamation mid-job
+      - runner_external_dependency_failure  # Registry, network or DNS failure fetching a job dependency
+      - no_updates_running                  # Host terminated mid-run (e.g. GCP Spot preemption)
 
 # For MR pipelines, auto-cancel running jobs when new commits are pushed.
 # For scheduled (weekly) pipelines, never auto-cancel so all jobs run to
