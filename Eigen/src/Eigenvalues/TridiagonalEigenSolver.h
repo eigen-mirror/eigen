@@ -181,6 +181,8 @@ class TridiagonalEigenSolver {
    * cluster yields an orthonormal basis. After the call, eigenvectors() returns the \c n x \c m matrix
    * whose column \c j is a unit-norm eigenvector for \c eigenvalues[j], and eigenvalues() returns the
    * supplied eigenvalues.
+   * Shifts that are insufficiently accurate at their disconnected block's scale are refined
+   * internally before iteration, without changing the eigenvalues returned by eigenvalues().
    *
    * \b Subsets. This is the natural companion to the subset-selecting eigenvalue path (see
    * EigenvalueRange): pass that subset as \a eigenvalues and you get back exactly those \c m

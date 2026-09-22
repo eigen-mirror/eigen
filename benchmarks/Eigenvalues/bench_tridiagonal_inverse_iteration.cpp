@@ -75,6 +75,69 @@ void BM_invit_rand_d(benchmark::State& s) { run<double>(s, kRandom); }
 void BM_invit_cluster_f(benchmark::State& s) { run<float>(s, kClustered); }
 void BM_invit_cluster_d(benchmark::State& s) { run<double>(s, kClustered); }
 
+void BM_invit_zero_block(benchmark::State& state) {
+  const Index n = state.range(0);
+  const double scale = numext::ldexp(1.0, int(state.range(1)));
+  VectorXd diag = VectorXd::Constant(n + 1, 2.0 * scale);
+  VectorXd sub = VectorXd::Constant(n, scale), evals(n + 1);
+  diag(0) = sub(0) = evals(0) = 0.0;
+  const double pi = std::acos(-1.0);
+  for (Index i = 1; i <= n; ++i) evals(i) = (2.0 - 2.0 * std::cos(pi * double(i) / double(n + 1))) * scale;
+
+  TridiagonalEigenSolver<double> solver;
+  solver.computeEigenvectors(diag, sub, evals);
+  const MatrixXd& vectors = solver.eigenvectors();
+  MatrixXd residual = (diag / scale).asDiagonal() * vectors - vectors * (evals / scale).asDiagonal();
+  residual.topRows(n) += (sub / scale).asDiagonal() * vectors.bottomRows(n);
+  residual.bottomRows(n) += (sub / scale).asDiagonal() * vectors.topRows(n);
+  const double tolerance = 128.0 * double(n + 1) * NumTraits<double>::epsilon();
+  if (solver.info() != Success || !vectors.allFinite() || !(residual.norm() <= tolerance) ||
+      !((vectors.transpose() * vectors - MatrixXd::Identity(n + 1, n + 1)).norm() <= tolerance)) {
+    state.SkipWithError("Invalid zero-block eigenvectors");
+    return;
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(diag.data());
+    benchmark::DoNotOptimize(sub.data());
+    benchmark::DoNotOptimize(evals.data());
+    benchmark::ClobberMemory();
+    solver.computeEigenvectors(diag, sub, evals);
+    benchmark::DoNotOptimize(solver.eigenvectors().data());
+  }
+  state.SetItemsProcessed(state.iterations() * (n + 1));
+}
+
+void BM_invit_supplied_small_block(benchmark::State& state) {
+  const Index n = state.range(0);
+  VectorXd diag = VectorXd::Constant(n + 1, 2.0);
+  VectorXd sub = VectorXd::Ones(n), evals(n);
+  diag(0) = numext::ldexp(1.0, 60);
+  sub(0) = 0;
+  const double pi = std::acos(-1.0);
+  for (Index i = 0; i < n; ++i) evals(i) = 4 * numext::abs2(std::sin(pi * double(i + 1) / double(2 * (n + 1))));
+  TridiagonalEigenSolver<double> solver;
+  solver.computeEigenvectors(diag, sub, evals);
+  const MatrixXd& vectors = solver.eigenvectors();
+  MatrixXd residual = diag.asDiagonal() * vectors - vectors * evals.asDiagonal();
+  residual.topRows(n) += sub.asDiagonal() * vectors.bottomRows(n);
+  residual.bottomRows(n) += sub.asDiagonal() * vectors.topRows(n);
+  const double tolerance = 128.0 * double(n) * NumTraits<double>::epsilon();
+  if (solver.info() != Success || !vectors.allFinite() || !(residual.norm() <= tolerance) ||
+      !((vectors.transpose() * vectors - MatrixXd::Identity(n, n)).norm() <= tolerance)) {
+    state.SkipWithError("Invalid supplied small-block eigenvectors");
+    return;
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(diag.data());
+    benchmark::DoNotOptimize(sub.data());
+    benchmark::DoNotOptimize(evals.data());
+    benchmark::ClobberMemory();
+    solver.computeEigenvectors(diag, sub, evals);
+    benchmark::DoNotOptimize(solver.eigenvectors().data());
+  }
+  state.SetItemsProcessed(state.iterations() * n);
+}
+
 enum FullMode { kFullQr, kFullBisect, kFullBisectSubset };
 
 // Full eigendecomposition (eigenvalues + eigenvectors) of a random symmetric tridiagonal.
@@ -120,6 +183,8 @@ BENCHMARK(BM_invit_rand_f)->EIGEN_BENCH_SIZES->UseRealTime();
 BENCHMARK(BM_invit_rand_d)->EIGEN_BENCH_SIZES->UseRealTime();
 BENCHMARK(BM_invit_cluster_f)->EIGEN_BENCH_SIZES->UseRealTime();
 BENCHMARK(BM_invit_cluster_d)->EIGEN_BENCH_SIZES->UseRealTime();
+BENCHMARK(BM_invit_zero_block)->ArgsProduct({{128, 512}, {0, -60}})->UseRealTime();
+BENCHMARK(BM_invit_supplied_small_block)->Arg(512)->Arg(1024)->UseRealTime();
 BENCHMARK(BM_full_qr_f)->EIGEN_BENCH_FULL_SIZES->UseRealTime();
 BENCHMARK(BM_full_qr_d)->EIGEN_BENCH_FULL_SIZES->UseRealTime();
 BENCHMARK(BM_full_bisect_f)->EIGEN_BENCH_FULL_SIZES->UseRealTime();

@@ -582,6 +582,8 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);
   assigned.setZero();
+  Matrix<Index, Dynamic, 1> local_index(m);
+  Array<bool, Dynamic, 1> claimed = Array<bool, Dynamic, 1>::Constant(n, false);
   // Sturm count over block b of its eigenvalues strictly below the unnormalized shift x (normalized
   // by the block's own scale, as the block's alpha/beta data is).
   auto count_below = [&](Index b, RealScalar x) -> Index {
@@ -632,6 +634,9 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
           carry_next(ncarry_next++) = j;
           continue;
         }
+        const Index index = below_cur(chosen) - caps(chosen);
+        local_index(j) = index;
+        claimed(bstart(chosen) + index) = true;
         --caps(chosen);
         ++assigned(chosen);
         blockof(j) = chosen;
@@ -652,6 +657,21 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
       for (Index b = 0; b < nblocks && chosen < 0; ++b)
         if (bstart(b + 1) - bstart(b) - assigned(b) > 0) chosen = b;
     if (chosen < 0) chosen = 0;
+    {
+      const Index b0 = bstart(chosen), nb = bstart(chosen + 1) - b0;
+      Index index = numext::mini(below_edge(chosen), nb - 1);
+      while (index < nb && claimed(b0 + index)) ++index;
+      if (index == nb) {
+        index = 0;
+        while (index < nb && claimed(b0 + index)) ++index;
+      }
+      if (index == nb) {
+        eivecs.setZero();
+        return m;
+      }
+      local_index(j) = index;
+      claimed(b0 + index) = true;
+    }
     ++assigned(chosen);
     blockof(j) = chosen;
   }
@@ -659,7 +679,9 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   // Run each block independently and scatter its columns; rows outside the block stay exactly zero.
   eivecs.setZero();
   Index nonconv = 0;
-  VectorType wloc;
+  VectorType wloc, refined, endpoints;
+  Matrix<numext::int64_t, Dynamic, 1> counts;
+  Matrix<Index, Dynamic, 1> indices;
   Matrix<RealScalar, Dynamic, Dynamic> vloc;
   Matrix<Index, Dynamic, 1> colmap(m);
   for (Index b = 0; b < nblocks; ++b) {
@@ -673,6 +695,35 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     vloc.resize(nb, mb);
     const VectorType bdiag = diag.segment(b0, nb);
     const VectorType bsub = subdiag.segment(b0, nb > 1 ? nb - 1 : 0);
+    if (nb > 1) {
+      // Retain the capacity assignment, including multiplicities across blocks. As in LAPACK
+      // xSTEBZ, use block-local bisection accuracy rather than a global reorthogonalization floor.
+      indices.resize(mb);
+      for (Index k = 0; k < mb; ++k) indices(k) = local_index(colmap(k));
+      std::sort(indices.data(), indices.data() + mb);
+      endpoints.resize(2 * mb);
+      counts.resize(2 * mb);
+      endpoints.head(mb) = (wloc.array() - btol(b)) / bscale(b);
+      endpoints.tail(mb) = (wloc.array() + btol(b)) / bscale(b);
+      tridiagonal_sturm_counts(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b), endpoints.data(),
+                               counts.data(), 2 * mb);
+      bool needs_refinement = false;
+      // A supplied shift is locally resolved if its rounding-sized interval contains the
+      // assigned eigenvalue index. This also detects repeated coarse shifts claiming one root.
+      for (Index k = 0; k < mb && !needs_refinement; ++k) {
+        needs_refinement = counts(k) > indices(k) || counts(mb + k) <= indices(k);
+      }
+      if (needs_refinement) {
+        for (Index first = 0; first < mb;) {
+          Index last = first + 1;
+          while (last < mb && indices(last) == indices(last - 1) + 1) ++last;
+          tridiagonal_bisection(bdiag, bsub, EigenvalueRange::indices(indices(first), indices(last - 1) + 1),
+                                RealScalar(0), refined);
+          wloc.segment(first, last - first) = refined;
+          first = last;
+        }
+      }
+    }
     nonconv += tridiagonal_inverse_iteration_connected(bdiag, bsub, wloc, vloc);
     for (Index k = 0; k < mb; ++k) eivecs.col(colmap(k)).segment(b0, nb) = vloc.col(k);
   }
