@@ -69,8 +69,8 @@
   # scheduled builds fill; a maintainer starting that pipeline can.
   cache:
     # Dedicated small cache for pinned tool binaries (sccache, ccache); shared across
-    # all build jobs so each architecture downloads the static binary once.
-    - key: "linux-$CI_RUNNER_ARCH-ccache-bin"
+    # all build jobs so runners download the static binary once.
+    - key: "linux-ccache-bin"
       paths:
         - .ccache-bin/
         - .sccache-bin/
