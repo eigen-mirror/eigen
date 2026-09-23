@@ -21,6 +21,7 @@ default.
 | Numerical kernels, decompositions, solvers, accuracy | [`.agents/numerics.md`](.agents/numerics.md) |
 | Sparse matrices, sparse solvers, external sparse backends | [`.agents/sparse.md`](.agents/sparse.md) |
 | Performance changes and benchmarks | [`.agents/benchmarking.md`](.agents/benchmarking.md) |
+| Comparing against, benchmarking against, or integrating external libraries | [`.agents/provenance.md`](.agents/provenance.md) |
 | Packet math, CUDA, HIP, SYCL, `contrib/Eigen/GPU` | [`.agents/simd-gpu.md`](.agents/simd-gpu.md) |
 | Tensor, ThreadPool, and multithreading | [`.agents/tensor-threadpool.md`](.agents/tensor-threadpool.md) |
 | Formatting, lint, and GitLab CI | [`.agents/ci.md`](.agents/ci.md) |
@@ -39,8 +40,11 @@ default.
    Eigen's MPL-2.0 distribution. Do not copy, paraphrase, or translate code from proprietary, NDA-covered, internal, or
    incompatibly licensed sources. Published papers, standards, textbooks, and algorithm descriptions may inform an
    independent implementation; cite them inline when they materially inform it. A citation does not make copied code
-   permissible. Never invent an attribution for AI-generated code; a `Co-Authored-By` trailer naming the model that
-   actually produced the change is accurate attribution, not an invented one, and is permitted.
+   permissible. The rule covers information as well as code: proprietary software is a black box, used through its
+   documented interface and measured as shipped, never disassembled, dumped, debugged into, or altered; see
+   [`.agents/provenance.md`](.agents/provenance.md). Never invent an attribution for AI-generated code; a
+   `Co-Authored-By` trailer naming the model that actually produced the change is accurate attribution, not an invented
+   one, and is permitted.
 3. **Respect the header-only and C++14 contracts.** Supported headers must compile as C++14 unless a guarded backend has
    a documented newer requirement. User code, examples, and public-behavior tests include umbrella headers such as
    `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `contrib/Eigen/src/`. Focused tests of private
