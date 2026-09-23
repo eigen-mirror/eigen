@@ -36,42 +36,58 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
     export SCCACHE_DIR="${CI_PROJECT_DIR}/.sccache"
     export SCCACHE_CACHE_SIZE="${CCACHE_MAXSIZE:-4G}"
     export SCCACHE_BASEDIRS="${rootdir}"
-    export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
+    export SCCACHE_SERVER_PORT="$((4226 + ${CI_CONCURRENT_ID:-0}))"
 
     # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
     # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
-    gcs_token="${EIGEN_GCS_CACHE_TOKEN_RW:-${EIGEN_GCS_CACHE_TOKEN_RO:-}}"
     sccache_cred_server_pid=""
-    if [[ -n "${gcs_token}" ]]; then
+    if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" || -n "${EIGEN_GCS_CACHE_TOKEN_RO:-}" ]]; then
       export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
       export SCCACHE_MULTILEVEL_CHAIN="disk,gcs"
-      if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW}" ]]; then
+      if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" ]]; then
         export SCCACHE_GCS_RW_MODE="READ_WRITE"
       else
         export SCCACHE_GCS_RW_MODE="READ_ONLY"
       fi
-      cred_port="$((8200 + (${CI_JOB_ID:-0} % 1000)))"
+      export GCS_URL_SECRET=$(od -vN 16 -An -tx1 /dev/urandom | tr -d ' \n')
+      cred_port_file="${PWD}/.cred_port"
+      
+      { set +x; } 2>/dev/null
       python3 -c "
-import http.server, json, sys
-token = sys.argv[1]
+import http.server, json, sys, os
+token = os.environ.get('EIGEN_GCS_CACHE_TOKEN_RW') or os.environ.get('EIGEN_GCS_CACHE_TOKEN_RO')
+secret = os.environ.get('GCS_URL_SECRET')
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path != '/token/' + secret:
+            self.send_response(403)
+            self.end_headers()
+            return
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         self.wfile.write(json.dumps({'access_token': token, 'token_type': 'Bearer', 'expires_in': 3600}).encode())
     def log_message(self, *a): pass
-http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
-" "${gcs_token}" "${cred_port}" &
+server = http.server.HTTPServer(('127.0.0.1', 0), H)
+with open('${cred_port_file}', 'w') as f:
+    f.write(str(server.server_port))
+server.serve_forever()
+" &
       sccache_cred_server_pid=$!
-      export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token"
       trap '[[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
+      set -x
 
-      # Wait up to 1 second for local credential server to be ready
-      for _ in {1..20}; do
-        if curl -s "http://127.0.0.1:${cred_port}/token" >/dev/null 2>&1; then break; fi
+      # Wait up to 2 seconds for local credential server to be ready
+      for _ in {1..40}; do
+        if [[ -s "${cred_port_file}" ]]; then
+          cred_port=$(cat "${cred_port_file}")
+          if curl -s "http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}" >/dev/null 2>&1; then break; fi
+        fi
         sleep 0.05
       done
+      export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}"
+      rm -f "${cred_port_file}"
+      unset GCS_URL_SECRET
     fi
 
     if "${sccache_bin}" --start-server >/dev/null 2>&1; then
@@ -81,6 +97,7 @@ http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
     else
       echo "Notice: sccache server failed to start (check GCS credentials/network); falling back to ccache."
       [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+      sccache_cred_server_pid=""
     fi
   fi
 
@@ -104,7 +121,10 @@ show_ccache_stats() {
   if [[ "${compiler_launcher}" == "sccache" && -n "${sccache_bin}" ]]; then
     "${sccache_bin}" --show-stats 2>&1 || true
     "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
-    [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+    if [[ -n "${sccache_cred_server_pid}" ]]; then
+      kill "${sccache_cred_server_pid}" 2>/dev/null || true
+      sccache_cred_server_pid=""
+    fi
     # Incompatible cache formats: purge unused .ccache/ before cache upload so the
     # uploaded cache archive only holds .sccache/ and stays strictly below the 5 GB runner cap.
     rm -rf "${rootdir}/.ccache"

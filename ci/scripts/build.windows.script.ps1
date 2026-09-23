@@ -90,11 +90,11 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
     # Rewrite paths relative to rootdir for cross-runner / cross-directory cache hits.
     $env:SCCACHE_BASEDIRS = $rootdir
     # Isolate daemon port per runner slot to avoid port collisions and process cross-kill.
-    $env:SCCACHE_SERVER_PORT = [string](4226 + ([int]($env:CI_JOB_ID ? $env:CI_JOB_ID : 0) % 10000))
+    $concurrent_id = if ($env:CI_CONCURRENT_ID) { [int]$env:CI_CONCURRENT_ID } else { 0 }
+    $env:SCCACHE_SERVER_PORT = [string](4226 + $concurrent_id)
 
-    $gcs_token = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
     $cred_server_job = $null
-    if ($gcs_token) {
+    if ($env:EIGEN_GCS_CACHE_TOKEN_RW -or $env:EIGEN_GCS_CACHE_TOKEN_RO) {
       $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
       $env:SCCACHE_MULTILEVEL_CHAIN = "disk,gcs"
       if ($env:EIGEN_GCS_CACHE_TOKEN_RW) {
@@ -102,32 +102,56 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
       } else {
         $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
       }
-      $cred_port = [string](8200 + ([int]($env:CI_JOB_ID ? $env:CI_JOB_ID : 0) % 1000))
+      $url_secret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 16 | % {[char]$_})
+      
       $cred_server_job = Start-Job -ScriptBlock {
-        param($tok, $p)
+        param($path_secret)
+        $tok = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
         $listener = New-Object System.Net.HttpListener
+        $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        $tcp.Start()
+        $p = $tcp.Server.LocalEndPoint.Port
+        $tcp.Stop()
         $listener.Prefixes.Add("http://127.0.0.1:$p/")
         $listener.Start()
+        Write-Output "PORT:$p"
         while ($listener.IsListening) {
           $ctx = $listener.GetContext()
           $resp = $ctx.Response
+          if ($ctx.Request.RawUrl -ne "/token/$path_secret") {
+            $resp.StatusCode = 403
+            $resp.Close()
+            continue
+          }
           $resp.ContentType = "application/json"
           $body = [System.Text.Encoding]::UTF8.GetBytes("{`"access_token`":`"$tok`",`"token_type`":`"Bearer`",`"expires_in`":3600}")
           $resp.ContentLength64 = $body.Length
           $resp.OutputStream.Write($body, 0, $body.Length)
           $resp.Close()
         }
-      } -ArgumentList $gcs_token, $cred_port
-      $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token"
-
-      # Wait up to 1 second for local credential server to be ready
-      for ($i = 0; $i -lt 20; $i++) {
-        try {
-          $res = Invoke-WebRequest -Uri "http://127.0.0.1:$cred_port/token" -UseBasicParsing -TimeoutSec 1
-          if ($res.StatusCode -eq 200) { break }
-        } catch {}
+      } -ArgumentList $url_secret
+      
+      # Wait up to 2 seconds for local credential server to be ready
+      $cred_port = $null
+      for ($i = 0; $i -lt 40; $i++) {
+        $out = Receive-Job $cred_server_job -ErrorAction SilentlyContinue
+        if ($out) {
+          foreach ($line in $out) {
+            if ($line -match "^PORT:(\d+)$") {
+              $cred_port = $Matches[1]
+              break
+            }
+          }
+        }
+        if ($cred_port) {
+          try {
+            $res = Invoke-WebRequest -Uri "http://127.0.0.1:$cred_port/token/$url_secret" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+            if ($res -and $res.StatusCode -eq 200) { break }
+          } catch {}
+        }
         Start-Sleep -Milliseconds 50
       }
+      $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token/$url_secret"
     }
 
     & $sccache_exe --start-server | Out-Null

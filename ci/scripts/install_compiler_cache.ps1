@@ -33,9 +33,18 @@ function Install-Sccache {
     # 2. Download and verify sccache.zip
     if (-not $sccache_exe) {
       $zip = Join-Path ([System.IO.Path]::GetTempPath()) "sccache-${sccache_version}.zip"
-      try {
-        $ProgressPreference = "SilentlyContinue"
-        Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/v${sccache_version}/sccache-v${sccache_version}-x86_64-pc-windows-msvc.zip" -OutFile $zip -TimeoutSec 30
+      $download_success = $false
+      for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+          $ProgressPreference = "SilentlyContinue"
+          Invoke-WebRequest "https://github.com/mozilla/sccache/releases/download/v${sccache_version}/sccache-v${sccache_version}-x86_64-pc-windows-msvc.zip" -OutFile $zip -TimeoutSec 30
+          $download_success = $true
+          break
+        } catch {
+          if ($attempt -lt 3) { Start-Sleep -Seconds 2 } else { Write-Warning "sccache download failed: $_" }
+        }
+      }
+      if ($download_success) {
         if ((Get-FileHash $zip -Algorithm SHA256).Hash -eq $sccache_zip_sha256) {
           $unpack = Join-Path ([System.IO.Path]::GetTempPath()) "sccache-unpack"
           Expand-Archive $zip -DestinationPath $unpack -Force
@@ -53,8 +62,6 @@ function Install-Sccache {
           Write-Warning "sccache download failed SHA-256 verification."
         }
         Remove-Item $zip -Force -ErrorAction SilentlyContinue
-      } catch {
-        Write-Warning "sccache download failed ($_); falling back to ccache."
       }
     }
   }
@@ -101,9 +108,18 @@ function Install-Ccache {
 
   # 3. Download and verify ccache.zip
   $zip = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-${ccache_version}.zip"
-  try {
-    $ProgressPreference = "SilentlyContinue"
-    Invoke-WebRequest "https://github.com/ccache/ccache/releases/download/v${ccache_version}/ccache-${ccache_version}-windows-x86_64.zip" -OutFile $zip -TimeoutSec 30
+  $download_success = $false
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      $ProgressPreference = "SilentlyContinue"
+      Invoke-WebRequest "https://github.com/ccache/ccache/releases/download/v${ccache_version}/ccache-${ccache_version}-windows-x86_64.zip" -OutFile $zip -TimeoutSec 30
+      $download_success = $true
+      break
+    } catch {
+      if ($attempt -lt 3) { Start-Sleep -Seconds 2 } else { Write-Warning "ccache download failed: $_" }
+    }
+  }
+  if ($download_success) {
     if ((Get-FileHash $zip -Algorithm SHA256).Hash -eq $ccache_zip_sha256) {
       $unpack = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-unpack"
       Expand-Archive $zip -DestinationPath $unpack -Force
@@ -122,8 +138,6 @@ function Install-Ccache {
       Write-Warning "ccache download failed SHA-256 verification; building without ccache."
     }
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
-  } catch {
-    Write-Warning "ccache download failed ($_); building without ccache."
   }
 
   return ""

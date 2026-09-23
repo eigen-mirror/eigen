@@ -13,14 +13,15 @@ download_file() {
   local url="$1"
   local dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL --connect-timeout 5 -m 30 "${url}" -o "${dest}"
-  elif command -v wget >/dev/null 2>&1; then
-    wget -q --timeout=30 -O "${dest}" "${url}"
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c "import urllib.request; urllib.request.urlretrieve('${url}', '${dest}')"
-  else
-    return 1
+    curl -fsSL --connect-timeout 5 -m 30 "${url}" -o "${dest}" && return 0
   fi
+  if command -v wget >/dev/null 2>&1; then
+    wget -q --timeout=30 -O "${dest}" "${url}" && return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" "${url}" "${dest}" && return 0
+  fi
+  return 1
 }
 
 # 1. Provision sccache

@@ -26,7 +26,7 @@ export NPROC=`nproc`
 echo "arch=$ARCH, target=${EIGEN_CI_TARGET_ARCH}"
 echo "Processors: ${NPROC}"
 echo "CI Variables:"
-export | grep EIGEN
+export | grep EIGEN | grep -v "CACHE_TOKEN"
 
 # Set noninteractive, otherwise tzdata may be installed and prompt for a
 # geographical region.

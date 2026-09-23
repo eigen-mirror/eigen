@@ -51,3 +51,6 @@ CLAUDE.md
 .ccache/
 .ccache-bin/
 .sccache-bin/
+.sccache/
+ccache-stats.log
+.cred_port
