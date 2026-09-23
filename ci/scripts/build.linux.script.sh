@@ -33,26 +33,63 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
   . "${rootdir}/ci/scripts/install_compiler_cache.sh"
 
   if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" && -n "${sccache_bin}" ]]; then
-    export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
-    if [[ "${CI_COMMIT_REF_PROTECTED}" == "true" ]]; then
-      export SCCACHE_GCS_RW_MODE="READ_WRITE"
-    else
-      export SCCACHE_GCS_RW_MODE="READ_ONLY"
-    fi
+    export SCCACHE_DIR="${CI_PROJECT_DIR}/.sccache"
+    export SCCACHE_CACHE_SIZE="${CCACHE_MAXSIZE:-4G}"
     export SCCACHE_BASEDIRS="${rootdir}"
     export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
+
+    # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
+    # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
+    gcs_token="${EIGEN_GCS_CACHE_TOKEN_RW:-${EIGEN_GCS_CACHE_TOKEN_RO:-}}"
+    sccache_cred_server_pid=""
+    if [[ -n "${gcs_token}" ]]; then
+      export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
+      export SCCACHE_MULTILEVEL_CHAIN="disk,gcs"
+      if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW}" ]]; then
+        export SCCACHE_GCS_RW_MODE="READ_WRITE"
+      else
+        export SCCACHE_GCS_RW_MODE="READ_ONLY"
+      fi
+      cred_port="$((8200 + (${CI_JOB_ID:-0} % 1000)))"
+      python3 -c "
+import http.server, json, sys
+token = sys.argv[1]
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'access_token': token, 'token_type': 'Bearer', 'expires_in': 3600}).encode())
+    def log_message(self, *a): pass
+http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
+" "${gcs_token}" "${cred_port}" &
+      sccache_cred_server_pid=$!
+      export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token"
+      trap '[[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
+
+      # Wait up to 1 second for local credential server to be ready
+      for _ in {1..20}; do
+        if curl -s "http://127.0.0.1:${cred_port}/token" >/dev/null 2>&1; then break; fi
+        sleep 0.05
+      done
+    fi
 
     if "${sccache_bin}" --start-server >/dev/null 2>&1; then
       compiler_launcher="sccache"
       "${sccache_bin}" --zero-stats >/dev/null 2>&1 || true
       launchers="-DCMAKE_C_COMPILER_LAUNCHER=${sccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_bin}"
+      # Incompatible cache formats: purge restored .ccache/ so the uploaded cache
+      # archive only holds .sccache/ and stays strictly below the 5 GB runner cap.
+      rm -rf "${rootdir}/.ccache"
     else
       echo "Notice: sccache server failed to start (check GCS credentials/network); falling back to ccache."
+      [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
     fi
   fi
 
   if [[ -z "${compiler_launcher}" && -n "${ccache_bin}" ]]; then
     compiler_launcher="ccache"
+    rm -rf "${rootdir}/.sccache"
     launchers="-DCMAKE_C_COMPILER_LAUNCHER=${ccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_bin}"
     # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
     # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
@@ -71,6 +108,7 @@ show_ccache_stats() {
   if [[ "${compiler_launcher}" == "sccache" && -n "${sccache_bin}" ]]; then
     "${sccache_bin}" --show-stats 2>&1 || true
     "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
+    [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
   elif [[ "${compiler_launcher}" == "ccache" && -n "${ccache_bin}" ]]; then
     if [[ -n "${CCACHE_STATSLOG}" ]]; then
       "${ccache_bin}" --show-log-stats

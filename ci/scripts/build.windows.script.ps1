@@ -85,12 +85,50 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
 
   # 1. Try starting sccache server if available
   if ($sccache_exe) {
-    $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
-    $env:SCCACHE_GCS_RW_MODE = if ($env:CI_COMMIT_REF_PROTECTED -eq "true") { "READ_WRITE" } else { "READ_ONLY" }
+    $env:SCCACHE_DIR = Join-Path $env:CI_PROJECT_DIR ".sccache"
+    $env:SCCACHE_CACHE_SIZE = if ($env:EIGEN_CI_CCACHE_MAXSIZE) { $env:EIGEN_CI_CCACHE_MAXSIZE } else { "4G" }
     # Rewrite paths relative to rootdir for cross-runner / cross-directory cache hits.
     $env:SCCACHE_BASEDIRS = $rootdir
     # Isolate daemon port per runner slot to avoid port collisions and process cross-kill.
     $env:SCCACHE_SERVER_PORT = [string](4226 + ([int]($env:CI_JOB_ID ? $env:CI_JOB_ID : 0) % 10000))
+
+    $gcs_token = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
+    $cred_server_job = $null
+    if ($gcs_token) {
+      $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
+      $env:SCCACHE_MULTILEVEL_CHAIN = "disk,gcs"
+      if ($env:EIGEN_GCS_CACHE_TOKEN_RW) {
+        $env:SCCACHE_GCS_RW_MODE = "READ_WRITE"
+      } else {
+        $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
+      }
+      $cred_port = [string](8200 + ([int]($env:CI_JOB_ID ? $env:CI_JOB_ID : 0) % 1000))
+      $cred_server_job = Start-Job -ScriptBlock {
+        param($tok, $p)
+        $listener = New-Object System.Net.HttpListener
+        $listener.Prefixes.Add("http://127.0.0.1:$p/")
+        $listener.Start()
+        while ($listener.IsListening) {
+          $ctx = $listener.GetContext()
+          $resp = $ctx.Response
+          $resp.ContentType = "application/json"
+          $body = [System.Text.Encoding]::UTF8.GetBytes("{`"access_token`":`"$tok`",`"token_type`":`"Bearer`",`"expires_in`":3600}")
+          $resp.ContentLength64 = $body.Length
+          $resp.OutputStream.Write($body, 0, $body.Length)
+          $resp.Close()
+        }
+      } -ArgumentList $gcs_token, $cred_port
+      $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token"
+
+      # Wait up to 1 second for local credential server to be ready
+      for ($i = 0; $i -lt 20; $i++) {
+        try {
+          $res = Invoke-WebRequest -Uri "http://127.0.0.1:$cred_port/token" -UseBasicParsing -TimeoutSec 1
+          if ($res.StatusCode -eq 200) { break }
+        } catch {}
+        Start-Sleep -Milliseconds 50
+      }
+    }
 
     & $sccache_exe --start-server | Out-Null
     if ($LASTEXITCODE -eq 0) {
@@ -99,14 +137,24 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
       $sccache_cmake = $sccache_exe -replace '\\', '/'
       $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${sccache_cmake}",
                    "-DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_cmake}"
+      # Incompatible cache formats: purge restored .ccache\ so the uploaded cache
+      # archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
+      $old_ccache = Join-Path $rootdir ".ccache"
+      if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
     } else {
       Write-Warning "sccache server failed to start (check GCS credentials/network); falling back to ccache."
+      if ($cred_server_job) {
+        Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+        Remove-Job $cred_server_job -ErrorAction SilentlyContinue
+      }
     }
   }
 
   # 2. Fall back to ccache if sccache is unavailable or failed to start
   if ((-not $compiler_launcher) -and $ccache_exe) {
     $compiler_launcher = "ccache"
+    $old_sccache = Join-Path $rootdir ".sccache"
+    if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
     # EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
     # set standard CCACHE_* variables (e.g. to a persistent host directory) in
     # config.toml without being overridden by the YAML template.
@@ -204,6 +252,10 @@ $success = $LASTEXITCODE
 if ($compiler_launcher -eq "sccache" -and $sccache_exe) {
   & $sccache_exe --show-stats
   & $sccache_exe --stop-server | Out-Null
+  if ($cred_server_job) {
+    Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+    Remove-Job $cred_server_job -ErrorAction SilentlyContinue
+  }
 } elseif ($compiler_launcher -eq "ccache" -and $ccache_exe) {
   & $ccache_exe --show-log-stats
   if (Test-Path $env:CCACHE_STATSLOG) {

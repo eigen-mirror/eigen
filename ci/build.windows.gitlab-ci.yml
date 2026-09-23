@@ -65,6 +65,7 @@
     - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
+        - .sccache/
       policy: $EIGEN_CI_CCACHE_POLICY
       when: always
 
