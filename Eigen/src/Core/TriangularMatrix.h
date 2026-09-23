@@ -214,6 +214,17 @@ class TriangularBase : public EigenBase<Derived> {
     return Product<Derived, OtherDerived>(derived(), rhs.derived());
   }
 
+  /** \returns the dense matrix product of \c *this by the triangular or self-adjoint view \a rhs.
+   *
+   * The right factor is evaluated into a dense temporary and the product runs the kernel of \c *this times a
+   * dense matrix. The result is a plain dense expression even when the structure would be preserved, as for
+   * two upper triangular factors.
+   */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC const Product<Derived, OtherDerived> operator*(const TriangularBase<OtherDerived>& rhs) const {
+    return Product<Derived, OtherDerived>(derived(), rhs.derived());
+  }
+
   template <typename OtherDerived,
             std::enable_if_t<int(Mode) == int(OtherDerived::Mode) && (int(Mode) & int(UnitDiag)) == 0, int> = 0>
   EIGEN_DEVICE_FUNC inline auto operator+(const TriangularBase<OtherDerived>& other) const {

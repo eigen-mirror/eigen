@@ -1441,6 +1441,98 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
 };
 
 /***************************************************************************
+ * Products of two triangular or self-adjoint views
+ ***************************************************************************/
+
+/** \internal
+ * Evaluates a triangular or self-adjoint view into a plain matrix as the product kernels read it, and returns
+ * the scalar factor to apply. A factor folded into a self-adjoint view, as in (alpha * A).selfadjointView<Lower>(),
+ * would be conjugated on the mirrored triangle by evalTo, so it is extracted first with blas_traits, exactly as
+ * the SYMM kernel does. A triangular view densifies exactly and returns 1.
+ */
+template <typename View, typename Shape = typename evaluator_traits<View>::Shape>
+struct densified_view_operand {
+  using Scalar = typename View::Scalar;
+  template <typename Dense>
+  static Scalar run(Dense& dense, const View& view) {
+    dense = view;
+    return Scalar(1);
+  }
+};
+
+template <typename View>
+struct densified_view_operand<View, SelfAdjointShape> {
+  using Scalar = typename View::Scalar;
+  using BlasTraits = blas_traits<typename View::MatrixType>;
+  static constexpr unsigned int UpLo = unsigned(int(View::Mode) & int(Upper | Lower));
+  template <typename Dense>
+  static Scalar run(Dense& dense, const View& view) {
+    dense = BlasTraits::extract(view.nestedExpression())
+                .template conjugateIf<bool(BlasTraits::NeedToConjugate)>()
+                .template selfadjointView<UpLo>();
+    return BlasTraits::extractScalarFactor(view.nestedExpression());
+  }
+};
+
+/** \internal
+ * Products of two views: one factor is evaluated into a plain dense matrix and the product is re-dispatched to
+ * the kernel that keeps the other one structured. The triangular factor is the one kept whenever there is one
+ * (TRMM is n^3/2 where SYMM is n^3), so a self-adjoint view is densified when it meets a triangular one, and
+ * the right factor is densified otherwise. The structure of the result (Upper * Upper is upper triangular) is
+ * not tracked.
+ */
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag, bool DensifyRhs>
+struct structured_view_product_impl;
+
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag>
+struct structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, true>
+    : generic_product_impl_base<Lhs, Rhs,
+                                structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, true>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using RhsDenseType = typename Rhs::DenseMatrixType;
+
+  template <typename Dest>
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    RhsDenseType rhsDense(rhs.rows(), rhs.cols());
+    const Scalar factor = densified_view_operand<Rhs>::run(rhsDense, rhs);
+    generic_product_impl<Lhs, RhsDenseType, LhsShape, DenseShape, ProductTag>::scaleAndAddTo(dst, lhs, rhsDense,
+                                                                                             alpha * factor);
+  }
+};
+
+template <typename Lhs, typename Rhs, typename LhsShape, typename RhsShape, int ProductTag>
+struct structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, false>
+    : generic_product_impl_base<Lhs, Rhs,
+                                structured_view_product_impl<Lhs, Rhs, LhsShape, RhsShape, ProductTag, false>> {
+  using Scalar = typename Product<Lhs, Rhs>::Scalar;
+  using LhsDenseType = typename Lhs::DenseMatrixType;
+
+  template <typename Dest>
+  static void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
+    LhsDenseType lhsDense(lhs.rows(), lhs.cols());
+    const Scalar factor = densified_view_operand<Lhs>::run(lhsDense, lhs);
+    generic_product_impl<LhsDenseType, Rhs, DenseShape, RhsShape, ProductTag>::scaleAndAddTo(dst, lhsDense, rhs,
+                                                                                             alpha * factor);
+  }
+};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, TriangularShape, ProductTag, true> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, TriangularShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, TriangularShape, SelfAdjointShape, ProductTag, true> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, TriangularShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, TriangularShape, ProductTag, false> {};
+
+template <typename Lhs, typename Rhs, int ProductTag>
+struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, ProductTag>
+    : structured_view_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, ProductTag, true> {};
+
+/***************************************************************************
  * Diagonal products
  ***************************************************************************/
 
