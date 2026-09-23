@@ -220,6 +220,34 @@ void reverseInPlace_boundary() {
   }
 }
 
+template <typename MatrixType, int Direction>
+void reverse_destination() {
+  using Scalar = typename MatrixType::Scalar;
+  const MatrixType source = MatrixType::Random();
+  MatrixType destination, expected;
+  Reverse<MatrixType, Direction> reversed(destination);
+  for (Index j = 0; j < source.cols(); ++j)
+    for (Index i = 0; i < source.rows(); ++i)
+      expected(i, j) = source(Direction == Horizontal ? i : source.rows() - 1 - i,
+                              Direction == Vertical ? j : source.cols() - 1 - j);
+
+  reversed = source;
+  VERIFY_IS_APPROX(destination, expected);
+  destination.setConstant(Scalar(3));
+  reversed += source;
+  VERIFY_IS_APPROX(destination, (expected.array() + Scalar(3)));
+  destination.setConstant(Scalar(3));
+  reversed -= source;
+  VERIFY_IS_APPROX(destination, (Scalar(3) - expected.array()));
+}
+
+template <typename MatrixType>
+void reverse_destinations() {
+  reverse_destination<MatrixType, BothDirections>();
+  reverse_destination<MatrixType, Vertical>();
+  reverse_destination<MatrixType, Horizontal>();
+}
+
 EIGEN_DECLARE_TEST(array_reverse) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(reverse(Matrix<float, 1, 1>()));
@@ -243,4 +271,10 @@ EIGEN_DECLARE_TEST(array_reverse) {
   CALL_SUBTEST_10(reverseInPlace_boundary<float>());
   CALL_SUBTEST_10(reverseInPlace_boundary<double>());
   CALL_SUBTEST_10(reverseInPlace_boundary<int>());
+  CALL_SUBTEST_11(reverse_destinations<Vector4d>());
+  CALL_SUBTEST_11(reverse_destinations<RowVector4d>());
+  CALL_SUBTEST_11(reverse_destinations<Matrix4f>());
+  CALL_SUBTEST_11((reverse_destinations<Matrix<float, 4, 4, RowMajor>>()));
+  CALL_SUBTEST_11((reverse_destinations<Array<float, 4, 4>>()));
+  CALL_SUBTEST_11((reverse_destinations<Matrix<std::complex<float>, 4, 4>>()));
 }

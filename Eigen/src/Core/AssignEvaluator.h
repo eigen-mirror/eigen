@@ -94,10 +94,12 @@ struct copy_using_evaluator_traits {
   static constexpr bool StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor;
   static constexpr bool MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
                                          bool(functor_traits<AssignFunc>::PacketAccess);
-  static constexpr bool MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) &&
-                                            (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
-                                            (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
-                                            (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
+  // Generic packet assignment stores forward from coeffRef(); the swap kernel uses writePacket().
+  static constexpr bool MayInnerVectorize =
+      MightVectorize && (DstHasDirectAccess || std::is_same<AssignFunc, swap_assign_op<DstScalar>>::value) &&
+      (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
+      (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
+      (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
   static constexpr bool MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit);
   static constexpr bool MayLinearVectorize =
       MightVectorize && MayLinearize && DstHasDirectAccess &&
