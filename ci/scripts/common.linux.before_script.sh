@@ -35,7 +35,7 @@ if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
   apt-get update -y > /dev/null
   # python3 drives the test pass cache; only the test jobs (the jobs that
   # set EIGEN_CI_TEST_CACHE) consume it, so build jobs skip the install.
-  packages="ninja-build cmake git xsltproc ccache"
+  packages="ninja-build cmake git xsltproc ccache curl ca-certificates"
   if [[ "${EIGEN_CI_TEST_CACHE}" == "on" ]]; then
     packages="${packages} python3"
   fi

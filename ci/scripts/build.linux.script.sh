@@ -22,27 +22,61 @@ export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-${EIGEN_CI_CCACHE_COMPRESSL
 for v in CCACHE_DIR CCACHE_MAXSIZE CCACHE_BASEDIR CCACHE_COMPRESSLEVEL; do
   [[ -n "${!v}" ]] || unset "${v}"
 done
+# Compiler cache launcher selection:
+# Prefer sccache (Mozilla Shared Compilation Cache) with native Google Cloud Storage
+# remote backend (gs://eigen-gitlab-ci-cache). If sccache or GCS authentication is
+# unavailable, fall back to ccache with local disk / GitLab runner cache.
 launchers=""
-if [[ "${EIGEN_CI_CCACHE}" == "on" ]] && command -v ccache >/dev/null 2>&1; then
-  launchers="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-  # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
-  # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
-  # mix each other's counters. Fall back to global counters if ccache predates
-  # --show-log-stats (ccache < 4.4, e.g. Ubuntu 20.04).
-  export CCACHE_STATSLOG="${PWD}/ccache-stats.log"
-  rm -f "${CCACHE_STATSLOG}"
-  if ! ccache --show-log-stats >/dev/null 2>&1; then
-    unset CCACHE_STATSLOG
-    ccache --zero-stats
+compiler_launcher=""
+
+if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
+  . "${rootdir}/ci/scripts/install_compiler_cache.sh"
+
+  if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" && -n "${sccache_bin}" ]]; then
+    export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
+    if [[ "${CI_COMMIT_REF_PROTECTED}" == "true" ]]; then
+      export SCCACHE_GCS_RW_MODE="READ_WRITE"
+    else
+      export SCCACHE_GCS_RW_MODE="READ_ONLY"
+    fi
+    export SCCACHE_BASEDIRS="${rootdir}"
+    export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
+
+    if "${sccache_bin}" --start-server >/dev/null 2>&1; then
+      compiler_launcher="sccache"
+      "${sccache_bin}" --zero-stats >/dev/null 2>&1 || true
+      launchers="-DCMAKE_C_COMPILER_LAUNCHER=${sccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_bin}"
+    else
+      echo "Notice: sccache server failed to start (check GCS credentials/network); falling back to ccache."
+    fi
+  fi
+
+  if [[ -z "${compiler_launcher}" && -n "${ccache_bin}" ]]; then
+    compiler_launcher="ccache"
+    launchers="-DCMAKE_C_COMPILER_LAUNCHER=${ccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_bin}"
+    # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
+    # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
+    # mix each other's counters. Fall back to global counters if ccache predates
+    # --show-log-stats (ccache < 4.4, e.g. Ubuntu 20.04).
+    export CCACHE_STATSLOG="${PWD}/ccache-stats.log"
+    rm -f "${CCACHE_STATSLOG}"
+    if ! "${ccache_bin}" --show-log-stats >/dev/null 2>&1; then
+      unset CCACHE_STATSLOG
+      "${ccache_bin}" --zero-stats
+    fi
   fi
 fi
+
 show_ccache_stats() {
-  if [[ -n "${launchers}" ]]; then
+  if [[ "${compiler_launcher}" == "sccache" && -n "${sccache_bin}" ]]; then
+    "${sccache_bin}" --show-stats 2>&1 || true
+    "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
+  elif [[ "${compiler_launcher}" == "ccache" && -n "${ccache_bin}" ]]; then
     if [[ -n "${CCACHE_STATSLOG}" ]]; then
-      ccache --show-log-stats
+      "${ccache_bin}" --show-log-stats
       rm -f "${CCACHE_STATSLOG}"
     else
-      ccache --show-stats
+      "${ccache_bin}" --show-stats
     fi
   fi
 }
@@ -270,6 +304,7 @@ if [[ -n "${deps}" ]]; then
       # The cache is pushed even on failure (cache:when: always), so the
       # stats still describe what the next attempt can reuse.
       show_ccache_stats
+      cd ${rootdir}
       exit 1
     fi
   fi
@@ -277,7 +312,13 @@ if [[ -n "${deps}" ]]; then
 fi
 
 if [[ "$shuffled" != "true" ]]; then
-  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs}
+  build_failed=false
+  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs} || build_failed=true
+  if [[ "$build_failed" == "true" ]]; then
+    show_ccache_stats
+    cd ${rootdir}
+    exit 1
+  fi
 fi
 
 # Hit/miss summary for judging what the cache pays for on this job.
