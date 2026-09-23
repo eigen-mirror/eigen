@@ -30,6 +30,16 @@ launchers=""
 compiler_launcher=""
 
 if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
+  # Ensure sccache prerequisites (python3, curl) exist in slim images if apt-get is available
+  if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" ]]; then
+    if ! command -v python3 >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+      if command -v apt-get >/dev/null 2>&1 && [[ "$(id -u)" -eq 0 ]]; then
+        DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1 || true
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends python3 curl ca-certificates >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+
   . "${rootdir}/ci/scripts/install_compiler_cache.sh"
 
   if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" && -n "${sccache_bin}" ]]; then
