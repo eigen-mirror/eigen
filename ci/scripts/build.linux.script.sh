@@ -51,8 +51,7 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
         export SCCACHE_GCS_RW_MODE="READ_ONLY"
       fi
       cred_port="$((8200 + (${CI_JOB_ID:-0} % 1000)))"
-      if command -v python3 >/dev/null 2>&1; then
-        python3 -c "
+      python3 -c "
 import http.server, json, sys
 token = sys.argv[1]
 class H(http.server.BaseHTTPRequestHandler):
@@ -64,26 +63,13 @@ class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
 " "${gcs_token}" "${cred_port}" &
-        sccache_cred_server_pid=$!
-      elif command -v perl >/dev/null 2>&1; then
-        perl -MIO::Socket::INET -e '
-my $s = IO::Socket::INET->new(Listen => 5, LocalAddr => "127.0.0.1", LocalPort => $ARGV[1], Reuse => 1) or exit 1;
-my $resp = "{\"access_token\":\"$ARGV[0]\",\"token_type\":\"Bearer\",\"expires_in\":3600}";
-my $len = length($resp);
-while (my $c = $s->accept()) {
-  $c->recv(my $buf, 1024);
-  print $c "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: $len\r\nConnection: close\r\n\r\n$resp";
-  close $c;
-}
-' "${gcs_token}" "${cred_port}" &
-        sccache_cred_server_pid=$!
-      fi
+      sccache_cred_server_pid=$!
       export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token"
       trap '[[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
 
       # Wait up to 1 second for local credential server to be ready
       for _ in {1..20}; do
-        if (echo > "/dev/tcp/127.0.0.1/${cred_port}") 2>/dev/null; then break; fi
+        if curl -s "http://127.0.0.1:${cred_port}/token" >/dev/null 2>&1; then break; fi
         sleep 0.05
       done
     fi
