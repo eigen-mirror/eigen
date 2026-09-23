@@ -137,10 +137,6 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
       $sccache_cmake = $sccache_exe -replace '\\', '/'
       $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${sccache_cmake}",
                    "-DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_cmake}"
-      # Incompatible cache formats: purge restored .ccache\ so the uploaded cache
-      # archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
-      $old_ccache = Join-Path $rootdir ".ccache"
-      if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
     } else {
       Write-Warning "sccache server failed to start (check GCS credentials/network); falling back to ccache."
       if ($cred_server_job) {
@@ -153,8 +149,6 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
   # 2. Fall back to ccache if sccache is unavailable or failed to start
   if ((-not $compiler_launcher) -and $ccache_exe) {
     $compiler_launcher = "ccache"
-    $old_sccache = Join-Path $rootdir ".sccache"
-    if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
     # EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
     # set standard CCACHE_* variables (e.g. to a persistent host directory) in
     # config.toml without being overridden by the YAML template.
@@ -256,11 +250,18 @@ if ($compiler_launcher -eq "sccache" -and $sccache_exe) {
     Stop-Job $cred_server_job -ErrorAction SilentlyContinue
     Remove-Job $cred_server_job -ErrorAction SilentlyContinue
   }
+  # Incompatible cache formats: purge unused .ccache\ before cache upload so the
+  # uploaded cache archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
+  $old_ccache = Join-Path $rootdir ".ccache"
+  if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
 } elseif ($compiler_launcher -eq "ccache" -and $ccache_exe) {
   & $ccache_exe --show-log-stats
   if (Test-Path $env:CCACHE_STATSLOG) {
     Remove-Item $env:CCACHE_STATSLOG -Force
   }
+  # Incompatible cache formats: purge unused .sccache\ before cache upload.
+  $old_sccache = Join-Path $rootdir ".sccache"
+  if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
 }
 
 # Return to root directory.

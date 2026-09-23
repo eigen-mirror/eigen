@@ -78,9 +78,6 @@ http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
       compiler_launcher="sccache"
       "${sccache_bin}" --zero-stats >/dev/null 2>&1 || true
       launchers="-DCMAKE_C_COMPILER_LAUNCHER=${sccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_bin}"
-      # Incompatible cache formats: purge restored .ccache/ so the uploaded cache
-      # archive only holds .sccache/ and stays strictly below the 5 GB runner cap.
-      rm -rf "${rootdir}/.ccache"
     else
       echo "Notice: sccache server failed to start (check GCS credentials/network); falling back to ccache."
       [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
@@ -89,7 +86,6 @@ http.server.HTTPServer(('127.0.0.1', int(sys.argv[2])), H).serve_forever()
 
   if [[ -z "${compiler_launcher}" && -n "${ccache_bin}" ]]; then
     compiler_launcher="ccache"
-    rm -rf "${rootdir}/.sccache"
     launchers="-DCMAKE_C_COMPILER_LAUNCHER=${ccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_bin}"
     # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
     # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
@@ -109,6 +105,9 @@ show_ccache_stats() {
     "${sccache_bin}" --show-stats 2>&1 || true
     "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
     [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+    # Incompatible cache formats: purge unused .ccache/ before cache upload so the
+    # uploaded cache archive only holds .sccache/ and stays strictly below the 5 GB runner cap.
+    rm -rf "${rootdir}/.ccache"
   elif [[ "${compiler_launcher}" == "ccache" && -n "${ccache_bin}" ]]; then
     if [[ -n "${CCACHE_STATSLOG}" ]]; then
       "${ccache_bin}" --show-log-stats
@@ -116,6 +115,8 @@ show_ccache_stats() {
     else
       "${ccache_bin}" --show-stats
     fi
+    # Incompatible cache formats: purge unused .sccache/ before cache upload.
+    rm -rf "${rootdir}/.sccache"
   fi
 }
 
