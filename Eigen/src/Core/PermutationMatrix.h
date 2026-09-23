@@ -42,7 +42,8 @@ enum PermPermProduct_t { PermPermProduct };
  *
  * Notice that in addition to the member functions and operators listed here, there also are non-member
  * operator* to multiply any kind of permutation object with any kind of matrix expression (MatrixBase)
- * on either side.
+ * on either side, and with a diagonal matrix (DiagonalBase) on either side, which yields a
+ * ScaledPermutationMatrix.
  *
  * \sa class PermutationMatrix, class PermutationWrapper
  */
@@ -114,23 +115,23 @@ class PermutationBase : public EigenBase<Derived> {
   DenseMatrixType eval() const { return toDenseMatrix(); }
 
   /** const version of indices(). */
-  const IndicesType& indices() const { return derived().indices(); }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return derived().indices(); }
   /** \returns a reference to the stored array representing the permutation. */
-  IndicesType& indices() { return derived().indices(); }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return derived().indices(); }
 
   /** Resizes to given size.
    */
-  inline void resize(Index newSize) { indices().resize(newSize); }
+  EIGEN_DEVICE_FUNC void resize(Index newSize) { indices().resize(newSize); }
 
   /** Sets *this to be the identity permutation matrix */
-  void setIdentity() {
+  EIGEN_DEVICE_FUNC void setIdentity() {
     StorageIndex n = StorageIndex(size());
     for (StorageIndex i = 0; i < n; ++i) indices().coeffRef(i) = i;
   }
 
   /** Sets *this to be the identity permutation matrix of given size.
    */
-  void setIdentity(Index newSize) {
+  EIGEN_DEVICE_FUNC void setIdentity(Index newSize) {
     resize(newSize);
     setIdentity();
   }
@@ -307,17 +308,17 @@ class PermutationMatrix
   using StorageIndex = typename Traits::StorageIndex;
 #endif
 
-  inline PermutationMatrix() {}
+  EIGEN_DEVICE_FUNC PermutationMatrix() = default;
 
   /** Constructs an uninitialized permutation matrix of given size.
    */
-  explicit inline PermutationMatrix(Index size) : m_indices(size) {
+  EIGEN_DEVICE_FUNC explicit PermutationMatrix(Index size) : m_indices(size) {
     eigen_internal_assert(size <= NumTraits<StorageIndex>::highest());
   }
 
   /** Copy constructor. */
   template <typename OtherDerived>
-  inline PermutationMatrix(const PermutationBase<OtherDerived>& other) : m_indices(other.indices()) {}
+  EIGEN_DEVICE_FUNC PermutationMatrix(const PermutationBase<OtherDerived>& other) : m_indices(other.indices()) {}
 
   /** Generic constructor from expression of the indices. The indices
    * array has the meaning that the permutations sends each integer i to indices[i].
@@ -327,7 +328,7 @@ class PermutationMatrix
    * array's size.
    */
   template <typename Other>
-  explicit inline PermutationMatrix(const MatrixBase<Other>& indices) : m_indices(indices) {}
+  EIGEN_DEVICE_FUNC explicit PermutationMatrix(const MatrixBase<Other>& indices) : m_indices(indices) {}
 
   /** Convert the Transpositions \a tr to a permutation matrix */
   template <typename Other>
@@ -337,7 +338,7 @@ class PermutationMatrix
 
   /** Copies the other permutation into *this */
   template <typename Other>
-  PermutationMatrix& operator=(const PermutationBase<Other>& other) {
+  EIGEN_DEVICE_FUNC PermutationMatrix& operator=(const PermutationBase<Other>& other) {
     m_indices = other.indices();
     return *this;
   }
@@ -349,9 +350,9 @@ class PermutationMatrix
   }
 
   /** const version of indices(). */
-  const IndicesType& indices() const { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return m_indices; }
   /** \returns a reference to the stored array representing the permutation. */
-  IndicesType& indices() { return m_indices; }
+  EIGEN_DEVICE_FUNC constexpr IndicesType& indices() { return m_indices; }
 
   /**** multiplication helpers to hopefully get RVO ****/
 

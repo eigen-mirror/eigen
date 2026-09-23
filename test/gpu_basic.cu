@@ -34,6 +34,30 @@
 //   }
 // };
 
+template <typename Scalar>
+struct scaled_permutation_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using MatrixType = Eigen::Matrix<Scalar, 3, 3>;
+    Eigen::ScaledPermutationMatrix<Scalar, 3> scaled;
+    scaled.setIdentity();
+    scaled.indices() << 1, 2, 0;
+    scaled.scales() << Scalar(2), Scalar(3), Scalar(-1);
+    const MatrixType matrix = Eigen::Map<const Eigen::Matrix3f>(in + i).template cast<Scalar>();
+    MatrixType result = scaled * matrix;
+    result.noalias() += matrix * scaled;
+    result.noalias() -= scaled * matrix;
+    result = scaled * result;
+    result = result * scaled;
+    result += scaled;
+    result -= scaled;
+    result += scaled.toDenseMatrix();
+    result = result + scaled;
+    result.noalias() += scaled * matrix.template triangularView<Eigen::Lower>();
+    result.noalias() += matrix.template selfadjointView<Eigen::Upper>() * scaled;
+    Eigen::Map<Eigen::Matrix3f>(out + 9 * i) = result.template cast<float>();
+  }
+};
+
 template <typename T>
 struct coeff_wise {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -710,6 +734,8 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<ColMajor>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<RowMajor>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<ColMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<float>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<double>(), nthreads, in, out));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));

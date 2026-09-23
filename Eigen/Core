@@ -427,6 +427,7 @@ using std::size_t;
 #endif
 #include "src/Core/products/Parallelizer.h"
 #include "src/Core/ProductEvaluators.h"
+#include "src/Core/ScaledPermutationMatrix.h"
 #include "src/Core/products/GeneralMatrixVector.h"
 #include "src/Core/products/GeneralMatrixMatrix.h"
 #include "src/Core/SolveTriangular.h"
