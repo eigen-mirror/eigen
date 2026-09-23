@@ -103,7 +103,7 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
         $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
       }
       $url_secret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 16 | % {[char]$_})
-      
+
       $cred_server_job = Start-Job -ScriptBlock {
         param($path_secret)
         $tok = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
@@ -130,7 +130,7 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
           $resp.Close()
         }
       } -ArgumentList $url_secret
-      
+
       # Wait up to 2 seconds for local credential server to be ready
       $cred_port = $null
       for ($i = 0; $i -lt 40; $i++) {
