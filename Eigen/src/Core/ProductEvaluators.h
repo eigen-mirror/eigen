@@ -50,7 +50,7 @@ struct product_can_fold_scalar
                     std::is_same<Shape, DiagonalShape>::value || std::is_same<Shape, SelfAdjointShape>::value> {};
 
 template <typename Lhs>
-struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(Lhs::Mode & UnitDiag) == 0> {};
+struct product_can_fold_scalar<Lhs, TriangularShape> : bool_constant<(int(Lhs::Mode) & int(UnitDiag)) == 0> {};
 
 // The lazy selfadjoint/diagonal evaluator would conjugate a folded complex factor.
 template <typename Lhs, typename Rhs>
