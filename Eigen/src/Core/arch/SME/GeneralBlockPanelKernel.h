@@ -621,8 +621,8 @@ static void neon_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_REST
                             Index w) {
   using Packet = typename packet_traits<Scalar>::type;
   constexpr Index PS = Index(packet_traits<Scalar>::size);
-  const Index peeled4 = (w / (4 * PS)) * (4 * PS);
-  const Index peeled = (w / PS) * PS;
+  const Index peeled4 = numext::round_down(w, 4 * PS);
+  const Index peeled = numext::round_down(w, PS);
   for (Index k = 0; k < depth; ++k) {
     const Scalar* s = src + k * src_stride;
     Scalar* d = dst + k * w;
@@ -647,7 +647,7 @@ static void neon_copy_panel(std::complex<RealScalar>* EIGEN_RESTRICT dst,
   constexpr Index PS = Index(packet_traits<RealScalar>::size);
   RealScalar* rd = reinterpret_cast<RealScalar*>(dst);
   const RealScalar* rs = reinterpret_cast<const RealScalar*>(src);
-  const Index peeled = (w / PS) * PS;
+  const Index peeled = numext::round_down(w, PS);
   for (Index k = 0; k < depth; ++k) {
     const RealScalar* s = rs + k * 2 * src_stride;
     RealScalar* d = rd + k * 2 * w;
@@ -1157,7 +1157,7 @@ struct sme_pack_lhs_rowmajor {
 
   static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride, Index depth, Index rows,
                           Index dst_stride, Index dst_offset) {
-    const Index peeled_rows = (rows / MR) * MR;
+    const Index peeled_rows = numext::round_down(rows, MR);
 
     if (peeled_rows > 0) {
       pack_full_panels(dst_base, src, src_stride, depth, peeled_rows, dst_stride, dst_offset);
@@ -1224,7 +1224,7 @@ struct sme_pack_rhs_colmajor {
 
   static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride, Index depth, Index cols,
                           Index dst_stride, Index dst_offset) {
-    const Index peeled_cols = (cols / NR) * NR;
+    const Index peeled_cols = numext::round_down(cols, NR);
 
     if (peeled_cols > 0) {
       pack_full_panels(dst_base, src, src_stride, depth, peeled_cols, dst_stride, dst_offset);
