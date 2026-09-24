@@ -19,7 +19,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-      cmake ninja-build git ccache \
+      cmake ninja-build git ccache curl ca-certificates python3 \
       g++-15-riscv64-linux-gnu \
       clang-21 \
     && apt-get clean \
