@@ -33,8 +33,8 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
   . "${rootdir}/ci/scripts/install_compiler_cache.sh"
 
   if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" && -n "${sccache_bin}" ]]; then
-    export SCCACHE_DIR="${CI_PROJECT_DIR}/.sccache"
-    export SCCACHE_CACHE_SIZE="${CCACHE_MAXSIZE:-4G}"
+    export SCCACHE_DIR="${SCCACHE_DIR:-${EIGEN_CI_SCCACHE_DIR:-${CI_PROJECT_DIR}/.sccache}}"
+    export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-${EIGEN_CI_SCCACHE_CACHE_SIZE:-4G}}"
     export SCCACHE_BASEDIRS="${rootdir}"
     export SCCACHE_SERVER_PORT="$((4226 + ${CI_CONCURRENT_ID:-0}))"
 
@@ -78,6 +78,7 @@ server.serve_forever()
       set -x
 
       # Wait up to 2 seconds for local credential server to be ready
+      cred_port=""
       for _ in {1..40}; do
         if [[ -s "${cred_port_file}" ]]; then
           cred_port=$(cat "${cred_port_file}")
@@ -85,7 +86,16 @@ server.serve_forever()
         fi
         sleep 0.05
       done
-      export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}"
+      if [[ -n "${cred_port:-}" ]]; then
+        export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}"
+      else
+        echo "Notice: Local credential server failed to bind or respond; skipping GCS remote cache." >&2
+        unset SCCACHE_GCS_BUCKET
+        unset SCCACHE_GCS_RW_MODE
+        unset SCCACHE_MULTILEVEL_CHAIN
+        [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+        sccache_cred_server_pid=""
+      fi
       rm -f "${cred_port_file}"
       unset GCS_URL_SECRET
     fi

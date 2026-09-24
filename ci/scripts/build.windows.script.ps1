@@ -85,8 +85,8 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
 
   # 1. Try starting sccache server if available
   if ($sccache_exe) {
-    $env:SCCACHE_DIR = Join-Path $env:CI_PROJECT_DIR ".sccache"
-    $env:SCCACHE_CACHE_SIZE = if ($env:EIGEN_CI_CCACHE_MAXSIZE) { $env:EIGEN_CI_CCACHE_MAXSIZE } else { "4G" }
+    $env:SCCACHE_DIR = if ($env:SCCACHE_DIR) { $env:SCCACHE_DIR } elseif ($env:EIGEN_CI_SCCACHE_DIR) { $env:EIGEN_CI_SCCACHE_DIR } else { Join-Path $env:CI_PROJECT_DIR ".sccache" }
+    $env:SCCACHE_CACHE_SIZE = if ($env:SCCACHE_CACHE_SIZE) { $env:SCCACHE_CACHE_SIZE } elseif ($env:EIGEN_CI_SCCACHE_CACHE_SIZE) { $env:EIGEN_CI_SCCACHE_CACHE_SIZE } else { "4G" }
     # Rewrite paths relative to rootdir for cross-runner / cross-directory cache hits.
     $env:SCCACHE_BASEDIRS = $rootdir
     # Isolate daemon port per runner slot to avoid port collisions and process cross-kill.
@@ -151,7 +151,19 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
         }
         Start-Sleep -Milliseconds 50
       }
-      $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token/$url_secret"
+      if ($cred_port) {
+        $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token/$url_secret"
+      } else {
+        Write-Warning "Local credential server failed to bind or respond; skipping GCS remote cache."
+        Remove-Item Env:SCCACHE_GCS_BUCKET -ErrorAction SilentlyContinue
+        Remove-Item Env:SCCACHE_GCS_RW_MODE -ErrorAction SilentlyContinue
+        Remove-Item Env:SCCACHE_MULTILEVEL_CHAIN -ErrorAction SilentlyContinue
+        if ($cred_server_job) {
+          Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+          Remove-Job $cred_server_job -Force -ErrorAction SilentlyContinue
+          $cred_server_job = $null
+        }
+      }
     }
 
     & $sccache_exe --start-server | Out-Null

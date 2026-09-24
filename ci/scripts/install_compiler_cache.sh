@@ -21,6 +21,7 @@ download_file() {
   if command -v python3 >/dev/null 2>&1; then
     python3 -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" "${url}" "${dest}" && return 0
   fi
+  echo "Notice: Neither curl, wget, nor python3 is available to download $(basename "${dest}")." >&2
   return 1
 }
 
@@ -29,7 +30,7 @@ sccache_bin="$(command -v sccache 2>/dev/null || true)"
 
 if [[ -z "${sccache_bin}" ]]; then
   sccache_ver="0.18.0"
-  sccache_bindir="${root_dir}/.sccache-bin"
+  sccache_bindir="${root_dir}/.sccache-bin/${arch}"
   sccache_tar_sha256=""
   sccache_bin_sha256=""
 
@@ -78,7 +79,7 @@ ccache_bin="$(command -v ccache 2>/dev/null || true)"
 
 if [[ -z "${ccache_bin}" ]]; then
   ccache_ver="4.13.6"
-  ccache_bindir="${root_dir}/.ccache-bin"
+  ccache_bindir="${root_dir}/.ccache-bin/${arch}"
   ccache_tar_sha256=""
   ccache_bin_sha256=""
 
