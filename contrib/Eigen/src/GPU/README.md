@@ -14,7 +14,7 @@ does not state:
 | CUDA Toolkit | streams, memory, error codes | <https://docs.nvidia.com/cuda/> |
 | cuBLAS (incl. cuBLASLt) | `DeviceMatrix` products, BLAS-1 | <https://docs.nvidia.com/cuda/cublas/> |
 | cuSOLVER | dense LLT / LU / QR / SVD / EVD | <https://docs.nvidia.com/cuda/cusolver/> |
-| cuSPARSE | SpMV / SpMM | <https://docs.nvidia.com/cuda/cusparse/> |
+| cuSPARSE | SpMV / SpMM (CSC and BSR) | <https://docs.nvidia.com/cuda/cusparse/> |
 | cuFFT | `gpu::FFT` | <https://docs.nvidia.com/cuda/cufft/> |
 | NPP | device-side scalar and coefficient-wise arithmetic | <https://docs.nvidia.com/cuda/npp/> |
 | cuDSS | sparse direct solvers (separate install) | <https://docs.nvidia.com/cuda/cudss/> |
@@ -538,6 +538,45 @@ matching shapes; `deviceView()` is the upload-once path. A `DeviceSparseView`
 carries a generation counter — using a view after any later upload through its
 context asserts instead of silently multiplying by the wrong matrix.
 
+#### Block sparse matrices (BSR)
+
+Every `SparseContext` entry point above also accepts a `BlockSparseMatrix`.
+Square blocks of size at least 2 upload in cuSPARSE's BSR (block sparse row)
+format on cuSPARSE 12.6.3 (CUDA 13.0 Update 1) or newer, where the generic
+SpMV and SpMM run on BSR descriptors; `EIGEN_HAS_CUSPARSE_BSR` is 1 there and
+0 on older toolkits. Any other block shape, and every `BlockSparseMatrix` on an
+older toolkit, takes the CSC path instead: the matrix is expanded with
+`toSparse()` on the host, once per host-input call or once per `deviceView()`,
+so source compatibility does not depend on the toolkit.
+
+```cpp
+BlockSparseMatrix<double, RowMajor, 3, 3> A = ...;   // 3x3 blocks, block-row storage
+VectorXd y = spmv.multiply(A, x);                    // y = A * x, no host copy
+VectorXd z = spmv.multiplyT(A, x);                   // z = A^T * x, transposed on the host
+MatrixXd Y = spmv.multiplyMat(A, X);                 // SpMM
+
+auto d_A = spmv_dev.deviceView(A);                   // upload once as BSR
+d_y = d_A * d_x;                                     // SpMV / SpMM, stays on device
+```
+
+cuSPARSE multiplies a BSR descriptor only as `op == NoTrans` with row-major
+blocks (`CUSPARSE_ORDER_ROW`), so the op is applied on the host rather than
+passed to the library. A `RowMajor` matrix is BSR of itself and uploads
+without a host copy for `NoTrans`; a `ColMajor` one — column-major blocks in
+block-column order — is BSR of its transpose and uploads without a copy for
+`Trans` (and `ConjTrans` on real scalars). Every other op / storage-order
+combination transposes (and conjugates) the matrix on the host first, once per
+host-input call or once per `deviceView()`. `spmv_device_exec()` and
+`spmm_device_exec()` consequently accept only `NoTrans` against a BSR upload
+(debug builds assert); a `BlockSparseMatrix` on the CSC path passes the op to
+cuSPARSE like a `SparseMatrix`.
+
+The CSC fallback exists because cuSPARSE rejects rectangular blocks at
+descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
+`internal::use_cusparse_bsr<BlockRows, BlockCols>` is the exact selector. The
+`int` index type and the `int` limits on dimensions and nonzeros are as for
+`SparseMatrix`.
+
 ### Eigen algorithm interop (example: Conjugate gradient)
 
 The BLAS-1 operators and `DeviceSparseView` make `DeviceMatrix` usable as a
@@ -692,6 +731,7 @@ noted otherwise).
 | `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 | `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
+| same, `view` of a `BlockSparseMatrix` | `cusparseSpMV` / `cusparseSpMM` on a BSR descriptor | opA=N, row-major blocks; op(A) formed on the host |
 
 ### `DeviceMatrix<Scalar>`
 
@@ -1030,10 +1070,15 @@ the input scalar type (complex vs real).
 
 ### `gpu::SparseContext<Scalar>` -- SpMV/SpMM (cuSPARSE)
 
-Accepts `SparseMatrix<Scalar, ColMajor>`. Host-input methods accept host data
-and return host data; device-input methods (`deviceView()`, `multiply(A, d_x,
-d_y)`) operate on `DeviceMatrix`. Matrix dimensions and nonzero count must fit
-in `int` (cuSPARSE limitation; debug builds assert).
+Accepts `SparseMatrix<Scalar, ColMajor>` and `BlockSparseMatrix<Scalar,
+Options, BlockRows, BlockCols, int>` (the `BlockSpMat<Options, BlockRows,
+BlockCols>` alias; see [Block sparse matrices](#block-sparse-matrices-bsr) for
+which block shapes upload as BSR and which op / storage-order combinations do
+so without a host copy). Host-input
+methods accept host data and return host data; device-input methods
+(`deviceView()`, `multiply(A, d_x, d_y)`) operate on `DeviceMatrix`. Matrix
+dimensions and nonzero count must fit in `int` (cuSPARSE limitation; debug
+builds assert).
 
 ```cpp
 gpu::SparseContext()                                       // Creates own stream + cuSPARSE handle
@@ -1055,7 +1100,8 @@ void               multiply(A, d_x, d_y, alpha, beta, op=GpuOp::NoTrans)
 DeviceSparseView   deviceView(A)                                        // Upload sparse matrix, return view
 uint64_t           uploadGeneration()                                   // Generation of the cached upload
 
-// Advanced: run SpMV/SpMM against the already-uploaded matrix
+// Advanced: run SpMV/SpMM against the already-uploaded matrix (op must be
+// NoTrans after a BSR upload)
 void               spmv_device_exec(d_x, d_y, alpha=1, beta=0, op=GpuOp::NoTrans)
 void               spmm_device_exec(d_X, d_Y, alpha=1, beta=0, op=GpuOp::NoTrans)
 
@@ -1136,8 +1182,8 @@ template compatibility.
 | `GpuEigenSolver.h` | `GpuSolverContext.h` | `gpu::SelfAdjointEigenSolver<>` |
 | `CuFftSupport.h` | `GpuSupport.h`, `<cufft.h>` | cuFFT error macro, type-dispatch wrappers |
 | `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h`, `GpuContext.h` | `gpu::FFT<>` -- 1D/2D FFT with plan caching |
-| `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro |
-| `GpuSparseContext.h` | `CuSparseSupport.h` | `gpu::SparseContext<>`, `gpu::DeviceSparseView<>` |
+| `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro, `EIGEN_HAS_CUSPARSE_BSR` |
+| `GpuSparseContext.h` | `CuSparseSupport.h` | `gpu::SparseContext<>`, `gpu::DeviceSparseView<>`, BSR binding of `BlockSparseMatrix` |
 | `CuDssSupport.h` | `GpuSupport.h`, `<cudss.h>` | cuDSS error macro, type traits (optional) |
 | `GpuSparseSolverBase.h` | `CuDssSupport.h` | CRTP base for sparse solvers (optional) |
 | `GpuSparseLLT.h` | `GpuSparseSolverBase.h` | `gpu::SparseLLT<>` -- Sparse Cholesky via cuDSS (optional) |
@@ -1155,7 +1201,7 @@ cmake -G Ninja -B build -S . \
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \
-  device_matrix cufft cusparse_spmv cg
+  device_matrix cufft cusparse_spmv cusparse_bsr cg
 ctest --test-dir build -L gpu --output-on-failure
 
 # Sparse solvers (cuDSS -- separate install required)

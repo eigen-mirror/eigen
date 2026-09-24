@@ -107,10 +107,13 @@ if(TARGET CUDA::cufft)
   ei_add_gpu_test(cufft EXTRA_LIBS CUDA::cufft CUDA::cublas)
 endif()
 
-# cuSPARSE SpMV (part of the CUDA toolkit) and the end-to-end CG test that
-# exercises Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
+# cuSPARSE SpMV (part of the CUDA toolkit), its BSR counterpart (skips itself
+# below cuSPARSE 12.6.3), and the end-to-end CG test that exercises
+# Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
 if(TARGET CUDA::cusparse)
   ei_add_gpu_test(cusparse_spmv
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
+  ei_add_gpu_test(cusparse_bsr
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
   ei_add_gpu_test(cg
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)

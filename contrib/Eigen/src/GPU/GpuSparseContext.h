@@ -15,15 +15,17 @@
 // SparseMatrix<Scalar, ColMajor> (CSC), implicitly converting RowMajor input, and
 // can borrow a gpu::Context so that sparse products share a stream with BLAS-1
 // operations — which removes the cross-stream event waits in solvers like CG.
+// It also takes BlockSparseMatrix: as BSR (internal::BsrBinding) where
+// internal::use_cusparse_bsr holds, as the scalar-level toSparse() copy otherwise.
 //
 // Caching: host-input calls re-upload the values *and* index arrays on every
 // call. Host pointer identity cannot detect a sparsity pattern rewritten in
 // place or assigned into the same allocations (SparseMatrix reuses them for
 // same-shape assignments), so the structure is never assumed unchanged. What
 // is cached are the cuSPARSE descriptors (sparse descriptor keyed on
-// dimensions + nonzero count, dense descriptors keyed on shape) and the
-// SpMV/SpMM workspace-size queries. For repeated products with no re-upload
-// at all, use deviceView().
+// dimensions + nonzero count + block size, dense descriptors keyed on shape)
+// and the SpMV/SpMM workspace-size queries. For repeated products with no
+// re-upload at all, use deviceView().
 //
 // Not thread-safe: concurrent multiply* calls on one instance race on the
 // cuSPARSE handle, the bound stream, and the cached buffers. Use one per thread.
@@ -42,6 +44,100 @@
 namespace Eigen {
 namespace gpu {
 
+namespace internal {
+/** Whether a BlockSparseMatrix with this block shape uploads as BSR. cuSPARSE
+ * runs BSR products only on square blocks of size at least 2 (cusparseCreateBsr
+ * rejects rectangular blocks; SpMV on 1 x 1 blocks returns
+ * CUSPARSE_STATUS_NOT_SUPPORTED) and only from cuSPARSE 12.6.3; every other
+ * case takes the CSC path. */
+template <int BlockRows, int BlockCols>
+struct use_cusparse_bsr
+    : Eigen::internal::bool_constant<(EIGEN_HAS_CUSPARSE_BSR != 0 && BlockRows == BlockCols && BlockRows >= 2)> {};
+}  // namespace internal
+
+#if EIGEN_HAS_CUSPARSE_BSR
+namespace internal {
+
+/** The arrays cusparseCreateBsr takes: block-row offsets (brows + 1),
+ * block-column indices (bnnz), and bnnz row-major blockSize x blockSize
+ * value blocks. Sizes are in blocks; rows()/cols()/nonZeros() in scalars. */
+template <typename Scalar, typename StorageIndex>
+struct BsrArrays {
+  Index brows;
+  Index bcols;
+  Index bnnz;
+  Index blockSize;
+  const StorageIndex* outer;
+  const StorageIndex* inner;
+  const Scalar* values;
+
+  Index rows() const { return brows * blockSize; }
+  Index cols() const { return bcols * blockSize; }
+  Index nonZeros() const { return bnnz * blockSize * blockSize; }
+};
+
+/** Reads a square-block BlockSparseMatrix's buffers as BSR without copying.
+ *
+ * A RowMajor M is BSR of M: block rows are its outer vectors and its blocks are
+ * stored row-major. A ColMajor M is BSR of M^T: its outer vectors are the block
+ * rows of M^T, and a column-major B x B block read row-major is the transposed
+ * block. */
+template <typename Bsm>
+BsrArrays<typename Bsm::Scalar, typename Bsm::StorageIndex> bsr_of(const Bsm& M) {
+  return BsrArrays<typename Bsm::Scalar, typename Bsm::StorageIndex>{
+      /*brows=*/M.blockOuterSize(), /*bcols=*/M.blockInnerSize(),
+      /*bnnz=*/M.nonZeroBlocks(),   /*blockSize=*/Index(Bsm::BlockRows),
+      /*outer=*/M.outerIndexPtr(),  /*inner=*/M.innerIndexPtr(),
+      /*values=*/M.valuePtr()};
+}
+
+/** Binds op(A) as BSR arrays of op(A) itself, the only form cuSPARSE
+ * multiplies. Per bsr_of(), one of {NoTrans, Trans} reads A's buffers
+ * directly — NoTrans for RowMajor, Trans for ColMajor — and the other needs
+ * the transposed copy; ConjTrans on a complex matrix always copies for the
+ * conjugation. The copy lives as long as the binding. */
+template <typename Bsm>
+class BsrBinding {
+  EIGEN_STATIC_ASSERT((use_cusparse_bsr<int(Bsm::BlockRows), int(Bsm::BlockCols)>::value),
+                      CUSPARSE_BSR_REQUIRES_SQUARE_BLOCKS_OF_SIZE_AT_LEAST_2)
+
+ public:
+  using Scalar = typename Bsm::Scalar;
+  using Arrays = BsrArrays<Scalar, typename Bsm::StorageIndex>;
+
+  BsrBinding(const Bsm& A, GpuOp op) {
+    if (op == GpuOp::ConjTrans && !NumTraits<Scalar>::IsComplex) op = GpuOp::Trans;
+    const bool direct = Bsm::IsRowMajor ? (op == GpuOp::NoTrans) : (op == GpuOp::Trans);
+    if (direct) {
+      arrays_ = bsr_of(A);
+      return;
+    }
+    if (op == GpuOp::ConjTrans && !Bsm::IsRowMajor) {
+      // ColMajor conj(A) reads as BSR of conj(A)^T = A^H.
+      copy_ = A.unaryExpr(Eigen::internal::scalar_conjugate_op<Scalar>());
+    } else if (op == GpuOp::ConjTrans) {
+      copy_ = A.adjoint();
+    } else {
+      copy_ = A.transpose();
+    }
+    arrays_ = bsr_of(copy_);
+  }
+
+  BsrBinding(const BsrBinding&) = delete;
+  BsrBinding& operator=(const BsrBinding&) = delete;
+
+  const Arrays& arrays() const { return arrays_; }
+
+ private:
+  // transpose()/adjoint() swap the block dimensions, which are equal here, so
+  // the copy has A's own type in either storage order.
+  Bsm copy_;
+  Arrays arrays_{};
+};
+
+}  // namespace internal
+#endif  // EIGEN_HAS_CUSPARSE_BSR
+
 /** Sparse product expression: DeviceSparseView * DeviceMatrix → SpMVExpr.
  * Evaluated by DeviceMatrix::operator=(SpMVExpr): dispatches to cusparseSpMV
  * when the dense operand has one column, cusparseSpMM otherwise. */
@@ -58,8 +154,9 @@ class SpMVExpr {
   const DeviceMatrix<Scalar>& x_;
 };
 
-/** Device-resident sparse matrix view. Returned by SparseContext::deviceView().
- * Lightweight handle referencing the context's cached device data.
+/** Device-resident sparse matrix view. Returned by SparseContext::deviceView()
+ * for a SparseMatrix (CSC) or a BlockSparseMatrix (BSR). Lightweight handle
+ * referencing the context's cached device data.
  *
  * \warning One SparseContext caches one sparse matrix at a time. Any later
  * upload through the same context — a second deviceView() or any host-input
@@ -105,6 +202,13 @@ class SparseContext {
   using SpMat = SparseMatrix<Scalar, ColMajor, StorageIndex>;
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  /** BlockSparseMatrix types the block-sparse overloads accept: `int` indices,
+   * either storage order, any block shape. internal::use_cusparse_bsr picks the
+   * upload: BSR — no host copy for `op == NoTrans` on a RowMajor matrix or
+   * `op == Trans` on a ColMajor one, a transposing (and conjugating) copy
+   * otherwise — or the scalar-level toSparse() copy on the CSC path. */
+  template <int Options, int BlockRows, int BlockCols>
+  using BlockSpMat = BlockSparseMatrix<Scalar, Options, BlockRows, BlockCols, StorageIndex>;
 
   /** Standalone: creates own stream and cuSPARSE handle. */
   SparseContext() : owns_handle_(true) {
@@ -222,6 +326,66 @@ class SparseContext {
     return Y;
   }
 
+  // BlockSparseMatrix overloads: same contracts as the SparseMatrix ones,
+  // dispatched on internal::use_cusparse_bsr<BlockRows, BlockCols> to a BSR
+  // upload of op(A) or to the scalar-level CSC path.
+
+  /** Upload a block-sparse matrix and return a view; see the SparseMatrix
+   * overload for the caching contract. A ColMajor matrix bound as BSR is
+   * transposed on the host once, at upload. */
+  template <int Options, int BlockRows, int BlockCols>
+  DeviceSparseView<Scalar> deviceView(const BlockSpMat<Options, BlockRows, BlockCols>& A) {
+    return device_view_block(A, internal::use_cusparse_bsr<BlockRows, BlockCols>());
+  }
+
+  /** Compute y = A * x for a block-sparse A. Returns y as a new dense vector. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  DenseVector multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiply_host_return_block(A, x, GpuOp::NoTrans);
+  }
+
+  /** Compute y = alpha * op(A) * x + beta * y (in-place, host vectors) for a block-sparse A. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs, typename Dest>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x, MatrixBase<Dest>& y,
+                Scalar alpha = Scalar(1), Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) {
+    multiply_host_block(A, x.derived(), y.derived(), alpha, beta, op,
+                        internal::use_cusparse_bsr<BlockRows, BlockCols>());
+  }
+
+  /** Compute d_y = A * d_x for a block-sparse A; the matrix is re-uploaded on
+   * each call, use deviceView() to upload once. */
+  template <int Options, int BlockRows, int BlockCols>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
+                DeviceMatrix<Scalar>& d_y) {
+    multiply(A, d_x, d_y, Scalar(1), Scalar(0), GpuOp::NoTrans);
+  }
+
+  /** Compute d_y = alpha * op(A) * d_x + beta * d_y (DeviceMatrix, in-place) for a block-sparse A. */
+  template <int Options, int BlockRows, int BlockCols>
+  void multiply(const BlockSpMat<Options, BlockRows, BlockCols>& A, const DeviceMatrix<Scalar>& d_x,
+                DeviceMatrix<Scalar>& d_y, Scalar alpha, Scalar beta, GpuOp op = GpuOp::NoTrans) {
+    multiply_device_block(A, d_x, d_y, alpha, beta, op, internal::use_cusparse_bsr<BlockRows, BlockCols>());
+  }
+
+  /** Compute y = A^T * x (host vectors) for a block-sparse A. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  DenseVector multiplyT(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiply_host_return_block(A, x, GpuOp::Trans);
+  }
+
+  /** Compute y = A^H * x for a block-sparse A. For real Scalar this is equivalent to multiplyT. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  DenseVector multiplyAdjoint(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& x) {
+    return multiply_host_return_block(A, x, GpuOp::ConjTrans);
+  }
+
+  /** Compute Y = op(A) * X for a block-sparse A and a dense X (multiple RHS). Returns Y. */
+  template <int Options, int BlockRows, int BlockCols, typename Rhs>
+  DenseMatrix multiplyMat(const BlockSpMat<Options, BlockRows, BlockCols>& A, const MatrixBase<Rhs>& X,
+                          GpuOp op = GpuOp::NoTrans) {
+    return multiply_mat_block(A, X, op, internal::use_cusparse_bsr<BlockRows, BlockCols>());
+  }
+
   cudaStream_t stream() const { return stream_; }
 
  private:
@@ -241,11 +405,13 @@ class SparseContext {
 
   mutable internal::DeviceBuffer d_workspace_;
 
-  // Cached cuSPARSE sparse matrix descriptor.
+  // Cached cuSPARSE sparse matrix descriptor, keyed on the scalar-level shape
+  // and nonzero count plus the block size (0 for CSC/CSR, B for BSR).
   cusparseSpMatDescr_t spmat_desc_ = nullptr;
   Index cached_rows_ = -1;
   Index cached_cols_ = -1;
   Index cached_nnz_ = -1;
+  Index cached_block_size_ = 0;
 
   // Bumped on every sparse upload; DeviceSparseViews record it at creation so
   // a stale view (its data replaced by a later upload) asserts at evaluation.
@@ -267,6 +433,19 @@ class SparseContext {
   static constexpr size_t kWsUnknown = static_cast<size_t>(-1);
   mutable size_t spmv_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
   mutable size_t spmm_ws_size_[3] = {kWsUnknown, kWsUnknown, kWsUnknown};
+
+  static constexpr cusparseIndexType_t kIndexType =
+      (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
+  static constexpr cudaDataType_t kValueType = internal::cuda_data_type<Scalar>::value;
+
+  // Empty-operand result on the host: y <- beta * y, no device work.
+  template <typename Dest>
+  static void scale_host(Dest& y, Scalar beta) {
+    if (beta == Scalar(0))
+      y.setZero();
+    else
+      y *= beta;
+  }
 
   // Shared host-input SpMV entry: y = op(A) * x into a fresh vector.
   template <typename InputType, typename Rhs>
@@ -296,15 +475,110 @@ class SparseContext {
     eigen_assert(y.size() == y_size);
 
     if (m == 0 || n == 0 || nnz == 0) {
-      if (beta == Scalar(0))
-        y.setZero();
-      else
-        y *= beta;
+      scale_host(y, beta);
       return;
     }
 
     upload_sparse(A);
+    spmv_host_cached(x, y, x_size, y_size, alpha, beta, op);
+  }
 
+  // BlockSparseMatrix primitives, dispatched on use_cusparse_bsr: the true_type
+  // overloads bind op(A) as BSR (internal::BsrBinding) and run cuSPARSE with
+  // NON_TRANSPOSE, the false_type ones forward the scalar-level toSparse() copy
+  // to the CSC overloads.
+  template <typename Bsm, typename Rhs>
+  DenseVector multiply_host_return_block(const Bsm& A, const MatrixBase<Rhs>& x, GpuOp op) {
+    DenseVector y((op == GpuOp::NoTrans) ? A.rows() : A.cols());
+    y.setZero();
+    multiply_host_block(A, x.derived(), y, Scalar(1), Scalar(0), op,
+                        internal::use_cusparse_bsr<int(Bsm::BlockRows), int(Bsm::BlockCols)>());
+    return y;
+  }
+
+  template <typename Bsm>
+  DeviceSparseView<Scalar> device_view_block(const Bsm& A, std::false_type) {
+    return deviceView(SpMat(A.toSparse()));
+  }
+
+  template <typename Bsm, typename RhsDerived, typename DestDerived>
+  void multiply_host_block(const Bsm& A, const RhsDerived& x, DestDerived& y, Scalar alpha, Scalar beta, GpuOp op,
+                           std::false_type) {
+    multiply(A.toSparse(), x, y, alpha, beta, op);
+  }
+
+  template <typename Bsm>
+  void multiply_device_block(const Bsm& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha,
+                             Scalar beta, GpuOp op, std::false_type) {
+    multiply(A.toSparse(), d_x, d_y, alpha, beta, op);
+  }
+
+  template <typename Bsm, typename Rhs>
+  DenseMatrix multiply_mat_block(const Bsm& A, const MatrixBase<Rhs>& X, GpuOp op, std::false_type) {
+    return multiplyMat(A.toSparse(), X, op);
+  }
+
+#if EIGEN_HAS_CUSPARSE_BSR
+  template <typename Bsm>
+  DeviceSparseView<Scalar> device_view_block(const Bsm& A, std::true_type) {
+    internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
+    const internal::BsrBinding<Bsm> bound(A, GpuOp::NoTrans);
+    upload_bsr(bound.arrays());
+    return DeviceSparseView<Scalar>(*this, A.rows(), A.cols(), generation_);
+  }
+
+  template <typename Bsm, typename RhsDerived, typename DestDerived>
+  void multiply_host_block(const Bsm& A, const RhsDerived& x, DestDerived& y, Scalar alpha, Scalar beta, GpuOp op,
+                           std::true_type) {
+    internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
+    const internal::BsrBinding<Bsm> bound(A, op);
+    const internal::BsrArrays<Scalar, StorageIndex>& opA = bound.arrays();
+
+    eigen_assert(x.size() == opA.cols());
+    eigen_assert(y.size() == opA.rows());
+
+    if (opA.rows() == 0 || opA.cols() == 0 || opA.bnnz == 0) {
+      scale_host(y, beta);
+      return;
+    }
+
+    upload_bsr(opA);
+    spmv_host_cached(x, y, opA.cols(), opA.rows(), alpha, beta, CUSPARSE_OPERATION_NON_TRANSPOSE);
+  }
+
+  template <typename Bsm>
+  void multiply_device_block(const Bsm& A, const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha,
+                             Scalar beta, GpuOp op, std::true_type) {
+    internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
+    const internal::BsrBinding<Bsm> bound(A, op);
+    upload_bsr(bound.arrays());
+    spmv_device_exec(d_x, d_y, alpha, beta, GpuOp::NoTrans);
+  }
+
+  template <typename Bsm, typename Rhs>
+  DenseMatrix multiply_mat_block(const Bsm& A, const MatrixBase<Rhs>& X, GpuOp op, std::true_type) {
+    internal::check_storage_index_bounds<StorageIndex>(A.rows(), A.cols(), A.nonZeros());
+    const internal::BsrBinding<Bsm> bound(A, op);
+    const internal::BsrArrays<Scalar, StorageIndex>& opA = bound.arrays();
+    const DenseMatrix rhs(X.derived());
+    eigen_assert(opA.cols() == rhs.rows());
+
+    const Index n = rhs.cols();
+    if (opA.rows() == 0 || opA.cols() == 0 || n == 0 || opA.bnnz == 0) return DenseMatrix::Zero(opA.rows(), n);
+
+    DenseMatrix Y = DenseMatrix::Zero(opA.rows(), n);
+    upload_bsr(opA);
+    spmm_host_cached(rhs, Y, opA.rows(), opA.cols(), Scalar(1), Scalar(0), CUSPARSE_OPERATION_NON_TRANSPOSE);
+    return Y;
+  }
+#endif  // EIGEN_HAS_CUSPARSE_BSR
+
+  // y = alpha * op(D) * x + beta * y against the cached upload D, staging the
+  // host vectors through d_x_ / d_y_. x_size and y_size are the column and row
+  // counts of op(D).
+  template <typename RhsDerived, typename DestDerived>
+  void spmv_host_cached(const RhsDerived& x, DestDerived& y, Index x_size, Index y_size, Scalar alpha, Scalar beta,
+                        cusparseOperation_t op) {
     ensure_buffer(d_x_, static_cast<size_t>(x_size) * sizeof(Scalar));
     // Ref binds in place when x is already a contiguous vector; only genuine
     // expressions are evaluated into the Ref's internal temporary.
@@ -329,10 +603,13 @@ class SparseContext {
  public:
   /** Execute SpMV using the already-uploaded sparse matrix (no re-upload).
    * Used by SpMVExpr (d_y = d_A * d_x) for cached deviceView() paths.
-   * The sparse matrix must have been uploaded via deviceView() or multiply(). */
+   * The sparse matrix must have been uploaded via deviceView() or multiply().
+   * A BSR upload describes op(A) as bound at upload time and cuSPARSE runs no
+   * transposed BSR product, so \p op must then be GpuOp::NoTrans. */
   void spmv_device_exec(const DeviceMatrix<Scalar>& d_x, DeviceMatrix<Scalar>& d_y, Scalar alpha = Scalar(1),
                         Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
+    check_op_against_upload(op);
     // cuSPARSE SpMV: y must not alias x (undefined behavior).
     eigen_assert(d_x.data() != d_y.data() && "SpMV: output aliases input vector");
 
@@ -370,10 +647,12 @@ class SparseContext {
 
   /** Execute SpMM (d_Y = alpha * op(A) * d_X + beta * d_Y) using the
    * already-uploaded sparse matrix. d_X / d_Y are device-resident dense
-   * column-major matrices. Used by SpMVExpr when the RHS has > 1 column. */
+   * column-major matrices. Used by SpMVExpr when the RHS has > 1 column.
+   * As for spmv_device_exec(), a BSR upload requires \p op == GpuOp::NoTrans. */
   void spmm_device_exec(const DeviceMatrix<Scalar>& d_X, DeviceMatrix<Scalar>& d_Y, Scalar alpha = Scalar(1),
                         Scalar beta = Scalar(0), GpuOp op = GpuOp::NoTrans) const {
     eigen_assert(spmat_desc_ && "sparse matrix not uploaded — call deviceView() or multiply() first");
+    check_op_against_upload(op);
     eigen_assert(d_X.data() != d_Y.data() && "SpMM: output aliases input matrix");
 
     const cusparseOperation_t cu_op = internal::to_cusparse_op<Scalar>(op);
@@ -418,8 +697,8 @@ class SparseContext {
 #endif
 
   // Map a user-facing op on A to the cuSPARSE op on the cached descriptor.
-  // Identity on cuSPARSE 12+ (descriptor is CSC of A); inverted on 11.x
-  // (descriptor is CSR of A^T).
+  // Identity on cuSPARSE 12+ (descriptor is CSC of A, or BSR of op(A));
+  // inverted on 11.x (descriptor is CSR of A^T).
   static cusparseOperation_t descriptor_op(cusparseOperation_t user_op) {
     EIGEN_IF_CONSTEXPR (!kUseCsrOfTranspose) return user_op;
     switch (user_op) {
@@ -459,7 +738,7 @@ class SparseContext {
   void update_dnvec(cusparseDnVecDescr_t& desc, int64_t& cur_size, int64_t size, void* ptr) const {
     if (!desc || cur_size != size) {
       if (desc) EIGEN_CUSPARSE_CHECK(cusparseDestroyDnVec(desc));
-      EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&desc, size, ptr, internal::cuda_data_type<Scalar>::value));
+      EIGEN_CUSPARSE_CHECK(cusparseCreateDnVec(&desc, size, ptr, kValueType));
       cur_size = size;
       invalidate_ws_caches();
     } else {
@@ -472,8 +751,7 @@ class SparseContext {
     if (!desc || cur_rows != rows || cur_cols != cols) {
       if (desc) EIGEN_CUSPARSE_CHECK(cusparseDestroyDnMat(desc));
       // Column-major with ld = rows.
-      EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&desc, rows, cols, rows, ptr, internal::cuda_data_type<Scalar>::value,
-                                               CUSPARSE_ORDER_COL));
+      EIGEN_CUSPARSE_CHECK(cusparseCreateDnMat(&desc, rows, cols, rows, ptr, kValueType, CUSPARSE_ORDER_COL));
       cur_rows = rows;
       cur_cols = cols;
       invalidate_ws_caches();
@@ -493,7 +771,6 @@ class SparseContext {
 
   void exec_spmv(Index x_size, Index y_size, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
-    constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
     const cusparseOperation_t cu_op = descriptor_op(op);
     update_dnvec(x_vec_desc_, x_vec_size_, x_size, d_x_ptr);
     update_dnvec(y_vec_desc_, y_vec_size_, y_size, d_y_ptr);
@@ -501,17 +778,16 @@ class SparseContext {
     size_t& ws_size = spmv_ws_size_[op_index(cu_op)];
     if (ws_size == kWsUnknown) {
       EIGEN_CUSPARSE_CHECK(cusparseSpMV_bufferSize(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_,
-                                                   dtype, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
+                                                   kValueType, CUSPARSE_SPMV_ALG_DEFAULT, &ws_size));
     }
     ensure_buffer(d_workspace_, ws_size);
 
-    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_, dtype,
+    EIGEN_CUSPARSE_CHECK(cusparseSpMV(handle_, cu_op, &alpha, spmat_desc_, x_vec_desc_, &beta, y_vec_desc_, kValueType,
                                       CUSPARSE_SPMV_ALG_DEFAULT, d_workspace_.get()));
   }
 
   void exec_spmm(Index m_op, Index k_op, Index n, void* d_x_ptr, void* d_y_ptr, Scalar alpha, Scalar beta,
                  cusparseOperation_t op) const {
-    constexpr cudaDataType_t dtype = internal::cuda_data_type<Scalar>::value;
     const cusparseOperation_t cu_op = descriptor_op(op);
     // X is k_op x n, Y is m_op x n (column-major, post-op shapes).
     update_dnmat(x_mat_desc_, x_mat_rows_, x_mat_cols_, k_op, n, d_x_ptr);
@@ -520,13 +796,13 @@ class SparseContext {
     size_t& ws_size = spmm_ws_size_[op_index(cu_op)];
     if (ws_size == kWsUnknown) {
       EIGEN_CUSPARSE_CHECK(cusparseSpMM_bufferSize(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha,
-                                                   spmat_desc_, x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg,
+                                                   spmat_desc_, x_mat_desc_, &beta, y_mat_desc_, kValueType, kSpMMAlg,
                                                    &ws_size));
     }
     ensure_buffer(d_workspace_, ws_size);
 
     EIGEN_CUSPARSE_CHECK(cusparseSpMM(handle_, cu_op, CUSPARSE_OPERATION_NON_TRANSPOSE, &alpha, spmat_desc_,
-                                      x_mat_desc_, &beta, y_mat_desc_, dtype, kSpMMAlg, d_workspace_.get()));
+                                      x_mat_desc_, &beta, y_mat_desc_, kValueType, kSpMMAlg, d_workspace_.get()));
   }
 
   void spmm_impl(const SpMat& A, const DenseMatrix& X, DenseMatrix& Y, Scalar alpha, Scalar beta,
@@ -543,16 +819,19 @@ class SparseContext {
     const Index nnz = A.nonZeros();
 
     if (m_op == 0 || n == 0 || k_op == 0 || nnz == 0) {
-      if (beta == Scalar(0))
-        Y.setZero();
-      else
-        Y *= beta;
+      scale_host(Y, beta);
       return;
     }
 
     upload_sparse(A);
+    spmm_host_cached(X, Y, m_op, k_op, alpha, beta, op);
+  }
 
-    // Upload X to device. X is k_op x n, Y is m_op x n (column-major).
+  // Y = alpha * op(D) * X + beta * Y against the cached upload D, staging the
+  // host matrices through d_x_ / d_y_. X is k_op x n, Y is m_op x n.
+  void spmm_host_cached(const DenseMatrix& X, DenseMatrix& Y, Index m_op, Index k_op, Scalar alpha, Scalar beta,
+                        cusparseOperation_t op) {
+    const Index n = X.cols();
     const size_t x_bytes = static_cast<size_t>(k_op) * static_cast<size_t>(n) * sizeof(Scalar);
     const size_t y_bytes = static_cast<size_t>(m_op) * static_cast<size_t>(n) * sizeof(Scalar);
     ensure_buffer(d_x_, x_bytes);
@@ -574,23 +853,57 @@ class SparseContext {
     // demotes to TRANSPOSE. We register the same CSC buffers as CSR-of-A^T
     // (dims swapped) on 11.x and invert the op at exec time via
     // descriptor_op() — no transpose-copy required.
-    upload_compressed_arrays(A.rows(), A.cols(), A.nonZeros(),
-                             /*outer_count=*/A.cols() + 1, A.outerIndexPtr(), A.innerIndexPtr(), A.valuePtr());
+    const Index m = A.rows();
+    const Index n = A.cols();
+    const Index nnz = A.nonZeros();
+    upload_arrays(/*outer_count=*/n + 1, /*inner_count=*/nnz, /*value_count=*/nnz, A.outerIndexPtr(), A.innerIndexPtr(),
+                  A.valuePtr());
+    if (descriptor_key_matches(m, n, nnz, /*block_size=*/0)) return;
+
+    destroy_spmat_descriptor(/*checked=*/true);
+    EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
+      // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
+      // A^T share the same buffers, so register the data as CSR-of-A^T (dims
+      // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
+      EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                             d_values_.get(), kIndexType, kIndexType, CUSPARSE_INDEX_BASE_ZERO,
+                                             kValueType));
+    } else {
+      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
+                                             d_values_.get(), kIndexType, kIndexType, CUSPARSE_INDEX_BASE_ZERO,
+                                             kValueType));
+    }
+    set_descriptor_key(m, n, nnz, /*block_size=*/0);
   }
 
-  void upload_compressed_arrays(Index m, Index n, Index nnz, Index outer_count, const StorageIndex* host_outer,
-                                const StorageIndex* host_inner, const Scalar* host_values) {
+#if EIGEN_HAS_CUSPARSE_BSR
+  void upload_bsr(const internal::BsrArrays<Scalar, StorageIndex>& opA) {
+    upload_arrays(/*outer_count=*/opA.brows + 1, /*inner_count=*/opA.bnnz, /*value_count=*/opA.nonZeros(), opA.outer,
+                  opA.inner, opA.values);
+    if (descriptor_key_matches(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize)) return;
+
+    destroy_spmat_descriptor(/*checked=*/true);
+    // Row-major blocks: cusparseSpMM accepts no other block layout for BSR.
+    EIGEN_CUSPARSE_CHECK(cusparseCreateBsr(&spmat_desc_, opA.brows, opA.bcols, opA.bnnz, opA.blockSize, opA.blockSize,
+                                           d_outerPtr_.get(), d_innerIdx_.get(), d_values_.get(), kIndexType,
+                                           kIndexType, CUSPARSE_INDEX_BASE_ZERO, kValueType, CUSPARSE_ORDER_ROW));
+    set_descriptor_key(opA.rows(), opA.cols(), opA.nonZeros(), opA.blockSize);
+  }
+#endif  // EIGEN_HAS_CUSPARSE_BSR
+
+  void upload_arrays(Index outer_count, Index inner_count, Index value_count, const StorageIndex* host_outer,
+                     const StorageIndex* host_inner, const Scalar* host_values) {
     const size_t outer_bytes = static_cast<size_t>(outer_count) * sizeof(StorageIndex);
-    const size_t inner_bytes = static_cast<size_t>(nnz) * sizeof(StorageIndex);
-    const size_t val_bytes = static_cast<size_t>(nnz) * sizeof(Scalar);
+    const size_t inner_bytes = static_cast<size_t>(inner_count) * sizeof(StorageIndex);
+    const size_t val_bytes = static_cast<size_t>(value_count) * sizeof(Scalar);
 
     // Values *and* index arrays are re-uploaded unconditionally: host pointer
     // identity cannot detect a same-shape/same-nnz pattern rewritten in place
     // or assigned into the same allocations (SparseMatrix reuses them), so a
     // structure cache keyed on pointers would silently serve stale indices.
     // Only the cuSPARSE descriptor and the workspace-size queries are cached,
-    // keyed on (rows, cols, nnz). Every upload invalidates outstanding
-    // DeviceSparseViews via the generation counter.
+    // keyed on (rows, cols, nnz, block size). Every upload invalidates
+    // outstanding DeviceSparseViews via the generation counter.
     ++generation_;
     ensure_buffer(d_values_, val_bytes);
     ensure_buffer(d_outerPtr_, outer_bytes);
@@ -600,30 +913,28 @@ class SparseContext {
         cudaMemcpyAsync(d_outerPtr_.get(), host_outer, outer_bytes, cudaMemcpyHostToDevice, stream_));
     EIGEN_CUDA_RUNTIME_CHECK(
         cudaMemcpyAsync(d_innerIdx_.get(), host_inner, inner_bytes, cudaMemcpyHostToDevice, stream_));
+  }
 
-    // Same shape and nnz: the grow-only device buffers cannot have been
-    // reallocated, so the existing descriptor still points at the freshly
-    // written data.
-    if (m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_) return;
+  // Same shape, nnz and format: the grow-only device buffers cannot have been
+  // reallocated, so the existing descriptor still points at the freshly
+  // written data.
+  bool descriptor_key_matches(Index m, Index n, Index nnz, Index block_size) const {
+    return m == cached_rows_ && n == cached_cols_ && nnz == cached_nnz_ && block_size == cached_block_size_;
+  }
 
-    destroy_spmat_descriptor(/*checked=*/true);
-
-    constexpr cusparseIndexType_t idx_type = (sizeof(StorageIndex) == 4) ? CUSPARSE_INDEX_32I : CUSPARSE_INDEX_64I;
-    constexpr cudaDataType_t val_type = internal::cuda_data_type<Scalar>::value;
-
-    EIGEN_IF_CONSTEXPR (kUseCsrOfTranspose) {
-      // cuSPARSE 11.x: cusparseSpMM rejects CSC for matA. CSC of A and CSR of
-      // A^T share the same buffers, so register the data as CSR-of-A^T (dims
-      // swapped) and invert the op in exec_spmv / spmm_impl via descriptor_op.
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsr(&spmat_desc_, n, m, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
-    } else {
-      EIGEN_CUSPARSE_CHECK(cusparseCreateCsc(&spmat_desc_, m, n, nnz, d_outerPtr_.get(), d_innerIdx_.get(),
-                                             d_values_.get(), idx_type, idx_type, CUSPARSE_INDEX_BASE_ZERO, val_type));
-    }
+  void set_descriptor_key(Index m, Index n, Index nnz, Index block_size) {
     cached_rows_ = m;
     cached_cols_ = n;
     cached_nnz_ = nnz;
+    cached_block_size_ = block_size;
+  }
+
+  // A BSR descriptor holds op(A) as bound at upload time, and cuSPARSE runs no
+  // transposed BSR product.
+  void check_op_against_upload(GpuOp op) const {
+    eigen_assert((cached_block_size_ == 0 || op == GpuOp::NoTrans) &&
+                 "cuSPARSE runs BSR products only with op == NoTrans; pass op to multiply(A, d_x, d_y, ...) instead");
+    EIGEN_UNUSED_VARIABLE(op);
   }
 
   // Destroy the sparse-matrix descriptor and reset the cache identity.
@@ -637,9 +948,7 @@ class SparseContext {
       EIGEN_UNUSED_VARIABLE(checked);
       spmat_desc_ = nullptr;
     }
-    cached_rows_ = -1;
-    cached_cols_ = -1;
-    cached_nnz_ = -1;
+    set_descriptor_key(-1, -1, -1, 0);
     invalidate_ws_caches();
   }
 
