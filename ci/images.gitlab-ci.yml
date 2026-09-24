@@ -24,16 +24,19 @@
   extends: .build:docker
   tags:
     - saas-linux-small-amd64
+    - dind
 
 .build:docker:linux:arm64:
   extends: .build:docker
   tags:
     - saas-linux-small-arm64
+    - dind
 
 .build:docker:linux:riscv64:
   extends: .build:docker
   tags:
     - saas-linux-small-amd64
+    - dind
 
 build:docker:ubuntu-24.04-amd64-smoketest-build:
   extends: .build:docker:linux:amd64
