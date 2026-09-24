@@ -66,14 +66,14 @@ EIGEN_DEVICE_FUNC void invert_permutation_indices(const IndicesType& indices, Re
  *
  * \brief Base class for scaled permutation matrices
  *
- * A scaled permutation is the product $ P D $ of a permutation matrix and a diagonal matrix: a square matrix with
+ * A scaled permutation is the product \f$P D\f$ of a permutation matrix and a diagonal matrix: a square matrix with
  * exactly one nonzero per row and per column. It is stored as the permutation's indices and one scale per
  * column, so that coefficient (indices()(k), k) equals scales()(k).
  *
  * The set is closed under products with permutations, diagonal matrices, scalars and other scaled permutations,
- * and under inversion and transposition; all of these cost $ O(n) $ and return a plain ScaledPermutationMatrix.
- * Products with a dense matrix scale and permute its rows or columns in $ O(nm) $, and assigning to a dense matrix
- * scatters the scales, so writing `P * D * x` or `P * D * P.inverse()` never forms an $ n \times n $ intermediate.
+ * and under inversion and transposition; all of these cost \f$O(n)\f$ and return a plain ScaledPermutationMatrix.
+ * Products with a dense matrix scale and permute its rows or columns in \f$O(nm)\f$, and assigning to a dense matrix
+ * scatters the scales, so writing `P * D * x` or `P * D * P.inverse()` never forms an \f$n \times n\f$ intermediate.
  * Sums with a dense matrix are lazy expressions.
  *
  * \sa class ScaledPermutationMatrix, class PermutationBase, class DiagonalBase
@@ -113,7 +113,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   /** \returns the number of columns */
   EIGEN_DEVICE_FUNC constexpr Index cols() const { return indices().size(); }
 
-  /** \returns the permutation factor $ P $ */
+  /** \returns the permutation factor \f$P\f$ */
   EIGEN_DEVICE_FUNC const PermutationType& permutation() const { return derived().permutation(); }
   /** \returns the permutation's indices: column \c k has its nonzero in row `indices()(k)` */
   EIGEN_DEVICE_FUNC constexpr const IndicesType& indices() const { return derived().indices(); }
@@ -137,7 +137,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   }
 #endif
 
-  /** \returns the inverse, $ (PD)^{-1} = D^{-1} P^{-1} $, which has $ 1 / \text{scales}(k) $ at
+  /** \returns the inverse, \f$(PD)^{-1} = D^{-1} P^{-1}\f$, which has \f$1 / \text{scales}(k)\f$ at
    * (\c k, `indices()(k)`). The scales must be nonzero. */
   PlainObject inverse() const {
     PlainObject result(rows());
@@ -341,7 +341,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
 /** \class ScaledPermutationMatrix
  * \ingroup Core_Module
  *
- * \brief Scaled permutation matrix $ P D $ with its storage
+ * \brief Scaled permutation matrix \f$P D\f$ with its storage
  *
  * \tparam Scalar_ the type of the scales
  * \tparam SizeAtCompileTime the number of rows/cols, or Dynamic
