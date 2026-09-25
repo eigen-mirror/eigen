@@ -36,11 +36,12 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
     export SCCACHE_DIR="${SCCACHE_DIR:-${EIGEN_CI_SCCACHE_DIR:-${CI_PROJECT_DIR}/.sccache}}"
     export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-${EIGEN_CI_SCCACHE_CACHE_SIZE:-4G}}"
     export SCCACHE_BASEDIRS="${rootdir}"
-    export SCCACHE_SERVER_PORT="$((4226 + ${CI_CONCURRENT_ID:-0}))"
+    export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
 
     # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
     # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
     sccache_cred_server_pid=""
+    { set +x; } 2>/dev/null
     if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" || -n "${EIGEN_GCS_CACHE_TOKEN_RO:-}" ]]; then
       export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
       export SCCACHE_MULTILEVEL_CHAIN="disk,gcs"
@@ -52,7 +53,6 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
       export GCS_URL_SECRET=$(od -vN 16 -An -tx1 /dev/urandom | tr -d ' \n')
       cred_port_file="${PWD}/.cred_port"
 
-      { set +x; } 2>/dev/null
       python3 -c "
 import http.server, json, sys, os
 token = os.environ.get('EIGEN_GCS_CACHE_TOKEN_RW') or os.environ.get('EIGEN_GCS_CACHE_TOKEN_RO')
@@ -75,7 +75,6 @@ server.serve_forever()
 " &
       sccache_cred_server_pid=$!
       trap '[[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
-      set -x
 
       # Wait up to 2 seconds for local credential server to be ready
       cred_port=""
@@ -99,6 +98,7 @@ server.serve_forever()
       rm -f "${cred_port_file}"
       unset GCS_URL_SECRET
     fi
+    set -x
 
     if "${sccache_bin}" --start-server >/dev/null 2>&1; then
       compiler_launcher="sccache"
