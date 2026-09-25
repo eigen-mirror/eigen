@@ -538,7 +538,7 @@ matching shapes; `deviceView()` is the upload-once path. A `DeviceSparseView`
 carries a generation counter — using a view after any later upload through its
 context asserts instead of silently multiplying by the wrong matrix.
 
-#### Block sparse matrices (BSR)
+#### Block sparse matrices (BSR) {#eigen_gpu_bsr}
 
 Every `SparseContext` entry point above also accepts a `BlockSparseMatrix`.
 Square blocks of size at least 2 upload in cuSPARSE's BSR (block sparse row)
@@ -1072,7 +1072,7 @@ the input scalar type (complex vs real).
 
 Accepts `SparseMatrix<Scalar, ColMajor>` and `BlockSparseMatrix<Scalar,
 Options, BlockRows, BlockCols, int>` (the `BlockSpMat<Options, BlockRows,
-BlockCols>` alias; see [Block sparse matrices](#block-sparse-matrices-bsr) for
+BlockCols>` alias; see [Block sparse matrices](#eigen_gpu_bsr) for
 which block shapes upload as BSR and which op / storage-order combinations do
 so without a host copy). Host-input
 methods accept host data and return host data; device-input methods
