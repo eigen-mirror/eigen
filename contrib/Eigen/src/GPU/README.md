@@ -88,14 +88,17 @@ supported expression maps to a single NVIDIA library call. There is no
 coefficient-level evaluation, lazy fusion, or packet operations.
 
 **Interoperability where useful.** `DeviceMatrix` provides the same operator
-signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`,
-`dot()`, `squaredNorm()`, `norm()`, `setZero()`, and `noalias()`. This makes
+signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`, `/=`,
+`dot()`, `squaredNorm()`, `norm()`, `stableNorm()`, `setZero()`, `noalias()`,
+and copy construction and assignment (a device-to-device copy). This makes
 `DeviceMatrix` usable as a drop-in `VectorType` in Eigen algorithm templates
-that rely on these operations. For example, Eigen's `conjugate_gradient()`
-template works with `DeviceMatrix` with a single typedef change -- no
-modifications to the algorithm or the expression template system. Conjugate
-gradient is just the motivating example; we are open to expanding operator
-coverage as needed to support other high-level Eigen algorithms on the GPU.
+that rely on these operations, and `DeviceSparseView` is a matrix-free matrix
+type for Eigen's iterative solvers: `ConjugateGradient<gpu::DeviceSparseView<double>,
+Lower | Upper>` runs Eigen's own algorithm, unmodified, on device vectors (see
+[Eigen algorithm interop](#eigen-algorithm-interop-example-conjugate-gradient)).
+Conjugate gradient is just the motivating example; we are open to expanding
+operator coverage as needed to support other high-level Eigen algorithms on the
+GPU.
 
 **Explicit over implicit.** Host-device transfers, stream management, and
 library handle lifetimes are visible in the API. There are no hidden
@@ -274,7 +277,15 @@ double n = norm_val;                   // implicit conversion triggers sync
 d_x += alpha * d_p;                    // axpy: x = x + alpha * p
 d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
+d_x /= alpha;                          // NPP divide-by-constant: x = x / alpha (true division for real Scalar)
 d_r.setZero();                         // cudaMemsetAsync
+auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
+
+// Copies are device-to-device (cuBLAS copy) on the thread-local Context; no host round trip.
+// They exist so that existing Eigen algorithm code runs on the GPU unchanged; code written for
+// the GPU should avoid them (move, or reuse a buffer with copyFrom), since each is a transfer.
+gpu::DeviceMatrix<double> d_q = d_p;   // copy construction
+d_q = d_r;                             // copy assignment, resizes if needed
 
 // DeviceScalar arithmetic (stays on device, real types only)
 auto alpha = absNew / dot_val;         // device-side division via NPP
@@ -528,6 +539,8 @@ gpu::SparseContext<double> spmv_dev(ctx);   // share gpu::Context for same-strea
 auto d_A = spmv_dev.deviceView(A);          // upload sparse matrix once
 d_y = d_A * d_x;                            // SpMV, stays on device
 d_Y = d_A * d_X;                            // SpMM when the RHS has > 1 column
+d_r = d_b - d_A * d_x;                      // residual: copy of d_b, then one SpMV with beta = 1
+d_r = d_r - d_A * d_x;                      // in place when the addend is the destination: no copy
 ```
 
 Host-input calls re-upload the sparse values *and* index arrays on every call
@@ -579,12 +592,49 @@ descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
 
 ### Eigen algorithm interop (example: Conjugate gradient)
 
-The BLAS-1 operators and `DeviceSparseView` make `DeviceMatrix` usable as a
-vector type in GPU implementations of algorithms like conjugate gradient.
-Conjugate gradient is the motivating example -- the GPU CG mirrors Eigen's
-`conjugate_gradient()` line for line, with only one host sync per iteration
-(the convergence check). All scalar intermediates (`alpha`, `beta`, `absNew`)
-stay on device as `DeviceScalar` values:
+Eigen's `ConjugateGradient` runs on the GPU types. `DeviceSparseView` is a
+matrix-free matrix type (it inherits `EigenBase` and carries `SparseMatrix`
+traits, so `IterativeSolverBase` holds it by pointer), the vectors are
+`DeviceMatrix`, and the algorithm's `VectorType` (`Dest::PlainObject`) is
+`DeviceMatrix` itself. `solve()` and `solveWithGuess()` return Eigen
+expressions and need Eigen operands; `solveWithGuessInPlace(b, x)` is the entry
+point for device vectors, with `x` holding the initial guess. The identity
+preconditioner works as is; `DiagonalPreconditioner` and the other Eigen
+preconditioners evaluate host expressions and do not. `compute()` stores a
+pointer to the view, so the view and the `SparseContext` behind it must outlive
+the solver. The class form is real-`Scalar` only: `DeviceScalar` arithmetic
+covers real types, and `numext::real()` of a complex `DeviceScalar` has no host
+conversion to `RealScalar`.
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);
+gpu::SparseContext<double> spmv(ctx);
+auto mat = spmv.deviceView(A);
+auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+gpu::DeviceMatrix<double> d_x(n, 1);
+d_x.setZero(ctx);
+
+ConjugateGradient<gpu::DeviceSparseView<double>, Lower | Upper, IdentityPreconditioner> cg;
+cg.setTolerance(1e-10);
+cg.compute(mat);                       // matrix-free: stores a pointer to mat
+cg.solveWithGuessInPlace(d_b, d_x);    // Eigen's algorithm, cuSPARSE and cuBLAS underneath
+// cg.info(), cg.iterations(), cg.error() as usual
+gpu::Context::setThreadLocal(nullptr);
+```
+
+The algorithm reads three values on the host per iteration -- `alpha`, the
+`stableNorm()` convergence check and `absNew` -- so this form synchronizes three
+times per iteration. The division `absNew / p.dot(tmp)` resolves to the
+device-side `operator/(Scalar, DeviceScalar)`: `absNew` is uploaded into a
+fresh `DeviceScalar`, divided through NPP and read back, two small allocations
+and a kernel launch per iteration on top of the sync. The hand-written loop
+below is the same algorithm with one host sync per iteration (the convergence
+check); all scalar intermediates (`alpha`, `beta`, `absNew`) stay on device as
+`DeviceScalar` values. Its convergence test squares the residual norm
+(`squaredNorm()`, a cuBLAS dot), which overflows for `||r|| > sqrt(max)` and
+underflows to 0 for `||r|| < sqrt(min)`, so it lacks the extreme-scale
+robustness the template gets from `stableNorm()` and its residual scaling:
 
 ```cpp
 gpu::Context ctx;

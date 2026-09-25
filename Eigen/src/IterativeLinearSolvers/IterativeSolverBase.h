@@ -280,6 +280,24 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
     return SolveWithGuess<Derived, Rhs, Guess>(derived(), b.derived(), x0);
   }
 
+  /** Solves \f$ A x = b \f$ in place: \a x holds the initial guess on entry and the solution on
+   * exit, and info(), iterations() and error() report on the run.
+   *
+   * solve() and solveWithGuess() return expressions and therefore require Eigen dense or sparse
+   * operands. This entry point accepts any single-column right-hand side and solution types that
+   * provide the vector operations the algorithm uses, for instance the device-resident vectors of
+   * the GPU module (\c contrib/Eigen/GPU) together with a matrix-free matrix type.
+   *
+   * \sa solve(), solveWithGuess()
+   */
+  template <typename Rhs, typename Dest>
+  void solveWithGuessInPlace(const Rhs& b, Dest& x) const {
+    eigen_assert(m_isInitialized && "Solver is not initialized.");
+    eigen_assert(derived().rows() == b.rows() &&
+                 "solveWithGuessInPlace(): invalid number of rows of the right hand side b");
+    derived()._solve_vector_with_guess_impl(b, x);
+  }
+
   /** \returns Success if the iterations converged, and NoConvergence otherwise. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");

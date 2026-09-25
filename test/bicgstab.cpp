@@ -83,10 +83,28 @@ void test_2899() {
   VERIFY(residual.isZero());
 }
 
+// solveWithGuessInPlace() lives on IterativeSolverBase; check it on a second solver.
+void test_solve_with_guess_in_place() {
+  const Index n = 40;
+  MatrixXd M = MatrixXd::Random(n, n);
+  SparseMatrix<double> A = (M + double(n) * MatrixXd::Identity(n, n)).sparseView();
+  VectorXd b = VectorXd::Random(n), x0 = VectorXd::Random(n);
+  BiCGSTAB<SparseMatrix<double> > solver(A);
+  solver.setTolerance(1e-10);
+  VectorXd x1 = solver.solveWithGuess(b, x0);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VectorXd x2 = x0;
+  solver.solveWithGuessInPlace(b, x2);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_APPROX(x1, x2);
+  VERIFY((A * x2 - b).norm() <= 10 * solver.tolerance() * b.norm());
+}
+
 EIGEN_DECLARE_TEST(bicgstab) {
   CALL_SUBTEST_1((test_bicgstab_T<double, int>()));
   CALL_SUBTEST_2((test_bicgstab_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_bicgstab_T<double, long int>()));
   CALL_SUBTEST_4(test_2856());
   CALL_SUBTEST_5(test_2899());
+  CALL_SUBTEST_6(test_solve_with_guess_in_place());
 }

@@ -321,6 +321,98 @@ void test_spmv_expr(Index n) {
   VERIFY((tmp_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
 }
 
+// ---- Expression syntax with a dense addend: d_y = d_b ± d_A * d_x -----------
+
+template <typename Scalar>
+void test_spmv_affine_expr(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Vec x = Vec::Random(n), b = Vec::Random(n);
+  const Vec Ax = A * x;
+
+  // The addend copy runs on the thread-local Context and the SpMV on the SparseContext's
+  // stream. A second Context makes those two different streams; the readiness events
+  // must order the copy before the product.
+  gpu::Context gpu_ctx, copy_ctx;
+  gpu::Context::setThreadLocal(&copy_ctx);
+  gpu::SparseContext<Scalar> ctx(gpu_ctx);
+  auto d_A = ctx.deviceView(A);
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gpu_ctx.stream());
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, gpu_ctx.stream());
+
+  const RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  auto check = [&](const gpu::DeviceMatrix<Scalar>& d_y, const Vec& y_ref) {
+    Vec y = d_y.toHost(gpu_ctx.stream());
+    VERIFY((y - y_ref).norm() / (y_ref.norm() + RealScalar(1)) < tol);
+  };
+
+  gpu::DeviceMatrix<Scalar> d_y = d_b - d_A * d_x;  // copy-initialization
+  check(d_y, b - Ax);
+  d_y = d_b + d_A * d_x;
+  check(d_y, b + Ax);
+  d_y = d_A * d_x + d_b;
+  check(d_y, Ax + b);
+  d_y.noalias() = d_A * d_x - d_b;
+  check(d_y, Ax - b);
+
+  // The addend is the destination: beta accumulates in place, without a copy.
+  gpu::DeviceMatrix<Scalar> d_r = d_b;
+  d_r = d_r - d_A * d_x;
+  check(d_r, b - Ax);
+  gpu::Context::setThreadLocal(nullptr);
+}
+
+template <typename Scalar>
+void test_device_spmm_affine(Index n, Index nrhs) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  SpMat A = make_sparse<Scalar>(n, n);
+  Mat X = Mat::Random(n, nrhs), B = Mat::Random(n, nrhs);
+
+  gpu::Context gctx;
+  gpu::Context::setThreadLocal(&gctx);
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto view = ctx.deviceView(A);
+  auto d_X = gpu::DeviceMatrix<Scalar>::fromHost(X, gctx.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, gctx.stream());
+  gpu::DeviceMatrix<Scalar> d_Y = d_B - view * d_X;  // nrhs > 1 -> SpMM with beta = 1
+  gpu::Context::setThreadLocal(nullptr);
+
+  Mat Y_ref = B - A * X;
+  RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  VERIFY((d_Y.toHost() - Y_ref).norm() / (Y_ref.norm() + RealScalar(1)) < tol);
+}
+
+// A matrix without stored entries reduces d_b ± d_A * d_x to ±d_b.
+template <typename Scalar>
+void test_affine_empty(Index n) {
+  using SpMat = SparseMatrix<Scalar, ColMajor, int>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+
+  SpMat A(n, n);
+  A.makeCompressed();
+  Vec x = Vec::Random(n), b = Vec::Random(n);
+
+  gpu::Context gctx;
+  gpu::Context::setThreadLocal(&gctx);
+  gpu::SparseContext<Scalar> ctx(gctx);
+  auto d_A = ctx.deviceView(A);
+  VERIFY_IS_EQUAL(d_A.nonZeros(), 0);
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, gctx.stream());
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, gctx.stream());
+
+  gpu::DeviceMatrix<Scalar> d_y = d_b - d_A * d_x;
+  VERIFY(d_y.toHost(gctx.stream()) == b);
+  d_y = d_A * d_x - d_b;
+  VERIFY(d_y.toHost(gctx.stream()) == -b);
+  gpu::Context::setThreadLocal(nullptr);
+}
+
 // ---- deviceView overwrite: second view replaces first -----------------------
 
 template <typename Scalar>
@@ -497,6 +589,9 @@ void test_scalar() {
   CALL_SUBTEST(test_empty<Scalar>());
   CALL_SUBTEST(test_spmv_device<Scalar>(64));
   CALL_SUBTEST(test_spmv_expr<Scalar>(64));
+  CALL_SUBTEST(test_spmv_affine_expr<Scalar>(64));
+  CALL_SUBTEST(test_device_spmm_affine<Scalar>(64, 5));
+  CALL_SUBTEST(test_affine_empty<Scalar>(16));
   CALL_SUBTEST(test_deviceview_overwrite<Scalar>(64));
 }
 
