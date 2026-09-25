@@ -98,6 +98,37 @@ struct scaled_outer_product {
   }
 };
 
+template <int Order>
+struct mixed_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
+    using Mat = Eigen::Matrix<std::complex<float>, 4, 4, Order>;
+    const Eigen::Map<const Eigen::Vector4cf> complex(in + i);
+    const Eigen::Vector4f real = complex.real();
+    Eigen::Map<Mat> result(out + i * 16);
+    if (Order == Eigen::RowMajor) {
+      result.noalias() = complex * real.transpose();
+      result += complex.lazyProduct(real.transpose());
+    } else {
+      result.noalias() = real * complex.transpose();
+      result += real.lazyProduct(complex.transpose());
+    }
+  }
+};
+
+template <int Order>
+struct scaled_selfadjoint_diagonal_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
+    using Scalar = std::complex<float>;
+    using Mat = Eigen::Matrix<Scalar, 3, 3, Order>;
+    const Eigen::Map<const Mat> matrix(in + i);
+    const Eigen::Vector3cf diagonal = Eigen::Vector3cf::Constant(Scalar(2, 1));
+    const Scalar alpha(2, 3);
+    Eigen::Map<Mat> result(out + i * 9);
+    result = (alpha * matrix.template selfadjointView<Eigen::Lower>()) * diagonal.asDiagonal() + Mat::Zero();
+    result += diagonal.asDiagonal() * (alpha * matrix.template selfadjointView<Eigen::Upper>()) + Mat::Zero();
+  }
+};
+
 struct make_householder_small_tail {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
     Eigen::Vector3f vector;
@@ -736,6 +767,10 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<ColMajor>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<float>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<double>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<RowMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<ColMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_selfadjoint_diagonal_product<RowMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_selfadjoint_diagonal_product<ColMajor>(), nthreads, cfin, cfout));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));

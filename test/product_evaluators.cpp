@@ -4,6 +4,96 @@
 #include "main.h"
 #include <Eigen/Core>
 
+template <typename LhsScalar, typename RhsScalar, int Order>
+void outer_product_scalar_types() {
+  using Scalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  using Lhs = Matrix<LhsScalar, Dynamic, 1>;
+  using Rhs = Matrix<RhsScalar, 1, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  STATIC_CHECK((internal::product_type<Lhs, Rhs>::value == OuterProduct));
+  for (Index rows : {2, 3, 16, 17}) {
+    for (Index cols : {2, 3, 16, 17}) {
+      const Lhs lhs = Lhs::Constant(rows, LhsScalar(2));
+      const Rhs rhs = Rhs::Constant(cols, RhsScalar(3));
+      Mat storage = Mat::Constant(2 * rows, 2 * cols, Scalar(7));
+      Mat expected = storage;
+      Map<Mat, 0, Stride<Dynamic, 2>> dst(storage.data(), rows, cols, Stride<Dynamic, 2>(2 * storage.outerStride(), 2));
+      for (int operation = 0; operation < 3; ++operation) {
+        storage.setConstant(Scalar(7));
+        expected = storage;
+        if (operation == 0) dst.noalias() = lhs * rhs;
+        if (operation == 1) dst.noalias() += lhs * rhs;
+        if (operation == 2) dst.noalias() -= lhs * rhs;
+        for (Index j = 0; j < cols; ++j) {
+          for (Index i = 0; i < rows; ++i) {
+            const Scalar value = lhs(i) * rhs(j);
+            expected(2 * i, 2 * j) = operation == 0 ? value : operation == 1 ? Scalar(7) + value : Scalar(7) - value;
+          }
+        }
+        VERIFY_IS_EQUAL(storage, expected);
+      }
+    }
+  }
+}
+
+template <typename Real, int Order>
+void outer_product_mixed_special_values() {
+  using Scalar = std::complex<Real>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  const Real infinity = NumTraits<Real>::infinity();
+  const Real nan = NumTraits<Real>::quiet_NaN();
+  const Scalar values[] = {Scalar(infinity, 2),       Scalar(2, infinity),      Scalar(-infinity, -2),
+                           Scalar(-2, -infinity),     Scalar(nan, 2),           Scalar(2, nan),
+                           Scalar(Real(0), -Real(0)), Scalar(-Real(0), Real(0))};
+  Matrix<Scalar, Dynamic, 1> lhs;
+  Matrix<Real, 1, Dynamic> rhs;
+  Mat actual, reversed;
+  for (Index n : {2, 3, 16, 17}) {
+    for (const Scalar& value : values) {
+      for (Real factor : {Real(2), Real(-2)}) {
+        lhs.setConstant(n, value);
+        rhs.setConstant(n, factor);
+        for (int operation = 0; operation < 3; ++operation) {
+          actual.setConstant(n, n, Scalar(1, 1));
+          reversed = actual;
+          if (operation == 0) {
+            actual.noalias() = lhs * rhs;
+            reversed.noalias() = rhs.transpose() * lhs.transpose();
+          }
+          if (operation == 1) {
+            actual.noalias() += lhs * rhs;
+            reversed.noalias() += rhs.transpose() * lhs.transpose();
+          }
+          if (operation == 2) {
+            actual.noalias() -= lhs * rhs;
+            reversed.noalias() -= rhs.transpose() * lhs.transpose();
+          }
+          const Scalar product(value.real() * factor, value.imag() * factor);
+          const Scalar expected = operation == 0   ? product
+                                  : operation == 1 ? Scalar(1, 1) + product
+                                                   : Scalar(1, 1) - product;
+          for (Index j = 0; j < n; ++j) {
+            for (Index i = 0; i < n; ++i) {
+              for (int component = 0; component < 2; ++component) {
+                const Real reference = component == 0 ? expected.real() : expected.imag();
+                for (Real result : {component == 0 ? actual(i, j).real() : actual(i, j).imag(),
+                                    component == 0 ? reversed(i, j).real() : reversed(i, j).imag()}) {
+                  if ((numext::isnan)(reference)) {
+                    VERIFY((numext::isnan)(result));
+                  } else {
+                    VERIFY_IS_EQUAL(result, reference);
+                    if (reference == Real(0)) VERIFY_IS_EQUAL((std::signbit)(result), (std::signbit)(reference));
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 template <typename ProductType, typename Mat>
 void check_scaled_product(const ProductType& product, const Mat& expected) {
   Mat actual = product;
@@ -129,10 +219,39 @@ void scaled_selfadjoint_diagonal_product() {
   Mat aliased = matrix;
   aliased = alpha * (aliased.template selfadjointView<Mode>() * diagonal.asDiagonal()) + Mat::Zero();
   VERIFY_IS_EQUAL(aliased, expected);
+  check_scaled_product((alpha * matrix.template selfadjointView<Mode>()) * diagonal.asDiagonal(), expected);
+  check_scaled_product(diagonal.asDiagonal() * (alpha * matrix.template selfadjointView<Mode>()), expectedLeft);
+  check_scaled_product((alpha * matrix.template selfadjointView<Mode>()) * ownedDiagonal, expected);
+  check_scaled_product(ownedDiagonal * (alpha * matrix.template selfadjointView<Mode>()), expectedLeft);
+  const Mat conjugated = matrix.conjugate();
+  check_scaled_product((alpha * conjugated.conjugate().template selfadjointView<Mode>()) * diagonal.asDiagonal(),
+                       expected);
+  check_scaled_product(diagonal.asDiagonal() * (alpha * conjugated.conjugate().template selfadjointView<Mode>()),
+                       expectedLeft);
+  const Matrix<Scalar, 3, 1> actualDiagonal =
+      ((alpha * matrix.template selfadjointView<Mode>()) * diagonal.asDiagonal()).diagonal();
+  VERIFY_IS_EQUAL(actualDiagonal, expected.diagonal());
+  aliased = matrix;
+  aliased = (alpha * aliased.template selfadjointView<Mode>()) * diagonal.asDiagonal() + Mat::Zero();
+  VERIFY_IS_EQUAL(aliased, expected);
+  aliased = matrix;
+  aliased = diagonal.asDiagonal() * (alpha * aliased.template selfadjointView<Mode>()) + Mat::Zero();
+  VERIFY_IS_EQUAL(aliased, expectedLeft);
 }
 
 EIGEN_DECLARE_TEST(product_evaluators) {
   for (int repeat = 0; repeat < g_repeat; ++repeat) {
+    CALL_SUBTEST_4((outer_product_scalar_types<double, double, ColMajor>()));
+    CALL_SUBTEST_4((outer_product_scalar_types<double, double, RowMajor>()));
+    CALL_SUBTEST_4((outer_product_scalar_types<std::complex<double>, double, ColMajor>()));
+    CALL_SUBTEST_4((outer_product_scalar_types<std::complex<double>, double, RowMajor>()));
+    CALL_SUBTEST_4((outer_product_scalar_types<double, std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_4((outer_product_scalar_types<double, std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_4((outer_product_mixed_special_values<float, ColMajor>()));
+    CALL_SUBTEST_4((outer_product_mixed_special_values<float, RowMajor>()));
+    CALL_SUBTEST_4((outer_product_mixed_special_values<double, ColMajor>()));
+    CALL_SUBTEST_4((outer_product_mixed_special_values<double, RowMajor>()));
+
     CALL_SUBTEST_1((scaled_unit_triangular_product<double, UnitLower, ColMajor>()));
     CALL_SUBTEST_1((scaled_unit_triangular_product<double, UnitLower, RowMajor>()));
     CALL_SUBTEST_1((scaled_unit_triangular_product<double, UnitUpper, ColMajor>()));

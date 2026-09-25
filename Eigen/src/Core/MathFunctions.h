@@ -232,6 +232,16 @@ struct mul_impl<Scalar, Scalar, true> {
   }
 };
 
+// MSVC's STL evaluates T * complex<T> as complex<T>(a) * b, whose 0 * inf terms turn 2 * (inf, 2) into
+// (inf, NaN). Scale component-wise, as complex<T> * T, libstdc++, libc++, and the GPU overloads do.
+template <typename RealScalar>
+struct mul_impl<RealScalar, std::complex<RealScalar>, false> {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_ALWAYS_INLINE std::complex<RealScalar> run(
+      const RealScalar& a, const std::complex<RealScalar>& b) {
+    return std::complex<RealScalar>(a * b.real(), a * b.imag());
+  }
+};
+
 /** \internal \returns a * b, wrapping rather than overflowing the signed type that integral promotion
  * would give narrow unsigned operands. The result keeps operator*'s type, which for an expression-template
  * Scalar is a lazy expression: consume it rather than binding it to auto. */
