@@ -361,7 +361,10 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
 
   // Normalize T (and the shifts) to O(1) so the deliberately near-singular factor/solve cannot
   // overflow or underflow; eigenvectors are invariant under this uniform scaling.
-  const RealScalar maxCoeff = numext::maxi(diag.cwiseAbs().maxCoeff(), subdiag.cwiseAbs().maxCoeff());
+  // The rescan recovers an all-subnormal input that a flushing SIMD unit reads as zero.
+  const RealScalar maxCoeff = max_preserving_subnormals(
+      safe_scaling<RealScalar>::recover_flushed_max_coeff(diag, diag.cwiseAbs().maxCoeff()),
+      safe_scaling<RealScalar>::recover_flushed_max_coeff(subdiag, subdiag.cwiseAbs().maxCoeff()));
   Matrix<RealScalar, Dynamic, 1> sdiag(n), ssub(n - 1);
   const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
   safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
@@ -515,6 +518,30 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   const Index n = diag.size();
   const Index m = eivals.size();
   if (n == 0 || m == 0) return 0;
+
+  // A matrix whose largest entry is below the recovery threshold min / eps can hold significant subnormal
+  // couplings, which FTZ/DAZ hardware reads as zero in the comparisons below (ARMv7 NEON also in the packet maxima).
+  // Scale it into the normal range first, exactly, through integer significands: the eigenvectors are invariant
+  // under the scaling, and every representable entry becomes normal. The test reads the exponent from the
+  // representation, since the maximum itself may be subnormal and a floating-point comparison on it is what FTZ/DAZ
+  // breaks; a zero or non-finite maximum has no exponent in range and is left alone.
+  {
+    RealScalar maxCoeff = safe_scaling<RealScalar>::recover_flushed_max_coeff(diag, diag.cwiseAbs().maxCoeff());
+    if (n >= 2) {
+      maxCoeff = max_preserving_subnormals(
+          maxCoeff, safe_scaling<RealScalar>::recover_flushed_max_coeff(subdiag, subdiag.cwiseAbs().maxCoeff()));
+    }
+    // 2^(e - 1) <= maxCoeff < 2^e, so maxCoeff < 2^recovery iff e <= recovery; e == 0 for a zero maximum and one
+    // above the largest finite exponent for infinities and NaN.
+    const int e = frexp_exponent_preserving_subnormals(maxCoeff);
+    if (e != 0 && e <= safe_scaling<RealScalar>::subnormal_recovery_exponent()) {
+      VectorType sdiag(n), ssub(n - 1), seivals(m);
+      const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
+      safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
+      safe_scaling<RealScalar>::scale_to(seivals, eivals, maxCoeff, factors);
+      return tridiagonal_inverse_iteration(sdiag, ssub, seivals, eivecs);
+    }
+  }
 
   // Split at negligible couplings (cf. xSTEBZ): |e_k| <= eps * sqrt(|d_k|) * sqrt(|d_k+1|). The
   // geometric-mean form is scale-invariant on its own (both sides scale linearly) and needs no

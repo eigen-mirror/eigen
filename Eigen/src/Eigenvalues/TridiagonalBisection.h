@@ -377,8 +377,12 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // off-diagonal and during the Sturm recurrence; eigenvalues scale linearly, so the
   // scaling is undone at the very end. (The caller has already verified the input is
   // finite.) This mirrors the uniform scaling done in SelfAdjointEigenSolver::compute().
-  RealScalar maxCoeff = diag.cwiseAbs().maxCoeff();
-  if (n >= 2) maxCoeff = numext::maxi(maxCoeff, subdiag.cwiseAbs().maxCoeff());
+  // The rescan recovers an all-subnormal input that a flushing SIMD unit reads as zero.
+  RealScalar maxCoeff = safe_scaling<RealScalar>::recover_flushed_max_coeff(diag, diag.cwiseAbs().maxCoeff());
+  if (n >= 2) {
+    maxCoeff = max_preserving_subnormals(
+        maxCoeff, safe_scaling<RealScalar>::recover_flushed_max_coeff(subdiag, subdiag.cwiseAbs().maxCoeff()));
+  }
 
   // Local contiguous copies of the scaled matrix data, |off-diagonal|, and its square.
   ArrayType alpha(n), beta_abs(n - 1);

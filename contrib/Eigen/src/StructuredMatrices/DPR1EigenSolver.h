@@ -196,14 +196,15 @@ typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_
   // from the original data, not the normalized secular problem, which has already rounded rho*||z||^2.
   // Double-word arithmetic and its O(u^2) bounds follow Joldes, Muller and Popescu, "Tight and
   // rigorous error bounds for basic building blocks of double-word arithmetic", ACM TOMS 44(2), 2017.
-  if (rho == RealScalar(0)) return SpectrumRange::Representable;
+  if (numext::is_exactly_zero_no_flush(rho)) return SpectrumRange::Representable;
 
   EIGEN_USING_STD(frexp)
   EIGEN_USING_STD(ldexp)
   const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
   const RealScalar highestHalf = highest / RealScalar(2);
+  // A subnormal rho reaches this classification with a huge z; read its exponent from the representation.
   int rhoExponent = 0;
-  const RealScalar rhoFraction = frexp(rho, &rhoExponent);
+  const RealScalar rhoFraction = internal::frexp_preserving_subnormals(rho, rhoExponent);
   DoubleWord sum{RealScalar(0), RealScalar(0)};
   bool exactSumValid = true;
   Index active = 0;
@@ -325,15 +326,30 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     return *this;
   }
 
-  const bool negated = rho < RealScalar(0);
+  // rho's sign and exponent come from its representation: a comparison reads a negative subnormal as zero under DAZ,
+  // and the C library's frexp can flush it. rhoFrac is in [0.5, 1) or 0, and rhoW = |rho| is rebuilt exactly.
+  int rhoExp = 0;
+  RealScalar rhoFrac = internal::frexp_preserving_subnormals(rho, rhoExp);
+  const bool negated = rhoFrac < RealScalar(0);
+  if (negated) rhoFrac = -rhoFrac;
   VectorType dW = negated ? VectorType(-d) : d;
-  RealScalar rhoW = negated ? -rho : rho;
+  RealScalar rhoW = internal::ldexp_preserving_subnormals(rhoFrac, rhoExp);
 
-  // pi maps each sorted working index to its input row.
+  // pi maps each sorted working index to its input row. A comparison reads a
+  // subnormal pole as zero under flush-to-zero, so a diagonal below the recovery
+  // threshold is sorted on its exact power-of-two scale-up, which keeps the order.
+  const VectorType* sortKeys = &dW;
+  VectorType scaledKeys;
+  const int keyExponent = internal::structured_exponent_bound(dW);
+  if (keyExponent - 1 < internal::safe_scaling<RealScalar>::subnormal_recovery_exponent()) {
+    scaledKeys = dW;
+    internal::structured_ldexp_entries(scaledKeys, -keyExponent, keyExponent);
+    sortKeys = &scaledKeys;
+  }
   std::vector<Index> pi;
   pi.reserve(static_cast<std::size_t>(n));
   for (Index i = 0; i < n; ++i) pi.push_back(i);
-  std::stable_sort(pi.begin(), pi.end(), [&dW](Index a, Index b) { return dW[a] < dW[b]; });
+  std::stable_sort(pi.begin(), pi.end(), [sortKeys](Index a, Index b) { return (*sortKeys)[a] < (*sortKeys)[b]; });
   VectorType ds(n), zs(n);
   for (Index i = 0; i < n; ++i) {
     ds[i] = dW[pi[static_cast<std::size_t>(i)]];
@@ -345,20 +361,14 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   EIGEN_USING_STD(frexp)
   EIGEN_USING_STD(ldexp)
   // With max|z_i| < 2^zExp, ||2^-zExp z|| is representable even if ||z|| is not.
-  int zExp = 0;
-  const RealScalar zmax = zs.cwiseAbs().maxCoeff();
-  if (zmax > RealScalar(0)) {
-    frexp(zmax, &zExp);
-    if (zExp != 0) zs.array() = zs.array().ldexp(-zExp);
-  }
+  const int zExp = internal::structured_exponent_bound(zs);
+  internal::structured_ldexp_entries(zs, -zExp, zExp);
   const RealScalar znorm = zs.stableNorm();  // in [0.5, sqrt(n)): safe
   int znormExp = 0;
   const RealScalar znormFrac = frexp(znorm, &znormExp);
   if (znorm > RealScalar(0)) zs /= znorm;
   // Store rho ||z||^2 = rhoMant * 2^rhoTotExp without materializing a possibly
   // overflowing product; each mantissa factor lies in [1/4,1).
-  int rhoExp = 0;
-  const RealScalar rhoFrac = frexp(rhoW, &rhoExp);
   int rhoAdj = 0;
   const RealScalar rhoMant = frexp((rhoFrac * znormFrac) * znormFrac, &rhoAdj);  // in [0.5, 1), or 0
   // Each frexp exponent is bounded by the scalar's exponent range, but their
@@ -370,7 +380,8 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   // Choose s so max(||sD||_inf, s rho ||z||^2) lies in [1/2,1), comparing the
   // two scales as mantissa-exponent pairs to avoid overflow.
   int dExp = 0;
-  const RealScalar dFrac = frexp(ds.cwiseAbs().maxCoeff(), &dExp);
+  const RealScalar dFrac = internal::frexp_preserving_subnormals(
+      internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(ds, ds.cwiseAbs().maxCoeff()), dExp);
   RealScalar scaledNorm;  // max(|d|_inf, rho*||z||^2) * 2^-scaleExp, in [0.5, 1) (or 0 for a zero matrix)
   numext::int64_t scaleExpWide;
   if (rhoMant == RealScalar(0) ||
@@ -390,7 +401,8 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
   if (scaleExpWide >= numext::int64_t(std::numeric_limits<RealScalar>::max_exponent) - 1) {
     spectrumRange = classifySpectrumRange(dW, rhoW, z);
   }
-  if (scaleExp != 0) ds.array() = ds.array().ldexp(-scaleExp);
+  // Every pole matters whatever its size relative to the largest, so scale exactly.
+  internal::structured_ldexp_entries_exact(ds, -scaleExp);
   // Materialize rho * ||z||^2 only in scaled form: its exponent is <= 0 by the
   // choice of scaleExp, so this cannot overflow; it can only underflow when
   // the update is negligible against |d|_inf, in which case it deflates below.
@@ -587,11 +599,10 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     for (Index i = 0; i < n; ++i) m_eivec(pi[static_cast<std::size_t>(i)], outCol) = wvec[i];
   }
 
-  // Undo the problem scaling in one full-range pass. ArrayBase::ldexp handles
-  // exponents for which 2^scaleExp is not itself representable, preserving
-  // representable results exactly and saturating genuine overflow to infinity
-  // (validated below).
-  if (scaleExp != 0) m_eivalues.array() = m_eivalues.array().ldexp(scaleExp);
+  // Undo the problem scaling in one full-range pass: exact for representable
+  // results, saturating genuine overflow to infinity (validated below), and
+  // keeping eigenvalues that land in the subnormal range under flush-to-zero.
+  internal::structured_ldexp_entries_exact(m_eivalues, scaleExp);
 
   // Range classification uses the original data. The normalized secular
   // problem can round a root across the maximum-finite boundary before this

@@ -1718,22 +1718,181 @@ void test_kron_sparse_determinant_subnormal(const Scalar& phase) {
   // Non-dyadic entries near tiny = min * 2^-(digits/2), which carry about
   // digits/2 bits: eliminating there would lose the other half, the exact
   // scale-up does not. The reference is the determinant of the stored data.
-  // ARMv7 NEON flushes subnormal inputs regardless of FPSCR.FZ: the packet
-  // exponent bound then sees a zero factor, skips the scale-up, and the
-  // elimination keeps only those digits/2 bits.
-  if (!subnormalDivisionIsExact<Real>()) return;
+  // Coefficient-wise arithmetic keeps the subnormal entries out of packets,
+  // which ARMv7 NEON flushes regardless of FPSCR.FZ.
   const Real tiny = std::ldexp(normalMin, -(std::numeric_limits<Real>::digits / 2));
   const Real huge = std::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 1);
   a << Real(4.1), Real(1.3), Real(1.1), Real(5.3);
-  a *= Scalar(tiny) * phase;
+  Mat stored;
   sparseA.setZero();
   for (Index j = 0; j < 2; ++j)
-    for (Index i = 0; i < 2; ++i) sparseA.insert(i, j) = a(i, j);
-  const Mat stored = a / tiny;  // exact
+    for (Index i = 0; i < 2; ++i) {
+      a(i, j) = Scalar(numext::real(a(i, j)) * tiny) * phase;
+      stored(i, j) = a(i, j) / tiny;  // exact
+      sparseA.insert(i, j) = a(i, j);
+    }
   const Scalar expectedStored = stored.determinant() * Scalar((tiny * huge) * (tiny * huge));
   b << Scalar(huge);
   const Scalar precise = makeKroneckerOperator(sparseA, b).determinant();
   VERIFY(numext::abs(precise - expectedStored) <= tolerance * numext::abs(expectedStored));
+}
+
+template <typename Scalar>
+struct kron_subnormal_entry {
+  static Scalar run(const Scalar& value) { return value; }
+  static Scalar phaseSquared() { return Scalar(1); }
+};
+
+template <typename Real>
+struct kron_subnormal_entry<std::complex<Real>> {
+  // Purely imaginary entries route the subnormal data through realView().
+  static std::complex<Real> run(const Real& value) { return std::complex<Real>(Real(0), value); }
+  static std::complex<Real> phaseSquared() { return std::complex<Real>(Real(-1), Real(0)); }
+};
+
+// All-subnormal factors of every kind, built from bit patterns so that FTZ/DAZ
+// cannot flush the fixture: det(a (x) b) = det(m) (denorm_min b)^2 with
+// b = 2^(max_exponent - 1), a normal reference, plainly and under flush-to-zero.
+template <typename Scalar>
+void test_kron_determinant_flushed_subnormal() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Bits = typename internal::binary_floating_point_traits<Real>::Bits;
+  using Entry = kron_subnormal_entry<Scalar>;
+  using Mat = Matrix<Scalar, 2, 2>;
+  using Sparse = SparseMatrix<Scalar>;
+  // a = m * denorm_min with m = [4113 1301; 1103 5309], det m = 20400914: digits/2 bits per entry.
+  const Bits significands[2][2] = {{Bits(4113), Bits(1301)}, {Bits(1103), Bits(5309)}};
+  const double detSignificands = 4113.0 * 5309.0 - 1301.0 * 1103.0;
+  const double detDiagonalSignificands = 4113.0 * 5309.0;
+  // denorm_min * b = 2^(min_exponent - digits) * 2^(max_exponent - 1), a normal power of two.
+  const Real scaledUnit =
+      numext::ldexp(Real(1), std::numeric_limits<Real>::min_exponent - std::numeric_limits<Real>::digits +
+                                 std::numeric_limits<Real>::max_exponent - 1);
+  const Scalar expected = Scalar(Real(detSignificands) * scaledUnit * scaledUnit) * Entry::phaseSquared();
+  const Scalar expectedDiagonal =
+      Scalar(Real(detDiagonalSignificands) * scaledUnit * scaledUnit) * Entry::phaseSquared();
+  // The LU rounds each pivot a few times and the balanced accumulation once per factor.
+  const Real tolerance = Real(64) * NumTraits<Real>::epsilon();
+
+  Mat a;
+  for (Index i = 0; i < 2; ++i)
+    for (Index j = 0; j < 2; ++j) a(i, j) = Entry::run(numext::bit_cast<Real>(significands[i][j]));
+  Sparse sparseA(2, 2);
+  for (Index j = 0; j < 2; ++j)
+    for (Index i = 0; i < 2; ++i) sparseA.insert(i, j) = a(i, j);
+  const DiagonalMatrix<Scalar, 2> diagonalA(a(0, 0), a(1, 1));
+  Matrix<Scalar, 1, 1> b;
+  b << Scalar(numext::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 1));
+
+  const auto check = [&]() {
+    const auto close = [&](const Scalar& actual, const Scalar& reference) {
+      VERIFY((numext::isfinite)(actual));
+      VERIFY(numext::abs(actual - reference) <= tolerance * numext::abs(reference));
+    };
+    close(makeKroneckerOperator(a, b).determinant(), expected);
+    close(makeKroneckerOperator(b, a).determinant(), expected);
+    close(makeKroneckerOperator(sparseA, b).determinant(), expected);
+    close(makeKroneckerOperator(b, sparseA).determinant(), expected);
+    close(makeKroneckerOperator(diagonalA, b).determinant(), expectedDiagonal);
+    close(makeKroneckerOperator(b, diagonalA).determinant(), expectedDiagonal);
+  };
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
+}
+
+// Every entry of m is a signed subnormal significand * denorm_min. A factor gets
+// significands of significandBits bits with the largest one on the diagonal, so a
+// square factor is well conditioned; a right-hand side gets significands 1 to 3.
+template <typename Scalar>
+void fill_kron_subnormal(Matrix<Scalar, Dynamic, Dynamic>& m, int significandBits) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Binary = internal::binary_floating_point_traits<Real>;
+  using Bits = typename Binary::Bits;
+  const bool factor = significandBits > 0;
+  const Bits top = factor ? Bits(1) << (significandBits - 1) : Bits(2);
+  for (Index j = 0; j < m.cols(); ++j)
+    for (Index i = 0; i < m.rows(); ++i) {
+      const Bits significand = !factor  ? internal::random<Bits>(Bits(1), Bits(3))
+                               : i == j ? (top << 1) - Bits(1)
+                                        : top / Bits(4) + internal::random<Bits>(Bits(0), top / Bits(4) - Bits(1));
+      const Bits sign = (!factor || i != j) && internal::random<bool>() ? Binary::kSignBit : Bits(0);
+      m(i, j) = kron_subnormal_entry<Scalar>::run(numext::bit_cast<Real>(sign | significand));
+    }
+}
+
+// A factor with a normal and a subnormal pivot 40 octaves apart: the packet
+// scale-up would flush the small pivot under flush-to-zero, and the exact one
+// keeps det(A (x) b) = 2^-100 2^-140 (2^120)^2 = 1 for every factor kind.
+template <typename Scalar>
+void test_kron_determinant_flushed_pivot() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Entry = kron_subnormal_entry<Scalar>;
+  using Mat = Matrix<Scalar, 2, 2>;
+  using Sparse = SparseMatrix<Scalar>;
+  constexpr int minExponent = std::numeric_limits<Real>::min_exponent;
+  // 2^(min_exponent + 25) and 2^(min_exponent - 15): 40 octaves apart, the second one subnormal.
+  const Real large = numext::ldexp(Real(1), minExponent + 25);
+  const Real small = numext::bit_cast<Real>(typename internal::binary_floating_point_traits<Real>::Bits(1)
+                                            << (std::numeric_limits<Real>::digits - 15));
+  const Real b = numext::ldexp(Real(1), -minExponent - 5);  // large * small * b^2 == 1
+  Mat a = Mat::Zero();
+  a(0, 0) = Entry::run(large);
+  a(1, 1) = Entry::run(small);
+  Sparse sparseA(2, 2);
+  sparseA.insert(0, 0) = a(0, 0);
+  sparseA.insert(1, 1) = a(1, 1);
+  const DiagonalMatrix<Scalar, 2> diagonalA(a(0, 0), a(1, 1));
+  Matrix<Scalar, 1, 1> bMat;
+  bMat << Scalar(b);
+  const Scalar expected = Entry::phaseSquared();
+  const Real tolerance = Real(16) * NumTraits<Real>::epsilon();
+  const auto check = [&]() {
+    const auto close = [&](const Scalar& actual) {
+      VERIFY(numext::abs(actual - expected) <= tolerance * numext::abs(expected));
+    };
+    close(makeKroneckerOperator(a, bMat).determinant());
+    close(makeKroneckerOperator(sparseA, bMat).determinant());
+    close(makeKroneckerOperator(diagonalA, bMat).determinant());
+  };
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
+}
+
+// solve() runs on data normalized by exponent bounds, so an all-subnormal
+// problem and its power-of-two scaled copy share every intermediate:
+// x(A, B, rhs) == 2^k x(2^k A, 2^k B, 2^k rhs) exactly, plainly and under
+// flush-to-zero. Factors just below the smallest normal and a right-hand side
+// at denorm_min keep x finite.
+template <typename Scalar>
+void test_kron_solve_flushed_subnormal() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Sparse = SparseMatrix<Scalar>;
+  const Index n1 = 3, n2 = 2;
+  Mat A(n1, n1), B(n2, n2), rhs(n1 * n2, 2);
+  fill_kron_subnormal(A, std::numeric_limits<Real>::digits - 2);
+  fill_kron_subnormal(B, std::numeric_limits<Real>::digits - 2);
+  fill_kron_subnormal(rhs, 0);
+  // 2^k brings every operand into the normal range; the solution scales by 2^-k.
+  const int k = 100;
+  const internal::scale_by_exponent_op<Real> up(k);
+  const Mat As = A.unaryExpr(up), Bs = B.unaryExpr(up), rhss = rhs.unaryExpr(up);
+  Sparse sparseA(n1, n1), sparseAs(n1, n1);
+  for (Index j = 0; j < n1; ++j)
+    for (Index i = 0; i < n1; ++i) {
+      sparseA.insert(i, j) = A(i, j);
+      sparseAs.insert(i, j) = As(i, j);
+    }
+  const DiagonalMatrix<Scalar, Dynamic> diagonalB(B.diagonal()), diagonalBs(Bs.diagonal());
+  const Mat expectedX = makeKroneckerOperator(As, Bs).solve(rhss).unaryExpr(up);
+  const Mat expectedY = makeKroneckerOperator(sparseAs, diagonalBs).solve(rhss).unaryExpr(up);
+  VERIFY(expectedX.allFinite());
+  VERIFY(expectedY.allFinite());
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const Mat x = makeKroneckerOperator(A, B).solve(rhs);
+    VERIFY_IS_EQUAL(x, expectedX);
+    const Mat y = makeKroneckerOperator(sparseA, diagonalB).solve(rhs);
+    VERIFY_IS_EQUAL(y, expectedY);
+  });
 }
 
 template <typename ProductScalar, typename Lhs, typename Rhs>
@@ -1950,5 +2109,18 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_13((test_kron_sparse_nonfinite<double, RowMajor>()));
     CALL_SUBTEST_13((test_kron_sparse_nonfinite<std::complex<float>, RowMajor>()));
     CALL_SUBTEST_13((test_kron_sparse_nonfinite<std::complex<double>, ColMajor>()));
+
+    CALL_SUBTEST_14((test_kron_determinant_flushed_subnormal<float>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_subnormal<double>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_subnormal<std::complex<float>>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_subnormal<std::complex<double>>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<float>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<double>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<std::complex<float>>()));
+    CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<std::complex<double>>()));
+    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<float>()));
+    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<double>()));
+    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<std::complex<float>>()));
+    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<std::complex<double>>()));
   }
 }

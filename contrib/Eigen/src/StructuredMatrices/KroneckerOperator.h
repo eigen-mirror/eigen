@@ -99,26 +99,6 @@ constexpr int kron_factor_kind() {
                                                        : kKronDenseFactor;
 }
 
-// Apply 2^e without forming a possibly unrepresentable scale factor. For
-// std::complex storage, realView exposes both components to the real ldexp packets.
-template <typename Xpr, std::enable_if_t<!NumTraits<typename Xpr::Scalar>::IsComplex, bool> = true>
-void kron_ldexp_entries(Xpr& M, int e) {
-  M.array() = M.array().ldexp(e);
-}
-
-template <typename Xpr, std::enable_if_t<complex_array_access<typename Xpr::Scalar>::value, bool> = true>
-void kron_ldexp_entries(Xpr& M, int e) {
-  M.realView().array() = M.realView().array().ldexp(e);
-}
-
-template <typename Xpr, std::enable_if_t<NumTraits<typename Xpr::Scalar>::IsComplex &&
-                                             !complex_array_access<typename Xpr::Scalar>::value,
-                                         bool> = true>
-void kron_ldexp_entries(Xpr& M, int e) {
-  using Scalar = typename Xpr::Scalar;
-  M = M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
-}
-
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_ops {
   // Dense factor.
@@ -166,7 +146,16 @@ struct kron_factor_ops {
    * directly from the LU diagonal (times the permutation sign), each entry and
    * the running product renormalized by \c structured_balance. */
   static Scalar balancedDet(const Factor& M, Index& exponent) {
-    PartialPivLU<Factor> lu(M);
+    // Scale small factors up, exactly, so that the elimination runs on normal
+    // numbers: a subnormal near 2^e carries only e - min_exponent + digits bits.
+    // Scaling down could erase small pivots in factors with a wide exponent range,
+    // and every entry is scaled exactly because a small entry can be a pivot.
+    const int bound = exponentBound(M);
+    const int scaleExponent = numext::mini(bound, 0);
+    Factor normalized = M;
+    structured_ldexp_entries_exact(normalized, -scaleExponent);
+    exponent += M.rows() * scaleExponent;
+    PartialPivLU<Factor> lu(normalized);
     Scalar m = Scalar(RealScalar(lu.permutationP().determinant()));  // +-1
     for (Index i = 0; i < M.rows(); ++i)
       m = structured_balance(m * structured_balance(lu.matrixLU().coeff(i, i), exponent), exponent);
@@ -206,9 +195,15 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
   // A diagonal product has no accumulation, hence no dot-product growth.
   static int growthBits(Index) { return 0; }
   static Scalar balancedDet(const Factor& D, Index& exponent) {
+    // Scale a small diagonal up first: the balancing below compares and scales
+    // in floating point, which reads a subnormal entry as zero under flush-to-zero.
+    const int bound = exponentBound(D);
+    const int scaleExponent = numext::mini(bound, 0);
+    typename Factor::DiagonalVectorType d = D.diagonal();
+    structured_ldexp_entries_exact(d, -scaleExponent);
+    exponent += D.rows() * scaleExponent;
     Scalar m(1);
-    for (Index i = 0; i < D.rows(); ++i)
-      m = structured_balance(m * structured_balance(D.diagonal().coeff(i), exponent), exponent);
+    for (Index i = 0; i < D.rows(); ++i) m = structured_balance(m * structured_balance(d.coeff(i), exponent), exponent);
     return m;
   }
 };
@@ -298,11 +293,12 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
     // Scale small factors up, exactly, so that the elimination runs on normal
     // numbers: a subnormal near 2^e carries only e - min_exponent + digits bits.
     // Scaling down could erase small pivots in factors with a wide exponent range.
-    const int scaleExponent = numext::mini(exponentBound(M), 0);
+    const int bound = exponentBound(M);
+    const int scaleExponent = numext::mini(bound, 0);
     ColMajorFactor normalized(M);
     if (scaleExponent != 0) {
       auto values = normalized.coeffs();
-      kron_ldexp_entries(values, -scaleExponent);
+      structured_ldexp_entries_exact(values, -scaleExponent);
     }
     kron_sparse_lu<ColMajorFactor> lu;
     lu.compute(normalized);
@@ -333,7 +329,7 @@ class kron_factor_solver {
 
   explicit kron_factor_solver(const Factor& f) : m_exponent(structured_exponent_bound(f)) {
     DenseMatrix normalized = f;
-    kron_ldexp_entries(normalized, -m_exponent);
+    structured_ldexp_entries_exact(normalized, -m_exponent);
     m_lu.compute(normalized);
   }
   int exponent() const { return m_exponent; }
@@ -361,7 +357,7 @@ class kron_factor_solver<Factor, kKronDiagonalFactor> {
 
   explicit kron_factor_solver(const Factor& f)
       : m_exponent(structured_exponent_bound(f.diagonal())), m_d(f.diagonal()) {
-    kron_ldexp_entries(m_d, -m_exponent);
+    structured_ldexp_entries_exact(m_d, -m_exponent);
   }
   int exponent() const { return m_exponent; }
   template <typename Xpr>
@@ -390,7 +386,7 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
     normalized.makeCompressed();
     if (m_exponent != 0) {
       auto values = normalized.coeffs();
-      kron_ldexp_entries(values, -m_exponent);
+      structured_ldexp_entries_exact(values, -m_exponent);
     }
     m_lu.compute(normalized);
     m_factorized = m_lu.info() == Success;  // else the solves fill with NaN, see kron_factor_ops::nanMatrix
@@ -649,14 +645,14 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     for (Index k = 0; k < b.cols(); ++k) {
       bc = b.col(k);
       const int ec = internal::structured_exponent_bound(bc);
-      if (ec != 0) internal::kron_ldexp_entries(bc, -ec);
+      internal::structured_ldexp_entries(bc, -ec, ec);
       X = solverA.solveTransposedRight(solverB.solveLeft(bc.reshaped(n2, n1)));
       // Fold the combined exponent back. The entrywise ldexp saturates exactly
       // where the true solution over- or underflows; a multiplicative fold could
       // not (the combined exponent can exceed the representable range of any
       // fixed number of power-of-two factors).
       const int e = ec - solverA.exponent() - solverB.exponent();
-      if (e != 0) internal::kron_ldexp_entries(X, e);
+      internal::structured_ldexp_entries(X, e);
       x.col(k) = X.reshaped();
     }
     return x;

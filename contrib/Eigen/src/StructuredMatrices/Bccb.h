@@ -583,19 +583,21 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     ComplexArray sScaled;
     if (es != 0) {
       sScaled = s;
-      ldexpInPlace(sScaled, -es);
+      internal::structured_ldexp_entries(sScaled, -es, es);
     }
     const ComplexArray& sUse = es != 0 ? sScaled : s;
     Matrix<ProductScalar, Dynamic, 1> xc(N);
     ComplexArray X(p2, p1), Xn;  // Xn: the leading-block extraction of a padded grid
     for (Index k = 0; k < rhs.cols(); ++k) {
       xc = rhs.col(k).template cast<ProductScalar>();
-      const RealScalar m = xc.realView().cwiseAbs().maxCoeff();
+      // The rescan recovers an all-subnormal column that a flushing SIMD unit reads as zero.
+      const RealScalar m =
+          internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(xc, xc.realView().cwiseAbs().maxCoeff());
       if (!(numext::isfinite)(m)) {
         directColumn(k);
         continue;
       }
-      if (m == RealScalar(0)) {
+      if (numext::is_exactly_zero_no_flush(m)) {
         // The fast max cannot hide an Inf (those comparisons are ordered), but
         // it can miss a NaN among zeros: recheck exactly before shortcutting.
         if ((xc.array() == ProductScalar(0)).all()) {
@@ -612,9 +614,8 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
         }
       }
       int ex = 0;  // stays 0 for an all-zero column: no scaling
-      if (m > RealScalar(0)) {
-        EIGEN_USING_STD(frexp);
-        frexp(m, &ex);
+      if (!numext::is_exactly_zero_no_flush(m)) {
+        ex = internal::frexp_exponent_preserving_subnormals(m);
         EIGEN_IF_CONSTEXPR (NumTraits<ProductScalar>::IsComplex) ++ex;
       }
       // reshaped() defaults to column-major traversal, the flattening the
@@ -625,26 +626,19 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
       } else {
         X = xc.reshaped(n2, n1).template cast<Complex>();
       }
-      ldexpInPlace(X, -ex);
+      // X is complex whatever ProductScalar is: its bound carries the modulus bit.
+      internal::structured_ldexp_entries(X, -ex, NumTraits<ProductScalar>::IsComplex ? ex : ex + 1);
       fft2(X);
       X.array() *= sUse.array();
       ifft2(X);
       if (padded) Xn = X.topLeftCorner(n2, n1);
       ComplexArray& out = padded ? Xn : X;
-      ldexpInPlace(out, ex + es);
+      internal::structured_ldexp_entries(out, ex + es);
       if (accumulate)
         dst.col(k) += alpha * internal::structured_scalar_part_impl<ProductScalar>::run(out.reshaped());
       else
         dst.col(k) = alpha * internal::structured_scalar_part_impl<ProductScalar>::run(out.reshaped());
     }
-  }
-
-  /** \internal Multiplies every entry of \a X by 2^e, exactly. The per-entry
-   * ldexp saturates to zero / infinity component-wise without ever forming the
-   * (possibly unrepresentable) scale factor 2^e itself. */
-  static void ldexpInPlace(ComplexArray& X, int e) {
-    if (e == 0) return;
-    X.realView() = X.realView().array().ldexp(e).matrix();
   }
 
   /** \internal In-place forward or inverse 2-D FFT by the row-column algorithm:

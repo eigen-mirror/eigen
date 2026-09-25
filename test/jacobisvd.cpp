@@ -148,6 +148,98 @@ void jacobisvd_large_tau_regression() {
   svd_check_full(m, svd);
 }
 
+// An all-subnormal matrix, which a SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reads as zero in
+// the maxCoeff() selecting the scale: recovering the maximum from the representation and scaling through integer
+// significands keeps the decomposition, and the singular values come back through the subnormal range exactly.
+template <typename MatrixType>
+void jacobisvd_flushed_subnormal_matrix(Index rows, Index cols) {
+  using RealScalar = typename MatrixType::RealScalar;
+  const MatrixType m = svd_subnormal_fixture<MatrixType>(rows, cols);
+  const int k = 60;
+  const MatrixType ms = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const JacobiSVD<MatrixType, ComputeFullU | ComputeFullV> scaled(ms);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const JacobiSVD<MatrixType, ComputeFullU | ComputeFullV> svd(m);
+    svd_check_flushed_subnormal(svd, scaled, m, k);
+  });
+}
+
+// The Jacobi sweep leaves a diagonal matrix untouched, so with distinct magnitudes |d_i| the singular values are
+// those magnitudes bit for bit, descending, U the permutation carrying the signs of d and V the permutation, in every
+// flush-to-zero mode. Signed subnormal entries with and without a normal one reach the sort of a subnormal tail, the
+// extraction of magnitude and sign, and the nonzero count in the subnormal range.
+template <typename RealScalar>
+void jacobisvd_subnormal_diagonal(const Matrix<RealScalar, Dynamic, 1>& diagonal) {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const Index n = diagonal.size();
+  const MatrixType m = diagonal.asDiagonal();
+  std::vector<Bits> magnitudes;
+  std::vector<Index> order;
+  Index nonzero = 0;
+  for (Index i = 0; i < n; ++i) {
+    magnitudes.push_back(Binary::magnitude(diagonal(i)));
+    order.push_back(i);
+    if (magnitudes.back() != 0) ++nonzero;
+  }
+  std::stable_sort(order.begin(), order.end(), [&](Index a, Index b) { return magnitudes[a] > magnitudes[b]; });
+  for (Index j = 1; j < nonzero; ++j) VERIFY(magnitudes[order[j - 1]] != magnitudes[order[j]]);
+
+  const auto checkValues = [&](const auto& svd) {
+    VERIFY_IS_EQUAL(svd.info(), Success);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), nonzero);
+    for (Index j = 0; j < n; ++j) VERIFY_IS_EQUAL(Binary::bits(svd.singularValues()(j)), magnitudes[order[j]]);
+  };
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const JacobiSVD<MatrixType> valuesOnly(m);
+    checkValues(valuesOnly);
+    const JacobiSVD<MatrixType, ComputeFullU | ComputeFullV> full(m);
+    checkValues(full);
+    VERIFY_IS_UNITARY(full.matrixU());
+    VERIFY_IS_UNITARY(full.matrixV());
+    for (Index j = 0; j < nonzero; ++j) {
+      const Index p = order[j];
+      const bool negative = (Binary::bits(diagonal(p)) & Binary::kSignBit) != 0;
+      VERIFY_IS_EQUAL(full.matrixU().col(j).cwiseAbs().sum(), RealScalar(1));
+      VERIFY_IS_EQUAL(full.matrixU()(p, j), negative ? RealScalar(-1) : RealScalar(1));
+      VERIFY_IS_EQUAL(full.matrixV().col(j).cwiseAbs().sum(), RealScalar(1));
+      VERIFY_IS_EQUAL(full.matrixV()(p, j), RealScalar(1));
+    }
+  });
+}
+
+template <typename RealScalar>
+void jacobisvd_subnormal_diagonals() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  const auto subnormal = [](Bits significand, bool negative) {
+    return numext::bit_cast<RealScalar>((negative ? Binary::kSignBit : Bits(0)) | significand);
+  };
+  const RealScalar denormMin = subnormal(Bits(1), false);
+  const RealScalar small = subnormal(Bits(1) << (digits - 3), true);
+  const RealScalar large = subnormal(Bits(1) << (digits - 2), false);
+  const RealScalar top = subnormal(Binary::kFractionMask, true);
+  // Signed subnormal entries only, with zeros and a signed zero in the tail.
+  VectorType allSubnormal(7);
+  allSubnormal << small, RealScalar(0), top, denormMin, large, subnormal(Bits(3), true), -RealScalar(0);
+  jacobisvd_subnormal_diagonal(allSubnormal);
+  // A normal entry in [1, 2): the identity scaling, and the subnormal tail sorted from the representation.
+  VectorType normalLeading(6);
+  normalLeading << RealScalar(1), RealScalar(0), small, large, RealScalar(-1.5), denormMin;
+  jacobisvd_subnormal_diagonal(normalLeading);
+  VectorType tail(2);
+  tail << RealScalar(1.5), denormMin;
+  jacobisvd_subnormal_diagonal(tail);
+  // A normal entry below min / eps: the integer scaling into and out of the subnormal range.
+  VectorType belowRecovery(5);
+  belowRecovery << subnormal(Bits(5) << (digits - 6), false), RealScalar(0),
+      -numext::ldexp(RealScalar(1), internal::safe_scaling<RealScalar>::subnormal_recovery_exponent() - 20), small, top;
+  jacobisvd_subnormal_diagonal(belowRecovery);
+}
+
 void jacobisvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value up by one ULP.
   Matrix2f matrix = Matrix2f::Zero();
@@ -187,18 +279,7 @@ void jacobisvd_power_of_two_scaling() {
     const JacobiSVD<Matrix<std::complex<float>, 2, 3>> tinyWideSvd(tinyWide);
     VERIFY((tinyWideSvd.singularValues() / inputScale - normalizedSvd.singularValues()).norm() <= tolerance);
   };
-  checkSubnormalScaling();
-  {
-    ScopedFlushToZero flushToZero;
-    checkSubnormalScaling();
-  }
-
-  volatile float denormMinInput = std::numeric_limits<float>::denorm_min();
-  const float denormMin = denormMinInput;
-  if (!(denormMin > 0.0f)) return;
-  matrix.diagonal() << 1.5f, denormMin;
-  const JacobiSVD<Matrix2f> tailSvd(matrix);
-  VERIFY_IS_EQUAL(tailSvd.singularValues()(1), denormMin);
+  forEachFlushToZeroMode([&](FlushToZeroMode) { checkSubnormalScaling(); });
 }
 
 EIGEN_DECLARE_TEST(jacobisvd) {
@@ -280,6 +361,12 @@ EIGEN_DECLARE_TEST(jacobisvd) {
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
   CALL_SUBTEST_56(jacobisvd_power_of_two_scaling());
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcf>(4, 4)));
+  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcd>(3, 5)));
+  CALL_SUBTEST_56(jacobisvd_subnormal_diagonals<float>());
+  CALL_SUBTEST_56(jacobisvd_subnormal_diagonals<double>());
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));

@@ -701,6 +701,58 @@ void test_bccb_rank_complex_boundary() {
   VERIFY_IS_EQUAL(Bccb<Complex>(G2).rank(), 1);
 }
 
+template <typename Scalar>
+struct bccb_subnormal_entry {
+  template <typename Bits>
+  static Scalar run(Bits real, Bits) {
+    return numext::bit_cast<Scalar>(real);
+  }
+};
+
+template <typename Real>
+struct bccb_subnormal_entry<std::complex<Real>> {
+  template <typename Bits>
+  static std::complex<Real> run(Bits real, Bits imag) {
+    return std::complex<Real>(numext::bit_cast<Real>(real), numext::bit_cast<Real>(imag));
+  }
+};
+
+// The FFT frame of a column depends only on its exponent bound, so for an
+// all-subnormal x: C x == 2^-k (C (2^k x)) exactly, plainly and under
+// flush-to-zero. A huge generator keeps C x itself normal.
+template <typename Scalar>
+void test_bccb_flushed_subnormal_rhs(Index n2, Index n1) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Binary = internal::binary_floating_point_traits<Real>;
+  using Bits = typename Binary::Bits;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index N = n1 * n2;
+  VERIFY(N > internal::structured_direct_threshold());  // the FFT path, not the direct product
+  // |G| ~ 2^(max_exponent - 40): the symbol, at most N |G|, stays finite and the products of a right-hand side
+  // just below the smallest normal are normal.
+  const Mat G = Mat::Random(n2, n1) * Scalar(numext::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 40));
+  const Bccb<Scalar> C(G);
+  // Signed subnormal significands of digits - 2 bits: entries in [2^(min_exponent - 3), 2^(min_exponent - 2)).
+  const Bits top = Bits(1) << (std::numeric_limits<Real>::digits - 3);
+  const auto significand = [&]() {
+    const Bits sign = internal::random<bool>() ? Binary::kSignBit : Bits(0);
+    return sign | (top + internal::random<Bits>(Bits(0), top - Bits(1)));
+  };
+  Vec x(N);
+  for (Index i = 0; i < N; ++i) x(i) = bccb_subnormal_entry<Scalar>::run(significand(), significand());
+  const int k = 40;
+  const Vec xs = x.unaryExpr(internal::scale_by_exponent_op<Real>(k));
+  const Vec ys = C * xs;
+  const Vec expected = ys.unaryExpr(internal::scale_by_exponent_op<Real>(-k));
+  VERIFY(expected.allFinite());
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const Vec y = C * x;
+    VERIFY_IS_EQUAL(y, expected);
+  });
+}
+
 // A single 2^-e frame factor is itself subnormal once the frame exceeds the
 // exponent range, and reads as zero under flush-to-zero: every scaled modulus
 // and the threshold collapse together, the rank is over-reported, and solve()
@@ -1132,5 +1184,10 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_8(test_structured_packet_reciprocals<double>());
     CALL_SUBTEST_8(test_circulant_inverse_modes<float>());
     CALL_SUBTEST_8(test_circulant_inverse_modes<double>());
+
+    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<float>(8, 8)));
+    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<double>(12, 4)));
+    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<std::complex<float>>(6, 8)));
+    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<std::complex<double>>(8, 8)));
   }
 }

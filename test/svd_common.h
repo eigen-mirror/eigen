@@ -24,6 +24,32 @@
 #include "svd_fill.h"
 #include "solverbase.h"
 
+// U S V^H reconstructs m to the working precision plus the quantization of singular values stored in the subnormal
+// range, checked 2^k above m so that FTZ/DAZ cannot flush the check itself:
+//   |U (2^k S) V^H - 2^k m|_max <= 64 n eps |2^k m|_max + n 2^k denorm_min,
+// the second term because each singular value was rounded onto the subnormal grid, and its column carries that error
+// into at most n entries with unit weights. The scaling by 2^k goes through the representation and is exact.
+template <typename SvdType, typename MatrixType>
+void svd_check_scaled_residual(const MatrixType& m, const SvdType& svd, int k) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVector = Matrix<RealScalar, Dynamic, 1>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const Index diagSize = (std::min)(m.rows(), m.cols());
+  const RealScalar n = RealScalar((std::max)(m.rows(), m.cols()));
+  const DenseMatrix scaledInput = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const RealVector scaledSigma = svd.singularValues().unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const RealScalar granularity = numext::ldexp(
+      RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits + k);
+  const DenseMatrix reconstruction =
+      svd.matrixU().leftCols(diagSize) * scaledSigma.asDiagonal() * svd.matrixV().leftCols(diagSize).adjoint();
+  const RealScalar residual = (reconstruction - scaledInput).cwiseAbs().template maxCoeff<PropagateNaN>();
+  const RealScalar tolerance = RealScalar(64) * n * eps * scaledInput.cwiseAbs().maxCoeff() + n * granularity;
+  VERIFY((numext::isfinite)(tolerance));
+  VERIFY(residual <= tolerance);
+}
+
 // Check that the matrix m is properly reconstructed and that the U and V factors are unitary
 // The SVD must have already been computed.
 template <typename SvdType, typename MatrixType>
@@ -44,7 +70,8 @@ void svd_check_full(const MatrixType& m, const SvdType& svd) {
   MatrixVType v = svd.matrixV();
   RealScalar scaling = m.cwiseAbs().maxCoeff();
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
-    VERIFY(sigma.cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
+    // A subnormal or zero matrix: 2^(digits + 2) brings every nonzero entry into the normal range.
+    svd_check_scaled_residual(m, svd, std::numeric_limits<RealScalar>::digits + 2);
   } else {
     VERIFY_IS_APPROX(m / scaling, u * (sigma / scaling) * v.adjoint());
   }
@@ -330,6 +357,61 @@ void svd_inf_nan() {
   m << 1, 0, 0, 0, 0, 3, 1, min, 1, 0, 1, nan, 0, nan, nan, 0;
   svd.compute(m);
   VERIFY(svd.info() == InvalidInput);
+}
+
+template <typename Scalar>
+struct svd_subnormal_entry {
+  template <typename RealScalar>
+  static Scalar run(RealScalar real, RealScalar) {
+    return real;
+  }
+};
+
+template <typename RealScalar>
+struct svd_subnormal_entry<std::complex<RealScalar>> {
+  static std::complex<RealScalar> run(RealScalar real, RealScalar imag) { return std::complex<RealScalar>(real, imag); }
+};
+
+// A rows-by-cols matrix whose entries are all subnormal: signed significands of digits - 2 bits times denorm_min,
+// assembled without floating-point arithmetic so that FTZ/DAZ hardware cannot flush the fixture before the solver
+// sees it.
+template <typename MatrixType>
+MatrixType svd_subnormal_fixture(Index rows, Index cols) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  const Bits top = Bits(1) << (std::numeric_limits<RealScalar>::digits - 3);
+  const auto component = [&]() {
+    const Bits sign = internal::random<bool>() ? Binary::kSignBit : Bits(0);
+    return numext::bit_cast<RealScalar>(sign | (top + internal::random<Bits>(Bits(0), top - Bits(1))));
+  };
+  MatrixType m(rows, cols);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) m(i, j) = svd_subnormal_entry<Scalar>::run(component(), component());
+  return m;
+}
+
+// svd decomposed the all-subnormal matrix m, scaled (computed beforehand, under gradual underflow) its power-of-two
+// multiple ms = m * 2^k. Both are normalized by a power of two, so they run the same iteration on work matrices a
+// power of two apart and their singular values agree bit for bit up to the rounding of svd's onto the subnormal grid:
+//   |2^k sigma_i - sigma_i(ms)| <= 2^k denorm_min / 2.
+// U and V then reconstruct m to the scaled residual bound.
+template <typename SvdType, typename MatrixType>
+void svd_check_flushed_subnormal(const SvdType& svd, const SvdType& scaled, const MatrixType& m, int k) {
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVector = Matrix<RealScalar, Dynamic, 1>;
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  VERIFY_IS_EQUAL(scaled.info(), Success);
+  VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), scaled.nonzeroSingularValues());
+  const RealVector sigmaUp = svd.singularValues().unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  VERIFY(scaled.singularValues()(0) > RealScalar(0));
+  const RealScalar halfGranularity = numext::ldexp(
+      RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits + k - 1);
+  VERIFY((sigmaUp - scaled.singularValues()).cwiseAbs().template maxCoeff<PropagateNaN>() <= halfGranularity);
+  VERIFY_IS_UNITARY(svd.matrixU());
+  VERIFY_IS_UNITARY(svd.matrixV());
+  svd_check_scaled_residual(m, svd, k);
 }
 
 // Regression test for bug 286: JacobiSVD loops indefinitely with some
