@@ -61,107 +61,157 @@ cd $EIGEN_CI_BUILDDIR
 # as a single argument.  Split by space, unless double-quoted.
 $split_args = [regex]::Split(${EIGEN_CI_ADDITIONAL_ARGS}, ' (?=(?:[^"]|"[^"]*")*$)' )
 
-# Locate ccache when the job enables it (mirrors build.linux.script.sh: the
-# GitLab cache holds ${CCACHE_DIR}, keyed on file content and compiler, so it
-# hits even after a re-checkout re-stamps every source mtime). Prefer a
-# runner-installed ccache, then the copy restored from the .ccache-bin cache;
-# otherwise download the release pinned below and cache it for subsequent
-# jobs on this runner. Trust is established at every use, not at download
-# time: a runner-installed ccache must report at least the version required
-# for MSVC support (older ones would break compiles rather than degrade), and
-# a restored or freshly extracted binary must match the pinned SHA-256 — the
-# GitLab cache is writable job output, so restoring it does not authenticate
-# it. Re-verifying per use also means a version bump below invalidates stale
-# cached copies by itself. Any failure only means building without ccache,
-# never running an unverified binary. Only /Z7 or no debug information is
-# cacheable by ccache; these MinSizeRel builds emit none.
+# Compiler cache launcher selection:
+# Prefer sccache (Mozilla Shared Compilation Cache) with native Google Cloud Storage
+# remote backend (gs://eigen-gitlab-ci-cache). If sccache or GCS authentication is
+# unavailable, fall back to ccache with local disk / GitLab runner cache.
+#
+# Trust is established at every use, not at download time: runner-installed ccache
+# must report at least the version required for MSVC support (>= 4.8), and restored
+# or freshly extracted binaries must match the pinned SHA-256 — the GitLab cache is
+# writable job output, so restoring it does not authenticate it. Re-verifying per use
+# also ensures version bumps invalidate stale cached copies.
+$sccache_exe = ""
 $ccache_exe = ""
-if ("${EIGEN_CI_CCACHE}" -eq "on") {
-  $ccache_version = "4.13.6"
-  $ccache_zip_sha256 = "3d7cebb05850ad704e197b3f1d3f0f924ab6c9fdfc561578e146184fe9d89380"
-  $ccache_exe_sha256 = "1f285645553e61463b000c6c440301724894b4ba0174dbef6b4818d54b54b68d"
-  # Caching MSVC needs ccache >= 4.8.
-  $ccache_min_version = [version]"4.8"
-  $ccache_bindir = Join-Path ${rootdir} ".ccache-bin"
-  $cached_exe = Join-Path $ccache_bindir "ccache.exe"
-
-  $system_ccache = Get-Command ccache -ErrorAction SilentlyContinue
-  if ($system_ccache) {
-    $system_version = ""
-    try {
-      $system_version = (& $system_ccache.Source --version | Select-Object -First 1)
-    } catch {}
-    if (($system_version -match "ccache version (\d+(\.\d+)+)") -and
-        ([version]$Matches[1] -ge $ccache_min_version)) {
-      $ccache_exe = $system_ccache.Source
-    } else {
-      Write-Warning ("Ignoring system ccache at $($system_ccache.Source) " +
-                     "('${system_version}'; need >= ${ccache_min_version}).")
-    }
-  }
-
-  if ((-Not $ccache_exe) -and (Test-Path $cached_exe)) {
-    if ((Get-FileHash $cached_exe -Algorithm SHA256).Hash -eq $ccache_exe_sha256) {
-      $ccache_exe = $cached_exe
-    } else {
-      Write-Warning "Discarding cached ccache.exe that failed SHA-256 verification."
-      Remove-Item $cached_exe -Force
-    }
-  }
-
-  if (-Not $ccache_exe) {
-    $zip = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-${ccache_version}.zip"
-    try {
-      $ProgressPreference = "SilentlyContinue"
-      Invoke-WebRequest "https://github.com/ccache/ccache/releases/download/v${ccache_version}/ccache-${ccache_version}-windows-x86_64.zip" -OutFile $zip
-      if ((Get-FileHash $zip -Algorithm SHA256).Hash -eq $ccache_zip_sha256) {
-        $unpack = Join-Path ([System.IO.Path]::GetTempPath()) "ccache-unpack"
-        Expand-Archive $zip -DestinationPath $unpack -Force
-        New-Item -ItemType Directory -Force -Path $ccache_bindir | Out-Null
-        Copy-Item (Join-Path $unpack "ccache-${ccache_version}-windows-x86_64/ccache.exe") $cached_exe
-        if ((Get-FileHash $cached_exe -Algorithm SHA256).Hash -eq $ccache_exe_sha256) {
-          $ccache_exe = $cached_exe
-        } else {
-          Write-Warning "Extracted ccache.exe failed SHA-256 verification; building without ccache."
-          Remove-Item $cached_exe -Force
-        }
-      } else {
-        Write-Warning "ccache download failed SHA-256 verification; building without ccache."
-      }
-    } catch {
-      Write-Warning "ccache download failed ($_); building without ccache."
-    }
-  }
-}
-
+$compiler_launcher = ""
 $launchers = @()
-if ($ccache_exe) {
-  # EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
-  # set standard CCACHE_* variables (e.g. to a persistent host directory) in
-  # config.toml without being overridden by the YAML template.
-  if (-not $env:CCACHE_DIR -and $env:EIGEN_CI_CCACHE_DIR) {
-    $env:CCACHE_DIR = $env:EIGEN_CI_CCACHE_DIR
+
+if ("${EIGEN_CI_CCACHE}" -eq "on") {
+  . (Join-Path ${rootdir} "ci/scripts/install_compiler_cache.ps1")
+  if ("${env:EIGEN_CI_SCCACHE}" -ne "off") {
+    $sccache_exe = Install-Sccache
   }
-  if (-not $env:CCACHE_MAXSIZE -and $env:EIGEN_CI_CCACHE_MAXSIZE) {
-    $env:CCACHE_MAXSIZE = $env:EIGEN_CI_CCACHE_MAXSIZE
-  }
-  if (-not $env:CCACHE_BASEDIR -and $env:EIGEN_CI_CCACHE_BASEDIR) {
-    $env:CCACHE_BASEDIR = $env:EIGEN_CI_CCACHE_BASEDIR
-  }
-  if (-not $env:CCACHE_COMPRESSLEVEL -and $env:EIGEN_CI_CCACHE_COMPRESSLEVEL) {
-    $env:CCACHE_COMPRESSLEVEL = $env:EIGEN_CI_CCACHE_COMPRESSLEVEL
+  $ccache_exe = Install-Ccache
+
+  # 1. Try starting sccache server if available
+  if ($sccache_exe) {
+    $env:SCCACHE_DIR = if ($env:SCCACHE_DIR) { $env:SCCACHE_DIR } elseif ($env:EIGEN_CI_SCCACHE_DIR) { $env:EIGEN_CI_SCCACHE_DIR } else { Join-Path $env:CI_PROJECT_DIR ".sccache" }
+    $env:SCCACHE_CACHE_SIZE = if ($env:SCCACHE_CACHE_SIZE) { $env:SCCACHE_CACHE_SIZE } elseif ($env:EIGEN_CI_SCCACHE_CACHE_SIZE) { $env:EIGEN_CI_SCCACHE_CACHE_SIZE } else { "4G" }
+    # Rewrite paths relative to rootdir for cross-runner / cross-directory cache hits.
+    $env:SCCACHE_BASEDIRS = $rootdir
+    # Isolate daemon port per runner slot to avoid port collisions and process cross-kill.
+    $concurrent_id = if ($env:CI_CONCURRENT_ID) { [int]$env:CI_CONCURRENT_ID } else { 0 }
+    $env:SCCACHE_SERVER_PORT = [string](4226 + $concurrent_id)
+
+    $cred_server_job = $null
+    if ($env:EIGEN_GCS_CACHE_TOKEN_RW -or $env:EIGEN_GCS_CACHE_TOKEN_RO) {
+      $env:SCCACHE_GCS_BUCKET = if ($env:EIGEN_CI_SCCACHE_GCS_BUCKET) { $env:EIGEN_CI_SCCACHE_GCS_BUCKET } else { "eigen-gitlab-ci-cache" }
+      $env:SCCACHE_MULTILEVEL_CHAIN = "disk,gcs"
+      if ($env:EIGEN_GCS_CACHE_TOKEN_RW) {
+        $env:SCCACHE_GCS_RW_MODE = "READ_WRITE"
+      } else {
+        $env:SCCACHE_GCS_RW_MODE = "READ_ONLY"
+      }
+      $url_secret = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 16 | % {[char]$_})
+
+      $cred_server_job = Start-Job -ScriptBlock {
+        param($path_secret)
+        $tok = if ($env:EIGEN_GCS_CACHE_TOKEN_RW) { $env:EIGEN_GCS_CACHE_TOKEN_RW } else { $env:EIGEN_GCS_CACHE_TOKEN_RO }
+        $listener = New-Object System.Net.HttpListener
+        $tcp = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+        $tcp.Start()
+        $p = $tcp.Server.LocalEndPoint.Port
+        $tcp.Stop()
+        $listener.Prefixes.Add("http://127.0.0.1:$p/")
+        $listener.Start()
+        Write-Output "PORT:$p"
+        while ($listener.IsListening) {
+          $ctx = $listener.GetContext()
+          $resp = $ctx.Response
+          if ($ctx.Request.RawUrl -ne "/token/$path_secret") {
+            $resp.StatusCode = 403
+            $resp.Close()
+            continue
+          }
+          $resp.ContentType = "application/json"
+          $body = [System.Text.Encoding]::UTF8.GetBytes("{`"access_token`":`"$tok`",`"token_type`":`"Bearer`",`"expires_in`":3600}")
+          $resp.ContentLength64 = $body.Length
+          $resp.OutputStream.Write($body, 0, $body.Length)
+          $resp.Close()
+        }
+      } -ArgumentList $url_secret
+
+      # Wait up to 2 seconds for local credential server to be ready
+      $cred_port = $null
+      for ($i = 0; $i -lt 40; $i++) {
+        $out = Receive-Job $cred_server_job -ErrorAction SilentlyContinue
+        if ($out) {
+          foreach ($line in $out) {
+            if ($line -match "^PORT:(\d+)$") {
+              $cred_port = $Matches[1]
+              break
+            }
+          }
+        }
+        if ($cred_port) {
+          try {
+            $res = Invoke-WebRequest -Uri "http://127.0.0.1:$cred_port/token/$url_secret" -UseBasicParsing -TimeoutSec 1 -ErrorAction SilentlyContinue
+            if ($res -and $res.StatusCode -eq 200) { break }
+          } catch {}
+        }
+        Start-Sleep -Milliseconds 50
+      }
+      if ($cred_port) {
+        $env:SCCACHE_GCS_CREDENTIALS_URL = "http://127.0.0.1:$cred_port/token/$url_secret"
+      } else {
+        Write-Warning "Local credential server failed to bind or respond; skipping GCS remote cache."
+        Remove-Item Env:SCCACHE_GCS_BUCKET -ErrorAction SilentlyContinue
+        Remove-Item Env:SCCACHE_GCS_RW_MODE -ErrorAction SilentlyContinue
+        Remove-Item Env:SCCACHE_MULTILEVEL_CHAIN -ErrorAction SilentlyContinue
+        if ($cred_server_job) {
+          Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+          Remove-Job $cred_server_job -Force -ErrorAction SilentlyContinue
+          $cred_server_job = $null
+        }
+      }
+    }
+
+    & $sccache_exe --start-server | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+      $compiler_launcher = "sccache"
+      & $sccache_exe --zero-stats | Out-Null
+      $sccache_cmake = $sccache_exe -replace '\\', '/'
+      $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${sccache_cmake}",
+                   "-DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_cmake}"
+    } else {
+      Write-Warning "sccache server failed to start (check GCS credentials/network); falling back to ccache."
+      if ($cred_server_job) {
+        Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+        Remove-Job $cred_server_job -ErrorAction SilentlyContinue
+      }
+    }
   }
 
-  # Forward slashes: CMake treats the launcher as a path-valued cache entry.
-  $ccache_cmake = $ccache_exe -replace '\\', '/'
-  $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${ccache_cmake}",
-               "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_cmake}"
-  # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
-  # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
-  # mix each other's counters.
-  $env:CCACHE_STATSLOG = Join-Path (Get-Location) "ccache-stats.log"
-  if (Test-Path $env:CCACHE_STATSLOG) {
-    Remove-Item $env:CCACHE_STATSLOG -Force
+  # 2. Fall back to ccache if sccache is unavailable or failed to start
+  if ((-not $compiler_launcher) -and $ccache_exe) {
+    $compiler_launcher = "ccache"
+    # EIGEN_CI_CCACHE_* provide the YAML fallback defaults.  A runner may explicitly
+    # set standard CCACHE_* variables (e.g. to a persistent host directory) in
+    # config.toml without being overridden by the YAML template.
+    if (-not $env:CCACHE_DIR -and $env:EIGEN_CI_CCACHE_DIR) {
+      $env:CCACHE_DIR = $env:EIGEN_CI_CCACHE_DIR
+    }
+    if (-not $env:CCACHE_MAXSIZE -and $env:EIGEN_CI_CCACHE_MAXSIZE) {
+      $env:CCACHE_MAXSIZE = $env:EIGEN_CI_CCACHE_MAXSIZE
+    }
+    if (-not $env:CCACHE_BASEDIR -and $env:EIGEN_CI_CCACHE_BASEDIR) {
+      $env:CCACHE_BASEDIR = $env:EIGEN_CI_CCACHE_BASEDIR
+    }
+    if (-not $env:CCACHE_COMPRESSLEVEL -and $env:EIGEN_CI_CCACHE_COMPRESSLEVEL) {
+      $env:CCACHE_COMPRESSLEVEL = $env:EIGEN_CI_CCACHE_COMPRESSLEVEL
+    }
+
+    # Forward slashes: CMake treats the launcher as a path-valued cache entry.
+    $ccache_cmake = $ccache_exe -replace '\\', '/'
+    $launchers = "-DCMAKE_C_COMPILER_LAUNCHER=${ccache_cmake}",
+                 "-DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_cmake}"
+    # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
+    # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
+    # mix each other's counters.
+    $env:CCACHE_STATSLOG = Join-Path (Get-Location) "ccache-stats.log"
+    if (Test-Path $env:CCACHE_STATSLOG) {
+      Remove-Item $env:CCACHE_STATSLOG -Force
+    }
   }
 }
 
@@ -229,11 +279,25 @@ $success = $LASTEXITCODE
 # Hit/miss summary for judging what the cache pays for on this job. Runs on
 # failures too: the cache is pushed even then (cache:when: always), so the
 # stats still describe what the next attempt can reuse.
-if ($ccache_exe) {
+if ($compiler_launcher -eq "sccache" -and $sccache_exe) {
+  & $sccache_exe --show-stats
+  & $sccache_exe --stop-server | Out-Null
+  if ($cred_server_job) {
+    Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+    Remove-Job $cred_server_job -ErrorAction SilentlyContinue
+  }
+  # Incompatible cache formats: purge unused .ccache\ before cache upload so the
+  # uploaded cache archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
+  $old_ccache = Join-Path $rootdir ".ccache"
+  if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
+} elseif ($compiler_launcher -eq "ccache" -and $ccache_exe) {
   & $ccache_exe --show-log-stats
   if (Test-Path $env:CCACHE_STATSLOG) {
     Remove-Item $env:CCACHE_STATSLOG -Force
   }
+  # Incompatible cache formats: purge unused .sccache\ before cache upload.
+  $old_sccache = Join-Path $rootdir ".sccache"
+  if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
 }
 
 # Return to root directory.

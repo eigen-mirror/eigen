@@ -68,15 +68,24 @@
   # Developer-started merge request pipeline therefore cannot read the pool the
   # scheduled builds fill; a maintainer starting that pipeline can.
   cache:
-    key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
-    fallback_keys:
-      - "$EIGEN_CI_CCACHE_POOL-ccache"
-    paths:
-      - .ccache/
-    policy: $EIGEN_CI_CCACHE_POLICY
-    # Push the cache even when the build fails: the retry pipeline after a
-    # compile error is exactly where cache hits matter most.
-    when: always
+    # Dedicated small cache for pinned tool binaries (sccache, ccache); shared across
+    # all build jobs so runners download the static binary once.
+    - key: "linux-ccache-bin"
+      paths:
+        - .ccache-bin/
+        - .sccache-bin/
+      when: always
+    # Compiler object cache pool holding .ccache/ and .sccache/.
+    - key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
+      fallback_keys:
+        - "$EIGEN_CI_CCACHE_POOL-ccache"
+      paths:
+        - .ccache/
+        - .sccache/
+      policy: $EIGEN_CI_CCACHE_POLICY
+      # Push the cache even when the build fails: the retry pipeline after a
+      # compile error is exactly where cache hits matter most.
+      when: always
 
 ######## x86-64 ################################################################
 

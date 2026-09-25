@@ -22,28 +22,131 @@ export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-${EIGEN_CI_CCACHE_COMPRESSL
 for v in CCACHE_DIR CCACHE_MAXSIZE CCACHE_BASEDIR CCACHE_COMPRESSLEVEL; do
   [[ -n "${!v}" ]] || unset "${v}"
 done
+# Compiler cache launcher selection:
+# Prefer sccache (Mozilla Shared Compilation Cache) with native Google Cloud Storage
+# remote backend (gs://eigen-gitlab-ci-cache). If sccache or GCS authentication is
+# unavailable, fall back to ccache with local disk / GitLab runner cache.
 launchers=""
-if [[ "${EIGEN_CI_CCACHE}" == "on" ]] && command -v ccache >/dev/null 2>&1; then
-  launchers="-DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-  # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
-  # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
-  # mix each other's counters. Fall back to global counters if ccache predates
-  # --show-log-stats (ccache < 4.4, e.g. Ubuntu 20.04).
-  export CCACHE_STATSLOG="${PWD}/ccache-stats.log"
-  rm -f "${CCACHE_STATSLOG}"
-  if ! ccache --show-log-stats >/dev/null 2>&1; then
-    unset CCACHE_STATSLOG
-    ccache --zero-stats
+compiler_launcher=""
+
+if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
+  . "${rootdir}/ci/scripts/install_compiler_cache.sh"
+
+  if [[ "${EIGEN_CI_SCCACHE:-on}" != "off" && -n "${sccache_bin}" ]]; then
+    export SCCACHE_DIR="${SCCACHE_DIR:-${EIGEN_CI_SCCACHE_DIR:-${CI_PROJECT_DIR}/.sccache}}"
+    export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-${EIGEN_CI_SCCACHE_CACHE_SIZE:-4G}}"
+    export SCCACHE_BASEDIRS="${rootdir}"
+    export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
+
+    # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
+    # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
+    sccache_cred_server_pid=""
+    { set +x; } 2>/dev/null
+    if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" || -n "${EIGEN_GCS_CACHE_TOKEN_RO:-}" ]]; then
+      export SCCACHE_GCS_BUCKET="${EIGEN_CI_SCCACHE_GCS_BUCKET:-eigen-gitlab-ci-cache}"
+      export SCCACHE_MULTILEVEL_CHAIN="disk,gcs"
+      if [[ -n "${EIGEN_GCS_CACHE_TOKEN_RW:-}" ]]; then
+        export SCCACHE_GCS_RW_MODE="READ_WRITE"
+      else
+        export SCCACHE_GCS_RW_MODE="READ_ONLY"
+      fi
+      export GCS_URL_SECRET=$(od -vN 16 -An -tx1 /dev/urandom | tr -d ' \n')
+      cred_port_file="${PWD}/.cred_port"
+
+      python3 -c "
+import http.server, json, sys, os
+token = os.environ.get('EIGEN_GCS_CACHE_TOKEN_RW') or os.environ.get('EIGEN_GCS_CACHE_TOKEN_RO')
+secret = os.environ.get('GCS_URL_SECRET')
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != '/token/' + secret:
+            self.send_response(403)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({'access_token': token, 'token_type': 'Bearer', 'expires_in': 3600}).encode())
+    def log_message(self, *a): pass
+server = http.server.HTTPServer(('127.0.0.1', 0), H)
+with open('${cred_port_file}', 'w') as f:
+    f.write(str(server.server_port))
+server.serve_forever()
+" &
+      sccache_cred_server_pid=$!
+      trap '[[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
+
+      # Wait up to 2 seconds for local credential server to be ready
+      cred_port=""
+      for _ in {1..40}; do
+        if [[ -s "${cred_port_file}" ]]; then
+          cred_port=$(cat "${cred_port_file}")
+          if curl -s "http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}" >/dev/null 2>&1; then break; fi
+        fi
+        sleep 0.05
+      done
+      if [[ -n "${cred_port:-}" ]]; then
+        export SCCACHE_GCS_CREDENTIALS_URL="http://127.0.0.1:${cred_port}/token/${GCS_URL_SECRET}"
+      else
+        echo "Notice: Local credential server failed to bind or respond; skipping GCS remote cache." >&2
+        unset SCCACHE_GCS_BUCKET
+        unset SCCACHE_GCS_RW_MODE
+        unset SCCACHE_MULTILEVEL_CHAIN
+        [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+        sccache_cred_server_pid=""
+      fi
+      rm -f "${cred_port_file}"
+      unset GCS_URL_SECRET
+    fi
+    set -x
+
+    if "${sccache_bin}" --start-server >/dev/null 2>&1; then
+      compiler_launcher="sccache"
+      "${sccache_bin}" --zero-stats >/dev/null 2>&1 || true
+      launchers="-DCMAKE_C_COMPILER_LAUNCHER=${sccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_bin}"
+    else
+      echo "Notice: sccache server failed to start (check GCS credentials/network); falling back to ccache."
+      [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true
+      sccache_cred_server_pid=""
+    fi
+  fi
+
+  if [[ -z "${compiler_launcher}" && -n "${ccache_bin}" ]]; then
+    compiler_launcher="ccache"
+    launchers="-DCMAKE_C_COMPILER_LAUNCHER=${ccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${ccache_bin}"
+    # Log stats per job via CCACHE_STATSLOG rather than global --zero-stats /
+    # --show-stats so concurrent jobs sharing a host CCACHE_DIR do not reset or
+    # mix each other's counters. Fall back to global counters if ccache predates
+    # --show-log-stats (ccache < 4.4, e.g. Ubuntu 20.04).
+    export CCACHE_STATSLOG="${PWD}/ccache-stats.log"
+    rm -f "${CCACHE_STATSLOG}"
+    if ! "${ccache_bin}" --show-log-stats >/dev/null 2>&1; then
+      unset CCACHE_STATSLOG
+      "${ccache_bin}" --zero-stats
+    fi
   fi
 fi
+
 show_ccache_stats() {
-  if [[ -n "${launchers}" ]]; then
+  if [[ "${compiler_launcher}" == "sccache" && -n "${sccache_bin}" ]]; then
+    "${sccache_bin}" --show-stats 2>&1 || true
+    "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
+    if [[ -n "${sccache_cred_server_pid}" ]]; then
+      kill "${sccache_cred_server_pid}" 2>/dev/null || true
+      sccache_cred_server_pid=""
+    fi
+    # Incompatible cache formats: purge unused .ccache/ before cache upload so the
+    # uploaded cache archive only holds .sccache/ and stays strictly below the 5 GB runner cap.
+    rm -rf "${rootdir}/.ccache"
+  elif [[ "${compiler_launcher}" == "ccache" && -n "${ccache_bin}" ]]; then
     if [[ -n "${CCACHE_STATSLOG}" ]]; then
-      ccache --show-log-stats
+      "${ccache_bin}" --show-log-stats
       rm -f "${CCACHE_STATSLOG}"
     else
-      ccache --show-stats
+      "${ccache_bin}" --show-stats
     fi
+    # Incompatible cache formats: purge unused .sccache/ before cache upload.
+    rm -rf "${rootdir}/.sccache"
   fi
 }
 
@@ -270,6 +373,7 @@ if [[ -n "${deps}" ]]; then
       # The cache is pushed even on failure (cache:when: always), so the
       # stats still describe what the next attempt can reuse.
       show_ccache_stats
+      cd ${rootdir}
       exit 1
     fi
   fi
@@ -277,7 +381,13 @@ if [[ -n "${deps}" ]]; then
 fi
 
 if [[ "$shuffled" != "true" ]]; then
-  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs}
+  build_failed=false
+  cmake --build . ${target} -- -k0 ${jobs} || cmake --build . ${target} -- -k0 ${fallback_jobs} || build_failed=true
+  if [[ "$build_failed" == "true" ]]; then
+    show_ccache_stats
+    cd ${rootdir}
+    exit 1
+  fi
 fi
 
 # Hit/miss summary for judging what the cache pays for on this job.

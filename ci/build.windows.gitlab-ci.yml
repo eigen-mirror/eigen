@@ -53,17 +53,19 @@
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:
-    # The pinned ccache binary the build script downloads when the runner has
+    # The pinned sccache/ccache binaries the build script downloads when the runner has
     # none; one shared key so a runner downloads it once for all build jobs.
     # Cache content is writable job output, not a trusted source: the script
     # re-verifies the binary's SHA-256 on every use before executing it.
     - key: "windows-ccache-bin"
       paths:
         - .ccache-bin/
+        - .sccache-bin/
       when: always
     - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
+        - .sccache/
       policy: $EIGEN_CI_CCACHE_POLICY
       when: always
 
