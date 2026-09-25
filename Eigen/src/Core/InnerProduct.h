@@ -211,7 +211,8 @@ struct scalar_inner_product_op<
   static constexpr bool PacketAccess = packet_traits<Scalar>::HasMul && packet_traits<Scalar>::HasAdd;
 };
 
-template <typename Lhs, typename Rhs, bool Conj>
+// Backends specialize Enable = enable_if_t<...> (void); Enable = false_type always names this generic definition.
+template <typename Lhs, typename Rhs, bool Conj, typename Enable = void>
 struct default_inner_product_impl {
   using LhsScalar = typename traits<Lhs>::Scalar;
   using RhsScalar = typename traits<Rhs>::Scalar;

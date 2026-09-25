@@ -64,6 +64,23 @@ static void BM_Gemv(benchmark::State& state) {
   Mat A = Mat::Random(m, n);
   Vec x = Vec::Random(n);
   Vec y = Vec::Random(m);
+  Vec actual = y;
+  actual.noalias() += A * x;
+  using WideScalar = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<long double>, long double>;
+  for (Index i = 0; i < m; ++i) {
+    WideScalar expected(y[i]);
+    long double magnitude = numext::abs(expected);
+    for (Index j = 0; j < n; ++j) {
+      const WideScalar term = WideScalar(A(i, j)) * WideScalar(x[j]);
+      expected += term;
+      magnitude += numext::abs(term);
+    }
+    const long double bound = 8 * (n + 1) * NumTraits<typename NumTraits<Scalar>::Real>::epsilon() * magnitude;
+    if (!((numext::isfinite)(bound) && numext::abs(WideScalar(actual[i]) - expected) <= bound)) {
+      state.SkipWithError("GEMV differs from the scalar reference");
+      return;
+    }
+  }
   for (auto _ : state) {
     y.noalias() += A * x;
     benchmark::DoNotOptimize(y.data());
@@ -143,11 +160,12 @@ static void BM_GemvAdj(benchmark::State& state) {
 // The 4096..32768-row x 1..3-col cases straddle the run_small_cols
 // "stride*sizeof > L1" threshold where the 8-row inner unroll flips off.
 #define GEMV_SIZES \
-    ->Args({8, 8})->Args({32, 32})->Args({128, 128})->Args({512, 512})->Args({1024, 1024}) \
+    ->Args({8, 8})->Args({32, 32})->Args({127, 127})->Args({128, 128})->Args({129, 129})->Args({255, 255})->Args({256, 256})->Args({257, 257})->Args({512, 512})->Args({1024, 1024})->Args({4096, 4096}) \
     ->Args({256, 1})->Args({1024, 1})->Args({256, 16})->Args({1024, 16}) \
     ->Args({1, 256})->Args({1, 1024})->Args({16, 256})->Args({16, 1024}) \
     ->Args({4096, 1})->Args({8192, 1})->Args({16384, 1})->Args({32768, 1}) \
-    ->Args({4096, 2})->Args({8192, 2})->Args({16384, 2})
+    ->Args({4096, 2})->Args({8192, 2})->Args({16384, 2}) \
+    ->Args({10000, 8})->Args({10000, 100})->Args({100, 10000})->Args({1000, 10000})
 
 // Real types: Gemv and GemvTrans exercise the two kernel specializations.
 // Conjugation is a no-op for real scalars.
@@ -164,4 +182,60 @@ BENCHMARK(BM_GemvConj<std::complex<float>>) GEMV_SIZES ->Name("GemvConj_cfloat")
 BENCHMARK(BM_GemvAdj<std::complex<float>>) GEMV_SIZES ->Name("GemvAdj_cfloat");
 
 #undef GEMV_SIZES
+// clang-format on
+
+template <typename Scalar, bool Mixed>
+static void BM_GemvLayout(benchmark::State& state) {
+  using Vec = Vector<Scalar, Dynamic>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  const Index rows = state.range(0), cols = state.range(1), stride = rows + state.range(4);
+  const Index padding = 128 / sizeof(Scalar);
+  Vec a_storage(stride * cols + padding), y_storage(rows + padding);
+  Vec x = Vec::Random(cols), source = Vec::Random(rows);
+  Map<Mat, Unaligned, OuterStride<>> a(a_storage.data() +
+                                           internal::first_aligned<64>(a_storage.data(), a_storage.size()) +
+                                           state.range(2) / sizeof(Scalar),
+                                       rows, cols, OuterStride<>(stride));
+  Map<Vec> y(y_storage.data() + internal::first_aligned<64>(y_storage.data(), y_storage.size()) +
+                 state.range(3) / sizeof(Scalar),
+             rows);
+  a.setRandom();
+  y = source.array() + Scalar(0.25);
+  const Vec initial = y;
+  y.noalias() += a * x;
+  for (Index i = 0; i < rows; ++i) {
+    long double expected = initial[i], magnitude = numext::abs(expected);
+    for (Index j = 0; j < cols; ++j) {
+      const long double term = static_cast<long double>(a(i, j)) * static_cast<long double>(x[j]);
+      expected += term;
+      magnitude += numext::abs(term);
+    }
+    const long double bound = 8 * (cols + 1) * NumTraits<Scalar>::epsilon() * magnitude;
+    if (!(numext::abs(static_cast<long double>(y[i]) - expected) <= bound)) {
+      state.SkipWithError("GEMV layout differs from the scalar reference");
+      return;
+    }
+  }
+  for (auto _ : state) {
+    EIGEN_IF_CONSTEXPR (Mixed) y = source.array() + Scalar(0.25);
+    benchmark::ClobberMemory();
+    y.noalias() += a * x;
+    benchmark::ClobberMemory();
+    EIGEN_IF_CONSTEXPR (Mixed) {
+      Scalar sum = y.sum();
+      benchmark::DoNotOptimize(sum);
+    }
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+
+// clang-format off
+#define GEMV_LAYOUT_SIZES ->ArgsProduct({{128, 256, 1024}, {4, 16, 32, 64, 128}, {0}, {0}, {0}}) \
+  ->ArgsProduct({{129, 257}, {32, 128}, {0, 16}, {0, 16}, {0, 1}}) \
+  ->ArgsProduct({{4096, 10000}, {4, 8, 16}, {0}, {0}, {0}})
+BENCHMARK_TEMPLATE(BM_GemvLayout, float, false) GEMV_LAYOUT_SIZES ->Name("GemvLayout_float");
+BENCHMARK_TEMPLATE(BM_GemvLayout, double, false) GEMV_LAYOUT_SIZES ->Name("GemvLayout_double");
+BENCHMARK_TEMPLATE(BM_GemvLayout, float, true) GEMV_LAYOUT_SIZES ->Name("GemvMixed_float");
+BENCHMARK_TEMPLATE(BM_GemvLayout, double, true) GEMV_LAYOUT_SIZES ->Name("GemvMixed_double");
+#undef GEMV_LAYOUT_SIZES
 // clang-format on

@@ -136,9 +136,10 @@ run time. However, these assertions do cost time and can thus be turned off.
    the panel bound; a block of such panels no wider than the width bound, or the shallow width up to the shallow
    depth, or narrower than the thin bound on one side). One value overrides the per-scalar defaults, which are fitted
    for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs.
- - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME GEMM kernel, which needs the optional
+ - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME kernels, which need the optional
    FEAT_SME_F64F64 extension. %Eigen enables it whenever the compiler reports that extension; define this macro when
-   the build target is wider than the run target, so that \c double keeps the generic kernel.
+   the build target is wider than the run target, so that \c double keeps the generic kernels for matrix products,
+   matrix-vector products, dot products, and scaled vector additions.
  - \b \c EIGEN_SME_PACKED_RHS_BUDGET_BYTES - Byte budget for the packed RHS panel in the ARM SME GEMM kernel.
    The default (32 MB) is empirically tuned for Apple M4.
  - \b \c EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES - Byte budget for the LHS working set in the ARM SME GEMM kernel.

@@ -20,7 +20,8 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
 <tr class="alt"><td>ARM / AArch64</td><td>NEON, SME; SVE as an opt-in backend</td>
     <td>SVE requires \c EIGEN_ARM64_USE_SVE and a fixed vector length
         (<tt>-msve-vector-bits=N</tt>). The SME backend accelerates real and complex matrix
-        products and is selected automatically when the compiler targets SME2
+        products as well as large real dot products, scaled vector additions and column-major
+        matrix-vector products. It is selected automatically when the compiler targets SME2
         (<tt>-march=armv9.2-a+sme2</tt>, or a <tt>-mcpu</tt> that implies it) \em without
         <tt>-msve-vector-bits</tt>, since a fixed length would pin the kernels to one runtime
         streaming vector length; everything else keeps the NEON path. Define
@@ -28,7 +29,8 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
         cannot provide it into a build error instead of a NEON fallback. Double precision
         additionally needs the optional FEAT_SME_F64F64 extension (<tt>+sme-f64f64</tt>, or a
         <tt>-mcpu</tt> that implies it); without it \c double and \c std::complex<double> keep
-        the generic kernel</td></tr>
+        the generic kernels. The SME vector and matrix-vector kernels report no floating-point
+        exceptions: a call leaves the caller's exception flags as they were</td></tr>
 <tr><td>PowerPC</td><td>AltiVec, VSX, MMA</td><td></td></tr>
 <tr class="alt"><td>IBM Z (s390x)</td><td>ZVector</td><td></td></tr>
 <tr><td>MIPS</td><td>MSA</td><td></td></tr>

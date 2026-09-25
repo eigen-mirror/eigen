@@ -95,6 +95,9 @@ struct sme_traits<float> {
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b32(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c32(); }
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming {
+    return svwhilelt_c32_s64(begin, end, 4);
+  }
   static EIGEN_ALWAYS_INLINE Vec dup(float x) __arm_streaming { return svdup_f32(x); }
 };
 
@@ -110,6 +113,9 @@ struct sme_traits<double> {
   }
   static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b64(); }
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c64(); }
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming {
+    return svwhilelt_c64_s64(begin, end, 4);
+  }
   static EIGEN_ALWAYS_INLINE Vec dup(double x) __arm_streaming { return svdup_f64(x); }
 };
 #endif

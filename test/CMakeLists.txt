@@ -378,6 +378,7 @@ if(EIGEN_TEST_SME)
   # a toolchain without SME2 into a build error rather than a NEON fallback; the
   # toolchain must still supply an SME2 -march/-mcpu.
   ei_add_test(product_sme)
+  ei_add_test(vector_sme "-Werror=unknown-pragmas")
 endif()
 if(EIGEN_TEST_SVE)
   # EIGEN_TEST_SVE defines EIGEN_ARM64_USE_SVE and -msve-vector-bits (root
