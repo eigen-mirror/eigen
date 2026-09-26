@@ -110,6 +110,55 @@ void triangular_structured_sum(const MatrixType& m) {
   selfadjoint_structured_sum_impl<Mode, MatrixType>::run(s, a, b, result, reference);
 }
 
+// Permutation times triangular or self-adjoint view, both orders, with P and P^-1. Rows or columns of the
+// densified view are only moved, so the products are exact.
+template <typename ViewType, typename PermutationType>
+void triangular_permutation_products_check(const TriangularBase<ViewType>& view, const PermutationType& perm) {
+  using Scalar = typename ViewType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = typename ViewType::DenseMatrixType;
+
+  const MatrixType dense = view.derived().toDenseMatrix();
+  const MatrixType permDense = perm.toDenseMatrix().template cast<Scalar>();
+  const MatrixType inverseDense = perm.inverse().toDenseMatrix().template cast<Scalar>();
+
+  MatrixType result = perm * view.derived();
+  VERIFY_IS_EQUAL(result, MatrixType(permDense * dense));
+  result = view.derived() * perm;
+  VERIFY_IS_EQUAL(result, MatrixType(dense * permDense));
+  result = perm.inverse() * view.derived();
+  VERIFY_IS_EQUAL(result, MatrixType(inverseDense * dense));
+  result = view.derived() * perm.transpose();
+  VERIFY_IS_EQUAL(result, MatrixType(dense * inverseDense));
+  result = perm * view.derived() * perm.inverse();
+  VERIFY_IS_APPROX(result, MatrixType(permDense * dense * inverseDense));
+
+  // alpha cannot fold into P or into a unit diagonal, so alpha * (P * V) and alpha * (UnitTri * P^-1) evaluate the
+  // product first and scale it afterwards. A real alpha keeps the scaling exact on every evaluation path.
+  const Scalar alpha(internal::random<RealScalar>(1, 2));
+  result = alpha * (perm * view.derived());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(permDense * dense)));
+  result = alpha * (view.derived() * perm.inverse());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(dense * inverseDense)));
+  result.setZero();
+  result.noalias() += alpha * (perm.inverse() * view.derived());
+  VERIFY_IS_EQUAL(result, MatrixType(alpha * MatrixType(inverseDense * dense)));
+}
+
+template <typename MatrixType>
+void triangular_permutation_products(const MatrixType& m) {
+  PermutationMatrix<MatrixType::RowsAtCompileTime> perm(m.rows());
+  randomPermutationVector(perm.indices(), m.rows());
+  const MatrixType a = MatrixType::Random(m.rows(), m.cols());
+
+  triangular_permutation_products_check(a.template triangularView<Upper>(), perm);
+  triangular_permutation_products_check(a.template triangularView<Lower>(), perm);
+  triangular_permutation_products_check(a.template triangularView<UnitLower>(), perm);
+  triangular_permutation_products_check(a.template triangularView<StrictlyUpper>(), perm);
+  triangular_permutation_products_check(a.template selfadjointView<Lower>(), perm);
+  triangular_permutation_products_check(a.template selfadjointView<Upper>(), perm);
+}
+
 template <typename MatrixType>
 void triangular_setters(const MatrixType& m) {
   const Index rows = m.rows();
@@ -201,6 +250,7 @@ void triangular_square(const MatrixType& m) {
   triangular_structured_sum<Lower>(m);
   triangular_structured_sum<StrictlyUpper>(m);
   triangular_structured_sum<StrictlyLower>(m);
+  triangular_permutation_products(m);
   triangular_setters(m);
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();

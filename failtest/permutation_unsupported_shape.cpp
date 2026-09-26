@@ -9,7 +9,7 @@ int main() {
   permutation.setIdentity();
   Eigen::Matrix2d matrix = Eigen::Matrix2d::Identity();
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD
-  auto operand = matrix.triangularView<Eigen::Lower>();
+  Eigen::internal::BandMatrix<double, 2, 2, 1, 1> operand;
 #else
   auto operand = matrix;
 #endif
