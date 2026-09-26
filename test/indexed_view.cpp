@@ -950,6 +950,32 @@ void check_indexed_view_storage_order() {
   VERIFY_IS_APPROX(row_result, row_expected);
 }
 
+template <typename View>
+void verify_strides_address_coeffs(const View& view) {
+  for (Index j = 0; j < view.cols(); ++j) {
+    for (Index i = 0; i < view.rows(); ++i) {
+      VERIFY_IS_EQUAL(view.data()[i * view.rowStride() + j * view.colStride()], view.coeff(i, j));
+    }
+  }
+}
+
+// A vector-shaped view takes its own storage order, which can differ from the nested one; its strides must still
+// address its coefficients.
+template <typename MatrixType>
+void check_indexed_view_strides() {
+  const MatrixType A = MatrixType::Random(6, 8);
+  verify_strides_address_coeffs(A(2, seq(0, 7, 2)));
+  verify_strides_address_coeffs(A(2, seq(0, 7, fix<2>)));
+  verify_strides_address_coeffs(A(seq(0, 5, 2), 3));
+  verify_strides_address_coeffs(A(seq(0, 5, fix<2>), 3));
+  verify_strides_address_coeffs(A(seq(0, 5, 2), seq(1, 7, 3)));
+
+  const Ref<const RowVectorXd, 0, InnerStride<>> row = A(2, seq(0, 7, 2));
+  VERIFY_IS_EQUAL(row, RowVectorXd(A(2, seq(0, 7, 2))));
+  const Ref<const VectorXd, 0, InnerStride<>> col = A(seq(0, 5, 2), 3);
+  VERIFY_IS_EQUAL(col, VectorXd(A(seq(0, 5, 2), 3)));
+}
+
 void check_aliasing() {
   Eigen::Vector<float, 5> z = {0.0f, 1.1f, 2.2f, 3.3f, 4.4f};
   std::vector<int> left_indices = {0, 1, 3, 4};
@@ -967,6 +993,8 @@ EIGEN_DECLARE_TEST(indexed_view) {
   CALL_SUBTEST_1(check_expression_indices());
   CALL_SUBTEST_1(check_indexed_view_select());
   CALL_SUBTEST_1(check_indexed_view_storage_order());
+  CALL_SUBTEST_1(check_indexed_view_strides<MatrixXd>());
+  CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_1(check_aliasing());
 
   // static checks of some internals:

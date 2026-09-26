@@ -43,7 +43,9 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   using Scalar = typename NumTraits<ComplexScalar>::Real;
 
   static constexpr bool ArrayAccess = complex_array_access<ComplexScalar>::value;
-  static constexpr int ActualDirectAccessBit = ArrayAccess ? DirectAccessBit : 0;
+  // Real and imaginary parts interleave with a uniform stride only when the complex coefficients are adjacent.
+  static constexpr int ActualDirectAccessBit =
+      ArrayAccess && inner_stride_at_compile_time<Xpr>::value == 1 ? DirectAccessBit : 0;
   static constexpr int ActualLvalueBit = !std::is_const<Xpr>::value && ArrayAccess ? LvalueBit : 0;
   static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
   static constexpr int FlagMask =

@@ -202,6 +202,25 @@ void test_edge_cases(const ComplexScalar&) {
   test_edge_cases_impl<ComplexScalar>::run();
 }
 
+// The parts of non-adjacent complex coefficients have no uniform stride, so their RealView has no direct access.
+template <typename ComplexScalar>
+void test_strided_realview(const ComplexScalar&) {
+  using RealScalar = typename NumTraits<ComplexScalar>::Real;
+  using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic>;
+  using RealRowVector = Matrix<RealScalar, 1, Dynamic>;
+  const ComplexMatrix a = ComplexMatrix::Random(6, 8);
+  VERIFY((int(internal::traits<std::decay_t<decltype(a.row(2).realView())>>::Flags) & DirectAccessBit) == 0);
+  VERIFY((int(internal::traits<std::decay_t<decltype(a.col(2).realView())>>::Flags) & DirectAccessBit) != 0);
+
+  RealRowVector expected(2 * a.cols());
+  for (Index j = 0; j < a.cols(); ++j) {
+    expected(2 * j) = numext::real(a(2, j));
+    expected(2 * j + 1) = numext::imag(a(2, j));
+  }
+  const Ref<const RealRowVector, 0, InnerStride<>> row = a.row(2).realView();
+  VERIFY_IS_CWISE_EQUAL(row, expected);
+}
+
 template <typename Scalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_readonly() {
   // if Rows == 1, don't test ColMajor as it is not a valid array
@@ -262,7 +281,9 @@ EIGEN_DECLARE_TEST(realview) {
     CALL_SUBTEST_9((test_realview<1, Dynamic>()));
     CALL_SUBTEST_10((test_realview<1, 1>()));
     CALL_SUBTEST_11(test_edge_cases(std::complex<float>()));
+    CALL_SUBTEST_11(test_strided_realview(std::complex<float>()));
     CALL_SUBTEST_12(test_edge_cases(std::complex<double>()));
+    CALL_SUBTEST_12(test_strided_realview(std::complex<double>()));
     CALL_SUBTEST_13((test_realview_long_double<Dynamic, Dynamic, Dynamic, Dynamic>()));
     CALL_SUBTEST_13((test_realview_long_double<17, 19, 17, 19>()));
   }
