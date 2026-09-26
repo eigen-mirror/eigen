@@ -109,6 +109,8 @@ EIGEN_CI_CTEST_REPEAT=${EIGEN_CI_CTEST_REPEAT:-3}
 EIGEN_CI_CTEST_RETRY_TIMEOUT=${EIGEN_CI_CTEST_RETRY_TIMEOUT:-600}
 ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${EIGEN_CI_CTEST_PARALLEL} --output-on-failure --no-compress-output --build-noclean ${target} ${exclude}"
 
+. "${rootdir}/ci/scripts/install_compiler_cache.sh"
+
 echo "Running initial tests..."
 # The job sources this script and GitLab Runner runs it under errexit, so
 # a bare failing ctest would abort the job before the retry logic; capture
