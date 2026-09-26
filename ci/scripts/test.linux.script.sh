@@ -109,7 +109,16 @@ EIGEN_CI_CTEST_REPEAT=${EIGEN_CI_CTEST_REPEAT:-3}
 EIGEN_CI_CTEST_RETRY_TIMEOUT=${EIGEN_CI_CTEST_RETRY_TIMEOUT:-600}
 ctest_cmd="ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${EIGEN_CI_CTEST_PARALLEL} --output-on-failure --no-compress-output --build-noclean ${target} ${exclude}"
 
-. "${rootdir}/ci/scripts/install_compiler_cache.sh"
+# buildfailtests compiles through the launcher the build host recorded in
+# CMakeCache.txt, which is not in the artifact (and is x86_64 for the arm64
+# jobs); test jobs keep no compiler cache, so pass through.
+while IFS= read -r launcher; do
+  if [[ "${launcher}" == /* && ! -x "${launcher}" ]]; then
+    mkdir -p "${launcher%/*}"
+    printf '#!/bin/sh\nexec "$@"\n' > "${launcher}"
+    chmod +x "${launcher}"
+  fi
+done < <(sed -nE 's/^CMAKE_(C|CXX)_COMPILER_LAUNCHER:[A-Z]*=//p' CMakeCache.txt 2>/dev/null)
 
 echo "Running initial tests..."
 # The job sources this script and GitLab Runner runs it under errexit, so
