@@ -111,6 +111,27 @@ struct matrix_type_times_scalar_type {
                       MatrixType::MaxRowsAtCompileTime, MatrixType::MaxColsAtCompileTime>;
 };
 
+// A permutation has no scalar type; its product with a Householder sequence takes the sequence's.
+template <typename Scalar, typename PermutationType>
+struct permutation_type_as_matrix_type {
+  using Type = Matrix<Scalar, PermutationType::RowsAtCompileTime, PermutationType::ColsAtCompileTime, 0,
+                      PermutationType::MaxRowsAtCompileTime, PermutationType::MaxColsAtCompileTime>;
+};
+
+// A diagonal or triangular operand is assigned to the result directly when the scalar types agree. The triangular
+// assignment kernel does not convert scalars, so a promoted result evaluates the operand and casts it, as the dense
+// product casts its operand.
+template <typename ResultType, typename OtherDerived>
+std::enable_if_t<std::is_same<typename ResultType::Scalar, typename OtherDerived::Scalar>::value>
+assign_householder_operand(ResultType& res, const EigenBase<OtherDerived>& other) {
+  res = other.derived();
+}
+template <typename ResultType, typename OtherDerived>
+std::enable_if_t<!std::is_same<typename ResultType::Scalar, typename OtherDerived::Scalar>::value>
+assign_householder_operand(ResultType& res, const EigenBase<OtherDerived>& other) {
+  res = other.derived().toDenseMatrix().template cast<typename ResultType::Scalar>();
+}
+
 }  // end namespace internal
 
 template <typename VectorsType, typename CoeffsType, int Side>
@@ -419,9 +440,78 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     return res;
   }
 
+  /** \brief Computes the product of a Householder sequence with a diagonal matrix.
+   *
+   * The reflections are applied to the diagonal matrix on the path the dense product uses for an identity
+   * operand, so \f$ HD \f$ costs no more than \f$ H \f$ itself.
+   */
+  template <typename OtherDerived>
+  typename internal::matrix_type_times_scalar_type<Scalar, OtherDerived>::Type operator*(
+      const DiagonalBase<OtherDerived>& other) const {
+    return applyToUpperTriangularOnTheLeft<
+        typename internal::matrix_type_times_scalar_type<Scalar, OtherDerived>::Type>(other, true);
+  }
+
+  /** \brief Computes the product of a Householder sequence with a triangular or self-adjoint view.
+   *
+   * A square upper triangular operand takes the same path as a diagonal one; any other view is evaluated into a
+   * dense matrix and multiplied as such.
+   */
+  template <typename OtherDerived>
+  typename internal::matrix_type_times_scalar_type<Scalar, OtherDerived>::Type operator*(
+      const TriangularBase<OtherDerived>& other) const {
+    constexpr bool kUpperTriangular =
+        (int(OtherDerived::Mode) & (int(Upper) | int(Lower) | int(SelfAdjoint))) == int(Upper);
+    return applyToUpperTriangularOnTheLeft<
+        typename internal::matrix_type_times_scalar_type<Scalar, OtherDerived>::Type>(other, kUpperTriangular);
+  }
+
+  /** \brief Computes the product of a Householder sequence with a permutation matrix.
+   *
+   * \f$ HP \f$ is \f$ H \f$ with its columns permuted: the sequence is evaluated and the permutation applied in
+   * place. The result takes the sequence's scalar type.
+   */
+  template <typename OtherDerived>
+  typename internal::permutation_type_as_matrix_type<Scalar, OtherDerived>::Type operator*(
+      const PermutationBase<OtherDerived>& other) const {
+    using ResultType = typename internal::permutation_type_as_matrix_type<Scalar, OtherDerived>::Type;
+    eigen_assert(cols() == other.rows());
+    ResultType res = ResultType::Identity(rows(), rows());
+    applyThisOnTheLeft(res, true);
+    // The permutation product runs in place when its operand is the destination.
+    res.noalias() = res * other.derived();
+    return res;
+  }
+
+  /** \brief Computes the product of a Householder sequence with the inverse of a permutation matrix. */
+  template <typename OtherDerived>
+  typename internal::permutation_type_as_matrix_type<Scalar, Inverse<OtherDerived>>::Type operator*(
+      const InverseImpl<OtherDerived, PermutationStorage>& other) const {
+    using ResultType = typename internal::permutation_type_as_matrix_type<Scalar, Inverse<OtherDerived>>::Type;
+    eigen_assert(cols() == other.rows());
+    ResultType res = ResultType::Identity(rows(), rows());
+    applyThisOnTheLeft(res, true);
+    res.noalias() = res * other.derived();
+    return res;
+  }
+
   template <typename VectorsType_, typename CoeffsType_, int Side_>
   friend struct internal::hseq_side_dependent_impl;
 
+ private:
+  // The identity path of applyThisOnTheLeft() skips the columns left of the rows each reflection acts on, which is
+  // valid for any square input that vanishes below the diagonal: a diagonal or upper triangular matrix as much as
+  // the identity. Other inputs take the full path.
+  template <typename ResultType, typename OtherDerived>
+  ResultType applyToUpperTriangularOnTheLeft(const EigenBase<OtherDerived>& other, bool upperTriangular) const {
+    eigen_assert(cols() == other.rows());
+    ResultType res;
+    internal::assign_householder_operand(res, other);
+    applyThisOnTheLeft(res, upperTriangular && res.rows() == res.cols());
+    return res;
+  }
+
+ public:
   /** \brief Sets the length of the Householder sequence.
    * \param [in]  length  New value for the length.
    *
@@ -505,6 +595,70 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, O
       other.template cast<typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar,
                                                                            OtherDerived>::ResultScalar>());
   h.applyThisOnTheRight(res);
+  return res;
+}
+
+/** \brief Computes the product of a diagonal matrix with a Householder sequence.
+ *
+ * \f$ DH \f$ is \f$ H \f$ with its rows scaled: the sequence is evaluated and scaled in place.
+ */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+    const DiagonalBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  using ResultType = typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type;
+  eigen_assert(other.cols() == h.rows());
+  ResultType res = ResultType::Identity(h.rows(), h.rows());
+  h.applyThisOnTheLeft(res, true);
+  // The lazy diagonal product multiplies from the left, D(i,i) * H(i,j), as a noncommutative scalar requires, and
+  // reads each coefficient only to overwrite it, so it runs in place.
+  res = other.derived() * res;
+  return res;
+}
+
+/** \brief Computes the product of a triangular or self-adjoint view with a Householder sequence.
+ *
+ * The view is evaluated into a dense matrix and the reflections are applied to it on the right, which has no
+ * structured path.
+ */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+    const TriangularBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  using ResultType = typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type;
+  ResultType res;
+  internal::assign_householder_operand(res, other);
+  h.applyThisOnTheRight(res);
+  return res;
+}
+
+/** \brief Computes the product of a permutation matrix with a Householder sequence.
+ *
+ * \f$ PH \f$ is \f$ H \f$ with its rows permuted: the sequence is evaluated and the permutation applied in place.
+ * The result takes the sequence's scalar type.
+ */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+    const PermutationBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  using ResultType =
+      typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, OtherDerived>::Type;
+  eigen_assert(other.cols() == h.rows());
+  ResultType res = ResultType::Identity(h.rows(), h.rows());
+  h.applyThisOnTheLeft(res, true);
+  // The permutation product runs in place when its operand is the destination.
+  res.noalias() = other.derived() * res;
+  return res;
+}
+
+/** \brief Computes the product of the inverse of a permutation matrix with a Householder sequence. */
+template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
+typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, Inverse<OtherDerived>>::Type operator*(
+    const InverseImpl<OtherDerived, PermutationStorage>& other,
+    const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
+  using ResultType =
+      typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, Inverse<OtherDerived>>::Type;
+  eigen_assert(other.cols() == h.rows());
+  ResultType res = ResultType::Identity(h.rows(), h.rows());
+  h.applyThisOnTheLeft(res, true);
+  res.noalias() = other.derived() * res;
   return res;
 }
 
