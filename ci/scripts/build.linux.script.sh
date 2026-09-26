@@ -66,7 +66,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps({'access_token': token, 'token_type': 'Bearer', 'expires_in': 3600}).encode())
+        self.wfile.write(json.dumps({'accessToken': token}).encode())
     def log_message(self, *a): pass
 server = http.server.HTTPServer(('127.0.0.1', 0), H)
 with open('${cred_port_file}', 'w') as f:

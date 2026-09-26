@@ -11,7 +11,7 @@ Get-CimInstance Win32_Processor -ErrorAction Continue |
 Get-PSDrive -PSProvider FileSystem | Format-Table Name, Used, Free -AutoSize
 
 # Print configuration variables.
-Get-Variable EIGEN* | Format-Table -Wrap
+Get-Variable EIGEN* | Where-Object { $_.Name -notlike "*CACHE_TOKEN*" } | Format-Table -Wrap
 Get-Variable CMAKE* | Format-Table -Wrap
 
 # Run a custom before-script command.

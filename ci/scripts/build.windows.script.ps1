@@ -124,7 +124,7 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
             continue
           }
           $resp.ContentType = "application/json"
-          $body = [System.Text.Encoding]::UTF8.GetBytes("{`"access_token`":`"$tok`",`"token_type`":`"Bearer`",`"expires_in`":3600}")
+          $body = [System.Text.Encoding]::UTF8.GetBytes("{`"accessToken`":`"$tok`"}")
           $resp.ContentLength64 = $body.Length
           $resp.OutputStream.Write($body, 0, $body.Length)
           $resp.Close()
