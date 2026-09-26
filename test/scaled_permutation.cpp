@@ -143,7 +143,11 @@ void scaled_permutation(Index size) {
   VERIFY_IS_EQUAL(MatrixType(a - scaled), MatrixType(a - scaledDense));
   VERIFY_IS_EQUAL(MatrixType(scaled - a), MatrixType(scaledDense - a));
   VERIFY_IS_APPROX((a + scaled) * x, (a + scaledDense) * x);
-  VERIFY_IS_APPROX((a + scaled).sum(), (a + scaledDense).sum());
+  // The lazy sum reduces in scalar order and the dense one in packets, so the results differ by rounding of order
+  // eps * sum|t|, not of order eps * |result|, which cancellation can make arbitrarily small. Measured below 2 eps.
+  const RealScalar sumMagnitude = (a + scaledDense).cwiseAbs().sum();
+  VERIFY(numext::abs((a + scaled).sum() - (a + scaledDense).sum()) <=
+         8 * NumTraits<RealScalar>::epsilon() * sumMagnitude);
 
   // Storage and setters.
   ScaledType identity(size);
