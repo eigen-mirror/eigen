@@ -108,6 +108,10 @@ build:windows:x86-64:msvc-14.29:avx512dq:
     # offline compilation for Volta and older; nothing below sm_75 can be
     # listed here any more.
     EIGEN_CI_CUDA_COMPUTE_ARCH: "89"
+    # sccache 0.18 parses the unknown /d2ReducedOptimizeHugeFunctions as a
+    # second input file and, for nvcc's host pass, fails the compile instead
+    # of running cl.exe uncached. ccache compiles these as before sccache.
+    EIGEN_CI_SCCACHE: "off"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
