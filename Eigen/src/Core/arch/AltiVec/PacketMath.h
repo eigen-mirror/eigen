@@ -3623,15 +3623,13 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   const Packet2d max_exponent = pset1<Packet2d>(2099.0);
   const Packet2l e = pcast<Packet2d, Packet2l>(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Split 2^e into four factors and multiply:
+  // Split 2^e into four factors and multiply in order; see pldexp_generic.
   const Packet2l bias = {1023, 1023};
-  Packet2l b = plogical_shift_right<2>(e);  // floor(e/4)
-  Packet2d c = reinterpret_cast<Packet2d>(plogical_shift_left<52>(b + bias));
-  Packet2d out = pmul(pmul(pmul(a, c), c), c);                        // a * 2^(3b)
-  b = psub(psub(psub(e, b), b), b);                                   // e - 3b
-  c = reinterpret_cast<Packet2d>(plogical_shift_left<52>(b + bias));  // 2^(e - 3b)
-  out = pmul(out, c);                                                 // a * 2^e
-  return out;
+  Packet2l b = plogical_shift_right<2>(e);                                                // floor(e/4)
+  Packet2d c1 = reinterpret_cast<Packet2d>(plogical_shift_left<52>(b + bias));            // 2^b
+  Packet2l b_remainder = psub(psub(psub(e, b), b), b);                                    // e - 3b
+  Packet2d c2 = reinterpret_cast<Packet2d>(plogical_shift_left<52>(b_remainder + bias));  // 2^(e - 3b)
+  return pldexp_apply_factors(a, c1, c2);                                                 // a * 2^e
 }
 
 // Extract exponent without existence of Packet2l.

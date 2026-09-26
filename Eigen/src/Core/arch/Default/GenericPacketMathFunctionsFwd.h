@@ -43,6 +43,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic_get_biased_exponent(
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, const Packet& exponent);
 
+/** \internal \returns (((a * c1) * c1) * c1) * c2 in that order, for the implementations of pldexp. */
+template <typename Packet>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2);
+
 // Explicitly multiplies
 //    a * (2^e)
 // clamping e to the range

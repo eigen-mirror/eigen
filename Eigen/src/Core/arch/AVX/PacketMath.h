@@ -1913,7 +1913,7 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));            // 2^b
   const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));  // 2^(e-3b)
 
-  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);  // a * 2^e
+  return pldexp_apply_factors(a, c1, c2);  // a * 2^e
 }
 
 template <>
