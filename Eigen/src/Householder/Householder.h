@@ -297,7 +297,8 @@ template <typename EssentialPart>
 EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheLeft(const EssentialPart& essential, const Scalar& tau,
                                                                       Scalar* workspace) {
   if (rows() == 1) {
-    *this *= Scalar(1) - tau;
+    // H = 1 - tau multiplies from the left, which a noncommutative scalar distinguishes.
+    *this = (Scalar(1) - tau) * *this;
   } else if (!numext::is_exactly_zero(tau)) {
     internal::householder_apply_left_impl<Derived, EssentialPart>::run(*this, essential, tau, workspace);
   }
@@ -329,7 +330,8 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::applyHouseholderOnTheRight(const Ess
     Block<Derived, Derived::RowsAtCompileTime, EssentialPart::SizeAtCompileTime> right(derived(), 0, 1, rows(),
                                                                                        cols() - 1);
     tmp.noalias() = right.unwind() * essential;
-    tmp = tau * (tmp + this->col(0));
+    // M H = M - (M v) tau v^*: tau multiplies from the right, as in the one-column branch.
+    tmp = (tmp + this->col(0)) * tau;
     this->col(0) = this->col(0) - tmp;
     right.unwind().noalias() -= tmp * essential.adjoint();
   }
