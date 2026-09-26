@@ -107,8 +107,10 @@ struct hseq_side_dependent_impl<VectorsType, CoeffsType, OnTheRight> {
 template <typename OtherScalarType, typename MatrixType>
 struct matrix_type_times_scalar_type {
   using ResultScalar = typename ScalarBinaryOpTraits<OtherScalarType, typename MatrixType::Scalar>::ReturnType;
-  using Type = Matrix<ResultScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, 0,
-                      MatrixType::MaxRowsAtCompileTime, MatrixType::MaxColsAtCompileTime>;
+  using Type =
+      Matrix<ResultScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
+             (MatrixType::MaxRowsAtCompileTime == 1 && MatrixType::MaxColsAtCompileTime != 1) ? RowMajor : ColMajor,
+             MatrixType::MaxRowsAtCompileTime, MatrixType::MaxColsAtCompileTime>;
 };
 
 // A permutation has no scalar type; its product with a Householder sequence takes the sequence's.

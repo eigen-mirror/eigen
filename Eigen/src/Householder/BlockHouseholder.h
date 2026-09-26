@@ -117,7 +117,7 @@ void apply_block_householder_on_the_right(MatrixType& mat, const VectorsType& ve
 
   // tmp = mat * V, split along V's top/bottom partition (see the left-apply for context).
   Matrix<typename MatrixType::Scalar, MatrixType::RowsAtCompileTime, VectorsType::ColsAtCompileTime,
-         (MatrixType::MaxRowsAtCompileTime == 1 && VectorsType::MaxColsAtCompileTime != 1) ? ColMajor : RowMajor,
+         (VectorsType::MaxColsAtCompileTime == 1 && MatrixType::MaxRowsAtCompileTime != 1) ? ColMajor : RowMajor,
          MatrixType::MaxRowsAtCompileTime, VectorsType::MaxColsAtCompileTime>
       tmp(mat.rows(), nbVecs);
   tmp.noalias() = mat.leftCols(nbVecs) * V_top.template triangularView<UnitLower>();

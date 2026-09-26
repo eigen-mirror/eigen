@@ -213,6 +213,43 @@ void householder(const MatrixType& m) {
   VERIFY_IS_APPROX(m3 * m5, m1);  // test evaluating rhseq to a dense matrix, then applying
 }
 
+// A row-vector operand gives a row-major row-vector result; a column-major one fails to instantiate.
+template <typename Scalar>
+void householder_row_vector_products(Index size) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowVectorType = Matrix<Scalar, 1, Dynamic>;
+
+  const HouseholderQR<MatrixType> qr(MatrixType::Random(size, size));
+  const MatrixType q = qr.householderQ();
+  const RowVectorType row = RowVectorType::Random(size);
+  STATIC_CHECK((internal::is_same<decltype(row * qr.householderQ()), RowVectorType>::value));
+  RowVectorType result = row * qr.householderQ();
+  VERIFY_IS_APPROX(result, row * q);
+  result = row * qr.householderQ().adjoint();
+  VERIFY_IS_APPROX(result, row * q.adjoint());
+
+  const HouseholderQR<MatrixType> qr1(MatrixType::Random(1, 1));
+  const MatrixType q1 = qr1.householderQ();
+  STATIC_CHECK((internal::is_same<decltype(qr1.householderQ() * row), RowVectorType>::value));
+  result = qr1.householderQ() * row;
+  VERIFY_IS_APPROX(result, q1 * row);
+
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using RowVector3 = Matrix<Scalar, 1, 3>;
+  const HouseholderQR<Matrix3> qr3(Matrix3::Random());
+  const RowVector3 row3 = RowVector3::Random();
+  STATIC_CHECK((internal::is_same<decltype(row3 * qr3.householderQ()), RowVector3>::value));
+  VERIFY_IS_APPROX(RowVector3(row3 * qr3.householderQ()), RowVector3(row3 * Matrix3(qr3.householderQ())));
+
+  // A single-column reflector set makes the blocked right-side tmp N x 1; it is instantiated although one
+  // reflector never takes that path at run time.
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  const HouseholderQR<VectorType> qrv(VectorType::Random(size));
+  const MatrixType qv = qrv.householderQ();
+  const MatrixType m = MatrixType::Random(3, size);
+  VERIFY_IS_APPROX(MatrixType(m * qrv.householderQ()), m * qv);
+}
+
 template <typename MatrixType>
 void householder_update(const MatrixType& m) {
   // This test is covering the internal::householder_qr_inplace_update function.
@@ -1111,6 +1148,10 @@ EIGEN_DECLARE_TEST(householder) {
         MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_6(householder(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_5(householder_row_vector_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    // Takes the blocked right-side application: length >= BlockSize (48) and rows >= 4 * BlockSize.
+    CALL_SUBTEST_5(householder_row_vector_products<double>(200));
+    CALL_SUBTEST_6(householder_row_vector_products<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_7(householder(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_8(householder(Matrix<double, 1, 1>()));
