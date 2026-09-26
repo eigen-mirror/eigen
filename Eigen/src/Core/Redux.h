@@ -581,15 +581,17 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
           packet_res2 = func.packetOp(packet_res2, packetAt(eval, 2, i));
           packet_res3 = func.packetOp(packet_res3, packetAt(eval, 3, i));
         }
-        Index j = 4;
-        for (; j + 4 <= outerSize; j += 4)
+        // Both loops take their bounds from quadOuterSize rather than sharing j: for a fixed outer size, GCC 10
+        // otherwise emits -Waggressive-loop-optimizations for the tail loop, which never runs.
+        const Index quadOuterSize = numext::round_down(outerSize, 4);
+        for (Index j = 4; j < quadOuterSize; j += 4)
           for (Index i = 0; i < packetedInnerSize; i += PacketSize) {
             packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
             packet_res1 = func.packetOp(packet_res1, packetAt(eval, j + 1, i));
             packet_res2 = func.packetOp(packet_res2, packetAt(eval, j + 2, i));
             packet_res3 = func.packetOp(packet_res3, packetAt(eval, j + 3, i));
           }
-        for (; j < outerSize; ++j)
+        for (Index j = quadOuterSize; j < outerSize; ++j)
           for (Index i = 0; i < packetedInnerSize; i += PacketSize)
             packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
 

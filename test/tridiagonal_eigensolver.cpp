@@ -815,6 +815,7 @@ EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
   for (Index n : {Index(1), Index(2), Index(9)}) {
+    EIGEN_UNUSED_VARIABLE(n);  // parts 3-6 compile no subtest that takes n
     CALL_SUBTEST_1(tridiagonal_eigensolver_flushed_subnormal<double>(n));
     CALL_SUBTEST_2(tridiagonal_eigensolver_flushed_subnormal<float>(n));
   }
