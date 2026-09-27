@@ -1895,6 +1895,24 @@ void test_kron_solve_flushed_subnormal() {
   });
 }
 
+// A column-major Dest accumulates each product column through packets, a
+// row-major one through strided scalar access.
+template <typename Dest, typename Lhs, typename Rhs, typename X, typename Expected>
+void check_kron_nonfinite_assignments(const KroneckerOperator<Lhs, Rhs>& k, const X& x, const Expected& expected) {
+  using ProductScalar = typename Dest::Scalar;
+  const Dest assigned = expected;
+  Dest actual = k * x;
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), assigned.realView());
+  actual.setConstant(ProductScalar(3));
+  actual.noalias() += k * x;
+  const Dest added = (expected.array() + ProductScalar(3)).matrix();
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), added.realView());
+  actual.setConstant(ProductScalar(3));
+  actual.noalias() -= k * x;
+  const Dest subtracted = (ProductScalar(3) - expected.array()).matrix();
+  VERIFY_IS_CWISE_EQUAL(actual.realView(), subtracted.realView());
+}
+
 template <typename ProductScalar, typename Lhs, typename Rhs>
 void check_kron_sparse_nonfinite(const KroneckerOperator<Lhs, Rhs>& k) {
   using Scalar = typename Lhs::Scalar;
@@ -1916,16 +1934,8 @@ void check_kron_sparse_nonfinite(const KroneckerOperator<Lhs, Rhs>& k) {
   // Vector products keep the reference independent of complex packet Inf/NaN handling.
   ProductMatrix expected(k.rows(), x.cols());
   for (Index j = 0; j < x.cols(); ++j) expected.col(j) = sparse * x.col(j);
-  ProductMatrix actual = k * x;
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), expected.realView());
-  actual.setConstant(ProductScalar(3));
-  actual.noalias() += k * x;
-  const ProductMatrix added = (expected.array() + ProductScalar(3)).matrix();
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), added.realView());
-  actual.setConstant(ProductScalar(3));
-  actual.noalias() -= k * x;
-  const ProductMatrix subtracted = (ProductScalar(3) - expected.array()).matrix();
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), subtracted.realView());
+  check_kron_nonfinite_assignments<ProductMatrix>(k, x, expected);
+  check_kron_nonfinite_assignments<Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(k, x, expected);
 }
 
 template <typename Scalar, int Options>

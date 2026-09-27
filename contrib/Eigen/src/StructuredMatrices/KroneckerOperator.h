@@ -974,7 +974,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * past an Inf/NaN, and 0 * Inf would manufacture NaNs); the unscaled GEMMs
    * propagate it entrywise exactly like a dense product. With a sparse factor,
    * non-finite inputs instead use the stored-entry product to preserve the
-   * distinction between absent entries and stored zeros. */
+   * distinction between absent entries and stored zeros, and apply \a alpha to
+   * the right-hand side as the column-major sparse-dense product does. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     using ProductVector = Matrix<ProductScalar, Dynamic, 1>;
@@ -1021,10 +1022,18 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
       // (transposedOperand: a diagonal matrix is its own transpose), a single
       // stored term per entry: only a sparse factor can leave an exact 0 in B X
       // (an empty row) for an Inf/NaN of A to meet.
-      if (EIGEN_PREDICT_FALSE(!finite && kHasSparseFactor))
+      if (EIGEN_PREDICT_FALSE(!finite && kHasSparseFactor)) {
+        // Here e == 0. alpha scales x, coefficient by coefficient as the
+        // column-major sparse-dense kernel does, not the sum: Inf * (1, 0) sums to
+        // (Inf, NaN), which an Annex G std::complex keeps under (1, 0) * (.), but
+        // the textbook product of complex packets and of MSVC's std::complex takes
+        // to (1 * Inf - 0 * NaN, NaN) = (NaN, NaN).
+        for (Index j = 0; j < xc.size(); ++j) xc.coeffRef(j) = alpha * xc.coeff(j);
         productNonFinite(Y, xc);
-      else
-        Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
+        dst.col(k) += Y.reshaped();
+        continue;
+      }
+      Y.noalias() = m_B * xc.reshaped(n2, n1) * LhsOps::transposedOperand(m_A);
       if (e > 0) {
         const ProductReal up1 = ProductReal(std::ldexp(ProductReal(1), e / 2));
         const ProductReal up2 = ProductReal(std::ldexp(ProductReal(1), e - e / 2));
