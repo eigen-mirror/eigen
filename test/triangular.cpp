@@ -38,6 +38,16 @@ struct has_structured_sum<ViewType,
                           internal::void_t<decltype(std::declval<const ViewType&>() + std::declval<const ViewType&>())>>
     : std::true_type {};
 
+template <typename ViewType, typename DiagonalType, typename = void>
+struct has_diagonal_sum : std::false_type {};
+
+template <typename ViewType, typename DiagonalType>
+struct has_diagonal_sum<
+    ViewType, DiagonalType,
+    internal::void_t<decltype(std::declval<const ViewType&>() + std::declval<const DiagonalType&>()),
+                     decltype(std::declval<const DiagonalType&>() - std::declval<const ViewType&>())>>
+    : std::true_type {};
+
 template <unsigned int Mode, typename MatrixType>
 void triangular_scalar_multiply(const MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
@@ -214,6 +224,49 @@ void triangular_scalar_multiply_sfinae() {
   STATIC_CHECK((has_structured_sum<StrictlyLowerView>::value));
   STATIC_CHECK((has_structured_sum<StrictlyUpperView>::value));
   STATIC_CHECK((!has_structured_sum<UnitLowerView>::value));
+
+  // Sums with a diagonal matrix exist only for modes that store their diagonal.
+  typedef DiagonalMatrix<typename MatrixType::Scalar, MatrixType::RowsAtCompileTime> DiagonalType;
+  typedef decltype(std::declval<MatrixType&>().template selfadjointView<Lower>()) SelfAdjointLowerView;
+  STATIC_CHECK((has_diagonal_sum<UpperView, DiagonalType>::value));
+  STATIC_CHECK((has_diagonal_sum<LowerView, DiagonalType>::value));
+  STATIC_CHECK((has_diagonal_sum<SelfAdjointLowerView, DiagonalType>::value));
+  STATIC_CHECK((!has_diagonal_sum<StrictlyLowerView, DiagonalType>::value));
+  STATIC_CHECK((!has_diagonal_sum<StrictlyUpperView, DiagonalType>::value));
+  STATIC_CHECK((!has_diagonal_sum<UnitLowerView, DiagonalType>::value));
+}
+
+// view +/- diagonal keeps the view's mode; the dense value is the view of the dense sum.
+template <unsigned int Mode, typename MatrixType>
+void triangular_diagonal_sum(const MatrixType& m) {
+  typedef typename MatrixType::Scalar Scalar;
+  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+
+  const Index rows = m.rows();
+  const MatrixType a = MatrixType::Random(rows, rows);
+  const VectorType d = VectorType::Random(rows);
+  const auto view = internal::make_triangular_base_cwise_view<Mode>(a);
+  const MatrixType viewDense = view.toDenseMatrix();
+  const MatrixType diagDense = d.asDiagonal().toDenseMatrix();
+
+  STATIC_CHECK((int(std::decay_t<decltype(view + d.asDiagonal())>::Mode) == int(Mode)));
+  STATIC_CHECK((int(std::decay_t<decltype(d.asDiagonal() - view)>::Mode) == int(Mode)));
+
+  MatrixType result = view + d.asDiagonal();
+  VERIFY_IS_APPROX(result, viewDense + diagDense);
+  result = d.asDiagonal() + view;
+  VERIFY_IS_APPROX(result, viewDense + diagDense);
+  result = view - d.asDiagonal();
+  VERIFY_IS_APPROX(result, viewDense - diagDense);
+  result = d.asDiagonal() - view;
+  VERIFY_IS_APPROX(result, diagDense - viewDense);
+  result = (view + d.asDiagonal()).toDenseMatrix();
+  VERIFY_IS_APPROX(result, viewDense + diagDense);
+
+  // The dense operand of the lazy sum is the view's nested expression: its other triangle must not leak.
+  const DiagonalMatrix<Scalar, MatrixType::RowsAtCompileTime> dm(d);
+  result = view + dm;
+  VERIFY_IS_APPROX(result, viewDense + diagDense);
 }
 
 template <typename MatrixType>
@@ -251,6 +304,10 @@ void triangular_square(const MatrixType& m) {
   triangular_structured_sum<StrictlyUpper>(m);
   triangular_structured_sum<StrictlyLower>(m);
   triangular_permutation_products(m);
+  triangular_diagonal_sum<Upper>(m);
+  triangular_diagonal_sum<Lower>(m);
+  triangular_diagonal_sum<Upper | SelfAdjoint>(m);
+  triangular_diagonal_sum<Lower | SelfAdjoint>(m);
   triangular_setters(m);
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();

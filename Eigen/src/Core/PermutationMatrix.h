@@ -21,6 +21,47 @@ namespace internal {
 
 enum PermPermProduct_t { PermPermProduct };
 
+/** \internal
+ * Nullary functor reading a permutation as a dense matrix of Scalar: P has its ones at (indices(k), k),
+ * and its inverse (Transposed) at (k, indices(k)). It backs the lazy sums of a dense or diagonal matrix
+ * with a permutation, whose scalar type the permutation borrows.
+ */
+template <typename Scalar, typename IndicesType, bool Transposed>
+struct permutation_dense_op {
+  EIGEN_DEVICE_FUNC explicit permutation_dense_op(const IndicesType& indices) : m_indices(indices) {}
+
+  template <typename IndexType>
+  EIGEN_DEVICE_FUNC Scalar operator()(IndexType row, IndexType col) const {
+    const Index k = Transposed ? Index(row) : Index(col);
+    const Index image = Transposed ? Index(col) : Index(row);
+    return Index(m_indices.coeff(k)) == image ? Scalar(1) : Scalar(0);
+  }
+
+  EIGEN_DEVICE_FUNC const remove_all_t<typename IndicesType::Nested>& indices() const { return m_indices; }
+
+  typename IndicesType::Nested m_indices;
+};
+
+template <typename Scalar, typename IndicesType, bool Transposed>
+struct functor_traits<permutation_dense_op<Scalar, IndicesType, Transposed>> {
+  static constexpr int Cost = int(NumTraits<typename IndicesType::Scalar>::ReadCost) + int(NumTraits<Scalar>::AddCost);
+  static constexpr bool PacketAccess = false;
+  static constexpr bool IsRepeatable = true;
+};
+
+template <typename Scalar, bool Transposed, typename PermutationType>
+struct permutation_dense_expression {
+  using IndicesType = remove_all_t<typename PermutationType::IndicesType>;
+  using PlainObject = Matrix<Scalar, PermutationType::RowsAtCompileTime, PermutationType::ColsAtCompileTime, 0,
+                             PermutationType::MaxRowsAtCompileTime, PermutationType::MaxColsAtCompileTime>;
+  using type = CwiseNullaryOp<permutation_dense_op<Scalar, IndicesType, Transposed>, PlainObject>;
+
+  static EIGEN_DEVICE_FUNC type run(const PermutationType& permutation) {
+    return type(permutation.rows(), permutation.cols(),
+                permutation_dense_op<Scalar, IndicesType, Transposed>(permutation.indices()));
+  }
+};
+
 }  // end namespace internal
 
 /** \class PermutationBase
@@ -496,6 +537,81 @@ EIGEN_DEVICE_FUNC const Product<PermutationDerived, MatrixDerived, DefaultProduc
   return Product<PermutationDerived, MatrixDerived, DefaultProduct>(permutation.derived(), matrix.derived());
 }
 
+// Sums with a permutation are lazy dense expressions: the permutation is read as a 0/1 matrix with the scalar
+// type of the other operand, so no dense copy of it is formed.
+
+/** \returns the lazy sum of the dense matrix \a matrix and the permutation matrix \a permutation */
+template <typename MatrixDerived, typename PermutationDerived>
+EIGEN_DEVICE_FUNC auto operator+(const MatrixBase<MatrixDerived>& matrix,
+                                 const PermutationBase<PermutationDerived>& permutation) {
+  return matrix.derived() +
+         internal::permutation_dense_expression<typename MatrixDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived());
+}
+
+/** \returns the lazy sum of the permutation matrix \a permutation and the dense matrix \a matrix */
+template <typename PermutationDerived, typename MatrixDerived>
+EIGEN_DEVICE_FUNC auto operator+(const PermutationBase<PermutationDerived>& permutation,
+                                 const MatrixBase<MatrixDerived>& matrix) {
+  return internal::permutation_dense_expression<typename MatrixDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived()) +
+         matrix.derived();
+}
+
+/** \returns the lazy difference of the dense matrix \a matrix and the permutation matrix \a permutation */
+template <typename MatrixDerived, typename PermutationDerived>
+EIGEN_DEVICE_FUNC auto operator-(const MatrixBase<MatrixDerived>& matrix,
+                                 const PermutationBase<PermutationDerived>& permutation) {
+  return matrix.derived() -
+         internal::permutation_dense_expression<typename MatrixDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived());
+}
+
+/** \returns the lazy difference of the permutation matrix \a permutation and the dense matrix \a matrix */
+template <typename PermutationDerived, typename MatrixDerived>
+EIGEN_DEVICE_FUNC auto operator-(const PermutationBase<PermutationDerived>& permutation,
+                                 const MatrixBase<MatrixDerived>& matrix) {
+  return internal::permutation_dense_expression<typename MatrixDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived()) -
+         matrix.derived();
+}
+
+/** \returns the lazy sum of the diagonal matrix \a diagonal and the permutation matrix \a permutation */
+template <typename DiagonalDerived, typename PermutationDerived>
+EIGEN_DEVICE_FUNC auto operator+(const DiagonalBase<DiagonalDerived>& diagonal,
+                                 const PermutationBase<PermutationDerived>& permutation) {
+  return diagonal.derived() +
+         internal::permutation_dense_expression<typename DiagonalDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived());
+}
+
+/** \returns the lazy sum of the permutation matrix \a permutation and the diagonal matrix \a diagonal */
+template <typename PermutationDerived, typename DiagonalDerived>
+EIGEN_DEVICE_FUNC auto operator+(const PermutationBase<PermutationDerived>& permutation,
+                                 const DiagonalBase<DiagonalDerived>& diagonal) {
+  return internal::permutation_dense_expression<typename DiagonalDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived()) +
+         diagonal.derived();
+}
+
+/** \returns the lazy difference of the diagonal matrix \a diagonal and the permutation matrix \a permutation */
+template <typename DiagonalDerived, typename PermutationDerived>
+EIGEN_DEVICE_FUNC auto operator-(const DiagonalBase<DiagonalDerived>& diagonal,
+                                 const PermutationBase<PermutationDerived>& permutation) {
+  return diagonal.derived() -
+         internal::permutation_dense_expression<typename DiagonalDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived());
+}
+
+/** \returns the lazy difference of the permutation matrix \a permutation and the diagonal matrix \a diagonal */
+template <typename PermutationDerived, typename DiagonalDerived>
+EIGEN_DEVICE_FUNC auto operator-(const PermutationBase<PermutationDerived>& permutation,
+                                 const DiagonalBase<DiagonalDerived>& diagonal) {
+  return internal::permutation_dense_expression<typename DiagonalDerived::Scalar, false, PermutationDerived>::run(
+             permutation.derived()) -
+         diagonal.derived();
+}
+
 template <typename PermutationType>
 class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Inverse<PermutationType> > {
   using PlainPermutationType = typename PermutationType::PlainPermutationType;
@@ -546,6 +662,56 @@ class InverseImpl<PermutationType, PermutationStorage> : public EigenBase<Invers
   const Product<InverseType, OtherDerived, DefaultProduct> operator*(const MatrixBase<OtherDerived>& matrix) const {
     return Product<InverseType, OtherDerived, DefaultProduct>(derived(), matrix.derived());
   }
+
+  // Lazy sums with a dense or diagonal matrix, as for PermutationBase; the inverse is read as the transposed 0/1
+  // matrix.
+  /** \returns the lazy sum of the inverse permutation and the dense matrix \a matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC auto operator+(const MatrixBase<OtherDerived>& matrix) const {
+    return denseExpression<typename OtherDerived::Scalar>() + matrix.derived();
+  }
+  /** \returns the lazy sum of the dense matrix \a matrix and the inverse permutation \a inverse */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend auto operator+(const MatrixBase<OtherDerived>& matrix, const InverseType& inverse) {
+    return matrix.derived() + inverse.template denseExpression<typename OtherDerived::Scalar>();
+  }
+  /** \returns the lazy difference of the inverse permutation and the dense matrix \a matrix */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC auto operator-(const MatrixBase<OtherDerived>& matrix) const {
+    return denseExpression<typename OtherDerived::Scalar>() - matrix.derived();
+  }
+  /** \returns the lazy difference of the dense matrix \a matrix and the inverse permutation \a inverse */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend auto operator-(const MatrixBase<OtherDerived>& matrix, const InverseType& inverse) {
+    return matrix.derived() - inverse.template denseExpression<typename OtherDerived::Scalar>();
+  }
+  /** \returns the lazy sum of the inverse permutation and the diagonal matrix \a diagonal */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC auto operator+(const DiagonalBase<OtherDerived>& diagonal) const {
+    return denseExpression<typename OtherDerived::Scalar>() + diagonal.derived();
+  }
+  /** \returns the lazy sum of the diagonal matrix \a diagonal and the inverse permutation \a inverse */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend auto operator+(const DiagonalBase<OtherDerived>& diagonal, const InverseType& inverse) {
+    return diagonal.derived() + inverse.template denseExpression<typename OtherDerived::Scalar>();
+  }
+  /** \returns the lazy difference of the inverse permutation and the diagonal matrix \a diagonal */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC auto operator-(const DiagonalBase<OtherDerived>& diagonal) const {
+    return denseExpression<typename OtherDerived::Scalar>() - diagonal.derived();
+  }
+  /** \returns the lazy difference of the diagonal matrix \a diagonal and the inverse permutation \a inverse */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC friend auto operator-(const DiagonalBase<OtherDerived>& diagonal, const InverseType& inverse) {
+    return diagonal.derived() - inverse.template denseExpression<typename OtherDerived::Scalar>();
+  }
+
+ private:
+  template <typename Scalar>
+  EIGEN_DEVICE_FUNC auto denseExpression() const {
+    using Nested = internal::remove_all_t<typename InverseType::XprTypeNestedCleaned>;
+    return internal::permutation_dense_expression<Scalar, true, Nested>::run(derived().nestedExpression());
+  }
 };
 
 template <typename Derived>
@@ -558,6 +724,127 @@ namespace internal {
 template <>
 struct AssignmentKind<DenseShape, PermutationShape> {
   using Kind = EigenBase2EigenBase;
+};
+
+// Dense ?= (dense or diagonal) +/- permutation, in either order. The permutation's one in column k is at row
+// indices(k), and at column indices(k) of row k for its transpose; the column kernels below need one nonzero per
+// destination column, so P pairs with a column-major and P^T with a row-major destination, and the other pairings
+// stay on the generic path.
+template <typename Scalar, typename IndicesType>
+struct permutation_column_nonzeros {
+  EIGEN_DEVICE_FUNC explicit permutation_column_nonzeros(const IndicesType& indices) : m_indices(indices) {}
+  EIGEN_DEVICE_FUNC Index row(Index k) const { return Index(m_indices.coeff(k)); }
+  EIGEN_DEVICE_FUNC Scalar value(Index) const { return Scalar(1); }
+  const IndicesType& m_indices;
+};
+
+template <typename Scalar, typename IndicesType, bool Transposed, typename Plain>
+using permutation_dense_xpr = CwiseNullaryOp<permutation_dense_op<Scalar, IndicesType, Transposed>, Plain>;
+
+template <typename Scalar, typename IndicesType, bool Transposed, typename Plain>
+struct is_permutation_dense_xpr<permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>> : std::true_type {};
+
+// A diagonal operand never goes through the block pass, so only a dense one is subject to
+// dense_block_pass_cannot_overflow.
+template <typename Dst, typename OtherXpr, bool Transposed, typename Functor, bool NegateOther>
+struct dense_permutation_sum_fast_path
+    : bool_constant<(is_dense_shape<OtherXpr>::value || is_diagonal_shape<OtherXpr>::value) &&
+                    !is_permutation_dense_xpr<OtherXpr>::value && bool(Dst::IsRowMajor) == Transposed &&
+                    additive_assign_sign<Functor>::value != 0 &&
+                    std::is_same<typename Dst::Scalar, typename OtherXpr::Scalar>::value &&
+                    (is_diagonal_shape<OtherXpr>::value ||
+                     dense_block_pass_cannot_overflow<typename Dst::Scalar, Functor, NegateOther>::value)> {};
+
+// dst ?= op(lhs, rhs) for a diagonal d and a permutation whose one in column k is at row r: op(d(k), [r == k]) at
+// (k, k), op(0, 1) or op(1, 0) at (r, k) when r != k, and structural zeros, which only = writes. A block's d(k) are
+// read before the block is written.
+template <bool DiagonalOnLeft>
+struct diagonal_permutation_sum_assignment {
+  template <typename Dst, typename Diagonal, typename Permutation, typename BinaryOp, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const Diagonal& diagonal, const Permutation& permutation,
+                                    const BinaryOp& op, const Functor& func) {
+    using Scalar = typename Dst::Scalar;
+    constexpr Index kBlockColumns = 32;
+    const Scalar offDiagonalOne = DiagonalOnLeft ? op(Scalar(0), Scalar(1)) : op(Scalar(1), Scalar(0));
+    Scalar atDiagonal[kBlockColumns];
+    for (Index j = 0; j < dst.cols(); j += kBlockColumns) {
+      const Index columns = numext::mini(Index(kBlockColumns), dst.cols() - j);
+      for (Index k = 0; k < columns; ++k) {
+        const Scalar d = diagonal.value(j + k);
+        const Scalar p = permutation.row(j + k) == j + k ? Scalar(1) : Scalar(0);
+        atDiagonal[k] = DiagonalOnLeft ? op(d, p) : op(p, d);
+      }
+      EIGEN_IF_CONSTEXPR (is_plain_assign<Functor>::value) {
+        dst.middleCols(j, columns).setZero();
+      }
+      for (Index k = 0; k < columns; ++k) {
+        const Index r = permutation.row(j + k);
+        func.assignCoeff(dst.coeffRef(j + k, j + k), atDiagonal[k]);
+        if (r != j + k) {
+          func.assignCoeff(dst.coeffRef(r, j + k), offDiagonalOne);
+        }
+      }
+    }
+  }
+};
+
+template <bool OtherIsDiagonal, bool OtherOnLeft>
+struct permutation_sum_assignment {
+  template <typename Dst, typename SrcXprType, typename OtherXpr, typename Nonzeros, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const SrcXprType& src, const OtherXpr& other, const Nonzeros& ones,
+                                    const Functor& func) {
+    dense_structured_sum_assignment<OtherOnLeft>::assign(dst, src, other, ones, func);
+  }
+};
+
+template <bool OtherOnLeft>
+struct permutation_sum_assignment<true, OtherOnLeft> {
+  template <typename Dst, typename SrcXprType, typename OtherXpr, typename Nonzeros, typename Functor>
+  EIGEN_DEVICE_FUNC static void run(Dst& dst, const SrcXprType& src, const OtherXpr& other, const Nonzeros& ones,
+                                    const Functor& func) {
+    const diagonal_column_nonzeros<OtherXpr> diagonal(other);
+    resize_if_allowed(dst, src, func);
+    auto&& dstView = column_major_view<bool(Dst::IsRowMajor)>::run(dst);
+    diagonal_permutation_sum_assignment<OtherOnLeft>::run(dstView, diagonal, ones, src.functor(), func);
+  }
+};
+
+// other +/- permutation
+template <typename DstXprType, typename BinaryOp, typename OtherXpr, typename Scalar, typename IndicesType,
+          bool Transposed, typename Plain, typename Functor>
+struct Assignment<
+    DstXprType,
+    CwiseBinaryOp<BinaryOp, const OtherXpr, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>,
+    Functor, Dense2Dense,
+    std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                     dense_permutation_sum_fast_path<DstXprType, OtherXpr, Transposed, Functor, false>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<BinaryOp, const OtherXpr, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    const auto& indices = src.rhs().functor().indices();
+    permutation_sum_assignment<is_diagonal_shape<OtherXpr>::value, true>::run(
+        dst, src, src.lhs(), permutation_column_nonzeros<Scalar, remove_all_t<decltype(indices)>>(indices), func);
+  }
+};
+
+// permutation +/- other; a dense product on the right is left to the "xpr + product" rule.
+template <typename DstXprType, typename BinaryOp, typename OtherXpr, typename Scalar, typename IndicesType,
+          bool Transposed, typename Plain, typename Functor>
+struct Assignment<
+    DstXprType,
+    CwiseBinaryOp<BinaryOp, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>,
+    Functor, Dense2Dense,
+    std::enable_if_t<is_additive_binary_op<BinaryOp>::value &&
+                     dense_permutation_sum_fast_path<DstXprType, OtherXpr, Transposed, Functor,
+                                                     is_difference_op<BinaryOp>::value>::value &&
+                     !is_default_product<OtherXpr>::value>> {
+  using SrcXprType =
+      CwiseBinaryOp<BinaryOp, const permutation_dense_xpr<Scalar, IndicesType, Transposed, Plain>, const OtherXpr>;
+  EIGEN_DEVICE_FUNC static void run(DstXprType& dst, const SrcXprType& src, const Functor& func) {
+    const auto& indices = src.lhs().functor().indices();
+    permutation_sum_assignment<is_diagonal_shape<OtherXpr>::value, false>::run(
+        dst, src, src.rhs(), permutation_column_nonzeros<Scalar, remove_all_t<decltype(indices)>>(indices), func);
+  }
 };
 
 }  // end namespace internal

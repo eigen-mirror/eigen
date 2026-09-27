@@ -239,6 +239,44 @@ class TriangularBase : public EigenBase<Derived> {
                                                            other.derived().nestedExpression());
   }
 
+  // Sums with a diagonal matrix keep the view's structure: the result is the same view of the lazy dense sum.
+  // A unit or zero diagonal is implicit in the view and would swallow the diagonal term, so those modes have
+  // no such operator; a self-adjoint view needs a real diagonal to stay self-adjoint.
+
+  // The Mode_ = Mode parameter makes the condition depend on the operator's own template parameters, so an
+  // excluded mode removes the overload instead of failing the class instantiation.
+
+  /** \returns the view of mode \c Mode of the sum of the nested expression and the diagonal matrix \a other */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  EIGEN_DEVICE_FUNC inline auto operator+(const DiagonalBase<OtherDerived>& other) const {
+    return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() + other.derived());
+  }
+
+  /** \returns the view of mode \c Mode of the difference of the nested expression and the diagonal matrix \a other
+   */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  EIGEN_DEVICE_FUNC inline auto operator-(const DiagonalBase<OtherDerived>& other) const {
+    return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() - other.derived());
+  }
+
+  /** \returns the view of mode \c Mode of the sum of the diagonal matrix \a lhs and the nested expression of \a rhs
+   */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  friend EIGEN_DEVICE_FUNC inline auto operator+(const DiagonalBase<OtherDerived>& lhs, const Derived& rhs) {
+    return internal::make_triangular_base_cwise_view<Mode>(lhs.derived() + rhs.nestedExpression());
+  }
+
+  /** \returns the view of mode \c Mode of the difference of the diagonal matrix \a lhs and the nested expression of
+   * \a rhs */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  friend EIGEN_DEVICE_FUNC inline auto operator-(const DiagonalBase<OtherDerived>& lhs, const Derived& rhs) {
+    return internal::make_triangular_base_cwise_view<Mode>(lhs.derived() - rhs.nestedExpression());
+  }
+
   template <typename OtherDerived>
   friend EIGEN_DEVICE_FUNC const Product<OtherDerived, Derived> operator*(const MatrixBase<OtherDerived>& lhs,
                                                                           const Derived& rhs) {

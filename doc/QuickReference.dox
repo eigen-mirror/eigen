@@ -653,6 +653,14 @@ mat3 = mat1 * diag1.inverse()
 \endcode</td>
 </tr>
 
+<tr><td>Lazy sums with dense matrices and with triangular views (no dense copy of the diagonal is formed)</td>
+ <td>\code
+mat3 = mat1 + diag1;
+mat3 = vec1.asDiagonal() - mat1;
+mat3 = mat1.triangularView<Eigen::Lower>() + diag1;  // still a triangular view
+\endcode</td>
+</tr>
+
 </table>
 
 \subsection QuickRef_TriangularView Triangular views
