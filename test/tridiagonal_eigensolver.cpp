@@ -768,12 +768,14 @@ void tridiagonal_check_scaled_pair(const Matrix<RealScalar, Dynamic, 1>& d, cons
     // denorm_min 2^k: the spacing of the subnormal range the eigenvalues were stored in, scaled up with them.
     const RealScalar granularity =
         numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - digits + k);
-    VERIFY((up - ref.eigenvalues()).cwiseAbs().template maxCoeff<PropagateNaN>() <=
-           RealScalar(16) * (RealScalar(n) * eps * radius + granularity));
+    // Named before the checks: MSVC does not capture a local that a lambda first uses after a `.template` call in the
+    // same expression (C2065).
+    const RealScalar valueBound = RealScalar(16) * (RealScalar(n) * eps * radius + granularity);
+    const RealScalar residualBound = RealScalar(64) * RealScalar(n) * eps * radius;
+    VERIFY((up - ref.eigenvalues()).cwiseAbs().template maxCoeff<PropagateNaN>() <= valueBound);
     const MatrixType V = sub.eigenvectors();
     VERIFY_IS_UNITARY(V);
-    VERIFY((Ts * V - V * ref.eigenvalues().asDiagonal()).cwiseAbs().template maxCoeff<PropagateNaN>() <=
-           RealScalar(64) * RealScalar(n) * eps * radius);
+    VERIFY((Ts * V - V * ref.eigenvalues().asDiagonal()).cwiseAbs().template maxCoeff<PropagateNaN>() <= residualBound);
   });
 }
 
