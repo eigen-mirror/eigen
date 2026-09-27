@@ -654,8 +654,8 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   }
 
 #if EIGEN_UNALIGNED_VECTORIZE
-  // The slice alignment offset varies from one outer index to the next. Unaligned stores with
-  // outer-invariant bounds beat chasing the aligned position of every slice.
+  // Unaligned stores with outer-invariant bounds avoid chasing each slice's alignment offset.
+  // Also used for statically aligned destinations to keep run() small enough to inline.
   using unaligned_tail_loop =
       unaligned_dense_assignment_loop<PacketType, Unaligned, Unaligned, UsePacketSegment, false>;
 
@@ -672,9 +672,17 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 #endif
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
+#if EIGEN_UNALIGNED_VECTORIZE
+    EIGEN_IF_CONSTEXPR (DstIsAligned) {
+      // One loop instead of two keeps run() small enough for Clang to inline. Out of line, the
+      // evaluators' pointers and strides are reloaded after every packet store, which may alias them.
+      runUnaligned(kernel, innerSize, outerSize);
+      return;
+    }
+#endif
+    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
     Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 
