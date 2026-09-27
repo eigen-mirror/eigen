@@ -98,6 +98,41 @@ void test_dpr1_clustered(Index n) {
   DPR1EigenSolver<Scalar> es(dc, Scalar(1), z);
   VERIFY(numext::abs(es.eigenvalues()[n - 1] - (Scalar(3) + z.squaredNorm())) <=
          Scalar(100) * Scalar(n) * NumTraits<Scalar>::epsilon() * (Scalar(3) + z.squaredNorm()));
+  // Deflating equal poles leaves the pole itself: c has multiplicity n - 1 exactly, for either
+  // sign of rho (rho < 0 puts c + rho*||z||^2 first).
+  for (Index i = 0; i + 1 < n; ++i) VERIFY_IS_EQUAL(es.eigenvalues()[i], Scalar(3));
+  DPR1EigenSolver<Scalar> esn(dc, Scalar(-1), z, EigenvaluesOnly);
+  for (Index i = 1; i < n; ++i) VERIFY_IS_EQUAL(esn.eigenvalues()[i], Scalar(3));
+
+  // Exact triples among distinct poles: a pole of multiplicity k stays an eigenvalue >= k - 1 times.
+  Vec dt(n);
+  for (Index i = 0; i < n; ++i) {
+    const Index pole = 1 + i / 3;
+    dt[i] = Scalar(pole);
+  }
+  check_dpr1<Scalar>(dt, Scalar(2), z);
+  DPR1EigenSolver<Scalar> est(dt, Scalar(2), z, EigenvaluesOnly);
+  for (Index i = 0; i < n; i += 3) {
+    const Index multiplicity = numext::mini<Index>(3, n - i);
+    VERIFY((est.eigenvalues().array() == dt[i]).count() >= multiplicity - 1);
+  }
+}
+
+// A Givens deflation with c = O(eps), s ~ 1 across a wide gap: rho*|z_2| = 10.8 eps and
+// |c s (d_2 - d_1)| ~ 3 eps bracket tol = 7.2 eps. The secular equation puts an eigenvalue at
+// d_2 - O(eps^2), which the deflation must form as a correction to d_2, not to the far pole d_1:
+// d_1 + s^2 (d_2 - d_1) inherits the rounding of d_2 - d_1, up to eps/8 >> eps * d_2.
+template <typename Scalar>
+void test_dpr1_skewed_deflation() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar small = numext::sqrt(eps) / Scalar(3);  // not a power of two, so d_2 - d_1 rounds
+  Vec d(2), z(2);
+  d << Scalar(-0.25), small;
+  z << Scalar(1), Scalar(12) * eps;
+  check_dpr1<Scalar>(d, Scalar(0.9), z);
+  DPR1EigenSolver<Scalar> es(d, Scalar(0.9), z, EigenvaluesOnly);
+  VERIFY(numext::abs(es.eigenvalues()[0] - small) <= Scalar(4) * eps * small);
 }
 
 // Zero and tiny z entries exercise the z-deflation path.
@@ -663,6 +698,9 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_2((test_dpr1_rank_one<float>(11)));
     CALL_SUBTEST_2((test_dpr1_clustered<long double>(12)));
     CALL_SUBTEST_2((test_dpr1_sparse_z<long double>(9)));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<float>()));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<double>()));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<long double>()));
 
     CALL_SUBTEST_3((test_dpr1_edges<double>()));
     CALL_SUBTEST_3((test_dpr1_edges<float>()));

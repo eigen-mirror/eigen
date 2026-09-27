@@ -431,17 +431,30 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
       if (p >= 0) {
         const RealScalar r = numext::hypot(zs[p], zs[i]);
         const RealScalar c = zs[i] / r, s = zs[p] / r;  // zeroes the earlier entry
-        if (numext::abs(c * s * (ds[i] - ds[p])) <= tol) {
-          // Rotated diagonal: the deflated position keeps one entry, the
-          // surviving pole the other; both stay inside [ds[p], ds[i]].
-          const RealScalar dp = c * c * ds[p] + s * s * ds[i];
-          const RealScalar di = s * s * ds[p] + c * c * ds[i];
-          ds[p] = dp;
-          ds[i] = di;
+        const RealScalar gap = ds[i] - ds[p];
+        if (numext::abs(c * s * gap) <= tol) {
+          // Rotated diagonal (c^2 a + s^2 b, s^2 a + c^2 b), a = ds[p], b = ds[i], with c^2 + s^2 = 1
+          // applied exactly and the smaller weight w = min(c^2, s^2) <= 1/2 on the gap:
+          //   |s| <= |c|: (a + s^2 gap, b - s^2 gap),  otherwise (b - c^2 gap, a + c^2 gap).
+          // Equal poles (gap = 0) keep their value, which the weighted sums lose to the rounding of
+          // c^2 + s^2, and the rounding of a wide gap enters scaled by w.
+          const RealScalar left = ds[p], right = ds[i];
+          if (numext::abs(s) <= numext::abs(c)) {
+            const RealScalar shift = s * s * gap;
+            ds[p] = left + shift;
+            ds[i] = right - shift;
+          } else {
+            const RealScalar shift = c * c * gap;
+            ds[p] = right - shift;
+            ds[i] = left + shift;
+          }
           zs[i] = r;
           zs[p] = RealScalar(0);
           deflated[static_cast<std::size_t>(p)] = true;
-          if (computeVectors) rotations.push_back(Rotation{p, i, c, s});
+          // Recorded for both options, keeping computeVectors out of the loops that produce the
+          // eigenvalues: GCC unswitches this loop on it, and IBM double-double operations are not
+          // commutative, so the two copies' operand orders can round differently.
+          rotations.push_back(Rotation{p, i, c, s});
         }
       }
       if (!deflated[static_cast<std::size_t>(i)]) p = i;
