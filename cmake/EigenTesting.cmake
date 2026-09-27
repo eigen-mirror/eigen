@@ -63,8 +63,10 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   if(is_gpu_test AND MSVC AND EIGEN_GPU_TEST_MODE STREQUAL "cuda-language"
      AND CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
-    # nvcc treats bare /options as input files, and host-only MSVC flags need
-    # -Xcompiler. Definitions must reach both compilation passes.
+    # These options are host (MSVC) flags in either spelling: nvcc reads a bare
+    # /option as an input file and rejects MSVC's -options, so both go through
+    # -Xcompiler. Definitions must reach both compilation passes. nvcc's own
+    # options belong in CMAKE_CUDA_FLAGS.
     foreach(option IN LISTS test_compile_options)
       if(option MATCHES "^[/-]D(.+)")
         target_compile_definitions(${targetname} PRIVATE "${CMAKE_MATCH_1}")
