@@ -9,9 +9,10 @@ plumbing work inside the jobs is in [`ci-internals.md`](ci-internals.md), and th
 Default MR pipelines run a limited smoke matrix. Recommend `affected-tests` with the relevant `*-tests` platform
 labels, or `affected-tests` with `all-platforms` when the change needs coverage across the platforms that run the
 affected selection. The platform table below records the additional labels needed for GPU, SME, and AVX512-FP16
-coverage. Do not add `all-tests` without the user's explicit permission for that label; permission to push, rebase,
-address review, or validate an MR does not authorize it. A green default MR pipeline is not proof that every supported
-configuration was exercised.
+coverage, and `docs-build` runs the blocking documentation job, which no default MR pipeline does. Do not add
+`all-tests` without the user's explicit permission for that label; permission to push, rebase, address review, or
+validate an MR does not authorize it. A green default MR pipeline is not proof that every supported configuration was
+exercised.
 
 A pipeline is evidence only for the commit it ran on: after a push, amend, or rebase, check which SHA the pipeline and
 the merge request point at before citing either — a green run on a superseded revision proves nothing about the
@@ -244,7 +245,7 @@ parts it left out, so a capped run names what it did not check rather than repor
 2. Format and check the task's changed lines and new files using the Worktree-Safe Formatting recipes above.
 3. Run the focused builds and tests documented in [`testing.md`](testing.md).
 4. Run applicable spelling, REUSE, and clang-tidy checks.
-5. Build the `doc` target locally when the change touches Doxygen markup, a documented name, or a snippet, and report
-   the Doxygen version and result. The recommended test labels do not trigger the documentation job;
-   [`docs.md`](docs.md) records its coverage and validation requirements.
+5. Apply the `docs-build` label when the change touches Doxygen markup, a documented name, a module `README`, or a
+   snippet. The recommended test labels do not trigger the documentation job; [`docs.md`](docs.md) records its
+   coverage and validation requirements.
 6. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.

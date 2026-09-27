@@ -95,7 +95,7 @@ and copy construction and assignment (a device-to-device copy). This makes
 that rely on these operations, and `DeviceSparseView` is a matrix-free matrix
 type for Eigen's iterative solvers: `ConjugateGradient<gpu::DeviceSparseView<double>,
 Lower | Upper>` runs Eigen's own algorithm, unmodified, on device vectors (see
-[Eigen algorithm interop](#eigen-algorithm-interop-example-conjugate-gradient)).
+[Eigen algorithm interop](#eigen_gpu_interop)).
 Conjugate gradient is just the motivating example; we are open to expanding
 operator coverage as needed to support other high-level Eigen algorithms on the
 GPU.
@@ -590,7 +590,7 @@ descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
 `int` index type and the `int` limits on dimensions and nonzeros are as for
 `SparseMatrix`.
 
-### Eigen algorithm interop (example: Conjugate gradient)
+### Eigen algorithm interop (example: Conjugate gradient) {#eigen_gpu_interop}
 
 Eigen's `ConjugateGradient` runs on the GPU types. `DeviceSparseView` is a
 matrix-free matrix type (it inherits `EigenBase` and carries `SparseMatrix`
