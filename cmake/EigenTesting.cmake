@@ -51,7 +51,7 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   set(test_compile_options "")
   if(MSVC)
-    list(APPEND test_compile_options "/bigobj")
+    list(APPEND test_compile_options "-bigobj")
   endif()
 
   # let the user pass flags.
@@ -63,11 +63,13 @@ macro(ei_add_test_internal testname testname_with_suffix)
 
   if(is_gpu_test AND MSVC AND EIGEN_GPU_TEST_MODE STREQUAL "cuda-language"
      AND CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
-    # nvcc treats bare /options as input files. Definitions must reach both compilation passes.
+    # nvcc treats bare /options as input files, and host-only MSVC flags need
+    # -Xcompiler. Definitions must reach both compilation passes.
     foreach(option IN LISTS test_compile_options)
-      if(option MATCHES "^/D(.+)")
+      if(option MATCHES "^[/-]D(.+)")
         target_compile_definitions(${targetname} PRIVATE "${CMAKE_MATCH_1}")
-      elseif(option MATCHES "^/")
+      elseif(option MATCHES "^[/-]")
+        string(REGEX REPLACE "^/" "-" option "${option}")
         target_compile_options(${targetname} PRIVATE "-Xcompiler=${option}")
       else()
         target_compile_options(${targetname} PRIVATE "${option}")
