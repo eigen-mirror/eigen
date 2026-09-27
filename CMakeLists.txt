@@ -622,16 +622,16 @@ if (EIGEN_BUILD_TESTING)
     #         throw exceptions - in particular in the unit tests we are throwing extra many
     #         exceptions to cover indexing errors.
     # C4505 - unreferenced local function has been removed (impossible to deactivate selectively)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4505 /wd4714")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -EHsc -wd4127 -wd4505 -wd4714")
 
-    # replace all /Wx by /W4
-    string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    # replace all /Wx or -Wx by -W4
+    string(REGEX REPLACE "[/-]W[0-9]" "-W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-    check_cxx_compiler_flag("/openmp" COMPILER_SUPPORT_OPENMP)
+    check_cxx_compiler_flag("-openmp" COMPILER_SUPPORT_OPENMP)
     if(COMPILER_SUPPORT_OPENMP)
       option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
       if(EIGEN_TEST_OPENMP)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -openmp")
         message(STATUS "Enabling OpenMP in tests/examples")
       endif()
     endif()
@@ -640,28 +640,28 @@ if (EIGEN_BUILD_TESTING)
     if(EIGEN_TEST_SSE2)
       if(NOT CMAKE_CL_64)
         # arch is not supported on 64 bit systems, SSE is enabled automatically.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:SSE2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:SSE2")
       endif()
       message(STATUS "Enabling SSE2 in tests/examples")
     endif()
 
     option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
     if(EIGEN_TEST_AVX)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX")
       message(STATUS "Enabling AVX in tests/examples")
     endif()
 
     option(EIGEN_TEST_FMA "Enable/Disable FMA/AVX2 in tests/examples" OFF)
     option(EIGEN_TEST_AVX2 "Enable/Disable FMA/AVX2 in tests/examples" OFF)
     if((EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON) OR EIGEN_TEST_AVX2)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
       message(STATUS "Enabling FMA/AVX2 in tests/examples")
     endif()
 
     option(EIGEN_TEST_AVX512 "Enable/Disable AVX512 in tests/examples" OFF)
     option(EIGEN_TEST_AVX512DQ "Enable/Disable AVX512DQ in tests/examples" OFF)
     if(EIGEN_TEST_AVX512 OR EIGEN_TEST_AVX512DQ)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX512")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX512")
       message(STATUS "Enabling AVX512 in tests/examples")
     endif()
 

@@ -8,8 +8,9 @@
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests
     # Reduce overall build size and compile time.
-    # Note: /d2ReducedOptimizeHugeFunctions is only available in VS 2019.
-    EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
+    # Note: -d2ReducedOptimizeHugeFunctions (VS 2019+) uses '-' rather than '/'
+    # because sccache treats unrecognized '/...' arguments as input file paths.
+    EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "-d2ReducedOptimizeHugeFunctions;-DEIGEN_STRONG_INLINE=inline;-Os"
     # "off" disables the ccache compiler launchers (see
     # build.windows.script.ps1). The script downloads a pinned,
     # SHA-256-verified ccache when the runner has none; if that also fails,
@@ -108,10 +109,6 @@ build:windows:x86-64:msvc-14.29:avx512dq:
     # offline compilation for Volta and older; nothing below sm_75 can be
     # listed here any more.
     EIGEN_CI_CUDA_COMPUTE_ARCH: "89"
-    # sccache 0.18 parses the unknown /d2ReducedOptimizeHugeFunctions as a
-    # second input file and, for nvcc's host pass, fails the compile instead
-    # of running cl.exe uncached. ccache compiles these as before sccache.
-    EIGEN_CI_SCCACHE: "off"
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
     EIGEN_CI_ADDITIONAL_ARGS:
       -DEIGEN_TEST_CUDA=on
