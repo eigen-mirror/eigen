@@ -125,3 +125,18 @@ build:docker:ubuntu-26.04-riscv64-smoketest-run:
     - if: $CI_PROJECT_NAMESPACE == "libeigen"
       when: manual
       allow_failure: true
+
+build:docker:ubuntu-24.04-tidy:
+  extends: .build:docker:linux:amd64
+  script:
+    - docker buildx build --platform linux/amd64
+        -t $EIGEN_CI_IMAGE_LINUX_TIDY
+        --push
+        ci/tidy/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ci/tidy/Dockerfile
+    - if: $CI_PROJECT_NAMESPACE == "libeigen"
+      when: manual
+      allow_failure: true

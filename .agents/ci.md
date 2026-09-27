@@ -77,7 +77,7 @@ Selection follows the textual `#include` graph, ignoring preprocessor guards, so
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
 correct answer, not a failure. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims also force the
-full suite; the `ci/*.gitlab-ci.yml` files select nothing.
+full suite; the `ci/*.gitlab-ci.yml` files and the clang-tidy image under `ci/tidy/` select nothing.
 
 ### Platform-Triggered Configurations
 
@@ -215,8 +215,9 @@ cmake -G Ninja -S . -B .tidy-build \
 ci/scripts/run-clang-tidy.sh <base-sha> .tidy-build
 ```
 
-The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's
-`.clang-tidy` policy is authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
+`checkformat:clangtidy` runs clang-tidy 18 from [`ci/tidy/Dockerfile`](../ci/tidy/Dockerfile). The driver examines files
+committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's `.clang-tidy` policy is
+authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
 
 A module that reaches a third-party header the machine does not install — `<cuda_runtime.h>` from
 `contrib/Eigen/src/GPU`, `<cholmod.h>` from `CholmodSupport` — is still checked, but clang parses a truncated

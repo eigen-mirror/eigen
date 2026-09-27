@@ -156,7 +156,8 @@ def test_fixture_graph(root):
     # merely dropping them from FULL_REBUILD_PATTERNS would leave them falling
     # through to "not in the include graph" and forcing the full suite anyway.
     for path in ["ci/test.linux.gitlab-ci.yml", "ci/common.gitlab-ci.yml",
-                 "ci/build.linux.gitlab-ci.yml", "ci/CTest2JUnit.xsl", "ci/README.md"]:
+                 "ci/build.linux.gitlab-ci.yml", "ci/CTest2JUnit.xsl", "ci/README.md",
+                 "ci/tidy/Dockerfile"]:
         sel = select(graph, [path])
         check(sel.mode == "none", "%s selects nothing, got %s (%s)"
               % (path, sel.mode, sel.reasons))

@@ -86,10 +86,11 @@ both Linux and Windows consume through `EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_C
 [`test.windows.script.ps1`](../ci/scripts/test.windows.script.ps1) on Windows).
 
 Selection follows the textual `#include` graph, ignoring preprocessor guards, so it is a strict superset of the real
-compile dependency. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims force the full suite,
-since they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot change which
-test includes which header, so they select nothing. Git rename detection is disabled for the input diff so both the
-old and new path of a move are evaluated; an old path absent from the current graph safely forces the full suite.
+compile dependency. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims force the full suite, since
+they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot change which test
+includes which header, so they select nothing, and neither does the clang-tidy image under `ci/tidy/`. Git rename
+detection is disabled for the input diff so both the old and new path of a move are evaluated; an old path absent from
+the current graph safely forces the full suite.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from
