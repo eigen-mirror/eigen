@@ -249,7 +249,7 @@ struct triangular_solve_packet_kernel {
   static EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
                                              Index otherStride, Index cols) {
     Map<Matrix<Scalar, Dynamic, Dynamic>, Unaligned, OuterStride<>> rest(other, size, cols, OuterStride<>(otherStride));
-    Matrix<Scalar, Dynamic, Dynamic, ColMajor, Traits::WorkspaceRows, PacketSize> padded(size, PacketSize);
+    Matrix<Scalar, Dynamic, Dynamic, ColMajor, Traits::WorkspaceRows, PacketSize> padded(size, Index(PacketSize));
     padded.leftCols(cols) = rest;
     padded.rightCols(PacketSize - cols).setZero();
     solve<1>(size, a, inverse, padded.data(), size);
