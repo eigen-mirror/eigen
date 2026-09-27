@@ -1455,7 +1455,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
     return static_cast<Scalar>(pow(a, m_exponent));
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet packetOp(const Packet& a) const {
     return unary_pow_impl<Packet, Scalar>::run(a, m_exponent);
   }
 
@@ -1464,16 +1464,36 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
   scalar_unary_pow_op() {}
 };
 
-template <typename Scalar, typename ExponentScalar, bool BaseIsInteger>
-struct scalar_unary_pow_op<Scalar, ExponentScalar, BaseIsInteger, true, false, false> {
+// Specialization for a complex base and a real, non-integer exponent type: integer-valued exponents take the
+// repeated-squaring path, which is exact where the power is representable; the rest defer to pow. There is no
+// vectorized complex pow, so this stays scalar.
+template <typename Scalar, typename ExponentScalar>
+struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, true, false> {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE scalar_unary_pow_op(const ExponentScalar& exponent)
+      : m_exponent(exponent),
+        m_use_repeated_squaring((numext::isfinite)(exponent) && numext::round(exponent) == exponent &&
+                                unary_pow::use_repeated_squaring<Scalar>(exponent)) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
+    if (m_use_repeated_squaring) return unary_pow::int_pow(a, m_exponent);
+    EIGEN_USING_STD(pow);
+    return static_cast<Scalar>(pow(a, m_exponent));
+  }
+
+ private:
+  const ExponentScalar m_exponent;
+  const bool m_use_repeated_squaring;
+  scalar_unary_pow_op() {}
+};
+
+template <typename Scalar, typename ExponentScalar, bool BaseIsInteger, bool BaseIsComplex>
+struct scalar_unary_pow_op<Scalar, ExponentScalar, BaseIsInteger, true, BaseIsComplex, false> {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE scalar_unary_pow_op(const ExponentScalar& exponent)
       : m_exponent(exponent) {}
-  // TODO: error handling logic for complex^real_integer
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     return unary_pow_impl<Scalar, ExponentScalar>::run(a, m_exponent);
   }
   template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet packetOp(const Packet& a) const {
     return unary_pow_impl<Packet, ExponentScalar>::run(a, m_exponent);
   }
 
@@ -1486,8 +1506,15 @@ template <typename Scalar, typename ExponentScalar>
 struct functor_traits<scalar_unary_pow_op<Scalar, ExponentScalar>> {
   enum {
     GenPacketAccess = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::PacketAccess,
-    IntPacketAccess = !NumTraits<Scalar>::IsComplex && packet_traits<Scalar>::HasMul &&
-                      (packet_traits<Scalar>::HasDiv || NumTraits<Scalar>::IsInteger) && packet_traits<Scalar>::HasCmp,
+    // Only the real-exponent specializations define packetOp. Every path multiplies packets of the base type and
+    // divides them for a negative exponent unless the base is an integer; the compares and selects run on the
+    // real packet, which for a complex base is the component view of its packet. A complex base is vectorized
+    // only through the double-word path, so it also needs that path's packet support.
+    IntPacketAccess =
+        !NumTraits<ExponentScalar>::IsComplex && packet_traits<Scalar>::HasMul &&
+        (packet_traits<Scalar>::HasDiv || NumTraits<Scalar>::IsInteger) &&
+        packet_traits<typename NumTraits<Scalar>::Real>::HasCmp &&
+        (!NumTraits<Scalar>::IsComplex || unary_pow::use_double_word<typename packet_traits<Scalar>::type>::value),
     PacketAccess = NumTraits<ExponentScalar>::IsInteger ? IntPacketAccess : (IntPacketAccess && GenPacketAccess),
     Cost = functor_traits<scalar_pow_op<Scalar, ExponentScalar>>::Cost
   };

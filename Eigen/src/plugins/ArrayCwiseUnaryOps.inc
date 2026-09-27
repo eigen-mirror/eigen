@@ -561,6 +561,13 @@ using UnaryPowReturnType =
  * This function computes the coefficient-wise power. The function MatrixBase::pow() in the
  * contrib module MatrixFunctions computes the matrix power.
  *
+ * For a complex<float> or complex<double> base and an integer-valued exponent \a n other than 0 and 1, zero and
+ * infinite bases are the points 0 and infinity of the extended complex plane, with every value that has an infinite
+ * component, a NaN one included, the infinity +inf + 0i that std::proj returns: a zero base gives +0 + 0i for
+ * \a n > 1 and +inf + 0i for \a n < 0, an infinite base the reverse, whatever the signs of their zeros. A base with a
+ * NaN component and no infinite one gives NaN + NaN i. \a n = 1 returns the base itself. std::pow leaves all of these
+ * to the implementation.
+ *
  * Example: \include Cwise_pow.cpp
  * Output: \verbinclude Cwise_pow.out
  *

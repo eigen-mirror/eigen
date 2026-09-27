@@ -138,27 +138,32 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const 
 
 #endif  // EIGEN_VECTORIZE_FMA
 
-// This function implements Dekker's algorithm for the addition
-// of two double word numbers represented by {x_hi, x_lo} and {y_hi, y_lo}.
-// It returns the result as a pair {s_hi, s_lo} such that
-// x_hi + x_lo + y_hi + y_lo = s_hi + s_lo holds exactly.
-// This is Algorithm 5 from Jean-Michel Muller, "Elementary Functions",
-// 3rd edition, Birkh\"auser, 2016.
+// This function implements the addition of two double word numbers
+// represented by {x_hi, x_lo} and {y_hi, y_lo}, with operands of either sign
+// and magnitude: Knuth's two-sum of the high parts is error-free, the low
+// parts are added to its error term, and the result is renormalized.
+// This is Algorithm 5 (SloppyDWPlusDW) from Joldes, Muller, & Popescu (2017),
+// "Tight and rigorous error bounds for basic building blocks of double-word
+// arithmetic", https://hal.science/hal-01351529: the error is a few u^2
+// relative to |x| + |y|, not to the sum, which may cancel.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
                                                   const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
-  const Packet x_greater_mask = pcmp_lt(pabs(y_hi), pabs(x_hi));
-  Packet r_hi_1, r_lo_1;
-  fast_twosum(x_hi, y_hi, r_hi_1, r_lo_1);
-  Packet r_hi_2, r_lo_2;
-  fast_twosum(y_hi, x_hi, r_hi_2, r_lo_2);
-  const Packet r_hi = pselect(x_greater_mask, r_hi_1, r_hi_2);
+  Packet s = padd(x_hi, y_hi);
+  Packet y_part = psub(s, x_hi);
+  Packet err = padd(psub(x_hi, psub(s, y_part)), psub(y_hi, y_part));
+  fast_twosum(s, padd(err, padd(x_lo, y_lo)), s_hi, s_lo);
+}
 
-  const Packet s1 = padd(padd(y_lo, r_lo_1), x_lo);
-  const Packet s2 = padd(padd(x_lo, r_lo_2), y_lo);
-  const Packet s = pselect(x_greater_mask, s1, s2);
-
-  fast_twosum(r_hi, s, s_hi, s_lo);
+// The difference {x_hi, x_lo} - {y_hi, y_lo} of two double word numbers,
+// the same algorithm as twosum with the sign of y folded into the operations.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twodiff(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                   const Packet& y_lo, Packet& s_hi, Packet& s_lo) {
+  Packet s = psub(x_hi, y_hi);
+  Packet y_part = psub(x_hi, s);
+  Packet err = psub(psub(x_hi, padd(s, y_part)), psub(y_hi, y_part));
+  fast_twosum(s, padd(err, psub(x_lo, y_lo)), s_hi, s_lo);
 }
 
 // This is a version of twosum for double word numbers,
@@ -223,6 +228,22 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Pac
   Packet p_lo_hi, p_lo_lo;
   twoprod(x_hi, x_lo, y_lo, p_lo_hi, p_lo_lo);
   fast_twosum(p_hi_hi, p_hi_lo, p_lo_hi, p_lo_lo, p_hi, p_lo);
+}
+
+// This function implements the multiplication of two double word numbers
+// {x_hi, x_lo} and {y_hi, y_lo} at a lower cost than twoprod above: the
+// cross terms are accumulated onto the two-product residual and the x_lo*y_lo
+// term is dropped. For normalized inputs the relative error is < 7*u^2.
+// This is Algorithm 10 (DWTimesDW1) from Joldes, Muller, & Popescu (2017),
+// "Tight and rigorous error bounds for basic building blocks of double-word
+// arithmetic", https://hal.science/hal-01351529.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
+                                                        const Packet& y_lo, Packet& p_hi, Packet& p_lo) {
+  Packet c_hi, c_lo;
+  twoprod(x_hi, y_hi, c_hi, c_lo);
+  c_lo = pmadd(x_hi, y_lo, pmadd(x_lo, y_hi, c_lo));
+  fast_twosum(c_hi, c_lo, p_hi, p_lo);
 }
 
 // This function implements the division of double word {x_hi, x_lo}

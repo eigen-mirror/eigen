@@ -140,6 +140,41 @@ void test_gpu_elementwise_small() {
   gpuFree(d_out);
 }
 
+// Integer exponents on aligned maps take the packet path, where the GPU packets lack the double-word squaring
+// operations and must keep plain squaring.
+template <typename T>
+void test_gpu_pow_integer_exponent() {
+  Tensor<T, 1> in(Eigen::array<Eigen::DenseIndex, 1>{64});
+  Tensor<T, 1> out(Eigen::array<Eigen::DenseIndex, 1>{64});
+  in.setRandom();
+  in = in * T(0.5) + T(1.25);
+
+  std::size_t bytes = in.size() * sizeof(T);
+  T* d_in;
+  T* d_out;
+  gpuMalloc((void**)(&d_in), bytes);
+  gpuMalloc((void**)(&d_out), bytes);
+  gpuMemcpy(d_in, in.data(), bytes, gpuMemcpyHostToDevice);
+
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+  Eigen::TensorMap<Eigen::Tensor<T, 1>, Eigen::Aligned> gpu_in(d_in, Eigen::array<Eigen::DenseIndex, 1>{64});
+  Eigen::TensorMap<Eigen::Tensor<T, 1>, Eigen::Aligned> gpu_out(d_out, Eigen::array<Eigen::DenseIndex, 1>{64});
+
+  for (int exponent : {3, 8, -2}) {
+    gpu_out.device(gpu_device) = gpu_in.pow(exponent);
+    assert(gpuMemcpyAsync(out.data(), d_out, bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
+    assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+    for (int i = 0; i < 64; ++i) {
+      VERIFY_IS_APPROX(out(Eigen::array<Eigen::DenseIndex, 1>{i}),
+                       T(std::pow(double(in(Eigen::array<Eigen::DenseIndex, 1>{i})), double(exponent))));
+    }
+  }
+
+  gpuFree(d_in);
+  gpuFree(d_out);
+}
+
 void test_gpu_elementwise() {
   Tensor<float, 3> in1(Eigen::array<Eigen::DenseIndex, 3>{72, 53, 97});
   Tensor<float, 3> in2(Eigen::array<Eigen::DenseIndex, 3>{72, 53, 97});
@@ -1549,6 +1584,8 @@ EIGEN_DECLARE_TEST(tensor_gpu) {
   CALL_SUBTEST_1((test_gpu_nullary_max_size<int64_t, (std::numeric_limits<int32_t>::max)() + 100ll>()));
   CALL_SUBTEST_1(test_gpu_elementwise_small());
   CALL_SUBTEST_1(test_gpu_elementwise());
+  CALL_SUBTEST_1(test_gpu_pow_integer_exponent<float>());
+  CALL_SUBTEST_1(test_gpu_pow_integer_exponent<double>());
   CALL_SUBTEST_1(test_gpu_props());
   CALL_SUBTEST_1(test_gpu_striding<ColMajor>());
   CALL_SUBTEST_1(test_gpu_striding<RowMajor>());

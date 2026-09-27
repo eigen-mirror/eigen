@@ -1879,6 +1879,32 @@ EIGEN_STRONG_INLINE Packet4d pfrexp<Packet4d>(const Packet4d& a, Packet4d& expon
   return pfrexp_generic(a, exponent);
 }
 
+#ifndef EIGEN_VECTORIZE_AVX2
+namespace unary_pow {
+// The exponent-bit operations the integer-exponent pow needs on Packet4d, likewise without Packet4l: AVX has no
+// 256-bit integer shift or subtract, but SSE2's 128-bit ones, present on every x86-64 target, suffice. Split the
+// bit pattern into its two 128-bit halves, operate on each with SSE2, and reassemble.
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_shift_right<Packet4d>(const Packet4d& bits) {
+  __m256i i = _mm256_castpd_si256(bits);
+  __m128i lo = _mm_srli_epi64(_mm256_extractf128_si256(i, 0), 52);
+  __m128i hi = _mm_srli_epi64(_mm256_extractf128_si256(i, 1), 52);
+  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+}
+template <>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet4d exponent_bits_sub<Packet4d>(const Packet4d& a_bits,
+                                                                           const Packet4d& b_bits) {
+  __m256i ai = _mm256_castpd_si256(a_bits);
+  __m256i bi = _mm256_castpd_si256(b_bits);
+  __m128i lo = _mm_sub_epi64(_mm256_extractf128_si256(ai, 0), _mm256_extractf128_si256(bi, 0));
+  __m128i hi = _mm_sub_epi64(_mm256_extractf128_si256(ai, 1), _mm256_extractf128_si256(bi, 1));
+  return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
+}
+template <>
+struct has_exponent_bit_ops<Packet4d> : true_type {};
+}  // namespace unary_pow
+#endif
+
 template <>
 EIGEN_STRONG_INLINE Packet8f pldexp<Packet8f>(const Packet8f& a, const Packet8f& exponent) {
   return pldexp_generic(a, exponent);

@@ -26,6 +26,7 @@ eigen_add_benchmark(bench_move_semantics bench_move_semantics.cpp)
 eigen_add_benchmark(bench_reductions bench_reductions.cpp)
 eigen_add_benchmark(bench_vectorwise_norm bench_vectorwise_norm.cpp)
 eigen_add_benchmark(bench_complex_components bench_complex_components.cpp)
+eigen_add_benchmark(bench_unary_pow bench_unary_pow.cpp)
 eigen_add_benchmark(bench_pgather bench_pgather.cpp)
 eigen_add_benchmark(bench_boolean_reductions bench_boolean_reductions.cpp)
 # Separate operations and storage families to avoid moving unrelated hot loops.
