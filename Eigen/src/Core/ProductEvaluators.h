@@ -165,10 +165,8 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::assign_op<Sc
                   std::enable_if_t<(Options == DefaultProduct || Options == AliasFreeProduct)>> {
   using SrcXprType = Product<Lhs, Rhs, Options>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
-                                                        const internal::assign_op<Scalar, Scalar>&) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+                                                        const internal::assign_op<Scalar, Scalar>& func) {
+    resize_if_allowed(dst, src, func);
     // FIXME shall we handle nested_eval here?
     generic_product_impl<Lhs, Rhs>::evalTo(dst, src.lhs(), src.rhs());
   }
@@ -320,7 +318,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool outer_product_use_small_assignment(co
   return dst.rows() <= 16 && dst.cols() <= 16;
 }
 
-template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
+template <bool ApplyScale = true, typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::false_type&) {
   evaluator<Rhs> rhsEval(rhs);
@@ -330,12 +328,16 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   for (Index j = 0; j < cols; ++j) {
     const typename Rhs::Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
-      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(rhs_j, actual_lhs.coeff(i, Index(0)))));
+      EIGEN_IF_CONSTEXPR (ApplyScale) {
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(rhs_j, actual_lhs.coeff(i, Index(0)))));
+      } else {
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(rhs_j, actual_lhs.coeff(i, Index(0))));
+      }
     }
   }
 }
 
-template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
+template <bool ApplyScale = true, typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar>
 void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs, const Rhs& rhs, const Func& func,
                                                         const Scalar& alpha, const std::true_type&) {
   evaluator<Lhs> lhsEval(lhs);
@@ -345,7 +347,11 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
   for (Index i = 0; i < rows; ++i) {
     const typename Lhs::Scalar lhs_i = lhsEval.coeff(i, Index(0));
     for (Index j = 0; j < cols; ++j) {
-      func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(lhs_i, actual_rhs.coeff(Index(0), j))));
+      EIGEN_IF_CONSTEXPR (ApplyScale) {
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(lhs_i, actual_rhs.coeff(Index(0), j))));
+      } else {
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(lhs_i, actual_rhs.coeff(Index(0), j)));
+      }
     }
   }
 }
@@ -355,13 +361,6 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename T>
   struct is_row_major : bool_constant<(int(T::Flags) & RowMajorBit)> {};
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  static constexpr bool IsMixedRealComplex = (std::is_same<typename Lhs::Scalar, RealScalar>::value &&
-                                              std::is_same<typename Rhs::Scalar, std::complex<RealScalar>>::value) ||
-                                             (std::is_same<typename Rhs::Scalar, RealScalar>::value &&
-                                              std::is_same<typename Lhs::Scalar, std::complex<RealScalar>>::value);
-  // Complex(1) introduces 0*inf terms that are absent from a real/complex product.
-  using UnitScalar = std::conditional_t<IsMixedRealComplex, RealScalar, Scalar>;
 
   // TODO: it would be nice to be able to exploit our *_assign_op functors for that purpose
   struct set {
@@ -398,8 +397,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void evalTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
-      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+      internal::outer_product_selector_run_small<false>(
+          dst, lhs, rhs, internal::assign_op<typename Dst::Scalar, Scalar>(), Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, set(), is_row_major<Dst>());
     }
@@ -408,8 +407,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
-      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+      internal::outer_product_selector_run_small<false>(
+          dst, lhs, rhs, internal::add_assign_op<typename Dst::Scalar, Scalar>(), Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, add(), is_row_major<Dst>());
     }
@@ -418,8 +417,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, OuterProduct> {
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     if (internal::outer_product_use_small_assignment(dst)) {
-      internal::outer_product_selector_run_small(dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(),
-                                                 UnitScalar(1), is_row_major<Dst>());
+      internal::outer_product_selector_run_small<false>(
+          dst, lhs, rhs, internal::sub_assign_op<typename Dst::Scalar, Scalar>(), Scalar(1), is_row_major<Dst>());
     } else {
       internal::outer_product_selector_run(dst, lhs, rhs, sub(), is_row_major<Dst>());
     }
@@ -836,6 +835,9 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   using RhsPacketEtorType =
       std::conditional_t<bool(int(Flags) & PacketAccessBit), RhsEtorType, product_empty_packet_evaluator>;
 
+  static constexpr bool SingleTermCoeff = InnerSize == 1 && std::is_same<LhsPacketEtorType, LhsEtorType>::value &&
+                                          std::is_same<RhsPacketEtorType, RhsEtorType>::value;
+
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
   static constexpr int RhsOuterStrideBytes =
@@ -852,16 +854,17 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
                  : RhsAlignment)
           : 0;
 
-  /* CanVectorizeInner deserves special explanation. It does not affect the product flags. It is not used outside
-   * of Product. If the Product itself is not a packet-access expression, there is still a chance that the inner
-   * loop of the product might be vectorized. This is the meaning of CanVectorizeInner. Since it doesn't affect
-   * the Flags, it is safe to make this value depend on ActualPacketAccessBit, that doesn't affect the ABI.
-   */
-  static constexpr bool CanVectorizeInner = SameType && LhsRowMajor && (!RhsRowMajor) &&
-                                            (int(LhsFlags) & int(RhsFlags) & ActualPacketAccessBit) &&
-                                            (int(InnerSize) % packet_traits<Scalar>::size == 0);
-
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index row, Index col) const {
+    return coeff_impl(row, col, bool_constant<SingleTermCoeff>());
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff_impl(Index row, Index col,
+                                                                             std::true_type) const {
+    return fast_mult_op<LhsScalar, RhsScalar>()(m_lhsImpl.coeff(row, Index(0)), m_rhsImpl.coeff(Index(0), col));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff_impl(Index row, Index col,
+                                                                             std::false_type) const {
     // fast_mult_op is cwiseProduct's scalar_product_op with a pmul-based scalar path, so the
     // reduction (and its precision) is unchanged but complex scalars avoid std::complex::operator*
     // (the slow libgcc __mul?c3). See fast_mult_op.
@@ -875,7 +878,7 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index index) const {
     const Index row = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? 0 : index;
     const Index col = (RowsAtCompileTime == 1 || MaxRowsAtCompileTime == 1) ? index : 0;
-    return m_lhs.row(row).transpose().binaryExpr(m_rhs.col(col), fast_mult_op<LhsScalar, RhsScalar>()).sum();
+    return coeff(row, col);
   }
 
   template <int LoadMode, typename PacketType>

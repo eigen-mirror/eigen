@@ -789,7 +789,123 @@ void complex_gemm_scalar_accumulation() {
   VERIFY_IS_EQUAL((t - u * t * u.adjoint()).cwiseAbs().maxCoeff(), RealScalar(0));
 }
 
+#if defined(EIGEN_TEST_PART_14) || defined(EIGEN_TEST_PART_ALL)
+template <int Order>
+void complex_outer_product_overflow() {
+  using Scalar = std::complex<double>;
+  using Lhs = Matrix<Scalar, Dynamic, 1>;
+  using Rhs = Matrix<Scalar, 1, Dynamic>;
+  using Dst = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  STATIC_CHECK((internal::product_type<Lhs, Rhs>::value == OuterProduct));
+  for (Index n : {4, 17}) {
+    const Lhs lhs = Lhs::Constant(n, Scalar(1e308, 1));
+    const Rhs rhs = Rhs::Constant(n, Scalar(10, 0));
+    Dst dst(n, n);
+    auto check = [&](double sign, double imaginary) {
+      for (Index j = 0; j < n; ++j) {
+        for (Index i = 0; i < n; ++i) {
+          VERIFY((numext::isinf)(dst(i, j).real()));
+          VERIFY(dst(i, j).real() * sign > 0);
+          VERIFY_IS_EQUAL(dst(i, j).imag(), imaginary);
+        }
+      }
+    };
+    // A redundant multiplication by complex one would introduce 0*infinity into the imaginary part.
+    dst.noalias() = lhs * rhs;
+    check(1, 10);
+    dst.setConstant(Scalar(2, 3));
+    dst.noalias() += lhs * rhs;
+    check(1, 13);
+    dst.setConstant(Scalar(2, 3));
+    dst.noalias() -= lhs * rhs;
+    check(-1, -7);
+  }
+}
+
+template <int Order>
+void single_term_nullary_product() {
+  const Vector4d lhs = Vector4d::LinSpaced(1, 4);
+  const RowVector4d rhs = RowVector4d::LinSpaced(5, 8);
+  auto check = [&](const auto& left, const auto& right) {
+    const auto product = left.lazyProduct(right);
+    Matrix<double, 4, 4, Order> dst = product;
+    for (Index j = 0; j < 4; ++j) {
+      for (Index i = 0; i < 4; ++i) {
+        const double expected = left.coeff(i) * right.coeff(j);
+        VERIFY_IS_EQUAL(product.coeff(i, j), expected);
+        VERIFY_IS_EQUAL(dst(i, j), expected);
+      }
+    }
+  };
+  check(Vector4d::Ones(), rhs);
+  check(lhs, RowVector4d::Ones());
+  check(Vector4d::Ones(), RowVector4d::Ones());
+}
+
+namespace outer_product_count {
+struct Scalar {
+  double value;
+  static int multiplications;
+  Scalar(double v = 0) : value(v) {}
+  Scalar operator*(const Scalar& other) const {
+    ++multiplications;
+    return Scalar(value * other.value);
+  }
+  Scalar operator+(const Scalar& other) const { return Scalar(value + other.value); }
+  Scalar operator-(const Scalar& other) const { return Scalar(value - other.value); }
+  Scalar& operator+=(const Scalar& other) { return *this = *this + other; }
+  Scalar& operator-=(const Scalar& other) { return *this = *this - other; }
+};
+int Scalar::multiplications = 0;
+}  // namespace outer_product_count
+
+namespace Eigen {
+template <>
+struct NumTraits<outer_product_count::Scalar> : GenericNumTraits<outer_product_count::Scalar> {
+  static constexpr bool RequireInitialization = true;
+};
+}  // namespace Eigen
+
+template <int Order>
+void small_outer_product_unscaled() {
+  using Scalar = outer_product_count::Scalar;
+  using Lhs = Matrix<Scalar, Dynamic, 1>;
+  using Rhs = Matrix<Scalar, 1, Dynamic>;
+  using Dst = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  STATIC_CHECK((internal::product_type<Lhs, Rhs>::value == OuterProduct));
+  for (Index n : {1, 8, 16, 17}) {
+    const Lhs lhs = Lhs::Constant(n, Scalar(2));
+    const Rhs rhs = Rhs::Constant(n, Scalar(3));
+    Dst dst(n, n);
+    auto check = [&](double expected) {
+      VERIFY_IS_EQUAL(Scalar::multiplications, n * n);
+      for (Index j = 0; j < n; ++j)
+        for (Index i = 0; i < n; ++i) VERIFY_IS_EQUAL(dst(i, j).value, expected);
+    };
+    Scalar::multiplications = 0;
+    dst.noalias() = lhs * rhs;
+    check(6);
+    Scalar::multiplications = 0;
+    dst.noalias() += lhs * rhs;
+    check(12);
+    Scalar::multiplications = 0;
+    dst.noalias() -= lhs * rhs;
+    check(6);
+    internal::generic_product_impl<Lhs, Rhs>::scaleAndAddTo(dst, lhs, rhs, Scalar(2));
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i) VERIFY_IS_EQUAL(dst(i, j).value, 18.0);
+  }
+}
+
+#endif
+
 EIGEN_DECLARE_TEST(product_extra) {
+  CALL_SUBTEST_14(complex_outer_product_overflow<ColMajor>());
+  CALL_SUBTEST_14(complex_outer_product_overflow<RowMajor>());
+  CALL_SUBTEST_14(single_term_nullary_product<ColMajor>());
+  CALL_SUBTEST_14(single_term_nullary_product<RowMajor>());
+  CALL_SUBTEST_14(small_outer_product_unscaled<ColMajor>());
+  CALL_SUBTEST_14(small_outer_product_unscaled<RowMajor>());
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, ColMajor>()));
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, RowMajor>()));
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, ColMajor>()));
