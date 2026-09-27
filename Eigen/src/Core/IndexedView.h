@@ -216,7 +216,11 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
 
   Index outerIncrement() const { return traits<Derived>::IsRowMajor ? rowIncrement() : colIncrement(); }
 
-  std::decay_t<typename XprType::Scalar>* data() {
+  using ScalarWithConstIfNotLvalue =
+      std::conditional_t<is_lvalue<XprType>::value, std::decay_t<typename XprType::Scalar>,
+                         const std::decay_t<typename XprType::Scalar>>;
+
+  ScalarWithConstIfNotLvalue* data() {
     Index row_offset = this->rowIndices()[0] * this->nestedExpression().rowStride();
     Index col_offset = this->colIndices()[0] * this->nestedExpression().colStride();
     return this->nestedExpression().data() + row_offset + col_offset;

@@ -974,6 +974,12 @@ void check_indexed_view_strides() {
   VERIFY_IS_EQUAL(row, RowVectorXd(A(2, seq(0, 7, 2))));
   const Ref<const VectorXd, 0, InnerStride<>> col = A(seq(0, 5, 2), 3);
   VERIFY_IS_EQUAL(col, VectorXd(A(seq(0, 5, 2), 3)));
+
+  // Matrix-vector products read a direct-access vector operand through data() and innerStride().
+  const MatrixXd M = MatrixXd::Random(3, 4);
+  VERIFY_IS_APPROX(M * A(2, seq(0, 7, 2)).transpose(), M * RowVectorXd(A(2, seq(0, 7, 2))).transpose());
+  const MatrixXd N = MatrixXd::Random(4, 3);
+  VERIFY_IS_APPROX(N * A(seq(0, 5, 2), 3), N * VectorXd(A(seq(0, 5, 2), 3)));
 }
 
 void check_aliasing() {
@@ -995,6 +1001,8 @@ EIGEN_DECLARE_TEST(indexed_view) {
   CALL_SUBTEST_1(check_indexed_view_storage_order());
   CALL_SUBTEST_1(check_indexed_view_strides<MatrixXd>());
   CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, 6, 8>>()));
+  CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, 6, 8, RowMajor>>()));
   CALL_SUBTEST_1(check_aliasing());
 
   // static checks of some internals:
