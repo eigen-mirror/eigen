@@ -54,19 +54,6 @@ static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
 #define EIGEN_SME_VECTOR_UNROLL4
 #endif
 
-// SMSTART/SMSTOP set FPSR's cumulative flags (Arm DDI0616 A.a, RMHTLZ), and so can resuming a thread preempted
-// in streaming mode, so no FPSR value read while streaming is reliable. ZA arithmetic raises no flags either.
-// Restoring the caller's FPSR around the streaming call is deterministic; the kernels report no exceptions.
-struct sme_vector_fpsr {
-  EIGEN_ALWAYS_INLINE sme_vector_fpsr() { asm volatile("mrs %0, fpsr" : "=r"(value) : : "memory"); }
-  EIGEN_ALWAYS_INLINE ~sme_vector_fpsr() { asm volatile("msr fpsr, %0" : : "r"(value) : "memory"); }
-  sme_vector_fpsr(const sme_vector_fpsr&) = delete;
-  sme_vector_fpsr& operator=(const sme_vector_fpsr&) = delete;
-
- private:
-  std::uint64_t value;
-};
-
 // FPCR.RMode == 0b10 (roundTowardNegative), the one mode where (+0) + (-0) is -0.
 static EIGEN_ALWAYS_INLINE bool sme_rounds_toward_negative() {
   std::uint64_t fpcr;
@@ -240,7 +227,7 @@ struct default_inner_product_impl<Lhs, Rhs, true, std::enable_if_t<sme_dot_suppo
     // DOT has no streaming stores for a following NEON consumer: half L1 per operand suffices.
     if (lhs.size() >= Index(kSmeDotMinBytes / sizeof(Scalar)) && sme_vector_size_suitable<Scalar, 2>(lhs.size()) &&
         lhs.innerStride() == 1 && rhs.innerStride() == 1) {
-      sme_vector_fpsr status;
+      sme_fpsr_guard status;
       const Scalar result = sme_dot(lhs.size(), lhs.derived().data(), rhs.derived().data());
       // Under roundTowardNegative the -0 seeds turn +0 sums into -0.
       if (result != Scalar(0) || !sme_rounds_toward_negative()) return result;
@@ -262,7 +249,7 @@ EIGEN_STRONG_INLINE bool sme_try_axpy(Dst& dst, const Src& src, typename traits<
   // Exact aliasing is coefficient-wise; partial overlap must retain the default traversal.
   if (distance != 0 && distance / sizeof(Scalar) < static_cast<std::uintptr_t>(dst.size())) return false;
   // Align streaming stores to 64 bytes without changing Eigen's allocation alignment.
-  sme_vector_fpsr status;
+  sme_fpsr_guard status;
   sme_axpy(dst.size(), src.data(), dst.data(), alpha, first_aligned<64>(dst.data(), dst.size()));
   return true;
 }
@@ -314,7 +301,7 @@ EIGEN_STRONG_INLINE bool sme_gemv_size_suitable(Index rows, Index cols) {
                                                    : Index(4));                                                  \
         /* BLAS contract: alpha == 0 leaves the result unchanged. */                                             \
         if (alpha == Scalar(0)) return;                                                                          \
-        sme_vector_fpsr status;                                                                                  \
+        sme_fpsr_guard status;                                                                                   \
         sme_gemv(rows, cols, lhs.data(), lhs.stride(), rhs.data(), res, alpha, block_cols);                      \
       } else {                                                                                                   \
         general_matrix_vector_product<Index, Scalar, const_blas_data_mapper<Scalar, Index, ColMajor>, ColMajor,  \

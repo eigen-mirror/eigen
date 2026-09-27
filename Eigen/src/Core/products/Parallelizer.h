@@ -62,6 +62,61 @@ inline int nbThreads() {
  * \sa nbThreads */
 inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
+#ifdef EIGEN_VECTORIZE_SME
+namespace internal {
+// Apple silicon shares one SME unit per core cluster, so more threads than clusters only contend for the units; other
+// SME implementations may have one per core. The count comes from macOS's performance-cluster topology and is 0 (no
+// cap) everywhere else, where EIGEN_SME_UNITS or setNbSmeUnits() supply it.
+inline int detect_sme_units() {
+#if defined(EIGEN_SME_UNITS)
+  return EIGEN_SME_UNITS;
+#elif EIGEN_OS_MAC
+  // Performance clusters only (a cluster shares one L2): the work is split evenly over the threads,
+  // so a thread on the efficiency cluster's slower unit would set the finishing time.
+  int32_t cores = 0, per_l2 = 0;
+  size_t sz = sizeof(cores);
+  if (sysctlbyname("hw.perflevel0.physicalcpu", &cores, &sz, nullptr, 0) != 0 || cores <= 0) return 0;
+  sz = sizeof(per_l2);
+  if (sysctlbyname("hw.perflevel0.cpusperl2", &per_l2, &sz, nullptr, 0) != 0 || per_l2 <= 0) return 0;
+  return numext::maxi<int32_t>(1, cores / per_l2);
+#else
+  return 0;
+#endif
+}
+inline void manage_sme_units(Action action, int* v) {
+  static int m_units = detect_sme_units();
+  if (action == SetAction)
+    m_units = *v;
+  else
+    *v = m_units;
+}
+}  // namespace internal
+#endif
+
+/** \returns the number of ARM SME units a product on the SME GEMM kernel spreads over, or 0 when it is unknown or
+ * the SME backend is not in use (then \c nbThreads() applies). Detected once from the core topology.
+ * \sa setNbSmeUnits */
+inline int nbSmeUnits() {
+#ifdef EIGEN_VECTORIZE_SME
+  int ret;
+  internal::manage_sme_units(GetAction, &ret);
+  return ret;
+#else
+  return 0;
+#endif
+}
+/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses; 0 removes the cap.
+ * \c EIGEN_SME_UNITS sets it at compile time. Does nothing when the SME backend is not in use. Like setNbThreads(),
+ * it must not be called while a product runs on another thread.
+ * \sa nbSmeUnits */
+inline void setNbSmeUnits(int v) {
+#ifdef EIGEN_VECTORIZE_SME
+  internal::manage_sme_units(SetAction, &v);
+#else
+  EIGEN_UNUSED_VARIABLE(v);
+#endif
+}
+
 #ifdef EIGEN_GEMM_THREADPOOL
 // Sets the ThreadPool used by Eigen parallel Gemm.
 //
@@ -214,6 +269,14 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
 
   // compute the number of threads we are going to use
   int threads = std::min<int>(nbThreads(), static_cast<int>(pb_max_threads));
+#ifdef EIGEN_VECTORIZE_SME
+  // The SME kernels share one unit per cluster; more threads than units only contend.
+  EIGEN_IF_CONSTEXPR ((sme_has_gebp_kernel<typename Functor::Traits::LhsScalar,
+                                           typename Functor::Traits::RhsScalar>::value)) {
+    const int units = nbSmeUnits();
+    if (units > 0) threads = std::min<int>(threads, units);
+  }
+#endif
 
   // if multi-threading is explicitly disabled, not useful, or if we already are
   // inside a parallel session, then abort multi-threading

@@ -29,8 +29,10 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
         cannot provide it into a build error instead of a NEON fallback. Double precision
         additionally needs the optional FEAT_SME_F64F64 extension (<tt>+sme-f64f64</tt>, or a
         <tt>-mcpu</tt> that implies it); without it \c double and \c std::complex<double> keep
-        the generic kernels. The SME vector and matrix-vector kernels report no floating-point
-        exceptions: a call leaves the caller's exception flags as they were</td></tr>
+        the generic kernels. Floating-point exceptions raised in the streaming SME kernels (matrix
+        products, and the vector and matrix-vector kernels) are not reported: FMOPA sets no flags,
+        and the caller's flags are restored on exit, discarding those of the kernels' other
+        arithmetic. Products on the NEON paths report exceptions as usual</td></tr>
 <tr><td>PowerPC</td><td>AltiVec, VSX, MMA</td><td></td></tr>
 <tr class="alt"><td>IBM Z (s390x)</td><td>ZVector</td><td></td></tr>
 <tr><td>MIPS</td><td>MSA</td><td></td></tr>

@@ -114,7 +114,8 @@ run time. However, these assertions do cost time and can thus be turned off.
    temporary buffers, dynamic memory allocation is employed as a fall back; setting the limit to 0 disables stack
    allocation for them, so every such temporary is heap-allocated. For fixed-size matrices or arrays, exceeding this
    threshold raises a compile time assertion; there, 0 disables the check. Default is 128 KB.
- - \b \c EIGEN_STACK_ALIGN_BYTES - alignment of the internal temporary buffers allocated on the stack. Defaults to
+ - \b \c EIGEN_STACK_ALIGN_BYTES - alignment of the internal temporary buffers: the ones on the stack, their heap
+   fallback above \c EIGEN_STACK_ALLOCATION_LIMIT and the GEMM blocking buffers. Defaults to
    \c EIGEN_DEFAULT_ALIGN_BYTES, except in ARM SME builds where it is 64: the SME GEMM kernel reads its packed panels a
    streaming vector at a time and slows by 35-50% when they straddle 64-byte lines. It does not affect the ABI.
  - \b \c EIGEN_NO_CUDA - disables CUDA support when defined. Might be useful in .cu files for which Eigen is used on the host only,
@@ -135,7 +136,21 @@ run time. However, these assertions do cost time and can thus be turned off.
    and multiplies a block with NEON instead of the ZA tiles (panels no deeper than the depth bound and no wider than
    the panel bound; a block of such panels no wider than the width bound, or the shallow width up to the shallow
    depth, or narrower than the thin bound on one side). One value overrides the per-scalar defaults, which are fitted
-   for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs.
+   for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs;
+   both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double).
+ - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
+   units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
+   \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other
+   systems whose SME units are shared by a cluster of cores, such as Linux on Apple silicon.
+ - \b \c EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES and \b \c EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES - Largest column stride
+   and largest block (rows times depth, both in bytes) at which the ARM SME GEMM kernel reads a column-major real LHS
+   block from its source instead of a packed panel, whatever its alignment. The defaults are 16 KB and 4 MB; strides
+   that are a multiple of 4 KB always pack, since they alias in L1. 0 for either disables the in-place read. These
+   limits do not apply when the RHS is a single panel (see \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES).
+ - \b \c EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES - When the RHS is a single panel, each LHS element is read once, so the
+   ARM SME GEMM kernel reads a column-major real LHS in place: always up to half a panel wide, and up to a full panel
+   while depth times column stride (in bytes) stays within this limit, past which the panel spans more pages than
+   the TLB covers. The default is 16 MB; 0 disables the in-place read for single-panel products.
  - \b \c EIGEN_ARM64_NO_SME_F64F64 - Disables the double-precision ARM SME kernels, which need the optional
    FEAT_SME_F64F64 extension. %Eigen enables it whenever the compiler reports that extension; define this macro when
    the build target is wider than the run target, so that \c double keeps the generic kernels for matrix products,
@@ -144,6 +159,9 @@ run time. However, these assertions do cost time and can thus be turned off.
    The default (32 MB) is empirically tuned for Apple M4.
  - \b \c EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES - Byte budget for the LHS working set in the ARM SME GEMM kernel.
    The default (7 MB) is empirically tuned for Apple M4.
+ - \b \c EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES - Byte budget for the packed RHS panel in the ARM SME GEMM kernel when
+   all rows of the product fit one LHS block, so that each packed panel is read once and should stay in L2 between
+   packing and the kernel. The default (4 MB) is empirically tuned for Apple M4 (16 MB L2 per cluster).
 
  - \b \c EIGEN_DONT_ALIGN - Deprecated, it is a synonym for \c EIGEN_MAX_ALIGN_BYTES=0. It disables alignment completely. %Eigen will not try to align its objects and does not expect that any objects passed to it are aligned. This will turn off vectorization if \b \c EIGEN_UNALIGNED_VECTORIZE=1. Not defined by default.
  - \b \c EIGEN_DONT_ALIGN_STATICALLY - Deprecated, it is a synonym for \c EIGEN_MAX_STATIC_ALIGN_BYTES=0. It disables alignment of arrays on the stack. Not defined by default, unless \c EIGEN_DONT_ALIGN is defined.

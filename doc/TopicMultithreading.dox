@@ -17,6 +17,9 @@ You can control the number of threads that will be used using either the OpenMP 
 \endcode
 Unless `setNbThreads` has been called, %Eigen uses the number of threads specified by OpenMP.
 You can restore this behavior by calling `setNbThreads(0);`.
+On the ARM SME backend, a product that runs on the SME GEMM kernel uses at most `Eigen::nbSmeUnits()` threads,
+one per SME unit (the units are shared by a cluster of cores on Apple silicon; macOS reports them, other systems set
+the count with `EIGEN_SME_UNITS` or `Eigen::setNbSmeUnits(n)`); `setNbSmeUnits(0)` removes the cap.
 You can query the number of threads that will be used with:
 \code
 n = Eigen::nbThreads( );

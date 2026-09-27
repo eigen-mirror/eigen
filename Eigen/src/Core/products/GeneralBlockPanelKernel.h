@@ -163,6 +163,9 @@ struct sme_has_gebp_kernel<std::complex<RealScalar>, std::complex<RealScalar>>
 #ifndef EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES
 #define EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES (7 * 1024 * 1024)
 #endif
+#ifndef EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES
+#define EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES (4 * 1024 * 1024)
+#endif
 
 template <typename LhsScalar, typename RhsScalar, typename Index>
 void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
@@ -179,10 +182,12 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   constexpr Index sme_max_kc = static_cast<Index>(128);
   constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(128 * 1024);
   constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(128 * 1024);
+  constexpr Index sme_single_pass_rhs_budget_bytes = static_cast<Index>(128 * 1024);
 #else
   constexpr Index sme_max_kc = static_cast<Index>(EIGEN_SME_MAX_KC);
   constexpr Index sme_packed_rhs_budget_bytes = static_cast<Index>(EIGEN_SME_PACKED_RHS_BUDGET_BYTES);
   constexpr Index sme_lhs_working_set_budget_bytes = static_cast<Index>(EIGEN_SME_LHS_WORKING_SET_BUDGET_BYTES);
+  constexpr Index sme_single_pass_rhs_budget_bytes = static_cast<Index>(EIGEN_SME_SINGLE_PASS_RHS_BUDGET_BYTES);
 #endif
 
   // Keep kc large enough to amortize SME setup and accumulation, but cap very
@@ -192,12 +197,6 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
   const Index max_kc = (numext::maxi)(Index(1), sme_max_kc * Index(sizeof(float)) / Index(sizeof(LhsScalar)));
   k = (numext::mini)(k, max_kc);
 
-  // Bound the packed RHS strip so very wide matrices do not allocate an
-  // unbounded blockB panel.
-  Index nc = sme_packed_rhs_budget_bytes / (numext::maxi)(Index(1), k * Index(sizeof(RhsScalar)));
-  nc = (nc / nr) * nr;
-  n = (numext::mini)(n, (numext::maxi)(nr, nc));
-
   const Index block_b_hot_bytes = k * nr * Index(sizeof(RhsScalar));
   const Index min_lhs_bytes = mr * k * Index(sizeof(LhsScalar));
   const Index block_a_bytes = sme_lhs_working_set_budget_bytes > block_b_hot_bytes
@@ -205,6 +204,15 @@ void evaluateProductBlockingSizesHeuristicForSme(Index& k, Index& m, Index& n) {
                                   : min_lhs_bytes;
   Index mc = block_a_bytes / (k * Index(sizeof(LhsScalar)));
   mc = (mc / mr) * mr;
+
+  // Bound the packed RHS strip so very wide matrices do not allocate an unbounded blockB panel. When all rows fit
+  // one LHS block, each packed RHS block is read once, so it stays L2-sized.
+  const Index rhs_budget = m <= mc ? (numext::mini)(sme_packed_rhs_budget_bytes, sme_single_pass_rhs_budget_bytes)
+                                   : sme_packed_rhs_budget_bytes;
+  Index nc = rhs_budget / (numext::maxi)(Index(1), k * Index(sizeof(RhsScalar)));
+  nc = (nc / nr) * nr;
+  n = (numext::mini)(n, (numext::maxi)(nr, nc));
+
   m = (numext::mini)(m, (numext::maxi)(mr, mc));
 }
 #endif

@@ -154,9 +154,88 @@ void test_parallelize_gemm_indivisible() {
   verify_threaded_product<MatrixXf>(pool, 4099, 331, 64);
 }
 
+// A scalar whose constructors set a magic value that operator= checks: the shared blocking buffers of a threaded
+// product must be constructed before the packers assign into them (NumTraits::RequireInitialization).
+struct TrackedScalar {
+  static constexpr unsigned kMagic = 0x5EEDu;
+  static int unconstructed_assignments;
+  double v;
+  unsigned magic;
+  TrackedScalar() : v(0), magic(kMagic) {}
+  TrackedScalar(double d) : v(d), magic(kMagic) {}
+  TrackedScalar(const TrackedScalar& o) : v(o.v), magic(kMagic) {}
+  TrackedScalar& operator=(const TrackedScalar& o) {
+    if (magic != kMagic) ++unconstructed_assignments;
+    v = o.v;
+    return *this;
+  }
+  TrackedScalar operator+(const TrackedScalar& o) const { return TrackedScalar(v + o.v); }
+  TrackedScalar operator-(const TrackedScalar& o) const { return TrackedScalar(v - o.v); }
+  TrackedScalar operator*(const TrackedScalar& o) const { return TrackedScalar(v * o.v); }
+  TrackedScalar operator-() const { return TrackedScalar(-v); }
+  TrackedScalar& operator+=(const TrackedScalar& o) { return *this = *this + o; }
+  TrackedScalar& operator*=(const TrackedScalar& o) { return *this = *this * o; }
+  bool operator==(const TrackedScalar& o) const { return v == o.v; }
+  bool operator!=(const TrackedScalar& o) const { return v != o.v; }
+  bool operator<(const TrackedScalar& o) const { return v < o.v; }
+};
+int TrackedScalar::unconstructed_assignments = 0;
+
+namespace Eigen {
+template <>
+struct NumTraits<TrackedScalar> : GenericNumTraits<TrackedScalar> {
+  using Real = TrackedScalar;
+  using NonInteger = TrackedScalar;
+  using Nested = TrackedScalar;
+  static constexpr int IsComplex = 0;
+  static constexpr int IsInteger = 0;
+  static constexpr int IsSigned = 1;
+  static constexpr int RequireInitialization = 1;
+  static constexpr int ReadCost = 1;
+  static constexpr int AddCost = 1;
+  static constexpr int MulCost = 1;
+};
+}  // namespace Eigen
+
+void test_parallelize_gemm_require_initialization() {
+  constexpr int n = 160;
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  using Mat = Matrix<TrackedScalar, Dynamic, Dynamic>;
+  const MatrixXd ad = MatrixXd::Random(n, n), bd = MatrixXd::Random(n, n);
+  const Mat a = ad.cast<TrackedScalar>(), b = bd.cast<TrackedScalar>();
+  Mat c(n, n);
+  TrackedScalar::unconstructed_assignments = 0;
+  c.noalias() = a * b;
+  VERIFY_IS_EQUAL(TrackedScalar::unconstructed_assignments, 0);
+  const MatrixXd cd = c.unaryExpr([](const TrackedScalar& x) { return x.v; });
+  VERIFY_IS_APPROX(cd, ad * bd);
+}
+
+// Tiny results and thin column ranges on a pool: every thread of a parallel session must take the same path.
+template <typename Scalar>
+void test_parallelize_gemm_tiny() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  Eigen::setNbThreads(4);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  for (Index m : {2, 4, 8})
+    for (Index n : {3, 8, 17, 36})
+      for (Index k : {16, 2000, 4096}) {
+        const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
+        Mat c(m, n);
+        c.noalias() = a * b;
+        VERIFY_IS_APPROX(c, a.lazyProduct(b));
+      }
+  Eigen::setNbThreads(0);
+}
+
 EIGEN_DECLARE_TEST(product_threaded) {
+  CALL_SUBTEST_6(test_parallelize_gemm_tiny<float>());
+  CALL_SUBTEST_6(test_parallelize_gemm_tiny<double>());
   CALL_SUBTEST_1(test_parallelize_gemm());
   CALL_SUBTEST_2(test_parallelize_gemm_varied());
   CALL_SUBTEST_3(test_balanced_gemm_range());
   CALL_SUBTEST_4(test_parallelize_gemm_indivisible());
+  CALL_SUBTEST_5(test_parallelize_gemm_require_initialization());
 }
