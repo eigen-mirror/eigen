@@ -140,3 +140,18 @@ build:docker:ubuntu-24.04-tidy:
     - if: $CI_PROJECT_NAMESPACE == "libeigen"
       when: manual
       allow_failure: true
+
+build:docker:alpine-lint:
+  extends: .build:docker:linux:amd64
+  script:
+    - docker buildx build --platform linux/amd64
+        -t $EIGEN_CI_IMAGE_LINUX_LINT
+        --push
+        ci/lint/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - ci/lint/Dockerfile
+    - if: $CI_PROJECT_NAMESPACE == "libeigen"
+      when: manual
+      allow_failure: true

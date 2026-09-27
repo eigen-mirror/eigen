@@ -76,6 +76,8 @@ variables:
   # clang and clang-tidy 18 for checkformat:clangtidy; see ci/tidy/.
   # Versioned: bump the tag with any change to ci/tidy/Dockerfile.
   EIGEN_CI_IMAGE_LINUX_TIDY: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-tidy:1"
+  # Lint tools for the checkformat jobs and select:tests; see ci/lint/.
+  EIGEN_CI_IMAGE_LINUX_LINT: "registry.gitlab.com/libeigen/eigen/alpine-lint:latest"
   # CMake build directory.
   EIGEN_CI_BUILDDIR: .build
   # Specify the CMake build target.

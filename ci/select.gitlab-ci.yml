@@ -8,16 +8,13 @@
 
 select:tests:
   stage: select
-  image: ubuntu:24.04
+  image: ${EIGEN_CI_IMAGE_LINUX_LINT}
   needs: []
   rules: !reference [.rules:libeigen:affected-tests, rules]
   variables:
     # The selector diffs against the merge-base, which a shallow clone may not
     # contain.
     GIT_DEPTH: 0
-  before_script:
-    - apt-get update -y
-    - apt-get install -y --no-install-recommends python3 git
   script:
     - python3 scripts/test_affected_tests.py
     - python3 scripts/affected_tests.py

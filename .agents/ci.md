@@ -39,7 +39,7 @@ distributed cache, so per-merge-request archives would accumulate on that disk u
 Any self-hosted runner without `[runners.cache]` keeps one archive per key forever —
 [`prune_runner_cache.py`](../ci/scripts/prune_runner_cache.py) caps such a directory (`--max-gb`, LRU by mtime) and
 drops superseded clear-cache generations (`--stale-index-below`); its unit tests,
-[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:scripts`.
+[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:lint`.
 
 ## Test Tiers On Merge Requests
 
@@ -77,7 +77,8 @@ Selection follows the textual `#include` graph, ignoring preprocessor guards, so
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
 correct answer, not a failure. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims also force the
-full suite; the `ci/*.gitlab-ci.yml` files and the clang-tidy image under `ci/tidy/` select nothing.
+full suite; the `ci/*.gitlab-ci.yml` files and the clang-tidy and lint images under `ci/tidy/` and `ci/lint/`
+select nothing.
 
 ### Platform-Triggered Configurations
 
@@ -144,9 +145,9 @@ with the weekly full run.
 ## Worktree-Safe Formatting
 
 Inspect `git status --short` before formatting and preserve unrelated changes. Eigen requires `clang-format-17`
-exactly; the pin lives in [`ci/checkformat.gitlab-ci.yml`](../ci/checkformat.gitlab-ci.yml), which installs
-`clang17-extra-tools`. CI checks only the lines a merge request changes, and the tree is not uniformly
-clang-format-17 clean (a whole-file pass rewrites `> >` closers in a couple of dozen headers), so format the diff:
+exactly; the pin lives in [`ci/lint/Dockerfile`](../ci/lint/Dockerfile), which builds a static clang-format 17.0.6
+from the LLVM release. CI checks only the lines a merge request changes, and the tree is not uniformly clang-format-17
+clean (a whole-file pass rewrites `> >` closers in a couple of dozen headers), so format the diff:
 
 ```bash
 git clang-format --binary clang-format-17 --force <base-sha> -- path/to/file.cpp path/to/header.h
@@ -186,12 +187,14 @@ clang-tidy is absent, and shows the user a non-blocking notice when a file's tra
 
 Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. Their unit
 tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
-[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:scripts`; run them after
+[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:lint`; run them after
 changing either script.
 
-The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
-to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are
-`allow_failure`; treat their diagnostics as review findings anyway. The REUSE job is blocking.
+The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely to
+make a local broad scan clean. `checkformat:lint` runs clang-format, codespell, REUSE, and the Python helper tests
+through [`ci/lint/lint.sh`](../ci/lint/lint.sh), with `vermin` checking that the helpers still run on Python 3.12. REUSE
+and the helper tests are blocking; a clang-format or codespell failure alone leaves the job a warning, as does anything
+from `checkformat:clangtidy`, but treat their diagnostics as review findings anyway.
 
 Source files carry the inline SPDX header [`conventions.md`](conventions.md) records; files that cannot need coverage
 in [`REUSE.toml`](../REUSE.toml). To stamp selected new files with the repository helper, pass them explicitly because

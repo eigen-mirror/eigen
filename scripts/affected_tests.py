@@ -114,9 +114,10 @@ IGNORED_PATTERNS = (
     # and force the full suite anyway.
     "ci/*.gitlab-ci.yml",
     "ci/CTest2JUnit.xsl",
-    # The clang-tidy image runs no test; the build and test images are in
-    # ci/docker/.
+    # The clang-tidy and lint images run no test; the build and test images
+    # are in ci/docker/.
     "ci/tidy/*",
+    "ci/lint/*",
     "debug/*",
     "demos/*",
     "doc/*",

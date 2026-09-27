@@ -108,7 +108,7 @@ The canonical class layout is visible in recent additions such as `contrib/Eigen
 
 ### License and SPDX/REUSE headers
 
-Every new source file must carry an inline copyright + license header. The `checkformat:reuse` CI job (`reuse lint`) blocks otherwise. Two header styles are in active use; pick whichever fits.
+Every new source file must carry an inline copyright + license header. The `reuse lint` check in the `checkformat:lint` CI job blocks otherwise. Two header styles are in active use; pick whichever fits.
 
 Attributed to an individual contributor:
 
