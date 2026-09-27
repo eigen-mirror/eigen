@@ -29,4 +29,15 @@ void check_stack_allocation_is_disabled() {
   for (Index i = 0; i < 4; ++i) VERIFY_IS_EQUAL(buffer[i], double(i));
 }
 
-EIGEN_DECLARE_TEST(stack_allocation_limit) { CALL_SUBTEST(check_stack_allocation_is_disabled()); }
+// isApprox evaluates a lazy operand before its scaled fallback, which squares overflowing at 1e200 force; that
+// temporary must not be a fixed-size object the limit rejects.
+void check_approx_comparison_temporaries() {
+  using Vector = Matrix<double, 2, 1>;
+  VERIFY(Vector::Constant(1e200).isApprox(Vector::Constant(1e200)));
+  VERIFY(!Vector::Constant(1e200).isApprox(Vector::Constant(2e200)));
+}
+
+EIGEN_DECLARE_TEST(stack_allocation_limit) {
+  CALL_SUBTEST(check_stack_allocation_is_disabled());
+  CALL_SUBTEST(check_approx_comparison_temporaries());
+}

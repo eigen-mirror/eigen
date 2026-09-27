@@ -33,6 +33,8 @@ template <typename T, typename U>
 bool test_is_equal(const T& actual, const U& expected, bool expect_equal = true);
 #endif
 
+// Legacy defaults for broad consistency checks, not accuracy bounds. Numerical tests should use explicit
+// bounds derived from epsilon, the operation count and conditioning, or a documented ULP budget.
 template <typename T>
 inline typename NumTraits<T>::Real test_precision() {
   return NumTraits<T>::dummy_precision();
@@ -62,23 +64,23 @@ inline long double test_precision<std::complex<long double>>() {
   return test_precision<long double>();
 }
 
-#define EIGEN_TEST_SCALAR_TEST_OVERLOAD(TYPE)                                          \
-  inline bool test_isApprox(TYPE a, TYPE b) {                                          \
-    return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) || \
-           (internal::isApprox(a, b, test_precision<TYPE>()));                         \
-  }                                                                                    \
-  inline bool test_isCwiseApprox(TYPE a, TYPE b, bool exact) {                         \
-    return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) || \
-           (!exact && internal::isApprox(a, b, test_precision<TYPE>()));               \
-  }                                                                                    \
-  inline bool test_isMuchSmallerThan(TYPE a, TYPE b) {                                 \
-    return internal::isMuchSmallerThan(a, b, test_precision<TYPE>());                  \
-  }                                                                                    \
-  inline bool test_isApproxOrLessThan(TYPE a, TYPE b) {                                \
-    return internal::isApproxOrLessThan(a, b, test_precision<TYPE>());                 \
+#define EIGEN_TEST_SCALAR_TEST_OVERLOAD(TYPE)                                                                    \
+  inline bool test_isCwiseApprox(TYPE a, TYPE b, bool exact,                                                     \
+                                 typename NumTraits<TYPE>::Real precision = test_precision<TYPE>()) {            \
+    return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) ||                           \
+           (!exact && (numext::isfinite)(a) && (numext::isfinite)(b) && internal::isApprox(a, b, precision));    \
+  }                                                                                                              \
+  inline bool test_isApprox(TYPE a, TYPE b) { return test_isCwiseApprox(a, b, false); }                          \
+  inline bool test_isMuchSmallerThan(TYPE a, TYPE b) {                                                           \
+    return (numext::isfinite)(a) && internal::isMuchSmallerThan(a, b, test_precision<TYPE>());                   \
+  }                                                                                                              \
+  inline bool test_isApproxOrLessThan(TYPE a, TYPE b) {                                                          \
+    return a <= b ||                                                                                             \
+           ((numext::isfinite)(a) && (numext::isfinite)(b) && internal::isApprox(a, b, test_precision<TYPE>())); \
   }
 
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(short)
+EIGEN_TEST_SCALAR_TEST_OVERLOAD(bool)
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(unsigned short)
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(int)
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(unsigned int)
@@ -91,67 +93,79 @@ EIGEN_TEST_SCALAR_TEST_OVERLOAD(double)
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(half)
 EIGEN_TEST_SCALAR_TEST_OVERLOAD(bfloat16)
 
+#ifndef EIGEN_TEST_NO_LONGDOUBLE
+EIGEN_TEST_SCALAR_TEST_OVERLOAD(long double)
+#endif
+
 #undef EIGEN_TEST_SCALAR_TEST_OVERLOAD
 
 #ifndef EIGEN_TEST_NO_COMPLEX
-inline bool test_isApprox(const std::complex<float>& a, const std::complex<float>& b) {
-  return internal::isApprox(a, b, test_precision<std::complex<float>>());
-}
-inline bool test_isMuchSmallerThan(const std::complex<float>& a, const std::complex<float>& b) {
-  return internal::isMuchSmallerThan(a, b, test_precision<std::complex<float>>());
-}
+#define EIGEN_TEST_COMPLEX_TEST_OVERLOAD(REAL)                                                               \
+  inline bool test_isApprox(const std::complex<REAL>& a, const std::complex<REAL>& b) {                      \
+    using Vector = Matrix<std::complex<REAL>, 1, 1>;                                                         \
+    return Vector::Constant(a).isApprox(Vector::Constant(b), test_precision<std::complex<REAL>>());          \
+  }                                                                                                          \
+  inline bool test_isMuchSmallerThan(const std::complex<REAL>& a, const std::complex<REAL>& b) {             \
+    using Vector = Matrix<std::complex<REAL>, 1, 1>;                                                         \
+    return Vector::Constant(a).isMuchSmallerThan(Vector::Constant(b), test_precision<std::complex<REAL>>()); \
+  }                                                                                                          \
+  inline bool test_isCwiseApprox(const std::complex<REAL>& a, const std::complex<REAL>& b, bool exact,       \
+                                 REAL precision = test_precision<std::complex<REAL>>()) {                    \
+    using Vector = Matrix<std::complex<REAL>, 1, 1>;                                                         \
+    return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) ||                       \
+           (!exact && Vector::Constant(a).isApprox(Vector::Constant(b), precision));                         \
+  }
 
-inline bool test_isApprox(const std::complex<double>& a, const std::complex<double>& b) {
-  return internal::isApprox(a, b, test_precision<std::complex<double>>());
-}
-inline bool test_isMuchSmallerThan(const std::complex<double>& a, const std::complex<double>& b) {
-  return internal::isMuchSmallerThan(a, b, test_precision<std::complex<double>>());
-}
-
+EIGEN_TEST_COMPLEX_TEST_OVERLOAD(float)
+EIGEN_TEST_COMPLEX_TEST_OVERLOAD(double)
 #ifndef EIGEN_TEST_NO_LONGDOUBLE
-inline bool test_isApprox(const std::complex<long double>& a, const std::complex<long double>& b) {
-  return internal::isApprox(a, b, test_precision<std::complex<long double>>());
-}
-inline bool test_isMuchSmallerThan(const std::complex<long double>& a, const std::complex<long double>& b) {
-  return internal::isMuchSmallerThan(a, b, test_precision<std::complex<long double>>());
-}
+EIGEN_TEST_COMPLEX_TEST_OVERLOAD(long double)
 #endif
+#undef EIGEN_TEST_COMPLEX_TEST_OVERLOAD
 #endif
 
-#ifndef EIGEN_TEST_NO_LONGDOUBLE
-inline bool test_isApprox(const long double& a, const long double& b) {
-  bool ret = internal::isApprox(a, b, test_precision<long double>());
-  if (!ret)
-    std::cerr << std::endl << "    actual   = " << a << std::endl << "    expected = " << b << std::endl << std::endl;
-  return ret;
-}
+template <typename Scalar, bool Scaled>
+struct test_relative_error_impl {
+  template <typename X, typename Y>
+  static typename NumTraits<Scalar>::Real run(const X& a, const Y& b) {
+    return numext::sqrt((a.matrix() - b.matrix()).cwiseAbs2().sum() /
+                        numext::mini(a.cwiseAbs2().sum(), b.cwiseAbs2().sum()));
+  }
+};
 
-inline bool test_isMuchSmallerThan(const long double& a, const long double& b) {
-  return internal::isMuchSmallerThan(a, b, test_precision<long double>());
-}
-inline bool test_isApproxOrLessThan(const long double& a, const long double& b) {
-  return internal::isApproxOrLessThan(a, b, test_precision<long double>());
-}
-#endif  // EIGEN_TEST_NO_LONGDOUBLE
-
-// Boolean subtraction is rejected at compile time, so Boolean coefficients are differenced as int.
 template <typename Scalar>
-using test_difference_scalar_t = std::conditional_t<std::is_same<Scalar, bool>::value, int, Scalar>;
+struct test_relative_error_impl<Scalar, true> {
+  template <typename X, typename Y>
+  static typename NumTraits<Scalar>::Real run(const X& a, const Y& b) {
+    using Real = typename NumTraits<Scalar>::Real;
+    const auto na = internal::scaled_comparison_norm(a);
+    const auto nb = internal::scaled_comparison_norm(b);
+    const auto denominator = na <= nb ? na : nb;
+    const auto difference = internal::scaled_comparison_distance(a, b);
+    if (difference.fraction == 0 && denominator.fraction == 0) return Real(0);
+    return Real(numext::ldexp(difference.fraction / denominator.fraction, difference.exponent - denominator.exponent));
+  }
+};
+
+// Promote integers before subtraction and squaring, avoiding Boolean subtraction and integer overflow. Other
+// scalars keep their type: a custom complex scalar can inherit a real NonInteger from NumTraits<Real>.
+template <typename Scalar>
+using test_difference_scalar_t =
+    std::conditional_t<NumTraits<Scalar>::IsInteger, typename NumTraits<Scalar>::NonInteger, Scalar>;
 
 // test_relative_error returns the relative difference between a and b as a real scalar as used in isApprox.
 template <typename T1, typename T2>
 typename NumTraits<typename T1::RealScalar>::NonInteger test_relative_error(const EigenBase<T1>& a,
                                                                             const EigenBase<T2>& b) {
-  using std::sqrt;
-  typedef typename NumTraits<typename T1::RealScalar>::NonInteger RealScalar;
   using DiffScalar1 = test_difference_scalar_t<typename T1::Scalar>;
   using DiffScalar2 = test_difference_scalar_t<typename T2::Scalar>;
   typename internal::nested_eval<T1, 2>::type ea(a.derived());
   typename internal::nested_eval<T2, 2>::type eb(b.derived());
-  return sqrt(
-      RealScalar(
-          (ea.matrix().template cast<DiffScalar1>() - eb.matrix().template cast<DiffScalar2>()).cwiseAbs2().sum()) /
-      RealScalar((std::min)(eb.cwiseAbs2().sum(), ea.cwiseAbs2().sum())));
+  // Exponent scaling needs binary floating-point on both sides.
+  constexpr bool kScaled =
+      internal::use_scaled_comparison<DiffScalar1>::value && internal::use_scaled_comparison<DiffScalar2>::value;
+  return test_relative_error_impl<DiffScalar1, kScaled>::run(ea.template cast<DiffScalar1>(),
+                                                             eb.template cast<DiffScalar2>());
 }
 
 template <typename T1, typename T2>
@@ -171,7 +185,7 @@ S test_relative_error(const Translation<S, D>& a, const Translation<S, D>& b) {
 
 template <typename S, int D, int O>
 S test_relative_error(const ParametrizedLine<S, D, O>& a, const ParametrizedLine<S, D, O>& b) {
-  return (std::max)(test_relative_error(a.origin(), b.origin()), test_relative_error(a.origin(), b.origin()));
+  return (std::max)(test_relative_error(a.origin(), b.origin()), test_relative_error(a.direction(), b.direction()));
 }
 
 template <typename S, int D>
@@ -203,9 +217,10 @@ typename T1::RealScalar test_relative_error(const SparseMatrixBase<T1>& a, const
 template <typename T1, typename T2,
           std::enable_if_t<internal::is_arithmetic<typename NumTraits<T1>::Real>::value, int> = 0>
 typename NumTraits<typename NumTraits<T1>::Real>::NonInteger test_relative_error(const T1& a, const T2& b) {
-  typedef typename NumTraits<typename NumTraits<T1>::Real>::NonInteger RealScalar;
-  return numext::sqrt(RealScalar(numext::abs2(a - b)) /
-                      (numext::mini)(RealScalar(numext::abs2(a)), RealScalar(numext::abs2(b))));
+  using Scalar = decltype(a - b);
+  using Real = typename NumTraits<typename NumTraits<T1>::Real>::NonInteger;
+  using Vector = Matrix<Scalar, 1, 1>;
+  return Real(test_relative_error(Vector::Constant(Scalar(a)), Vector::Constant(Scalar(b))));
 }
 
 template <typename T>
@@ -265,17 +280,14 @@ inline bool verifyIsCwiseApprox(const Type1& a, const Type2& b, bool exact) {
 
 // Largest coefficient magnitude of a matrix or of an array expression.
 template <typename Derived>
-typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const MatrixBase<Derived>& m) {
-  return m.cwiseAbs().maxCoeff();
-}
-template <typename Derived>
-typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const ArrayBase<Derived>& a) {
-  return a.abs().maxCoeff();
+typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const DenseBase<Derived>& m) {
+  using Real = typename NumTraits<typename Derived::Scalar>::Real;
+  return m.size() == 0 ? Real(0) : m.derived().matrix().cwiseAbs().template maxCoeff<PropagateNaN>();
 }
 
-// Matrix and array counterpart of test_isApproxWithRef: compares two expressions that are mathematically equal but
-// whose evaluations differ by rounding proportional to `scale` rather than to the result. verifyIsApprox measures the
-// error relative to the result, which no implementation can meet once the result is formed by cancellation.
+// Compares two expressions that are mathematically equal but whose evaluations differ by rounding proportional to
+// `scale` rather than to the result. verifyIsApprox measures the error relative to the result, which no
+// implementation can meet once the result is formed by cancellation.
 template <typename Type1, typename Type2>
 inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
                                  const typename NumTraits<typename Type1::Scalar>::Real& scale) {
@@ -295,25 +307,13 @@ inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
   return true;
 }
 
-// The idea behind this function is to compare the two scalars a and b where
-// the scalar ref is a hint about the expected order of magnitude of a and b.
-// WARNING: the scalar a and b must be positive
-// Therefore, if a and b happen to be very small compared to ref,
-// we won't issue a false negative.
-// This test could be: abs(a-b) <= eps * ref
-// However, it seems that simply comparing a+ref and b+ref is more sensitive to true error.
-template <typename Scalar, typename ScalarRef>
-inline bool test_isApproxWithRef(const Scalar& a, const Scalar& b, const ScalarRef& ref) {
-  return test_isApprox(a + ref, b + ref);
-}
-
 template <typename Derived1, typename Derived2>
-inline bool test_isMuchSmallerThan(const MatrixBase<Derived1>& m1, const MatrixBase<Derived2>& m2) {
+inline bool test_isMuchSmallerThan(const DenseBase<Derived1>& m1, const DenseBase<Derived2>& m2) {
   return m1.isMuchSmallerThan(m2, test_precision<typename internal::traits<Derived1>::Scalar>());
 }
 
 template <typename Derived>
-inline bool test_isMuchSmallerThan(const MatrixBase<Derived>& m,
+inline bool test_isMuchSmallerThan(const DenseBase<Derived>& m,
                                    const typename NumTraits<typename internal::traits<Derived>::Scalar>::Real& s) {
   return m.isMuchSmallerThan(s, test_precision<typename internal::traits<Derived>::Scalar>());
 }
@@ -323,7 +323,15 @@ inline bool test_isUnitary(const MatrixBase<Derived>& m) {
   return m.isUnitary(test_precision<typename internal::traits<Derived>::Scalar>());
 }
 
-// Checks component-wise, works with infs and nans.
+// Checks component-wise, works with infs and nans. A scalar without a dedicated overload above, such as a custom
+// complex type over a built-in real, delegates to its own test_isApprox.
+template <typename Scalar,
+          std::enable_if_t<
+              !std::is_base_of<EigenBase<Scalar>, Scalar>::value && !internal::is_arithmetic<Scalar>::value, int> = 0>
+bool test_isCwiseApprox(const Scalar& a, const Scalar& b, bool exact) {
+  return numext::equal_strict(a, b) || ((numext::isnan)(a) && (numext::isnan)(b)) || (!exact && test_isApprox(a, b));
+}
+
 template <typename Derived1, typename Derived2>
 bool test_isCwiseApprox(const DenseBase<Derived1>& m1, const DenseBase<Derived2>& m2, bool exact) {
   if (m1.rows() != m2.rows()) {
@@ -334,8 +342,7 @@ bool test_isCwiseApprox(const DenseBase<Derived1>& m1, const DenseBase<Derived2>
   }
   for (Index r = 0; r < m1.rows(); ++r) {
     for (Index c = 0; c < m1.cols(); ++c) {
-      if (m1(r, c) != m2(r, c) && !((numext::isnan)(m1(r, c)) && (numext::isnan)(m2(r, c))) &&
-          (exact || !test_isApprox(m1(r, c), m2(r, c)))) {
+      if (!test_isCwiseApprox(m1(r, c), m2(r, c), exact)) {
         return false;
       }
     }

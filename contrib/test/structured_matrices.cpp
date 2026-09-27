@@ -9,6 +9,7 @@
 
 #include "main.h"
 #include "fp_control.h"
+#include "structured_test_helpers.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -389,38 +390,6 @@ void test_hankel_mixed_scalar(Index m, Index n) {
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
 }
 
-// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
-// infinities match by value (sign included), finite entries match to roundoff.
-// VERIFY_IS_APPROX would reject any output containing NaN.
-template <typename D1, typename D2>
-bool ieee_entrywise_match(const D1& a, const D2& b) {
-  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
-  for (Index j = 0; j < a.cols(); ++j)
-    for (Index i = 0; i < a.rows(); ++i) {
-      const typename D1::Scalar x = a(i, j), y = b(i, j);
-      if (x == y) continue;                    // finite match or same-signed infinities
-      if ((x != x) && (y != y)) continue;      // both NaN
-      if (!test_isApprox(x, y)) return false;  // finite roundoff
-    }
-  return true;
-}
-
-// Scalar-loop product: the mathematically transparent IEEE reference for the
-// non-finite tests. Eigen's own vectorized complex kernels can smear a single
-// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
-// the dense product is not a faithful entrywise reference for non-finite data.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                  const Matrix<Scalar, Dynamic, 1>& x) {
-  Matrix<Scalar, Dynamic, 1> y(A.rows());
-  for (Index i = 0; i < A.rows(); ++i) {
-    Scalar acc(0);
-    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
-    y[i] = acc;
-  }
-  return y;
-}
-
 // A single Inf or NaN in the data must propagate like the reference product --
 // through the dot products that touch it -- instead of being smeared into NaNs
 // across the whole output by the transforms. The reviewer reproducer (MR 2688):
@@ -446,13 +415,13 @@ void test_hankel_nonfinite_product(Index n) {
   Vec x = Vec::Random(n);
   x[n / 4] = Scalar(inf);
   Vec y = H * x;
-  VERIFY(ieee_entrywise_match(y, reference_product_ieee(dense, x)));
+  VERIFY_IS_CWISE_APPROX(y, reference_product_ieee(dense, x));
   VERIFY(numext::real(y[n - 1 - n / 4]) == inf);
 
   // NaN in the right-hand side.
   Vec xn = Vec::Random(n);
   xn[n - 1] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((H * xn).eval(), reference_product_ieee(dense, xn)));
+  VERIFY_IS_CWISE_APPROX((H * xn).eval(), reference_product_ieee(dense, xn));
 
   // Mixed multi-column right-hand side: the non-finite column falls back to the
   // direct kernel individually while the finite column keeps the FFT path.
@@ -461,7 +430,7 @@ void test_hankel_nonfinite_product(Index n) {
   Xm.col(1) = x;
   Mat Ym = H * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
 
   // Inf in the generating sequence: the operator itself is non-finite, whatever
   // the right-hand side.
@@ -470,7 +439,7 @@ void test_hankel_nonfinite_product(Index n) {
   Hankel<Scalar> H2(h2.head(n), h2.tail(n));
   Mat dense2 = reference_hankel<Scalar>(h2, n, n);
   Vec x2 = Vec::Random(n);
-  VERIFY(ieee_entrywise_match((H2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  VERIFY_IS_CWISE_APPROX((H2 * x2).eval(), reference_product_ieee(dense2, x2));
 }
 
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
@@ -1038,12 +1007,12 @@ void test_structured_nonfinite_product(Index n) {
   // Inf in the right-hand side.
   Vec x = Vec::Random(n);
   x[n / 2] = Scalar(inf);
-  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(dense, x)));
+  VERIFY_IS_CWISE_APPROX((C * x).eval(), reference_product_ieee(dense, x));
 
   // NaN in the right-hand side.
   Vec xn = Vec::Random(n);
   xn[n - 1] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
+  VERIFY_IS_CWISE_APPROX((C * xn).eval(), reference_product_ieee(dense, xn));
 
   // Mixed multi-column right-hand side: the non-finite column falls back to the
   // direct kernel individually while the finite column keeps the FFT path.
@@ -1052,7 +1021,7 @@ void test_structured_nonfinite_product(Index n) {
   Xm.col(1) = x;
   Mat Ym = C * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
 
   // Inf in the generator: the operator itself is non-finite, whatever the
   // right-hand side.
@@ -1061,7 +1030,7 @@ void test_structured_nonfinite_product(Index n) {
   Circulant<Scalar> C2(c2);
   Mat dense2 = reference_circulant<Scalar>(c2);
   Vec x2 = Vec::Random(n);
-  VERIFY(ieee_entrywise_match((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  VERIFY_IS_CWISE_APPROX((C2 * x2).eval(), reference_product_ieee(dense2, x2));
 
   // Toeplitz with an Inf in the row generator.
   Vec tc = Vec::Random(n), tr = Vec::Random(n);
@@ -1069,7 +1038,7 @@ void test_structured_nonfinite_product(Index n) {
   tr[n / 2] = Scalar(inf);
   Toeplitz<Scalar> T(tc, tr);
   Mat denseT = reference_toeplitz<Scalar>(tc, tr);
-  VERIFY(ieee_entrywise_match((T * x2).eval(), reference_product_ieee(denseT, x2)));
+  VERIFY_IS_CWISE_APPROX((T * x2).eval(), reference_product_ieee(denseT, x2));
 
   // Non-finite right-hand sides of solve() take the direct pseudo-inverse
   // application; on the 1x1 operator this is a single scalar multiply by the
@@ -1078,7 +1047,7 @@ void test_structured_nonfinite_product(Index n) {
   b1[0] = Scalar(inf);
   Circulant<Scalar> C1(Vec(Vec::Constant(1, Scalar(2))));
   Mat pinv1 = Mat(C1.inverse());
-  VERIFY(ieee_entrywise_match(C1.solve(b1), reference_product_ieee(pinv1, b1)));
+  VERIFY_IS_CWISE_APPROX(C1.solve(b1), reference_product_ieee(pinv1, b1));
 }
 
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.

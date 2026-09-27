@@ -8,8 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-#ifndef EIGEN_SPARSE_FUZZY_H
-#define EIGEN_SPARSE_FUZZY_H
+#ifndef EIGEN_SPARSE_APPROX_COMPARISONS_H
+#define EIGEN_SPARSE_APPROX_COMPARISONS_H
 
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
@@ -29,4 +29,4 @@ bool SparseMatrixBase<Derived>::isApprox(const SparseMatrixBase<OtherDerived>& o
 
 }  // end namespace Eigen
 
-#endif  // EIGEN_SPARSE_FUZZY_H
+#endif  // EIGEN_SPARSE_APPROX_COMPARISONS_H

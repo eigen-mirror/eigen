@@ -164,8 +164,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Tgt bit_cast(const Src& src) {
  *     called, and to 0 if it is safe not to call it. Default is 0 if \a T is an arithmetic type, and 1 otherwise.
  * \li An epsilon() function which, unlike <a href="http://en.cppreference.com/w/cpp/types/numeric_limits/epsilon">
  *     `std::numeric_limits::epsilon()`</a>, it returns a \c Real instead of a \a T.
- * \li A dummy_precision() function returning a weak epsilon value. It is mainly used as a default value by the fuzzy
- *     comparison operators.
+ * \li A dummy_precision() function returning a default relative tolerance for approximate comparisons.
+ *     This is distinct from epsilon() and does not describe the rounding error of an algorithm.
  * \li highest() and lowest() functions returning the highest and lowest possible values respectively.
  * \li digits() function returning the number of radix digits (non-sign digits for integers, mantissa for floating-point).
  *     This is the analogue of <a href="http://en.cppreference.com/w/cpp/types/numeric_limits/digits">

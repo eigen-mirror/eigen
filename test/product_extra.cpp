@@ -95,7 +95,7 @@ void product_extra(const MatrixType& m) {
                      m1.reverse() * m2.reverse().adjoint());
     VERIFY_IS_APPROX(m3.noalias() = map1 * map2.adjoint(), m1.reverse() * m2.reverse().adjoint());
     VERIFY_IS_APPROX(map1 * vc2, m1.reverse() * vc2);
-    VERIFY_IS_APPROX(m1 * mapvc2, m1 * mapvc2);
+    VERIFY_IS_APPROX(m1 * mapvc2, m1 * vc2.reverse().eval());
     VERIFY_IS_APPROX(map1.adjoint() * v1.transpose(), m1.adjoint().reverse() * v1.transpose());
     VERIFY_IS_APPROX(m1.adjoint() * mapv1.transpose(), m1.adjoint() * v1.reverse().transpose());
   }

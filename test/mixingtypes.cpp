@@ -109,6 +109,9 @@ void mixingtypes_scalar(int size = SizeAtCompileType) {
   VERIFY_IS_APPROX(Eigen::pow(vf.array(), scf), Eigen::pow(vf.template cast<complex<float> >().array(), scf));
   VERIFY_IS_APPROX(vf.array().pow(scf), Eigen::pow(vf.template cast<complex<float> >().array(), scf));
   VERIFY_MIX_SCALAR(Eigen::pow(scd, vd.array()), Eigen::pow(scd, vd.template cast<complex<double> >().array()));
+  // The complex-exponent functor has no packetOp, so this assignment must not vectorize.
+  Vec_cf powcf = vf.array().pow(scf).matrix();
+  VERIFY_IS_APPROX(powcf.array(), Eigen::pow(vf.template cast<complex<float> >().array(), scf));
 
   // check dot product
   vf.dot(vf);

@@ -276,6 +276,19 @@ void svd_min_norm(const MatrixType& m) {
   VERIFY_IS_APPROX(x21, x3);
 }
 
+// True when rank() dropped a positive singular value through its clamp at numeric_limits::min() alone, i.e.
+// threshold() * sigma_0 <= sigma_rank < min(). Such a value need not be negligible against sigma_0, so
+// m * solve(m * x) cannot reproduce m * x as check_solverbase requires; svd_least_square covers those inputs
+// through the normal equations. An exactly zero singular value, as in the zero matrix, loses nothing.
+template <typename SolverType>
+bool svd_solve_truncated_by_clamp(const SolverType& solver) {
+  using RealScalar = typename SolverType::RealScalar;
+  const Index rank = solver.rank();
+  if (rank == solver.singularValues().size()) return false;
+  const RealScalar dropped = solver.singularValues()(rank);
+  return dropped > RealScalar(0) && dropped >= solver.threshold() * solver.singularValues()(0);
+}
+
 template <typename MatrixType, typename SolverType>
 void svd_test_solvers(const MatrixType& m, const SolverType& solver) {
   Index rows, cols, cols2;
@@ -288,8 +301,20 @@ void svd_test_solvers(const MatrixType& m, const SolverType& solver) {
   } else {
     cols2 = cols;
   }
+  if (svd_solve_truncated_by_clamp(solver)) return;
   typedef Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> CMatrixType;
   check_solverbase<CMatrixType, MatrixType>(m, solver, rows, cols, cols2);
+}
+
+// The zero matrix has rank 0 without a positive singular value lost to the clamp, so its solves keep reproducing
+// consistent right-hand sides.
+template <typename MatrixType>
+void svd_zero_matrix_solvers(Index rows, Index cols) {
+  const MatrixType m = MatrixType::Zero(rows, cols);
+  SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) svd(m);
+  VERIFY(svd.rank() == 0);
+  VERIFY(!svd_solve_truncated_by_clamp(svd));
+  svd_test_solvers(m, svd);
 }
 
 template <typename MatrixType, int Options,

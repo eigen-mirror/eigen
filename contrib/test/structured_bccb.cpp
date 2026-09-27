@@ -9,6 +9,7 @@
 
 #include "main.h"
 #include "fp_control.h"
+#include "structured_test_helpers.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -458,38 +459,6 @@ void test_bccb_fft_complex_boundary(Index n2, Index n1) {
   VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
 }
 
-// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
-// infinities match by value (sign included), finite entries match to roundoff.
-// VERIFY_IS_APPROX would reject any output containing NaN.
-template <typename D1, typename D2>
-bool ieee_entrywise_match(const D1& a, const D2& b) {
-  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
-  for (Index j = 0; j < a.cols(); ++j)
-    for (Index i = 0; i < a.rows(); ++i) {
-      const typename D1::Scalar x = a(i, j), y = b(i, j);
-      if (x == y) continue;                                    // finite match or same-signed infinities
-      if ((numext::isnan)(x) && (numext::isnan)(y)) continue;  // both NaN
-      if (!test_isApprox(x, y)) return false;                  // finite roundoff
-    }
-  return true;
-}
-
-// Scalar-loop product: the mathematically transparent IEEE reference for the
-// non-finite tests. Eigen's own vectorized complex kernels can smear a single
-// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
-// the dense product is not a faithful entrywise reference for non-finite data.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                  const Matrix<Scalar, Dynamic, 1>& x) {
-  Matrix<Scalar, Dynamic, 1> y(A.rows());
-  for (Index i = 0; i < A.rows(); ++i) {
-    Scalar acc(0);
-    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
-    y[i] = acc;
-  }
-  return y;
-}
-
 // A single Inf or NaN in the data must propagate like the reference product --
 // through the dot products that touch it -- instead of being smeared into NaNs
 // across the whole output by the transforms.
@@ -509,12 +478,12 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   // Inf in the right-hand side.
   Vec x = Vec::Random(N);
   x[N / 2] = Scalar(inf);
-  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(dense, x)));
+  VERIFY_IS_CWISE_APPROX((C * x).eval(), reference_product_ieee(dense, x));
 
   // NaN in the right-hand side.
   Vec xn = Vec::Random(N);
   xn[N - 1] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
+  VERIFY_IS_CWISE_APPROX((C * xn).eval(), reference_product_ieee(dense, xn));
 
   // Mixed multi-column right-hand side: the non-finite column falls back to the
   // direct kernel individually while the finite column keeps the FFT path.
@@ -523,14 +492,14 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   Xm.col(1) = x;
   Mat Ym = C * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
 
   // A zero column carrying a single NaN must not take the zero-column shortcut:
   // the fast-max routing scan can miss a NaN among zeros (an Inf always
   // surfaces), so the shortcut rechecks exactly and such a column falls back.
   Vec xz = Vec::Zero(N);
   xz[0] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((C * xz).eval(), reference_product_ieee(dense, xz)));
+  VERIFY_IS_CWISE_APPROX((C * xz).eval(), reference_product_ieee(dense, xz));
 
   // Inf in the generating array: the operator itself is non-finite, whatever the
   // right-hand side.
@@ -539,7 +508,7 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   Bccb<Scalar> C2(G2);
   Mat dense2 = reference_bccb<Scalar>(G2);
   Vec x2 = Vec::Random(N);
-  VERIFY(ieee_entrywise_match((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  VERIFY_IS_CWISE_APPROX((C2 * x2).eval(), reference_product_ieee(dense2, x2));
 
   // Non-finite right-hand sides of solve() apply the pseudo-inverse -- itself a
   // BCCB operator -- through the direct kernel, so the Inf propagates entrywise
@@ -552,7 +521,7 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   Mat pinv = Mat(Cd.inverse());
   Vec binf = Vec::Random(N);
   binf[N / 3] = Scalar(inf);
-  VERIFY(ieee_entrywise_match(Cd.solve(binf), reference_product_ieee(pinv, binf)));
+  VERIFY_IS_CWISE_APPROX(Cd.solve(binf), reference_product_ieee(pinv, binf));
 }
 
 // An all-zero right-hand side must not short-circuit to an exact zero when the
@@ -572,7 +541,7 @@ void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
   const Vec z = Vec::Zero(N);
   Vec y = C * z;
   VERIFY(y.hasNaN());
-  VERIFY(ieee_entrywise_match(y, reference_product_ieee(dense, z)));
+  VERIFY_IS_CWISE_APPROX(y, reference_product_ieee(dense, z));
 
   // The same holds for solve(): the symbol of a non-finite operator holds NaN,
   // so the pseudo-inverse applied to a zero right-hand side is NaN, not zero.

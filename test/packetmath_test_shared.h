@@ -211,10 +211,10 @@ bool areApproxAbs(const Scalar* a, const Scalar* b, int size, const typename Num
 }
 
 template <typename Scalar>
-bool areApprox(const Scalar* a, const Scalar* b, int size) {
+bool areApprox(const Scalar* a, const Scalar* b, int size,
+               const typename NumTraits<Scalar>::Real& precision = NumTraits<Scalar>::dummy_precision()) {
   for (int i = 0; i < size; ++i) {
-    if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i]) &&
-        !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
+    if (!test_isCwiseApprox(a[i], b[i], false, precision)) {
       print_mismatch(a, b, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
                 << std::endl;
@@ -309,20 +309,6 @@ bool areWithinUlps(const Scalar* ref, const Scalar* vec, int size, uint64_t max_
       print_mismatch(ref, vec, size, i);
       std::cout << std::setprecision(16) << "Values differ in position " << i << " by " << distance << " ulps (budget "
                 << max_ulps << "): " << ref[i] << " vs " << vec[i] << std::endl;
-      return false;
-    }
-  }
-  return true;
-}
-
-template <typename Scalar>
-bool areApprox(const Scalar* a, const Scalar* b, int size, const typename NumTraits<Scalar>::Real& precision) {
-  for (int i = 0; i < size; ++i) {
-    if (numext::not_equal_strict(a[i], b[i]) && !internal::isApprox(a[i], b[i], precision) &&
-        !((numext::isnan)(a[i]) && (numext::isnan)(b[i]))) {
-      print_mismatch(a, b, size, i);
-      std::cout << std::setprecision(16) << "Values differ in position " << i << ": " << a[i] << " vs " << b[i]
-                << std::endl;
       return false;
     }
   }

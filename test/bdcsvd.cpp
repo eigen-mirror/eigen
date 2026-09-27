@@ -484,6 +484,9 @@ EIGEN_DECLARE_TEST(bdcsvd) {
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
   CALL_SUBTEST_45(bdcsvd_power_of_two_scaling());
+  CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
+  CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
+  CALL_SUBTEST_45((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
 
   // Without total deflation issues.
   CALL_SUBTEST_46((compare_bdc_jacobi_instance(true)));

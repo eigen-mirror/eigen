@@ -408,7 +408,7 @@ using std::size_t;
 #include "src/Core/Redux.h"
 #include "src/Core/Visitor.h"
 #include "src/Core/FindCoeff.h"
-#include "src/Core/Fuzzy.h"
+#include "src/Core/ApproxComparisons.h"
 #include "src/Core/Swap.h"
 #include "src/Core/CommaInitializer.h"
 #include "src/Core/GeneralProduct.h"
