@@ -132,6 +132,27 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(sq_m3 = v1.asDiagonal() - v2.asDiagonal(), sq_m1 - sq_m2);
   VERIFY_IS_APPROX(sq_m3 = v1.asDiagonal() - 2 * v2.asDiagonal() + v1.asDiagonal(), sq_m1 - 2 * sq_m2 + sq_m1);
 
+  // transpose(), conjugate() and adjoint() are diagonal expressions: D^T = D and D^H = conj(D).
+  {
+    const SquareMatrixType dense1 = ldm1.toDenseMatrix();
+    VERIFY_IS_EQUAL(SquareMatrixType(ldm1.transpose().toDenseMatrix()), SquareMatrixType(dense1.transpose()));
+    VERIFY_IS_EQUAL(SquareMatrixType(ldm1.conjugate().toDenseMatrix()), SquareMatrixType(dense1.conjugate()));
+    VERIFY_IS_EQUAL(SquareMatrixType(ldm1.adjoint().toDenseMatrix()), SquareMatrixType(dense1.adjoint()));
+    VERIFY_IS_EQUAL(VectorType((v1 + v2).asDiagonal().adjoint().diagonal()), VectorType((v1 + v2).conjugate()));
+    VERIFY_IS_APPROX(ldm1.adjoint() * m1, dense1.adjoint() * m1);
+    VERIFY_IS_APPROX(m1 * rdm1.adjoint(), m1 * rdm1.toDenseMatrix().adjoint());
+    VERIFY_IS_APPROX(VectorType((ldm1.adjoint() * ldm2).diagonal()),
+                     VectorType((dense1.adjoint() * ldm2.toDenseMatrix()).diagonal()));
+    internal::set_is_malloc_allowed(false);
+    VERIFY_IS_APPROX((ldm1.adjoint() * m1)(i, j), numext::conj(v1(i)) * m1(i, j));
+    VERIFY_IS_APPROX((m1 * rdm1.transpose())(i, j), m1(i, j) * rv1(j));
+    internal::set_is_malloc_allowed(true);
+    // For real scalars the conjugate is the diagonal itself, with no conjugation functor.
+    STATIC_CHECK(
+        (NumTraits<Scalar>::IsComplex ||
+         internal::is_same<std::decay_t<decltype(ldm1.conjugate())>, DiagonalWrapper<const VectorType>>::value));
+  }
+
   // Zero and Identity
   LeftDiagonalMatrix zero = LeftDiagonalMatrix::Zero(rows);
   LeftDiagonalMatrix identity = LeftDiagonalMatrix::Identity(rows);

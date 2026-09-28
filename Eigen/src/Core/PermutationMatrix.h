@@ -232,6 +232,12 @@ class PermutationBase : public EigenBase<Derived> {
    * \note \blank \note_try_to_help_rvo
    */
   inline InverseReturnType transpose() const { return InverseReturnType(derived()); }
+  /** \returns the adjoint of the permutation matrix. Its entries are real and it is orthogonal, so this equals
+   * transpose() and inverse().
+   *
+   * \note \blank \note_try_to_help_rvo
+   */
+  InverseReturnType adjoint() const { return InverseReturnType(derived()); }
 
   /**** multiplication helpers to hopefully get RVO ****/
 
