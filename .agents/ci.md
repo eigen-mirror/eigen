@@ -139,8 +139,9 @@ test jobs are `allow_failure: true`, so a red GPU job renders as a warning and a
 the GPU tests passed. Hence the policy for a merge request that touches any path in the GPU row: apply `gpu-tests`
 (and `affected-tests` when it also changes shared headers), name the GPU jobs that ran and their status in the
 description, and re-run the L4 jobs after rebasing onto another GPU-touching change. A scheduled pipeline whose
-`EIGEN_CI_SCHEDULE_SCOPE` variable is `gpu` runs only these jobs, which is how a second, cheaper GPU schedule coexists
-with the weekly full run.
+`EIGEN_CI_SCHEDULE_SCOPE` variable is `gpu` runs only these jobs (and `nightly` runs only the Linux full-build jobs that
+warm the smoke and default affected-tier compiler caches), which is how narrower schedules coexist with the weekly full
+run.
 
 
 ## Worktree-Safe Formatting

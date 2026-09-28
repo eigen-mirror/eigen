@@ -98,12 +98,15 @@
 # GCC-10 (stable recent version)
 build:linux:cross:x86-64:gcc-10:default:
   extends: .build:linux:cross:x86-64
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
 
 # GCC-13 for AVX512-FP16 (_Float16 support).
 build:linux:cross:x86-64:gcc-13:default:
@@ -119,16 +122,19 @@ build:linux:cross:x86-64:gcc-10:avx:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX=on"
+  rules: !reference [.rules:libeigen:all-tests, rules]
 
 build:linux:cross:x86-64:gcc-10:avx2:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX2=on"
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
 
 build:linux:cross:x86-64:gcc-10:avx512dq:
   extends: build:linux:cross:x86-64:gcc-10:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
+  rules: !reference [.rules:libeigen:all-tests, rules]
 
 # AVX512-FP16 builds are split into official/contrib because building all
 # tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
@@ -155,25 +161,30 @@ build:linux:cross:x86-64:gcc-13:avx512fp16:contrib:
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
   extends: .build:linux:cross:x86-64
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_INSTALL: clang-14
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_CROSS_INSTALL: g++-10-x86-64-linux-gnu clang-14
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
 
 build:linux:cross:x86-64:clang-14:avx2:
   extends: build:linux:cross:x86-64:clang-14:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX2=on"
+  rules: !reference [.rules:libeigen:all-tests, rules]
 
 build:linux:cross:x86-64:clang-14:avx512dq:
   extends: build:linux:cross:x86-64:clang-14:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
+  rules: !reference [.rules:libeigen:all-tests, rules]
 
 # Generic vector extension backend.
 build:linux:cross:x86-64:clang-19:generic:avx512dq:
-  extends: build:linux:cross:x86-64:clang-14:default
+  extends: .build:linux:cross:x86-64
   variables:
     EIGEN_CI_INSTALL: clang-19
     EIGEN_CI_C_COMPILER: clang-19
@@ -598,20 +609,26 @@ build:linux:cross:sme:gcc-14:no-f64f64:
 
 build:linux:cross:aarch64:gcc-10:default:
   extends: .build:linux:cross:aarch64
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_C_COMPILER: gcc-10
     EIGEN_CI_CXX_COMPILER: g++-10
     EIGEN_CI_CROSS_INSTALL: g++-10-aarch64-linux-gnu
     EIGEN_CI_CROSS_C_COMPILER: aarch64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: aarch64-linux-gnu-g++-10
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
 
 build:linux:cross:aarch64:clang-14:default:
   extends: .build:linux:cross:aarch64
+  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
+    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_INSTALL: clang-14
     EIGEN_CI_C_COMPILER: clang-14
     EIGEN_CI_CXX_COMPILER: clang++-14
     EIGEN_CI_CROSS_INSTALL: g++-10-aarch64-linux-gnu clang-14
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
 
 ######## SVE ###################################################################
 
@@ -808,6 +825,7 @@ build:linux:cross:loongarch64:gcc-14:default:
 
 build:linux:riscv64:gcc-15:default:
   extends: .build:linux:riscv64
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
   variables:
     EIGEN_CI_C_COMPILER: gcc-15
     EIGEN_CI_CXX_COMPILER: g++-15
@@ -824,6 +842,7 @@ build:linux:riscv64:gcc-15:default:
 
 build:linux:riscv64:clang-21:default:
   extends: .build:linux:riscv64
+  rules: !reference [.rules:libeigen:all-tests:nightly-build, rules]
   variables:
     EIGEN_CI_INSTALL: clang-21
     EIGEN_CI_C_COMPILER: clang-21
@@ -855,9 +874,7 @@ build:linux:riscv64:clang-21:default:smoketest:
 
 build:linux:cross:x86-64:gcc-10:default:smoketest:
   extends: [ build:linux:cross:x86-64:gcc-10:default, .smoketest:build ]
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
@@ -865,9 +882,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: [ build:linux:cross:x86-64:clang-14:default, .smoketest:build ]
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
@@ -875,9 +890,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .smoketest:build ]
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
@@ -885,9 +898,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
 
 build:linux:aarch64:clang-14:default:smoketest:
   extends: [ build:linux:cross:aarch64:clang-14:default, .smoketest:build ]
-  image: ${EIGEN_CI_IMAGE_LINUX_AMD64_SMOKETEST_BUILD}
   variables:
-    EIGEN_CI_SKIP_APT: "true"
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:

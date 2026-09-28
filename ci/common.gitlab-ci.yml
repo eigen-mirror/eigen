@@ -34,19 +34,31 @@
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-# Keeps a GPU-scoped schedule (EIGEN_CI_SCHEDULE_SCOPE=gpu, see .gitlab-ci.yml)
-# from running anything but the GPU jobs.  Every rule set that fires on
-# "schedule" except .rules:libeigen:gpu opens with it: the job-level lists in
+# Keeps a scoped schedule (EIGEN_CI_SCHEDULE_SCOPE=gpu or nightly, see
+# .gitlab-ci.yml) from running the rest of the matrix.  Every rule set that
+# fires on "schedule" except .rules:libeigen:gpu and
+# .rules:libeigen:all-tests:nightly-build opens with it: the job-level lists in
 # the build, test and deploy files splice it in as their first entry with
-# `- !reference [.rules:libeigen:gpu-schedule-guard, rules]`, while the three
+# `- !reference [.rules:libeigen:gpu-schedule-guard, rules]`, while the
 # .rules:libeigen:* sets below restate the two lines, since a !reference inside
 # a set that is itself !reference'd would nest.
 .rules:libeigen:gpu-schedule-guard:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE != ""
       when: never
 
 .rules:libeigen:all-tests:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE != ""
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+
+# Like .rules:libeigen:all-tests, plus the `nightly` schedule scope, which
+# builds the default-branch configurations that merge-request smoke and
+# affected pipelines draw their compiler caches from.
+.rules:libeigen:all-tests:nightly-build:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
       when: never
@@ -58,6 +70,8 @@
   # Spelled out (rather than referencing .rules:libeigen:all-tests) to avoid
   # a nested !reference, which GitLab CI has had inconsistent support for.
   rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "nightly"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
@@ -231,14 +245,14 @@
 
 .rules:libeigen:scheduled-or-web:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE != ""
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
 
 .rules:libeigen:scheduled-or-web:default-branch:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE != ""
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
