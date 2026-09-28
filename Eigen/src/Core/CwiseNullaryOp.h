@@ -307,16 +307,6 @@ DenseBase<Derived>::EqualSpaced(const Scalar& low, const Scalar& step) {
   return DenseBase<Derived>::NullaryExpr(Derived::SizeAtCompileTime, internal::equalspaced_op<Scalar>(low, step));
 }
 
-/** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */
-template <typename Derived>
-EIGEN_DEVICE_FUNC bool DenseBase<Derived>::isApproxToConstant(const Scalar& val, const RealScalar& prec) const {
-  typename internal::nested_eval<Derived, 1>::type self(derived());
-  for (Index j = 0; j < cols(); ++j)
-    for (Index i = 0; i < rows(); ++i)
-      if (!internal::isApprox(self.coeff(i, j), val, prec)) return false;
-  return true;
-}
-
 /** This is just an alias for isApproxToConstant().
  *
  * \returns true if all coefficients in this matrix are approximately equal to \a value, to within precision \a prec */
@@ -518,23 +508,6 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ZeroRet
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const typename DenseBase<Derived>::ZeroReturnType DenseBase<Derived>::Zero() {
   return ZeroReturnType(RowsAtCompileTime, ColsAtCompileTime);
-}
-
-/** \returns true if *this is approximately equal to the zero matrix,
- *          within the precision given by \a prec.
- *
- * Example: \include MatrixBase_isZero.cpp
- * Output: \verbinclude MatrixBase_isZero.out
- *
- * \sa class CwiseNullaryOp, Zero()
- */
-template <typename Derived>
-EIGEN_DEVICE_FUNC bool DenseBase<Derived>::isZero(const RealScalar& prec) const {
-  typename internal::nested_eval<Derived, 1>::type self(derived());
-  for (Index j = 0; j < cols(); ++j)
-    for (Index i = 0; i < rows(); ++i)
-      if (!internal::isMuchSmallerThan(self.coeff(i, j), static_cast<Scalar>(1), prec)) return false;
-  return true;
 }
 
 /** Sets all coefficients in this expression to zero.
