@@ -153,6 +153,11 @@ Scalar alpha = dot_val / norm_sq;      // sync here (implicit conversion)
 d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
+Every reduction also has an overload that writes into an existing
+`DeviceScalar` on a given Context, `d_x.dot(ctx, d_y, s)`, where `s` lives on
+`ctx.stream()`: it reuses the scalar's storage, so a loop, or a captured CUDA
+graph, repeats the reduction without allocating.
+
 Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, avoiding extra synchronizations. Small device allocations
 (including `DeviceScalar`) go through the stream-ordered allocator like every
@@ -221,6 +226,7 @@ to link the others:
 | Dense solvers (LLT, LU, QR, SVD, EVD)   | `-lcusolver -lcublas`     |
 | FFT (`gpu::FFT`)                        | `-lcufft -lcublas`        |
 | SpMV / SpMM (`gpu::SparseContext`)      | `-lcusparse -lcublas`     |
+| `norm()`, `DeviceScalar` arithmetic, `/=`, `cwiseProduct` | `-lnpps -lnppc` |
 | Sparse direct solvers (cuDSS)           | `-lcudss -lcublas`        |
 
 cuBLAS is required by `DeviceMatrix` itself (every `Context` creates a cuBLAS
@@ -270,7 +276,7 @@ device-side scalar arithmetic, which uses the signal-processing functions of
 ```cpp
 // Dot product and norms (return DeviceScalar -- no sync until read)
 auto dot_val = d_x.dot(d_y);          // cublasDdot / cublasCdotc
-auto norm_val = d_r.norm();            // cublasDnrm2
+auto norm_val = d_r.norm();            // sqrt(dot): cublasDdot, then NPP sqrt on device
 double n = norm_val;                   // implicit conversion triggers sync
 
 // Vector arithmetic (cuBLAS axpy / geam)
@@ -279,7 +285,7 @@ d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
 d_x /= alpha;                          // NPP divide-by-constant: x = x / alpha (true division for real Scalar)
 d_r.setZero();                         // cudaMemsetAsync
-auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
+auto s = d_r.stableNorm();             // cublasDnrm2: scaled, overflow-safe
 
 // Copies are device-to-device (cuBLAS copy) on the thread-local Context; no host round trip.
 // They exist so that existing Eigen algorithm code runs on the GPU unchanged; code written for
@@ -777,8 +783,9 @@ noted otherwise).
 | `x -= alpha * y` | `cublasXaxpy` | alpha negated |
 | `x *= alpha` | `cublasXscal` | alpha (host or DeviceScalar) |
 | `x.dot(y)` | `cublasXdot` / `cublasXdotc` | returns `DeviceScalar` |
-| `x.norm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
-| `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
+| `x.norm()` | `cublasXdot(x, x)`, then `nppsSqrt` | as `squaredNorm()`, then its square root on device |
+| `x.stableNorm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
+| `x.squaredNorm()` | `cublasXdot(x, x)` | real dot over the `2n` real and imaginary parts for complex `x`; returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 | `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
 | same, `view` of a `BlockSparseMatrix` | `cusparseSpMV` / `cusparseSpMM` on a BSR descriptor | opA=N, row-major blocks; op(A) formed on the host |
@@ -828,8 +835,11 @@ DeviceMatrix&      noalias()                             // No-op (all ops are i
 
 // BLAS Level-1 (all have overloads with explicit gpu::Context& parameter)
 DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
-DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
+DeviceScalar<RealScalar> norm()                          // sqrt(squaredNorm()) -> DeviceScalar, unscaled like MatrixBase::norm()
+DeviceScalar<RealScalar> stableNorm()                    // cuBLAS nrm2 (scaled, overflow-safe) -> DeviceScalar
 DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
+void dot(ctx, other, DeviceScalar<Scalar>& result)       // Each reduction into an existing DeviceScalar
+void squaredNorm / norm / stableNorm(ctx, result)        // on ctx's stream, reusing its storage: no allocation
 void                     setZero()                       // cudaMemsetAsync
 void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
 void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
@@ -889,6 +899,7 @@ cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
+const NppStreamContext& nppStreamContext()                // NPP context for stream(), filled in at construction
 
 internal::DeviceBuffer&          gemmWorkspace()            // cublasLtMatmul scratch (lazy-grown per context)
 internal::CublasLtPlanCache&     gemmPlanCache()            // shape-keyed plan cache (per context, ~8-entry LRU)

@@ -17,6 +17,7 @@
 // IWYU pragma: private
 #include "./InternalHeaderCheck.h"
 
+#include "./DeviceScalarOps.h"
 #include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
 #include <cusparse.h>
@@ -84,12 +85,14 @@ class Context {
     cudaStream_t s = nullptr;
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamCreate(&s));
     stream_ = internal::UniqueStream(s);
+    npp_stream_ctx_ = internal::make_npp_stream_ctx(stream_.get());
     init_cublas();
   }
 
   /** Create a context on an existing stream (e.g., stream 0 = nullptr).
    * The caller retains ownership of the stream — this context will not destroy it. */
   explicit Context(cudaStream_t stream) : stream_(stream, internal::CudaStreamDeleter{/*owns=*/false}) {
+    npp_stream_ctx_ = internal::make_npp_stream_ctx(stream_.get());
     init_cublas();
   }
 
@@ -129,6 +132,11 @@ class Context {
 
   cudaStream_t stream() const { return stream_.get(); }
   cublasHandle_t cublasHandle() const { return cublas_.get(); }
+
+  /** NPP stream context for stream(), filled in at construction. Filling it
+   * queries the stream, which fails while the stream is being captured on some
+   * drivers, so NPP calls inside a capture must use this one. */
+  const NppStreamContext& nppStreamContext() const { return npp_stream_ctx_; }
 
   /** Returns the cuSOLVER handle, creating it on first call. */
   cusolverDnHandle_t cusolverHandle() {
@@ -202,7 +210,9 @@ class Context {
 
   // Destroyed in reverse declaration order: the plan cache before the cuBLASLt handle, the stream last.
   internal::UniqueStream stream_;
+  NppStreamContext npp_stream_ctx_ = {};
   internal::UniqueCublasHandle cublas_;
+  internal::DeviceBuffer cublas_workspace_;  // cublasSetWorkspace; freed before the handle
   LazyCusolverHandle cusolver_{nullptr, nullptr};
   LazyCusparseHandle cusparse_{nullptr, nullptr};
   internal::UniqueCublasLtHandle cublas_lt_;  // lazy
@@ -221,6 +231,8 @@ class Context {
     EIGEN_CUBLAS_CHECK(cublasCreate(&h));
     cublas_ = internal::UniqueCublasHandle(h);
     EIGEN_CUBLAS_CHECK(cublasSetStream(h, stream_.get()));
+    cublas_workspace_ = internal::DeviceBuffer(internal::kCublasWorkspaceBytes);
+    EIGEN_CUBLAS_CHECK(cublasSetWorkspace(h, cublas_workspace_.get(), cublas_workspace_.size()));
   }
 };
 

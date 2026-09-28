@@ -608,6 +608,111 @@ void test_cwiseProduct() {
   VERIFY((result - ref).norm() < tol * ref.norm() + tol);
 }
 
+// ---- Reductions into a caller's DeviceScalar ----------------------------------
+
+template <typename Scalar>
+void test_reductions_into() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Index n = 300;
+  const RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const Vec a = Vec::Random(n), b = Vec::Random(n);
+
+  gpu::Context ctx;
+  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
+  auto d_b = gpu::DeviceMatrix<Scalar>::fromHost(b, ctx.stream());
+  gpu::DeviceScalar<Scalar> dot(ctx.stream());
+  gpu::DeviceScalar<RealScalar> squared_norm(ctx.stream()), norm(ctx.stream()), stable_norm(ctx.stream());
+  const Scalar* dot_slot = dot.devicePtr();
+  const RealScalar* norm_slot = norm.devicePtr();
+
+  // Repeated reductions write the same storage.
+  for (int rep = 0; rep < 2; ++rep) {
+    d_a.dot(ctx, d_b, dot);
+    d_a.squaredNorm(ctx, squared_norm);
+    d_a.norm(ctx, norm);
+    d_a.stableNorm(ctx, stable_norm);
+    VERIFY(dot.devicePtr() == dot_slot);
+    VERIFY(norm.devicePtr() == norm_slot);
+    VERIFY(numext::abs(Scalar(dot) - a.dot(b)) < tol * numext::abs(a.dot(b)) + tol);
+    VERIFY(numext::abs(RealScalar(squared_norm) - a.squaredNorm()) < tol * a.squaredNorm());
+    VERIFY(numext::abs(RealScalar(norm) - a.norm()) < tol * a.norm());
+    VERIFY(numext::abs(RealScalar(stable_norm) - a.norm()) < tol * a.norm());
+  }
+
+  // stableNorm() scales its accumulation: exact where x^H x overflows.
+  const RealScalar big = numext::sqrt((NumTraits<RealScalar>::highest)()) * RealScalar(4);
+  auto d_big = gpu::DeviceMatrix<Scalar>::fromHost(Vec::Constant(n, Scalar(big)), ctx.stream());
+  d_big.stableNorm(ctx, stable_norm);
+  VERIFY_IS_APPROX(RealScalar(stable_norm), big * numext::sqrt(RealScalar(n)));
+
+  // An empty matrix writes zero over the previous result.
+  gpu::DeviceMatrix<Scalar> d_empty(0, 1);
+  d_empty.dot(ctx, d_empty, dot);
+  d_empty.squaredNorm(ctx, squared_norm);
+  d_empty.norm(ctx, norm);
+  VERIFY_IS_EQUAL(Scalar(dot), Scalar(0));
+  VERIFY_IS_EQUAL(RealScalar(squared_norm), RealScalar(0));
+  VERIFY_IS_EQUAL(RealScalar(norm), RealScalar(0));
+}
+
+// Reductions into existing DeviceScalars enqueue no allocation and no host
+// sync -- for complex scalars too, whose squaredNorm() used to read the complex
+// dot product back to take its real part -- so they capture into a CUDA graph
+// with no memory nodes, and the graph replays them.
+template <typename Scalar>
+void test_reductions_capture() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Index n = 128;
+  const RealScalar tol = RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon();
+  const Vec a = Vec::Random(n);
+
+  gpu::Context ctx;
+  auto d_a = gpu::DeviceMatrix<Scalar>::fromHost(a, ctx.stream());
+  gpu::DeviceScalar<Scalar> dot(ctx.stream());
+  gpu::DeviceScalar<RealScalar> squared_norm(ctx.stream()), norm(ctx.stream());
+  // The first calls create the cuBLAS handle and load the kernels, which a
+  // capture would reject.
+  d_a.dot(ctx, d_a, dot);
+  d_a.squaredNorm(ctx, squared_norm);
+  d_a.norm(ctx, norm);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
+
+  cudaGraph_t graph = nullptr;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamBeginCapture(ctx.stream(), cudaStreamCaptureModeRelaxed));
+  d_a.dot(ctx, d_a, dot);
+  d_a.squaredNorm(ctx, squared_norm);
+  d_a.norm(ctx, norm);
+  VERIFY(cudaStreamEndCapture(ctx.stream(), &graph) == cudaSuccess);
+
+  size_t count = 0;
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphGetNodes(graph, nullptr, &count));
+  std::vector<cudaGraphNode_t> nodes(count);
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphGetNodes(graph, nodes.data(), &count));
+  VERIFY(count > 0);
+  for (cudaGraphNode_t node : nodes) {
+    cudaGraphNodeType type;
+    EIGEN_CUDA_RUNTIME_CHECK(cudaGraphNodeGetType(node, &type));
+    VERIFY(type != cudaGraphNodeTypeMemAlloc && type != cudaGraphNodeTypeMemFree);
+  }
+
+  cudaGraphExec_t exec = nullptr;
+  // cudaGraphInstantiate took five arguments before CUDA 12.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphInstantiateWithFlags(&exec, graph, 0));
+  // Clear the slots so that the checks below see the replay's results.
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dot.devicePtr(), 0, sizeof(Scalar), ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(squared_norm.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(norm.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphLaunch(exec, ctx.stream()));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(ctx.stream()));
+  VERIFY(numext::abs(Scalar(dot) - a.squaredNorm()) < tol * a.squaredNorm());
+  VERIFY(numext::abs(RealScalar(squared_norm) - a.squaredNorm()) < tol * a.squaredNorm());
+  VERIFY(numext::abs(RealScalar(norm) - a.norm()) < tol * a.norm());
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphExecDestroy(exec));
+  EIGEN_CUDA_RUNTIME_CHECK(cudaGraphDestroy(graph));
+}
+
 EIGEN_DECLARE_TEST(gpu_device_matrix) {
   gpu_test::require_cuda_device();
   CALL_SUBTEST(test_default_construct());
@@ -640,4 +745,10 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_device_scalar_blas1<std::complex<double>>());
   CALL_SUBTEST(test_cwiseProduct<float>());
   CALL_SUBTEST(test_cwiseProduct<double>());
+  CALL_SUBTEST(test_reductions_into<float>());
+  CALL_SUBTEST(test_reductions_into<double>());
+  CALL_SUBTEST(test_reductions_into<std::complex<float>>());
+  CALL_SUBTEST(test_reductions_into<std::complex<double>>());
+  CALL_SUBTEST(test_reductions_capture<double>());
+  CALL_SUBTEST(test_reductions_capture<std::complex<float>>());
 }

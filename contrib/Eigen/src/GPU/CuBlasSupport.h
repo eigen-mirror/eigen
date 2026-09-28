@@ -132,6 +132,15 @@ struct cuda_compute_type<std::complex<double>> {
 #endif
 static constexpr size_t kCublasLtMaxWorkspaceBytes = EIGEN_CUDA_CUBLASLT_MAX_WORKSPACE_BYTES;
 
+// Workspace each Context gives its cuBLAS handle (cublasSetWorkspace). Without
+// one, cuBLAS allocates workspace for its calls itself: a memory node in every
+// captured call. 4 MiB matches cuBLAS's default workspace pool before Hopper;
+// the cublasSetWorkspace documentation recommends 32 MiB for Hopper.
+#ifndef EIGEN_CUDA_CUBLAS_WORKSPACE_BYTES
+#define EIGEN_CUDA_CUBLAS_WORKSPACE_BYTES (4 * 1024 * 1024)  // 4 MB
+#endif
+static constexpr size_t kCublasWorkspaceBytes = EIGEN_CUDA_CUBLAS_WORKSPACE_BYTES;
+
 // Algorithm hint for the cublasGemmEx fallback path.
 constexpr cublasGemmAlgo_t cuda_gemm_algo() {
 #ifdef EIGEN_NO_CUDA_TENSOR_OPS
