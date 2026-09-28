@@ -38,16 +38,21 @@ inline complex<long double> promote(float x) { return complex<long double>((long
 inline complex<long double> promote(double x) { return complex<long double>((long double)x); }
 inline complex<long double> promote(long double x) { return complex<long double>((long double)x); }
 
+// Reference DFT X[k0] = sum_k1 x[k1] w^(k0 k1 mod n), w = exp(-2 pi i / n). Reducing the exponent in
+// integers indexes n precomputed twiddles with arguments in (-2 pi, 0], so the O(n^2) sum evaluates no
+// exponential; evaluating exp at the unreduced phases -2 pi k0 k1 / n dominated the whole test.
 template <typename VT1, typename VT2>
 long double fft_rmse(const VT1& fftbuf, const VT2& timebuf) {
   long double totalpower = 0;
   long double difpower = 0;
   long double pi = acos((long double)-1);
+  const size_t n = (size_t)timebuf.size();
+  std::vector<complex<long double>> twiddle(n);
+  for (size_t m = 0; m < n; ++m) twiddle[m] = polar((long double)1, (long double)(-2.) * pi * m / n);
   for (size_t k0 = 0; k0 < (size_t)fftbuf.size(); ++k0) {
     complex<long double> acc = 0;
-    long double phinc = (long double)(-2.) * k0 * pi / timebuf.size();
-    for (size_t k1 = 0; k1 < (size_t)timebuf.size(); ++k1) {
-      acc += promote(timebuf[k1]) * exp(complex<long double>(0, k1 * phinc));
+    for (size_t k1 = 0; k1 < n; ++k1) {
+      acc += promote(timebuf[k1]) * twiddle[(k0 * k1) % n];
     }
     totalpower += numext::abs2(acc);
     complex<long double> x = promote(fftbuf[k0]);
