@@ -77,6 +77,19 @@ void complementary_reduction_bounds() {
   VERIFY_IS_EQUAL((a + b).redux(BoundedFirst()), 5);
   VERIFY_IS_EQUAL((b + a).redux(BoundedFirst()), 5);
 
+  const auto wrapped_array = (a + b).array();
+  const auto wrapped_matrix = (a.array() + b.array()).matrix();
+  using ArrayBounds = internal::redux_max_size<internal::remove_all_t<decltype(wrapped_array)>>;
+  using MatrixBounds = internal::redux_max_size<internal::remove_all_t<decltype(wrapped_matrix)>>;
+  STATIC_CHECK(ArrayBounds::Rows == 4 && ArrayBounds::Cols == 4 && ArrayBounds::Size == 16);
+  STATIC_CHECK(MatrixBounds::Rows == 4 && MatrixBounds::Cols == 4 && MatrixBounds::Size == 16);
+  STATIC_CHECK(decltype(wrapped_array)::MaxSizeAtCompileTime == Dynamic);
+  STATIC_CHECK(decltype(wrapped_matrix)::MaxSizeAtCompileTime == Dynamic);
+  VERIFY_IS_EQUAL(wrapped_array.sum(), 60);
+  VERIFY_IS_EQUAL(wrapped_matrix.sum(), 60);
+  VERIFY_IS_EQUAL(wrapped_array.redux(BoundedFirst()), 5);
+  VERIFY_IS_EQUAL(wrapped_matrix.redux(BoundedFirst()), 5);
+
   const Matrix<bool, Dynamic, Dynamic, Order> condition = Matrix<bool, Dynamic, Dynamic, Order>::Constant(3, 4, true);
   const auto selected = condition.select(a, b);
   const auto reversed = condition.select(b, a);
@@ -129,6 +142,31 @@ void mixed_packet_reductions() {
     STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(right)>>::Size == Capacity);
     VERIFY_IS_EQUAL(left.sum(), expected);
     VERIFY_IS_EQUAL(right.sum(), expected);
+    const auto squared = left.cwiseAbs2();
+    const auto negated = -squared;
+    STATIC_CHECK(decltype(squared)::MaxSizeAtCompileTime == Dynamic);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(squared)>>::Size == Capacity);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(negated)>>::Size == Capacity);
+    Scalar expectedSquared = 0;
+    for (Index i = 0; i < size; ++i) {
+      const Scalar value = bounded(i) * dynamic(i);
+      expectedSquared += value * value;
+    }
+    VERIFY_IS_EQUAL(squared.sum(), expectedSquared);
+    VERIFY_IS_EQUAL(negated.sum(), -expectedSquared);
+    VERIFY_IS_EQUAL(left.squaredNorm(), expectedSquared);
+
+    const auto wrapped = left.array().square();
+    auto array_product = dynamic.array() * bounded.array();
+    const auto matrix = array_product.matrix();
+    const auto nested = matrix.array().square().matrix();
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(wrapped)>>::Size == Capacity);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(matrix)>>::Size == Capacity);
+    STATIC_CHECK(internal::redux_max_size<internal::remove_all_t<decltype(nested)>>::Size == Capacity);
+    VERIFY_IS_EQUAL(wrapped.sum(), expectedSquared);
+    VERIFY_IS_EQUAL(matrix.sum(), expected);
+    VERIFY_IS_EQUAL(matrix.squaredNorm(), expectedSquared);
+    VERIFY_IS_EQUAL(nested.sum(), expectedSquared);
   }
 }
 
