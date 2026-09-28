@@ -142,6 +142,11 @@ run time. However, these assertions do cost time and can thus be turned off.
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
    \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other
    systems whose SME units are shared by a cluster of cores, such as Linux on Apple silicon.
+ - \b \c EIGEN_SME_MIN_TASK_SIZE - Minimum work per thread, in FP32 multiply-adds, before a product on the ARM SME
+   GEMM kernel is split across threads. Other types count their kernel time in FP32 multiply-adds: double and
+   complex<float> four each, complex<double> sixteen. The default (2^20) is tuned for Apple M4 and applies where the
+   SME unit count is known (see \c EIGEN_SME_UNITS). There, when the maximum sizes of the result and of the inner
+   dimension are not all fixed at compile time, each thread computes a disjoint part of the result.
  - \b \c EIGEN_SME_DIRECT_LHS_MAX_STRIDE_BYTES and \b \c EIGEN_SME_DIRECT_LHS_MAX_BLOCK_BYTES - Largest column stride
    and largest block (rows times depth, both in bytes) at which the ARM SME GEMM kernel reads a column-major real LHS
    block from its source instead of a packed panel, whatever its alignment. The defaults are 16 KB and 4 MB; strides

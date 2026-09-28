@@ -346,6 +346,9 @@ struct gemm_functor {
     m_blocking.allocateA();
   }
 
+  // Whether the blocking holds no preallocated buffers, so that disjoint parts of the product can run concurrently.
+  bool ownsNoBuffers() const { return m_blocking.blockA() == nullptr && m_blocking.blockB() == nullptr; }
+
   void operator()(Index row, Index rows, Index col = 0, Index cols = -1, GemmParallelInfo<Index>* info = 0) const {
     if (cols == -1) cols = m_rhs.cols();
 

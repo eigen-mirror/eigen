@@ -304,6 +304,35 @@ static void test_small_k_and_single_panel_rhs() {
   VERIFY_IS_APPROX(C, A.lazyProduct(B));
 }
 
+// Disjoint parts per SME unit (2 and 3 units) against a serial product. product_threaded covers the thread pool;
+// this reaches the OpenMP branch in an EIGEN_TEST_OPENMP build and runs serially otherwise.
+template <typename Scalar>
+static void test_disjoint_parts() {
+  using Col = SmeColMajorMat<Scalar>;
+  using Row = SmeRowMajorMat<Scalar>;
+  const int saved = nbSmeUnits();
+  const int shapes[][3] = {{301, 259, 131}, {200, 40, 1024}, {20, 700, 300}};
+  for (int units : {2, 3}) {
+    setNbSmeUnits(units);
+    for (const auto& sh : shapes) {
+      const Col A = Col::Random(sh[0], sh[2]), B = Col::Random(sh[2], sh[1]);
+      const Col ref = A.lazyProduct(B);
+      Col C(sh[0], sh[1]);
+      C.noalias() = A * B;
+      VERIFY_IS_APPROX(C, ref);
+      Row R(sh[0], sh[1]);
+      R.noalias() = A * B;
+      VERIFY_IS_APPROX(Col(R), ref);
+      Col big = Col::Random(sh[0] + 5, sh[1] + 3);
+      Col expected = big;
+      expected.block(2, 1, sh[0], sh[1]) += Scalar(1.5) * ref;
+      big.block(2, 1, sh[0], sh[1]).noalias() += Scalar(1.5) * A * B;
+      VERIFY_IS_APPROX(big, expected);
+    }
+  }
+  setNbSmeUnits(saved);
+}
+
 // Streaming-mode entry and exit set every FP exception flag: products on each SME path, with exact results, must leave
 // the caller's flags as they were.
 template <typename Scalar, typename Product>
@@ -1115,6 +1144,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_deep_tail_panels<float>());
   CALL_SUBTEST_1(test_tiny_results<float>());
   CALL_SUBTEST_1(test_fp_flags<float>());
+  CALL_SUBTEST_1(test_disjoint_parts<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -1132,6 +1162,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_deep_tail_panels<double>());
   CALL_SUBTEST_2(test_tiny_results<double>());
   CALL_SUBTEST_2(test_fp_flags<double>());
+  CALL_SUBTEST_2(test_disjoint_parts<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
@@ -1141,6 +1172,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
   CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
   CALL_SUBTEST_3(test_fp_flags<std::complex<float>>());
+  CALL_SUBTEST_3(test_disjoint_parts<std::complex<float>>());
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -1152,6 +1184,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
   CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
   CALL_SUBTEST_4(test_fp_flags<std::complex<double>>());
+  CALL_SUBTEST_4(test_disjoint_parts<std::complex<double>>());
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the

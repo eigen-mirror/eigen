@@ -63,7 +63,17 @@ inline int nbThreads() {
 inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
 #ifdef EIGEN_VECTORIZE_SME
+#ifndef EIGEN_SME_MIN_TASK_SIZE
+#define EIGEN_SME_MIN_TASK_SIZE (double(1 << 20))
+#endif
 namespace internal {
+// Time of one multiply-add on the SME kernel in fp32 multiply-adds: an FP64 outer product covers a quarter of the
+// elements of an FP32 one at the same vector length, and a complex multiply-add is four real ones.
+template <typename Scalar>
+struct sme_madd_cost {
+  static constexpr double value = (std::is_same<typename NumTraits<Scalar>::Real, double>::value ? 4.0 : 1.0) *
+                                  (NumTraits<Scalar>::IsComplex ? 4.0 : 1.0);
+};
 // Apple silicon shares one SME unit per core cluster, so more threads than clusters only contend for the units; other
 // SME implementations may have one per core. The count comes from macOS's performance-cluster topology and is 0 (no
 // cap) everywhere else, where EIGEN_SME_UNITS or setNbSmeUnits() supply it.
@@ -105,7 +115,8 @@ inline int nbSmeUnits() {
   return 0;
 #endif
 }
-/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses; 0 removes the cap.
+/** Sets the number of SME units, which caps the threads a product on the SME GEMM kernel uses and, when nonzero, gives
+ * each of them a disjoint part of the result instead of a shared parallel session; 0 removes both.
  * \c EIGEN_SME_UNITS sets it at compile time. Does nothing when the SME backend is not in use. Like setNbThreads(),
  * it must not be called while a product runs on another thread.
  * \sa nbSmeUnits */
@@ -265,14 +276,29 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   // compute the maximal number of threads from the total amount of work:
   double work = static_cast<double>(rows) * static_cast<double>(cols) * static_cast<double>(depth);
   double kMinTaskSize = 50000;  // FIXME: tune this minimum task-size heuristic based on architecture and scalar type.
+#ifdef EIGEN_VECTORIZE_SME
+  // With a known SME unit count (one unit per core cluster), the SME kernel does far more work per unit of time than
+  // the generic one, so a thread needs more of it to repay the handoff; elsewhere the size is not measured and the
+  // generic one applies. With no preallocated buffers, each thread runs a disjoint part of the result (below).
+  constexpr bool kSme =
+      sme_has_gebp_kernel<typename Functor::Traits::LhsScalar, typename Functor::Traits::RhsScalar>::value;
+  const bool sme_units_known = kSme && nbSmeUnits() > 0;
+  const bool sme_disjoint = sme_units_known && func.ownsNoBuffers();
+  if (sme_units_known)
+    kMinTaskSize = EIGEN_SME_MIN_TASK_SIZE / sme_madd_cost<typename Functor::Traits::LhsScalar>::value;
+  if (sme_disjoint) {
+    const Index kernel_rows = transpose ? cols : rows, kernel_cols = transpose ? rows : cols;
+    pb_max_threads =
+        std::max<Index>(1, (std::max)(kernel_rows / Functor::Traits::mr, kernel_cols / Functor::Traits::nr));
+  }
+#endif
   pb_max_threads = std::max<Index>(1, std::min<Index>(pb_max_threads, static_cast<Index>(work / kMinTaskSize)));
 
   // compute the number of threads we are going to use
   int threads = std::min<int>(nbThreads(), static_cast<int>(pb_max_threads));
 #ifdef EIGEN_VECTORIZE_SME
   // The SME kernels share one unit per cluster; more threads than units only contend.
-  EIGEN_IF_CONSTEXPR ((sme_has_gebp_kernel<typename Functor::Traits::LhsScalar,
-                                           typename Functor::Traits::RhsScalar>::value)) {
+  EIGEN_IF_CONSTEXPR (kSme) {
     const int units = nbSmeUnits();
     if (units > 0) threads = std::min<int>(threads, units);
   }
@@ -293,6 +319,68 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
   dont_parallelize |= (pool == nullptr || pool->CurrentThreadId() != -1);
 #endif
   if (dont_parallelize) return func(0, rows, 0, cols);
+
+#ifdef EIGEN_VECTORIZE_SME
+  // A known unit count stands for one SME unit per core cluster, each with its own L2 (see nbSmeUnits): the
+  // cooperative session below would read the other cluster's packed LHS and wait for it at every depth step, so each
+  // thread runs a disjoint part of the result instead.
+  EIGEN_IF_CONSTEXPR (kSme) {
+    if (sme_disjoint) {
+      // On the kernel's problem (the transposed one for a row-major result), a row split repacks the whole RHS per
+      // thread and a column split the whole LHS (a copy, or nothing when read in place): split the rows only when
+      // they are twice the columns and give 8 LHS panels per part, since a narrower result already runs close to peak.
+      const Index kernel_rows = transpose ? cols : rows, kernel_cols = transpose ? rows : cols;
+      const Index row_parts = kernel_rows / (8 * Functor::Traits::mr);
+      const bool split_kernel_rows = kernel_rows >= 2 * kernel_cols && row_parts >= 2;
+      const bool split_rows = transpose ? !split_kernel_rows : split_kernel_rows;
+      if (split_kernel_rows) threads = static_cast<int>((std::min)(Index(threads), row_parts));
+      // The result's rows are the kernel's columns for a row-major result. No part may be empty.
+      const Index row_grain = transpose ? Functor::Traits::nr : Functor::Traits::mr;
+      const Index col_grain = transpose ? Functor::Traits::mr : Functor::Traits::nr;
+      const Index chunks = split_rows ? (rows + row_grain - 1) / row_grain : (cols + col_grain - 1) / col_grain;
+      threads = static_cast<int>((std::min)(Index(threads), chunks));
+      if (threads <= 1) return func(0, rows, 0, cols);
+      auto part = [&func, rows, cols, threads, split_rows, row_grain, col_grain](int i) {
+        Index start, length;
+        if (split_rows) {
+          balanced_gemm_range<Index>(rows, threads, row_grain, i, start, length);
+          if (length > 0) func(start, length, 0, cols);
+        } else {
+          balanced_gemm_range<Index>(cols, threads, col_grain, i, start, length);
+          if (length > 0) func(0, rows, start, length);
+        }
+      };
+#if defined(EIGEN_HAS_OPENMP)
+#pragma omp parallel for num_threads(threads) schedule(static, 1)
+      for (int i = 0; i < threads; ++i) part(i);
+#elif defined(EIGEN_GEMM_THREADPOOL)
+      // The parts take about as long as each other, so the caller spins for the others (tens of microseconds, less than
+      // a blocking wake-up costs a short product) before it blocks on the barrier, which it always passes, also
+      // before an exception from its own part leaves this frame.
+      std::atomic<int> pending(threads - 1);
+      Barrier done(threads - 1);
+      for (int i = 0; i < threads - 1; ++i)
+        pool->Schedule([&part, &pending, &done, i] {
+          part(i);
+          pending.fetch_sub(1, std::memory_order_release);
+          done.Notify();
+        });
+      const auto wait = [&pending, &done] {
+        for (int spin = 0; spin < 65536 && pending.load(std::memory_order_acquire) != 0; ++spin) {
+        }
+        done.Wait();
+      };
+      EIGEN_TRY { part(threads - 1); }
+      EIGEN_CATCH(...) {
+        wait();
+        EIGEN_THROW;
+      }
+      wait();
+#endif
+      return;
+    }
+  }
+#endif
 
   func.initParallelSession(threads);
 

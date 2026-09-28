@@ -212,7 +212,8 @@ void test_parallelize_gemm_require_initialization() {
   VERIFY_IS_APPROX(cd, ad * bd);
 }
 
-// Tiny results and thin column ranges on a pool: every thread of a parallel session must take the same path.
+// Tiny results and thin column ranges on a pool: tiny results run on one thread, and every thread of a split product
+// takes the same path.
 template <typename Scalar>
 void test_parallelize_gemm_tiny() {
   static ThreadPool pool(4);
@@ -230,12 +231,113 @@ void test_parallelize_gemm_tiny() {
   Eigen::setNbThreads(0);
 }
 
+// Shapes the SME backend splits into disjoint parts per unit: odd sizes, a row-major result, and thin results split
+// along their long side; compared with a serial product.
+void test_parallelize_gemm_parts() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  const int shapes[][3] = {{333, 517, 129}, {1024, 24, 512}, {24, 1024, 512}, {517, 333, 257}};
+  for (const auto& s : shapes) {
+    const MatrixXf a = MatrixXf::Random(s[0], s[2]), b = MatrixXf::Random(s[2], s[1]);
+    MatrixXf c_serial(s[0], s[1]), c_threaded(s[0], s[1]);
+    {
+      ScopedSerialGemm serial;
+      c_serial.noalias() = a * b;
+    }
+    c_threaded.noalias() = a * b;
+    VERIFY_IS_APPROX(c_serial, c_threaded);
+    using RowMat = Matrix<float, Dynamic, Dynamic, RowMajor>;
+    const RowMat ar = a, br = b;
+    RowMat r_serial(s[0], s[1]), r_threaded(s[0], s[1]);
+    {
+      ScopedSerialGemm serial;
+      r_serial.noalias() = ar * br;
+    }
+    r_threaded.noalias() = ar * br;
+    VERIFY_IS_APPROX(r_serial, r_threaded);
+    VERIFY_IS_APPROX(r_threaded, RowMat(c_serial));
+  }
+}
+
+// The disjoint parts for every scalar the SME kernel serves, including shapes whose split side has fewer chunks than
+// threads, and a tall result that the 8-panel rule splits by columns instead of rows.
+template <typename Scalar>
+void test_parallelize_gemm_parts_types() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  const int shapes[][3] = {{301, 259, 131}, {1024, 20, 384}, {20, 1024, 384}, {40, 700, 300},
+                           {48, 32, 400},   {300, 40, 2048}, {200, 40, 4096}};
+  for (const auto& s : shapes) {
+    const Mat a = Mat::Random(s[0], s[2]), b = Mat::Random(s[2], s[1]);
+    Mat c_serial(s[0], s[1]), c_threaded(s[0], s[1]);
+    {
+      ScopedSerialGemm serial;
+      c_serial.noalias() = a * b.conjugate();
+    }
+    c_threaded.noalias() = a * b.conjugate();
+    VERIFY_IS_APPROX(c_serial, c_threaded);
+    RowMat r_threaded(s[0], s[1]);
+    r_threaded.noalias() = RowMat(a) * b.conjugate();
+    VERIFY_IS_APPROX(Mat(r_threaded), c_serial);
+  }
+}
+
+// A block destination accumulated with a scale factor, and a fixed-size result, whose preallocated buffers keep the
+// shared session.
+void test_parallelize_gemm_parts_blocks() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  const MatrixXf a = MatrixXf::Random(517, 301), b = MatrixXf::Random(301, 283);
+  MatrixXf big = MatrixXf::Random(530, 300);
+  MatrixXf ref = big;
+  {
+    ScopedSerialGemm serial;
+    ref.block(5, 7, 517, 283).noalias() += 1.5f * a * b;
+  }
+  big.block(5, 7, 517, 283).noalias() += 1.5f * a * b;
+  VERIFY_IS_APPROX(big, ref);
+  using Fixed = Matrix<float, 160, 160>;
+  const Fixed fa = Fixed::Random(), fb = Fixed::Random();
+  Fixed fc, fr;
+  {
+    ScopedSerialGemm serial;
+    fr.noalias() = fa * fb;
+  }
+  fc.noalias() = fa * fb;
+  VERIFY_IS_APPROX(fc, fr);
+}
+
+// Runs a test with the given SME unit count: a nonzero count splits products on the SME kernel into disjoint parts,
+// 0 keeps the shared parallel session, so both paths are covered on every host.
+template <typename Test>
+void with_sme_units(int units, Test test) {
+  const int saved = Eigen::nbSmeUnits();
+  Eigen::setNbSmeUnits(units);
+  test();
+  Eigen::setNbSmeUnits(saved);
+}
+
 EIGEN_DECLARE_TEST(product_threaded) {
-  CALL_SUBTEST_6(test_parallelize_gemm_tiny<float>());
-  CALL_SUBTEST_6(test_parallelize_gemm_tiny<double>());
-  CALL_SUBTEST_1(test_parallelize_gemm());
-  CALL_SUBTEST_2(test_parallelize_gemm_varied());
+  // Off SME the unit count does nothing, so only the default runs there.
+#ifdef EIGEN_VECTORIZE_SME
+  for (int units : {2, 3, 0}) {
+#else
+  for (int units : {0}) {
+#endif
+    EIGEN_UNUSED_VARIABLE(units);
+    CALL_SUBTEST_6(with_sme_units(units, test_parallelize_gemm_tiny<float>));
+    CALL_SUBTEST_6(with_sme_units(units, test_parallelize_gemm_tiny<double>));
+    CALL_SUBTEST_1(with_sme_units(units, test_parallelize_gemm));
+    CALL_SUBTEST_2(with_sme_units(units, test_parallelize_gemm_varied));
+    CALL_SUBTEST_4(with_sme_units(units, test_parallelize_gemm_indivisible));
+    CALL_SUBTEST_7(with_sme_units(units, test_parallelize_gemm_parts));
+    CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<double>));
+    CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<float>>));
+    CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<double>>));
+    CALL_SUBTEST_9(with_sme_units(units, test_parallelize_gemm_parts_blocks));
+  }
   CALL_SUBTEST_3(test_balanced_gemm_range());
-  CALL_SUBTEST_4(test_parallelize_gemm_indivisible());
   CALL_SUBTEST_5(test_parallelize_gemm_require_initialization());
 }
