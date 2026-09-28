@@ -137,8 +137,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(solver_ctx_.info() == Success);
     RealVector W(n_);
     if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpy(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar), cudaMemcpyDeviceToHost));
+      solver_ctx_.download(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar));
     }
     return W;
   }
@@ -150,9 +149,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
     if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(V.data(), d_A_.get(),
-                                          static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(V.data(), d_A_.get(), static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
     }
     return V;
   }

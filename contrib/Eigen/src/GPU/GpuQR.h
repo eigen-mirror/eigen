@@ -180,9 +180,8 @@ class QR {
     eigen_assert(!transposed_ && "matrixR() not available when m < n (we factored A^H internally)");
     PlainMatrix qr_full(m_, n_);
     if (m_ > 0 && n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(qr_full.data(), d_qr_.get(),
-                                          static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(qr_full.data(), d_qr_.get(),
+                           static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
     }
     PlainMatrix R = qr_full.topRows(k()).template triangularView<Upper>();
     return R;

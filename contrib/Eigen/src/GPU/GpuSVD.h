@@ -173,8 +173,7 @@ class SVD {
     eigen_assert(solver_ctx_.info() == Success);
     const Index k = (std::min)(m_, n_);
     RealVector S(k);
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpy(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar), cudaMemcpyDeviceToHost));
+    solver_ctx_.download(S.data(), d_S_.get(), static_cast<size_t>(k) * sizeof(RealScalar));
     return S;
   }
 
@@ -188,16 +187,13 @@ class SVD {
     if (!transposed_) {
       const Index ucols = (options_ & ComputeFullU) ? m_ : k;
       PlainMatrix U(m_, ucols);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(U.data(), d_U_.get(),
-                                          static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(U.data(), d_U_.get(), static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
       return U;
     } else {
       const Index vtrows = (options_ & ComputeFullU) ? m_orig : k;
       PlainMatrix VT_stored(vtrows, n_);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(VT_stored.data(), d_VT_.get(),
-                                          static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(VT_stored.data(), d_VT_.get(),
+                           static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
       return VT_stored.adjoint();
     }
   }
@@ -215,16 +211,14 @@ class SVD {
     if (!transposed_) {
       const Index vtrows = (options_ & ComputeFullV) ? n_ : k;
       PlainMatrix VT(vtrows, n_);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(VT.data(), d_VT_.get(),
-                                          static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(VT.data(), d_VT_.get(),
+                           static_cast<size_t>(vtrows) * static_cast<size_t>(n_) * sizeof(Scalar));
       return VT;
     } else {
       const Index ucols = (options_ & ComputeFullV) ? n_orig : k;
       PlainMatrix U_stored(m_, ucols);
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(U_stored.data(), d_U_.get(),
-                                          static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(U_stored.data(), d_U_.get(),
+                           static_cast<size_t>(m_) * static_cast<size_t>(ucols) * sizeof(Scalar));
       return U_stored.adjoint();
     }
   }

@@ -216,6 +216,24 @@ void test_qr_matrixR(Index m, Index n) {
   }
 }
 
+// ---- matrixR() waits only for the solver's stream ---------------------------
+// A download through the legacy default stream (cudaMemcpy) would also wait
+// for the unrelated blocking stream parked below.
+
+template <typename Scalar>
+void test_qr_matrixR_ignores_other_streams(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, n);
+  gpu::QR<Scalar> qr(A);
+  VERIFY_IS_EQUAL(qr.info(), Success);
+
+  gpu::Context other;
+  gpu_test::ParkedStream parked(other.stream());
+  (void)qr.matrixR();
+  VERIFY(parked.held());
+}
+
 // ---- Multiple solves reuse the factorization --------------------------------
 
 template <typename Scalar>
@@ -254,6 +272,7 @@ void test_scalar() {
 
   CALL_SUBTEST(test_qr_matrixR<Scalar>(64, 64));
   CALL_SUBTEST(test_qr_matrixR<Scalar>(128, 64));
+  CALL_SUBTEST(test_qr_matrixR_ignores_other_streams<Scalar>(96, 64));
 
   CALL_SUBTEST(test_qr_solve_device<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined_device<Scalar>(128, 64, 4));
