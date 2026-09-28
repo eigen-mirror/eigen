@@ -195,36 +195,36 @@ class GpuStreamDevice : public StreamInterface {
     }
   }
 
-  virtual ~GpuStreamDevice() {
+  ~GpuStreamDevice() override {
     if (scratch_) {
       deallocate(scratch_);
     }
   }
 
-  const gpuStream_t& stream() const { return *stream_; }
-  const gpuDeviceProp_t& deviceProperties() const { return GetGpuDeviceProperties(device_); }
+  const gpuStream_t& stream() const override { return *stream_; }
+  const gpuDeviceProp_t& deviceProperties() const override { return GetGpuDeviceProperties(device_); }
   const GpuDeviceAttributes& deviceAttributes() const override { return GetGpuDeviceAttributes(device_); }
-  virtual void* allocate(size_t num_bytes) const {
+  void* allocate(size_t num_bytes) const override {
     EIGEN_GPU_RUNTIME_CHECK(gpuSetDevice(device_));
     void* result = nullptr;
     EIGEN_GPU_RUNTIME_CHECK(gpuMalloc(&result, num_bytes));
     gpu_assert(result != nullptr);
     return result;
   }
-  virtual void deallocate(void* buffer) const {
+  void deallocate(void* buffer) const override {
     EIGEN_GPU_RUNTIME_CHECK(gpuSetDevice(device_));
     gpu_assert(buffer != nullptr);
     EIGEN_GPU_RUNTIME_CHECK(gpuFree(buffer));
   }
 
-  virtual void* scratchpad() const {
+  void* scratchpad() const override {
     if (scratch_ == nullptr) {
       scratch_ = allocate(kGpuScratchSize + sizeof(unsigned int));
     }
     return scratch_;
   }
 
-  virtual unsigned int* semaphore() const {
+  unsigned int* semaphore() const override {
     if (semaphore_ == nullptr) {
       char* scratch = static_cast<char*>(scratchpad()) + kGpuScratchSize;
       semaphore_ = reinterpret_cast<unsigned int*>(scratch);

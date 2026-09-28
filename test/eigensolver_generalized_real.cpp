@@ -53,11 +53,7 @@ void generalized_eigensolver_real(const MatrixType& m) {
   // non symmetric case:
   {
     GeneralizedEigenSolver<MatrixType> eig(rows);
-    // TODO enable full-prealocation of required memory, this probably requires an in-place mode for
-    // HessenbergDecomposition
-    // Eigen::internal::set_is_malloc_allowed(false);
     eig.compute(a, b);
-    // Eigen::internal::set_is_malloc_allowed(true);
     for (Index k = 0; k < cols; ++k) {
       Matrix<ComplexScalar, Dynamic, Dynamic> tmp =
           (eig.betas()(k) * a).template cast<ComplexScalar>() - eig.alphas()(k) * b;
@@ -122,7 +118,34 @@ void generalized_eigensolver_assert() {
   VERIFY_RAISES_ASSERT(eig.betas());
 }
 
+// Use an unbounded dynamic matrix below the block Householder threshold.
+template <typename MatrixType>
+void generalized_eigensolver_no_malloc() {
+  const Index dim = 24;
+  MatrixType A = MatrixType::Random(dim, dim), B = MatrixType::Random(dim, dim);
+  GeneralizedEigenSolver<MatrixType> eig(dim);
+  internal::set_is_malloc_allowed(false);
+  eig.compute(A, B, false);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  const auto alphas = eig.alphas().eval();
+  const auto betas = eig.betas().eval();
+
+  for (int i = 0; i < 2; ++i) {
+    internal::set_is_malloc_allowed(false);
+    eig.compute(A, B, true);
+    internal::set_is_malloc_allowed(true);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+    VERIFY_IS_APPROX(eig.alphas(), alphas);
+    VERIFY_IS_APPROX(eig.betas(), betas);
+    VERIFY_IS_APPROX(A * eig.eigenvectors() * eig.betas().asDiagonal(),
+                     B * eig.eigenvectors() * eig.alphas().asDiagonal());
+  }
+}
+
 EIGEN_DECLARE_TEST(eigensolver_generalized_real) {
+  CALL_SUBTEST_2(generalized_eigensolver_no_malloc<MatrixXd>());
+  CALL_SUBTEST_2((generalized_eigensolver_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
   for (int i = 0; i < g_repeat; i++) {
     int s = 0;
     CALL_SUBTEST_1(generalized_eigensolver_real(Matrix4f()));

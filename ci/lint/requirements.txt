@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+#
+# The lint image's Python tools with their dependencies pinned, so a rebuild
+# reproduces the validated image.  Regenerate with `pip freeze` in the venv.
+attrs==26.1.0
+boolean.py==5.0
+charset-normalizer==3.5.1
+click==8.5.0
+codespell==2.2.6
+Jinja2==3.1.6
+license-expression==30.4.4
+MarkupSafe==3.0.3
+python-debian==1.1.1
+python-magic==0.4.27
+reuse==6.2.0
+tomlkit==0.15.1
+vermin==1.8.0

@@ -125,11 +125,51 @@ void complex_qz_exceptional_shift() {
   }
 }
 
+// Block Householder operations still allocate at larger sizes (issue #3163).
+template <typename MatrixType>
+void complex_qz_no_malloc() {
+  const Index dim = 24;
+  MatrixType A = MatrixType::Random(dim, dim), B = MatrixType::Random(dim, dim);
+  ComplexQZ<MatrixType> qz(dim);
+  internal::set_is_malloc_allowed(false);
+  qz.compute(A, B, false);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  const MatrixType S = qz.matrixS(), T = qz.matrixT();
+
+  ComplexQZ<MatrixType> resized(1, false);
+  resized.compute(A, B, false);
+  internal::set_is_malloc_allowed(false);
+  resized.compute(A, B, false);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(resized.info(), Success);
+  VERIFY_IS_APPROX(resized.matrixS(), S);
+  VERIFY_IS_APPROX(resized.matrixT(), T);
+
+  for (int i = 0; i < 2; ++i) {
+    internal::set_is_malloc_allowed(false);
+    qz.compute(A, B, true);
+    internal::set_is_malloc_allowed(true);
+    VERIFY_IS_EQUAL(qz.info(), Success);
+    VERIFY_IS_APPROX(qz.matrixS(), S);
+    VERIFY_IS_APPROX(qz.matrixT(), T);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixS() * qz.matrixZ(), A);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixT() * qz.matrixZ(), B);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixQ().adjoint(), MatrixType::Identity(dim, dim));
+    VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
+  }
+}
+
 EIGEN_DECLARE_TEST(complex_qz) {
+  CALL_SUBTEST_3((complex_qz_no_malloc<MatrixXcf>()));
+  CALL_SUBTEST_4((complex_qz_no_malloc<MatrixXcd>()));
+  CALL_SUBTEST_5((complex_qz_no_malloc<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_6((complex_qz_no_malloc<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_7((complex_qz_exceptional_shift<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_exceptional_shift<MatrixXcd>()));
   CALL_SUBTEST_9((complex_qz_exceptional_shift<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_10((complex_qz_exceptional_shift<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
+
   for (int i = 0; i < g_repeat; i++) {
     // Check for very small, fixed-sized double- and float complex matrices
     Eigen::Matrix2cd A_2x2, B_2x2;

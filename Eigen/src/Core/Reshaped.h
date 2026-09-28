@@ -295,12 +295,12 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
     CoeffReadCost = evaluator<ArgType>::CoeffReadCost /* TODO + cost of index computations */,
 
     // The reshape enumerates the nested expression's elements in `Order`. When the nested
-    // evaluator's linear enumeration follows the same order -- its storage order matches, or it is
-    // vector-shaped so the order is immaterial -- the n-th reshaped element is the n-th nested
-    // element and every access forwards linearly, with no division/modulo index remapping.
+    // evaluator and the reshape's storage both enumerate in that order, linear accesses and
+    // packets can forward unchanged. A vector shape makes only its own storage order immaterial.
     NestedRowMajor = (int(evaluator<ArgType>::Flags) & RowMajorBit) != 0,
     OrderMatchesNested = (Order == int(ColMajor)) != NestedRowMajor,
     ForwardLinearAccess = (OrderMatchesNested || ArgType::RowsAtCompileTime == 1 || ArgType::ColsAtCompileTime == 1) &&
+                          (Order == int(traits<XprType>::ReshapedStorageOrder) || Rows == 1 || Cols == 1) &&
                           ((int(evaluator<ArgType>::Flags) & LinearAccessBit) != 0)
 
     // Flags and Alignment are defined by evaluator<Reshaped>, which derives from this evaluator.

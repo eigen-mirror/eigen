@@ -6,7 +6,7 @@ test selector [`scripts/affected_tests.py`](../scripts/affected_tests.py), the p
 consumer's view of the same machinery; the checked-out files are authoritative where the two disagree.
 
 Both selector scripts fail closed, but a wrong answer is silent — a job that skips too much still reports success — so
-their unit tests are blocking and run on every merge request in `checkformat:scripts`:
+their unit tests are blocking and run on every merge request in `checkformat:lint`:
 
 ```bash
 python3 scripts/test_affected_tests.py
@@ -86,10 +86,11 @@ both Linux and Windows consume through `EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_C
 [`test.windows.script.ps1`](../ci/scripts/test.windows.script.ps1) on Windows).
 
 Selection follows the textual `#include` graph, ignoring preprocessor guards, so it is a strict superset of the real
-compile dependency. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims force the full suite,
-since they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot change which
-test includes which header, so they select nothing. Git rename detection is disabled for the input diff so both the
-old and new path of a move are evaluated; an old path absent from the current graph safely forces the full suite.
+compile dependency. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims force the full suite, since
+they invalidate the mapping itself; the `ci/*.gitlab-ci.yml` files are orchestration and cannot change which test
+includes which header, so they select nothing, and neither do the clang-tidy and lint images under `ci/tidy/` and
+`ci/lint/`. Git rename detection is disabled for the input diff so both the old and new path of a move are evaluated; an
+old path absent from the current graph safely forces the full suite.
 
 The selector derives source-to-target mappings from test CMake registration, including multi-translation-unit
 executables and the GPU tests, whose sources are `.cu` because `ei_add_test` takes the extension from
@@ -111,15 +112,17 @@ memory-pressure protection the batching exists for.
 
 Two registrations do not reduce to a build target. `buildtests` aggregates the `ei_add_test` targets only, so a bare
 `add_executable` such as the `bug1213` link regression is named explicitly alongside `buildtests` in the full-suite
-mode. The compile-failure suite under `failtest/` is `EXCLUDE_FROM_ALL` and each of its CTest tests builds its own
-target as the test action, so those are selected as `<name>_ok` and `<name>_ko` CTest names and never handed to the
-build job. Both matter because a `-R` filter silently drops whatever it does not name, while the unfiltered runs in
-the other tiers pick them up for free.
+mode. The compile-failure suite under `failtest/` is `EXCLUDE_FROM_ALL` and is compiled at test time, so those are
+selected as `<name>_ok` and `<name>_ko` CTest names and never handed to the build job. Both matter because a `-R`
+filter silently drops whatever it does not name, while the unfiltered runs in the other tiers pick them up for free.
 
-Because that test action is a build in the shared binary directory, `ei_add_failtest` puts the whole suite behind one
-`RESOURCE_LOCK`. Without it, `ctest --parallel` starts dozens of concurrent builds over one build system and they
-collide whenever a regeneration is pending. The failure is not only noisy: `_ko` is `WILL_FAIL`, so a build system
-that errors for an unrelated reason satisfies it just as well as the compile error it is supposed to assert.
+The compile happens in the `buildfailtests` fixture that every `_ok` and `_ko` test requires, so CTest adds it to any
+selection naming one of them, even past `-E`. It builds every failtest target in one keep-going `cmake --build`: one
+build per test would have to be serialized, because concurrent builds over one binary directory collide whenever a
+regeneration is pending, and on the hosted runners that serial suite was 80-95% of an affected test job's wall time.
+The tests then only inspect the executables: `_ok` passes when its own exists, `_ko` when its own is missing and its
+`_ok` twin's exists, so a missing compiler fails both halves instead of satisfying `_ko`. A job that excludes the
+failtests by name for an "ALL" selection, which applies no `-R`, must exclude `^buildfailtests$` as well.
 
 The RISC-V affected tier runs the `failtest` label on an amd64 job with the original cross compiler. Its native
 runtime job excludes those compile tests and the nested `buildsystem` scenarios: the runtime image has neither Ninja

@@ -10,6 +10,7 @@
 
 #include "main.h"
 #include "fp_control.h"
+#include "NonCommutativeScalar.h"
 #include <Eigen/QR>
 
 namespace reordered_complex {
@@ -210,6 +211,43 @@ void householder(const MatrixType& m) {
   VERIFY_IS_APPROX(rhseq * m5, m1);  // test applying rhseq directly
   m3 = rhseq;
   VERIFY_IS_APPROX(m3 * m5, m1);  // test evaluating rhseq to a dense matrix, then applying
+}
+
+// A row-vector operand gives a row-major row-vector result; a column-major one fails to instantiate.
+template <typename Scalar>
+void householder_row_vector_products(Index size) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowVectorType = Matrix<Scalar, 1, Dynamic>;
+
+  const HouseholderQR<MatrixType> qr(MatrixType::Random(size, size));
+  const MatrixType q = qr.householderQ();
+  const RowVectorType row = RowVectorType::Random(size);
+  STATIC_CHECK((internal::is_same<decltype(row * qr.householderQ()), RowVectorType>::value));
+  RowVectorType result = row * qr.householderQ();
+  VERIFY_IS_APPROX(result, row * q);
+  result = row * qr.householderQ().adjoint();
+  VERIFY_IS_APPROX(result, row * q.adjoint());
+
+  const HouseholderQR<MatrixType> qr1(MatrixType::Random(1, 1));
+  const MatrixType q1 = qr1.householderQ();
+  STATIC_CHECK((internal::is_same<decltype(qr1.householderQ() * row), RowVectorType>::value));
+  result = qr1.householderQ() * row;
+  VERIFY_IS_APPROX(result, q1 * row);
+
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using RowVector3 = Matrix<Scalar, 1, 3>;
+  const HouseholderQR<Matrix3> qr3(Matrix3::Random());
+  const RowVector3 row3 = RowVector3::Random();
+  STATIC_CHECK((internal::is_same<decltype(row3 * qr3.householderQ()), RowVector3>::value));
+  VERIFY_IS_APPROX(RowVector3(row3 * qr3.householderQ()), RowVector3(row3 * Matrix3(qr3.householderQ())));
+
+  // A single-column reflector set makes the blocked right-side tmp N x 1; it is instantiated although one
+  // reflector never takes that path at run time.
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  const HouseholderQR<VectorType> qrv(VectorType::Random(size));
+  const MatrixType qv = qrv.householderQ();
+  const MatrixType m = MatrixType::Random(3, size);
+  VERIFY_IS_APPROX(MatrixType(m * qrv.householderQ()), m * qv);
 }
 
 template <typename MatrixType>
@@ -898,7 +936,10 @@ void householder_essential_expressions() {
     Scalar tau;
     typename NumTraits<Scalar>::Real beta;
     VectorType essential(rows - 1);
-    VectorType::Random(rows).makeHouseholder(essential, tau, beta);
+    // Materialize first: makeHouseholder reads its argument several times, and a lazy Random expression
+    // redraws on every read, so essential and tau would not describe one reflector.
+    const VectorType reflected = VectorType::Random(rows);
+    reflected.makeHouseholder(essential, tau, beta);
 
     Mat column(rows + 1, 3);
     column.col(1).tail(rows - 1) = essential;
@@ -923,42 +964,6 @@ void householder_essential_expressions() {
   }
 }
 
-namespace noncommutative_scalar {
-
-// Quaternions: multiplication is associative and conjugation reverses products, but ab != ba in general.
-struct Quaternion {
-  double r, i, j, k;
-  Quaternion(double real = 0, double x = 0, double y = 0, double z = 0) : r(real), i(x), j(y), k(z) {}
-  Quaternion operator+(const Quaternion& b) const { return Quaternion(r + b.r, i + b.i, j + b.j, k + b.k); }
-  Quaternion operator-(const Quaternion& b) const { return Quaternion(r - b.r, i - b.i, j - b.j, k - b.k); }
-  Quaternion operator-() const { return Quaternion(-r, -i, -j, -k); }
-  Quaternion operator*(const Quaternion& b) const {
-    return Quaternion(r * b.r - i * b.i - j * b.j - k * b.k, r * b.i + i * b.r + j * b.k - k * b.j,
-                      r * b.j - i * b.k + j * b.r + k * b.i, r * b.k + i * b.j - j * b.i + k * b.r);
-  }
-  Quaternion& operator+=(const Quaternion& b) { return *this = *this + b; }
-  Quaternion& operator-=(const Quaternion& b) { return *this = *this - b; }
-  Quaternion& operator*=(const Quaternion& b) { return *this = *this * b; }
-  bool operator==(const Quaternion& b) const { return r == b.r && i == b.i && j == b.j && k == b.k; }
-  bool operator!=(const Quaternion& b) const { return !(*this == b); }
-};
-
-inline Quaternion conj(const Quaternion& a) { return Quaternion(a.r, -a.i, -a.j, -a.k); }
-inline double real(const Quaternion& a) { return a.r; }
-inline double imag(const Quaternion& a) { return a.i; }
-
-}  // namespace noncommutative_scalar
-
-namespace Eigen {
-template <>
-struct NumTraits<noncommutative_scalar::Quaternion> : GenericNumTraits<noncommutative_scalar::Quaternion> {
-  using Real = double;
-  using Literal = double;
-  static constexpr bool IsComplex = true;
-  static constexpr bool RequireInitialization = true;
-};
-}  // namespace Eigen
-
 // The fused loop must multiply in the order the general update's expressions spell out, essential * tmp with
 // tmp = tau * (essential.adjoint() * column + top), which only a noncommutative scalar observes. Small integer
 // components keep every operation exact. The general path is not a reference here: its product kernels reorder
@@ -982,6 +987,27 @@ void householder_noncommutative_scalar() {
     VERIFY(a(0, 0) == Scalar(0));
     VERIFY(a(1, 0) == -k);
   }
+  {
+    // A one-row block has no essential part, so H = 1 - tau = i: H * j = k on the left, j * H = -k on the right.
+    const Matrix<Scalar, 0, 1> none;
+    Scalar workspace[2];
+    Mat row = Mat::Constant(1, 2, j);
+    row.applyHouseholderOnTheLeft(none, Scalar(1) - i, workspace);
+    VERIFY(row == Mat::Constant(1, 2, k));
+    Mat column = Mat::Constant(2, 1, j);
+    column.applyHouseholderOnTheRight(none, Scalar(1) - i, workspace);
+    VERIFY(column == Mat::Constant(2, 1, -k));
+  }
+  {
+    // A zero essential part keeps the product kernels out: a H = a - (a v) tau v^* with v = [1, 0...]^T, so
+    // tau = i turns a first column of j into j - j * i = j + k.
+    Mat a = Mat::Constant(2, Size, Scalar(0));
+    a.col(0).setConstant(j);
+    const EssentialType essential = EssentialType::Constant(Scalar(0));
+    Scalar workspace[2];
+    a.applyHouseholderOnTheRight(essential, i, workspace);
+    VERIFY(a.col(0) == Mat::Constant(2, 1, j + k));
+  }
   const Index cols = internal::random<Index>(1, 7);
   Mat a(Size, cols);
   for (Index c = 0; c < cols; ++c)
@@ -999,6 +1025,119 @@ void householder_noncommutative_scalar() {
   VERIFY(a == expected);
 }
 
+// Q times a diagonal, triangular, self-adjoint or permutation matrix, both orders, against the products with the
+// dense Q.
+template <typename Scalar>
+void householder_structured_products(Index size) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+
+  const MatrixType a = MatrixType::Random(size, size);
+  const HouseholderQR<MatrixType> qr(a);
+  const MatrixType q = qr.householderQ();
+  const DiagonalMatrix<Scalar, Dynamic> d(VectorType::Random(size));
+  PermutationMatrix<Dynamic> p(size);
+  randomPermutationVector(p.indices(), size);
+  const MatrixType dDense = d.toDenseMatrix();
+  const MatrixType pDense = p.toDenseMatrix().template cast<Scalar>();
+  const MatrixType upperDense = a.template triangularView<Upper>();
+  const MatrixType selfadjointDense = a.template selfadjointView<Lower>();
+
+  STATIC_CHECK((internal::is_same<decltype(qr.householderQ() * d), MatrixType>::value));
+  STATIC_CHECK((internal::is_same<decltype(p * qr.householderQ()), MatrixType>::value));
+
+  MatrixType result = qr.householderQ() * d;
+  VERIFY_IS_APPROX(result, q * dDense);
+  result = d * qr.householderQ();
+  VERIFY_IS_APPROX(result, dDense * q);
+  result = qr.householderQ() * a.template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, q * upperDense);
+  result = a.template triangularView<UnitLower>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, MatrixType(a.template triangularView<UnitLower>()) * q);
+  result = qr.householderQ() * a.template selfadjointView<Lower>();
+  VERIFY_IS_APPROX(result, q * selfadjointDense);
+  result = a.template selfadjointView<Upper>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, MatrixType(a.template selfadjointView<Upper>()) * q);
+  result = qr.householderQ() * p;
+  VERIFY_IS_APPROX(result, q * pDense);
+  result = p * qr.householderQ();
+  VERIFY_IS_APPROX(result, pDense * q);
+  result = qr.householderQ() * p.inverse();
+  VERIFY_IS_APPROX(result, q * pDense.transpose());
+  result = p.transpose() * qr.householderQ();
+  VERIFY_IS_APPROX(result, pDense.transpose() * q);
+  result = qr.householderQ().adjoint() * d;
+  VERIFY_IS_APPROX(result, q.adjoint() * dDense);
+  result = qr.householderQ().adjoint() * p;
+  VERIFY_IS_APPROX(result, q.adjoint() * pDense);
+
+  // Upper triangular operands on the left take the identity path of the dense product; the other triangular modes
+  // and the tall (non-square) case take the full path.
+  result = qr.householderQ() * qr.matrixQR().template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, a);
+  result = qr.householderQ() * a.template triangularView<StrictlyUpper>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<StrictlyUpper>()));
+  result = qr.householderQ() * a.template triangularView<UnitUpper>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<UnitUpper>()));
+  result = qr.householderQ() * a.template triangularView<Lower>();
+  VERIFY_IS_APPROX(result, q * MatrixType(a.template triangularView<Lower>()));
+  const MatrixType tall = MatrixType::Random(2 * size, size);
+  const HouseholderQR<MatrixType> qrTall(tall);
+  result = qrTall.householderQ() * qrTall.matrixQR().template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, tall);
+
+  // Real operands of a complex sequence promote to the sequence's scalar type.
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealMatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const DiagonalMatrix<RealScalar, Dynamic> dReal(Matrix<RealScalar, Dynamic, 1>::Random(size));
+  const RealMatrixType aReal = RealMatrixType::Random(size, size);
+  STATIC_CHECK((internal::is_same<decltype(qr.householderQ() * dReal), MatrixType>::value));
+  result = qr.householderQ() * dReal;
+  VERIFY_IS_APPROX(result, q * dReal.toDenseMatrix());
+  result = dReal * qr.householderQ();
+  VERIFY_IS_APPROX(result, dReal.toDenseMatrix() * q);
+  result = qr.householderQ() * aReal.template triangularView<Upper>();
+  VERIFY_IS_APPROX(result, q * RealMatrixType(aReal.template triangularView<Upper>()));
+  result = aReal.template triangularView<Lower>() * qr.householderQ();
+  VERIFY_IS_APPROX(result, RealMatrixType(aReal.template triangularView<Lower>()) * q);
+}
+
+// D * H scales the rows of H from the left, D(i,i) * H(i,j), which only a noncommutative scalar tells apart from
+// scaling them on the right. Integer components keep every operation exact.
+void householder_structured_products_noncommutative() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  {
+    // H = 1 - tau = j and D = i: D * H = i * j = k, where scaling on the right gives j * i = -k.
+    const Scalar i(0, 1), j(0, 0, 1), k(0, 0, 0, 1);
+    DiagonalMatrix<Scalar, Dynamic> d(1);
+    d.diagonal()(0) = i;
+    const Mat result = d * householderSequence(Mat::Constant(1, 1, Scalar(0)), Vec::Constant(1, Scalar(1) - j));
+    VERIFY(result(0, 0) == k);
+  }
+  const auto randomScalar = [] {
+    return Scalar(internal::random<int>(-1, 1), internal::random<int>(-1, 1), internal::random<int>(-1, 1),
+                  internal::random<int>(-1, 1));
+  };
+  const Index size = internal::random<Index>(1, 7);
+  Mat vectors(size, size);
+  Vec coeffs(size);
+  DiagonalMatrix<Scalar, Dynamic> d(size);
+  for (Index c = 0; c < size; ++c) {
+    for (Index r = 0; r < size; ++r) vectors(r, c) = randomScalar();
+    coeffs(c) = randomScalar();
+    d.diagonal()(c) = randomScalar();
+  }
+  const HouseholderSequence<Mat, Vec> h(vectors, coeffs);
+  const Mat hDense = h;
+  Mat expected(size, size);
+  for (Index c = 0; c < size; ++c)
+    for (Index r = 0; r < size; ++r) expected(r, c) = d.diagonal()(r) * hDense(r, c);
+  const Mat result = d * h;
+  VERIFY(result == expected);
+}
+
 EIGEN_DECLARE_TEST(householder) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
@@ -1009,6 +1148,10 @@ EIGEN_DECLARE_TEST(householder) {
         MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_6(householder(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_5(householder_row_vector_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    // Takes the blocked right-side application: length >= BlockSize (48) and rows >= 4 * BlockSize.
+    CALL_SUBTEST_5(householder_row_vector_products<double>(200));
+    CALL_SUBTEST_6(householder_row_vector_products<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_7(householder(
         MatrixXf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_8(householder(Matrix<double, 1, 1>()));
@@ -1041,5 +1184,11 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_21((householder_essential_expressions<std::complex<double>, RowMajor>()));
     CALL_SUBTEST_22(householder_noncommutative_scalar<2>());
     CALL_SUBTEST_22(householder_noncommutative_scalar<3>());
+    CALL_SUBTEST_23(householder_structured_products<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_23(householder_structured_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
+    CALL_SUBTEST_23(
+        householder_structured_products<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
+    CALL_SUBTEST_23(householder_structured_products_noncommutative());
   }
+  CALL_SUBTEST_23(householder_structured_products<double>(1));
 }

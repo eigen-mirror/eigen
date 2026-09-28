@@ -44,11 +44,7 @@ void real_qz(const MatrixType& m) {
   }
 
   RealQZ<MatrixType> qz(dim);
-  // TODO enable full-prealocation of required memory, this probably requires an in-place mode for
-  // HessenbergDecomposition
-  // Eigen::internal::set_is_malloc_allowed(false);
   qz.compute(A, B);
-  // Eigen::internal::set_is_malloc_allowed(true);
 
   VERIFY_IS_EQUAL(qz.info(), Success);
   // check for zeros
@@ -97,7 +93,37 @@ void real_qz_iteration_cap_regression() {
   VERIFY_IS_EQUAL(qz.info(), NoConvergence);
 }
 
+// Block Householder operations still allocate at larger sizes (issue #3163).
+template <typename MatrixType>
+void real_qz_no_malloc() {
+  const Index dim = 24;
+  MatrixType A = MatrixType::Random(dim, dim), B = MatrixType::Random(dim, dim);
+  RealQZ<MatrixType> qz(dim);
+  internal::set_is_malloc_allowed(false);
+  qz.compute(A, B, false);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  const MatrixType S = qz.matrixS(), T = qz.matrixT();
+
+  for (int i = 0; i < 2; ++i) {
+    internal::set_is_malloc_allowed(false);
+    qz.compute(A, B, true);
+    internal::set_is_malloc_allowed(true);
+    VERIFY_IS_EQUAL(qz.info(), Success);
+    VERIFY_IS_APPROX(qz.matrixS(), S);
+    VERIFY_IS_APPROX(qz.matrixT(), T);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixS() * qz.matrixZ(), A);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixT() * qz.matrixZ(), B);
+    VERIFY_IS_APPROX(qz.matrixQ() * qz.matrixQ().adjoint(), MatrixType::Identity(dim, dim));
+    VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
+  }
+}
+
 EIGEN_DECLARE_TEST(real_qz) {
+  CALL_SUBTEST_2((real_qz_no_malloc<MatrixXd>()));
+  CALL_SUBTEST_5((real_qz_no_malloc<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_6((real_qz_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
+
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(real_qz(Matrix4f()));

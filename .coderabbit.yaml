@@ -88,7 +88,7 @@ reviews:
         - **SPDX / REUSE.** Every new source file (`.h`, `.cpp`, `.cu`,
           `.inc`, `.cmake`, `CMakeLists.txt`, etc.) must carry the
           standard Eigen MPL-2.0 SPDX + copyright header inline. The
-          `checkformat:reuse` CI job (`reuse lint`) blocks otherwise.
+          `reuse lint` check in the `checkformat:lint` CI job blocks otherwise.
           Files that can't carry inline headers (top-level docs,
           generated/templated files, binary assets) are covered by
           path-based annotations in `REUSE.toml` — add the path there

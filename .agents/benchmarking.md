@@ -147,7 +147,8 @@ analysis is mandatory for every contribution.
   or a small reproducer that evaluates the same Eigen expression and keeps its result observable. Include a short
   annotated excerpt or diff showing the relevant change, such as removed loads, stores, shuffles, branches, spills,
   or calls; vectorization; or changed loop dependencies. Record the build and disassembly commands and explain how
-  the inspected code relates to the benchmark case.
+  the inspected code relates to the benchmark case. Inspect Eigen's code only: a proprietary library that the
+  benchmark links is measured from outside and never disassembled or annotated; see [`provenance.md`](provenance.md).
 
 Connect this evidence to the measured results in the contribution's performance summary. Instruction counts and
 assembly explain mechanisms; fewer instructions alone do not establish a speedup on a particular CPU. Investigate

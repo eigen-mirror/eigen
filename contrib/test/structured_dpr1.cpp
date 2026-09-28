@@ -98,6 +98,41 @@ void test_dpr1_clustered(Index n) {
   DPR1EigenSolver<Scalar> es(dc, Scalar(1), z);
   VERIFY(numext::abs(es.eigenvalues()[n - 1] - (Scalar(3) + z.squaredNorm())) <=
          Scalar(100) * Scalar(n) * NumTraits<Scalar>::epsilon() * (Scalar(3) + z.squaredNorm()));
+  // Deflating equal poles leaves the pole itself: c has multiplicity n - 1 exactly, for either
+  // sign of rho (rho < 0 puts c + rho*||z||^2 first).
+  for (Index i = 0; i + 1 < n; ++i) VERIFY_IS_EQUAL(es.eigenvalues()[i], Scalar(3));
+  DPR1EigenSolver<Scalar> esn(dc, Scalar(-1), z, EigenvaluesOnly);
+  for (Index i = 1; i < n; ++i) VERIFY_IS_EQUAL(esn.eigenvalues()[i], Scalar(3));
+
+  // Exact triples among distinct poles: a pole of multiplicity k stays an eigenvalue >= k - 1 times.
+  Vec dt(n);
+  for (Index i = 0; i < n; ++i) {
+    const Index pole = 1 + i / 3;
+    dt[i] = Scalar(pole);
+  }
+  check_dpr1<Scalar>(dt, Scalar(2), z);
+  DPR1EigenSolver<Scalar> est(dt, Scalar(2), z, EigenvaluesOnly);
+  for (Index i = 0; i < n; i += 3) {
+    const Index multiplicity = numext::mini<Index>(3, n - i);
+    VERIFY((est.eigenvalues().array() == dt[i]).count() >= multiplicity - 1);
+  }
+}
+
+// A Givens deflation with c = O(eps), s ~ 1 across a wide gap: rho*|z_2| = 10.8 eps and
+// |c s (d_2 - d_1)| ~ 3 eps bracket tol = 7.2 eps. The secular equation puts an eigenvalue at
+// d_2 - O(eps^2), which the deflation must form as a correction to d_2, not to the far pole d_1:
+// d_1 + s^2 (d_2 - d_1) inherits the rounding of d_2 - d_1, up to eps/8 >> eps * d_2.
+template <typename Scalar>
+void test_dpr1_skewed_deflation() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar small = numext::sqrt(eps) / Scalar(3);  // not a power of two, so d_2 - d_1 rounds
+  Vec d(2), z(2);
+  d << Scalar(-0.25), small;
+  z << Scalar(1), Scalar(12) * eps;
+  check_dpr1<Scalar>(d, Scalar(0.9), z);
+  DPR1EigenSolver<Scalar> es(d, Scalar(0.9), z, EigenvaluesOnly);
+  VERIFY(numext::abs(es.eigenvalues()[0] - small) <= Scalar(4) * eps * small);
 }
 
 // Zero and tiny z entries exercise the z-deflation path.
@@ -545,6 +580,93 @@ void test_dpr1_ftz_mode() {
   if (flushToZeroSupported) VERIFY_IS_EQUAL(underflowProbe<double>(), underflowBefore);
 }
 
+// The normalized secular problem depends only on the scaling exponent, so for
+// an all-subnormal d: eig(D + z z^T) == 2^-k eig(2^k D + (2^(k/2) z)(2^(k/2) z)^T)
+// bit for bit, with the same eigenvectors, plainly and under flush-to-zero.
+// ||z||^2 ~ |d| keeps the update undeflated.
+template <typename RealScalar>
+void test_dpr1_flushed_subnormal_diagonal() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  const Index n = 6;
+  Vec d(n), z(n);
+  for (Index i = 0; i < n; ++i) {
+    // Distinct significands of digits - 2 bits, d in [2^(min_exponent - 3), 2^(min_exponent - 2)), stored out of
+    // order: the pole sort compares them, and a flushing comparison would leave them unsorted.
+    const Index slot = (5 * i + 2) % n;
+    d(slot) = numext::bit_cast<RealScalar>((Bits(1) << (digits - 3)) + Bits(i) * (Bits(1) << (digits - 6)));
+    z(slot) = numext::ldexp(RealScalar(1) + RealScalar(i) / RealScalar(8), (minExponent - 3) / 2);
+  }
+  // (D + z z^T) 2^k = D 2^k + (z 2^(k/2)) (z 2^(k/2))^T, with k even and D 2^k normal.
+  const int k = 2 * ((digits + 8) / 2);
+  const Vec ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const Vec zs = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k / 2));
+  const DPR1EigenSolver<RealScalar> scaled(ds, RealScalar(1), zs);
+  VERIFY(scaled.info() == Success);
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const DPR1EigenSolver<RealScalar> solver(d, RealScalar(1), z);
+    VERIFY(solver.info() == Success);
+    for (Index i = 0; i < n; ++i) {
+      VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)),
+                      Binary::bits(internal::scale_binary_by_exponent(scaled.eigenvalues()(i), -k)));
+    }
+    VERIFY_IS_EQUAL(solver.eigenvectors(), scaled.eigenvectors());
+  });
+}
+
+// A subnormal rho, whose sign a comparison reads as zero under DAZ and whose exponent the C library's frexp can
+// flush. With d = 0 and z = 2^E, the eigenvalue is rho 2^(2E) exactly; with E = (digits - min_exponent) / 2 that is
+// +-2^(2E + min_exponent - digits) for rho = +-denorm_min. A subnormal rho of several bits then compares against the
+// same problem with rho 2^(2E) and z 2^-E, which the normalization by powers of two maps to the same secular
+// equation, bit for bit.
+template <typename RealScalar>
+void test_dpr1_subnormal_rho() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  constexpr int E = (digits - minExponent) / 2;
+  const RealScalar denormMin = numext::bit_cast<RealScalar>(Bits(1));
+  const RealScalar expected = numext::ldexp(RealScalar(1), 2 * E + minExponent - digits);
+  Vec d1(1), z1(1);
+  d1 << RealScalar(0);
+  z1 << numext::ldexp(RealScalar(1), E);
+
+  const Index n = 3;
+  Vec d(n), z(n);
+  d << RealScalar(-1), RealScalar(0.5), RealScalar(2);
+  z << numext::ldexp(RealScalar(1.25), E), -numext::ldexp(RealScalar(0.75), E), numext::ldexp(RealScalar(1.5), E);
+  const RealScalar rho = numext::bit_cast<RealScalar>(Bits(0x5a) << (digits - 10));
+  const Vec zDown = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(-E));
+  const RealScalar rhoUp = internal::scale_binary_by_exponent(rho, 2 * E);
+  VERIFY(rhoUp >= (std::numeric_limits<RealScalar>::min)());
+  const DPR1EigenSolver<RealScalar> positive(d, rhoUp, zDown), negative(d, -rhoUp, zDown);
+  VERIFY(positive.info() == Success);
+  VERIFY(negative.info() == Success);
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    for (const bool negated : {false, true}) {
+      const DPR1EigenSolver<RealScalar> single(d1, negated ? -denormMin : denormMin, z1);
+      VERIFY(single.info() == Success);
+      VERIFY_IS_EQUAL(Binary::bits(single.eigenvalues()(0)), Binary::bits(negated ? -expected : expected));
+      VERIFY_IS_EQUAL(numext::abs(single.eigenvectors()(0, 0)), RealScalar(1));
+
+      const DPR1EigenSolver<RealScalar> solver(d, negated ? -rho : rho, z);
+      const DPR1EigenSolver<RealScalar>& reference = negated ? negative : positive;
+      VERIFY(solver.info() == Success);
+      for (Index i = 0; i < n; ++i) {
+        VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)), Binary::bits(reference.eigenvalues()(i)));
+      }
+      VERIFY_IS_EQUAL(solver.eigenvectors(), reference.eigenvectors());
+    }
+  });
+}
+
 // A huge diagonal spread makes every z entry individually negligible even though
 // rho itself is not: the whole update deflates and m == 0.
 void test_dpr1_all_deflated() {
@@ -576,6 +698,9 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_2((test_dpr1_rank_one<float>(11)));
     CALL_SUBTEST_2((test_dpr1_clustered<long double>(12)));
     CALL_SUBTEST_2((test_dpr1_sparse_z<long double>(9)));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<float>()));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<double>()));
+    CALL_SUBTEST_2((test_dpr1_skewed_deflation<long double>()));
 
     CALL_SUBTEST_3((test_dpr1_edges<double>()));
     CALL_SUBTEST_3((test_dpr1_edges<float>()));
@@ -610,5 +735,9 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum());
     CALL_SUBTEST_5(test_dpr1_tiny_scale());
     CALL_SUBTEST_5(test_dpr1_ftz_mode());
+    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<float>());
+    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<double>());
+    CALL_SUBTEST_5(test_dpr1_subnormal_rho<float>());
+    CALL_SUBTEST_5(test_dpr1_subnormal_rho<double>());
   }
 }

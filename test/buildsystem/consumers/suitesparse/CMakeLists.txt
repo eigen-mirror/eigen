@@ -36,9 +36,8 @@ foreach(pkg IN ITEMS CHOLMOD UMFPACK KLU SPQR)
   if(NOT ${pkg}_INCLUDES STREQUAL "${EXPECTED_INCLUDE_DIR}")
     message(FATAL_ERROR "${pkg}_INCLUDES is '${${pkg}_INCLUDES}', expected ${EXPECTED_INCLUDE_DIR}")
   endif()
-  # A generator expression is not a directory, and consumers that read include
-  # directories at configure time -- FindCUDA's cuda_add_executable() among them
-  # -- cannot resolve one.
+  # A generator expression is not a directory, and a consumer that reads include directories at configure time
+  # cannot resolve one.
   foreach(dir IN LISTS ${pkg}_INCLUDES)
     if(NOT IS_DIRECTORY "${dir}")
       message(FATAL_ERROR "${pkg}_INCLUDES holds '${dir}', which is not a usable directory")

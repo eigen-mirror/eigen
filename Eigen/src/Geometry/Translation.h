@@ -115,7 +115,7 @@ class Translation {
     AffineTransformType res;
     res.matrix().setZero();
     res.linear() = linear.derived();
-    res.translation() = linear.derived() * t.m_coeffs;
+    res.translation().noalias() = linear.derived() * t.m_coeffs;
     res.matrix().row(Dim).setZero();
     res(Dim, Dim) = Scalar(1);
     return res;

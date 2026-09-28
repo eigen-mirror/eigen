@@ -100,9 +100,9 @@ test:windows:x86-64:cuda-13.0:msvc-14.29:
 # failtest suite and the buildsystem tests carry no CTest label, so every other
 # Windows job skips them by construction, and their test action is a compile
 # rather than the running of a prebuilt binary.  Only the build script runs
-# vcvarsall, so cl.exe is not invocable here: each one fails with "CreateProcess
-# failed: The system cannot find the file specified", while its WILL_FAIL `_ko`
-# twin passes on that same unrelated error.  Excluding them keeps this job's
+# vcvarsall, so cl.exe is not invocable here: every compile fails with
+# "CreateProcess failed: The system cannot find the file specified", and with it
+# every `_ok` and `_ko` test.  Excluding them keeps this job's
 # coverage equal to what Windows has always run.  Giving the Windows test runner
 # a compiler environment would be a separate change with its own fallout.
 
@@ -112,6 +112,8 @@ test:windows:x86-64:msvc-14.29:default:affected:
   variables:
     # `$` last: GitLab expands $NAME inside a variable value, and a trailing `$`
     # cannot begin an expansion. Verified against the registered test names --
-    # `_(ok|ko)$` matches the 124 failtest entries and nothing else.
-    EIGEN_CI_CTEST_EXCLUDE: "^buildsystem_|_(ok|ko)$"
+    # `_(ok|ko)$` matches the 124 failtest entries and nothing else.  The
+    # buildfailtests fixture they require is named too, as an "ALL" selection
+    # applies no -R filter and would otherwise run it alone.
+    EIGEN_CI_CTEST_EXCLUDE: "^buildsystem_|^buildfailtests$|_(ok|ko)$"
   rules: !reference [.rules:libeigen:affected-tests:windows, rules]

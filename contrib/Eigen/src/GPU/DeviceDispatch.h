@@ -601,9 +601,9 @@ std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScal
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
-  // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster, since nrm2
-  // runs a scaled sum of squares whose overflow protection convergence checks do
-  // not need.
+  // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster. It has no
+  // overflow protection, so callers guard the scale of x themselves; Eigen's
+  // iterative solver templates call stableNorm() instead.
   return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
 }
 
@@ -707,6 +707,62 @@ template <typename Scalar_>
 DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator*=(Scalar alpha) {
   scale(Context::threadLocal(), alpha);
   return *this;
+}
+
+namespace internal {
+// x[i] /= alpha. Real Scalar: NPP divides in place. Complex Scalar: cuBLAS scal by the
+// host reciprocal, which std::complex computes with scaling, so |alpha| > sqrt(max)
+// does not overflow; one extra rounding per element.
+inline void divide_in_place(Context& ctx, float* x, int64_t n, float alpha) {
+  device_divC(alpha, x, Eigen::internal::convert_index<int>(n), ctx.stream());
+}
+inline void divide_in_place(Context& ctx, double* x, int64_t n, double alpha) {
+  device_divC(alpha, x, Eigen::internal::convert_index<int>(n), ctx.stream());
+}
+template <typename Real>
+void divide_in_place(Context& ctx, std::complex<Real>* x, int64_t n, std::complex<Real> alpha) {
+  const std::complex<Real> inv = std::complex<Real>(1) / alpha;
+  EIGEN_CUBLAS_CHECK(cublasXscal(ctx.cublasHandle(), n, &inv, x, 1));
+}
+}  // namespace internal
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::divide(Context& ctx, Scalar alpha) {
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  if (n > 0) {
+    waitReady(ctx.stream());
+    internal::divide_in_place(ctx, data_.get(), n, alpha);
+    recordReady(ctx.stream());
+  }
+}
+
+// this /= alpha
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator/=(Scalar alpha) {
+  divide(Context::threadLocal(), alpha);
+  return *this;
+}
+
+// Deep copies: device-to-device cuBLAS copy on the thread-local Context.
+template <typename Scalar_>
+DeviceMatrix<Scalar_>::DeviceMatrix(const DeviceMatrix& other) : DeviceMatrix() {
+  copyFrom(Context::threadLocal(), other);
+}
+
+template <typename Scalar_>
+DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& other) {
+  if (this != &other) copyFrom(Context::threadLocal(), other);
+  return *this;
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
+  return norm(ctx);
+}
+
+template <typename Scalar_>
+DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm() const {
+  return norm(Context::threadLocal());
 }
 
 // this *= alpha  (scal, device pointer — avoids host sync)

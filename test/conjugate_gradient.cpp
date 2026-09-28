@@ -57,10 +57,31 @@ void test_conjugate_gradient_extreme_rhs() {
   }
 }
 
+// solveWithGuessInPlace() must agree with solveWithGuess() and report through info().
+void test_solve_with_guess_in_place() {
+  const Index n = 60;
+  MatrixXd M = MatrixXd::Random(n, n);
+  SparseMatrix<double> A = (M * M.transpose() + double(n) * MatrixXd::Identity(n, n)).sparseView();
+  VectorXd b = VectorXd::Random(n), x0 = VectorXd::Random(n);
+  ConjugateGradient<SparseMatrix<double>, Lower | Upper> cg(A);
+  cg.setTolerance(1e-12);
+  VectorXd x1 = cg.solveWithGuess(b, x0);
+  VERIFY_IS_EQUAL(cg.info(), Success);
+  VectorXd x2 = x0;
+  cg.solveWithGuessInPlace(b, x2);
+  VERIFY_IS_EQUAL(cg.info(), Success);
+  VERIFY(cg.iterations() > 0);
+  VERIFY_IS_APPROX(x1, x2);
+  // The recursive residual is below tolerance() ||b|| at exit; the true residual differs by
+  // the rounding of a few iterations, far below the factor 10.
+  VERIFY((A * x2 - b).norm() <= 10 * cg.tolerance() * b.norm());
+}
+
 EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_1((test_conjugate_gradient_T<double, int>()));
   CALL_SUBTEST_2((test_conjugate_gradient_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_conjugate_gradient_T<double, long int>()));
   CALL_SUBTEST_4(test_default_construct_fixed_size<Matrix3d>());
   CALL_SUBTEST_5(test_conjugate_gradient_extreme_rhs());
+  CALL_SUBTEST_6(test_solve_with_guess_in_place());
 }

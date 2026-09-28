@@ -1,9 +1,8 @@
-# GPU module tests. Included from contrib/test/CMakeLists.txt inside the
-# if(CUDA_FOUND AND EIGEN_TEST_CUDA) block.
+# GPU module tests. Included from contrib/test/CMakeLists.txt when the CUDA tests are on; the toolkit is
+# found once at the top level, by cmake/EigenGpuTesting.cmake.
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-find_package(CUDAToolkit QUIET)
 
 # These tests compile the GPU headers against the test harness, where
 # eigen_assert throws. A noexcept function that reaches such an assert therefore
@@ -61,7 +60,7 @@ function(ei_add_gpu_test test_name)
     # SYSTEM for the toolkit and backend headers: the -Werror above is aimed at
     # Eigen's own noexcept functions, not at whatever those ship.
     target_include_directories(${t} SYSTEM PRIVATE
-      "${CUDA_TOOLKIT_ROOT_DIR}/include"
+      "${CUDAToolkit_INCLUDE_DIRS}"
       ${ARG_EXTRA_INCLUDES})
     target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     if(ARG_EXTRA_DEFINES)
@@ -108,10 +107,13 @@ if(TARGET CUDA::cufft)
   ei_add_gpu_test(cufft EXTRA_LIBS CUDA::cufft CUDA::cublas)
 endif()
 
-# cuSPARSE SpMV (part of the CUDA toolkit) and the end-to-end CG test that
-# exercises Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
+# cuSPARSE SpMV (part of the CUDA toolkit), its BSR counterpart (skips itself
+# below cuSPARSE 12.6.3), and the end-to-end CG test that exercises
+# Eigen::ConjugateGradient with DeviceMatrix + device-resident SpMV.
 if(TARGET CUDA::cusparse)
   ei_add_gpu_test(cusparse_spmv
+    EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
+  ei_add_gpu_test(cusparse_bsr
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver)
   ei_add_gpu_test(cg
     EXTRA_LIBS CUDA::cusparse CUDA::cublas CUDA::cusolver CUDA::npps CUDA::nppc)
@@ -121,7 +123,7 @@ endif()
 option(EIGEN_TEST_CUDSS "Test cuDSS sparse solver integration" OFF)
 if(EIGEN_TEST_CUDSS)
   find_path(CUDSS_INCLUDE_DIR cudss.h
-    HINTS ${CUDSS_DIR}/include ${CUDA_TOOLKIT_ROOT_DIR}/include /usr/include)
+    HINTS ${CUDSS_DIR}/include ${CUDAToolkit_INCLUDE_DIRS} /usr/include)
   find_library(CUDSS_LIBRARY cudss
     HINTS ${CUDSS_DIR}/lib ${CUDSS_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib64 /usr/lib/x86_64-linux-gnu)
   if(CUDSS_INCLUDE_DIR AND CUDSS_LIBRARY)

@@ -505,10 +505,6 @@ struct TensorContractionEvaluatorBase {
       rhs_strides[i + 1] = rhs_strides[i] * eval_right_dims[i];
     }
 
-    if (m_i_strides.size() > 0) m_i_strides[0] = 1;
-    if (m_j_strides.size() > 0) m_j_strides[0] = 1;
-    if (m_k_strides.size() > 0) m_k_strides[0] = 1;
-
     m_i_size = 1;
     m_j_size = 1;
     m_k_size = 1;
@@ -537,16 +533,8 @@ struct TensorContractionEvaluatorBase {
         if (dim_idx != i) {
           m_lhs_inner_dim_contiguous = false;
         }
-        // Suppress false-positive GCC -Warray-bounds warning at -O3 when
-        // left_nocontract_t has size 1 (the runtime check prevents OOB access).
-        EIGEN_DIAGNOSTICS(push)
-        EIGEN_DIAGNOSTICS_OFF(disable : 4789, ignored "-Warray-bounds")
-        if (nocontract_idx + 1 < internal::array_size<left_nocontract_t>::value) {
-          m_i_strides[nocontract_idx + 1] = m_i_strides[nocontract_idx] * eval_left_dims[i];
-        } else {
-          m_i_size = m_i_strides[nocontract_idx] * eval_left_dims[i];
-        }
-        EIGEN_DIAGNOSTICS(pop)
+        m_i_strides[nocontract_idx] = m_i_size;
+        m_i_size *= eval_left_dims[i];
         dim_idx++;
         nocontract_idx++;
       }
@@ -564,14 +552,8 @@ struct TensorContractionEvaluatorBase {
       }
       if (!contracting) {
         m_dimensions[dim_idx] = eval_right_dims[i];
-        EIGEN_DIAGNOSTICS(push)
-        EIGEN_DIAGNOSTICS_OFF(disable : 4789, ignored "-Warray-bounds")
-        if (nocontract_idx + 1 < internal::array_size<right_nocontract_t>::value) {
-          m_j_strides[nocontract_idx + 1] = m_j_strides[nocontract_idx] * eval_right_dims[i];
-        } else {
-          m_j_size = m_j_strides[nocontract_idx] * eval_right_dims[i];
-        }
-        EIGEN_DIAGNOSTICS(pop)
+        m_j_strides[nocontract_idx] = m_j_size;
+        m_j_size *= eval_right_dims[i];
         m_right_nocontract_strides[nocontract_idx] = rhs_strides[i];
         dim_idx++;
         nocontract_idx++;
@@ -592,14 +574,8 @@ struct TensorContractionEvaluatorBase {
       Index size = eval_left_dims[left];
       eigen_assert(size == eval_right_dims[right] && "Contraction axes must be same size");
 
-      EIGEN_DIAGNOSTICS(push)
-      EIGEN_DIAGNOSTICS_OFF(disable : 4789, ignored "-Warray-bounds")
-      if (i + 1 < static_cast<int>(internal::array_size<contract_t>::value)) {
-        m_k_strides[i + 1] = m_k_strides[i] * size;
-      } else {
-        m_k_size = m_k_strides[i] * size;
-      }
-      EIGEN_DIAGNOSTICS(pop)
+      m_k_strides[i] = m_k_size;
+      m_k_size *= size;
       m_left_contracting_strides[i] = lhs_strides[left];
       m_right_contracting_strides[i] = rhs_strides[right];
 

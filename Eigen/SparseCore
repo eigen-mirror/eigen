@@ -62,7 +62,7 @@
 #include "src/SparseCore/TriangularReachSolver.h"
 #include "src/SparseCore/TriangularSolver.h"
 #include "src/SparseCore/SparsePermutation.h"
-#include "src/SparseCore/SparseFuzzy.h"
+#include "src/SparseCore/SparseApproxComparisons.h"
 #include "src/SparseCore/SparseSolverBase.h"
 #include "src/SparseCore/SparsityPatternRef.h"
 

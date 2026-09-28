@@ -584,6 +584,9 @@ struct SelfAdjointShape {
 struct PermutationShape {
   static std::string debugName() { return "PermutationShape"; }
 };
+struct ScaledPermutationShape {
+  static std::string debugName() { return "ScaledPermutationShape"; }
+};
 struct TranspositionsShape {
   static std::string debugName() { return "TranspositionsShape"; }
 };

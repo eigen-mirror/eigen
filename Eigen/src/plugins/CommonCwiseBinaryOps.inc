@@ -13,6 +13,8 @@
 
 /** \returns an expression of the difference of \c *this and \a other
  *
+ * \note Subtraction is not supported for \c bool coefficients. Cast to a signed integer type first.
+ *
  * \note If you want to subtract a given scalar from all coefficients, see Cwise::operator-().
  *
  * \sa class CwiseBinaryOp, operator-=()

@@ -794,7 +794,7 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
 
   static constexpr int Layout = TensorEvaluator<Arg1Type, Device>::Layout;
   enum {
-    IsAligned = TensorEvaluator<Arg1Type, Device>::IsAligned & TensorEvaluator<Arg2Type, Device>::IsAligned &
+    IsAligned = TensorEvaluator<Arg1Type, Device>::IsAligned && TensorEvaluator<Arg2Type, Device>::IsAligned &&
                 TensorEvaluator<Arg3Type, Device>::IsAligned,
     PacketAccess = TensorEvaluator<Arg1Type, Device>::PacketAccess && TensorEvaluator<Arg2Type, Device>::PacketAccess &&
                    TensorEvaluator<Arg3Type, Device>::PacketAccess && internal::functor_traits<TernaryOp>::PacketAccess,
@@ -949,7 +949,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   static constexpr int Layout = TensorEvaluator<IfArgType, Device>::Layout;
   enum {
-    IsAligned = TensorEvaluator<ThenArgType, Device>::IsAligned & TensorEvaluator<ElseArgType, Device>::IsAligned,
+    IsAligned = TensorEvaluator<ThenArgType, Device>::IsAligned && TensorEvaluator<ElseArgType, Device>::IsAligned,
     PacketAccess =
         (TensorEvaluator<ThenArgType, Device>::PacketAccess && TensorEvaluator<ElseArgType, Device>::PacketAccess) ||
         TernaryPacketAccess,

@@ -88,6 +88,19 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Pac
   return m;
 }
 
+// (((a * c1) * c1) * c1) * c2, with each partial product kept: -ffast-math would otherwise reassociate the factors,
+// whose products overflow or underflow where a * 2^e does not (see pldexp_generic).
+template <typename Packet>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2) {
+  Packet out = pmul(a, c1);
+  EIGEN_OPTIMIZATION_BARRIER(out)
+  out = pmul(out, c1);
+  EIGEN_OPTIMIZATION_BARRIER(out)
+  out = pmul(out, c1);
+  EIGEN_OPTIMIZATION_BARRIER(out)
+  return pmul(out, c2);
+}
+
 // Safely applies ldexp, correctly handles overflows, underflows and denormals.
 // Assumes IEEE floating point format.
 template <typename Packet>
@@ -134,7 +147,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
   const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
   const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  return pmul(pmul(pmul(pmul(a, c1), c1), c1), c2);                                                    // a * 2^e
+  return pldexp_apply_factors(a, c1, c2);                                                              // a * 2^e
 }
 
 // Explicitly multiplies

@@ -89,6 +89,8 @@ template <typename Scalar_>
 class DeviceSparseView;
 template <typename Scalar_>
 class SpMVExpr;
+template <typename Scalar_>
+class SpMVAffineExpr;
 
 }  // namespace gpu
 }  // namespace Eigen

@@ -215,7 +215,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
   fjac = qrfac.householderQ();
 
   /* form (q transpose)*fvec and store in qtf. */
-  qtf = fjac.transpose() * fvec;
+  qtf.noalias() = fjac.transpose() * fvec;
 
   /* rescale if necessary. */
   if (!useExternalScaling) diag = diag.cwiseMax(wa2);
@@ -243,7 +243,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
       actred = 1. - numext::abs2(fnorm1 / fnorm);
 
     /* compute the scaled predicted reduction. */
-    wa3 = R.template triangularView<Upper>() * wa1 + qtf;
+    wa3.noalias() = R.template triangularView<Upper>() * wa1 + qtf;
     temp = wa3.stableNorm();
     prered = 0.;
     if (temp < fnorm) /* Computing 2nd power */
@@ -300,7 +300,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
     /* calculate the rank one modification to the jacobian */
     /* and update qtf if necessary. */
     wa1 = diag.cwiseProduct(diag.cwiseProduct(wa1) / pnorm);
-    wa2 = fjac.transpose() * wa4;
+    wa2.noalias() = fjac.transpose() * wa4;
     if (ratio >= Scalar(1e-4)) qtf = wa2;
     wa2 = (wa2 - wa3) / pnorm;
 
@@ -432,7 +432,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
   fjac = qrfac.householderQ();
 
   /* form (q transpose)*fvec and store in qtf. */
-  qtf = fjac.transpose() * fvec;
+  qtf.noalias() = fjac.transpose() * fvec;
 
   /* rescale if necessary. */
   if (!useExternalScaling) diag = diag.cwiseMax(wa2);
@@ -460,7 +460,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
       actred = 1. - numext::abs2(fnorm1 / fnorm);
 
     /* compute the scaled predicted reduction. */
-    wa3 = R.template triangularView<Upper>() * wa1 + qtf;
+    wa3.noalias() = R.template triangularView<Upper>() * wa1 + qtf;
     temp = wa3.stableNorm();
     prered = 0.;
     if (temp < fnorm) /* Computing 2nd power */
@@ -517,7 +517,7 @@ HybridNonLinearSolverSpace::Status HybridNonLinearSolver<FunctorType, Scalar>::s
     /* calculate the rank one modification to the jacobian */
     /* and update qtf if necessary. */
     wa1 = diag.cwiseProduct(diag.cwiseProduct(wa1) / pnorm);
-    wa2 = fjac.transpose() * wa4;
+    wa2.noalias() = fjac.transpose() * wa4;
     if (ratio >= Scalar(1e-4)) qtf = wa2;
     wa2 = (wa2 - wa3) / pnorm;
 

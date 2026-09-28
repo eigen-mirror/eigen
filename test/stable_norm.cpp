@@ -664,7 +664,7 @@ void stable_norm_expression_and_stride() {
   FixedMatrix fixed_matrix_storage;
   fixed_matrix_storage << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0;
   Map<FixedMatrix, Unaligned, MatrixStride> fixed_matrix(fixed_matrix_storage.data(),
-                                                         MatrixStride(FixedMatrix::RowsAtCompileTime, 1));
+                                                         MatrixStride(fixed_matrix_storage.outerStride(), 1));
   const double fixed_matrix_norm = std::sqrt(91.0);
   const FixedMatrix expected_fixed_matrix = fixed_matrix_storage / fixed_matrix_norm;
   VERIFY_IS_APPROX(fixed_matrix.stableNorm(), fixed_matrix_norm);

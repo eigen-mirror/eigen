@@ -69,7 +69,7 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
   // We start with an initial guess x_0 and let us set r_0 as (residual
   // calculated from x_0)
   VectorType x0 = x;
-  rHat.col(0) = rhs - mat * x0;  // r_0
+  rHat.col(0).noalias() = rhs - mat * x0;  // r_0
 
   x.setZero();  // This will contain the updates to the solution.
   // rShadow is arbitrary, but must never be orthogonal to any residual.
@@ -138,12 +138,12 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
       rho0 = rho1;
       // Update search directions
       uHat.leftCols(j + 1) = rHat.leftCols(j + 1) - beta * uHat.leftCols(j + 1);
-      uHat.col(j + 1) = mat * precond.solve(uHat.col(j));
+      uHat.col(j + 1).noalias() = mat * precond.solve(uHat.col(j));
       const Scalar sigma = rShadow.dot(uHat.col(j + 1));
       alpha = rho1 / sigma;
       // Update residuals
       rHat.leftCols(j + 1) -= alpha * uHat.middleCols(1, j + 1);
-      rHat.col(j + 1) = mat * precond.solve(rHat.col(j));
+      rHat.col(j + 1).noalias() = mat * precond.solve(rHat.col(j));
       // Complete BiCG iteration by updating x
       x += alpha * uHat.col(0);
       normr = rHat.col(0).stableNorm();
@@ -173,9 +173,9 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
         equations scale with condition number squared.
       */
       const VectorType gamma = rHat.rightCols(L).householderQr().solve(rHat.col(0));
-      x += rHat.leftCols(L) * gamma;
-      rHat.col(0) -= rHat.rightCols(L) * gamma;
-      uHat.col(0) -= uHat.rightCols(L) * gamma;
+      x.noalias() += rHat.leftCols(L) * gamma;
+      rHat.col(0).noalias() -= rHat.rightCols(L) * gamma;
+      uHat.col(0).noalias() -= uHat.rightCols(L) * gamma;
       normr = rHat.col(0).stableNorm();
       omega = gamma(L - 1);
     }
@@ -222,7 +222,7 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
 
       // This is equivalent to the shifted version of rhs - mat *
       // (precond.solve(x)+x0)
-      rHat.col(0) = b_prime - mat * precond.solve(x);
+      rHat.col(0).noalias() = b_prime - mat * precond.solve(x);
       normr = rHat.col(0).stableNorm();
       Mr = normr;
 

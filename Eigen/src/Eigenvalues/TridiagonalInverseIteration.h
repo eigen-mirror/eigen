@@ -361,7 +361,10 @@ Index tridiagonal_inverse_iteration_connected(const DiagType& diag, const Subdia
 
   // Normalize T (and the shifts) to O(1) so the deliberately near-singular factor/solve cannot
   // overflow or underflow; eigenvectors are invariant under this uniform scaling.
-  const RealScalar maxCoeff = numext::maxi(diag.cwiseAbs().maxCoeff(), subdiag.cwiseAbs().maxCoeff());
+  // The rescan recovers an all-subnormal input that a flushing SIMD unit reads as zero.
+  const RealScalar maxCoeff = max_preserving_subnormals(
+      safe_scaling<RealScalar>::recover_flushed_max_coeff(diag, diag.cwiseAbs().maxCoeff()),
+      safe_scaling<RealScalar>::recover_flushed_max_coeff(subdiag, subdiag.cwiseAbs().maxCoeff()));
   Matrix<RealScalar, Dynamic, 1> sdiag(n), ssub(n - 1);
   const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
   safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
@@ -516,6 +519,30 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   const Index m = eivals.size();
   if (n == 0 || m == 0) return 0;
 
+  // A matrix whose largest entry is below the recovery threshold min / eps can hold significant subnormal
+  // couplings, which FTZ/DAZ hardware reads as zero in the comparisons below (ARMv7 NEON also in the packet maxima).
+  // Scale it into the normal range first, exactly, through integer significands: the eigenvectors are invariant
+  // under the scaling, and every representable entry becomes normal. The test reads the exponent from the
+  // representation, since the maximum itself may be subnormal and a floating-point comparison on it is what FTZ/DAZ
+  // breaks; a zero or non-finite maximum has no exponent in range and is left alone.
+  {
+    RealScalar maxCoeff = safe_scaling<RealScalar>::recover_flushed_max_coeff(diag, diag.cwiseAbs().maxCoeff());
+    if (n >= 2) {
+      maxCoeff = max_preserving_subnormals(
+          maxCoeff, safe_scaling<RealScalar>::recover_flushed_max_coeff(subdiag, subdiag.cwiseAbs().maxCoeff()));
+    }
+    // 2^(e - 1) <= maxCoeff < 2^e, so maxCoeff < 2^recovery iff e <= recovery; e == 0 for a zero maximum and one
+    // above the largest finite exponent for infinities and NaN.
+    const int e = frexp_exponent_preserving_subnormals(maxCoeff);
+    if (e != 0 && e <= safe_scaling<RealScalar>::subnormal_recovery_exponent()) {
+      VectorType sdiag(n), ssub(n - 1), seivals(m);
+      const auto factors = safe_scaling<RealScalar>::scale_to(sdiag, diag, maxCoeff);
+      safe_scaling<RealScalar>::scale_to(ssub, subdiag, maxCoeff, factors);
+      safe_scaling<RealScalar>::scale_to(seivals, eivals, maxCoeff, factors);
+      return tridiagonal_inverse_iteration(sdiag, ssub, seivals, eivecs);
+    }
+  }
+
   // Split at negligible couplings (cf. xSTEBZ): |e_k| <= eps * sqrt(|d_k|) * sqrt(|d_k+1|). The
   // geometric-mean form is scale-invariant on its own (both sides scale linearly) and needs no
   // additive floor: a floor expressed at any single scale falsely splits strongly connected blocks
@@ -582,6 +609,8 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   Matrix<Index, Dynamic, 1> blockof(m), assigned(nblocks), caps(nblocks), below_prev(nblocks), below_cur(nblocks),
       below_edge(nblocks), carry(m), carry_next(m);
   assigned.setZero();
+  Matrix<Index, Dynamic, 1> local_index(m);
+  Array<bool, Dynamic, 1> claimed = Array<bool, Dynamic, 1>::Constant(n, false);
   // Sturm count over block b of its eigenvalues strictly below the unnormalized shift x (normalized
   // by the block's own scale, as the block's alpha/beta data is).
   auto count_below = [&](Index b, RealScalar x) -> Index {
@@ -632,6 +661,9 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
           carry_next(ncarry_next++) = j;
           continue;
         }
+        const Index index = below_cur(chosen) - caps(chosen);
+        local_index(j) = index;
+        claimed(bstart(chosen) + index) = true;
         --caps(chosen);
         ++assigned(chosen);
         blockof(j) = chosen;
@@ -652,6 +684,21 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
       for (Index b = 0; b < nblocks && chosen < 0; ++b)
         if (bstart(b + 1) - bstart(b) - assigned(b) > 0) chosen = b;
     if (chosen < 0) chosen = 0;
+    {
+      const Index b0 = bstart(chosen), nb = bstart(chosen + 1) - b0;
+      Index index = numext::mini(below_edge(chosen), nb - 1);
+      while (index < nb && claimed(b0 + index)) ++index;
+      if (index == nb) {
+        index = 0;
+        while (index < nb && claimed(b0 + index)) ++index;
+      }
+      if (index == nb) {
+        eivecs.setZero();
+        return m;
+      }
+      local_index(j) = index;
+      claimed(b0 + index) = true;
+    }
     ++assigned(chosen);
     blockof(j) = chosen;
   }
@@ -659,7 +706,9 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
   // Run each block independently and scatter its columns; rows outside the block stay exactly zero.
   eivecs.setZero();
   Index nonconv = 0;
-  VectorType wloc;
+  VectorType wloc, refined, endpoints;
+  Matrix<numext::int64_t, Dynamic, 1> counts;
+  Matrix<Index, Dynamic, 1> indices;
   Matrix<RealScalar, Dynamic, Dynamic> vloc;
   Matrix<Index, Dynamic, 1> colmap(m);
   for (Index b = 0; b < nblocks; ++b) {
@@ -673,6 +722,35 @@ Index tridiagonal_inverse_iteration(const DiagType& diag, const SubdiagType& sub
     vloc.resize(nb, mb);
     const VectorType bdiag = diag.segment(b0, nb);
     const VectorType bsub = subdiag.segment(b0, nb > 1 ? nb - 1 : 0);
+    if (nb > 1) {
+      // Retain the capacity assignment, including multiplicities across blocks. As in LAPACK
+      // xSTEBZ, use block-local bisection accuracy rather than a global reorthogonalization floor.
+      indices.resize(mb);
+      for (Index k = 0; k < mb; ++k) indices(k) = local_index(colmap(k));
+      std::sort(indices.data(), indices.data() + mb);
+      endpoints.resize(2 * mb);
+      counts.resize(2 * mb);
+      endpoints.head(mb) = (wloc.array() - btol(b)) / bscale(b);
+      endpoints.tail(mb) = (wloc.array() + btol(b)) / bscale(b);
+      tridiagonal_sturm_counts(alpha_all.data() + b0, beta_sq_all.data() + b0, nb, bpivmin(b), endpoints.data(),
+                               counts.data(), 2 * mb);
+      bool needs_refinement = false;
+      // A supplied shift is locally resolved if its rounding-sized interval contains the
+      // assigned eigenvalue index. This also detects repeated coarse shifts claiming one root.
+      for (Index k = 0; k < mb && !needs_refinement; ++k) {
+        needs_refinement = counts(k) > indices(k) || counts(mb + k) <= indices(k);
+      }
+      if (needs_refinement) {
+        for (Index first = 0; first < mb;) {
+          Index last = first + 1;
+          while (last < mb && indices(last) == indices(last - 1) + 1) ++last;
+          tridiagonal_bisection(bdiag, bsub, EigenvalueRange::indices(indices(first), indices(last - 1) + 1),
+                                RealScalar(0), refined);
+          wloc.segment(first, last - first) = refined;
+          first = last;
+        }
+      }
+    }
     nonconv += tridiagonal_inverse_iteration_connected(bdiag, bsub, wloc, vloc);
     for (Index k = 0; k < mb; ++k) eivecs.col(colmap(k)).segment(b0, nb) = vloc.col(k);
   }
@@ -748,8 +826,8 @@ void tridiagonal_rayleigh_ritz_refine(const DiagType& diag, const SubdiagType& s
       //   (T V_c)(i,:) = e_{i-1} V_c(i-1,:) + d_i V_c(i,:) + e_i V_c(i+1,:).
       Vc = eivecs.middleCols(s, c);  // copy so the write-back below cannot alias
       TVc = diag.asDiagonal() * Vc;
-      TVc.topRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.bottomRows(n - 1);
-      TVc.bottomRows(n - 1).noalias() += subdiag.asDiagonal() * Vc.topRows(n - 1);
+      TVc.topRows(n - 1) += subdiag.asDiagonal() * Vc.bottomRows(n - 1);
+      TVc.bottomRows(n - 1) += subdiag.asDiagonal() * Vc.topRows(n - 1);
       // Worst per-vector residual in the cluster (scaled by 1/||T|| so it cannot overflow). Skip the
       // refinement when the cluster is already at machine precision -- refining it would only add the
       // subspace error to vectors that are individually more accurate.

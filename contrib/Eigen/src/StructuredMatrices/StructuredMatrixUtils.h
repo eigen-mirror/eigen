@@ -44,6 +44,29 @@ constexpr Index structured_scalar_threshold() { return 16; }
 // exponents for dimensions that are otherwise practical.
 using structured_exponent_type = numext::int64_t;
 
+/** \internal max(|re z|, |im z|), the component magnitude the balanced forms
+ * key on; from the representation for std::complex<float> and
+ * std::complex<double>, where a flush-to-zero comparison would read a subnormal
+ * component as zero. */
+template <typename Scalar>
+typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::true_type) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Binary = binary_floating_point_traits<RealScalar>;
+  return numext::bit_cast<RealScalar>(
+      larger_magnitude_bits<RealScalar>(Binary::magnitude(numext::real(z)), Binary::magnitude(numext::imag(z))));
+}
+template <typename Scalar>
+typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::false_type) {
+  return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+}
+template <typename Scalar>
+typename NumTraits<Scalar>::Real structured_component_magnitude(const Scalar& z) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  return structured_component_magnitude_impl(z,
+                                             bool_constant < complex_array_access<Scalar>::value &&
+                                                 use_subnormal_preserving_scaling<RealScalar, RealScalar>::value > ());
+}
+
 /** \internal Balanced mantissa*2^e arithmetic shared by the structured
  * operators' determinant-style accumulations (the split fraction/exponent
  * convention of LINPACK's xGEDI; see the per-class references).
@@ -52,22 +75,25 @@ using structured_exponent_type = numext::int64_t;
  * or \c |z| for a real scalar -- into [0.5, 1), accumulating the removed
  * exponent into \a exponent. The rescaling is exact, so no roundoff is
  * introduced; zeros and non-finite values, which must propagate exactly, are
- * returned untouched. */
+ * returned untouched. The tests and the scalings read the representation for
+ * float and double (numext::is_exactly_zero_no_flush(),
+ * internal::frexp_exponent_preserving_subnormals(),
+ * internal::ldexp_preserving_subnormals()): under flush-to-zero a comparison
+ * or a frexp on a subnormal recovered from a flushed reduction would read it as
+ * zero again. */
 template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
 struct structured_balance_impl {
   using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename Exponent>
   static Scalar run(const Scalar& z, Exponent& exponent) {
-    const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > RealScalar(0)) || !(numext::isfinite)(mag)) return z;
-    int e;
-    EIGEN_USING_STD(frexp);
-    frexp(mag, &e);
+    const RealScalar mag = structured_component_magnitude(z);
+    if (numext::is_exactly_zero_no_flush(mag) || !(numext::isfinite)(mag)) return z;
+    const int e = frexp_exponent_preserving_subnormals(mag);
     exponent += e;
-    return Scalar(numext::ldexp(numext::real(z), -e), numext::ldexp(numext::imag(z), -e));
+    return apply_exponent(z, -e);
   }
   static Scalar apply_exponent(const Scalar& z, int e) {
-    return Scalar(numext::ldexp(numext::real(z), e), numext::ldexp(numext::imag(z), e));
+    return Scalar(ldexp_preserving_subnormals(numext::real(z), e), ldexp_preserving_subnormals(numext::imag(z), e));
   }
 };
 
@@ -75,15 +101,12 @@ template <typename Scalar>
 struct structured_balance_impl<Scalar, false> {
   template <typename Exponent>
   static Scalar run(const Scalar& x, Exponent& exponent) {
-    const Scalar mag = numext::abs(x);
-    if (!(mag > Scalar(0)) || !(numext::isfinite)(mag)) return x;
-    int e;
-    EIGEN_USING_STD(frexp);
-    frexp(mag, &e);
+    if (numext::is_exactly_zero_no_flush(x) || !(numext::isfinite)(x)) return x;
+    const int e = frexp_exponent_preserving_subnormals(x);
     exponent += e;
-    return numext::ldexp(x, -e);
+    return apply_exponent(x, -e);
   }
-  static Scalar apply_exponent(const Scalar& x, int e) { return numext::ldexp(x, e); }
+  static Scalar apply_exponent(const Scalar& x, int e) { return ldexp_preserving_subnormals(x, e); }
 };
 
 template <typename Scalar, typename Exponent>
@@ -345,11 +368,14 @@ bool structured_exponent_bound_finite(const Xpr& x, int& e) {
     m = x.realView().cwiseAbs().maxCoeff();
   else
     m = x.cwiseAbs().maxCoeff();
+  // A SIMD unit that flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reads
+  // an all-subnormal operand as zero; the rescan recovers the largest component
+  // from its representation.
+  m = safe_scaling<RealScalar>::recover_flushed_max_coeff(x, m);
   e = 0;
   if (!(numext::isfinite)(m)) return false;
-  if (m > RealScalar(0)) {
-    EIGEN_USING_STD(frexp);
-    frexp(m, &e);
+  if (!numext::is_exactly_zero_no_flush(m)) {
+    e = frexp_exponent_preserving_subnormals(m);
     if (ScalarTraits::IsComplex) ++e;
   }
   return true;
@@ -362,6 +388,100 @@ int structured_exponent_bound(const Xpr& x) {
   int e;
   structured_exponent_bound_finite(x, e);
   return e;
+}
+
+// The packet form of M *= 2^e. ldexp saturates entrywise for every e without
+// forming a possibly unrepresentable 2^e; for std::complex storage, realView()
+// exposes both components to the real ldexp packets.
+template <typename Xpr, std::enable_if_t<!NumTraits<typename Xpr::Scalar>::IsComplex, bool> = true>
+void structured_ldexp_entries_packet(Xpr& M, int e) {
+  M.array() = M.array().ldexp(e);
+}
+
+template <typename Xpr, std::enable_if_t<complex_array_access<typename Xpr::Scalar>::value, bool> = true>
+void structured_ldexp_entries_packet(Xpr& M, int e) {
+  M.realView().array() = M.realView().array().ldexp(e);
+}
+
+template <typename Xpr, std::enable_if_t<NumTraits<typename Xpr::Scalar>::IsComplex &&
+                                             !complex_array_access<typename Xpr::Scalar>::value,
+                                         bool> = true>
+void structured_ldexp_entries_packet(Xpr& M, int e) {
+  using Scalar = typename Xpr::Scalar;
+  M = M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
+}
+
+template <typename Xpr>
+void structured_ldexp_entries_impl(Xpr& M, int e, int, std::false_type) {
+  structured_ldexp_entries_packet(M, e);
+}
+
+template <typename Xpr>
+void structured_ldexp_entries_impl(Xpr& M, int e, int bound, std::true_type) {
+  using Scalar = typename Xpr::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  // The largest component is at least 2^(componentBound - 1): a complex bound
+  // carries one extra bit for the modulus. The input holds no significant
+  // subnormal when componentBound - 1 >= recovery, and neither does the result
+  // when componentBound - 1 + e >= recovery.
+  const int componentBound = bound - (NumTraits<Scalar>::IsComplex ? 1 : 0);
+  const int recovery = safe_scaling<RealScalar>::subnormal_recovery_exponent();
+  if (componentBound - 1 >= recovery && componentBound - 1 + e >= recovery)
+    structured_ldexp_entries_packet(M, e);
+  else
+    M = M.unaryExpr(scale_by_exponent_op<RealScalar>(e));
+}
+
+/** \internal M *= 2^e, exactly wherever the result is representable, with
+ * ldexp's saturation beyond. \a bound is the exponent bound of the input,
+ * max|M| < 2^bound with 2^(bound - 1) <= max|M| as structured_exponent_bound()
+ * returns it, or 0 for zero and non-finite data. Coefficients within a factor
+ * 2^(1 - digits) of the largest one are exact: where the input or the result
+ * can hold subnormals among them the scaling goes through integer significands
+ * (internal::scale_by_exponent_op), which FTZ/DAZ hardware and ARMv7 NEON
+ * cannot flush; elsewhere the packet ldexp applies, and coefficients further
+ * below the largest may still flush under FTZ/DAZ. See
+ * structured_ldexp_entries_exact() for data where every coefficient matters. */
+template <typename Xpr>
+void structured_ldexp_entries(Xpr& M, int e, int bound) {
+  if (e == 0) return;
+  using Scalar = typename Xpr::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  structured_ldexp_entries_impl(M, e, bound,
+                                bool_constant<use_subnormal_preserving_scaling<RealScalar, Scalar>::value>());
+}
+
+/** \internal M *= 2^e with the exponent bound taken from M itself, for data
+ * whose bound the caller does not track, such as a result being folded back
+ * from a normalized frame. */
+template <typename Xpr>
+void structured_ldexp_entries(Xpr& M, int e) {
+  if (e == 0) return;
+  structured_ldexp_entries(M, e, structured_exponent_bound(M));
+}
+
+template <typename Xpr>
+void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::false_type) {
+  structured_ldexp_entries_packet(M, e);
+}
+template <typename Xpr>
+void structured_ldexp_entries_exact_impl(Xpr& M, int e, std::true_type) {
+  using RealScalar = typename NumTraits<typename Xpr::Scalar>::Real;
+  M = M.unaryExpr(scale_by_exponent_op<RealScalar>(e));
+}
+
+/** \internal M *= 2^e through integer significands for float and double
+ * whatever the magnitudes: for the factors of an LU, the poles of a secular
+ * equation or a spectrum, a coefficient far below the largest one still
+ * matters, and the packet path may flush it under FTZ/DAZ. The pass is scalar;
+ * use it where it precedes a factorization or covers O(n) data. */
+template <typename Xpr>
+void structured_ldexp_entries_exact(Xpr& M, int e) {
+  if (e == 0) return;
+  using Scalar = typename Xpr::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  structured_ldexp_entries_exact_impl(M, e,
+                                      bool_constant<use_subnormal_preserving_scaling<RealScalar, Scalar>::value>());
 }
 
 /** \internal \returns the index reversal of a DFT \a symbol: result[k] =

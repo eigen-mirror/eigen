@@ -43,7 +43,9 @@ struct traits<RealView<Xpr>> : public traits<Xpr> {
   using Scalar = typename NumTraits<ComplexScalar>::Real;
 
   static constexpr bool ArrayAccess = complex_array_access<ComplexScalar>::value;
-  static constexpr int ActualDirectAccessBit = ArrayAccess ? DirectAccessBit : 0;
+  // Real and imaginary parts interleave with a uniform stride only when the complex coefficients are adjacent.
+  static constexpr int ActualDirectAccessBit =
+      ArrayAccess && inner_stride_at_compile_time<Xpr>::value == 1 ? DirectAccessBit : 0;
   static constexpr int ActualLvalueBit = !std::is_const<Xpr>::value && ArrayAccess ? LvalueBit : 0;
   static constexpr int ActualPacketAccessBit = packet_traits<Scalar>::Vectorizable ? PacketAccessBit : 0;
   static constexpr int FlagMask =
@@ -73,14 +75,16 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
   static constexpr int CoeffReadCost = BaseEvaluator::CoeffReadCost;
   static constexpr int Alignment = BaseEvaluator::Alignment;
   static constexpr bool IsRowMajor = ExpressionTraits::IsRowMajor;
-  static constexpr bool DirectAccess = (Flags & DirectAccessBit) != 0;
+  // DenseCoeffsBase::CoeffReturnType is a reference for LvalueBit as well as DirectAccessBit; returning a value
+  // there would dangle.
+  static constexpr bool CoeffByReference = (Flags & (LvalueBit | DirectAccessBit)) != 0;
 
-  using ComplexCoeffReturnType = std::conditional_t<DirectAccess, const ComplexScalar&, ComplexScalar>;
-  using CoeffReturnType = std::conditional_t<DirectAccess, const Scalar&, Scalar>;
+  using ComplexCoeffReturnType = std::conditional_t<CoeffByReference, const ComplexScalar&, ComplexScalar>;
+  using CoeffReturnType = std::conditional_t<CoeffByReference, const Scalar&, Scalar>;
 
   EIGEN_DEVICE_FUNC explicit evaluator(XprType realView) : BaseEvaluator(realView.m_xpr) {}
 
-  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = CoeffByReference, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -88,7 +92,7 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexScalar ccoeff = BaseEvaluator::coeff(r, c);
     return p ? numext::imag(ccoeff) : numext::real(ccoeff);
   }
-  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = CoeffByReference, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
@@ -96,13 +100,13 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     ComplexCoeffReturnType ccoeff = BaseEvaluator::coeff(r, c);
     return reinterpret_cast<const Scalar(&)[2]>(ccoeff)[p];
   }
-  template <bool Enable = DirectAccess, std::enable_if_t<!Enable, bool> = true>
+  template <bool Enable = CoeffByReference, std::enable_if_t<!Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index index) const {
     ComplexScalar ccoeff = BaseEvaluator::coeff(index / 2);
     bool p = index & 1;
     return p ? numext::imag(ccoeff) : numext::real(ccoeff);
   }
-  template <bool Enable = DirectAccess, std::enable_if_t<Enable, bool> = true>
+  template <bool Enable = CoeffByReference, std::enable_if_t<Enable, bool> = true>
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     ComplexCoeffReturnType ccoeff = BaseEvaluator::coeff(index / 2);
     Index p = index & 1;
@@ -240,7 +244,10 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
     m_xpr.resize(Xpr::IsRowMajor ? rows : rows / 2, Xpr::IsRowMajor ? cols / 2 : cols);
   }
   EIGEN_DEVICE_FUNC void resize(Index size) { m_xpr.resize(size / 2); }
-  EIGEN_DEVICE_FUNC Scalar* data() { return reinterpret_cast<Scalar*>(m_xpr.data()); }
+  using ScalarWithConstIfNotLvalue = std::conditional_t<internal::is_lvalue<Xpr>::value, Scalar, const Scalar>;
+  EIGEN_DEVICE_FUNC ScalarWithConstIfNotLvalue* data() {
+    return reinterpret_cast<ScalarWithConstIfNotLvalue*>(m_xpr.data());
+  }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
   EIGEN_DEVICE_FUNC RealView(const RealView&) = default;

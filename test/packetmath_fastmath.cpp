@@ -242,6 +242,33 @@ struct packetmath_fastmath_runner<Scalar, true> {
   }
 };
 
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void ldexp_packet(const Scalar* a, const Scalar* exponent, Scalar* output) {
+  Eigen::internal::pstoreu<Scalar, Packet>(
+      output, Eigen::internal::pldexp(Eigen::internal::ploadu<Packet>(a), Eigen::internal::ploadu<Packet>(exponent)));
+}
+
+// pldexp scales by 2^e in four factors, 2^b three times and 2^(e - 3b) once. A product of two factors overflows or
+// underflows for |e| beyond the exponent range although a * 2^e is normal, so they must not be reassociated.
+template <typename Scalar>
+void verify_ldexp_beyond_exponent_range() {
+  typedef typename Eigen::internal::packet_traits<Scalar>::type Packet;
+  constexpr int packet_size = Eigen::internal::packet_traits<Scalar>::size;
+  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+  Scalar a[packet_size], exponent[packet_size], output[packet_size];
+  for (int sign : {1, -1}) {
+    // a * 2^e = 1.5 * 2^(+-(max_exponent - 4)), normal, with |e| = max_exponent + 50.
+    for (int i = 0; i < packet_size; ++i) {
+      a[i] = std::ldexp(Scalar(i % 2 ? -1.5 : 1.5), -sign * 54);
+      exponent[i] = Scalar(sign * (max_exponent + 50));
+    }
+    ldexp_packet<Scalar, Packet>(a, exponent, output);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY_IS_EQUAL(output[i], std::ldexp(a[i], sign * (max_exponent + 50)));
+    }
+  }
+}
+
 template <typename Scalar,
           bool HasIntegerBits =
               !std::is_void<typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type>::value>
@@ -273,6 +300,8 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::half>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::bfloat16>::run());
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
+  CALL_SUBTEST(verify_ldexp_beyond_exponent_range<float>());
+  CALL_SUBTEST(verify_ldexp_beyond_exponent_range<double>());
 
 #if defined(EIGEN_VECTORIZE_AVX512)
 #if !defined(EIGEN_VECTORIZE_AVX512FP16)

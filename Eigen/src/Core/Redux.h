@@ -27,6 +27,46 @@ namespace internal {
  * Part 1 : the logic deciding a strategy for vectorization and unrolling
  ***************************************************************************/
 
+// Bounds used only to exclude unreachable reduction paths. Combining expression
+// storage bounds instead would change PlainObject types and can create oversized inline storage.
+template <typename Xpr>
+struct redux_max_size {
+  static constexpr int Rows = Xpr::MaxRowsAtCompileTime;
+  static constexpr int Cols = Xpr::MaxColsAtCompileTime;
+  static constexpr int Size = Xpr::MaxSizeAtCompileTime;
+};
+
+template <typename Op, typename Lhs, typename Rhs>
+struct redux_max_size<CwiseBinaryOp<Op, Lhs, Rhs>> {
+  using Left = redux_max_size<remove_all_t<Lhs>>;
+  using Right = redux_max_size<remove_all_t<Rhs>>;
+  static constexpr int Rows = min_size_prefer_fixed(Left::Rows, Right::Rows);
+  static constexpr int Cols = min_size_prefer_fixed(Left::Cols, Right::Cols);
+  static constexpr int Size =
+      min_size_prefer_fixed(min_size_prefer_fixed(Left::Size, Right::Size), size_at_compile_time(Rows, Cols));
+};
+
+template <typename Op, typename Arg>
+struct redux_max_size<CwiseUnaryOp<Op, Arg>> : redux_max_size<remove_all_t<Arg>> {};
+
+template <typename Arg>
+struct redux_max_size<ArrayWrapper<Arg>> : redux_max_size<remove_all_t<Arg>> {};
+
+template <typename Arg>
+struct redux_max_size<MatrixWrapper<Arg>> : redux_max_size<remove_all_t<Arg>> {};
+
+template <typename Op, typename Arg1, typename Arg2, typename Arg3>
+struct redux_max_size<CwiseTernaryOp<Op, Arg1, Arg2, Arg3>> {
+  using First = redux_max_size<remove_all_t<Arg1>>;
+  using Second = redux_max_size<remove_all_t<Arg2>>;
+  using Third = redux_max_size<remove_all_t<Arg3>>;
+  static constexpr int Rows = min_size_prefer_fixed(First::Rows, min_size_prefer_fixed(Second::Rows, Third::Rows));
+  static constexpr int Cols = min_size_prefer_fixed(First::Cols, min_size_prefer_fixed(Second::Cols, Third::Cols));
+  static constexpr int Size =
+      min_size_prefer_fixed(min_size_prefer_fixed(First::Size, min_size_prefer_fixed(Second::Size, Third::Size)),
+                            size_at_compile_time(Rows, Cols));
+};
+
 template <typename Func, typename Evaluator>
 struct redux_traits {
  public:
@@ -239,10 +279,18 @@ struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
+    using Bounds = redux_max_size<XprType>;
+    constexpr int MaxInnerSize = XprType::IsVectorAtCompileTime ? Bounds::Size
+                                 : XprType::IsRowMajor          ? Bounds::Cols
+                                                                : Bounds::Rows;
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxCommutativeInnerCutoff) {
+        if (innerSize >= kReduxCommutativeInnerCutoff) return runCommutative(eval, func, innerSize, outerSize);
+      }
     } else {
-      if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      EIGEN_IF_CONSTEXPR (MaxInnerSize == Dynamic || MaxInnerSize >= kReduxOrderedTreeCutoff) {
+        if (innerSize >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, innerSize, outerSize);
+      }
     }
     Scalar res = eval.coeffByOuterInner(0, 0);
     for (Index j = 1; j < innerSize; ++j) res = func(res, eval.coeffByOuterInner(0, j));
@@ -307,10 +355,18 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     const Index size = xpr.size();
     eigen_assert(size > 0 && "you are using an empty matrix");
+    // Do not generate wide reduction bodies for bounded expressions that cannot
+    // reach their cutoff (GCC can otherwise diagnose their unreachable loads).
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
-      if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      EIGEN_IF_CONSTEXPR (redux_max_size<XprType>::Size == Dynamic ||
+                          redux_max_size<XprType>::Size >= kReduxCommutativeCutoff) {
+        if (size >= kReduxCommutativeCutoff) return runCommutative(eval, func, size);
+      }
     } else {
-      if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      EIGEN_IF_CONSTEXPR (redux_max_size<XprType>::Size == Dynamic ||
+                          redux_max_size<XprType>::Size >= kReduxOrderedTreeCutoff) {
+        if (size >= kReduxOrderedTreeCutoff) return runOrderedTree(eval, func, size);
+      }
     }
     Scalar res = eval.coeff(0);
     for (Index k = 1; k < size; ++k) res = func(res, eval.coeff(k));
@@ -396,37 +452,74 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling> {
             : int(Unaligned);
     constexpr int alignment = plain_enum_max(alignment0, Evaluator::Alignment);
     const Index alignedStart = internal::first_default_aligned(xpr);
-    const Index alignedSize2 = ((size - alignedStart) / (2 * packetSize)) * (2 * packetSize);
-    const Index alignedSize = ((size - alignedStart) / (packetSize)) * (packetSize);
-    const Index alignedEnd2 = alignedStart + alignedSize2;
+    const Index alignedSize4 = numext::round_down(size - alignedStart, 4 * packetSize);
+    const Index alignedSize = numext::round_down(size - alignedStart, packetSize);
+    const Index alignedEnd4 = alignedStart + alignedSize4;
     const Index alignedEnd = alignedStart + alignedSize;
     Scalar res;
-    if (alignedSize) {
-      PacketScalar packet_res0 = eval.template packet<alignment, PacketScalar>(alignedStart);
-      if (alignedSize > packetSize)  // we have at least two packets to partly unroll the loop
-      {
-        PacketScalar packet_res1 = eval.template packet<alignment, PacketScalar>(alignedStart + packetSize);
-        for (Index index = alignedStart + 2 * packetSize; index < alignedEnd2; index += 2 * packetSize) {
-          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(index));
-          packet_res1 = func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(index + packetSize));
+    constexpr Index maxSize = redux_max_size<XprType>::Size;
+    EIGEN_IF_CONSTEXPR (maxSize == Dynamic || maxSize >= packetSize) {
+      if (alignedSize) {
+        PacketScalar packet_res0 = eval.template packet<alignment, PacketScalar>(alignedStart);
+        EIGEN_IF_CONSTEXPR (maxSize == Dynamic || maxSize >= 4 * packetSize) {
+          if (alignedSize4)  // four independent accumulators keep the loop off the packetOp latency chain
+          {
+            PacketScalar packet_res1 = eval.template packet<alignment, PacketScalar>(alignedStart + packetSize);
+            PacketScalar packet_res2 = eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize);
+            PacketScalar packet_res3 = eval.template packet<alignment, PacketScalar>(alignedStart + 3 * packetSize);
+            for (Index index = alignedStart + 4 * packetSize; index < alignedEnd4; index += 4 * packetSize) {
+              packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(index));
+              packet_res1 =
+                  func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(index + packetSize));
+              packet_res2 =
+                  func.packetOp(packet_res2, eval.template packet<alignment, PacketScalar>(index + 2 * packetSize));
+              packet_res3 =
+                  func.packetOp(packet_res3, eval.template packet<alignment, PacketScalar>(index + 3 * packetSize));
+            }
+
+            // The one to three leftover packets go into accumulators that are still independent, so they
+            // cost a packetOp each rather than extending the merge below.
+            const Index remSize = alignedSize - alignedSize4;
+            if (remSize >= packetSize) {
+              packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedEnd4));
+              if (remSize >= 2 * packetSize) {
+                packet_res1 =
+                    func.packetOp(packet_res1, eval.template packet<alignment, PacketScalar>(alignedEnd4 + packetSize));
+                if (remSize == 3 * packetSize)
+                  packet_res2 = func.packetOp(
+                      packet_res2, eval.template packet<alignment, PacketScalar>(alignedEnd4 + 2 * packetSize));
+              }
+            }
+
+            // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
+            packet_res0 = func.packetOp(packet_res0, packet_res1);
+            packet_res2 = func.packetOp(packet_res2, packet_res3);
+            packet_res0 = func.packetOp(packet_res0, packet_res2);
+          }
         }
+        EIGEN_IF_CONSTEXPR (maxSize == Dynamic || maxSize >= 2 * packetSize) {
+          if (!alignedSize4 && alignedSize > packetSize) {
+            // Two or three packets: straight-line, with none of the trip-count setup a loop would need.
+            packet_res0 =
+                func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + packetSize));
+            EIGEN_IF_CONSTEXPR (maxSize == Dynamic || maxSize >= 3 * packetSize) {
+              if (alignedSize > 2 * packetSize)
+                packet_res0 = func.packetOp(
+                    packet_res0, eval.template packet<alignment, PacketScalar>(alignedStart + 2 * packetSize));
+            }
+          }
+        }
+        res = func.predux(packet_res0);
 
-        packet_res0 = func.packetOp(packet_res0, packet_res1);
-        if (alignedEnd > alignedEnd2)
-          packet_res0 = func.packetOp(packet_res0, eval.template packet<alignment, PacketScalar>(alignedEnd2));
+        for (Index index = 0; index < alignedStart; ++index) res = func(res, eval.coeff(index));
+
+        for (Index index = alignedEnd; index < size; ++index) res = func(res, eval.coeff(index));
+        return res;
       }
-      res = func.predux(packet_res0);
-
-      for (Index index = 0; index < alignedStart; ++index) res = func(res, eval.coeff(index));
-
-      for (Index index = alignedEnd; index < size; ++index) res = func(res, eval.coeff(index));
-    } else  // too small to vectorize anything.
-            // since this is dynamic-size hence inefficient anyway for such small sizes, don't try to optimize.
-    {
-      res = eval.coeff(0);
-      for (Index index = 1; index < size; ++index) res = func(res, eval.coeff(index));
     }
-
+    // Too small to vectorize anything.
+    res = eval.coeff(0);
+    for (Index index = 1; index < size; ++index) res = func(res, eval.coeff(index));
     return res;
   }
 };
@@ -437,21 +530,91 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
   using Scalar = typename Evaluator::Scalar;
   using PacketType = typename redux_traits<Func, Evaluator>::PacketType;
 
+  static constexpr Index PacketSize = redux_traits<Func, Evaluator>::PacketSize;
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE PacketType packetAt(const Evaluator& eval, Index j, Index i) {
+    return eval.template packetByOuterInner<Unaligned, PacketType>(j, i);
+  }
+
   template <typename XprType>
   EIGEN_DEVICE_FUNC static Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
-    constexpr Index packetSize = redux_traits<Func, Evaluator>::PacketSize;
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
-    const Index packetedInnerSize = ((innerSize) / packetSize) * packetSize;
+    const Index packetedInnerSize = numext::round_down(innerSize, PacketSize);
+    const Index quadInnerSize = numext::round_down(innerSize, 4 * PacketSize);
     Scalar res;
     if (packetedInnerSize) {
-      PacketType packet_res = eval.template packet<Unaligned, PacketType>(0, 0);
-      for (Index j = 0; j < outerSize; ++j)
-        for (Index i = (j == 0 ? packetSize : 0); i < packetedInnerSize; i += Index(packetSize))
-          packet_res = func.packetOp(packet_res, eval.template packetByOuterInner<Unaligned, PacketType>(j, i));
+      // A single accumulator leaves one packetOp latency between consecutive iterations, so carry
+      // four of them across the whole (j, i) traversal and merge them once.
+      PacketType packet_res0 = packetAt(eval, 0, 0);
+      if (quadInnerSize) {
+        // Four packets or more per panel: each accumulator takes one packet of every group of four.
+        PacketType packet_res1 = packetAt(eval, 0, PacketSize);
+        PacketType packet_res2 = packetAt(eval, 0, 2 * PacketSize);
+        PacketType packet_res3 = packetAt(eval, 0, 3 * PacketSize);
+        // Every panel has the same number of packets left over, so this is loop-invariant and the
+        // branches on it do not wait on the packet loop below.
+        const Index remSize = packetedInnerSize - quadInnerSize;
+        for (Index j = 0; j < outerSize; ++j) {
+          for (Index i = (j == 0) ? 4 * PacketSize : 0; i < quadInnerSize; i += 4 * PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, i + PacketSize));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, i + 2 * PacketSize));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j, i + 3 * PacketSize));
+          }
+          // This panel's one to three leftover packets, into accumulators that are still
+          // independent of each other.
+          if (remSize >= PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, quadInnerSize));
+            if (remSize >= 2 * PacketSize) {
+              packet_res1 = func.packetOp(packet_res1, packetAt(eval, j, quadInnerSize + PacketSize));
+              if (remSize == 3 * PacketSize)
+                packet_res2 = func.packetOp(packet_res2, packetAt(eval, j, quadInnerSize + 2 * PacketSize));
+            }
+          }
+        }
+        // Merge as (res0 + res1) + (res2 + res3): two packetOp latencies deep instead of three.
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else if (outerSize >= 4) {
+        // Panels of one to three packets cannot supply four independent packets, so the
+        // independence comes from the outer dimension: each accumulator takes its own panel.
+        PacketType packet_res1 = packetAt(eval, 1, 0);
+        PacketType packet_res2 = packetAt(eval, 2, 0);
+        PacketType packet_res3 = packetAt(eval, 3, 0);
+        for (Index i = PacketSize; i < packetedInnerSize; i += PacketSize) {
+          packet_res0 = func.packetOp(packet_res0, packetAt(eval, 0, i));
+          packet_res1 = func.packetOp(packet_res1, packetAt(eval, 1, i));
+          packet_res2 = func.packetOp(packet_res2, packetAt(eval, 2, i));
+          packet_res3 = func.packetOp(packet_res3, packetAt(eval, 3, i));
+        }
+        // Both loops take their bounds from quadOuterSize rather than sharing j: for a fixed outer size, GCC 10
+        // otherwise emits -Waggressive-loop-optimizations for the tail loop, which never runs.
+        const Index quadOuterSize = numext::round_down(outerSize, 4);
+        for (Index j = 4; j < quadOuterSize; j += 4)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize) {
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+            packet_res1 = func.packetOp(packet_res1, packetAt(eval, j + 1, i));
+            packet_res2 = func.packetOp(packet_res2, packetAt(eval, j + 2, i));
+            packet_res3 = func.packetOp(packet_res3, packetAt(eval, j + 3, i));
+          }
+        for (Index j = quadOuterSize; j < outerSize; ++j)
+          for (Index i = 0; i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
 
-      res = func.predux(packet_res);
+        packet_res0 = func.packetOp(packet_res0, packet_res1);
+        packet_res2 = func.packetOp(packet_res2, packet_res3);
+        packet_res0 = func.packetOp(packet_res0, packet_res2);
+      } else {
+        // Fewer than four narrow panels: at most nine packets in total, not worth a merge.
+        for (Index j = 0; j < outerSize; ++j)
+          for (Index i = (j == 0 ? PacketSize : 0); i < packetedInnerSize; i += PacketSize)
+            packet_res0 = func.packetOp(packet_res0, packetAt(eval, j, i));
+      }
+
+      res = func.predux(packet_res0);
       for (Index j = 0; j < outerSize; ++j)
         for (Index i = packetedInnerSize; i < innerSize; ++i) res = func(res, eval.coeffByOuterInner(j, i));
     } else  // too small to vectorize anything.
@@ -645,8 +808,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::sum() const {
-  if (SizeAtCompileTime == 0 || (SizeAtCompileTime == Dynamic && size() == 0)) return Scalar(0);
-  return derived().redux(Eigen::internal::scalar_sum_op<Scalar, Scalar>());
+  EIGEN_IF_CONSTEXPR (MaxSizeAtCompileTime == 0 || SizeAtCompileTime == 0) {
+    return Scalar(0);
+  } else {
+    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
+      if (size() == 0) return Scalar(0);
+    }
+    return derived().redux(Eigen::internal::scalar_sum_op<Scalar, Scalar>());
+  }
 }
 
 /** \returns the mean of all coefficients of *this
@@ -674,8 +843,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::prod() const {
-  if (SizeAtCompileTime == 0 || (SizeAtCompileTime == Dynamic && size() == 0)) return Scalar(1);
-  return derived().redux(Eigen::internal::scalar_product_op<Scalar>());
+  EIGEN_IF_CONSTEXPR (MaxSizeAtCompileTime == 0 || SizeAtCompileTime == 0) {
+    return Scalar(1);
+  } else {
+    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
+      if (size() == 0) return Scalar(1);
+    }
+    return derived().redux(Eigen::internal::scalar_product_op<Scalar>());
+  }
 }
 
 /** \returns the trace of \c *this, i.e. the sum of the coefficients on the main diagonal.

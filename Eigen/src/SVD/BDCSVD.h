@@ -375,7 +375,10 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   }
 
   //**** step 0 - Copy the input matrix and apply scaling to reduce over/under-flows
-  const RealScalar maxCoeff = matrix.cwiseAbs().template maxCoeff<PropagateNaN>();
+  // A SIMD unit that flushes subnormal inputs reads an all-subnormal matrix as zero; recover its maximum from the
+  // representation so that the scaling still brings it into the normal range.
+  const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      matrix.derived(), matrix.cwiseAbs().template maxCoeff<PropagateNaN>());
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
@@ -422,7 +425,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   //**** step 3 - Copy singular values and vectors
   for (int i = 0; i < diagSize(); i++) {
     RealScalar a = abs(m_impl.computed().coeff(i, i));
-    internal::safe_scaling<RealScalar>::unscale_to(m_singularValues.coeffRef(i), a, factors);
+    m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
       m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();
@@ -432,6 +435,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
       break;
     }
   }
+  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ.
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
 
   //**** step 4 - Finalize unitaries U and V
   if (m_isTranspose)
@@ -510,10 +515,14 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
     return *this;
   }
 
-  // Check for non-finite inputs.
-  const RealScalar diagScale = diagonal.cwiseAbs().template maxCoeff<PropagateNaN>();
-  const RealScalar superdiagScale = n > 1 ? superdiagonal.cwiseAbs().template maxCoeff<PropagateNaN>() : RealScalar(0);
-  const RealScalar maxCoeff = numext::maxi(diagScale, superdiagScale);
+  // Check for non-finite inputs. The rescan recovers an all-subnormal input that a flushing SIMD unit reads as zero.
+  const RealScalar diagScale = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+      diagonal.derived(), diagonal.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const RealScalar superdiagScale =
+      n > 1 ? internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+                  superdiagonal.derived(), superdiagonal.cwiseAbs().template maxCoeff<PropagateNaN>())
+            : RealScalar(0);
+  const RealScalar maxCoeff = internal::max_preserving_subnormals(diagScale, superdiagScale);
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
@@ -537,7 +546,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
     m_isInitialized = true;
     m_info = smallSvd.info();
     if (m_info == Success || m_info == NoConvergence) {
-      internal::safe_scaling<RealScalar>::unscale_to(m_singularValues, smallSvd.singularValues(), factors);
+      internal::safe_scaling<RealScalar>::unscale_to(m_singularValues, smallSvd.singularValues(), maxCoeff, factors);
       m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
       if (computeU()) m_matrixU = smallSvd.matrixU();
       if (computeV()) m_matrixV = smallSvd.matrixV();
@@ -574,7 +583,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   //**** Extract singular values.
   for (int i = 0; i < diagSize(); i++) {
     RealScalar a = abs(m_impl.computed().coeff(i, i));
-    internal::safe_scaling<RealScalar>::unscale_to(m_singularValues.coeffRef(i), a, factors);
+    m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
       m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();
@@ -584,6 +593,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
       break;
     }
   }
+  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ.
+  internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
 
   //**** Copy U and V directly (no Householder to apply).
   // D&C computes B^T = naiveU * S * naiveV^T, so B = naiveV * S * naiveU^T.

@@ -90,6 +90,55 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
 
   // TODO check with sub-matrix expressions ?
 
+  // Triangular times triangular or self-adjoint view: the right factor is densified and the product
+  // runs the TRMM kernel of the left one.
+  {
+    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    typedef Matrix<Scalar, Dynamic, Dynamic, ResOrder> ResXX;
+    // Hermitian operands, so that the self-adjoint views below have the real diagonal the SYMM kernel assumes.
+    TriMatrix mat2 = TriMatrix::Random(cols, cols), mat3 = TriMatrix::Random(rows, rows);
+    mat2 = (mat2 + mat2.adjoint()).eval();
+    mat3 = (mat3 + mat3.adjoint()).eval();
+    const MatrixX tri2 = mat2.template triangularView<UnitUpper>();
+    const MatrixX tri3 = mat3.template triangularView<StrictlyLower>();
+    const MatrixX sa2 = mat2.template selfadjointView<Lower>();
+    const MatrixX sa3 = mat3.template selfadjointView<Upper>();
+    ResXX res(rows, cols), res_save(rows, cols);
+
+    VERIFY_IS_APPROX(res = mat.template triangularView<Mode>() * mat2.template triangularView<UnitUpper>(), tri * tri2);
+    VERIFY_IS_APPROX(
+        res.noalias() = mat3.template triangularView<StrictlyLower>() * mat.template triangularView<Mode>(),
+        tri3 * tri);
+    VERIFY_IS_APPROX(res = mat.template triangularView<Mode>() * mat2.template selfadjointView<Lower>(), tri * sa2);
+    VERIFY_IS_APPROX(res.noalias() = mat3.template selfadjointView<Upper>() * mat.template triangularView<Mode>(),
+                     sa3 * tri);
+    VERIFY_IS_APPROX(res = (s1 * mat.transpose()).template triangularView<Mode>() *
+                           mat3.transpose().template triangularView<StrictlyUpper>(),
+                     s1triTr * tri3.transpose());
+
+    res.setRandom(rows, cols);
+    res_save = res;
+    VERIFY_IS_APPROX(res.noalias() += mat.template triangularView<Mode>() * mat2.template triangularView<UnitUpper>(),
+                     res_save + tri * tri2);
+    res_save = res;
+    VERIFY_IS_APPROX(res.noalias() -= mat3.template selfadjointView<Upper>() * mat.template triangularView<Mode>(),
+                     res_save - sa3 * tri);
+
+    // s1 cannot fold into a unit diagonal, so s1 * (UnitTri * V) evaluates the product first and scales it afterwards.
+    const MatrixX unit3 = mat3.template triangularView<UnitLower>();
+    VERIFY_IS_APPROX(res = s1 * (mat3.template triangularView<UnitLower>() * mat.template triangularView<Mode>()),
+                     s1 * (unit3 * tri));
+    ResXX res3(rows, rows);
+    VERIFY_IS_APPROX(
+        res3.noalias() = s1 * (mat3.template triangularView<UnitLower>() * mat3.template selfadjointView<Upper>()),
+        s1 * (unit3 * sa3));
+    res.setRandom(rows, cols);
+    res_save = res;
+    VERIFY_IS_APPROX(
+        res.noalias() -= s1 * (mat3.template triangularView<UnitLower>() * mat.template triangularView<Mode>()),
+        res_save - s1 * (unit3 * tri));
+  }
+
   // destination with a non-default inner-stride
   // see bug 1741
   {
@@ -142,4 +191,8 @@ EIGEN_DECLARE_TEST(product_trmm) {
     CALL_ALL(3, std::complex<float>);   //  EIGEN_SUFFIXES;13;113;23;123;33;133
     CALL_ALL(4, std::complex<double>);  //  EIGEN_SUFFIXES;14;114;24;124;34;134
   }
+  // 1x1 and blocking-boundary sizes for the view-times-view products.
+  CALL_SUBTEST_11((trmm<float, Lower, ColMajor, ColMajor, ColMajor>(1, 1, 1)));
+  CALL_SUBTEST_14((trmm<std::complex<double>, Upper, RowMajor, ColMajor, RowMajor>(1, 1, 1)));
+  CALL_SUBTEST_12((trmm<double, Upper, ColMajor, ColMajor, ColMajor>(EIGEN_TEST_MAX_SIZE, EIGEN_TEST_MAX_SIZE, 1)));
 }

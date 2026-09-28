@@ -17,6 +17,12 @@
 namespace Eigen {
 
 namespace internal {
+// Preserve Array's scalar-conversion gate for non-dense expressions such as permutations.
+template <typename Scalar, typename OtherDerived>
+using is_valid_array_conversion = std::conditional_t<std::is_base_of<DenseBase<OtherDerived>, OtherDerived>::value,
+                                                     is_valid_dense_conversion<Scalar, OtherDerived>,
+                                                     std::is_convertible<typename OtherDerived::Scalar, Scalar>>;
+
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct traits<Array<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
     : traits<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>> {
@@ -226,16 +232,19 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
   struct PrivateType {};
 
  public:
-  /** \sa MatrixBase::operator=(const EigenBase<OtherDerived>&) */
+  /** Constructs an array from an expression with compatible scalar types.
+   * Use \c .cast<NewScalar>() to convert between scalar types.
+   * \sa MatrixBase::operator=(const EigenBase<OtherDerived>&)
+   */
   template <typename OtherDerived,
-            std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, int> = 0>
+            std::enable_if_t<internal::is_valid_array_conversion<Scalar, OtherDerived>::value, int> = 0>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(const EigenBase<OtherDerived>& other) : Base(other.derived()) {}
 
   template <typename OtherDerived>
   EIGEN_DEPRECATED_WITH_REASON("Omit the implementation-only second argument.")
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Array(
       const EigenBase<OtherDerived>& other,
-      std::enable_if_t<std::is_convertible<typename OtherDerived::Scalar, Scalar>::value, PrivateType>)
+      std::enable_if_t<internal::is_valid_array_conversion<Scalar, OtherDerived>::value, PrivateType>)
       : Array(other) {}
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const noexcept { return 1; }

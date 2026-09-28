@@ -185,22 +185,40 @@ namespace internal {
  *
  * \sa class Transform, class Rotation2D, class Quaternion, class AngleAxis
  */
-template <typename Scalar, int Dim>
-EIGEN_DEVICE_FUNC static inline Matrix<Scalar, 2, 2> toRotationMatrix(const Scalar& s) {
+template <typename Scalar, int Dim, typename OtherScalar,
+          std::enable_if_t<std::is_scalar<OtherScalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline Matrix<Scalar, 2, 2> toRotationMatrix(const OtherScalar& s) {
   EIGEN_STATIC_ASSERT(Dim == 2, YOU_MADE_A_PROGRAMMING_MISTAKE)
-  return Rotation2D<Scalar>(s).toRotationMatrix();
+  return Rotation2D<Scalar>(static_cast<Scalar>(s)).toRotationMatrix();
 }
 
-template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline typename OtherDerived::RotationMatrixType toRotationMatrix(
+    const RotationBase<OtherDerived, Dim>& r) {
   return r.toRotationMatrix();
 }
 
-template <typename Scalar, int Dim, typename OtherDerived>
-EIGEN_DEVICE_FUNC static inline const MatrixBase<OtherDerived>& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<!std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline Matrix<Scalar, Dim, Dim> toRotationMatrix(const RotationBase<OtherDerived, Dim>& r) {
+  return r.toRotationMatrix().template cast<Scalar>();
+}
+
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline const OtherDerived& toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
   EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
                       YOU_MADE_A_PROGRAMMING_MISTAKE)
-  return mat;
+  return mat.derived();
+}
+
+template <typename Scalar, int Dim, typename OtherDerived,
+          std::enable_if_t<!std::is_same<Scalar, typename OtherDerived::Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC static inline auto toRotationMatrix(const MatrixBase<OtherDerived>& mat) {
+  EIGEN_STATIC_ASSERT(OtherDerived::RowsAtCompileTime == Dim && OtherDerived::ColsAtCompileTime == Dim,
+                      YOU_MADE_A_PROGRAMMING_MISTAKE)
+  return mat.template cast<Scalar>();
 }
 
 }  // end namespace internal

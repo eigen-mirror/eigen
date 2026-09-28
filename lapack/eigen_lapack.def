@@ -2,9 +2,49 @@
 
 LIBRARY eigen_lapack
 EXPORTS
-    ; Eigen C/C++ implementations
     ; Utilities
     xerbla_
+    ilaver_
+    slamch_
+    dlamch_
+    slamc3_
+    dlamc3_
+    slapy2_
+    dlapy2_
+    slapy3_
+    dlapy3_
+    sladiv_
+    dladiv_
+    cladiv_
+    zladiv_
+    clacgv_
+    zlacgv_
+    ilaclc_
+    ilaclr_
+    iladlc_
+    iladlr_
+    ilaslc_
+    ilaslr_
+    ilazlc_
+    ilazlr_
+
+    ; Householder
+    slarfg_
+    dlarfg_
+    clarfg_
+    zlarfg_
+    slarf_
+    dlarf_
+    clarf_
+    zlarf_
+    slarft_
+    dlarft_
+    clarft_
+    zlarft_
+    slarfb_
+    dlarfb_
+    clarfb_
+    zlarfb_
 
     ; Eigenvalues
     ssyev_
@@ -43,46 +83,6 @@ EXPORTS
     ; Time
     second_
     dsecnd_
-
-    ; Fortran implementations
-    clacgv_
-    zlacgv_
-    sladiv_
-    dladiv_
-    cladiv_
-    zladiv_
-    slamch_
-    dlamch_
-    slamc3_
-    dlamc3_
-    slapy2_
-    dlapy2_
-    slapy3_
-    dlapy3_
-    slarf_
-    dlarf_
-    clarf_
-    zlarf_
-    slarfb_
-    dlarfb_
-    clarfb_
-    zlarfb_
-    slarfg_
-    dlarfg_
-    clarfg_
-    zlarfg_
-    slarft_
-    dlarft_
-    clarft_
-    zlarft_
-    ilaclc_
-    ilaclr_
-    iladlc_
-    iladlr_
-    ilaslc_
-    ilaslr_
-    ilazlc_
-    ilazlr_
 
     ; Missing
     ; csymv_

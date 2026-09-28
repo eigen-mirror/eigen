@@ -547,8 +547,8 @@ MatrixType FullPivLU<MatrixType, PermutationIndex>::reconstructedMatrix() const 
   // LU
   MatrixType res(m_lu.rows(), m_lu.cols());
   // FIXME: the .toDenseMatrix() calls should not be needed.
-  res = m_lu.leftCols(smalldim).template triangularView<UnitLower>().toDenseMatrix() *
-        m_lu.topRows(smalldim).template triangularView<Upper>().toDenseMatrix();
+  res.noalias() = m_lu.leftCols(smalldim).template triangularView<UnitLower>().toDenseMatrix() *
+                  m_lu.topRows(smalldim).template triangularView<Upper>().toDenseMatrix();
 
   // P^{-1}(LU)
   res = m_p.inverse() * res;

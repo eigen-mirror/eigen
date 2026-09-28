@@ -186,6 +186,10 @@ void cwise_min_max(const MatrixType& m) {
   // min/max with array
   Scalar maxM1 = m1.maxCoeff();
   Scalar minM1 = m1.minCoeff();
+  // Reduce here: GCC 10 for AArch64 can keep an unreduced 128-bit partial result in v8 across the calls below,
+  // although AAPCS64 preserves only its low 64 bits.
+  EIGEN_OPTIMIZATION_BARRIER(maxM1);
+  EIGEN_OPTIMIZATION_BARRIER(minM1);
 
   VERIFY_IS_APPROX(MatrixType::Constant(rows, cols, minM1), m1.cwiseMin(MatrixType::Constant(rows, cols, minM1)));
   VERIFY_IS_APPROX(m1, m1.cwiseMin(MatrixType::Constant(rows, cols, maxM1)));

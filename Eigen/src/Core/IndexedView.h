@@ -216,7 +216,11 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
 
   Index outerIncrement() const { return traits<Derived>::IsRowMajor ? rowIncrement() : colIncrement(); }
 
-  std::decay_t<typename XprType::Scalar>* data() {
+  using ScalarWithConstIfNotLvalue =
+      std::conditional_t<is_lvalue<XprType>::value, std::decay_t<typename XprType::Scalar>,
+                         const std::decay_t<typename XprType::Scalar>>;
+
+  ScalarWithConstIfNotLvalue* data() {
     Index row_offset = this->rowIndices()[0] * this->nestedExpression().rowStride();
     Index col_offset = this->colIndices()[0] * this->nestedExpression().colStride();
     return this->nestedExpression().data() + row_offset + col_offset;
@@ -232,14 +236,17 @@ class IndexedViewImpl<XprType, RowIndices, ColIndices, StorageKind, true>
     EIGEN_IF_CONSTEXPR (traits<Derived>::InnerStrideAtCompileTime != Dynamic) {
       return traits<Derived>::InnerStrideAtCompileTime;
     }
-    return innerIncrement() * this->nestedExpression().innerStride();
+    // A vector-shaped view need not share the nested storage order, so step along the view's own inner dimension.
+    return traits<Derived>::IsRowMajor ? colIncrement() * this->nestedExpression().colStride()
+                                       : rowIncrement() * this->nestedExpression().rowStride();
   }
 
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept {
     EIGEN_IF_CONSTEXPR (traits<Derived>::OuterStrideAtCompileTime != Dynamic) {
       return traits<Derived>::OuterStrideAtCompileTime;
     }
-    return outerIncrement() * this->nestedExpression().outerStride();
+    return traits<Derived>::IsRowMajor ? rowIncrement() * this->nestedExpression().rowStride()
+                                       : colIncrement() * this->nestedExpression().colStride();
   }
 };
 

@@ -1437,10 +1437,23 @@ void bool_logical_ops() {
     expected_xor[i] = lhs[i] != rhs[i];
     expected_not[i] = !lhs[i];
   }
-  VERIFY_IS_CWISE_EQUAL(actual_and, expected_and);
-  VERIFY_IS_CWISE_EQUAL(actual_or, expected_or);
-  VERIFY_IS_CWISE_EQUAL(actual_xor, expected_xor);
-  VERIFY_IS_CWISE_EQUAL(actual_not, expected_not);
+  VERIFY((actual_and == expected_and).all());
+  VERIFY((actual_or == expected_or).all());
+  VERIFY((actual_xor == expected_xor).all());
+  VERIFY((actual_not == expected_not).all());
+  VERIFY((lhs + rhs == expected_or).all());
+  VERIFY((lhs * rhs == expected_and).all());
+  VERIFY(((lhs != rhs) == expected_xor).all());
+
+  ArrayXi difference = lhs.cast<int>() - rhs.cast<int>();
+  ArrayXi opposite = -lhs.cast<int>();
+  ArrayXi expected_difference(size), expected_opposite(size);
+  for (Index i = 0; i < size; ++i) {
+    expected_difference[i] = int(lhs[i]) - int(rhs[i]);
+    expected_opposite[i] = -int(lhs[i]);
+  }
+  VERIFY_IS_CWISE_EQUAL(difference, expected_difference);
+  VERIFY_IS_CWISE_EQUAL(opposite, expected_opposite);
 }
 
 template <typename RealScalar>

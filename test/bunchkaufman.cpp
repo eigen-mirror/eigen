@@ -481,7 +481,8 @@ void bunchkaufman_extreme_scale() {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   typedef Matrix<Scalar, 2, 2> Mat2;
   typedef Matrix<Scalar, 2, 1> Vec2;
-  const RealScalar tol = numext::sqrt(test_precision<RealScalar>());
+  // One reciprocal and a 2x2 product; include complex multiply/add rounding.
+  const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon();
   for (RealScalar mag : {numext::pow(RealScalar(10), RealScalar(200)), numext::pow(RealScalar(10), RealScalar(-200))}) {
     const Scalar off = Scalar(mag);
     Mat2 A;
@@ -492,11 +493,11 @@ void bunchkaufman_extreme_scale() {
     VERIFY(!bk.isNegative());
     // Use the max-abs (infinity) relative norm throughout: the Frobenius norm (.norm()) squares the
     // ~1e200 entries and would overflow/underflow even for a correct factorization.
-    VERIFY((A - bk.reconstructedMatrix()).cwiseAbs().maxCoeff() <= tol * A.cwiseAbs().maxCoeff());
+    VERIFY(max_abs_coeff(A - bk.reconstructedMatrix()) <= tol * max_abs_coeff(A));
     // A x = b with b = [1,1]; the product A*x stays O(1), so its residual is safe to measure.
     const Vec2 b(Scalar(1), Scalar(1));
     const Vec2 x = bk.solve(b);
-    VERIFY((A * x - b).cwiseAbs().maxCoeff() <= tol);
+    VERIFY(max_abs_coeff(A * x - b) <= tol);
   }
 }
 

@@ -311,8 +311,6 @@ class TridiagonalMatrix : public BandMatrix<Scalar, Size, Size, Options & SelfAd
   }
 };
 
-struct BandShape {};
-
 template <typename Scalar_, int Rows_, int Cols_, int Supers_, int Subs_, int Options_>
 struct evaluator_traits<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> >
     : public evaluator_traits_base<BandMatrix<Scalar_, Rows_, Cols_, Supers_, Subs_, Options_> > {

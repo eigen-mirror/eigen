@@ -356,9 +356,9 @@ void inplace_generalized_eigensolver(Index size) {
   VERIFY((V.colwise().norm().array() - RealScalar(1)).abs().maxCoeff() <= tolerance);
 }
 
-template <typename Scalar, template <typename> class QZType>
+template <typename Scalar, template <typename> class QZType, int Options>
 void inplace_qz_inner_stride() {
-  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
   using StridedRef = Ref<MatrixType, 0, Stride<Dynamic, Dynamic>>;
   for (Index inner : {Index(1), Index(2)}) {
     MatrixType storageA = MatrixType::Random(8, 5), storageB = MatrixType::Random(8, 5);
@@ -371,12 +371,13 @@ void inplace_qz_inner_stride() {
     VERIFY(internal::is_same_dense(qz.matrixS(), a));
     VERIFY(internal::is_same_dense(qz.matrixT(), b));
     verify_inplace_qz(A0, Binput, qz);
-    for (Index col = 0; col < storageA.cols(); ++col) {
-      for (Index row = 0; row < storageA.rows(); ++row) {
-        if (col < 4 && row % inner == 0 && row / inner < 4) continue;
-        VERIFY_IS_EQUAL(storageA(row, col), savedA(row, col));
-        VERIFY_IS_EQUAL(storageB(row, col), savedB(row, col));
-      }
+    // The Map's strides determine its footprint in either storage order.
+    for (Index offset = 0; offset < storageA.size(); ++offset) {
+      const Index outer = offset / stride.outer();
+      const Index innerOffset = offset % stride.outer();
+      if (outer < 4 && innerOffset % inner == 0 && innerOffset / inner < 4) continue;
+      VERIFY_IS_EQUAL(storageA.data()[offset], savedA.data()[offset]);
+      VERIFY_IS_EQUAL(storageB.data()[offset], savedB.data()[offset]);
     }
   }
 }
@@ -406,8 +407,10 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_11(inplace_plain_lower_triangle());
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(128)));
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(129)));
-  CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ>()));
-  CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ>()));
+  CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ, ColMajor>()));
+  CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ, RowMajor>()));
+  CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, ColMajor>()));
+  CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, RowMajor>()));
   EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
   for (int i = 0; i < g_repeat; i++) {
     EIGEN_UNUSED const Index size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE / 4);

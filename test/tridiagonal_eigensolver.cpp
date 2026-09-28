@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include "tridiag_test_matrices.h"
 #include <limits>
 #include <Eigen/Eigenvalues>
@@ -314,6 +315,13 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL(dir.eigenvectors().rows(), n);
     VERIFY_IS_EQUAL(dir.eigenvectors().cols(), n);
     VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+    VERIFY_IS_EQUAL(dir.info(), Success);
+    VERIFY_IS_EQUAL(dir.eigenvalues(), w);
+    const MatrixType& supplied_vectors = dir.eigenvectors();
+    for (Index i = 0; i < n; ++i)
+      VERIFY((T * supplied_vectors.col(i) - w(i) * supplied_vectors.col(i)).stableNorm() <= tol);
+    VERIFY((supplied_vectors.transpose() * supplied_vectors - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <=
+           otol);
 
     // Index-subset eigenvectors: the bisection range selects a band, inverse iteration produces just
     // those columns; check residual and that they are orthonormal among themselves.
@@ -431,6 +439,72 @@ void tridiagonal_eigensolver_eigenvectors() {
         VERIFY_IS_EQUAL((one.eigenvectors().col(0) - MatrixType::Identity(5, 5).col(j)).cwiseAbs().maxCoeff(),
                         RealScalar(0));
       }
+    }
+
+    // Small-block shifts need local accuracy even above the old global clustering cutoff.
+    for (RealScalar c : {RealScalar(0.125), RealScalar(2), RealScalar(3.9), RealScalar(4), RealScalar(4.1),
+                         RealScalar(5), RealScalar(10), RealScalar(100), RealScalar(1000)}) {
+      VectorType d(3), e(2);
+      d << RealScalar(1), RealScalar(0), RealScalar(0);
+      e << RealScalar(0), c * eps;
+      for (const auto& range : {EigenvalueRange::all(), EigenvalueRange::indices(0, 2), EigenvalueRange::indices(1, 2),
+                                EigenvalueRange::values(-0.5, 0.5)}) {
+        TridiagonalEigenSolver<RealScalar> blocks;
+        blocks.computeEigenvalues(d, e, range);
+        const VectorType values = blocks.eigenvalues();
+        blocks.computeEigenvectors();
+        VERIFY_IS_EQUAL(blocks.info(), Success);
+        VERIFY_IS_EQUAL(blocks.eigenvalues(), values);
+        const MatrixType V = blocks.eigenvectors();
+        VERIFY(V.allFinite());
+        VERIFY((V.transpose() * V - MatrixType::Identity(V.cols(), V.cols())).cwiseAbs().maxCoeff() <=
+               RealScalar(32) * eps);
+        VERIFY((dense_symmetric_tridiag(d, e) * V - V * values.asDiagonal()).cwiseAbs().maxCoeff() <=
+               RealScalar(32) * eps);
+        // Independent local eigenvectors are (1,+/-1)/sqrt(2), irrespective of global shift error.
+        for (Index j = 0; j < V.cols(); ++j) {
+          if (numext::abs(values(j)) < RealScalar(0.5))
+            VERIFY(numext::abs(numext::abs(V(1, j)) - numext::abs(V(2, j))) <= RealScalar(32) * eps);
+        }
+      }
+    }
+
+    // Accurate supplied shifts must not inherit the unrelated block's scale, even after solver reuse.
+    {
+      const Index nb = 16;
+      VectorType d = VectorType::Constant(nb + 1, RealScalar(2));
+      VectorType e = VectorType::Ones(nb), w(nb);
+      d(0) = numext::ldexp(RealScalar(1), 60);
+      e(0) = RealScalar(0);
+      for (Index k = 0; k < nb; ++k) {
+        const RealScalar angle = RealScalar(EIGEN_PI) * RealScalar(k + 1) / RealScalar(2 * (nb + 1));
+        w(k) = RealScalar(4) * numext::abs2(numext::sin(angle));
+      }
+      TridiagonalEigenSolver<RealScalar> supplied, local;
+      supplied.computeEigenvalues(d, e);
+      supplied.computeEigenvectors(d, e, w);
+      local.computeEigenvectors(d.tail(nb).eval(), e.tail(nb - 1).eval(), w);
+      VERIFY_IS_EQUAL(supplied.info(), Success);
+      VERIFY_IS_EQUAL(local.info(), Success);
+      VERIFY_IS_EQUAL(supplied.eigenvalues(), w);
+      VERIFY_IS_EQUAL(supplied.eigenvectors().bottomRows(nb), local.eigenvectors());
+      VERIFY_IS_EQUAL(supplied.eigenvectors().row(0).squaredNorm(), RealScalar(0));
+    }
+
+    // A zero block's normalization placeholder must not change clustering under power-of-two scaling.
+    {
+      VectorType d(4), e(3), w(4);
+      d << RealScalar(0), RealScalar(2), RealScalar(2), RealScalar(2);
+      e << RealScalar(0), RealScalar(1), RealScalar(1);
+      const RealScalar root2 = numext::sqrt(RealScalar(2));
+      w << RealScalar(0), RealScalar(2) - root2, RealScalar(2), RealScalar(2) + root2;
+      TridiagonalEigenSolver<RealScalar> reference, scaled;
+      reference.computeEigenvectors(d, e, w);
+      const RealScalar scale = numext::ldexp(RealScalar(1), -60);
+      scaled.computeEigenvectors((d * scale).eval(), (e * scale).eval(), (w * scale).eval());
+      VERIFY_IS_EQUAL(reference.info(), Success);
+      VERIFY_IS_EQUAL(scaled.info(), Success);
+      VERIFY_IS_EQUAL((scaled.eigenvectors() - reference.eigenvectors()).cwiseAbs().maxCoeff(), RealScalar(0));
     }
 
     // A huge disconnected block must not force splitting of a strongly connected small block: a
@@ -623,7 +697,8 @@ void tridiagonal_eigensolver_scaling_units() {
     VERIFY(vectors.allFinite());
     VERIFY((matrix * vectors - vectors * values.asDiagonal()).norm() <= tolerance * matrix.norm());
     VERIFY((vectors.transpose() * vectors - MatrixType::Identity(4, 4)).norm() <= tolerance);
-    solver.computeEigenvalues(d, e, EigenvalueRange::values(double(scale) * 2, double(scale) * 9));
+    solver.computeEigenvalues(
+        d, e, EigenvalueRange::values(static_cast<long double>(scale) * 2, static_cast<long double>(scale) * 9));
     VERIFY_IS_EQUAL(solver.eigenvalues().size(), 2);
     VERIFY((solver.eigenvalues() / scale - expected.segment(1, 2)).cwiseAbs().maxCoeff() <= tolerance * Scalar(12));
 
@@ -666,12 +741,88 @@ void tridiagonal_eigensolver_subnormal_staged() {
   }
 }
 
+// d and e against their power-of-two scaled copies, computed beforehand, in every flush-to-zero mode: eigenvalues to
+// the bisection error plus the quantization of the range they are stored in, eigenvectors (invariant under the
+// scaling) against the scaled residual.
+template <typename RealScalar>
+void tridiagonal_check_scaled_pair(const Matrix<RealScalar, Dynamic, 1>& d, const Matrix<RealScalar, Dynamic, 1>& e,
+                                   int k) {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  const Index n = d.size();
+  const VectorType ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const VectorType es = e.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  const MatrixType Ts = dense_symmetric_tridiag(ds, es);
+  TridiagonalEigenSolver<RealScalar> ref;
+  ref.compute(ds, es);
+  VERIFY_IS_EQUAL(ref.info(), Success);
+
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    TridiagonalEigenSolver<RealScalar> sub;
+    sub.compute(d, e);
+    VERIFY_IS_EQUAL(sub.info(), Success);
+    const VectorType up = sub.eigenvalues().unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+    const RealScalar radius = ref.eigenvalues().cwiseAbs().maxCoeff();
+    // denorm_min 2^k: the spacing of the subnormal range the eigenvalues were stored in, scaled up with them.
+    const RealScalar granularity =
+        numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - digits + k);
+    // Named before the checks: MSVC does not capture a local that a lambda first uses after a `.template` call in the
+    // same expression (C2065).
+    const RealScalar valueBound = RealScalar(16) * (RealScalar(n) * eps * radius + granularity);
+    const RealScalar residualBound = RealScalar(64) * RealScalar(n) * eps * radius;
+    VERIFY((up - ref.eigenvalues()).cwiseAbs().template maxCoeff<PropagateNaN>() <= valueBound);
+    const MatrixType V = sub.eigenvectors();
+    VERIFY_IS_UNITARY(V);
+    VERIFY((Ts * V - V * ref.eigenvalues().asDiagonal()).cwiseAbs().template maxCoeff<PropagateNaN>() <= residualBound);
+  });
+}
+
+// All-subnormal d and e, assembled from significands without floating-point arithmetic, which a SIMD unit that
+// flushes subnormal inputs (ARMv7 NEON, Arm FZ, DAZ) reads as zero in the maximum that selects the normalization.
+template <typename RealScalar>
+void tridiagonal_eigensolver_flushed_subnormal(Index n) {
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  constexpr int digits = std::numeric_limits<RealScalar>::digits;
+  // Distinct diagonal significands of digits - 2 bits, off-diagonal ones of alternating sign.
+  const Bits top = Bits(1) << (digits - 3);
+  VectorType d(n), e(n - 1);
+  for (Index i = 0; i < n; ++i) d(i) = numext::bit_cast<RealScalar>(top + Bits(i) * (top / Bits(16)));
+  for (Index i = 0; i < n - 1; ++i) {
+    const Bits sign = (i % 2 == 0) ? Bits(0) : Binary::kSignBit;
+    e(i) = numext::bit_cast<RealScalar>(sign | (top / Bits(2) + Bits(i) * (top / Bits(32))));
+  }
+  tridiagonal_check_scaled_pair(d, e, 60);
+}
+
+// A normal maximum below min / eps with subnormal couplings: |e| flushed to zero would split the matrix into 1 x 1
+// blocks with eigenvectors e_i, although the true ones are (1, +-1) / sqrt(2) for equal d.
+template <typename RealScalar>
+void tridiagonal_eigensolver_flushed_subnormal_coupling() {
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  VectorType d(4), e(3);
+  d.setConstant(numext::ldexp(RealScalar(1), minExponent + 5));
+  for (Index i = 0; i < 3; ++i) e(i) = numext::ldexp(RealScalar(1) + RealScalar(i) / RealScalar(4), minExponent - 4);
+  tridiagonal_check_scaled_pair(d, e, 40);
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
+  for (Index n : {Index(1), Index(2), Index(9)}) {
+    EIGEN_UNUSED_VARIABLE(n);  // parts 3-6 compile no subtest that takes n
+    CALL_SUBTEST_1(tridiagonal_eigensolver_flushed_subnormal<double>(n));
+    CALL_SUBTEST_2(tridiagonal_eigensolver_flushed_subnormal<float>(n));
+  }
+  CALL_SUBTEST_1(tridiagonal_eigensolver_flushed_subnormal_coupling<double>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_flushed_subnormal_coupling<float>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());

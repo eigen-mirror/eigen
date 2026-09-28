@@ -20,6 +20,19 @@
 #include "./Meta.h"
 #include <cusparse.h>
 
+/** \brief 1 when cuSPARSE runs SpMV and SpMM on BSR (block sparse row)
+ * descriptors, 0 otherwise.
+ *
+ * The generic API gained BSR in SpMM with cuSPARSE 12.5 (CUDA 12.8) and in SpMV
+ * with 12.6.3 (CUDA 13.0 Update 1); older toolkits declare cusparseCreateBsr but
+ * return CUSPARSE_STATUS_NOT_SUPPORTED from the products. gpu::SparseContext
+ * uploads a BlockSparseMatrix as BSR only when this is 1, and as CSC otherwise. */
+#if defined(CUSPARSE_VERSION) && CUSPARSE_VERSION >= 12603
+#define EIGEN_HAS_CUSPARSE_BSR 1
+#else
+#define EIGEN_HAS_CUSPARSE_BSR 0
+#endif
+
 namespace Eigen {
 namespace gpu {
 namespace internal {

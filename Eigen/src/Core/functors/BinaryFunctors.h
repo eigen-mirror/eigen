@@ -415,6 +415,8 @@ struct functor_traits<scalar_pow_op<Scalar, Exponent>> {
  */
 template <typename LhsScalar, typename RhsScalar>
 struct scalar_difference_op : binary_op_base<LhsScalar, RhsScalar> {
+  EIGEN_STATIC_ASSERT((!std::is_same<LhsScalar, bool>::value || !std::is_same<RhsScalar, bool>::value),
+                      BOOLEAN_SUBTRACTION_IS_NOT_SUPPORTED__CAST_TO_A_SIGNED_INTEGER_TYPE)
   using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_difference_op>::ReturnType;
 #ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
   scalar_difference_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}

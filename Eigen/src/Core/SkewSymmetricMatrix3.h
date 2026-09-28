@@ -110,6 +110,20 @@ class SkewSymmetricBase : public EigenBase<Derived> {
     return Product<Derived, MatrixDerived, LazyProduct>(derived(), matrix.derived());
   }
 
+  /** \returns the dense matrix product of \c *this by the diagonal matrix \a diagonal */
+  template <typename DiagonalDerived>
+  EIGEN_DEVICE_FUNC Product<Derived, DiagonalDerived, LazyProduct> operator*(
+      const DiagonalBase<DiagonalDerived>& diagonal) const {
+    return Product<Derived, DiagonalDerived, LazyProduct>(derived(), diagonal.derived());
+  }
+
+  /** \returns the dense matrix product of the diagonal matrix \a diagonal by the skew symmetric matrix \a skew */
+  template <typename DiagonalDerived>
+  EIGEN_DEVICE_FUNC friend Product<DiagonalDerived, Derived, LazyProduct> operator*(
+      const DiagonalBase<DiagonalDerived>& diagonal, const SkewSymmetricBase& skew) {
+    return Product<DiagonalDerived, Derived, LazyProduct>(diagonal.derived(), skew.derived());
+  }
+
   template <typename OtherDerived>
   using SkewSymmetricProductReturnType = SkewSymmetricWrapper<const EIGEN_CWISE_BINARY_RETURN_TYPE(
       SkewSymmetricVectorType, typename OtherDerived::SkewSymmetricVectorType, internal::scalar_product_op)>;

@@ -45,7 +45,7 @@ template <typename MatrixType, typename ResultType>
 void matrix_sqrt_quasi_triangular_1x2_off_diagonal_block(const MatrixType& T, Index i, Index j, ResultType& sqrtT) {
   typedef typename traits<MatrixType>::Scalar Scalar;
   Matrix<Scalar, 1, 2> rhs = T.template block<1, 2>(i, j);
-  if (j - i > 1) rhs -= sqrtT.block(i, i + 1, 1, j - i - 1) * sqrtT.block(i + 1, j, j - i - 1, 2);
+  if (j - i > 1) rhs.noalias() -= sqrtT.block(i, i + 1, 1, j - i - 1) * sqrtT.block(i + 1, j, j - i - 1, 2);
   Matrix<Scalar, 2, 2> A = sqrtT.coeff(i, i) * Matrix<Scalar, 2, 2>::Identity();
   A += sqrtT.template block<2, 2>(j, j).transpose();
   sqrtT.template block<1, 2>(i, j).transpose() = A.fullPivLu().solve(rhs.transpose());
@@ -56,7 +56,7 @@ template <typename MatrixType, typename ResultType>
 void matrix_sqrt_quasi_triangular_2x1_off_diagonal_block(const MatrixType& T, Index i, Index j, ResultType& sqrtT) {
   typedef typename traits<MatrixType>::Scalar Scalar;
   Matrix<Scalar, 2, 1> rhs = T.template block<2, 1>(i, j);
-  if (j - i > 2) rhs -= sqrtT.block(i, i + 2, 2, j - i - 2) * sqrtT.block(i + 2, j, j - i - 2, 1);
+  if (j - i > 2) rhs.noalias() -= sqrtT.block(i, i + 2, 2, j - i - 2) * sqrtT.block(i + 2, j, j - i - 2, 1);
   Matrix<Scalar, 2, 2> A = sqrtT.coeff(j, j) * Matrix<Scalar, 2, 2>::Identity();
   A += sqrtT.template block<2, 2>(i, i);
   sqrtT.template block<2, 1>(i, j) = A.fullPivLu().solve(rhs);
@@ -103,7 +103,7 @@ void matrix_sqrt_quasi_triangular_2x2_off_diagonal_block(const MatrixType& T, In
   Matrix<Scalar, 2, 2> A = sqrtT.template block<2, 2>(i, i);
   Matrix<Scalar, 2, 2> B = sqrtT.template block<2, 2>(j, j);
   Matrix<Scalar, 2, 2> C = T.template block<2, 2>(i, j);
-  if (j - i > 2) C -= sqrtT.block(i, i + 2, 2, j - i - 2) * sqrtT.block(i + 2, j, j - i - 2, 2);
+  if (j - i > 2) C.noalias() -= sqrtT.block(i, i + 2, 2, j - i - 2) * sqrtT.block(i + 2, j, j - i - 2, 2);
   Matrix<Scalar, 2, 2> X;
   matrix_sqrt_quasi_triangular_solve_auxiliary_equation(X, A, B, C);
   sqrtT.template block<2, 2>(i, j) = X;
@@ -254,7 +254,7 @@ struct matrix_sqrt_compute<MatrixType, 0> {
     matrix_sqrt_quasi_triangular(T, sqrtT);
 
     // Compute square root of arg
-    result = U * sqrtT * U.adjoint();
+    call_assignment_no_alias(result.derived(), U * sqrtT * U.adjoint());
   }
 };
 
@@ -277,7 +277,7 @@ struct matrix_sqrt_compute<MatrixType, 1> {
     matrix_sqrt_triangular(T, sqrtT);
 
     // Compute square root of arg
-    result = U * (sqrtT.template triangularView<Upper>() * U.adjoint());
+    call_assignment_no_alias(result.derived(), U * (sqrtT.template triangularView<Upper>() * U.adjoint()));
   }
 };
 

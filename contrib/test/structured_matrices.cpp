@@ -9,6 +9,7 @@
 
 #include "main.h"
 #include "fp_control.h"
+#include "structured_test_helpers.h"
 
 #include <contrib/Eigen/StructuredMatrices>
 
@@ -389,38 +390,6 @@ void test_hankel_mixed_scalar(Index m, Index n) {
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
 }
 
-// Entrywise IEEE comparison for the non-finite tests: NaNs match NaNs,
-// infinities match by value (sign included), finite entries match to roundoff.
-// VERIFY_IS_APPROX would reject any output containing NaN.
-template <typename D1, typename D2>
-bool ieee_entrywise_match(const D1& a, const D2& b) {
-  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
-  for (Index j = 0; j < a.cols(); ++j)
-    for (Index i = 0; i < a.rows(); ++i) {
-      const typename D1::Scalar x = a(i, j), y = b(i, j);
-      if (x == y) continue;                    // finite match or same-signed infinities
-      if ((x != x) && (y != y)) continue;      // both NaN
-      if (!test_isApprox(x, y)) return false;  // finite roundoff
-    }
-  return true;
-}
-
-// Scalar-loop product: the mathematically transparent IEEE reference for the
-// non-finite tests. Eigen's own vectorized complex kernels can smear a single
-// infinity into NaN (Inf - Inf across the split real/imaginary accumulators), so
-// the dense product is not a faithful entrywise reference for non-finite data.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                  const Matrix<Scalar, Dynamic, 1>& x) {
-  Matrix<Scalar, Dynamic, 1> y(A.rows());
-  for (Index i = 0; i < A.rows(); ++i) {
-    Scalar acc(0);
-    for (Index j = 0; j < A.cols(); ++j) acc += A(i, j) * x[j];
-    y[i] = acc;
-  }
-  return y;
-}
-
 // A single Inf or NaN in the data must propagate like the reference product --
 // through the dot products that touch it -- instead of being smeared into NaNs
 // across the whole output by the transforms. The reviewer reproducer (MR 2688):
@@ -446,13 +415,13 @@ void test_hankel_nonfinite_product(Index n) {
   Vec x = Vec::Random(n);
   x[n / 4] = Scalar(inf);
   Vec y = H * x;
-  VERIFY(ieee_entrywise_match(y, reference_product_ieee(dense, x)));
+  VERIFY_IS_CWISE_APPROX(y, reference_product_ieee(dense, x));
   VERIFY(numext::real(y[n - 1 - n / 4]) == inf);
 
   // NaN in the right-hand side.
   Vec xn = Vec::Random(n);
   xn[n - 1] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((H * xn).eval(), reference_product_ieee(dense, xn)));
+  VERIFY_IS_CWISE_APPROX((H * xn).eval(), reference_product_ieee(dense, xn));
 
   // Mixed multi-column right-hand side: the non-finite column falls back to the
   // direct kernel individually while the finite column keeps the FFT path.
@@ -461,7 +430,7 @@ void test_hankel_nonfinite_product(Index n) {
   Xm.col(1) = x;
   Mat Ym = H * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
 
   // Inf in the generating sequence: the operator itself is non-finite, whatever
   // the right-hand side.
@@ -470,7 +439,7 @@ void test_hankel_nonfinite_product(Index n) {
   Hankel<Scalar> H2(h2.head(n), h2.tail(n));
   Mat dense2 = reference_hankel<Scalar>(h2, n, n);
   Vec x2 = Vec::Random(n);
-  VERIFY(ieee_entrywise_match((H2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  VERIFY_IS_CWISE_APPROX((H2 * x2).eval(), reference_product_ieee(dense2, x2));
 }
 
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
@@ -1038,12 +1007,12 @@ void test_structured_nonfinite_product(Index n) {
   // Inf in the right-hand side.
   Vec x = Vec::Random(n);
   x[n / 2] = Scalar(inf);
-  VERIFY(ieee_entrywise_match((C * x).eval(), reference_product_ieee(dense, x)));
+  VERIFY_IS_CWISE_APPROX((C * x).eval(), reference_product_ieee(dense, x));
 
   // NaN in the right-hand side.
   Vec xn = Vec::Random(n);
   xn[n - 1] = Scalar(nan);
-  VERIFY(ieee_entrywise_match((C * xn).eval(), reference_product_ieee(dense, xn)));
+  VERIFY_IS_CWISE_APPROX((C * xn).eval(), reference_product_ieee(dense, xn));
 
   // Mixed multi-column right-hand side: the non-finite column falls back to the
   // direct kernel individually while the finite column keeps the FFT path.
@@ -1052,7 +1021,7 @@ void test_structured_nonfinite_product(Index n) {
   Xm.col(1) = x;
   Mat Ym = C * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(ieee_entrywise_match(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
 
   // Inf in the generator: the operator itself is non-finite, whatever the
   // right-hand side.
@@ -1061,7 +1030,7 @@ void test_structured_nonfinite_product(Index n) {
   Circulant<Scalar> C2(c2);
   Mat dense2 = reference_circulant<Scalar>(c2);
   Vec x2 = Vec::Random(n);
-  VERIFY(ieee_entrywise_match((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  VERIFY_IS_CWISE_APPROX((C2 * x2).eval(), reference_product_ieee(dense2, x2));
 
   // Toeplitz with an Inf in the row generator.
   Vec tc = Vec::Random(n), tr = Vec::Random(n);
@@ -1069,7 +1038,7 @@ void test_structured_nonfinite_product(Index n) {
   tr[n / 2] = Scalar(inf);
   Toeplitz<Scalar> T(tc, tr);
   Mat denseT = reference_toeplitz<Scalar>(tc, tr);
-  VERIFY(ieee_entrywise_match((T * x2).eval(), reference_product_ieee(denseT, x2)));
+  VERIFY_IS_CWISE_APPROX((T * x2).eval(), reference_product_ieee(denseT, x2));
 
   // Non-finite right-hand sides of solve() take the direct pseudo-inverse
   // application; on the 1x1 operator this is a single scalar multiply by the
@@ -1078,7 +1047,7 @@ void test_structured_nonfinite_product(Index n) {
   b1[0] = Scalar(inf);
   Circulant<Scalar> C1(Vec(Vec::Constant(1, Scalar(2))));
   Mat pinv1 = Mat(C1.inverse());
-  VERIFY(ieee_entrywise_match(C1.solve(b1), reference_product_ieee(pinv1, b1)));
+  VERIFY_IS_CWISE_APPROX(C1.solve(b1), reference_product_ieee(pinv1, b1));
 }
 
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
@@ -1686,6 +1655,98 @@ void test_levinson_singular() {
   }
 }
 
+template <typename RealScalar>
+bool structured_same_bits(const RealScalar& a, const RealScalar& b) {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  return Binary::bits(a) == Binary::bits(b);
+}
+
+template <typename RealScalar>
+bool structured_same_bits(const std::complex<RealScalar>& a, const std::complex<RealScalar>& b) {
+  return structured_same_bits(a.real(), b.real()) && structured_same_bits(a.imag(), b.imag());
+}
+
+template <typename Scalar>
+struct structured_test_entry {
+  template <typename Real>
+  static Scalar run(Real real, Real) {
+    return real;
+  }
+  template <typename Real>
+  static Scalar ldexp(const Scalar& value, int e) {
+    return numext::ldexp(value, e);
+  }
+};
+
+template <typename Real>
+struct structured_test_entry<std::complex<Real>> {
+  static std::complex<Real> run(Real real, Real imag) { return std::complex<Real>(real, imag); }
+  template <typename R>
+  static std::complex<Real> ldexp(const std::complex<Real>& value, int e) {
+    return std::complex<Real>(numext::ldexp(value.real(), e), numext::ldexp(value.imag(), e));
+  }
+};
+
+// structured_exponent_bound() of an all-subnormal vector and
+// structured_ldexp_entries() into and out of the subnormal range agree with
+// frexp and ldexp bit for bit, in every flush-to-zero mode; the references
+// are taken beforehand, where ldexp itself would flush.
+template <typename Scalar>
+void test_structured_flushed_subnormal_scaling() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Binary = internal::binary_floating_point_traits<Real>;
+  using Bits = typename Binary::Bits;
+  using Entry = structured_test_entry<Scalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  constexpr int digits = std::numeric_limits<Real>::digits;
+  constexpr int minExponent = std::numeric_limits<Real>::min_exponent;
+  const Index n = 7;
+  // Subnormal components 3 i + 5 and 2 i + 1 times denorm_min: the largest, 23 denorm_min, is below 2^5 denorm_min.
+  Vec tiny(n);
+  for (Index i = 0; i < n; ++i)
+    tiny(i) = Entry::run(numext::bit_cast<Real>(Bits(3 * i + 5)), numext::bit_cast<Real>(Bits(2 * i + 1)));
+  const int expectedBound = 5 + minExponent - digits + (NumTraits<Scalar>::IsComplex ? 1 : 0);
+  const int up = -expectedBound;
+  Vec expectedUp(n);
+  for (Index i = 0; i < n; ++i) expectedUp(i) = Entry::template ldexp<Real>(tiny(i), up);
+  const Vec normal = Vec::Random(n);
+  const int normalBound = internal::structured_exponent_bound(normal);
+  // Into the subnormal range: 2^(min_exponent - 5) times coefficients in [-1, 1] keeps digits - 5 bits at most.
+  const int down = minExponent - 5;
+  Vec expectedDown(n);
+  for (Index i = 0; i < n; ++i) expectedDown(i) = Entry::template ldexp<Real>(normal(i), down);
+
+  // At the recovery threshold: the largest component 2^(recovery - 1) is normal, a component 2^(min_exponent - 2)
+  // relative 2^(1 - digits) below it is subnormal and must survive a scale-up by 2 (real and complex bounds alike).
+  const int recovery = internal::safe_scaling<Real>::subnormal_recovery_exponent();
+  Vec boundary(2);
+  boundary(0) = Entry::run(numext::ldexp(Real(1), recovery - 1), Real(0));
+  boundary(1) = Entry::run(numext::bit_cast<Real>(Binary::kExponentUnit >> 1), Real(0));
+  Vec expectedBoundary(2);
+  for (Index i = 0; i < 2; ++i) expectedBoundary(i) = Entry::template ldexp<Real>(boundary(i), 1);
+  const int boundaryBound = internal::structured_exponent_bound(boundary);
+
+  const auto check = [&]() {
+    int e = 0;
+    VERIFY(internal::structured_exponent_bound_finite(tiny, e));
+    VERIFY_IS_EQUAL(e, expectedBound);
+    Vec doubled = boundary;
+    internal::structured_ldexp_entries(doubled, 1, boundaryBound);
+    for (Index i = 0; i < 2; ++i) VERIFY(structured_same_bits(doubled(i), expectedBoundary(i)));
+    VERIFY_IS_EQUAL(internal::structured_exponent_bound(tiny), expectedBound);
+    Vec scaled = tiny;
+    internal::structured_ldexp_entries(scaled, up, expectedBound);
+    for (Index i = 0; i < n; ++i) VERIFY(structured_same_bits(scaled(i), expectedUp(i)));
+    // The overload measuring its own input folds the exact scale-up back.
+    internal::structured_ldexp_entries(scaled, -up);
+    for (Index i = 0; i < n; ++i) VERIFY(structured_same_bits(scaled(i), tiny(i)));
+    Vec shrunk = normal;
+    internal::structured_ldexp_entries(shrunk, down, normalBound);
+    for (Index i = 0; i < n; ++i) VERIFY(structured_same_bits(shrunk(i), expectedDown(i)));
+  };
+  forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
+}
+
 EIGEN_DECLARE_TEST(structured_matrices) {
   for (int i = 0; i < g_repeat; ++i) {
     // Circulant: direct path (small), FFT path (composite and prime sizes), edge cases.
@@ -1918,5 +1979,10 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(1, 40)));   // skinny direct paths
     CALL_SUBTEST_10((test_hankel_mixed_scalar<double>(40, 1)));
     CALL_SUBTEST_10((test_hankel_mixed_scalar<float>(48, 64)));
+
+    CALL_SUBTEST_15((test_structured_flushed_subnormal_scaling<float>()));
+    CALL_SUBTEST_15((test_structured_flushed_subnormal_scaling<double>()));
+    CALL_SUBTEST_15((test_structured_flushed_subnormal_scaling<std::complex<float>>()));
+    CALL_SUBTEST_15((test_structured_flushed_subnormal_scaling<std::complex<double>>()));
   }
 }

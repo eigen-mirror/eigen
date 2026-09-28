@@ -251,7 +251,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   m_V.resize(n, m_restart + 1);
   // Initial residual vector and initial norm
   if (x.squaredNorm() == 0) x = precond.solve(rhs);
-  r0 = rhs - mat * x;
+  r0.noalias() = rhs - mat * x;
   RealScalar beta = r0.norm();
 
   m_error = beta / normRhs;
@@ -266,7 +266,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
 
     // Compute the new residual vector for the restart
     if (nbIts < m_iterations && m_info == NoConvergence) {
-      r0 = rhs - mat * x;
+      r0.noalias() = rhs - mat * x;
       beta = r0.norm();
     }
   }
@@ -307,7 +307,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     } else {
       tv2 = precond.solve(m_V.col(it));  // User's selected preconditioner
     }
-    tv1 = mat * tv2;
+    tv1.noalias() = mat * tv2;
 
     // Orthogonalize it with the previous basis in the basis using modified Gram-Schmidt
     Scalar coef;
@@ -365,7 +365,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
 
   // Form the new solution
   if (m_isDeflInitialized) {
-    tv1 = m_V.leftCols(it) * nrs;
+    tv1.noalias() = m_V.leftCols(it) * nrs;
     dgmresApplyDeflation(tv1, tv2);
     x = x + precond.solve(tv2);
   } else
@@ -465,15 +465,15 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresComputeDeflationData(const Mat
   DenseMatrix MX(m, nbrEig);
   DenseVector tv1(m);
   for (Index j = 0; j < nbrEig; j++) {
-    tv1 = mat * X.col(j);
+    tv1.noalias() = mat * X.col(j);
     MX.col(j) = precond.solve(tv1);
   }
 
   // Update m_T = [U'MU U'MX; X'MU X'MX]
-  m_T.block(m_r, m_r, nbrEig, nbrEig) = X.transpose() * MX;
+  m_T.block(m_r, m_r, nbrEig, nbrEig).noalias() = X.transpose() * MX;
   if (m_r) {
-    m_T.block(0, m_r, m_r, nbrEig) = m_U.leftCols(m_r).transpose() * MX;
-    m_T.block(m_r, 0, nbrEig, m_r) = X.transpose() * m_MU.leftCols(m_r);
+    m_T.block(0, m_r, m_r, nbrEig).noalias() = m_U.leftCols(m_r).transpose() * MX;
+    m_T.block(m_r, 0, nbrEig, m_r).noalias() = X.transpose() * m_MU.leftCols(m_r);
   }
 
   // Save X into m_U and m_MX in m_MU

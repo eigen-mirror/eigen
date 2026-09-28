@@ -156,7 +156,8 @@ def test_fixture_graph(root):
     # merely dropping them from FULL_REBUILD_PATTERNS would leave them falling
     # through to "not in the include graph" and forcing the full suite anyway.
     for path in ["ci/test.linux.gitlab-ci.yml", "ci/common.gitlab-ci.yml",
-                 "ci/build.linux.gitlab-ci.yml", "ci/CTest2JUnit.xsl", "ci/README.md"]:
+                 "ci/build.linux.gitlab-ci.yml", "ci/CTest2JUnit.xsl", "ci/README.md",
+                 "ci/tidy/Dockerfile", "ci/lint/Dockerfile"]:
         sel = select(graph, [path])
         check(sel.mode == "none", "%s selects nothing, got %s (%s)"
               % (path, sel.mode, sel.reasons))
@@ -462,16 +463,28 @@ def test_real_tree():
     check(len(source_targets) > 200,
           "real tree has many test sources, got %d" % len(source_targets))
 
-    # bug1213 and ulp_accuracy are manual add_executable targets: nothing
-    # aggregates them, so the full-suite selection has to name them or those
-    # regressions stop being compiled.  Asserted as an exact set, because a
+    # Manual add_executable targets are named explicitly in full-suite selection.
+    # Both redux_bounded_compile targets are dependencies of redux_bounded; bug1213 and
+    # ulp_accuracy have no aggregate. Asserted as an exact set, because a
     # name that reaches this set without belonging in it makes the build jobs'
     # "not configured in this build" diagnostic permanently non-empty.
-    check(registered.standalone == {"bug1213", "ulp_accuracy"},
+    compile_targets = {"redux_bounded_compile", "redux_bounded_compile_vectorized"}
+    check(registered.standalone == {"bug1213", "ulp_accuracy"} | compile_targets,
           "unexpected standalone target set, got %s" % sorted(registered.standalone))
     if "test/bug1213.cpp" in graph.files:
         check("\nbug1213\n" in full_suite(graph, []).targets_file,
               "full mode names bug1213, got %r" % full_suite(graph, []).targets_file)
+
+    check(compile_targets <= set(full_suite(graph, []).targets_file.splitlines()),
+          "full mode names both bounded compile targets")
+    sel = select(graph, ["test/redux_bounded_compile.cpp"])
+    check(sel.mode == "targets" and sel.targets == compile_targets,
+          "compile regression source selects both targets, got %s (%s)"
+          % (sorted(sel.targets), sel.mode))
+    sel = select(graph, ["test/redux_bounded_compile_vectorized.cpp"])
+    check(sel.mode == "targets" and sel.targets == {"redux_bounded_compile_vectorized"},
+          "compile regression wrapper selects only its target, got %s (%s)"
+          % (sorted(sel.targets), sel.mode))
 
     # test/buildsystem/ is under a test root but is not part of this build.
     check(not any(rel.startswith("test/buildsystem/") for rel in source_targets),

@@ -34,6 +34,30 @@
 //   }
 // };
 
+template <typename Scalar>
+struct scaled_permutation_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using MatrixType = Eigen::Matrix<Scalar, 3, 3>;
+    Eigen::ScaledPermutationMatrix<Scalar, 3> scaled;
+    scaled.setIdentity();
+    scaled.indices() << 1, 2, 0;
+    scaled.scales() << Scalar(2), Scalar(3), Scalar(-1);
+    const MatrixType matrix = Eigen::Map<const Eigen::Matrix3f>(in + i).template cast<Scalar>();
+    MatrixType result = scaled * matrix;
+    result.noalias() += matrix * scaled;
+    result.noalias() -= scaled * matrix;
+    result = scaled * result;
+    result = result * scaled;
+    result += scaled;
+    result -= scaled;
+    result += scaled.toDenseMatrix();
+    result = result + scaled;
+    result.noalias() += scaled * matrix.template triangularView<Eigen::Lower>();
+    result.noalias() += matrix.template selfadjointView<Eigen::Upper>() * scaled;
+    Eigen::Map<Eigen::Matrix3f>(out + 9 * i) = result.template cast<float>();
+  }
+};
+
 template <typename T>
 struct coeff_wise {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -44,6 +68,64 @@ struct coeff_wise {
     Map<T> res(out + i * T::MaxSizeAtCompileTime);
 
     res.array() += (in[0] * x1 + x2).array() * x3.array();
+  }
+};
+
+template <int Order>
+struct scaled_structured_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using Mat = Eigen::Matrix<float, 3, 3, Order>;
+    const Eigen::Map<const Mat> matrix(in + i);
+    Eigen::Map<Mat> result(out + i * 9);
+    result.noalias() = 3.0f * (matrix.template triangularView<Eigen::UnitLower>() * matrix.diagonal().asDiagonal());
+    result += 2.0f * (matrix.diagonal().asDiagonal() * matrix) + Mat::Zero();
+  }
+};
+
+template <int Order>
+struct scaled_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    // More than 16 rows select the scaled outer-product functor.
+    using Lhs = Eigen::Matrix<float, 17, 1>;
+    using Rhs = Eigen::RowVector3f;
+    using ProductImpl =
+        Eigen::internal::generic_product_impl<Lhs, Rhs, Eigen::DenseShape, Eigen::DenseShape, Eigen::OuterProduct>;
+    const Lhs lhs(in + i);
+    const Rhs rhs(in + i + 17);
+    Eigen::Map<Eigen::Matrix<float, 17, 3, Order>> result(out + i * 51);
+    result.setZero();
+    ProductImpl::scaleAndAddTo(result, lhs, rhs, 2.0f);
+  }
+};
+
+template <int Order>
+struct mixed_outer_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
+    using Mat = Eigen::Matrix<std::complex<float>, 4, 4, Order>;
+    const Eigen::Map<const Eigen::Vector4cf> complex(in + i);
+    const Eigen::Vector4f real = complex.real();
+    Eigen::Map<Mat> result(out + i * 16);
+    if (Order == Eigen::RowMajor) {
+      result.noalias() = complex * real.transpose();
+      result += complex.lazyProduct(real.transpose());
+    } else {
+      result.noalias() = real * complex.transpose();
+      result += real.lazyProduct(complex.transpose());
+    }
+  }
+};
+
+template <int Order>
+struct scaled_selfadjoint_diagonal_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const std::complex<float>* in, std::complex<float>* out) const {
+    using Scalar = std::complex<float>;
+    using Mat = Eigen::Matrix<Scalar, 3, 3, Order>;
+    const Eigen::Map<const Mat> matrix(in + i);
+    const Eigen::Vector3cf diagonal = Eigen::Vector3cf::Constant(Scalar(2, 1));
+    const Scalar alpha(2, 3);
+    Eigen::Map<Mat> result(out + i * 9);
+    result = (alpha * matrix.template selfadjointView<Eigen::Lower>()) * diagonal.asDiagonal() + Mat::Zero();
+    result += diagonal.asDiagonal() * (alpha * matrix.template selfadjointView<Eigen::Upper>()) + Mat::Zero();
   }
 };
 
@@ -338,6 +420,39 @@ struct diagonal {
     res += x1.diagonal();
   }
 };
+
+template <typename T>
+struct jacobi_rotations {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using Scalar = typename T::Scalar;
+    constexpr int size = T::SizeAtCompileTime;
+    const Eigen::JacobiRotation<Scalar> rotation(Scalar(3) / Scalar(5), Scalar(4) / Scalar(5));
+
+    T fixed(in + i);
+    fixed.applyOnTheLeft(0, 1, rotation);
+    fixed.applyOnTheRight(0, 1, rotation);
+    Eigen::Map<T>(out + 2 * i * size) = fixed;
+
+    using DynamicMatrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, T::Options>;
+    Eigen::Map<DynamicMatrix> dynamic(out + (2 * i + 1) * size, T::RowsAtCompileTime, T::ColsAtCompileTime);
+    dynamic = T(in + i);
+    dynamic.applyOnTheLeft(0, 1, rotation);
+    dynamic.applyOnTheRight(0, 1, rotation);
+  }
+};
+
+template <typename Scalar, int Options>
+void test_jacobi_rotations() {
+  constexpr int n = 4;
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * 512), out(n * 512);
+  in.setRandom();
+  out.setZero();
+
+  // Sizes 3, 4 and 9 cover scalar fallback, aligned packets, and dynamic packets with a tail.
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 3, 3, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 4, 4, Options>>(), n, in, out);
+  run_and_compare_to_gpu(jacobi_rotations<Eigen::Matrix<Scalar, 9, 9, Options>>(), n, in, out);
+}
 
 template <typename T>
 struct eigenvalues_direct {
@@ -646,6 +761,16 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix3f, Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix4f, Vector4f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<ColMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<RowMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<ColMajor>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<float>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_permutation_product<double>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<RowMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(mixed_outer_product<ColMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_selfadjoint_diagonal_product<RowMajor>(), nthreads, cfin, cfout));
+  CALL_SUBTEST(run_and_compare_to_gpu(scaled_selfadjoint_diagonal_product<ColMajor>(), nthreads, cfin, cfout));
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));
@@ -653,6 +778,11 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix2f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix4f>(), nthreads, in, out));
+
+  CALL_SUBTEST((test_jacobi_rotations<float, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<float, RowMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, ColMajor>()));
+  CALL_SUBTEST((test_jacobi_rotations<double, RowMajor>()));
 
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(eigenvalues_direct<Matrix2f>(), nthreads, in, out));

@@ -1,7 +1,9 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-cmake_minimum_required(VERSION 3.17)
+# 3.18 for CMake's CUDA language, which cmake/EigenGpuTesting.cmake enables for the .cu tests. Debian 11 ships
+# 3.18.4; the HIP language and the `native` architecture ask for more, scoped to the options that need them.
+cmake_minimum_required(VERSION 3.18)
 
 #==============================================================================
 # CMake Policy issues.
@@ -22,15 +24,6 @@ if (POLICY CMP0090)
     set (CMAKE_EXPORT_PACKAGE_REGISTRY ON)
   endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
 endif (POLICY CMP0090)
-
-# Disable warning about find_package(CUDA).
-# CUDA language support is lacking for clang as the CUDA compiler
-# until at least cmake version 3.18.  Even then, there seems to be
-# issues on Windows+Ninja in passing build flags.  Continue using
-# the "old" way for now.
-if (POLICY CMP0146)
-  cmake_policy(SET CMP0146 OLD)
-endif ()
 
 # Normalize DESTINATION paths
 if (POLICY CMP0177)
@@ -629,16 +622,16 @@ if (EIGEN_BUILD_TESTING)
     #         throw exceptions - in particular in the unit tests we are throwing extra many
     #         exceptions to cover indexing errors.
     # C4505 - unreferenced local function has been removed (impossible to deactivate selectively)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /wd4127 /wd4505 /wd4714")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -EHsc -wd4127 -wd4505 -wd4714")
 
-    # replace all /Wx by /W4
-    string(REGEX REPLACE "/W[0-9]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    # replace all /Wx or -Wx by -W4
+    string(REGEX REPLACE "[/-]W[0-9]" "-W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-    check_cxx_compiler_flag("/openmp" COMPILER_SUPPORT_OPENMP)
+    check_cxx_compiler_flag("-openmp" COMPILER_SUPPORT_OPENMP)
     if(COMPILER_SUPPORT_OPENMP)
       option(EIGEN_TEST_OPENMP "Enable/Disable OpenMP in tests/examples" OFF)
       if(EIGEN_TEST_OPENMP)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -openmp")
         message(STATUS "Enabling OpenMP in tests/examples")
       endif()
     endif()
@@ -647,28 +640,28 @@ if (EIGEN_BUILD_TESTING)
     if(EIGEN_TEST_SSE2)
       if(NOT CMAKE_CL_64)
         # arch is not supported on 64 bit systems, SSE is enabled automatically.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:SSE2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:SSE2")
       endif()
       message(STATUS "Enabling SSE2 in tests/examples")
     endif()
 
     option(EIGEN_TEST_AVX "Enable/Disable AVX in tests/examples" OFF)
     if(EIGEN_TEST_AVX)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX")
       message(STATUS "Enabling AVX in tests/examples")
     endif()
 
     option(EIGEN_TEST_FMA "Enable/Disable FMA/AVX2 in tests/examples" OFF)
     option(EIGEN_TEST_AVX2 "Enable/Disable FMA/AVX2 in tests/examples" OFF)
     if((EIGEN_TEST_FMA AND NOT EIGEN_TEST_NEON) OR EIGEN_TEST_AVX2)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
       message(STATUS "Enabling FMA/AVX2 in tests/examples")
     endif()
 
     option(EIGEN_TEST_AVX512 "Enable/Disable AVX512 in tests/examples" OFF)
     option(EIGEN_TEST_AVX512DQ "Enable/Disable AVX512DQ in tests/examples" OFF)
     if(EIGEN_TEST_AVX512 OR EIGEN_TEST_AVX512DQ)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX512")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX512")
       message(STATUS "Enabling AVX512 in tests/examples")
     endif()
 
@@ -715,7 +708,22 @@ if (EIGEN_BUILD_TESTING)
   endif()
 
   set(EIGEN_CUDA_CXX_FLAGS "" CACHE STRING "Additional flags to pass to the cuda compiler.")
-  set(EIGEN_CUDA_COMPUTE_ARCH "" CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code, as a ;-separated list of sm_XX numbers (e.g. 75;90). Empty selects sm_60, or sm_75 with CUDA 13 and later, which dropped Pascal and Volta.")
+  set(EIGEN_CUDA_COMPUTE_ARCH "" CACHE STRING "The CUDA compute architecture(s) to target when compiling CUDA code, as a ;-separated list of sm_XX numbers (e.g. 75;90). Empty honors CMAKE_CUDA_ARCHITECTURES or CUDAARCHS; otherwise selects sm_60, or sm_75 with CUDA 13 and later. `native` and `all-major` need CMake 3.24.")
+
+  # The GPU test options and the language they enable. enable_language() reaches the calling directory and below,
+  # and test/ and contrib/test/ are siblings, so this has to happen here rather than in either of them.
+  option(EIGEN_TEST_CUDA "Enable CUDA support in unit tests" OFF)
+  option(EIGEN_TEST_CUDA_CLANG "Use clang instead of nvcc to compile the CUDA tests" OFF)
+  option(EIGEN_TEST_CUDA_NVC "Use nvc++ (NVHPC) instead of nvcc to compile the CUDA tests" OFF)
+  option(EIGEN_TEST_HIP "Add HIP support." OFF)
+  if(EIGEN_TEST_CUDA_CLANG AND NOT CMAKE_CXX_COMPILER MATCHES "clang")
+    message(WARNING "EIGEN_TEST_CUDA_CLANG is set, but CMAKE_CXX_COMPILER does not appear to be clang.")
+  endif()
+  if(EIGEN_TEST_CUDA_NVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "NVHPC")
+    message(WARNING "EIGEN_TEST_CUDA_NVC is set, but CMAKE_CXX_COMPILER does not appear to be nvc++.")
+  endif()
+  include(EigenGpuTesting)
+  ei_gpu_testing_enable()
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
   if(EIGEN_TEST_SYCL)

@@ -48,3 +48,11 @@ CLAUDE.md
 .claude/*
 !.claude/settings.json
 .DS_Store
+.ccache/
+.ccache-bin/
+.sccache-bin/
+.sccache/
+ccache-stats.log
+.cred_port
+# Written by ci/lint/lint.sh.
+lint-report.xml

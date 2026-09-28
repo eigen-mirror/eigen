@@ -43,6 +43,10 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic_get_biased_exponent(
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, const Packet& exponent);
 
+/** \internal \returns (((a * c1) * c1) * c1) * c2 in that order, for the implementations of pldexp. */
+template <typename Packet>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2);
+
 // Explicitly multiplies
 //    a * (2^e)
 // clamping e to the range
@@ -54,6 +58,19 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
 // Assumes IEEE floating point format
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_fast(const Packet& a, const Packet& exponent);
+
+namespace unary_pow {
+// The two operations on a floating-point packet's raw bits that the integer-exponent pow needs: a right shift by
+// the mantissa width and a lane-wise subtraction, both of the exponent field. Defined in GenericPacketMathPow.h
+// in terms of unpacket_traits<Packet>::integer_packet. Override these, and has_exponent_bit_ops, where there is
+// no integer_packet but the two operations can still be expressed.
+template <typename Packet, typename = void>
+struct has_exponent_bit_ops;
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_shift_right(const Packet& bits);
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_sub(const Packet& a_bits, const Packet& b_bits);
+}  // namespace unary_pow
 
 /** \internal \returns cbrt(x) for single precision float */
 template <typename Packet>

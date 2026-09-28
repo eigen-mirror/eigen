@@ -13,6 +13,7 @@
 
 #include "../blas/common.h"
 #include "lapack.h"
+#include "lapack_utils.h"
 
 #define EIGEN_LAPACK_FUNC(FUNC) EIGEN_BLAS_FUNC(FUNC)
 

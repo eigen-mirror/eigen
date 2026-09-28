@@ -43,15 +43,13 @@ enum { Large = 2, Small = 3 };
 #endif
 
 #ifdef EIGEN_VECTORIZE_SME
-// Measured separately rather than inherited as twice the runtime threshold: on
-// SME the fixed-size crossover sits at 56, where doubling would put it at 80 and
-// cost up to 3.2x on fixed-size products in the high teens and twenties. The
-// optimum is again flat (48..60 within 1%). It applies only to the scalar pairs
-// the SME kernel claims -- int, half, bfloat16, mixed real x complex, and
-// double / complex<double> without FEAT_SME_F64F64, all run the generic kernel
-// and want the generic value.
+// Kept as a separate knob for the scalar pairs the SME kernel claims. With the
+// NEON small-block path those products run NEON packers and kernel below the
+// crossover, so the generic fixed-size value applies; int, half, bfloat16,
+// mixed real x complex, and double / complex<double> without FEAT_SME_F64F64
+// run the generic kernel and never read this one.
 #ifndef EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
-#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD 56
+#define EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD
 #endif
 #endif
 
@@ -103,20 +101,15 @@ struct sme_has_gebp_kernel;
 // value, which is what such a sweep wants. The primary template answers with the
 // generic threshold: sme_has_gebp_kernel gates the dispatch, so a scalar pair
 // without an SME kernel never reads the table.
+// With the NEON small-block path (arch/SME/GeneralBlockPanelKernel.h) the SME
+// kernels take the generic crossover: below it the small products run the NEON
+// packers and kernel, so the SME build matches a NEON build there.
 #ifdef EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
 template <typename Scalar>
 struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD> {};
 #else
 template <typename Scalar>
 struct sme_gemm_to_coeffbased_threshold : std::integral_constant<int, EIGEN_GEMM_TO_COEFFBASED_THRESHOLD> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<float> : std::integral_constant<int, 78> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<double> : std::integral_constant<int, 54> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<std::complex<float> > : std::integral_constant<int, 60> {};
-template <>
-struct sme_gemm_to_coeffbased_threshold<std::complex<double> > : std::integral_constant<int, 45> {};
 #endif
 #endif
 

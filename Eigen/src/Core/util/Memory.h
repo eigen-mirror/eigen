@@ -660,6 +660,54 @@ struct smart_memmove_helper<T, false> {
 #undef EIGEN_ALLOCA
 #endif
 
+// The SME GEMM kernel reads its packed panels a streaming vector at a time and slows down when they straddle
+// 64-byte lines, so SME builds align the internal temporaries to 64 bytes, heap and stack alike.
+#ifndef EIGEN_STACK_ALIGN_BYTES
+#if defined(EIGEN_VECTORIZE_SME) && EIGEN_DEFAULT_ALIGN_BYTES < 64
+#define EIGEN_STACK_ALIGN_BYTES 64
+#else
+#define EIGEN_STACK_ALIGN_BYTES EIGEN_DEFAULT_ALIGN_BYTES
+#endif
+#endif
+
+/** \internal Allocates a temporary buffer aligned to EIGEN_STACK_ALIGN_BYTES; release with scratch_free. */
+EIGEN_DEVICE_FUNC inline void* scratch_malloc(std::size_t size) {
+#if EIGEN_STACK_ALIGN_BYTES > EIGEN_DEFAULT_ALIGN_BYTES
+  void* result = handmade_aligned_malloc(size, EIGEN_STACK_ALIGN_BYTES);
+  if (!result && size) throw_std_bad_alloc();
+  return result;
+#else
+  return aligned_malloc(size);
+#endif
+}
+EIGEN_DEVICE_FUNC inline void scratch_free(void* ptr) {
+#if EIGEN_STACK_ALIGN_BYTES > EIGEN_DEFAULT_ALIGN_BYTES
+  handmade_aligned_free(ptr);
+#else
+  aligned_free(ptr);
+#endif
+}
+
+/** \internal Like aligned_new, at the temporaries' alignment (EIGEN_STACK_ALIGN_BYTES); release with scratch_delete. */
+template <typename T>
+EIGEN_DEVICE_FUNC inline T* scratch_new(std::size_t size) {
+  check_size_for_overflow<T>(size);
+  T* result = static_cast<T*>(scratch_malloc(sizeof(T) * size));
+  EIGEN_TRY { default_construct_elements_of_array(result, size); }
+  EIGEN_CATCH(...) {
+    scratch_free(result);
+    EIGEN_THROW;
+  }
+  return result;
+}
+
+/** \internal Deletes objects constructed with scratch_new. */
+template <typename T>
+EIGEN_DEVICE_FUNC inline void scratch_delete(T* ptr, std::size_t size) {
+  destruct_elements_of_array<T>(ptr, size);
+  scratch_free(ptr);
+}
+
 // This helper class construct the allocated memory, and takes care of destructing and freeing the handled data
 // at destruction time. In practice this helper class is mainly useful to avoid memory leak in case of exceptions.
 template <typename T>
@@ -684,7 +732,7 @@ class aligned_stack_memory_handler {
     EIGEN_IF_CONSTEXPR (NumTraits<T>::RequireInitialization) {
       if (m_ptr) Eigen::internal::destruct_elements_of_array<T>(m_ptr, m_size);
     }
-    if (m_deallocate) Eigen::internal::aligned_free(m_ptr);
+    if (m_deallocate) Eigen::internal::scratch_free(m_ptr);
   }
 
  protected:
@@ -768,21 +816,21 @@ struct local_nested_eval_wrapper<Xpr, NbEvaluations, true> {
  */
 #if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
 
-#if EIGEN_DEFAULT_ALIGN_BYTES > 0
+#if EIGEN_STACK_ALIGN_BYTES > 0
 // We always manually re-align the result of EIGEN_ALLOCA.
 // If alloca is already aligned, the compiler should be smart enough to optimize away the re-alignment.
 
 #if ((EIGEN_COMP_GNUC || EIGEN_COMP_CLANG) && !EIGEN_COMP_NVHPC && !EIGEN_COMP_ICC)
-#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_DEFAULT_ALIGN_BYTES)
+#define EIGEN_ALIGNED_ALLOCA(SIZE) __builtin_alloca_with_align(SIZE, CHAR_BIT* EIGEN_STACK_ALIGN_BYTES)
 #else
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* ptr) {
-  constexpr std::uintptr_t mask = EIGEN_DEFAULT_ALIGN_BYTES - 1;
+  constexpr std::uintptr_t mask = EIGEN_STACK_ALIGN_BYTES - 1;
   std::uintptr_t ptr_int = std::uintptr_t(ptr);
   std::uintptr_t aligned_ptr_int = (ptr_int + mask) & ~mask;
   std::uintptr_t offset = aligned_ptr_int - ptr_int;
   return static_cast<void*>(static_cast<uint8_t*>(ptr) + offset);
 }
-#define EIGEN_ALIGNED_ALLOCA(SIZE) eigen_aligned_alloca_helper(EIGEN_ALLOCA(SIZE + EIGEN_DEFAULT_ALIGN_BYTES - 1))
+#define EIGEN_ALIGNED_ALLOCA(SIZE) eigen_aligned_alloca_helper(EIGEN_ALLOCA(SIZE + EIGEN_STACK_ALIGN_BYTES - 1))
 #endif
 
 #else
@@ -794,7 +842,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
   TYPE* NAME = (BUFFER) != 0 ? (BUFFER)                                                                               \
                              : reinterpret_cast<TYPE*>((sizeof(TYPE) * (SIZE) <= EIGEN_STACK_ALLOCATION_LIMIT)        \
                                                            ? EIGEN_ALIGNED_ALLOCA(sizeof(TYPE) * (SIZE))              \
-                                                           : Eigen::internal::aligned_malloc(sizeof(TYPE) * (SIZE))); \
+                                                           : Eigen::internal::scratch_malloc(sizeof(TYPE) * (SIZE))); \
   Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                      \
       (BUFFER) == 0 ? NAME : 0, SIZE, sizeof(TYPE) * (SIZE) > EIGEN_STACK_ALLOCATION_LIMIT)
 
@@ -812,7 +860,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 #define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                 \
   Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                         \
   TYPE* NAME =                                                                                                  \
-      (BUFFER) != 0 ? BUFFER : reinterpret_cast<TYPE*>(Eigen::internal::aligned_malloc(sizeof(TYPE) * (SIZE))); \
+      (BUFFER) != 0 ? BUFFER : reinterpret_cast<TYPE*>(Eigen::internal::scratch_malloc(sizeof(TYPE) * (SIZE))); \
   Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                \
       (BUFFER) == 0 ? NAME : 0, SIZE, true)
 

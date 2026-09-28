@@ -98,6 +98,7 @@ class RealQZ {
         m_Q(size, size),
         m_Z(size, size),
         m_workspace(size * 2),
+        m_hCoeffs(size),
         m_maxIters(400),
         m_isInitialized(false),
         m_computeQZ(true) {}
@@ -117,6 +118,7 @@ class RealQZ {
         m_Q(A.rows(), A.cols()),
         m_Z(A.rows(), A.cols()),
         m_workspace(A.rows() * 2),
+        m_hCoeffs(A.rows()),
         m_maxIters(400),
         m_isInitialized(false),
         m_computeQZ(true) {
@@ -140,6 +142,7 @@ class RealQZ {
         m_Q(A.rows(), A.cols()),
         m_Z(A.rows(), A.cols()),
         m_workspace(A.rows() * 2),
+        m_hCoeffs(A.rows()),
         m_maxIters(400),
         m_isInitialized(false),
         m_computeQZ(true) {
@@ -222,6 +225,7 @@ class RealQZ {
   MatrixType m_S, m_T;
   PlainMatrixType m_Q, m_Z;
   Matrix<Scalar, Dynamic, 1> m_workspace;
+  ColumnVectorType m_hCoeffs;
   ComputationInfo m_info;
   Index m_maxIters;
   bool m_isInitialized;
@@ -251,11 +255,14 @@ void RealQZ<MatrixType>::hessenbergTriangular() {
   const Index dim = m_S.cols();
 
   // perform QR decomposition of T in place: T holds R above the Householder vectors Q is formed from
-  HouseholderQR<Ref<PlainMatrixType, 0, Stride<Dynamic, MatrixType::InnerStrideAtCompileTime>>> qrT(m_T);
-  m_Q = qrT.householderQ();
+  m_hCoeffs.resize(dim);
+  internal::householder_qr_inplace_blocked<MatrixType, ColumnVectorType>::run(m_T, m_hCoeffs, 48, m_workspace.data());
+  Map<ColumnVectorType> workspace(m_workspace.data(), dim);
+  householderSequence(m_T, m_hCoeffs.conjugate()).evalTo(m_Q, workspace);
   m_T.template triangularView<StrictlyLower>().setZero();
-  // overwrite S with Q* S
-  m_S.applyOnTheLeft(m_Q.adjoint());
+  // Z is unused until it is initialized below, so it can hold Q* S without aliasing S.
+  m_Z.noalias() = m_Q.adjoint() * m_S;
+  m_S.swap(m_Z);
   // init Z as Identity
   if (m_computeQZ) m_Z = PlainMatrixType::Identity(dim, dim);
   // reduce S to upper Hessenberg with Givens rotations
@@ -481,7 +488,7 @@ inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
       m_S.col(k + 2).head(lr) -= tau * tmp;
       m_S.template middleCols<2>(k).topRows(lr).noalias() -= (tau * tmp) * essential2.adjoint();
       // T
-      tmp = m_T.template middleCols<2>(k).topRows(lr) * essential2;
+      tmp.noalias() = m_T.template middleCols<2>(k).topRows(lr) * essential2;
       tmp += m_T.col(k + 2).head(lr);
       m_T.col(k + 2).head(lr) -= tau * tmp;
       m_T.template middleCols<2>(k).topRows(lr).noalias() -= (tau * tmp) * essential2.adjoint();

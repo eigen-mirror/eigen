@@ -208,8 +208,8 @@ class TensorBlockDescriptor {
 
       // Tensor block defined by an owning tensor block descriptor can fit
       // contiguously into the destination buffer. In this case it's safe to
-      // materialize tensor block in the destination buffer, wrap it in a
-      // TensorMap, and use to build Eigen expression on top of it.
+      // materialize a tensor block in the destination buffer and build an
+      // expression over a dense view of it.
       kContiguous,
 
       // Destination buffer strides do not match strides of the contiguously
@@ -218,10 +218,9 @@ class TensorBlockDescriptor {
       // still can materialize an output into this destination, because we can
       // guarantee that no one will ever access it through block API.
       //
-      // In theory it is possible to build valid TensorStriding<TensorMap>
-      // expression on top of this destination buffer, however it has
-      // inefficient coeff/packet access, and defeats the purpose of fast block
-      // evaluation API.
+      // Strided input views are represented by TensorBlockView. Output
+      // materialization still reserves this destination for the root so that
+      // a child cannot overwrite another operand before it has been consumed.
       kStrided
     };
 
@@ -578,6 +577,143 @@ class TensorBlockNotImplemented {
   typedef void XprType;
 };
 
+template <typename Scalar, int NumDims, int Layout, typename IndexType>
+class TensorBlockView;
+
+template <typename Scalar, int NumDims, int Layout, typename IndexType>
+struct traits<TensorBlockView<Scalar, NumDims, Layout, IndexType>>
+    : traits<Tensor<Scalar, NumDims, Layout, IndexType>> {
+  static constexpr unsigned int Flags = 0;
+};
+
+// A block's inner runs are contiguous, but successive runs can belong to different
+// rows, columns, or planes of the underlying tensor.
+template <typename Scalar_, int NumDims, int Layout, typename IndexType>
+class TensorBlockView : public TensorBase<TensorBlockView<Scalar_, NumDims, Layout, IndexType>> {
+ public:
+  using Scalar = Scalar_;
+  using Index = IndexType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Nested = TensorBlockView;
+  using StorageKind = Dense;
+  using CoeffReturnType = Scalar;
+
+  TensorBlockView(const Scalar* data, const Dimensions& dimensions)
+      : TensorBlockView(data, dimensions, internal::strides<Layout>(dimensions)) {}
+
+  TensorBlockView(const Scalar* data, const Dimensions& dimensions, const Dimensions& strides)
+      : m_data(data), m_dimensions(dimensions), m_strides(strides), m_contiguous(true) {
+    eigen_assert(NumDims == 0 || strides[Layout == ColMajor ? 0 : NumDims - 1] == 1);
+    Index stride = 1;
+    for (int i = 0; i < NumDims; ++i) {
+      const int dim = Layout == ColMajor ? i : NumDims - 1 - i;
+      if (dimensions[dim] > 1 && strides[dim] != stride) m_contiguous = false;
+      stride *= dimensions[dim];
+    }
+  }
+
+  EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_dimensions; }
+  EIGEN_DEVICE_FUNC const Dimensions& strides() const { return m_strides; }
+  EIGEN_DEVICE_FUNC const Scalar* data() const { return m_contiguous ? m_data : nullptr; }
+  EIGEN_DEVICE_FUNC const Scalar* rawData() const { return m_data; }
+
+ private:
+  const Scalar* m_data;
+  Dimensions m_dimensions;
+  Dimensions m_strides;
+  bool m_contiguous;
+};
+
+}  // namespace internal
+
+template <typename Scalar_, int NumDims, int Layout_, typename IndexType, typename Device>
+struct TensorEvaluator<const internal::TensorBlockView<Scalar_, NumDims, Layout_, IndexType>, Device> {
+  using XprType = internal::TensorBlockView<Scalar_, NumDims, Layout_, IndexType>;
+  using Scalar = Scalar_;
+  using Index = IndexType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using CoeffReturnType = Scalar;
+  using PacketReturnType = typename PacketType<Scalar, Device>::type;
+  using EvaluatorPointerType = const Scalar*;
+  using TensorBlock = internal::TensorBlockNotImplemented;
+  static constexpr int Layout = Layout_;
+  static constexpr bool IsAligned = false;
+  static constexpr bool PacketAccess = internal::packet_traits<Scalar>::Vectorizable;
+  static constexpr bool BlockAccess = false;
+  static constexpr bool PreferBlockAccess = false;
+  static constexpr bool CoordAccess = false;
+  static constexpr bool RawAccess = false;
+
+  TensorEvaluator(const XprType& expression, const Device&)
+      : m_expression(expression), m_output_strides(internal::strides<Layout>(expression.dimensions())) {
+    if (!expression.data()) {
+      for (int i = 0; i < NumDims; ++i) {
+        m_divisors[i] = internal::TensorIntDivisor<Index>(numext::maxi(Index(1), m_output_strides[i]));
+      }
+    }
+  }
+
+  EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_expression.dimensions(); }
+  EIGEN_DEVICE_FUNC bool evalSubExprsIfNeeded(EvaluatorPointerType) { return true; }
+  EIGEN_DEVICE_FUNC void cleanup() {}
+  EIGEN_DEVICE_FUNC const Scalar* data() const { return m_expression.data(); }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index srcCoeff(Index index) const {
+    if (m_expression.data()) return index;
+    Index offset = 0;
+    for (int i = NumDims - 1; i > 0; --i) {
+      const int dim = Layout == ColMajor ? i : NumDims - 1 - i;
+      const Index coordinate = index / m_divisors[dim];
+      offset += coordinate * m_expression.strides()[dim];
+      index -= coordinate * m_output_strides[dim];
+    }
+    return offset + index;
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+    return m_expression.rawData()[srcCoeff(index)];
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar* coeffAddress(Index index) const {
+    return m_expression.rawData() + srcCoeff(index);
+  }
+
+  template <int LoadMode>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
+    constexpr int PacketSize = PacketType<Scalar, Device>::size;
+    const Index first = srcCoeff(index);
+    if (m_expression.data() || srcCoeff(index + PacketSize - 1) == first + PacketSize - 1) {
+      return internal::ploadu<PacketReturnType>(m_expression.rawData() + first);
+    }
+    EIGEN_ALIGN_MAX Scalar values[PacketSize];
+    for (int i = 0; i < PacketSize; ++i) values[i] = coeff(index + i);
+    return internal::ploadu<PacketReturnType>(values);
+  }
+
+  EIGEN_DEVICE_FUNC TensorOpCost costPerCoeff(bool vectorized) const {
+    return TensorOpCost(sizeof(Scalar), 0, m_expression.data() ? 0 : NumDims, vectorized,
+                        PacketType<Scalar, Device>::size);
+  }
+
+ private:
+  XprType m_expression;
+  Dimensions m_output_strides;
+  array<internal::TensorIntDivisor<Index>, NumDims> m_divisors;
+};
+
+template <typename Scalar, int Layout, typename Index, typename Device>
+struct TensorEvaluator<const internal::TensorBlockView<Scalar, 1, Layout, Index>, Device>
+    : TensorEvaluator<const TensorMap<const Tensor<Scalar, 1, Layout, Index>>, Device> {
+  using XprType = internal::TensorBlockView<Scalar, 1, Layout, Index>;
+  using MapType = TensorMap<const Tensor<Scalar, 1, Layout, Index>>;
+  using Base = TensorEvaluator<const MapType, Device>;
+  TensorEvaluator(const XprType& expression, const Device& device)
+      : Base(MapType(expression.rawData(), expression.dimensions()), device) {}
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar* coeffAddress(Index index) const { return this->data() + index; }
+};
+
+namespace internal {
+
 // -------------------------------------------------------------------------- //
 // XprScalar extracts Scalar type from the Eigen expressions (if expression type
 // is not void). It's required to be able to define lazy block expression for
@@ -594,7 +730,7 @@ struct XprScalar<void> {
 
 // -------------------------------------------------------------------------- //
 // TensorMaterializedBlock is a fully evaluated block of the original tensor,
-// and XprType is just a TensorMap over the data. This block type is typically
+// and XprType is a view over its data, allowing non-unit outer strides. It is
 // used to materialize blocks of tensor expressions, that can't be efficiently
 // represented as lazy Tensor expressions with fast coeff/packet operations,
 // e.g. we materialize all broadcasts into evaluated blocks.
@@ -606,7 +742,7 @@ struct XprScalar<void> {
 // expression execution.
 //
 // If the block was evaluated directly into the output buffer, and strides in
-// the output buffer do not match block strides, the TensorMap expression will
+// the output buffer do not match block strides, the dense block expression will
 // be invalid, and should never be used in block assignment or any other tensor
 // expression.
 
@@ -614,7 +750,7 @@ template <typename Scalar, int NumDims, int Layout, typename IndexType = Eigen::
 class TensorMaterializedBlock {
  public:
   typedef DSizes<IndexType, NumDims> Dimensions;
-  typedef TensorMap<const Tensor<Scalar, NumDims, Layout> > XprType;
+  using XprType = TensorBlockView<Scalar, NumDims, Layout, IndexType>;
 
   TensorMaterializedBlock(TensorBlockKind kind, const Scalar* data, const Dimensions& dimensions,
                           bool valid_expr = true)
@@ -625,14 +761,12 @@ class TensorMaterializedBlock {
   }
 
   TensorBlockKind kind() const { return m_kind; }
-  // NOTE(ezhulenev): Returning XprType by value like in other block types
-  // causes asan failures. The theory is that XprType::Nested doesn't work
-  // properly for TensorMap.
   const XprType& expr() const {
     eigen_assert(m_valid_expr);
     return m_expr;
   }
-  const Scalar* data() const { return m_data; }
+  // Consumers of data() require a dense buffer; strided views must use expr().
+  const Scalar* data() const { return m_valid_expr ? m_expr.data() : m_data; }
   void cleanup() {}
 
   typedef internal::TensorBlockDescriptor<NumDims, IndexType> TensorBlockDesc;
@@ -707,58 +841,13 @@ class TensorMaterializedBlock {
   // Creates a materialized block for the given descriptor from a memory buffer.
   template <typename DataDimensions, typename TensorBlockScratch>
   EIGEN_STRONG_INLINE static TensorMaterializedBlock materialize(const Scalar* data, const DataDimensions& data_dims,
-                                                                 TensorBlockDesc& desc, TensorBlockScratch& scratch) {
+                                                                 TensorBlockDesc& desc,
+                                                                 TensorBlockScratch& /*scratch*/) {
     eigen_assert(array_size<DataDimensions>::value == desc.dimensions().size());
 
-    // If a tensor block dimensions covers a contiguous block of the underlying
-    // memory, we can skip block buffer memory allocation, and construct a block
-    // from existing `data` memory buffer.
-    //
-    // Example: (RowMajor layout)
-    //   data_dims:          [11, 12, 13, 14]
-    //   desc.dimensions():  [1,   1,  3, 14]
-    //
-    // In this case we can construct a TensorBlock starting at
-    // `data + desc.offset()`, with a `desc.dimensions()` block sizes.
-    static constexpr bool is_col_major = Layout == ColMajor;
-
-    // Find out how many inner dimensions have a matching size.
-    int num_matching_inner_dims = 0;
-    for (int i = 0; i < NumDims; ++i) {
-      int dim = is_col_major ? i : NumDims - i - 1;
-      if (data_dims[dim] != desc.dimensions()[dim]) break;
-      ++num_matching_inner_dims;
-    }
-
-    // All the outer dimensions must be of size `1`, except a single dimension
-    // before the matching inner dimension (`3` in the example above).
-    bool can_use_direct_access = true;
-    for (int i = num_matching_inner_dims + 1; i < NumDims; ++i) {
-      int dim = is_col_major ? i : NumDims - i - 1;
-      if (desc.dimension(dim) != 1) {
-        can_use_direct_access = false;
-        break;
-      }
-    }
-
-    if (can_use_direct_access) {
-      const Scalar* block_start = data + desc.offset();
-      return TensorMaterializedBlock(internal::TensorBlockKind::kView, block_start, desc.dimensions());
-
-    } else {
-      // Reuse destination buffer or allocate new buffer with scratch allocator.
-      const Storage storage = prepareStorage(desc, scratch);
-
-      typedef internal::TensorBlockIO<Scalar, IndexType, NumDims, Layout> TensorBlockIO;
-      typedef typename TensorBlockIO::Dst TensorBlockIODst;
-      typedef typename TensorBlockIO::Src TensorBlockIOSrc;
-
-      TensorBlockIOSrc src(internal::strides<Layout>(Dimensions(data_dims)), data, desc.offset());
-      TensorBlockIODst dst(storage.dimensions(), storage.strides(), storage.data());
-
-      TensorBlockIO::Copy(dst, src);
-      return storage.AsTensorMaterializedBlock();
-    }
+    TensorMaterializedBlock block(internal::TensorBlockKind::kView, data + desc.offset(), desc.dimensions());
+    block.m_expr = XprType(data + desc.offset(), desc.dimensions(), internal::strides<Layout>(Dimensions(data_dims)));
+    return block;
   }
 
  private:
@@ -1360,6 +1449,195 @@ class TensorBlockIO {
 };
 
 // -------------------------------------------------------------------------- //
+// Bind coefficient-wise block expressions to one contiguous inner run at a time.
+// This moves strided source index calculations out of the coefficient/packet loop.
+template <typename XprType>
+struct TensorBlockRead {
+  static constexpr bool Supported = false;
+  using Expression = XprType;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression) : m_expression(expression) {}
+  Index innerSize() const { return NumTraits<Index>::highest(); }
+  const Expression& expr(Index, Index) const { return m_expression; }
+
+ private:
+  const XprType& m_expression;
+};
+
+template <typename Scalar, int NumDims, int Layout, typename Index>
+struct TensorBlockRead<TensorBlockView<Scalar, NumDims, Layout, Index>> {
+  static constexpr bool Supported = true;
+  using XprType = TensorBlockView<Scalar, NumDims, Layout, Index>;
+  using Expression = TensorBlockView<Scalar, 1, Layout, Index>;
+  explicit TensorBlockRead(const XprType& expression) : m_evaluator(expression, m_device), m_inner_size(1) {
+    for (int i = 0; i < NumDims; ++i) {
+      const int dim = Layout == ColMajor ? i : NumDims - 1 - i;
+      if (expression.dimensions()[dim] > 1 && expression.strides()[dim] != m_inner_size) break;
+      m_inner_size *= expression.dimensions()[dim];
+    }
+  }
+  Index innerSize() const { return m_inner_size; }
+  Expression expr(Index offset, Index size) const {
+    return Expression(m_evaluator.coeffAddress(offset), DSizes<Index, 1>(size));
+  }
+
+ private:
+  DefaultDevice m_device;
+  TensorEvaluator<const XprType, DefaultDevice> m_evaluator;
+  Index m_inner_size;
+};
+
+// Rebinding a run must not restart a functor's mutable state.
+template <typename Functor>
+class TensorBlockReadFunctor {
+ public:
+  explicit TensorBlockReadFunctor(const Functor& functor) : m_functor(&functor) {}
+  template <typename... Args>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto operator()(Args&&... args) const
+      -> decltype(std::declval<const Functor&>()(std::forward<Args>(args)...)) {
+    return (*m_functor)(std::forward<Args>(args)...);
+  }
+  template <typename... Args, typename F = Functor>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto packetOp(Args&&... args) const
+      -> decltype(std::declval<const F&>().packetOp(std::forward<Args>(args)...)) {
+    return m_functor->packetOp(std::forward<Args>(args)...);
+  }
+
+ private:
+  const Functor* m_functor;
+};
+
+template <typename Functor>
+struct functor_traits<TensorBlockReadFunctor<Functor>> : functor_traits<Functor> {};
+
+template <typename UnaryOp, typename Arg>
+struct TensorBlockRead<TensorCwiseUnaryOp<UnaryOp, Arg>> {
+  using ArgRead = TensorBlockRead<remove_all_t<Arg>>;
+  static constexpr bool Supported = ArgRead::Supported;
+  using XprType = TensorCwiseUnaryOp<UnaryOp, Arg>;
+  using Expression = TensorCwiseUnaryOp<TensorBlockReadFunctor<UnaryOp>, const typename ArgRead::Expression>;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression)
+      : m_arg(expression.nestedExpression()), m_functor(expression.functor()) {}
+  Index innerSize() const { return m_arg.innerSize(); }
+  Expression expr(Index offset, Index size) const {
+    return Expression(m_arg.expr(offset, size), TensorBlockReadFunctor<UnaryOp>(m_functor));
+  }
+
+ private:
+  ArgRead m_arg;
+  UnaryOp m_functor;
+};
+
+template <typename BinaryOp, typename Left, typename Right>
+struct TensorBlockRead<TensorCwiseBinaryOp<BinaryOp, Left, Right>> {
+  using LeftRead = TensorBlockRead<remove_all_t<Left>>;
+  using RightRead = TensorBlockRead<remove_all_t<Right>>;
+  static constexpr bool Supported = LeftRead::Supported && RightRead::Supported;
+  using XprType = TensorCwiseBinaryOp<BinaryOp, Left, Right>;
+  using Expression = TensorCwiseBinaryOp<TensorBlockReadFunctor<BinaryOp>, const typename LeftRead::Expression,
+                                         const typename RightRead::Expression>;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression)
+      : m_left(expression.lhsExpression()), m_right(expression.rhsExpression()), m_functor(expression.functor()) {}
+  Index innerSize() const { return numext::mini(m_left.innerSize(), m_right.innerSize()); }
+  Expression expr(Index offset, Index size) const {
+    return Expression(m_left.expr(offset, size), m_right.expr(offset, size),
+                      TensorBlockReadFunctor<BinaryOp>(m_functor));
+  }
+
+ private:
+  LeftRead m_left;
+  RightRead m_right;
+  BinaryOp m_functor;
+};
+
+template <typename NullaryOp, typename Arg>
+struct TensorBlockRead<TensorCwiseNullaryOp<NullaryOp, Arg>> {
+  using XprType = TensorCwiseNullaryOp<NullaryOp, Arg>;
+  using Evaluator = TensorEvaluator<const XprType, DefaultDevice>;
+  static constexpr bool Supported = Evaluator::IndexIndependentFunctor;
+  using Index = typename XprType::Index;
+  using RunView = TensorBlockView<typename XprType::Scalar, 1, traits<XprType>::Layout, Index>;
+  using Expression = TensorCwiseNullaryOp<NullaryOp, const RunView>;
+  explicit TensorBlockRead(const XprType& expression) : m_functor(expression.functor()) {}
+  Index innerSize() const { return NumTraits<Index>::highest(); }
+  Expression expr(Index, Index size) const { return Expression(RunView(nullptr, DSizes<Index, 1>(size)), m_functor); }
+
+ private:
+  NullaryOp m_functor;
+};
+
+template <typename TernaryOp, typename Arg1, typename Arg2, typename Arg3>
+struct TensorBlockRead<TensorCwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>> {
+  using Arg1Read = TensorBlockRead<remove_all_t<Arg1>>;
+  using Arg2Read = TensorBlockRead<remove_all_t<Arg2>>;
+  using Arg3Read = TensorBlockRead<remove_all_t<Arg3>>;
+  static constexpr bool Supported = Arg1Read::Supported && Arg2Read::Supported && Arg3Read::Supported;
+  using XprType = TensorCwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>;
+  using Expression = TensorCwiseTernaryOp<TensorBlockReadFunctor<TernaryOp>, const typename Arg1Read::Expression,
+                                          const typename Arg2Read::Expression, const typename Arg3Read::Expression>;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression)
+      : m_arg1(expression.arg1Expression()),
+        m_arg2(expression.arg2Expression()),
+        m_arg3(expression.arg3Expression()),
+        m_functor(expression.functor()) {}
+  Index innerSize() const {
+    return numext::mini(m_arg1.innerSize(), numext::mini(m_arg2.innerSize(), m_arg3.innerSize()));
+  }
+  Expression expr(Index offset, Index size) const {
+    return Expression(m_arg1.expr(offset, size), m_arg2.expr(offset, size), m_arg3.expr(offset, size),
+                      TensorBlockReadFunctor<TernaryOp>(m_functor));
+  }
+
+ private:
+  Arg1Read m_arg1;
+  Arg2Read m_arg2;
+  Arg3Read m_arg3;
+  TernaryOp m_functor;
+};
+
+template <typename Cond, typename Then, typename Else>
+struct TensorBlockRead<TensorSelectOp<Cond, Then, Else>> {
+  using CondRead = TensorBlockRead<remove_all_t<Cond>>;
+  using ThenRead = TensorBlockRead<remove_all_t<Then>>;
+  using ElseRead = TensorBlockRead<remove_all_t<Else>>;
+  static constexpr bool Supported = CondRead::Supported && ThenRead::Supported && ElseRead::Supported;
+  using XprType = TensorSelectOp<Cond, Then, Else>;
+  using Expression = TensorSelectOp<const typename CondRead::Expression, const typename ThenRead::Expression,
+                                    const typename ElseRead::Expression>;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression)
+      : m_cond(expression.ifExpression()), m_then(expression.thenExpression()), m_else(expression.elseExpression()) {}
+  Index innerSize() const {
+    return numext::mini(m_cond.innerSize(), numext::mini(m_then.innerSize(), m_else.innerSize()));
+  }
+  Expression expr(Index offset, Index size) const {
+    return Expression(m_cond.expr(offset, size), m_then.expr(offset, size), m_else.expr(offset, size));
+  }
+
+ private:
+  CondRead m_cond;
+  ThenRead m_then;
+  ElseRead m_else;
+};
+
+template <typename Scalar, typename Arg>
+struct TensorBlockRead<TensorConversionOp<Scalar, Arg>> {
+  using ArgRead = TensorBlockRead<remove_all_t<Arg>>;
+  static constexpr bool Supported = ArgRead::Supported;
+  using XprType = TensorConversionOp<Scalar, Arg>;
+  using Expression = TensorConversionOp<Scalar, const typename ArgRead::Expression>;
+  using Index = typename XprType::Index;
+  explicit TensorBlockRead(const XprType& expression) : m_arg(expression.expression()) {}
+  Index innerSize() const { return m_arg.innerSize(); }
+  Expression expr(Index offset, Index size) const { return Expression(m_arg.expr(offset, size)); }
+
+ private:
+  ArgRead m_arg;
+};
+
 // TensorBlockAssignment assigns a block expression of type `TensorBlockExpr` to
 // a Tensor block defined by `desc`, backed by a memory buffer at `target`.
 //
@@ -1384,6 +1662,7 @@ class TensorBlockAssignment {
   typedef TensorEvaluator<const TensorBlockExpr, DefaultDevice> TensorBlockEvaluator;
 
   typedef DSizes<IndexType, NumDims> Dimensions;
+  using BlockRead = TensorBlockRead<TensorBlockExpr>;
 
   enum { Vectorizable = packet_traits<Scalar>::Vectorizable, PacketSize = packet_traits<Scalar>::size };
 
@@ -1424,6 +1703,21 @@ class TensorBlockAssignment {
     }
   };
 
+  template <typename Evaluator>
+  static EIGEN_STRONG_INLINE void AssignInner(Scalar* target, IndexType count, const Evaluator& eval, const BlockRead&,
+                                              IndexType offset, std::false_type) {
+    InnerDimAssign<Vectorizable && Evaluator::PacketAccess, Evaluator>::Run(target, count, eval, offset);
+  }
+
+  static EIGEN_STRONG_INLINE void AssignInner(Scalar* target, IndexType count, const TensorBlockEvaluator&,
+                                              const BlockRead& reader, IndexType offset, std::true_type) {
+    const auto expression = reader.expr(offset, count);
+    using RunEvaluator = TensorEvaluator<const typename BlockRead::Expression, DefaultDevice>;
+    const DefaultDevice device;
+    const RunEvaluator eval(expression, device);
+    InnerDimAssign<Vectorizable && RunEvaluator::PacketAccess, RunEvaluator>::Run(target, count, eval, 0);
+  }
+
  public:
   struct Target {
     Target(const Dimensions& target_dims, const Dimensions& target_strides, Scalar* target_data,
@@ -1453,11 +1747,36 @@ class TensorBlockAssignment {
     // Prepare evaluator for block expression.
     DefaultDevice default_device;
     TensorBlockEvaluator eval(expr, default_device);
+    const BlockRead reader(expr);
 
     // Tensor block expression dimension should match destination dimensions.
     eigen_assert(dimensions_match(target.dims, eval.dimensions()));
 
-    static constexpr int Layout = TensorBlockEvaluator::Layout;
+    Run(target, eval, reader, bool_constant<BlockRead::Supported>());
+  }
+
+ private:
+  static void Run(const Target& target, const TensorBlockEvaluator& eval, const BlockRead& reader, std::false_type) {
+    RunImpl<false>(target, eval, reader);
+  }
+
+  static void Run(const Target& target, const TensorBlockEvaluator& eval, const BlockRead& reader, std::true_type) {
+    const IndexType size = NumDims == 0 ? 1 : target.dims.TotalSize();
+    if (reader.innerSize() >= size) {
+      // Bind a dense source once, even when the destination has strided rows.
+      const auto expression = reader.expr(0, size);
+      using RunEvaluator = TensorEvaluator<const typename BlockRead::Expression, DefaultDevice>;
+      const DefaultDevice device;
+      const RunEvaluator dense_eval(expression, device);
+      RunImpl<false>(target, dense_eval, reader);
+    } else {
+      RunImpl<true>(target, eval, reader);
+    }
+  }
+
+  template <bool UseInnerRuns, typename Evaluator>
+  static EIGEN_STRONG_INLINE void RunImpl(const Target& target, const Evaluator& eval, const BlockRead& reader) {
+    static constexpr int Layout = Evaluator::Layout;
     static constexpr bool is_col_major = Layout == ColMajor;
 
     // Initialize output inner dimension size based on a layout.
@@ -1476,7 +1795,8 @@ class TensorBlockAssignment {
       const Index dim = is_col_major ? i : NumDims - i - 1;
       const IndexType target_stride = target.strides[dim];
 
-      if (output_inner_dim_size == target_stride) {
+      if (output_inner_dim_size == target_stride &&
+          (!UseInnerRuns || output_inner_dim_size * target.dims[dim] <= reader.innerSize())) {
         output_inner_dim_size *= target.dims[dim];
         num_squeezed_dims++;
       } else {
@@ -1507,8 +1827,8 @@ class TensorBlockAssignment {
     // Iterate copying data from `eval` to `target`.
     for (IndexType i = 0; i < output_size; i += output_inner_dim_size) {
       // Assign to `target` at current offset.
-      InnerDimAssign<Vectorizable && TensorBlockEvaluator::PacketAccess, TensorBlockEvaluator>::Run(
-          target.data + output_offset, output_inner_dim_size, eval, input_offset);
+      AssignInner(target.data + output_offset, output_inner_dim_size, eval, reader, input_offset,
+                  bool_constant<UseInnerRuns>());
 
       // Move input offset forward by the number of assigned coefficients.
       input_offset += output_inner_dim_size;

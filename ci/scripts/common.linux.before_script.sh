@@ -26,19 +26,16 @@ export NPROC=`nproc`
 echo "arch=$ARCH, target=${EIGEN_CI_TARGET_ARCH}"
 echo "Processors: ${NPROC}"
 echo "CI Variables:"
-export | grep EIGEN
+export | grep EIGEN | grep -v "CACHE_TOKEN"
 
 # Set noninteractive, otherwise tzdata may be installed and prompt for a
 # geographical region.
 export DEBIAN_FRONTEND=noninteractive
 if [[ "${EIGEN_CI_SKIP_APT}" != "true" ]]; then
   apt-get update -y > /dev/null
-  # python3 drives the test pass cache; only the test jobs (the jobs that
-  # set EIGEN_CI_TEST_CACHE) consume it, so build jobs skip the install.
-  packages="ninja-build cmake git xsltproc ccache"
-  if [[ "${EIGEN_CI_TEST_CACHE}" == "on" ]]; then
-    packages="${packages} python3"
-  fi
+  # python3 drives both the test pass cache and the sccache GCS credential server;
+  # curl and ca-certificates support downloading sccache and probing the credential server.
+  packages="ninja-build cmake git xsltproc ccache curl ca-certificates python3"
   apt-get install -y --no-install-recommends ${packages} > /dev/null
 fi
 

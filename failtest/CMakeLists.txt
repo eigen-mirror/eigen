@@ -3,6 +3,19 @@
 
 ei_add_failtest("failtest_sanity_check")
 
+ei_add_failtest("bool_subtract")
+ei_add_failtest("bool_negate")
+ei_add_failtest("bool_subtract_assign")
+ei_add_failtest("bool_subtract_product")
+ei_add_failtest("bool_subtract_noalias")
+ei_add_failtest("bool_subtract_noalias_gemv")
+ei_add_failtest("bool_subtract_noalias_inner")
+ei_add_failtest("bool_array_subtract")
+ei_add_failtest("bool_array_negate")
+ei_add_failtest("bool_array_subtract_scalar")
+ei_add_failtest("permutation_unsupported_shape")
+ei_add_failtest("transpositions_unsupported_shape")
+
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_0")
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_1")
 ei_add_failtest("block_nonconst_ctor_on_const_xpr_2")
@@ -46,6 +59,7 @@ ei_add_failtest("swap_2")
 
 ei_add_failtest("ternary_1")
 ei_add_failtest("ternary_2")
+ei_add_failtest("approx_mixed_scalars")
 
 ei_add_failtest("sparse_ref_1")
 ei_add_failtest("sparse_ref_2")
@@ -91,3 +105,5 @@ foreach(_sb_target
                         CXX_STANDARD_REQUIRED ON
                         CXX_EXTENSIONS OFF)
 endforeach()
+
+ei_add_failtest_fixture()

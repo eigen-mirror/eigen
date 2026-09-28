@@ -117,6 +117,7 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 template <>
 struct unpacket_traits<Packet2cf> {
   typedef std::complex<float> type;
+  typedef Packet4f as_real;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -412,6 +413,7 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 template <>
 struct unpacket_traits<Packet1cd> {
   typedef std::complex<double> type;
+  typedef Packet2d as_real;
   enum {
     size = 1,
     alignment = Aligned16,

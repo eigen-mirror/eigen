@@ -644,7 +644,7 @@ struct tridiagonalization_inplace_selector<MatrixType, 3, false> {
       subdiag[0] = beta;
       subdiag[1] = mat(2, 1) - m01 * q;
       if (extractQ) {
-        mat << 1, 0, 0, 0, m01, m02, 0, m02, -m01;
+        mat << Scalar(1), Scalar(0), Scalar(0), Scalar(0), m01, m02, Scalar(0), m02, -m01;
       }
     }
   }

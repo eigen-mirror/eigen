@@ -18,6 +18,8 @@
 
 #include "product.h"
 
+#include <cfenv>
+
 // Without the right -march flags, __ARM_FEATURE_SME is undefined and
 // EIGEN_VECTORIZE_SME never fires - the test would silently compile
 // against the NEON GEBP kernel and pass, making this a useless no-op.
@@ -217,6 +219,278 @@ static void test_deep_k_split() {
   VERIFY_IS_APPROX(C, c_before + (A.lazyProduct(B)).eval());
 }
 
+// LHS read in place: strides on either side of the 4 KB-multiple rule (packed versus in place), an odd stride
+// and base offset, a sub-block at a row offset, and a depth tail, each checked against lazyProduct.
+template <typename Scalar>
+static void test_direct_lhs() {
+  const Index kPage = 4096 / Index(sizeof(Scalar));
+  const Index rows = 97, depth = 101, cols = 70;
+  const Index strides[] = {rows + 32 + 1, kPage, kPage + 16, 2 * kPage + 16};
+  for (Index lda : strides) {
+    for (Index offset = 0; offset <= 1; ++offset) {
+      SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(lda * depth + 1);
+      Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(storage.data() + offset, rows + 32, depth, OuterStride<>(lda));
+      A.setRandom();
+      const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, cols);
+      const SmeColMajorMat<Scalar> C0 = SmeColMajorMat<Scalar>::Random(rows + 32, cols);
+      SmeColMajorMat<Scalar> C = C0;
+      C.noalias() += A * B;
+      VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+      SmeColMajorMat<Scalar> D = C0.middleRows(3, rows);
+      D.noalias() += A.middleRows(3, rows) * B;
+      VERIFY_IS_APPROX(D, C0.middleRows(3, rows) + A.middleRows(3, rows).lazyProduct(B));
+    }
+  }
+#ifdef EIGEN_VECTORIZE_SME
+  const int units = nbSmeUnits();
+  VERIFY(units >= 0);
+  setNbSmeUnits(1);
+  VERIFY_IS_EQUAL(nbSmeUnits(), 1);
+  setNbSmeUnits(units);
+  VERIFY_IS_EQUAL(nbSmeUnits(), units);
+#endif
+  // An LHS packed once for all column blocks, where the first block reads it in place and a narrower last one, whose
+  // panel spans more than EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES, packs.
+  {
+    const Index big = Index(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES) / (2048 * Index(sizeof(Scalar))) + 2;
+    const SmeColMajorMat<Scalar> Abig = SmeColMajorMat<Scalar>::Random(big, 2048);
+    const auto A = Abig.topRows(256);
+    const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(2048, 532);
+    SmeColMajorMat<Scalar> C(256, 532);
+    C.noalias() = A * B;
+    VERIFY_IS_APPROX(C, A.lazyProduct(B));
+  }
+}
+
+// Small K against large M and N (NEON depths and just past them), and a RHS of one panel read in place: up to
+// half a panel wide always, up to a full panel within the span limit, with 4 KB-multiple strides.
+template <typename Scalar>
+static void test_small_k_and_single_panel_rhs() {
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  for (Index k : {1, 2, 3, 5, 8, 17, 24, 25, 40}) {
+    for (Index mn : {Index(130), 4 * MR + 3}) {
+      const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(mn, k), B = SmeColMajorMat<Scalar>::Random(k, mn);
+      SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(mn, mn);
+      const SmeColMajorMat<Scalar> C0 = C;
+      C.noalias() += A * B;
+      VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+    }
+  }
+  const Index page = 4096 / Index(sizeof(Scalar));
+  for (Index n : {Index(1), NR / 2 - 1, NR / 2, NR / 2 + 1, NR}) {
+    for (Index lda : {5 * MR + 3, page, 2 * page + 1}) {
+      for (Index depth : {Index(40), Index(301)}) {
+        const Index rows = numext::mini(lda, 5 * MR + 3);
+        SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(lda * depth);
+        Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(storage.data(), rows, depth, OuterStride<>(lda));
+        A.setRandom();
+        const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(rows, n);
+        const SmeColMajorMat<Scalar> C0 = C;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+      }
+    }
+  }
+  // A single-panel RHS whose depth block spans more than EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES packs the LHS.
+  const Index kc = Index(EIGEN_SME_MAX_KC) * Index(sizeof(float)) / Index(sizeof(Scalar));
+  const Index wide = page * Index(std::size_t(EIGEN_SME_DIRECT_LHS_MAX_SPAN_BYTES) / (std::size_t(kc) * 4096) + 1);
+  SmeVector<Scalar> storage = SmeVector<Scalar>::Zero(wide * kc);
+  Map<SmeColMajorMat<Scalar>, 0, OuterStride<>> A(storage.data(), 2 * MR + 5, kc, OuterStride<>(wide));
+  A.setRandom();
+  const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(kc, NR);
+  SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Zero(2 * MR + 5, NR);
+  C.noalias() += A * B;
+  VERIFY_IS_APPROX(C, A.lazyProduct(B));
+}
+
+// Disjoint parts per SME unit (2 and 3 units) against a serial product. product_threaded covers the thread pool;
+// this reaches the OpenMP branch in an EIGEN_TEST_OPENMP build and runs serially otherwise.
+template <typename Scalar>
+static void test_disjoint_parts() {
+  using Col = SmeColMajorMat<Scalar>;
+  using Row = SmeRowMajorMat<Scalar>;
+  const int saved = nbSmeUnits();
+  const int shapes[][3] = {{301, 259, 131}, {200, 40, 1024}, {20, 700, 300}};
+  for (int units : {2, 3}) {
+    setNbSmeUnits(units);
+    for (const auto& sh : shapes) {
+      const Col A = Col::Random(sh[0], sh[2]), B = Col::Random(sh[2], sh[1]);
+      const Col ref = A.lazyProduct(B);
+      Col C(sh[0], sh[1]);
+      C.noalias() = A * B;
+      VERIFY_IS_APPROX(C, ref);
+      Row R(sh[0], sh[1]);
+      R.noalias() = A * B;
+      VERIFY_IS_APPROX(Col(R), ref);
+      Col big = Col::Random(sh[0] + 5, sh[1] + 3);
+      Col expected = big;
+      expected.block(2, 1, sh[0], sh[1]) += Scalar(1.5) * ref;
+      big.block(2, 1, sh[0], sh[1]).noalias() += Scalar(1.5) * A * B;
+      VERIFY_IS_APPROX(big, expected);
+    }
+  }
+  setNbSmeUnits(saved);
+}
+
+// Streaming-mode entry and exit set every FP exception flag: products on each SME path, with exact results, must leave
+// the caller's flags as they were.
+template <typename Scalar, typename Product>
+static void verify_fp_flags_kept(Product product) {
+#if defined(EIGEN_HAS_OPENMP) || defined(EIGEN_GEMM_THREADPOOL)
+  // A threaded build's parallelize_gemm sizes the thread count in floating point, which can raise FE_INEXACT.
+  const int checked = FE_ALL_EXCEPT & ~FE_INEXACT;
+#else
+  const int checked = FE_ALL_EXCEPT;
+#endif
+  std::feclearexcept(FE_ALL_EXCEPT);
+  product();
+  VERIFY_IS_EQUAL(std::fetestexcept(checked), 0);
+  std::feraiseexcept(FE_INVALID);
+  product();
+  VERIFY_IS_EQUAL(std::fetestexcept(checked), FE_INVALID);
+  std::feclearexcept(FE_ALL_EXCEPT);
+}
+
+template <typename Scalar>
+static void test_fp_flags() {
+  using Col = SmeColMajorMat<Scalar>;
+  using Row = SmeRowMajorMat<Scalar>;
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  const Index m = 4 * MR + 3, n = 3 * NR + 5, k = 131;
+  // Small integers keep every product exact, so no flag is legitimately raised.
+  const Col A = Col::Random(m, k).unaryExpr([](const Scalar& x) { return Scalar(numext::round(numext::real(x) * 4)); });
+  const Col B = Col::Random(k, n).unaryExpr([](const Scalar& x) { return Scalar(numext::round(numext::real(x) * 4)); });
+  const Col S = Col::Identity(m, m) * Scalar(2) + Col::Ones(m, m), O = Col::Ones(m, n);
+  // I plus a subdiagonal of ones: the solution of L x = 1 is 1, 0, 1, 0, ..., exact.
+  Col L = Col::Identity(m, m);
+  L.diagonal(-1).setOnes();
+  const Col Tall = Col::Ones(1024, k), Thin = Col::Ones(k, NR / 2);
+  Col C(m, n), D(1024, NR / 2);
+  Row R(m, n);
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = A * B; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() += A.conjugate() * B; });
+  verify_fp_flags_kept<Scalar>([&] { R.noalias() = A * B; });
+  verify_fp_flags_kept<Scalar>([&] { R.noalias() = Row(A) * Row(B); });
+  verify_fp_flags_kept<Scalar>([&] { D.noalias() = Tall * Thin; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = S.template selfadjointView<Lower>() * O; });
+  verify_fp_flags_kept<Scalar>([&] { C.noalias() = S.template triangularView<Upper>() * O; });
+  verify_fp_flags_kept<Scalar>([&] {
+    Col X = O;
+    L.template triangularView<Lower>().solveInPlace(X);
+  });
+}
+
+// Tiny results (the NEON kernel and both sides of its routing), every storage order of A, B and C.
+template <typename Scalar, int AO, int BO, int CO>
+static void test_tiny_results_order() {
+  using MA = Matrix<Scalar, Dynamic, Dynamic, AO>;
+  using MB = Matrix<Scalar, Dynamic, Dynamic, BO>;
+  using MC = Matrix<Scalar, Dynamic, Dynamic, CO>;
+  const Index ps = Index(16 / sizeof(Scalar));
+  for (Index m : {Index(1), Index(2), Index(3), ps, ps + 1, 2 * ps, 2 * ps + 1})
+    for (Index n : {1, 2, 3, 5, 8, 9})
+      for (Index k : {1, 5, 6, 7, 15, 16, 17, 64, 2049}) {
+        const MA A = MA::Random(m, k);
+        const MB B = MB::Random(k, n);
+        const MC ref = A.lazyProduct(B);
+        MC C = MC::Random(m, n);
+        const MC C0 = C;
+        C.noalias() = A * B;
+        VERIFY_IS_APPROX(C, ref);
+        C = C0;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + ref);
+        C = C0;
+        C.noalias() -= Scalar(2) * A * B;
+        VERIFY_IS_APPROX(C, C0 - Scalar(2) * ref);
+        const MA At = A.transpose();
+        C.noalias() = At.transpose() * B;
+        VERIFY_IS_APPROX(C, ref);
+      }
+}
+
+template <typename Scalar>
+static void test_tiny_results() {
+  test_tiny_results_order<Scalar, ColMajor, ColMajor, ColMajor>();
+  test_tiny_results_order<Scalar, RowMajor, ColMajor, ColMajor>();
+  test_tiny_results_order<Scalar, ColMajor, RowMajor, ColMajor>();
+  test_tiny_results_order<Scalar, RowMajor, RowMajor, ColMajor>();
+  test_tiny_results_order<Scalar, ColMajor, ColMajor, RowMajor>();
+  test_tiny_results_order<Scalar, RowMajor, ColMajor, RowMajor>();
+  test_tiny_results_order<Scalar, ColMajor, RowMajor, RowMajor>();
+  test_tiny_results_order<Scalar, RowMajor, RowMajor, RowMajor>();
+  // Sub-blocks of larger operands, a result with an inner stride, and a Hankel view (outer stride 1 < rows): the
+  // kernel reads only the rows and columns of the result.
+  for (Index m : {Index(3), Index(16 / sizeof(Scalar)) + 1})
+    for (Index n : {3, 7})
+      for (Index k : {16, 19}) {
+        const SmeColMajorMat<Scalar> Abig = SmeColMajorMat<Scalar>::Random(m + 5, k + 2);
+        const SmeRowMajorMat<Scalar> Bbig = SmeRowMajorMat<Scalar>::Random(k + 3, n + 4);
+        const auto A = Abig.block(2, 1, m, k);
+        const auto B = Bbig.block(1, 2, k, n);
+        SmeColMajorMat<Scalar> Cbig = SmeColMajorMat<Scalar>::Random(2 * m, n);
+        const SmeColMajorMat<Scalar> Cbig0 = Cbig;
+        Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>> C(Cbig.data(), m, n, Stride<Dynamic, 2>(2 * m, 2));
+        C.noalias() += Scalar(3) * A * B;
+        SmeColMajorMat<Scalar> ref = Cbig0;
+        Map<SmeColMajorMat<Scalar>, 0, Stride<Dynamic, 2>>(ref.data(), m, n, Stride<Dynamic, 2>(2 * m, 2)) +=
+            Scalar(3) * A.lazyProduct(B);
+        VERIFY_IS_APPROX(Cbig, ref);
+        std::vector<Scalar> h(std::size_t(k - 1 + m)), g(std::size_t(k - 1 + n));
+        for (auto& x : h) x = internal::random<Scalar>();
+        for (auto& x : g) x = internal::random<Scalar>();
+        Map<const SmeColMajorMat<Scalar>, 0, OuterStride<>> H(h.data(), m, k, OuterStride<>(1));
+        Map<const SmeRowMajorMat<Scalar>, 0, OuterStride<>> G(g.data(), k, n, OuterStride<>(1));
+        SmeColMajorMat<Scalar> D(m, n);
+        D.noalias() = H * G;
+        VERIFY_IS_APPROX(D, H.lazyProduct(G));
+      }
+  // Operands packed tight at the end of their buffer, so a read past the last row or column leaves it.
+  const Index ps = Index(16 / sizeof(Scalar));
+  for (Index m : {Index(2), Index(3), ps + 1, 2 * ps})
+    for (Index n : {2, 3, 5, 7})
+      for (Index k : {16, 17, 18, 19}) {
+        std::vector<Scalar> a(std::size_t(m * k)), b(std::size_t(k * n));
+        Map<SmeColMajorMat<Scalar>> A(a.data(), m, k);
+        Map<SmeRowMajorMat<Scalar>> B(b.data(), k, n);
+        A.setRandom();
+        B.setRandom();
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Zero(m, n);
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, A.lazyProduct(B));
+        Map<SmeRowMajorMat<Scalar>> Ar(a.data(), m, k);
+        Map<SmeColMajorMat<Scalar>> Bc(b.data(), k, n);
+        C.noalias() = Ar * Bc;
+        VERIFY_IS_APPROX(C, Ar.lazyProduct(Bc));
+      }
+}
+
+// Every tail width of a deep block, which the ZA transposer packs: a ColMajor RHS tail and, through a RowMajor
+// product, a transposed LHS tail.
+template <typename Scalar>
+static void test_deep_tail_panels() {
+  const Index MR = sme_mr<Scalar>(), NR = sme_nr<Scalar>();
+  for (Index depth : {4 * NR, 6 * NR + 3}) {
+    for (Index tail = 1; tail < NR; ++tail) {
+      for (Index n : {tail, NR + tail}) {
+        const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(MR + 3, depth);
+        const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, n);
+        SmeColMajorMat<Scalar> C = SmeColMajorMat<Scalar>::Random(MR + 3, n);
+        const SmeColMajorMat<Scalar> C0 = C;
+        C.noalias() += A * B;
+        VERIFY_IS_APPROX(C, C0 + A.lazyProduct(B));
+        const SmeRowMajorMat<Scalar> Ar = SmeRowMajorMat<Scalar>::Random(n, depth);
+        const SmeRowMajorMat<Scalar> Br = SmeRowMajorMat<Scalar>::Random(depth, MR + 3);
+        SmeRowMajorMat<Scalar> Cr = SmeRowMajorMat<Scalar>::Random(n, MR + 3);
+        const SmeRowMajorMat<Scalar> Cr0 = Cr;
+        Cr.noalias() += Ar * Br;
+        VERIFY_IS_APPROX(Cr, Cr0 + Ar.lazyProduct(Br));
+      }
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Raw packed-buffer tests.
 //
@@ -245,6 +519,85 @@ struct pack_sentinel_impl<std::complex<RealScalar>> {
 template <typename Scalar>
 static Scalar pack_sentinel() {
   return pack_sentinel_impl<Scalar>::run();
+}
+
+// ---------------------------------------------------------------------------
+// NEON small-block path: sme_gebp_neon called directly on hand-packed panels,
+// over every row, column and depth tail of the tile ladder, both conjugation
+// flags, a non-trivial alpha, panel-mode stride/offset and a general-stride C.
+// ---------------------------------------------------------------------------
+template <typename Scalar, bool ConjLhs, bool ConjRhs>
+static void verify_neon_small_block(Index rows, Index cols, Index depth, bool panel_mode, bool strided_c) {
+  const Index MR = sme_mr<Scalar>();
+  const Index NR = sme_nr<Scalar>();
+  const Index strideA = panel_mode ? depth + 3 : depth;
+  const Index strideB = panel_mode ? depth + 5 : depth;
+  const Index offsetA = panel_mode ? 2 : 0;
+  const Index offsetB = panel_mode ? 1 : 0;
+  const SmeColMajorMat<Scalar> A = SmeColMajorMat<Scalar>::Random(rows, depth);
+  const SmeColMajorMat<Scalar> B = SmeColMajorMat<Scalar>::Random(depth, cols);
+
+  SmeVector<Scalar> packedA =
+      SmeVector<Scalar>::Constant((rows + MR) * strideA + offsetA * MR, pack_sentinel<Scalar>());
+  SmeVector<Scalar> packedB =
+      SmeVector<Scalar>::Constant((cols + NR) * strideB + offsetB * NR, pack_sentinel<Scalar>());
+  for (Index i = 0; i < rows; i += MR) {
+    const Index w = numext::mini(MR, rows - i);
+    for (Index k = 0; k < depth; ++k)
+      for (Index r = 0; r < w; ++r) set_packed(packedA.data() + i * strideA + offsetA * w, w, k, r, A(i + r, k));
+  }
+  for (Index j = 0; j < cols; j += NR) {
+    const Index w = numext::mini(NR, cols - j);
+    for (Index k = 0; k < depth; ++k)
+      for (Index c = 0; c < w; ++c) set_packed(packedB.data() + j * strideB + offsetB * w, w, k, c, B(k, j + c));
+  }
+
+  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
+  const Index rs = strided_c ? 2 : 1;
+  const Index cs = strided_c ? 3 * rows : rows;
+  SmeVector<Scalar> storage = SmeVector<Scalar>::Random(cs * cols);
+  SmeColMajorStridedMat<Scalar> C(storage.data(), rows, cols, Stride<Dynamic, Dynamic>(cs, rs));
+  const SmeColMajorMat<Scalar> c_before = C;
+  const SmeVector<Scalar> storage_before = storage;
+
+  internal::sme_gebp_neon<Scalar, ConjLhs, ConjRhs, Index>(storage.data(), rs, cs, packedA.data(), packedB.data(), rows,
+                                                           depth, cols, alpha, strideA, strideB, offsetA, offsetB);
+
+  const SmeColMajorMat<Scalar> Ac = ConjLhs ? A.conjugate().eval() : A;
+  const SmeColMajorMat<Scalar> Bc = ConjRhs ? B.conjugate().eval() : B;
+  const SmeColMajorMat<Scalar> ref = c_before + alpha * Ac.lazyProduct(Bc);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), ref);
+
+  // Cells the strided map skips stay untouched.
+  if (strided_c) {
+    for (Index j = 0; j < cols; ++j)
+      for (Index i = 0; i < rows; ++i)
+        VERIFY_IS_EQUAL(storage(j * cs + i * rs + 1), storage_before(j * cs + i * rs + 1));
+  }
+}
+
+template <typename Scalar>
+static void test_neon_small_blocks() {
+  const Index PS = Index(internal::packet_traits<typename NumTraits<Scalar>::Real>::size);
+  const Index MR = sme_mr<Scalar>();
+  const Index NR = sme_nr<Scalar>();
+  const Index widths[] = {1, 2, 3, PS, PS + 1, 2 * PS + 1, 4 * PS, 4 * PS + 3, MR - 1, MR, MR + 1, 2 * MR + 5};
+  const Index col_widths[] = {1, 2, 3, 4, 5, 9, NR - 1, NR, NR + 1, 2 * NR + 2};
+  const Index depths[] = {1, 2, 3, 4, 5, 8, 9, 35};
+  for (Index rows : widths) {
+    for (Index cols : col_widths) {
+      for (Index depth : depths) {
+        const bool panel_mode = (rows + cols + depth) % 2 == 0;
+        const bool strided_c = (rows + depth) % 3 == 0;
+        verify_neon_small_block<Scalar, false, false>(rows, cols, depth, panel_mode, strided_c);
+        if (NumTraits<Scalar>::IsComplex) {
+          verify_neon_small_block<Scalar, true, false>(rows, cols, depth, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, false, true>(rows, cols, depth, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, true, true>(rows, cols, depth, panel_mode, strided_c);
+        }
+      }
+    }
+  }
 }
 
 // Lower-triangular n x n operand plus the dense selfadjoint reference the packer
@@ -606,9 +959,18 @@ static void test_pack_direct() {
   // Widths around the tile side and both panel widths, which differ for
   // complex scalars.
   const int widths[] = {1, TILE - 1, TILE, TILE + 1, MR, MR + 1, NR, NR + 1, 2 * NR + 1};
-  const int depths[] = {1, 3, 8, 35};
+  // Depths up to sme_neon_max_depth (24 / 16 / 16 / 8 by scalar) reach pack_neon,
+  // the deeper ones the streaming pack_direct and its predicated tails.
+  const int depths[] = {1, 3, 8, 9, 17, 25, 27, 35};
   for (int d : depths) {
     for (int n : widths) {
+      sweep_pack_direct<Scalar, ColMajor>(n, d);
+      sweep_pack_direct<Scalar, RowMajor>(n, d);
+    }
+  }
+  // Four-panel LHS copies with leftover panels and tails, over several transposing depth chunks.
+  for (int d : {35, 67, 97}) {
+    for (int n : {4 * MR, 5 * MR + 1, 8 * MR + 3}) {
       sweep_pack_direct<Scalar, ColMajor>(n, d);
       sweep_pack_direct<Scalar, RowMajor>(n, d);
     }
@@ -776,6 +1138,13 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_symm_pack<float>());
   CALL_SUBTEST_1(test_pack_direct<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
+  CALL_SUBTEST_1(test_neon_small_blocks<float>());
+  CALL_SUBTEST_1(test_direct_lhs<float>());
+  CALL_SUBTEST_1(test_small_k_and_single_panel_rhs<float>());
+  CALL_SUBTEST_1(test_deep_tail_panels<float>());
+  CALL_SUBTEST_1(test_tiny_results<float>());
+  CALL_SUBTEST_1(test_fp_flags<float>());
+  CALL_SUBTEST_1(test_disjoint_parts<float>());
 
   // double reaches the SME kernel and packers only with FEAT_SME_F64F64; the
   // product sweep is meaningful either way, but the packed-layout tests name
@@ -787,6 +1156,13 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_symm_pack<double>());
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
+  CALL_SUBTEST_2(test_neon_small_blocks<double>());
+  CALL_SUBTEST_2(test_direct_lhs<double>());
+  CALL_SUBTEST_2(test_small_k_and_single_panel_rhs<double>());
+  CALL_SUBTEST_2(test_deep_tail_panels<double>());
+  CALL_SUBTEST_2(test_tiny_results<double>());
+  CALL_SUBTEST_2(test_fp_flags<double>());
+  CALL_SUBTEST_2(test_disjoint_parts<double>());
 #endif
 
   CALL_SUBTEST_3(test_products<std::complex<float>>());
@@ -794,6 +1170,9 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_symm_pack<std::complex<float>>());
   CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
+  CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
+  CALL_SUBTEST_3(test_fp_flags<std::complex<float>>());
+  CALL_SUBTEST_3(test_disjoint_parts<std::complex<float>>());
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -803,6 +1182,9 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_symm_pack<std::complex<double>>());
   CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
+  CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
+  CALL_SUBTEST_4(test_fp_flags<std::complex<double>>());
+  CALL_SUBTEST_4(test_disjoint_parts<std::complex<double>>());
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the

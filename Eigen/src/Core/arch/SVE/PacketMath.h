@@ -737,6 +737,11 @@ EIGEN_STRONG_INLINE PacketXf pmadd(const PacketXf& a, const PacketXf& b, const P
 }
 
 template <>
+EIGEN_STRONG_INLINE PacketXf pmsub(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
+  return svmla_f32_x(svptrue_b32(), svneg_f32_x(svptrue_b32(), c), a, b);
+}
+
+template <>
 struct pminmax_propagates_nan<PacketXf> : bool_constant<true> {};
 
 template <>
@@ -1113,6 +1118,11 @@ EIGEN_STRONG_INLINE PacketXd pdiv<PacketXd>(const PacketXd& a, const PacketXd& b
 template <>
 EIGEN_STRONG_INLINE PacketXd pmadd(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
   return svmla_f64_x(svptrue_b64(), c, a, b);
+}
+
+template <>
+EIGEN_STRONG_INLINE PacketXd pmsub(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
+  return svmla_f64_x(svptrue_b64(), svneg_f64_x(svptrue_b64(), c), a, b);
 }
 
 template <>

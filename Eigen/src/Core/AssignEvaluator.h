@@ -94,10 +94,12 @@ struct copy_using_evaluator_traits {
   static constexpr bool StorageOrdersAgree = DstIsRowMajor == SrcIsRowMajor;
   static constexpr bool MightVectorize = StorageOrdersAgree && bool(DstFlags & SrcFlags & ActualPacketAccessBit) &&
                                          bool(functor_traits<AssignFunc>::PacketAccess);
-  static constexpr bool MayInnerVectorize = MightVectorize && (InnerSizeAtCompileTime != Dynamic) &&
-                                            (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
-                                            (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
-                                            (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
+  // Generic packet assignment stores forward from coeffRef(); the swap kernel uses writePacket().
+  static constexpr bool MayInnerVectorize =
+      MightVectorize && (DstHasDirectAccess || std::is_same<AssignFunc, swap_assign_op<DstScalar>>::value) &&
+      (InnerSizeAtCompileTime != Dynamic) && (InnerSizeAtCompileTime % InnerPacketSize == 0) &&
+      (OuterStride != Dynamic) && (OuterStride % InnerPacketSize == 0) &&
+      (EIGEN_UNALIGNED_VECTORIZE || JointAlignment >= InnerRequiredAlignment);
   static constexpr bool MayLinearize = StorageOrdersAgree && (DstFlags & SrcFlags & LinearAccessBit);
   static constexpr bool MayLinearVectorize =
       MightVectorize && MayLinearize && DstHasDirectAccess &&
@@ -516,13 +518,14 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
     const Index size = kernel.size();
     const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
-    const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
     head_loop::run(kernel, 0, alignedStart);
 
-    for (Index index = alignedStart; index < alignedEnd; index += PacketSize)
+    for (Index index = alignedStart; index <= size - PacketSize; index += PacketSize)
       kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
 
+    // Derive the tail bound directly; GCC can lose its range when it comes from the packet-loop induction variable.
+    const Index alignedEnd = size - (size - alignedStart) % PacketSize;
     tail_loop::run(kernel, alignedEnd, size);
   }
 };
@@ -651,8 +654,8 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   }
 
 #if EIGEN_UNALIGNED_VECTORIZE
-  // The slice alignment offset varies from one outer index to the next. Unaligned stores with
-  // outer-invariant bounds beat chasing the aligned position of every slice.
+  // Unaligned stores with outer-invariant bounds avoid chasing each slice's alignment offset.
+  // Also used for statically aligned destinations to keep run() small enough to inline.
   using unaligned_tail_loop =
       unaligned_dense_assignment_loop<PacketType, Unaligned, Unaligned, UsePacketSegment, false>;
 
@@ -669,9 +672,17 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 #endif
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
+#if EIGEN_UNALIGNED_VECTORIZE
+    EIGEN_IF_CONSTEXPR (DstIsAligned) {
+      // One loop instead of two keeps run() small enough for Clang to inline. Out of line, the
+      // evaluators' pointers and strides are reloaded after every packet store, which may alias them.
+      runUnaligned(kernel, innerSize, outerSize);
+      return;
+    }
+#endif
+    const Scalar* dst_ptr = kernel.dstDataPtr();
     const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
     Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 

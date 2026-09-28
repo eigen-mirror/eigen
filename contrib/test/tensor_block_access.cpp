@@ -102,7 +102,7 @@ static void UpdateCoeffSet(const DSizes<Index, NumDims>& tensor_strides,
   const DSizes<Index, NumDims>& block_sizes = block.dimensions();
 
   for (int i = 0; i < block_sizes[dim_index]; ++i) {
-    if (tensor_strides[dim_index] == 1) {
+    if (dim_index == choose(Layout, 0, NumDims - 1)) {
       typedef std::pair<std::set<Index>::iterator, bool> ReturnType;
       ReturnType inserted = visited_coeffs->insert(first_coeff_index + i);
       VERIFY_IS_EQUAL(inserted.second, true);

@@ -1189,7 +1189,9 @@ template <typename XprType, int Component>
 struct complex_component_evaluator<XprType, Component, true> : unary_evaluator<XprType> {
   using Base = unary_evaluator<XprType>;
   using Scalar = typename XprType::Scalar;
-  using ArgType = typename XprType::NestedExpression;
+  // Not named ArgType: MSVC 19.29 resolves the derived evaluator specializations' ArgType template
+  // parameter to this member through the dependent base, and it drops the nested expression's const.
+  using NestedXpr = typename XprType::NestedExpression;
   // Blocks must delegate packet reads here rather than reinterpret this stride-2 view as a contiguous Map.
   static constexpr unsigned int Flags = (Base::Flags & ~DirectAccessBit) | PacketAccessBit;
   static constexpr int Alignment = 0;
@@ -1227,7 +1229,7 @@ struct complex_component_evaluator<XprType, Component, true> : unary_evaluator<X
 
  private:
   const Scalar* m_data;
-  const variable_if_dynamic<Index, outer_stride_at_compile_time<ArgType>::value> m_outerStride;
+  const variable_if_dynamic<Index, outer_stride_at_compile_time<NestedXpr>::value> m_outerStride;
 };
 
 template <typename Real, typename ArgType>

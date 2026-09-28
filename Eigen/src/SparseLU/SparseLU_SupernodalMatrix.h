@@ -291,9 +291,9 @@ void MappedSuperNodalMatrix<Scalar, Index_>::solveTransposedInPlace(MatrixBase<D
                                                                                  OuterStride<>(lda));
       typename Dest::RowsBlockXpr U = X.derived().middleRows(fsupc, nsupc);
       EIGEN_IF_CONSTEXPR (Conjugate)
-        U = U - A.adjoint() * work.topRows(nrow);
+        U.noalias() -= A.adjoint() * work.topRows(nrow);
       else
-        U = U - A.transpose() * work.topRows(nrow);
+        U.noalias() -= A.transpose() * work.topRows(nrow);
 
       // Triangular solve (of transposed diagonal block)
       new (&A) Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<> >(&(Lval[luptr]), nsupc, nsupc,

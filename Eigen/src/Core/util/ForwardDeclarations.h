@@ -127,6 +127,11 @@ template <typename Scalar_>
 class SkewSymmetricMatrix3;
 template <int SizeAtCompileTime, int MaxSizeAtCompileTime = SizeAtCompileTime, typename IndexType = int>
 class PermutationMatrix;
+template <typename Scalar_, int SizeAtCompileTime, int MaxSizeAtCompileTime = SizeAtCompileTime,
+          typename StorageIndex_ = int>
+class ScaledPermutationMatrix;
+template <typename Derived>
+class ScaledPermutationBase;
 template <int SizeAtCompileTime, int MaxSizeAtCompileTime = SizeAtCompileTime, typename IndexType = int>
 class Transpositions;
 template <typename Derived>

@@ -12,7 +12,11 @@
     # the jobs that set it explain why. Images without ccache build exactly as
     # before regardless of this setting.
     EIGEN_CI_CCACHE: "on"
-    CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
+    # The ccache pool's cache:policy.  An affected build takes select:tests'
+    # value instead (a dotenv variable outranks a job variable): `push` for a
+    # NONE selection, which compiles nothing and so skips the download.
+    EIGEN_CI_CCACHE_POLICY: pull-push
+    EIGEN_CI_CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
     # A full buildtests job stores ~4-6 GB of compressed objects; at 2G every
     # nightly build filled the cache (149 LRU cleanups, 0.4% hits) and evicted
     # what the previous run had stored, so nothing was ever reused. 4G is the
@@ -21,12 +25,12 @@
     # directory. The raised compression level packs more of the working set
     # under that cap; 5 is the ccache manual's recommended ceiling for live
     # (compile-time) compression, and captures most of the density gain.
-    CCACHE_MAXSIZE: 4G
-    CCACHE_COMPRESSLEVEL: 5
+    EIGEN_CI_CCACHE_MAXSIZE: 4G
+    EIGEN_CI_CCACHE_COMPRESSLEVEL: 5
     # Hash compile paths relative to the project directory: absolute -I/source
     # paths are part of ccache's hash, so without this a checkout-path change
     # (runner layout, concurrent build slots) turns every compile into a miss.
-    CCACHE_BASEDIR: ${CI_PROJECT_DIR}
+    EIGEN_CI_CCACHE_BASEDIR: ${CI_PROJECT_DIR}
     # The ccache payload is already zstd-compressed, so re-compressing it into
     # cache.zip at the default level burns CPU for no size gain: a fully warm
     # build spent 87s archiving+uploading a 2 GB cache it compiled in 71s.
@@ -64,14 +68,24 @@
   # Developer-started merge request pipeline therefore cannot read the pool the
   # scheduled builds fill; a maintainer starting that pipeline can.
   cache:
-    key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
-    fallback_keys:
-      - "$EIGEN_CI_CCACHE_POOL-ccache"
-    paths:
-      - .ccache/
-    # Push the cache even when the build fails: the retry pipeline after a
-    # compile error is exactly where cache hits matter most.
-    when: always
+    # Dedicated small cache for pinned tool binaries (sccache, ccache); shared across
+    # all build jobs so runners download the static binary once.
+    - key: "linux-ccache-bin"
+      paths:
+        - .ccache-bin/
+        - .sccache-bin/
+      when: always
+    # Compiler object cache pool holding .ccache/ and .sccache/.
+    - key: "$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache"
+      fallback_keys:
+        - "$EIGEN_CI_CCACHE_POOL-ccache"
+      paths:
+        - .ccache/
+        - .sccache/
+      policy: $EIGEN_CI_CCACHE_POLICY
+      # Push the cache even when the build fails: the retry pipeline after a
+      # compile error is exactly where cache hits matter most.
+      when: always
 
 ######## x86-64 ################################################################
 
@@ -202,6 +216,9 @@ build:linux:docs:
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+    # Stands alone and leaves the test tier unchanged, so it composes with the
+    # smoke and affected tiers.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/docs-build/"
 
 
 ######## Sanitizers ############################################################
@@ -293,11 +310,11 @@ build:linux:x86-64:nvhpc-26.1:default:contrib:
 .build:linux:cuda:
   extends: .build:linux:cross:x86-64
   # ccache and the inherited cache stanza apply here: the .cu compiles that
-  # dominate these builds now reach the launcher through the wrapper that
-  # ei_cuda_use_compiler_launcher() puts in front of nvcc. A new image costs
-  # one cold build rather than serving stale objects, since ccache hashes the
-  # nvcc it runs and the preprocessed source. nvcc's -M dependency and -dlink
-  # passes are not cacheable and appear as misses in the statistics.
+  # dominate these builds reach the launcher through CMAKE_CUDA_COMPILER_LAUNCHER,
+  # which ei_gpu_testing_enable() copies from CMAKE_CXX_COMPILER_LAUNCHER. A new
+  # image costs one cold build rather than serving stale objects, since ccache
+  # hashes the nvcc it runs and the preprocessed source. nvcc's -M dependency and
+  # -dlink passes are not cacheable and appear as misses in the statistics.
   variables:
     # Additional flags passed to the cuda compiler.
     EIGEN_CI_CUDA_CXX_FLAGS: ""
@@ -405,8 +422,8 @@ build:linux:cuda-12.6:clang-19:
 # CUDA 13 dropped offline compilation for sm_70, relocated the CCCL headers and
 # ships an nvcc that rejects code every 12.x toolkit accepted (issue #3139 was
 # found on a laptop because no job here compiled with it).  This pair runs on
-# the L4 at sm_89.  It builds on the FindCUDA path like the others; the
-# Windows CUDA 13.0 job already proves that works.
+# the L4 at sm_89, built through CMake's CUDA language like the other Linux
+# CUDA jobs.
 
 # GCC-13, CUDA-13.3 (nvcc)
 build:linux:cuda-13.3:gcc-13:
@@ -430,7 +447,11 @@ build:linux:rocm-latest:gcc-11:
     EIGEN_CI_C_COMPILER: gcc-11
     EIGEN_CI_CXX_COMPILER: g++-11
     EIGEN_CI_BUILD_TARGET: buildtests_gpu
-    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on
+    # HIP Clang reports each `#pragma unroll` loop in TensorConvolution.h whose
+    # trip count is not constant ("loop not unrolled") once per kernel
+    # instantiation: over half of this job's log, which overran GitLab's 4 MB
+    # log limit and so cut off the end of the build.
+    EIGEN_CI_ADDITIONAL_ARGS: -DEIGEN_TEST_HIP=on -DCMAKE_HIP_FLAGS=-Wno-pass-failed
   rules: !reference [.rules:libeigen:gpu, rules]
   # Disable cache for ROCm, since it fails whenever the image updates.  As with
   # the ASAN build above, this and EIGEN_CI_CCACHE: "off" are both needed: one
@@ -667,6 +688,8 @@ build:linux:cross:aarch64:clang-14:default:
 # architecturally legal but unimplemented, and compile-only coverage of them
 # bought two latent compile fixes at the cost of running nothing -- if a wider
 # part ships, add it here with a test job rather than as a build on its own.
+# 128-bit SVE matches native ARMv9 hardware (Neoverse V2 / Axion) and runs natively
+# on our ARM runner without QEMU emulation.
 build:linux:cross:sve:gcc-13:vl128:
   extends: .build:linux:cross:sve:gcc-13
   variables:
@@ -674,7 +697,6 @@ build:linux:cross:sve:gcc-13:vl128:
       -DEIGEN_TEST_SVE=ON
       -DEIGEN_TEST_SVE_VL=128
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv8.2-a+sve
-      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
 
 build:linux:cross:sve:gcc-13:vl512:
   extends: .build:linux:cross:sve:gcc-13
@@ -839,7 +861,7 @@ build:linux:cross:x86-64:gcc-10:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:cross:x86-64:clang-14:default:smoketest:
   extends: [ build:linux:cross:x86-64:clang-14:default, .smoketest:build ]
@@ -849,7 +871,7 @@ build:linux:cross:x86-64:clang-14:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:aarch64:gcc-10:default:smoketest:
   extends: [ build:linux:cross:aarch64:gcc-10:default, .smoketest:build ]
@@ -859,7 +881,7 @@ build:linux:aarch64:gcc-10:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 build:linux:aarch64:clang-14:default:smoketest:
   extends: [ build:linux:cross:aarch64:clang-14:default, .smoketest:build ]
@@ -869,7 +891,7 @@ build:linux:aarch64:clang-14:default:smoketest:
     EIGEN_CI_BUILD_TARGET: buildsmoketests
   rules: !reference [.rules:libeigen:smoketest, rules]
   tags:
-    - saas-linux-large-amd64
+    - saas-linux-medium-amd64
 
 ######## MR Affected Tests #####################################################
 # Opt-in via the `affected-tests` label: build every test the merge request diff

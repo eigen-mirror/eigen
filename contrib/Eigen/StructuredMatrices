@@ -14,6 +14,7 @@
 #include "../../Eigen/Eigenvalues"
 #include "../../Eigen/LU"
 #include "../../Eigen/SVD"
+#include "../../Eigen/SparseLU"
 #include "../../Eigen/IterativeLinearSolvers"
 #include "FFT"
 
@@ -30,11 +31,13 @@ namespace Eigen {
  *   - \c Hankel    : a (possibly rectangular) Hankel matrix -- a column-reversed
  *     Toeplitz matrix -- with the same O(n log n) products, and square solves
  *     through the Toeplitz equivalent;
- *   - \c KroneckerOperator : the Kronecker product of two dense or diagonal
- *     matrices as an implicit operator; products, solves, least squares,
+ *   - \c KroneckerOperator : the Kronecker product of two dense, diagonal or
+ *     sparse matrices as an implicit operator; products, solves, least squares,
  *     eigendecomposition, SVD, inverse and determinant all factor through the
- *     operands, and diagonal (in particular identity) factors are stored and
- *     applied in diagonal form;
+ *     operands, diagonal (in particular identity) factors are stored and
+ *     applied in diagonal form, sparse factors through sparse-dense products
+ *     and \c SparseLU, and the product materializes into a dense or a sparse
+ *     matrix on assignment;
  *   - \c DiagonalPlusLowRank : a diagonal matrix plus a rank-k correction, with
  *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion;
  *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner

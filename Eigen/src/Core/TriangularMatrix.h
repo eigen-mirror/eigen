@@ -214,6 +214,17 @@ class TriangularBase : public EigenBase<Derived> {
     return Product<Derived, OtherDerived>(derived(), rhs.derived());
   }
 
+  /** \returns the dense matrix product of \c *this by the triangular or self-adjoint view \a rhs.
+   *
+   * The right factor is evaluated into a dense temporary and the product runs the kernel of \c *this times a
+   * dense matrix. The result is a plain dense expression even when the structure would be preserved, as for
+   * two upper triangular factors.
+   */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC const Product<Derived, OtherDerived> operator*(const TriangularBase<OtherDerived>& rhs) const {
+    return Product<Derived, OtherDerived>(derived(), rhs.derived());
+  }
+
   template <typename OtherDerived,
             std::enable_if_t<int(Mode) == int(OtherDerived::Mode) && (int(Mode) & int(UnitDiag)) == 0, int> = 0>
   EIGEN_DEVICE_FUNC inline auto operator+(const TriangularBase<OtherDerived>& other) const {
@@ -228,6 +239,44 @@ class TriangularBase : public EigenBase<Derived> {
                                                            other.derived().nestedExpression());
   }
 
+  // Sums with a diagonal matrix keep the view's structure: the result is the same view of the lazy dense sum.
+  // A unit or zero diagonal is implicit in the view and would swallow the diagonal term, so those modes have
+  // no such operator; a self-adjoint view needs a real diagonal to stay self-adjoint.
+
+  // The Mode_ = Mode parameter makes the condition depend on the operator's own template parameters, so an
+  // excluded mode removes the overload instead of failing the class instantiation.
+
+  /** \returns the view of mode \c Mode of the sum of the nested expression and the diagonal matrix \a other */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  EIGEN_DEVICE_FUNC inline auto operator+(const DiagonalBase<OtherDerived>& other) const {
+    return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() + other.derived());
+  }
+
+  /** \returns the view of mode \c Mode of the difference of the nested expression and the diagonal matrix \a other
+   */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  EIGEN_DEVICE_FUNC inline auto operator-(const DiagonalBase<OtherDerived>& other) const {
+    return internal::make_triangular_base_cwise_view<Mode>(derived().nestedExpression() - other.derived());
+  }
+
+  /** \returns the view of mode \c Mode of the sum of the diagonal matrix \a lhs and the nested expression of \a rhs
+   */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  friend EIGEN_DEVICE_FUNC inline auto operator+(const DiagonalBase<OtherDerived>& lhs, const Derived& rhs) {
+    return internal::make_triangular_base_cwise_view<Mode>(lhs.derived() + rhs.nestedExpression());
+  }
+
+  /** \returns the view of mode \c Mode of the difference of the diagonal matrix \a lhs and the nested expression of
+   * \a rhs */
+  template <typename OtherDerived, unsigned int Mode_ = Mode,
+            std::enable_if_t<(int(Mode_) & (int(UnitDiag) | int(ZeroDiag))) == 0, int> = 0>
+  friend EIGEN_DEVICE_FUNC inline auto operator-(const DiagonalBase<OtherDerived>& lhs, const Derived& rhs) {
+    return internal::make_triangular_base_cwise_view<Mode>(lhs.derived() - rhs.nestedExpression());
+  }
+
   template <typename OtherDerived>
   friend EIGEN_DEVICE_FUNC const Product<OtherDerived, Derived> operator*(const MatrixBase<OtherDerived>& lhs,
                                                                           const Derived& rhs) {
@@ -238,6 +287,37 @@ class TriangularBase : public EigenBase<Derived> {
   friend EIGEN_DEVICE_FUNC const Product<OtherDerived, Derived> operator*(const DiagonalBase<OtherDerived>& lhs,
                                                                           const Derived& rhs) {
     return Product<OtherDerived, Derived>(lhs.derived(), rhs);
+  }
+
+  // Products with permutations (and their inverses) evaluate to a dense matrix: the permuted view has no
+  // triangular or self-adjoint structure Eigen could represent. They live here rather than next to the
+  // MatrixBase permutation operators so that every operator* a TriangularBase takes part in is in one place.
+
+  /** \returns the dense matrix expression of \c *this with the permutation \a rhs applied to its columns. */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC const Product<Derived, OtherDerived> operator*(const PermutationBase<OtherDerived>& rhs) const {
+    return Product<Derived, OtherDerived>(derived(), rhs.derived());
+  }
+
+  /** \returns the dense matrix expression of \c *this with the inverse permutation \a rhs applied to its columns. */
+  template <typename OtherDerived>
+  EIGEN_DEVICE_FUNC const Product<Derived, Inverse<OtherDerived>> operator*(
+      const InverseImpl<OtherDerived, PermutationStorage>& rhs) const {
+    return Product<Derived, Inverse<OtherDerived>>(derived(), rhs.derived());
+  }
+
+  /** \returns the dense matrix expression of \a rhs with the permutation \a lhs applied to its rows. */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC const Product<OtherDerived, Derived> operator*(const PermutationBase<OtherDerived>& lhs,
+                                                                          const Derived& rhs) {
+    return Product<OtherDerived, Derived>(lhs.derived(), rhs);
+  }
+
+  /** \returns the dense matrix expression of \a rhs with the inverse permutation \a lhs applied to its rows. */
+  template <typename OtherDerived>
+  friend EIGEN_DEVICE_FUNC const Product<Inverse<OtherDerived>, Derived> operator*(
+      const InverseImpl<OtherDerived, PermutationStorage>& lhs, const Derived& rhs) {
+    return Product<Inverse<OtherDerived>, Derived>(lhs.derived(), rhs);
   }
 
   /** \sa MatrixBase::conjugate() const */

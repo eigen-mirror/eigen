@@ -102,7 +102,7 @@ struct stable_normalization_dispatch {
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place(VectorType& vec, const Accumulator& factor) {
-    scale_in_place_impl(vec, factor, HasWritableRealView());
+    assign_scaled_impl(vec, vec, factor, HasWritableRealView());
   }
 
  private:
@@ -116,16 +116,6 @@ struct stable_normalization_dispatch {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void assign_scaled_impl(ResultType& result, const VectorType& vec,
                                                                        const Accumulator& factor, std::false_type) {
     result = vec * static_cast<RealScalar>(factor);
-  }
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place_impl(VectorType& vec, const Accumulator& factor,
-                                                                        std::true_type) {
-    vec.realView() = (vec.realView().template cast<Accumulator>() * factor).template cast<RealScalar>();
-  }
-
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void scale_in_place_impl(VectorType& vec, const Accumulator& factor,
-                                                                        std::false_type) {
-    vec = vec * static_cast<RealScalar>(factor);
   }
 };
 
@@ -307,7 +297,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE
     typename ScalarBinaryOpTraits<typename internal::traits<Derived>::Scalar,
                                   typename internal::traits<OtherDerived>::Scalar>::ReturnType
     MatrixBase<Derived>::dot(const MatrixBase<OtherDerived>& other) const {
-  return internal::dot_impl<Derived, OtherDerived>::run(derived(), other.derived());
+  return internal::inner_product_dispatch<Derived, OtherDerived, true>::run(derived(), other.derived());
 }
 
 //---------- implementation of L2 norm and related functions ----------

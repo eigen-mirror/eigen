@@ -100,7 +100,6 @@ SPDX-License-Identifier = "MPL-2.0"
 path = [
     "blas/eigen_blas.def",
     "lapack/eigen_lapack.def",
-    "lapack/eigen_lapack_cpp.def",
 ]
 SPDX-FileCopyrightText = "The Eigen Authors"
 SPDX-License-Identifier = "MPL-2.0"

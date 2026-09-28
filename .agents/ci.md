@@ -9,9 +9,10 @@ plumbing work inside the jobs is in [`ci-internals.md`](ci-internals.md), and th
 Default MR pipelines run a limited smoke matrix. Recommend `affected-tests` with the relevant `*-tests` platform
 labels, or `affected-tests` with `all-platforms` when the change needs coverage across the platforms that run the
 affected selection. The platform table below records the additional labels needed for GPU, SME, and AVX512-FP16
-coverage. Do not add `all-tests` without the user's explicit permission for that label; permission to push, rebase,
-address review, or validate an MR does not authorize it. A green default MR pipeline is not proof that every supported
-configuration was exercised.
+coverage, and `docs-build` runs the blocking documentation job, which no default MR pipeline does. Do not add
+`all-tests` without the user's explicit permission for that label; permission to push, rebase, address review, or
+validate an MR does not authorize it. A green default MR pipeline is not proof that every supported configuration was
+exercised.
 
 A pipeline is evidence only for the commit it ran on: after a push, amend, or rebase, check which SHA the pipeline and
 the merge request point at before citing either — a green run on a superseded revision proves nothing about the
@@ -39,7 +40,7 @@ distributed cache, so per-merge-request archives would accumulate on that disk u
 Any self-hosted runner without `[runners.cache]` keeps one archive per key forever —
 [`prune_runner_cache.py`](../ci/scripts/prune_runner_cache.py) caps such a directory (`--max-gb`, LRU by mtime) and
 drops superseded clear-cache generations (`--stale-index-below`); its unit tests,
-[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:scripts`.
+[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:lint`.
 
 ## Test Tiers On Merge Requests
 
@@ -77,7 +78,8 @@ Selection follows the textual `#include` graph, ignoring preprocessor guards, so
 compile dependency and never drops an affected test. Because Eigen is header-only and the umbrella headers are hubs,
 a change under `Eigen/src/Core` typically reaches every test and the selector degrades to the full suite — that is the
 correct answer, not a failure. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims also force the
-full suite; the `ci/*.gitlab-ci.yml` files select nothing.
+full suite; the `ci/*.gitlab-ci.yml` files and the clang-tidy and lint images under `ci/tidy/` and `ci/lint/`
+select nothing.
 
 ### Platform-Triggered Configurations
 
@@ -103,7 +105,7 @@ jobs on two independent triggers, either of which is enough:
 | `arch/SVE` | `sve-tests` | SVE cross builds and test runs at 128, 256 and 512 bits under qemu | yes |
 | `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
-| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
+| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake` and `cmake/EigenGpuTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
 
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
 nothing else. Apart from `gpu-tests`, none of them does anything without `affected-tests`. `all-platforms` is a
@@ -130,7 +132,9 @@ Rows worth knowing before relying on them:
   jobs it gates are all CUDA or ROCm.
 
 The CUDA matrix is CUDA 11.8 with gcc-10 and clang-14 on GitLab's SaaS T4 runners (sm_75), and CUDA 12.6 with gcc-13
-and clang-19 plus CUDA 13.3 with gcc-13 on the project's L4 runner (sm_89); the ROCm job is build-only. The Linux CUDA
+and clang-19 plus CUDA 13.3 with gcc-13 on the project's L4 runner (sm_89); the ROCm job is build-only. The `.cu`
+tests compile through CMake's CUDA language, configured once in [`cmake/EigenGpuTesting.cmake`](../cmake/EigenGpuTesting.cmake);
+`nvc++` and clang-as-CUDA-on-Windows compile them as C++ instead, since neither works with that language. The Linux CUDA
 test jobs are `allow_failure: true`, so a red GPU job renders as a warning and a green pipeline is not evidence that
 the GPU tests passed. Hence the policy for a merge request that touches any path in the GPU row: apply `gpu-tests`
 (and `affected-tests` when it also changes shared headers), name the GPU jobs that ran and their status in the
@@ -142,9 +146,9 @@ with the weekly full run.
 ## Worktree-Safe Formatting
 
 Inspect `git status --short` before formatting and preserve unrelated changes. Eigen requires `clang-format-17`
-exactly; the pin lives in [`ci/checkformat.gitlab-ci.yml`](../ci/checkformat.gitlab-ci.yml), which installs
-`clang17-extra-tools`. CI checks only the lines a merge request changes, and the tree is not uniformly
-clang-format-17 clean (a whole-file pass rewrites `> >` closers in a couple of dozen headers), so format the diff:
+exactly; the pin lives in [`ci/lint/Dockerfile`](../ci/lint/Dockerfile), which builds a static clang-format 17.0.6
+from the LLVM release. CI checks only the lines a merge request changes, and the tree is not uniformly clang-format-17
+clean (a whole-file pass rewrites `> >` closers in a couple of dozen headers), so format the diff:
 
 ```bash
 git clang-format --binary clang-format-17 --force <base-sha> -- path/to/file.cpp path/to/header.h
@@ -184,12 +188,14 @@ clang-tidy is absent, and shows the user a non-blocking notice when a file's tra
 
 Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. Their unit
 tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
-[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:scripts`; run them after
+[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py), run in `checkformat:lint`; run them after
 changing either script.
 
-The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely
-to make a local broad scan clean. In the current CI configuration, clang-format, codespell, and clang-tidy jobs are
-`allow_failure`; treat their diagnostics as review findings anyway. The REUSE job is blocking.
+The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely to
+make a local broad scan clean. `checkformat:lint` runs clang-format, codespell, REUSE, and the Python helper tests
+through [`ci/lint/lint.sh`](../ci/lint/lint.sh), with `vermin` checking that the helpers still run on Python 3.12. REUSE
+and the helper tests are blocking; a clang-format or codespell failure alone leaves the job a warning, as does anything
+from `checkformat:clangtidy`, but treat their diagnostics as review findings anyway.
 
 Source files carry the inline SPDX header [`conventions.md`](conventions.md) records; files that cannot need coverage
 in [`REUSE.toml`](../REUSE.toml). To stamp selected new files with the repository helper, pass them explicitly because
@@ -213,8 +219,9 @@ cmake -G Ninja -S . -B .tidy-build \
 ci/scripts/run-clang-tidy.sh <base-sha> .tidy-build
 ```
 
-The driver examines files committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's
-`.clang-tidy` policy is authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
+`checkformat:clangtidy` runs clang-tidy 18 from [`ci/tidy/Dockerfile`](../ci/tidy/Dockerfile). The driver examines files
+committed between `<base-sha>` and `HEAD`; uncommitted-only edits are not included. Eigen's `.clang-tidy` policy is
+authoritative. Do not apply generic `modernize-*` or `cppcoreguidelines-*` campaigns.
 
 A module that reaches a third-party header the machine does not install — `<cuda_runtime.h>` from
 `contrib/Eigen/src/GPU`, `<cholmod.h>` from `CholmodSupport` — is still checked, but clang parses a truncated
@@ -238,7 +245,7 @@ parts it left out, so a capped run names what it did not check rather than repor
 2. Format and check the task's changed lines and new files using the Worktree-Safe Formatting recipes above.
 3. Run the focused builds and tests documented in [`testing.md`](testing.md).
 4. Run applicable spelling, REUSE, and clang-tidy checks.
-5. Build the `doc` target locally when the change touches Doxygen markup, a documented name, or a snippet, and report
-   the Doxygen version and result. The recommended test labels do not trigger the documentation job;
-   [`docs.md`](docs.md) records its coverage and validation requirements.
+5. Apply the `docs-build` label when the change touches Doxygen markup, a documented name, a module `README`, or a
+   snippet. The recommended test labels do not trigger the documentation job; [`docs.md`](docs.md) records its
+   coverage and validation requirements.
 6. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.

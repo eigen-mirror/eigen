@@ -24,7 +24,7 @@ IF (!$EIGEN_CI_BEFORE_SCRIPT)         { $EIGEN_CI_BEFORE_SCRIPT         = "" }
 IF (!$EIGEN_CI_CMAKE_GENERATOR)       { $EIGEN_CI_CMAKE_GENERATOR       = "Ninja" }
 IF (!$EIGEN_CI_MSVC_ARCH)             { $EIGEN_CI_MSVC_ARCH             = "x64" }
 IF (!$EIGEN_CI_MSVC_VER)              { $EIGEN_CI_MSVC_VER              = "14.29" }
-IF (!$EIGEN_CI_TEST_CUSTOM_CXX_FLAGS) { $EIGEN_CI_TEST_CUSTOM_CXX_FLAGS = "/d2ReducedOptimizeHugeFunctions /DEIGEN_STRONG_INLINE=inline /Os" }
+IF (!$EIGEN_CI_TEST_CUSTOM_CXX_FLAGS) { $EIGEN_CI_TEST_CUSTOM_CXX_FLAGS = "-d2ReducedOptimizeHugeFunctions -DEIGEN_STRONG_INLINE=inline -Os" }
 
 # Export variables into the global scope
 $global:EIGEN_CI_ROOTDIR               = $EIGEN_CI_ROOTDIR

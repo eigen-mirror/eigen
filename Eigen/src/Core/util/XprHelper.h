@@ -768,6 +768,16 @@ template <int ProductTag>
 struct product_promote_storage_type<SkewSymmetricShape, SkewSymmetricShape, ProductTag> {
   using ret = Dense;
 };
+// A skew-symmetric matrix scaled by a diagonal is neither, and without these the <A, DiagonalShape> and
+// <SkewSymmetricShape, B> rules are ambiguous.
+template <int ProductTag>
+struct product_promote_storage_type<SkewSymmetricShape, DiagonalShape, ProductTag> {
+  using ret = Dense;
+};
+template <int ProductTag>
+struct product_promote_storage_type<DiagonalShape, SkewSymmetricShape, ProductTag> {
+  using ret = Dense;
+};
 
 template <typename A, int ProductTag>
 struct product_promote_storage_type<A, PermutationStorage, ProductTag> {

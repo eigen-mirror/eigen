@@ -14,7 +14,7 @@ does not state:
 | CUDA Toolkit | streams, memory, error codes | <https://docs.nvidia.com/cuda/> |
 | cuBLAS (incl. cuBLASLt) | `DeviceMatrix` products, BLAS-1 | <https://docs.nvidia.com/cuda/cublas/> |
 | cuSOLVER | dense LLT / LU / QR / SVD / EVD | <https://docs.nvidia.com/cuda/cusolver/> |
-| cuSPARSE | SpMV / SpMM | <https://docs.nvidia.com/cuda/cusparse/> |
+| cuSPARSE | SpMV / SpMM (CSC and BSR) | <https://docs.nvidia.com/cuda/cusparse/> |
 | cuFFT | `gpu::FFT` | <https://docs.nvidia.com/cuda/cufft/> |
 | NPP | device-side scalar and coefficient-wise arithmetic | <https://docs.nvidia.com/cuda/npp/> |
 | cuDSS | sparse direct solvers (separate install) | <https://docs.nvidia.com/cuda/cudss/> |
@@ -88,14 +88,17 @@ supported expression maps to a single NVIDIA library call. There is no
 coefficient-level evaluation, lazy fusion, or packet operations.
 
 **Interoperability where useful.** `DeviceMatrix` provides the same operator
-signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`,
-`dot()`, `squaredNorm()`, `norm()`, `setZero()`, and `noalias()`. This makes
+signatures as `Matrix` for common vector operations: `+=`, `-=`, `*=`, `/=`,
+`dot()`, `squaredNorm()`, `norm()`, `stableNorm()`, `setZero()`, `noalias()`,
+and copy construction and assignment (a device-to-device copy). This makes
 `DeviceMatrix` usable as a drop-in `VectorType` in Eigen algorithm templates
-that rely on these operations. For example, Eigen's `conjugate_gradient()`
-template works with `DeviceMatrix` with a single typedef change -- no
-modifications to the algorithm or the expression template system. Conjugate
-gradient is just the motivating example; we are open to expanding operator
-coverage as needed to support other high-level Eigen algorithms on the GPU.
+that rely on these operations, and `DeviceSparseView` is a matrix-free matrix
+type for Eigen's iterative solvers: `ConjugateGradient<gpu::DeviceSparseView<double>,
+Lower | Upper>` runs Eigen's own algorithm, unmodified, on device vectors (see
+[Eigen algorithm interop](#eigen_gpu_interop)).
+Conjugate gradient is just the motivating example; we are open to expanding
+operator coverage as needed to support other high-level Eigen algorithms on the
+GPU.
 
 **Explicit over implicit.** Host-device transfers, stream management, and
 library handle lifetimes are visible in the API. There are no hidden
@@ -274,7 +277,15 @@ double n = norm_val;                   // implicit conversion triggers sync
 d_x += alpha * d_p;                    // axpy: x = x + alpha * p
 d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
+d_x /= alpha;                          // NPP divide-by-constant: x = x / alpha (true division for real Scalar)
 d_r.setZero();                         // cudaMemsetAsync
+auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
+
+// Copies are device-to-device (cuBLAS copy) on the thread-local Context; no host round trip.
+// They exist so that existing Eigen algorithm code runs on the GPU unchanged; code written for
+// the GPU should avoid them (move, or reuse a buffer with copyFrom), since each is a transfer.
+gpu::DeviceMatrix<double> d_q = d_p;   // copy construction
+d_q = d_r;                             // copy assignment, resizes if needed
 
 // DeviceScalar arithmetic (stays on device, real types only)
 auto alpha = absNew / dot_val;         // device-side division via NPP
@@ -528,6 +539,8 @@ gpu::SparseContext<double> spmv_dev(ctx);   // share gpu::Context for same-strea
 auto d_A = spmv_dev.deviceView(A);          // upload sparse matrix once
 d_y = d_A * d_x;                            // SpMV, stays on device
 d_Y = d_A * d_X;                            // SpMM when the RHS has > 1 column
+d_r = d_b - d_A * d_x;                      // residual: copy of d_b, then one SpMV with beta = 1
+d_r = d_r - d_A * d_x;                      // in place when the addend is the destination: no copy
 ```
 
 Host-input calls re-upload the sparse values *and* index arrays on every call
@@ -538,14 +551,90 @@ matching shapes; `deviceView()` is the upload-once path. A `DeviceSparseView`
 carries a generation counter — using a view after any later upload through its
 context asserts instead of silently multiplying by the wrong matrix.
 
-### Eigen algorithm interop (example: Conjugate gradient)
+#### Block sparse matrices (BSR) {#eigen_gpu_bsr}
 
-The BLAS-1 operators and `DeviceSparseView` make `DeviceMatrix` usable as a
-vector type in GPU implementations of algorithms like conjugate gradient.
-Conjugate gradient is the motivating example -- the GPU CG mirrors Eigen's
-`conjugate_gradient()` line for line, with only one host sync per iteration
-(the convergence check). All scalar intermediates (`alpha`, `beta`, `absNew`)
-stay on device as `DeviceScalar` values:
+Every `SparseContext` entry point above also accepts a `BlockSparseMatrix`.
+Square blocks of size at least 2 upload in cuSPARSE's BSR (block sparse row)
+format on cuSPARSE 12.6.3 (CUDA 13.0 Update 1) or newer, where the generic
+SpMV and SpMM run on BSR descriptors; `EIGEN_HAS_CUSPARSE_BSR` is 1 there and
+0 on older toolkits. Any other block shape, and every `BlockSparseMatrix` on an
+older toolkit, takes the CSC path instead: the matrix is expanded with
+`toSparse()` on the host, once per host-input call or once per `deviceView()`,
+so source compatibility does not depend on the toolkit.
+
+```cpp
+BlockSparseMatrix<double, RowMajor, 3, 3> A = ...;   // 3x3 blocks, block-row storage
+VectorXd y = spmv.multiply(A, x);                    // y = A * x, no host copy
+VectorXd z = spmv.multiplyT(A, x);                   // z = A^T * x, transposed on the host
+MatrixXd Y = spmv.multiplyMat(A, X);                 // SpMM
+
+auto d_A = spmv_dev.deviceView(A);                   // upload once as BSR
+d_y = d_A * d_x;                                     // SpMV / SpMM, stays on device
+```
+
+cuSPARSE multiplies a BSR descriptor only as `op == NoTrans` with row-major
+blocks (`CUSPARSE_ORDER_ROW`), so the op is applied on the host rather than
+passed to the library. A `RowMajor` matrix is BSR of itself and uploads
+without a host copy for `NoTrans`; a `ColMajor` one — column-major blocks in
+block-column order — is BSR of its transpose and uploads without a copy for
+`Trans` (and `ConjTrans` on real scalars). Every other op / storage-order
+combination transposes (and conjugates) the matrix on the host first, once per
+host-input call or once per `deviceView()`. `spmv_device_exec()` and
+`spmm_device_exec()` consequently accept only `NoTrans` against a BSR upload
+(debug builds assert); a `BlockSparseMatrix` on the CSC path passes the op to
+cuSPARSE like a `SparseMatrix`.
+
+The CSC fallback exists because cuSPARSE rejects rectangular blocks at
+descriptor creation and runs no BSR SpMV on 1 x 1 blocks;
+`internal::use_cusparse_bsr<BlockRows, BlockCols>` is the exact selector. The
+`int` index type and the `int` limits on dimensions and nonzeros are as for
+`SparseMatrix`.
+
+### Eigen algorithm interop (example: Conjugate gradient) {#eigen_gpu_interop}
+
+Eigen's `ConjugateGradient` runs on the GPU types. `DeviceSparseView` is a
+matrix-free matrix type (it inherits `EigenBase` and carries `SparseMatrix`
+traits, so `IterativeSolverBase` holds it by pointer), the vectors are
+`DeviceMatrix`, and the algorithm's `VectorType` (`Dest::PlainObject`) is
+`DeviceMatrix` itself. `solve()` and `solveWithGuess()` return Eigen
+expressions and need Eigen operands; `solveWithGuessInPlace(b, x)` is the entry
+point for device vectors, with `x` holding the initial guess. The identity
+preconditioner works as is; `DiagonalPreconditioner` and the other Eigen
+preconditioners evaluate host expressions and do not. `compute()` stores a
+pointer to the view, so the view and the `SparseContext` behind it must outlive
+the solver. The class form is real-`Scalar` only: `DeviceScalar` arithmetic
+covers real types, and `numext::real()` of a complex `DeviceScalar` has no host
+conversion to `RealScalar`.
+
+```cpp
+gpu::Context ctx;
+gpu::Context::setThreadLocal(&ctx);
+gpu::SparseContext<double> spmv(ctx);
+auto mat = spmv.deviceView(A);
+auto d_b = gpu::DeviceMatrix<double>::fromHost(b, ctx.stream());
+gpu::DeviceMatrix<double> d_x(n, 1);
+d_x.setZero(ctx);
+
+ConjugateGradient<gpu::DeviceSparseView<double>, Lower | Upper, IdentityPreconditioner> cg;
+cg.setTolerance(1e-10);
+cg.compute(mat);                       // matrix-free: stores a pointer to mat
+cg.solveWithGuessInPlace(d_b, d_x);    // Eigen's algorithm, cuSPARSE and cuBLAS underneath
+// cg.info(), cg.iterations(), cg.error() as usual
+gpu::Context::setThreadLocal(nullptr);
+```
+
+The algorithm reads three values on the host per iteration -- `alpha`, the
+`stableNorm()` convergence check and `absNew` -- so this form synchronizes three
+times per iteration. The division `absNew / p.dot(tmp)` resolves to the
+device-side `operator/(Scalar, DeviceScalar)`: `absNew` is uploaded into a
+fresh `DeviceScalar`, divided through NPP and read back, two small allocations
+and a kernel launch per iteration on top of the sync. The hand-written loop
+below is the same algorithm with one host sync per iteration (the convergence
+check); all scalar intermediates (`alpha`, `beta`, `absNew`) stay on device as
+`DeviceScalar` values. Its convergence test squares the residual norm
+(`squaredNorm()`, a cuBLAS dot), which overflows for `||r|| > sqrt(max)` and
+underflows to 0 for `||r|| < sqrt(min)`, so it lacks the extreme-scale
+robustness the template gets from `stableNorm()` and its residual scaling:
 
 ```cpp
 gpu::Context ctx;
@@ -692,6 +781,7 @@ noted otherwise).
 | `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 | `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
+| same, `view` of a `BlockSparseMatrix` | `cusparseSpMV` / `cusparseSpMM` on a BSR descriptor | opA=N, row-major blocks; op(A) formed on the host |
 
 ### `DeviceMatrix<Scalar>`
 
@@ -1030,10 +1120,15 @@ the input scalar type (complex vs real).
 
 ### `gpu::SparseContext<Scalar>` -- SpMV/SpMM (cuSPARSE)
 
-Accepts `SparseMatrix<Scalar, ColMajor>`. Host-input methods accept host data
-and return host data; device-input methods (`deviceView()`, `multiply(A, d_x,
-d_y)`) operate on `DeviceMatrix`. Matrix dimensions and nonzero count must fit
-in `int` (cuSPARSE limitation; debug builds assert).
+Accepts `SparseMatrix<Scalar, ColMajor>` and `BlockSparseMatrix<Scalar,
+Options, BlockRows, BlockCols, int>` (the `BlockSpMat<Options, BlockRows,
+BlockCols>` alias; see [Block sparse matrices](#eigen_gpu_bsr) for
+which block shapes upload as BSR and which op / storage-order combinations do
+so without a host copy). Host-input
+methods accept host data and return host data; device-input methods
+(`deviceView()`, `multiply(A, d_x, d_y)`) operate on `DeviceMatrix`. Matrix
+dimensions and nonzero count must fit in `int` (cuSPARSE limitation; debug
+builds assert).
 
 ```cpp
 gpu::SparseContext()                                       // Creates own stream + cuSPARSE handle
@@ -1055,7 +1150,8 @@ void               multiply(A, d_x, d_y, alpha, beta, op=GpuOp::NoTrans)
 DeviceSparseView   deviceView(A)                                        // Upload sparse matrix, return view
 uint64_t           uploadGeneration()                                   // Generation of the cached upload
 
-// Advanced: run SpMV/SpMM against the already-uploaded matrix
+// Advanced: run SpMV/SpMM against the already-uploaded matrix (op must be
+// NoTrans after a BSR upload)
 void               spmv_device_exec(d_x, d_y, alpha=1, beta=0, op=GpuOp::NoTrans)
 void               spmm_device_exec(d_X, d_Y, alpha=1, beta=0, op=GpuOp::NoTrans)
 
@@ -1136,8 +1232,8 @@ template compatibility.
 | `GpuEigenSolver.h` | `GpuSolverContext.h` | `gpu::SelfAdjointEigenSolver<>` |
 | `CuFftSupport.h` | `GpuSupport.h`, `<cufft.h>` | cuFFT error macro, type-dispatch wrappers |
 | `GpuFFT.h` | `CuFftSupport.h`, `CuBlasSupport.h`, `GpuContext.h` | `gpu::FFT<>` -- 1D/2D FFT with plan caching |
-| `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro |
-| `GpuSparseContext.h` | `CuSparseSupport.h` | `gpu::SparseContext<>`, `gpu::DeviceSparseView<>` |
+| `CuSparseSupport.h` | `GpuSupport.h`, `<cusparse.h>` | cuSPARSE error macro, `EIGEN_HAS_CUSPARSE_BSR` |
+| `GpuSparseContext.h` | `CuSparseSupport.h` | `gpu::SparseContext<>`, `gpu::DeviceSparseView<>`, BSR binding of `BlockSparseMatrix` |
 | `CuDssSupport.h` | `GpuSupport.h`, `<cudss.h>` | cuDSS error macro, type traits (optional) |
 | `GpuSparseSolverBase.h` | `CuDssSupport.h` | CRTP base for sparse solvers (optional) |
 | `GpuSparseLLT.h` | `GpuSparseSolverBase.h` | `gpu::SparseLLT<>` -- Sparse Cholesky via cuDSS (optional) |
@@ -1155,7 +1251,7 @@ cmake -G Ninja -B build -S . \
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \
-  device_matrix cufft cusparse_spmv cg
+  device_matrix cufft cusparse_spmv cusparse_bsr cg
 ctest --test-dir build -L gpu --output-on-failure
 
 # Sparse solvers (cuDSS -- separate install required)

@@ -116,10 +116,19 @@ class EventCount {
       // We don't know if the thread was also notified or not,
       // so we should not consume a signal unconditionally.
       // Only if number of waiters is equal to number of signals,
-      // we know that the thread was notified and we must take away the signal.
-      if (((state & kWaiterMask) >> kWaiterShift) == ((state & kSignalMask) >> kSignalShift)) newstate -= kSignalInc;
+      // we know that the thread was notified and we must take away the signal
+      // and forward it to any other waiting thread.
+      const bool notify = (((state & kWaiterMask) >> kWaiterShift) == ((state & kSignalMask) >> kSignalShift));
+      if (notify) {
+        newstate -= kSignalInc;
+      }
       CheckState(newstate);
-      if (state_.compare_exchange_weak(state, newstate, std::memory_order_acq_rel)) return;
+      if (state_.compare_exchange_weak(state, newstate, std::memory_order_acq_rel)) {
+        if (notify) {
+          Notify(false);
+        }
+        return;
+      }
     }
   }
 

@@ -8,21 +8,24 @@
   variables:
     EIGEN_CI_BUILD_TARGET: buildtests
     # Reduce overall build size and compile time.
-    # Note: /d2ReducedOptimizeHugeFunctions is only available in VS 2019.
-    EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "/d2ReducedOptimizeHugeFunctions;/DEIGEN_STRONG_INLINE=inline;/Os"
+    # Note: -d2ReducedOptimizeHugeFunctions (VS 2019+) uses '-' rather than '/'
+    # because sccache treats unrecognized '/...' arguments as input file paths.
+    EIGEN_CI_TEST_CUSTOM_CXX_FLAGS: "-d2ReducedOptimizeHugeFunctions;-DEIGEN_STRONG_INLINE=inline;-Os"
     # "off" disables the ccache compiler launchers (see
     # build.windows.script.ps1). The script downloads a pinned,
     # SHA-256-verified ccache when the runner has none; if that also fails,
     # the job builds exactly as before.
     EIGEN_CI_CCACHE: "on"
-    CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
+    # cache:policy of the .ccache/ pool; see the Linux build template.
+    EIGEN_CI_CCACHE_POLICY: pull-push
+    EIGEN_CI_CCACHE_DIR: ${CI_PROJECT_DIR}/.ccache
     # Runner-local cache, so no archive-size limit applies; 4G holds a full
     # MSVC buildtests run with headroom and only bounds runner disk use.
-    CCACHE_MAXSIZE: 4G
+    EIGEN_CI_CCACHE_MAXSIZE: 4G
     # Hash compile paths relative to the project directory: absolute paths are
     # part of ccache's hash, so without this a checkout-path change (runner
     # layout, concurrent build slots) turns every compile into a miss.
-    CCACHE_BASEDIR: ${CI_PROJECT_DIR}
+    EIGEN_CI_CCACHE_BASEDIR: ${CI_PROJECT_DIR}
     # Don't re-compress the already-zstd-compressed ccache payload when
     # archiving; see the Linux build template for the measured rationale.
     FF_USE_FASTZIP: "true"
@@ -51,17 +54,20 @@
   # (when: always): the retry pipeline after a compile error is exactly where
   # hits matter most.
   cache:
-    # The pinned ccache binary the build script downloads when the runner has
+    # The pinned sccache/ccache binaries the build script downloads when the runner has
     # none; one shared key so a runner downloads it once for all build jobs.
     # Cache content is writable job output, not a trusted source: the script
     # re-verifies the binary's SHA-256 on every use before executing it.
     - key: "windows-ccache-bin"
       paths:
         - .ccache-bin/
+        - .sccache-bin/
       when: always
     - key: "$EIGEN_CI_CCACHE_POOL-ccache"
       paths:
         - .ccache/
+        - .sccache/
+      policy: $EIGEN_CI_CCACHE_POLICY
       when: always
 
 ######### MSVC #################################################################
@@ -93,9 +99,8 @@ build:windows:x86-64:msvc-14.29:avx512dq:
 
 .build:windows:cuda:
   extends: .build:windows
-  # The .cu compiles reach the launcher through the .bat wrapper that
-  # ei_cuda_use_compiler_launcher() puts in front of nvcc; see the Linux CUDA
-  # template for the rationale.
+  # The .cu compiles reach the launcher through CMAKE_CUDA_COMPILER_LAUNCHER;
+  # see the Linux CUDA template for the rationale.
   variables:
     # The GPU in the Windows CUDA runner (eigen-windows-testing-001.gcloud) is
     # a Tesla L4, sm_89.  Eigen has no architecture-dependent device code

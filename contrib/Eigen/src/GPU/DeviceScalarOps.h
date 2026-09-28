@@ -102,6 +102,17 @@ inline void device_cwiseQuotient(const double* a, const double* b, double* c, in
   nppsDiv_64f_Ctx(b, a, c, n, npp_ctx);
 }
 
+// x[i] /= alpha, a true division (NPP divide-by-constant, in place).
+inline void device_divC(float alpha, float* x, int n, cudaStream_t stream) {
+  NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
+  nppsDivC_32f_I_Ctx(alpha, x, n, npp_ctx);
+}
+
+inline void device_divC(double alpha, double* x, int n, cudaStream_t stream) {
+  NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
+  nppsDivC_64f_I_Ctx(alpha, x, n, npp_ctx);
+}
+
 }  // namespace internal
 }  // namespace gpu
 }  // namespace Eigen

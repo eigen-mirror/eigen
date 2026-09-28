@@ -72,11 +72,24 @@ void test_dynamic_bool() {
   MatrixX C(rows, cols);
   C.setRandom();
   MatrixX D(C);
+  MatrixX original(C);
   for (Index i = 0; i < C.rows(); ++i)
     for (Index j = 0; j < C.cols(); ++j)
       for (Index k = 0; k < A.cols(); ++k) D.coeffRef(i, j) |= (A.coeff(i, k) && B.coeff(k, j));
   C += A * B;
   VERIFY_IS_EQUAL(C, D);
+  C = original;
+  C.noalias() += A * B;
+  VERIFY_IS_EQUAL(C, D);
+
+  MatrixXi difference = A.cast<int>() * B.cast<int>() - A.cast<int>() * B.cast<int>();
+  VERIFY_IS_EQUAL(difference, MatrixXi::Zero(rows, cols));
+  difference.noalias() -= A.cast<int>() * B.cast<int>();
+  MatrixXi expected = MatrixXi::Zero(rows, cols);
+  for (Index i = 0; i < rows; ++i)
+    for (Index j = 0; j < cols; ++j)
+      for (Index k = 0; k < depth; ++k) expected(i, j) -= int(A(i, k)) * int(B(k, j));
+  VERIFY_IS_EQUAL(difference, expected);
 
   MatrixX E = B.transpose();
   for (Index i = 0; i < B.rows(); ++i)

@@ -8,11 +8,11 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-// Test that EIGEN_NO_AUTOMATIC_RESIZING still allows assignment to
-// default-constructed (empty) matrices and arrays.
+// Test resizing restrictions and assignment to empty matrices and arrays.
 
 #define EIGEN_NO_AUTOMATIC_RESIZING
 #include "main.h"
+#include <Eigen/Core>
 
 template <typename Scalar>
 void testNoAutomaticResizing() {
@@ -100,8 +100,37 @@ void testNoAutomaticResizing() {
   }
 }
 
+void testProductNoAutomaticResizing() {
+  const MatrixXd lhs = MatrixXd::Ones(3, 2);
+  const MatrixXd rhs = MatrixXd::Constant(2, 4, 2.0);
+  const MatrixXd expected = MatrixXd::Constant(3, 4, 4.0);
+
+  MatrixXd dst;
+  dst.noalias() = lhs * rhs;
+  VERIFY_IS_APPROX(dst, expected);
+  dst.noalias() = 2.0 * (lhs * rhs);
+  VERIFY_IS_APPROX(dst, 2.0 * expected);
+  dst.noalias() = lhs * rhs;
+  VERIFY_IS_APPROX(dst, expected);
+
+  dst.resize(2, 6);  // Same coefficient count does not imply compatible dimensions.
+  dst.setOnes();
+  VERIFY_RAISES_ASSERT(dst.noalias() = lhs * rhs);
+  VERIFY_RAISES_ASSERT(dst.noalias() = 2.0 * (lhs * rhs));
+  VERIFY_IS_EQUAL(dst.rows(), 2);
+  VERIFY_IS_EQUAL(dst.cols(), 6);
+  VERIFY_IS_EQUAL(dst.sum(), 12.0);
+
+  RowVectorXd row;
+  row.noalias() = lhs * Vector2d::Ones();
+  VERIFY_IS_APPROX(row, RowVector3d::Constant(2.0));
+  row.resize(2);
+  VERIFY_RAISES_ASSERT(row.noalias() = lhs * Vector2d::Ones());
+}
+
 EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_1(testNoAutomaticResizing<float>());
   CALL_SUBTEST_2(testNoAutomaticResizing<double>());
+  CALL_SUBTEST_2(testProductNoAutomaticResizing());
   CALL_SUBTEST_3(testNoAutomaticResizing<std::complex<double>>());
 }

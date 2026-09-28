@@ -134,13 +134,13 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       lu_solver.compute(M.block(k, k, S - k, S - k));
       VectorType c = lu_solver.solve(f.segment(k, S - k));
       // v = r - G(:,k:s)*c;
-      v = r - G.rightCols(S - k) * c;
+      v.noalias() = r - G.rightCols(S - k) * c;
       // Preconditioning
       v = precond.solve(v);
 
       // Compute new U(:,k) and G(:,k), G(:,k) is in space G_j
       U.col(k) = U.rightCols(S - k) * c + om * v;
-      G.col(k) = A * U.col(k);
+      G.col(k).noalias() = A * U.col(k);
 
       // Bi-Orthogonalise the new basis vectors:
       for (Index i = 0; i < k - 1; ++i) {
@@ -199,7 +199,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
     v = precond.solve(v);
 
     // Matrix-vector multiplication:
-    t = A * v;
+    t.noalias() = A * v;
 
     // Computation of a new omega
     om = internal::omega(t, r, angle);
@@ -218,7 +218,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
 
     // Residual replacement?
     if (trueres && normr < normb) {
-      r = b - A * x;
+      r.noalias() = b - A * x;
       trueres = false;
     }
 

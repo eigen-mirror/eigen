@@ -13,19 +13,29 @@ The documentation job is blocking and easy to miss. Unlike the clang-format, cod
 `build:linux:docs` in [`ci/build.linux.gitlab-ci.yml`](../ci/build.linux.gitlab-ci.yml) is not `allow_failure`, and
 [`doc/Doxyfile.in`](../doc/Doxyfile.in) sets `WARN_AS_ERROR = FAIL_ON_WARNINGS_PRINT`, so one Doxygen warning fails it.
 Its rules exclude the default merge-request pipeline: it runs on schedules, web pipelines, a merge request labeled
-`all-tests`, and a push to the default branch. A malformed `\ref` can therefore pass review with green CI and break the
-pipeline on `master` after the merge. For changes to Doxygen markup, a cross-reference target, a documented name, or a
-snippet, build the `doc` target locally with CI's pinned Doxygen version and report the result. If that validation is
-unavailable, name the missing coverage before merge.
+`docs-build` or `all-tests`, and a push to the default branch. A malformed `\ref` can therefore pass review with green
+CI and break the pipeline on `master` after the merge. For changes to Doxygen markup, a cross-reference target, a
+documented name, a module `README`, or a snippet, apply `docs-build`; it runs only this job and leaves the test tier
+unchanged, so it composes with `affected-tests`. A local `doc` build is weaker evidence, since local Doxygen versions
+resolve references CI's pinned version rejects; if you build locally instead, use that pinned version and report the
+result.
 
 Recommend `affected-tests` with the relevant platform labels, or `affected-tests` with `all-platforms`, for test
-coverage as described in [`ci.md`](ci.md). These labels do not trigger `build:linux:docs`, so their pipelines cannot
-replace documentation validation. Do not add `all-tests` without the user's explicit permission for that label.
+coverage as described in [`ci.md`](ci.md). Of the test labels, only `all-tests` also runs `build:linux:docs`; do not
+add it for that purpose, or at all without the user's explicit permission for that label.
 
 The recurring authoring mistake is trailing punctuation absorbed into a cross-reference: a colon directly after
 `\ref name` becomes part of the symbol Doxygen tries to resolve, so `\ref adjoint: the ...` fails while
 `\ref adjoint. The ...` resolves. Separate a reference from following prose with a space, comma, or period. Punctuation
 inside the name itself is fine — `\ref MatrixBase::cross()` is a qualified symbol, not a glued colon.
+
+A second way to break the job without editing a comment is to insert a declaration between a Doxygen block and the
+entity it describes. A block without a structural command (`\class`, `\fn`, `\ingroup`, ...) documents whatever
+declaration follows it. When that is `namespace internal {`, the whole `Eigen::internal` namespace becomes documented,
+every internal doc block enters the output, and their latent `\param` mismatches fail the build far from the edit:
+8f8d4ed4c placed helper structs under the `Transform::rotate` block and surfaced a stale `\param` in `GMRES.h`. After
+inserting code near a doc block, confirm the block still directly precedes its declaration; a trace that prints
+`Generating docs for namespace Eigen::internal` means it does not.
 
 The `doc` target also compiles and runs the configured examples and snippets, by way of the `all_snippets` and
 `all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks
