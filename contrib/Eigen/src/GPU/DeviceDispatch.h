@@ -69,6 +69,17 @@ void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExp
   if (resized) {
     dst.resize(m, n);
   }
+
+  // cuBLAS rejects ld = 0 (ld >= max(1, rows)) and the cublasLt heuristic
+  // faults on n == 0, so empty products stop here. For k == 0, C = beta * C
+  // with beta in {0, 1}; a resized C starts from zero.
+  if (m == 0 || n == 0 || k == 0) {
+    if ((resized || beta_val == Scalar(0)) && dst.sizeInBytes() > 0) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
+      dst.recordReady(ctx.stream());
+    }
+    return;
+  }
   const int64_t ldc = dst.rows();
 
   Scalar alpha_local = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());

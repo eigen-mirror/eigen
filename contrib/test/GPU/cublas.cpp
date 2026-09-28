@@ -373,6 +373,46 @@ void test_gemm_chain(Index n) {
   VERIFY((D - D_ref).norm() < tol);
 }
 
+// ---- GEMM with m, n, or k == 0 ---------------------------------------------
+
+template <typename Scalar>
+void test_gemm_empty_dim(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+  Mat C_init = Mat::Random(m, n);
+  const Mat zero = Mat::Zero(m, n);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_AH = gpu::DeviceMatrix<Scalar>::fromHost(Mat(A.adjoint()));
+  auto d_BT = gpu::DeviceMatrix<Scalar>::fromHost(Mat(B.transpose()));
+
+  // A * B is the m x n zero matrix: `=` overwrites a stale destination, and
+  // `+=` / `-=` leave C unchanged.
+  auto d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
+  d_C = d_A * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), zero);
+
+  gpu::DeviceMatrix<Scalar> d_D;
+  d_D = d_AH.adjoint() * d_BT.transpose();
+  VERIFY_IS_CWISE_EQUAL(d_D.toHost(), zero);
+
+  d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
+  d_C += d_A * d_BT.transpose();
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), C_init);
+
+  gpu::Context ctx;
+  d_C.device(ctx) -= (Scalar(2) * d_AH.adjoint()) * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), C_init);
+
+  // An empty destination accumulates from zero.
+  gpu::DeviceMatrix<Scalar> d_E;
+  d_E += d_A * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_E.toHost(), zero);
+}
+
 // ---- LLT solve expression: d_X = d_A.llt().solve(d_B) ----------------------
 
 template <typename MatrixType>
@@ -743,6 +783,9 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
   CALL_SUBTEST(test_gemm_chain<Scalar>(64));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(0, 5, 3));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(4, 0, 3));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(4, 5, 0));
 
   // Solver expressions — zero-size edge cases (use dedicated tests, not residual-based)
 

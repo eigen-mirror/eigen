@@ -545,6 +545,47 @@ void test_device_scalar() {
   }
 }
 
+// ---- BLAS-1 scaled by a gpu::DeviceScalar (device pointer mode) -------------
+
+template <typename Scalar>
+void test_device_scalar_blas1() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  const Index n = 256;
+  const Vec x = Vec::Random(n);
+  const Vec y = Vec::Random(n);
+  const Scalar alpha = gpu_test::make_test_value<Scalar>(RealScalar(1.5), RealScalar(-0.75));
+  // |fl(x + a*y) - (x + a*y)| <= (1/2 + sqrt(2)) eps (|x| + |a| |y|) elementwise, for the device result and again
+  // for the host reference.
+  const RealScalar tol = RealScalar(4) * NumTraits<Scalar>::epsilon() * (x.norm() + numext::abs(alpha) * y.norm());
+
+  gpu::Context ctx;
+  gpu::Context::setThreadLocal(&ctx);
+  const gpu::DeviceScalar<Scalar> d_alpha(alpha, ctx.stream());
+
+  // x *= d_alpha  (scal)
+  {
+    const Vec ref = alpha * x;
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    d_x *= d_alpha;
+    const Vec result = d_x.toHost(ctx.stream());
+    VERIFY((result - ref).norm() <= tol);
+  }
+
+  // x += d_alpha * y  (axpy)
+  {
+    const Vec ref = x + alpha * y;
+    auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+    auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(y, ctx.stream());
+    d_x += d_alpha * d_y;
+    const Vec result = d_x.toHost(ctx.stream());
+    VERIFY((result - ref).norm() <= tol);
+  }
+
+  gpu::Context::setThreadLocal(nullptr);
+}
+
 // ---- cwiseProduct -----------------------------------------------------------
 
 template <typename Scalar>
@@ -593,6 +634,10 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_device_scalar<double>());
   CALL_SUBTEST(test_device_scalar<std::complex<float>>());
   CALL_SUBTEST(test_device_scalar<std::complex<double>>());
+  CALL_SUBTEST(test_device_scalar_blas1<float>());
+  CALL_SUBTEST(test_device_scalar_blas1<double>());
+  CALL_SUBTEST(test_device_scalar_blas1<std::complex<float>>());
+  CALL_SUBTEST(test_device_scalar_blas1<std::complex<double>>());
   CALL_SUBTEST(test_cwiseProduct<float>());
   CALL_SUBTEST(test_cwiseProduct<double>());
 }
