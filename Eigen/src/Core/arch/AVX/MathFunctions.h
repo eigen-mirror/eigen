@@ -57,6 +57,14 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d ptan<Packet4d>(cons
   return _mm256_insertf128_pd(_mm256_castpd128_pd256(ptan(_mm256_castpd256_pd128(x))),
                               ptan(_mm256_extractf128_pd(x, 1)), 1);
 }
+
+// AVX-only Packet4d has no integer packet. Classify the bits using the SSE halves
+// so subnormals survive DAZ and NaNs survive fast-math.
+template <>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d psign<Packet4d>(const Packet4d& x) {
+  return _mm256_insertf128_pd(_mm256_castpd128_pd256(psign(_mm256_castpd256_pd128(x))),
+                              psign(_mm256_extractf128_pd(x, 1)), 1);
+}
 #endif
 EIGEN_GENERIC_PACKET_FUNCTION(atan, Packet4d)
 EIGEN_GENERIC_PACKET_FUNCTION(exp2, Packet4d)

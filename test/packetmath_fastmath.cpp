@@ -167,6 +167,50 @@ EIGEN_DONT_INLINE Eigen::numext::uint32_t extended_to_float_bits(const volatile 
   return Eigen::numext::bit_cast<Eigen::numext::uint32_t>(narrowed);
 }
 
+template <typename Scalar>
+EIGEN_DONT_INLINE void sign_array(const Scalar* input, Scalar* output, Index size) {
+  Map<Array<Scalar, Dynamic, 1>>(output, size) = Map<const Array<Scalar, Dynamic, 1>>(input, size).sign();
+}
+
+template <typename Scalar>
+void verify_binary_sign_fastmath() {
+  using Binary = Eigen::internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  constexpr int count = 2 * Eigen::internal::packet_traits<Scalar>::size + 1;
+  const Bits sign = Binary::kSignBit;
+  const Bits min_normal = Binary::kExponentUnit;
+  const Bits infinity = Binary::kExponentMask;
+  const Bits one = Binary::bits(Scalar(1));
+  const Bits nan = infinity | (min_normal >> 1) | Bits(0x12345);
+  const Bits samples[] = {Bits(0),
+                          sign,
+                          Bits(1),
+                          sign | Bits(1),
+                          min_normal - 1,
+                          sign | (min_normal - 1),
+                          one,
+                          sign | one,
+                          infinity,
+                          sign | infinity,
+                          nan,
+                          sign | nan};
+  Scalar input[count], output[count];
+  for (int offset = 0; offset < 12; ++offset) {
+    for (int lane = 0; lane < count; ++lane) {
+      const Bits bits = samples[(offset + lane) % 12];
+      std::memcpy(static_cast<void*>(input + lane), &bits, sizeof(bits));
+    }
+    // Runtime inputs keep fast-math constant folding out of the operation under test.
+    sign_array(input, output, count);
+    for (int lane = 0; lane < count; ++lane) {
+      const Bits bits = samples[(offset + lane) % 12];
+      const Bits magnitude = bits & ~sign;
+      const Bits expected = magnitude > infinity ? bits : magnitude == 0 ? Bits(0) : (bits & sign) | one;
+      VERIFY_IS_EQUAL(Eigen::numext::bit_cast<Bits>(output[lane]), expected);
+    }
+  }
+}
+
 template <typename Scalar, bool Vectorizable = Eigen::internal::packet_traits<Scalar>::Vectorizable>
 struct packetmath_fastmath_runner {
   static void run() {}
@@ -295,6 +339,8 @@ struct extended_scalar_constant_runner<Scalar, false> {
 };
 
 EIGEN_DECLARE_TEST(packetmath_fastmath) {
+  CALL_SUBTEST(verify_binary_sign_fastmath<float>());
+  CALL_SUBTEST(verify_binary_sign_fastmath<double>());
   CALL_SUBTEST(packetmath_fastmath_runner<float>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<double>::run());
   CALL_SUBTEST(packetmath_fastmath_runner<Eigen::half>::run());
