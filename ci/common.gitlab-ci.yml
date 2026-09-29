@@ -86,6 +86,8 @@
         - test/gpu_common.h
         - test/gpu_test_helper.h
         - test/main.h
+        - contrib/Eigen/GPU
+        - contrib/Eigen/src/GPU/**/*
         - contrib/Eigen/src/Tensor/*Gpu*.h
         - contrib/test/*.cu
         - contrib/test/GPU/**/*

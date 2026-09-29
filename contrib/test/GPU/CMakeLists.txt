@@ -86,14 +86,14 @@ ei_add_gpu_test(cublas_64bit EXTRA_LIBS CUDA::cublas)
 find_package(Threads REQUIRED)
 ei_add_gpu_test(device_buffer_pool EXTRA_LIBS Threads::Threads)
 
-# cuBLAS integration. OFF by default; later MRs in the stack opt in.
-option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" OFF)
+# cuBLAS integration.
+option(EIGEN_TEST_CUBLAS "Test cuBLAS integration" ON)
 if(EIGEN_TEST_CUBLAS AND TARGET CUDA::cublas)
   ei_add_gpu_test(cublas EXTRA_LIBS CUDA::cublas CUDA::cusolver)
 endif()
 
 # cuSOLVER dense factorizations (LLT, LU, QR, SVD, self-adjoint eigensolver).
-option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" OFF)
+option(EIGEN_TEST_CUSOLVER "Test cuSOLVER integration" ON)
 if(EIGEN_TEST_CUSOLVER AND TARGET CUDA::cusolver)
   find_package(Threads REQUIRED)
   ei_add_gpu_test(cusolver_llt EXTRA_LIBS CUDA::cusolver CUDA::cublas Threads::Threads)

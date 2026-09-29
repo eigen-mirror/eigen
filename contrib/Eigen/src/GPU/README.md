@@ -333,6 +333,11 @@ factorization status (one stream synchronization); release builds
 expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LU` classes
 and `info()` when numerical failure must be detected.
 
+cuSOLVER 11.4.1 and 11.4.2 (CUDA 11.8 and 12.0) have a defect here:
+`cusolverDnXpotrf` reports success on a matrix that is not positive definite
+and returns a factor full of NaN, so `gpu::LLT::info()` cannot detect that
+failure on those versions. cuSOLVER 11.4.4 (CUDA 12.1) and later report it.
+
 **Cached factorization** -- Factor once, solve many times:
 
 ```cpp
@@ -1294,9 +1299,7 @@ template compatibility.
 ```bash
 cmake -G Ninja -B build -S . \
   -DEIGEN_TEST_CUDA=ON \
-  -DEIGEN_CUDA_COMPUTE_ARCH="70" \
-  -DEIGEN_TEST_CUBLAS=ON \
-  -DEIGEN_TEST_CUSOLVER=ON
+  -DEIGEN_CUDA_COMPUTE_ARCH="70"
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \
