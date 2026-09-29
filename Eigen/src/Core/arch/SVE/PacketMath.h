@@ -989,7 +989,8 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXf, N>& kernel) {
 
 template <>
 EIGEN_STRONG_INLINE PacketXf pldexp<PacketXf>(const PacketXf& a, const PacketXf& exponent) {
-  return pldexp_generic(a, exponent);
+  // fscale is a * 2^n rounded once; the conversion saturates, and a saturated n over- or underflows every finite a.
+  return svscale_f32_x(svptrue_b32(), a, svcvt_s32_f32_x(svptrue_b32(), exponent));
 }
 
 template <>
@@ -1367,7 +1368,7 @@ EIGEN_STRONG_INLINE PacketXd pfrexp<PacketXd>(const PacketXd& a, PacketXd& expon
 
 template <>
 EIGEN_STRONG_INLINE PacketXd pldexp<PacketXd>(const PacketXd& a, const PacketXd& exponent) {
-  return pldexp_generic(a, exponent);
+  return svscale_f64_x(svptrue_b64(), a, svcvt_s64_f64_x(svptrue_b64(), exponent));  // see pldexp<PacketXf>
 }
 
 template <>

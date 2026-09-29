@@ -1478,26 +1478,24 @@ EIGEN_STRONG_INLINE Packet8d pfrexp<Packet8d>(const Packet8d& a, Packet8d& expon
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pldexp<Packet16f>(const Packet16f& a, const Packet16f& exponent) {
-  return pldexp_generic(a, exponent);
+  // vscalef is a * 2^floor(exponent), rounded once, and pldexp takes (int)exponent: truncate first.
+  return _mm512_scalef_ps(a, _mm512_roundscale_ps(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
-  // Clamp exponent to [-2099, 2099]
-  const Packet8d max_exponent = pset1<Packet8d>(2099.0);
-  const Packet8i e = _mm512_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  return _mm512_scalef_pd(a, _mm512_roundscale_pd(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+}
 
-  // Preserve the sequential 4-way split; see pldexp_generic.
-  // 2^b and 2^(e-3b) are built by widening the biased int32 exponent to int64
-  // with vpmovsxdq and shifting into the double exponent field with vpsllq.
-  const Packet8i bias = pset1<Packet8i>(1023);
-  const Packet8i b = parithmetic_shift_right<2>(e);           // floor(e/4)
-  const Packet8i b_remainder = psub(psub(e, b), padd(b, b));  // e - 3b (depth 2)
-  const Packet8d c1 = _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b, bias)), 52));  // 2^b
-  const Packet8d c2 =
-      _mm512_castsi512_pd(_mm512_slli_epi64(_mm512_cvtepi32_epi64(padd(b_remainder, bias)), 52));  // 2^(e-3b)
+// pldexp_fast's callers pass integral exponents, and vscalef floors, so neither the clamp nor the truncation.
+template <>
+EIGEN_STRONG_INLINE Packet16f pldexp_fast<Packet16f>(const Packet16f& a, const Packet16f& exponent) {
+  return _mm512_scalef_ps(a, exponent);
+}
 
-  return pldexp_apply_factors(a, c1, c2);  // a * 2^e
+template <>
+EIGEN_STRONG_INLINE Packet8d pldexp_fast<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
+  return _mm512_scalef_pd(a, exponent);
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512DQ

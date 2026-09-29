@@ -88,13 +88,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Pac
   return m;
 }
 
-// (((a * c1) * c1) * c1) * c2, with each partial product kept: -ffast-math would otherwise reassociate the factors,
-// whose products overflow or underflow where a * 2^e does not (see pldexp_generic).
+// ((a * c1) * c1) * c2, with each partial product kept: -ffast-math would otherwise reassociate the factors, whose
+// products overflow or underflow where a * 2^e does not (see pldexp_generic).
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2) {
   Packet out = pmul(a, c1);
-  EIGEN_OPTIMIZATION_BARRIER(out)
-  out = pmul(out, c1);
   EIGEN_OPTIMIZATION_BARRIER(out)
   out = pmul(out, c1);
   EIGEN_OPTIMIZATION_BARRIER(out)
@@ -117,37 +115,46 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_generic(const Packet& a, con
   // denormal.
   //
   // Unfortunately, 2^(278) cannot be represented using either one or two
-  // finite normal floats, so we must split the scale factor into at least
-  // three parts. It turns out to be faster to split 'exponent' into four
-  // factors, since [exponent>>2] is much faster to compute than [exponent/3].
+  // finite normal floats, so we must split the scale factor into three parts.
+  // A product rounded in two steps can be off by one unit when an
+  // intermediate is subnormal, so only the last multiplication may round:
   //
-  // Set e = min(max(exponent, -278), 278);
-  //     b = floor(e/4);
-  //     c1 = 2^b
-  //     c2 = 2^(e - 3b)
-  //   out = (((a * c1) * c1) * c1) * c2  (= a * 2^e)
+  // Set e  = min(max(exponent, -278), 278);
+  //     b  = min(max(exponent, -126), 126);
+  //     t  = (e - b) & ~1   (even, |t| <= 152)
+  //     c1 = 2^(t/2)
+  //     c2 = 2^(e - t)      (|e - t| <= 127)
+  //   out = ((a * c1) * c1) * c2  (= a * 2^e)
+  //
+  // For |e| <= 126, t = 0 and the result is the one product a * 2^e. For
+  // e > 126 the first two products are exact until they overflow, and then
+  // the result overflows. For e < -126, t >= e + 125, so an inexact partial
+  // product, below 2^-126, means the result is below 2^-251 and rounds to
+  // zero either way.
   //
   // Every partial product must contain 'a'. Reassociating scale factors can
   // overflow (for example c1*c1 at e=256 for float), making pldexp(0, 256)
-  // NaN and finite denormal results infinite. Apply c1 before c2 because c2
-  // may exceed one for negative exponents (e.g. c2=4 for e=-1), overflowing
-  // values near max even when the final result is finite.
+  // NaN and finite denormal results infinite.
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   using Scalar = typename unpacket_traits<Packet>::type;
   using ScalarI = typename unpacket_traits<PacketI>::type;
   static constexpr int TotalBits = sizeof(Scalar) * CHAR_BIT, MantissaBits = numext::numeric_limits<Scalar>::digits - 1,
                        ExponentBits = TotalBits - MantissaBits - 1;
 
+  constexpr ScalarI bias_value = (ScalarI(1) << (ExponentBits - 1)) - ScalarI(1);              // 127
   constexpr ScalarI max_exp_value = (ScalarI(1) << ExponentBits) + ScalarI(MantissaBits - 1);  // 278
+  constexpr ScalarI last_max_value = bias_value - ScalarI(1);                                  // 126
   const Packet max_exponent = pset1<Packet>(Scalar(max_exp_value));
   const Packet neg_max_exponent = pset1<Packet>(Scalar(-max_exp_value));
-  const PacketI bias = pset1<PacketI>((ScalarI(1) << (ExponentBits - 1)) - ScalarI(1));  // 127
+  const Packet last_max = pset1<Packet>(Scalar(last_max_value));
+  const Packet neg_last_max = pset1<Packet>(Scalar(-last_max_value));
+  const PacketI bias = pset1<PacketI>(bias_value);
   const PacketI e = pcast<Packet, PacketI>(pmin(pmax(exponent, neg_max_exponent), max_exponent));
-  const PacketI b = parithmetic_shift_right<2>(e);                                                     // floor(e/4);
-  const PacketI b_remainder = pnmadd(pset1<PacketI>(3), b, e);                                         // e - 3b
-  const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b, bias)));            // 2^b
-  const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(b_remainder, bias)));  // 2^(e-3*b)
-  return pldexp_apply_factors(a, c1, c2);                                                              // a * 2^e
+  const PacketI b = pcast<Packet, PacketI>(pmin(pmax(exponent, neg_last_max), last_max));
+  const PacketI t = pandnot(psub(e, b), pset1<PacketI>(ScalarI(1)));                                         // even
+  const Packet c1 = preinterpret<Packet>(plogical_shift_left<MantissaBits - 1>(padd(t, padd(bias, bias))));  // 2^(t/2)
+  const Packet c2 = preinterpret<Packet>(plogical_shift_left<MantissaBits>(padd(psub(e, t), bias)));         // 2^(e-t)
+  return pldexp_apply_factors(a, c1, c2);                                                                    // a * 2^e
 }
 
 // Explicitly multiplies

@@ -1167,12 +1167,10 @@ void packetmath_real() {
     data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::max_exponent() - 1));
     data1[PacketSize] = Scalar(+NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::max_exponent());
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
-    // Near-max magnitude with small negative exponents.  Regression guard for
-    // the 4-way scale-factor split: the remainder factor c2 = 2^(e-3*floor(e/4))
-    // is > 1 for e in {-1, -2, -5, -6, ...}, so the multiply tree must apply
-    // the downscale c1 before c2 -- otherwise (numext::abs(a)) * c2 spuriously
-    // overflows to inf for finite results like ldexp((numext::numeric_limits)
-    // <Scalar>::max(), -1).
+    // Near-max magnitude with small negative exponents: a scale factor above
+    // one, as the four-factor split's remainder 2^(e - 3 floor(e/4)) was for
+    // e in {-1, -2, -5, -6, ...}, overflows ldexp(max, -1) to inf when applied
+    // first.
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = (numext::numeric_limits<Scalar>::max)();
       data1[i + PacketSize] = Scalar(-1 - (i % 8));  // -1, -2, ..., -8
@@ -1196,6 +1194,40 @@ void packetmath_real() {
       data1[i + PacketSize] = Scalar(-2 * NumTraits<Scalar>::max_exponent() - (i % 4));
     }
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+#if !EIGEN_ARCH_ARM
+    // Every integer exponent to past both ends of the range, on bases in every sixteenth binade from the smallest
+    // subnormal up, bit for bit against std::ldexp. Scaling in steps must not round twice: with the last mantissa
+    // bit dropped by a subnormal intermediate, denorm_min * (1 + eps) / 2 became zero and denorm_min * (1.5 - eps)
+    // became 2 * denorm_min.
+    {
+      const int max_exp = NumTraits<Scalar>::max_exponent(), min_exp = NumTraits<Scalar>::min_exponent(),
+                digits = NumTraits<Scalar>::digits();
+      const Scalar eps = NumTraits<Scalar>::epsilon();
+      const Scalar mantissas[] = {Scalar(1), Scalar(1) + eps, Scalar(1.5) - eps, Scalar(2) - eps};
+      std::vector<Scalar> bases = {Scalar(0), std::numeric_limits<Scalar>::denorm_min(),
+                                   (std::numeric_limits<Scalar>::max)()};
+      for (int be = min_exp - digits; be < max_exp; be += 16) {
+        for (Scalar m : mantissas) bases.push_back(Scalar(std::ldexp(m, be)));
+      }
+      test::packet_helper<PacketTraits::HasExp, Packet> h;
+      const int range = max_exp - min_exp + digits + 20;
+      for (int e = -range; e <= range; ++e) {
+        for (size_t k = 0; k < bases.size(); k += PacketSize) {
+          for (int i = 0; i < PacketSize; ++i) {
+            const Scalar base = bases[(k + i) % bases.size()];
+            data1[i] = (i % 2) ? -base : base;
+            data1[i + PacketSize] = Scalar(e);  // rounded for bfloat16 beyond 256, so read it back
+            ref[i] = Scalar(std::ldexp(data1[i], static_cast<int>(data1[i + PacketSize])));
+          }
+          h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
+          for (int i = 0; i < PacketSize; ++i) {
+            VERIFY_IS_EQUAL(data2[i], ref[i]);  // prints the values; biteq also tells -0 from +0
+            VERIFY(test::biteq(data2[i], ref[i]));
+          }
+        }
+      }
+    }
+#endif
   }
 
   for (int i = 0; i < size; ++i) {

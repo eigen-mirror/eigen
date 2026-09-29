@@ -67,7 +67,7 @@ EIGEN_STRONG_INLINE Packet32h pfrexp<Packet32h>(const Packet32h& a, Packet32h& e
 // pldexp
 template <>
 EIGEN_STRONG_INLINE Packet32h pldexp<Packet32h>(const Packet32h& a, const Packet32h& exponent) {
-  return pldexp_generic(a, exponent);
+  return _mm512_scalef_ph(a, _mm512_roundscale_ph(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 }  // end namespace internal

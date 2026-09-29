@@ -1911,17 +1911,19 @@ EIGEN_STRONG_INLINE Packet8f pldexp<Packet8f>(const Packet8f& a, const Packet8f&
 }
 
 // Build 2^k as Packet4d from a Packet4i holding the biased int32 exponent in
-// each lane.  AVX2 has a single-instruction widen+shift path; AVX-only must
-// split the 128-bit input into two halves, widen+shift each separately with
-// SSE intrinsics, and reassemble with vinsertf128.
+// each lane, shifted by Shift: 52 for the biased exponent, 51 for twice it.
+// AVX2 has a single-instruction widen+shift path; AVX-only must split the
+// 128-bit input into two halves, widen+shift each separately with SSE
+// intrinsics, and reassemble with vinsertf128.
+template <int Shift = 52>
 EIGEN_STRONG_INLINE Packet4d pldexp_avx_pow2_from_biased(const Packet4i& biased) {
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(biased), 52));
+  return _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(biased), Shift));
 #else
   __m128i lo = _mm_cvtepi32_epi64(biased);                              // SSE4.1: lower 2 int32 -> 2 int64
   __m128i hi = _mm_cvtepi32_epi64(_mm_unpackhi_epi64(biased, biased));  // upper 2 int32 -> 2 int64
-  lo = _mm_slli_epi64(lo, 52);
-  hi = _mm_slli_epi64(hi, 52);
+  lo = _mm_slli_epi64(lo, Shift);
+  hi = _mm_slli_epi64(hi, Shift);
   return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
 #endif
 }
@@ -1932,12 +1934,12 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Preserve the sequential 4-way split; see pldexp_generic.
+  // The single-rounding split of pldexp_generic.
   const Packet4i bias = pset1<Packet4i>(1023);
-  const Packet4i b = parithmetic_shift_right<2>(e);                          // floor(e/4)
-  const Packet4i b_remainder = psub(psub(e, b), padd(b, b));                 // e - 3b (depth 2)
-  const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));            // 2^b
-  const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));  // 2^(e-3b)
+  const Packet4i b = pmin(pmax(e, pset1<Packet4i>(-1022)), pset1<Packet4i>(1022));
+  const Packet4i t = pandnot(psub(e, b), pset1<Packet4i>(1));                      // even
+  const Packet4d c1 = pldexp_avx_pow2_from_biased<51>(padd(t, padd(bias, bias)));  // 2^(t/2)
+  const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(psub(e, t), bias));         // 2^(e-t)
 
   return pldexp_apply_factors(a, c1, c2);  // a * 2^e
 }

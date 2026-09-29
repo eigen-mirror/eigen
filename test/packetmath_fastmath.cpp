@@ -292,7 +292,7 @@ EIGEN_DONT_INLINE void ldexp_packet(const Scalar* a, const Scalar* exponent, Sca
       output, Eigen::internal::pldexp(Eigen::internal::ploadu<Packet>(a), Eigen::internal::ploadu<Packet>(exponent)));
 }
 
-// pldexp scales by 2^e in four factors, 2^b three times and 2^(e - 3b) once. A product of two factors overflows or
+// pldexp scales by 2^e in three factors, 2^(t/2) twice and 2^(e - t) once. A product of two factors overflows or
 // underflows for |e| beyond the exponent range although a * 2^e is normal, so they must not be reassociated.
 template <typename Scalar>
 void verify_ldexp_beyond_exponent_range() {
