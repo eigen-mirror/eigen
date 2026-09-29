@@ -109,17 +109,11 @@ EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, c
     // Scale this numerator/denominator pair by min(1, 1/|tau|), taking scale = 1 at tau = 0.
     // Then numerator <= 1 and denominator <= 1 + sqrt(2); only a ratio <= 1 is squared.
     // Normalize the pair directly to save the division forming |t|.
-    RealScalar numerator;
-    RealScalar denominator;
-    if (abs_delta > deno) {
-      const RealScalar ratio = deno / abs_delta;
-      numerator = ratio;
-      denominator = sqrt(RealScalar(1) + numext::abs2(ratio)) + RealScalar(1);
-    } else {
-      const RealScalar ratio = abs_delta / deno;
-      numerator = RealScalar(1);
-      denominator = sqrt(RealScalar(1) + numext::abs2(ratio)) + ratio;
-    }
+    // Select operands before dividing: speculative evaluation of both reciprocal ratios can overflow.
+    const bool large_delta = abs_delta > deno;
+    const RealScalar ratio = (large_delta ? deno : abs_delta) / (large_delta ? abs_delta : deno);
+    const RealScalar numerator = large_delta ? ratio : RealScalar(1);
+    const RealScalar denominator = sqrt(RealScalar(1) + numext::abs2(ratio)) + (large_delta ? RealScalar(1) : ratio);
     const RealScalar n = RealScalar(1) / sqrt(numext::abs2(numerator) + numext::abs2(denominator));
     const RealScalar sine = numerator * n;
     const RealScalar sign_t = delta > RealScalar(0) ? RealScalar(1) : RealScalar(-1);

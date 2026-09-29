@@ -12,6 +12,7 @@
 #include "main.h"
 #include "fp_control.h"
 #include <Eigen/SVD>
+#include <cfenv>
 
 template <typename MatrixType, typename JacobiScalar>
 void jacobi(const MatrixType& m = MatrixType()) {
@@ -202,6 +203,37 @@ void jacobi_makegivens_subnormal() {
 }
 
 template <typename Scalar>
+EIGEN_DONT_INLINE void jacobi_makejacobi_bounded_ratio_impl(Scalar x, Scalar y, JacobiRotation<Scalar>& rotation) {
+  rotation.makeJacobi(x, y, Scalar(0));
+}
+
+template <typename Scalar>
+void jacobi_makejacobi_bounded_ratio() {
+#if defined(FE_OVERFLOW) && defined(FE_DIVBYZERO) && defined(FE_INVALID)
+  const Scalar small = (std::numeric_limits<Scalar>::min)();
+  // The unused reciprocal either divides by zero, overflows, or overflows when squared.
+  for (const Scalar x : {Scalar(0), small, Scalar(1)}) {
+    for (const Scalar y : {small, Scalar(0.5)}) {
+      JacobiRotation<Scalar> rotation;
+      std::fenv_t environment;
+      if (std::feholdexcept(&environment) != 0) {
+        std::cout << "SKIP: makeJacobi exception check: feholdexcept failed.\n";
+        return;
+      }
+      jacobi_makejacobi_bounded_ratio_impl(x, y, rotation);
+      const int exceptions = std::fetestexcept(FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
+      const int restored = std::fesetenv(&environment);
+      VERIFY_IS_EQUAL(restored, 0);
+      VERIFY_IS_EQUAL(exceptions, 0);
+      const Scalar c = rotation.c();
+      const Scalar s = rotation.s();
+      VERIFY(numext::abs(c * c + s * s - Scalar(1)) <= Scalar(8) * NumTraits<Scalar>::epsilon());
+    }
+  }
+#endif
+}
+
+template <typename Scalar>
 void jacobi_makejacobi_large_tau() {
   using std::abs;
   using std::sqrt;
@@ -309,6 +341,8 @@ EIGEN_DECLARE_TEST(jacobi) {
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<long double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<float>()));
     CALL_SUBTEST_7((jacobi_makejacobi_large_tau<double>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_bounded_ratio<float>()));
+    CALL_SUBTEST_7((jacobi_makejacobi_bounded_ratio<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<float>()));
     CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<float>()));
