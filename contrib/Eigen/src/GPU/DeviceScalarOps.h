@@ -24,6 +24,14 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
+// NPP statuses below NPP_SUCCESS are errors; positive ones are warnings.
+#define EIGEN_NPP_CHECK(expr)                                                                                \
+  do {                                                                                                       \
+    const NppStatus _s = (expr);                                                                             \
+    if (_s < NPP_SUCCESS)                                                                                    \
+      ::Eigen::gpu::internal::gpu_check_failed_code("NPP", static_cast<int>(_s), #expr, __FILE__, __LINE__); \
+  } while (0)
+
 // NPP requires nCudaDeviceId and the device attributes to match the device that
 // owns `stream`. Re-querying per call is cheap next to the NPP launch itself and
 // keeps multi-device and borrowed-stream callers correct.
@@ -61,69 +69,65 @@ inline NppStreamContext make_npp_stream_ctx(cudaStream_t stream) {
 // pDst[i] = pSrc2[i] / pSrc1[i].
 inline void device_scalar_div(const float* a, const float* b, float* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_32f_Ctx(b, a, c, 1, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDiv_32f_Ctx(b, a, c, 1, npp_ctx));
 }
 
 inline void device_scalar_div(const double* a, const double* b, double* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_64f_Ctx(b, a, c, 1, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDiv_64f_Ctx(b, a, c, 1, npp_ctx));
 }
 
 // a = sqrt(a), in place, with a context filled in before any capture began.
 inline void device_scalar_sqrt(float* a, const NppStreamContext& npp_ctx) {
-  const NppStatus status = nppsSqrt_32f_I_Ctx(a, 1, npp_ctx);
-  eigen_assert(status >= NPP_NO_ERROR && "nppsSqrt failed");
-  EIGEN_UNUSED_VARIABLE(status);
+  EIGEN_NPP_CHECK(nppsSqrt_32f_I_Ctx(a, 1, npp_ctx));
 }
 
 inline void device_scalar_sqrt(double* a, const NppStreamContext& npp_ctx) {
-  const NppStatus status = nppsSqrt_64f_I_Ctx(a, 1, npp_ctx);
-  eigen_assert(status >= NPP_NO_ERROR && "nppsSqrt failed");
-  EIGEN_UNUSED_VARIABLE(status);
+  EIGEN_NPP_CHECK(nppsSqrt_64f_I_Ctx(a, 1, npp_ctx));
 }
 
 // c = -a.
 inline void device_scalar_neg(const float* a, float* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMulC_32f_Ctx(a, -1.0f, c, 1, npp_ctx);
+  EIGEN_NPP_CHECK(nppsMulC_32f_Ctx(a, -1.0f, c, 1, npp_ctx));
 }
 
 inline void device_scalar_neg(const double* a, double* c, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMulC_64f_Ctx(a, -1.0, c, 1, npp_ctx);
+  EIGEN_NPP_CHECK(nppsMulC_64f_Ctx(a, -1.0, c, 1, npp_ctx));
 }
 
 // c[i] = a[i] * b[i].
 inline void device_cwiseProduct(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMul_32f_Ctx(a, b, c, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsMul_32f_Ctx(a, b, c, n, npp_ctx));
 }
 
 inline void device_cwiseProduct(const double* a, const double* b, double* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsMul_64f_Ctx(a, b, c, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsMul_64f_Ctx(a, b, c, n, npp_ctx));
 }
 
 // c[i] = a[i] / b[i], with operands swapped as in device_scalar_div.
 inline void device_cwiseQuotient(const float* a, const float* b, float* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_32f_Ctx(b, a, c, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDiv_32f_Ctx(b, a, c, n, npp_ctx));
 }
 
 inline void device_cwiseQuotient(const double* a, const double* b, double* c, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDiv_64f_Ctx(b, a, c, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDiv_64f_Ctx(b, a, c, n, npp_ctx));
 }
 
 // x[i] /= alpha, a true division (NPP divide-by-constant, in place).
 inline void device_divC(float alpha, float* x, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDivC_32f_I_Ctx(alpha, x, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDivC_32f_I_Ctx(alpha, x, n, npp_ctx));
 }
 
 inline void device_divC(double alpha, double* x, int n, cudaStream_t stream) {
   NppStreamContext npp_ctx = make_npp_stream_ctx(stream);
-  nppsDivC_64f_I_Ctx(alpha, x, n, npp_ctx);
+  EIGEN_NPP_CHECK(nppsDivC_64f_I_Ctx(alpha, x, n, npp_ctx));
 }
 
 }  // namespace internal

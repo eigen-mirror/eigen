@@ -1013,14 +1013,14 @@ class SparseContext {
   }
 
   // Destroy the sparse-matrix descriptor and reset the cache identity.
-  // `checked` selects assert-on-failure (mid-lifetime rebuilds) vs swallow
+  // `checked` selects checking (mid-lifetime rebuilds) vs swallowing failure
   // (noexcept destructor).
   void destroy_spmat_descriptor(bool checked) {
     if (spmat_desc_) {
-      cusparseStatus_t s = cusparseDestroySpMat(spmat_desc_);
-      eigen_assert((!checked || s == CUSPARSE_STATUS_SUCCESS) && "cusparseDestroySpMat failed");
-      EIGEN_UNUSED_VARIABLE(s);
-      EIGEN_UNUSED_VARIABLE(checked);
+      if (checked)
+        EIGEN_CUSPARSE_CHECK(cusparseDestroySpMat(spmat_desc_));
+      else
+        (void)cusparseDestroySpMat(spmat_desc_);
       spmat_desc_ = nullptr;
     }
     set_descriptor_key(-1, -1, -1, 0);

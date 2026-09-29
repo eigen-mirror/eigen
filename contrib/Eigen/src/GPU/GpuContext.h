@@ -20,7 +20,7 @@
 #include "./DeviceScalarOps.h"
 #include "./CuBlasSupport.h"
 #include "./CuSolverSupport.h"
-#include <cusparse.h>
+#include "./CuSparseSupport.h"
 #include <vector>
 
 namespace Eigen {
@@ -187,13 +187,9 @@ class Context {
   cusparseHandle_t cusparseHandle() {
     if (!cusparse_) {
       cusparseHandle_t h = nullptr;
-      cusparseStatus_t s1 = cusparseCreate(&h);
-      eigen_assert(s1 == CUSPARSE_STATUS_SUCCESS && "cusparseCreate failed");
-      EIGEN_UNUSED_VARIABLE(s1);
+      EIGEN_CUSPARSE_CHECK(cusparseCreate(&h));
       cusparse_ = LazyCusparseHandle(h, &destroyCusparse);
-      cusparseStatus_t s2 = cusparseSetStream(h, stream_.get());
-      eigen_assert(s2 == CUSPARSE_STATUS_SUCCESS && "cusparseSetStream failed");
-      EIGEN_UNUSED_VARIABLE(s2);
+      EIGEN_CUSPARSE_CHECK(cusparseSetStream(h, stream_.get()));
     }
     return cusparse_.get();
   }

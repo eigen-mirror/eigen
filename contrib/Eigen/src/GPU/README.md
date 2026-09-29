@@ -746,6 +746,44 @@ legacy stream the allocator uses for ordering). Consequences:
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
 
+### Error handling {#eigen_gpu_errors}
+
+Every CUDA runtime and library call the module makes is checked, in release
+builds as in debug builds. A failed call prints `file:line: call: error` to
+`stderr` and stops the program:
+
+- `std::abort()` when `EIGEN_NO_DEBUG` (or `NDEBUG`) is defined;
+- a failed `eigen_assert` otherwise.
+
+`error` is the status name where the library provides one
+(`cudaErrorInvalidValue`, `CUBLAS_STATUS_INVALID_VALUE`, ...) and
+`<library> status <code>` for cuFFT, cuDSS, NPP and cuBLAS before 11.6.1.
+There is no mode that ignores a failure: the failed call has not done its work,
+and a sticky error (say, an illegal address in a kernel) makes every later call
+on the device fail as well.
+
+To handle failures yourself, define
+`EIGEN_GPU_CHECK_FAILED(error, expression, file, line)` before including the
+module. `error`, `expression` and `file` are C strings; `line` is an `int`. For
+example, to turn failures into exceptions:
+
+```cpp
+#define EIGEN_GPU_CHECK_FAILED(error, expression, file, line) \
+  throw std::runtime_error(std::string(file) + ": " + (expression) + ": " + (error))
+#include <contrib/Eigen/GPU>
+```
+
+Destructors release their resources without the checks, so a throwing handler
+never runs inside one. A throw also restores the library-handle state an
+operation changes temporarily (the cuBLAS pointer mode), so the context stays
+usable; only the interrupted operation's output is unspecified. A handler that
+returns lets execution continue past the failed call, which is only useful in
+tests.
+
+Numerical failures (a matrix that is not positive definite, a singular
+factorization) are not call failures: they are reported by `info()` as
+described above.
+
 ## Reference
 
 ### Supported scalar types
@@ -1224,15 +1262,15 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | `EIGEN_GPU_CHECK_FAILED`, runtime error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
 | `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
-| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP |
+| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/sqrt/cwiseProduct via NPP, NPP error macro |
 | `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
-| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
+| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h`, `CuSparseSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
 | `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |

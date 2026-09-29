@@ -27,10 +27,25 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-#define EIGEN_CUBLAS_CHECK(expr)                                       \
-  do {                                                                 \
-    cublasStatus_t _s = (expr);                                        \
-    eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLAS call failed"); \
+// cublasGetStatusName arrived in cuBLAS 11.6.1 (CUDA 11.4 Update 2); before it,
+// a failure is reported by its numeric status.
+inline void cublas_check_failed(cublasStatus_t status, const char* expression, const char* file, int line) {
+#if defined(CUBLAS_VERSION) && CUBLAS_VERSION >= 110601
+  // A user-defined EIGEN_GPU_CHECK_FAILED need not use every argument.
+  EIGEN_UNUSED_VARIABLE(status);
+  EIGEN_UNUSED_VARIABLE(expression);
+  EIGEN_UNUSED_VARIABLE(file);
+  EIGEN_UNUSED_VARIABLE(line);
+  EIGEN_GPU_CHECK_FAILED(cublasGetStatusName(status), expression, file, line);
+#else
+  gpu_check_failed_code("cuBLAS", static_cast<int>(status), expression, file, line);
+#endif
+}
+
+#define EIGEN_CUBLAS_CHECK(expr)                                                                                 \
+  do {                                                                                                           \
+    const cublasStatus_t _s = (expr);                                                                            \
+    if (_s != CUBLAS_STATUS_SUCCESS) ::Eigen::gpu::internal::cublas_check_failed(_s, #expr, __FILE__, __LINE__); \
   } while (0)
 
 constexpr cublasOperation_t to_cublas_op(GpuOp op) {
@@ -118,11 +133,7 @@ struct cuda_compute_type<std::complex<double>> {
   static constexpr cublasComputeType_t value = cuda_compute_type_detail::kDouble;
 };
 
-#define EIGEN_CUBLASLT_CHECK(expr)                                       \
-  do {                                                                   \
-    cublasStatus_t _s = (expr);                                          \
-    eigen_assert(_s == CUBLAS_STATUS_SUCCESS && "cuBLASLt call failed"); \
-  } while (0)
+#define EIGEN_CUBLASLT_CHECK(expr) EIGEN_CUBLAS_CHECK(expr)
 
 // Maximum workspace the heuristic is allowed to consider. This is a preference
 // ceiling, not an allocation — actual allocation matches the selected algorithm.

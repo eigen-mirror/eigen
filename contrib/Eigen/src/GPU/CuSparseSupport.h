@@ -37,11 +37,10 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-#define EIGEN_CUSPARSE_CHECK(x)                                                 \
-  do {                                                                          \
-    cusparseStatus_t _s = (x);                                                  \
-    eigen_assert(_s == CUSPARSE_STATUS_SUCCESS && "cuSPARSE call failed: " #x); \
-    EIGEN_UNUSED_VARIABLE(_s);                                                  \
+#define EIGEN_CUSPARSE_CHECK(x)                                                                                  \
+  do {                                                                                                           \
+    const cusparseStatus_t _s = (x);                                                                             \
+    if (_s != CUSPARSE_STATUS_SUCCESS) EIGEN_GPU_CHECK_FAILED(cusparseGetErrorName(_s), #x, __FILE__, __LINE__); \
   } while (0)
 
 // cuSPARSE rejects CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE for real scalar

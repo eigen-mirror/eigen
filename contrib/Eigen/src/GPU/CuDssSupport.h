@@ -35,11 +35,11 @@
 namespace Eigen {
 namespace gpu {
 namespace internal {
-#define EIGEN_CUDSS_CHECK(x)                                              \
-  do {                                                                    \
-    cudssStatus_t _s = (x);                                               \
-    eigen_assert(_s == CUDSS_STATUS_SUCCESS && "cuDSS call failed: " #x); \
-    EIGEN_UNUSED_VARIABLE(_s);                                            \
+#define EIGEN_CUDSS_CHECK(x)                                                                                \
+  do {                                                                                                      \
+    const cudssStatus_t _s = (x);                                                                           \
+    if (_s != CUDSS_STATUS_SUCCESS)                                                                         \
+      ::Eigen::gpu::internal::gpu_check_failed_code("cuDSS", static_cast<int>(_s), #x, __FILE__, __LINE__); \
   } while (0)
 
 // cuDSS 0.8 changed cudssMatrixCreateDn/Csr from cudaDataType_t to the

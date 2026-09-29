@@ -58,9 +58,10 @@ class HostTransfer {
   /** Non-blocking check: has the transfer completed? */
   bool ready() const {
     if (synced_) return true;
-    cudaError_t err = cudaEventQuery(event_);
+    const cudaError_t err = cudaEventQuery(event_);
     if (err == cudaSuccess) return true;
-    eigen_assert(err == cudaErrorNotReady && "cudaEventQuery failed");
+    if (err != cudaErrorNotReady)
+      EIGEN_GPU_CHECK_FAILED(cudaGetErrorName(err), "cudaEventQuery(event_)", __FILE__, __LINE__);
     return false;
   }
 

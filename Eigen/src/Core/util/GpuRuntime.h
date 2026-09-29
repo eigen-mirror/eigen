@@ -41,20 +41,14 @@ inline void gpu_runtime_check(gpuError_t error, const char* expression, const ch
 }  // namespace Eigen
 
 // EIGEN_GPU_RUNTIME_CHECK(call) evaluates a runtime-API call once and reports a failure through
-// gpu_runtime_check_failed(). Define the macro before including the module to route failures elsewhere; define
-// EIGEN_GPU_NO_RUNTIME_CHECKS to evaluate the call and ignore its result, which is what release builds did before.
+// gpu_runtime_check_failed(). Define the macro before including the module to route failures elsewhere. There is
+// no mode that ignores the result: a failed call has not done its work, and a sticky error leaves the context
+// unusable for every later call.
 #if !defined(EIGEN_GPU_RUNTIME_CHECK)
-#if defined(EIGEN_GPU_NO_RUNTIME_CHECKS)
-#define EIGEN_GPU_RUNTIME_CHECK(expr) \
-  do {                                \
-    (void)(expr);                     \
-  } while (0)
-#else
 #define EIGEN_GPU_RUNTIME_CHECK(expr)                                        \
   do {                                                                       \
     ::Eigen::internal::gpu_runtime_check((expr), #expr, __FILE__, __LINE__); \
   } while (0)
-#endif
 #endif
 
 #if defined(EIGEN_GPUCC)
