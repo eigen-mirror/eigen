@@ -2329,6 +2329,43 @@ void packetmath_binary_sign_flushed() {
   packetmath_binary_sign_subnormals<Scalar>();
 }
 
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+void packetmath_bfloat16_sign_bits() {
+  using Packet = internal::packet_traits<bfloat16>::type;
+  constexpr int packet_size = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_MAX bfloat16 input[packet_size], output[packet_size];
+  for (unsigned first = 0; first < 65536; first += packet_size) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
+    }
+    internal::pstoreu(output, internal::psign(internal::ploadu<Packet>(input)));
+    for (int i = 0; i < packet_size; ++i) {
+      const numext::uint16_t bits = static_cast<numext::uint16_t>(first + i);
+      const numext::uint16_t magnitude = bits & 0x7fff;
+      numext::uint16_t expected = 0;
+      if (magnitude > 0x7f80) {
+        expected = bits;
+      } else if (magnitude != 0) {
+        expected = static_cast<numext::uint16_t>((bits & 0x8000) | 0x3f80);
+      }
+      VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(output[i]), expected);
+    }
+  }
+}
+
+void packetmath_bfloat16_sign_bits_flushed() {
+  ScopedFlushToZero flush_to_zero;
+  if (!flush_to_zero.isSupported()) return;
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  // FTZ flushes results; DAZ makes float comparisons read subnormal inputs as zero.
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_bfloat16_sign_bits();
+}
+#endif
+
 namespace Eigen {
 namespace test {
 
@@ -2401,6 +2438,12 @@ EIGEN_DECLARE_TEST(packetmath) {
   CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
   CALL_SUBTEST_1(packetmath_binary_sign_flushed<float>());
   CALL_SUBTEST_2(packetmath_binary_sign_flushed<double>());
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
+#endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));

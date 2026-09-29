@@ -2700,6 +2700,15 @@ EIGEN_STRONG_INLINE Packet8bf pisnan<Packet8bf>(const Packet8bf& a) {
   return _mm_cmpgt_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
 }
 
+// Compare encoded lanes: widening bf16 subnormals to float loses them under DAZ/FZ.
+template <>
+EIGEN_STRONG_INLINE Packet8bf psign<Packet8bf>(const Packet8bf& a) {
+  const __m128i magnitude = _mm_and_si128(a, _mm_set1_epi16(0x7fff));
+  const __m128i is_nan = _mm_cmpgt_epi16(magnitude, _mm_set1_epi16(0x7f80));
+  const __m128i keep = _mm_or_si128(is_nan, _mm_set1_epi16(static_cast<short>(0xbf80u)));
+  return _mm_sign_epi16(_mm_and_si128(_mm_or_si128(a, _mm_set1_epi16(0x3f80)), keep), magnitude);
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8bf pisfinite<Packet8bf>(const Packet8bf& a) {
   constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
