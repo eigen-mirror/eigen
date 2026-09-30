@@ -1194,6 +1194,27 @@ void packetmath_real() {
       data1[i + PacketSize] = Scalar(-2 * NumTraits<Scalar>::max_exponent() - (i % 4));
     }
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // An infinite exponent saturates like any exponent past the clamp. ldexp turns an int exponent beyond the range of
+    // half into +-inf, and vscalef alone gives NaN for 0 * 2^inf and inf * 2^-inf, and a number for NaN * 2^(+-inf).
+    // The scalar pldexp converts the exponent to int, undefined for inf, so only packets are checked.
+    if (!internal::is_scalar<Packet>::value && PacketTraits::HasExp) {
+      const Scalar inf = NumTraits<Scalar>::infinity(), big = (numext::numeric_limits<Scalar>::max)();
+      const Scalar bases[] = {Scalar(0), -Scalar(0), Scalar(1), -big, inf, -inf, NumTraits<Scalar>::quiet_NaN()};
+      test::packet_helper<PacketTraits::HasExp, Packet> h;
+      for (const int n : {(std::numeric_limits<int>::max)(), (std::numeric_limits<int>::min)()}) {
+        for (int k = 0; k < 7; k += PacketSize) {
+          for (int i = 0; i < PacketSize; ++i) {
+            data1[i] = bases[(k + i) % 7];
+            data1[i + PacketSize] = n > 0 ? inf : -inf;
+            ref[i] = static_cast<Scalar>(std::ldexp(static_cast<double>(data1[i]), n));
+          }
+          h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
+          for (int i = 0; i < PacketSize; ++i) {
+            VERIFY((numext::isnan)(ref[i]) ? (numext::isnan)(data2[i]) : test::biteq(data2[i], ref[i]));
+          }
+        }
+      }
+    }
 #if !EIGEN_ARCH_ARM
     // Every integer exponent to past both ends of the range, on bases in every sixteenth binade from the smallest
     // subnormal up, bit for bit against std::ldexp. Scaling in steps must not round twice: with the last mantissa

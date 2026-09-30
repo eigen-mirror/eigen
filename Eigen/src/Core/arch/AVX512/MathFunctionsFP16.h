@@ -67,7 +67,10 @@ EIGEN_STRONG_INLINE Packet32h pfrexp<Packet32h>(const Packet32h& a, Packet32h& e
 // pldexp
 template <>
 EIGEN_STRONG_INLINE Packet32h pldexp<Packet32h>(const Packet32h& a, const Packet32h& exponent) {
-  return _mm512_scalef_ph(a, _mm512_roundscale_ph(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+  // Clamped for the reasons at pldexp<Packet16f>; an int exponent beyond the range of half arrives as +-inf.
+  const Packet32h max_exponent = pset1<Packet32h>(Eigen::half(41.0f));
+  const Packet32h e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
+  return _mm512_scalef_ph(a, _mm512_roundscale_ph(e, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 }  // end namespace internal

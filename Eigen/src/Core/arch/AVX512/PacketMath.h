@@ -1478,13 +1478,19 @@ EIGEN_STRONG_INLINE Packet8d pfrexp<Packet8d>(const Packet8d& a, Packet8d& expon
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pldexp<Packet16f>(const Packet16f& a, const Packet16f& exponent) {
-  // vscalef is a * 2^floor(exponent), rounded once, and pldexp takes (int)exponent: truncate first.
-  return _mm512_scalef_ps(a, _mm512_roundscale_ps(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+  // vscalef is a * 2^floor(exponent), rounded once, and pldexp takes (int)exponent: truncate first. Clamp as
+  // pldexp_generic does: vscalef gives NaN for 0 * 2^inf and inf * 2^-inf, and a number for NaN * 2^(+-inf), and an
+  // int exponent beyond the range of half is infinite by the time it reaches here through half2float.
+  const Packet16f max_exponent = pset1<Packet16f>(278.0f);
+  const Packet16f e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
+  return _mm512_scalef_ps(a, _mm512_roundscale_ps(e, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8d pldexp<Packet8d>(const Packet8d& a, const Packet8d& exponent) {
-  return _mm512_scalef_pd(a, _mm512_roundscale_pd(exponent, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
+  const Packet8d max_exponent = pset1<Packet8d>(2099.0);  // see pldexp<Packet16f>
+  const Packet8d e = pmin(pmax(exponent, pnegate(max_exponent)), max_exponent);
+  return _mm512_scalef_pd(a, _mm512_roundscale_pd(e, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));
 }
 
 // pldexp_fast's callers pass integral exponents, and vscalef floors, so neither the clamp nor the truncation.
