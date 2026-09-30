@@ -162,11 +162,13 @@ void array_special_functions() {
     CALL_SUBTEST(res = x.ndtri(); verify_component_wise(res, ref););
     CALL_SUBTEST(res = ndtri(x); verify_component_wise(res, ref););
 
-    // ndtri(normal_cdf(x)) ~= x
+    // ndtri(normal_cdf(x)) ~= x. A rounding error of eps * p in p = normal_cdf(x) moves ndtri(p) by eps * p / pdf(x),
+    // at most 3.5 eps on [-1, 1], so the error is bounded absolutely rather than relative to x, which may be near 0.
+    // The rest of the 16 eps covers the rounding of erf and ndtri themselves.
     CALL_SUBTEST(ArrayType m1 = ArrayType::Random(32); using std::sqrt;
 
                  ArrayType cdf_val = (m1 / Scalar(sqrt(2.))).erf(); cdf_val = (cdf_val + Scalar(1)) / Scalar(2);
-                 verify_component_wise(cdf_val.ndtri(), m1););
+                 VERIFY(max_abs_coeff(cdf_val.ndtri() - m1) <= RealScalar(16) * NumTraits<RealScalar>::epsilon()););
   }
 
   // Check the zeta function against scipy.special.zeta
@@ -293,31 +295,32 @@ void array_special_functions() {
     ArrayType b = (m2 * Scalar(4)).exp();
     ArrayType x = m3.abs();
 
-    // betainc(a, 1, x) == x**a
+    // betainc(a, 1, x) == x**a. One ulp of a subnormal x**a exceeds the relative tolerance, so the smallest normal is
+    // added to the scale as an absolute floor.
+    const Scalar tiny = (std::numeric_limits<Scalar>::min)();
     CALL_SUBTEST(ArrayType test = betainc(a, one, x); ArrayType expected = x.pow(a);
-                 verify_component_wise(test, expected););
+                 for (Index i = 0; i < test.size(); ++i)
+                     VERIFY_IS_APPROX_SCALED(test.segment(i, 1), expected.segment(i, 1), expected(i) + tiny););
 
-    // betainc(1, b, x) == 1 - (1 - x)**b
-    CALL_SUBTEST(ArrayType test = betainc(one, b, x); ArrayType expected = one - (one - x).pow(b);
+    // betainc(1, b, x) == 1 - (1 - x)**b, evaluated as -expm1(b * log1p(-x)): for small b * x the direct form cancels
+    // to a relative error near eps / (b * x).
+    CALL_SUBTEST(ArrayType test = betainc(one, b, x); ArrayType expected = -(b * (-x).log1p()).expm1();
                  verify_component_wise(test, expected););
 
     // betainc(a, b, x) == 1 - betainc(b, a, 1-x)
     CALL_SUBTEST(ArrayType test = betainc(a, b, x) + betainc(b, a, one - x); ArrayType expected = one;
                  verify_component_wise(test, expected););
 
-    // betainc(a+1, b, x) = betainc(a, b, x) - x**a * (1 - x)**b / (a * beta(a, b))
-    CALL_SUBTEST(
-        ArrayType num = x.pow(a) * (one - x).pow(b);
-        ArrayType denom = a * (a.lgamma() + b.lgamma() - (a + b).lgamma()).exp();
-        // Add eps to rhs and lhs so that component-wise test doesn't result in
-        // nans when both outputs are zeros.
-        ArrayType expected = betainc(a, b, x) - num / denom + eps;
-        ArrayType test = betainc(a + one, b, x) + eps; if (sizeof(Scalar) >= 8) {  // double
-          verify_component_wise(test, expected);
-        } else {
-          // Reason for limited test: http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1232
-          verify_component_wise(test.head(8), expected.head(8));
-        });
+    // betainc(a+1, b, x) = betainc(a, b, x) - x**a * (1 - x)**b / (a * beta(a, b)). The difference cancels, so the
+    // error is bounded relative to the larger of the two terms rather than to the result, plus the smallest normal as
+    // the floor for subnormal results. The subtracted term is evaluated in log space: in float x**a * (1 - x)**b
+    // underflows while the term itself, divided by a small beta(a, b), does not.
+    CALL_SUBTEST(ArrayType log_beta = a.lgamma() + b.lgamma() - (a + b).lgamma();
+                 ArrayType term = (a * x.log() + b * (-x).log1p() - a.log() - log_beta).exp();
+                 ArrayType lhs = betainc(a, b, x); ArrayType scale = (lhs.max)(term) + tiny;
+                 ArrayType expected = lhs - term; ArrayType test = betainc(a + one, b, x);
+                 for (Index i = 0; i < test.size(); ++i)
+                     VERIFY_IS_APPROX_SCALED(test.segment(i, 1), expected.segment(i, 1), scale(i)););
 
     // betainc(a, b+1, x) = betainc(a, b, x) + x**a * (1 - x)**b / (b * beta(a, b))
     CALL_SUBTEST(
