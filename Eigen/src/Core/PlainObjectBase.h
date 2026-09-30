@@ -705,8 +705,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _resize_to_match(const EigenBase<OtherDerived>& other) {
 #ifdef EIGEN_NO_AUTOMATIC_RESIZING
-    eigen_assert((this->size() == 0 || (IsVectorAtCompileTime ? (this->size() == other.size())
-                                                              : (rows() == other.rows() && cols() == other.cols()))) &&
+    eigen_assert((this->size() == 0 ||
+                  (IsVectorAtCompileTime ? ((other.rows() == 1 || other.cols() == 1) && this->size() == other.size())
+                                         : (rows() == other.rows() && cols() == other.cols()))) &&
                  "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
     if (this->size() == 0) resizeLike(other);
     EIGEN_ONLY_USED_FOR_DEBUG(other);

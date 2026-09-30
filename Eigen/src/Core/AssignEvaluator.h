@@ -904,10 +904,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprTyp
   Index dstCols = src.cols();
   if (((dst.rows() != dstRows) || (dst.cols() != dstCols))) {
 #ifdef EIGEN_NO_AUTOMATIC_RESIZING
-    eigen_assert(
-        (dst.size() == 0 || (DstXprType::IsVectorAtCompileTime ? (dst.size() == src.size())
-                                                               : (dst.rows() == dstRows && dst.cols() == dstCols))) &&
-        "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
+    eigen_assert(dst.size() == 0 &&
+                 "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
     if (dst.size() == 0) {
       dst.resize(dstRows, dstCols);
     }
