@@ -102,6 +102,7 @@ server.serve_forever()
 
     if "${sccache_bin}" --start-server >/dev/null 2>&1; then
       compiler_launcher="sccache"
+      trap '"${sccache_bin}" --stop-server >/dev/null 2>&1 || true; [[ -n "${sccache_cred_server_pid}" ]] && kill "${sccache_cred_server_pid}" 2>/dev/null || true' EXIT
       "${sccache_bin}" --zero-stats >/dev/null 2>&1 || true
       launchers="-DCMAKE_C_COMPILER_LAUNCHER=${sccache_bin} -DCMAKE_CXX_COMPILER_LAUNCHER=${sccache_bin}"
     else

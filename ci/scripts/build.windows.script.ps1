@@ -89,9 +89,10 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
     $env:SCCACHE_CACHE_SIZE = if ($env:SCCACHE_CACHE_SIZE) { $env:SCCACHE_CACHE_SIZE } elseif ($env:EIGEN_CI_SCCACHE_CACHE_SIZE) { $env:EIGEN_CI_SCCACHE_CACHE_SIZE } else { "4G" }
     # Rewrite paths relative to rootdir for cross-runner / cross-directory cache hits.
     $env:SCCACHE_BASEDIRS = $rootdir
-    # Isolate daemon port per runner slot to avoid port collisions and process cross-kill.
-    $concurrent_id = if ($env:CI_CONCURRENT_ID) { [int]$env:CI_CONCURRENT_ID } else { 0 }
-    $env:SCCACHE_SERVER_PORT = [string](4226 + $concurrent_id)
+    # Isolate daemon port per job: CI_CONCURRENT_ID is only unique within one
+    # runner registration, and the Windows host runs multiple registrations.
+    $job_id = if ($env:CI_JOB_ID) { [int64]$env:CI_JOB_ID } else { 0 }
+    $env:SCCACHE_SERVER_PORT = [string](4226 + ($job_id % 10000))
 
     $cred_server_job = $null
     if ($env:EIGEN_GCS_CACHE_TOKEN_RW -or $env:EIGEN_GCS_CACHE_TOKEN_RO) {
@@ -215,93 +216,97 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
   }
 }
 
-# Configure build.
-cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel `
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS="${EIGEN_CI_TEST_CUSTOM_CXX_FLAGS}" `
-      ${launchers} ${split_args} "${rootdir}"
+$success = 0
+$show_stats = $false
+try {
+  # Configure build.
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel `
+        -DEIGEN_TEST_CUSTOM_CXX_FLAGS="${EIGEN_CI_TEST_CUSTOM_CXX_FLAGS}" `
+        ${launchers} ${split_args} "${rootdir}"
 
-# Targets that this configuration did not register (optional dependencies such
-# as CHOLMOD or CUDA) are dropped from the selection read above: ninja aborts on
-# an unknown target, and this is the first point that knows what CMake actually
-# configured.
-$selected_targets = @()
-if (${EIGEN_CI_BUILD_TARGET_FILE}) {
-  # Not redirected with 2>: the runner sets $ErrorActionPreference to Stop, and
-  # redirecting a native command's stderr promotes each line it writes to a
-  # terminating error, which would abort the job ahead of the report below.
-  $configured = @{}
-  try {
-    foreach ($line in (ninja -t targets all)) {
-      if ($line -match '^([A-Za-z_0-9]+): phony$') { $configured[$Matches[1]] = $true }
+  # Targets that this configuration did not register (optional dependencies such
+  # as CHOLMOD or CUDA) are dropped from the selection read above: ninja aborts on
+  # an unknown target, and this is the first point that knows what CMake actually
+  # configured.
+  $selected_targets = @()
+  if (${EIGEN_CI_BUILD_TARGET_FILE}) {
+    $configured = @{}
+    try {
+      foreach ($line in (ninja -t targets all 2>$null)) {
+        if ($line -match '^([A-Za-z_0-9]+): phony$') { $configured[$Matches[1]] = $true }
+      }
+    } catch {
+      Write-Warning "Enumerating configured targets failed: $_"
     }
-  } catch {
-    Write-Warning "Enumerating configured targets failed: $_"
+    # An empty query means ninja is unusable, not that nothing is configured.
+    # Without this the intersection below would be empty and the job would
+    # trivially "succeed" having built nothing.
+    if ($configured.Count -eq 0) {
+      Write-Error "Could not enumerate configured targets via 'ninja -t targets'."
+      Exit 1
+    }
+    $selected_targets = @($requested | Where-Object { $configured.ContainsKey($_) })
+    $unconfigured = @($requested | Where-Object { -Not $configured.ContainsKey($_) })
+    Write-Host ("Affected selection: {0} of {1} requested targets are configured here." -f
+                $selected_targets.Count, $requested.Count)
+    if ($unconfigured.Count -gt 0) {
+      Write-Host ("Not configured in this build: " + ($unconfigured -join " "))
+    }
+    if ($selected_targets.Count -eq 0) {
+      Write-Host "None of the affected tests exist in this configuration; nothing to build."
+      Exit 0
+    }
   }
-  # An empty query means ninja is unusable, not that nothing is configured.
-  # Without this the intersection below would be empty and the job would
-  # trivially "succeed" having built nothing.
-  if ($configured.Count -eq 0) {
-    Write-Error "Could not enumerate configured targets via 'ninja -t targets'."
-    cd ${rootdir}
-    Exit 1
+
+  # Built as an array, not a string: PowerShell hands a single string containing
+  # spaces to a native command as one argument, which cmake rejects as an unknown
+  # target name.  An affected selection is always a list, and the SME-style
+  # multi-target EIGEN_CI_BUILD_TARGET is one too.
+  $target = @()
+  if ($selected_targets.Count -gt 0) {
+    $target = @("--target") + $selected_targets
+  } elseif (${EIGEN_CI_BUILD_TARGET}) {
+    $target = @("--target") + @(${EIGEN_CI_BUILD_TARGET} -split '\s+' | Where-Object { $_ })
   }
-  $selected_targets = @($requested | Where-Object { $configured.ContainsKey($_) })
-  $unconfigured = @($requested | Where-Object { -Not $configured.ContainsKey($_) })
-  Write-Host ("Affected selection: {0} of {1} requested targets are configured here." -f
-              $selected_targets.Count, $requested.Count)
-  if ($unconfigured.Count -gt 0) {
-    Write-Host ("Not configured in this build: " + ($unconfigured -join " "))
+
+  $show_stats = $true
+  # Windows builds sometimes fail due heap errors. In that case, try
+  # building the rest, then try to build again with a single thread.
+  cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
+
+  $success = $LASTEXITCODE
+} finally {
+  # Hit/miss summary and daemon teardown. Runs on early exits and failures too:
+  # stopping the sccache server releases its Windows file lock on
+  # .sccache-bin\sccache.exe before the next job's git clean runs.
+  if ($compiler_launcher -eq "sccache" -and $sccache_exe) {
+    if ($show_stats) {
+      & $sccache_exe --show-stats
+    }
+    & $sccache_exe --stop-server 2>$null | Out-Null
+    if ($cred_server_job) {
+      Stop-Job $cred_server_job -ErrorAction SilentlyContinue
+      Remove-Job $cred_server_job -Force -ErrorAction SilentlyContinue
+    }
+    # Incompatible cache formats: purge unused .ccache\ before cache upload so the
+    # uploaded cache archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
+    $old_ccache = Join-Path $rootdir ".ccache"
+    if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
+  } elseif ($compiler_launcher -eq "ccache" -and $ccache_exe) {
+    if ($show_stats) {
+      & $ccache_exe --show-log-stats
+    }
+    if (Test-Path $env:CCACHE_STATSLOG) {
+      Remove-Item $env:CCACHE_STATSLOG -Force
+    }
+    # Incompatible cache formats: purge unused .sccache\ before cache upload.
+    $old_sccache = Join-Path $rootdir ".sccache"
+    if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
   }
-  if ($selected_targets.Count -eq 0) {
-    Write-Host "None of the affected tests exist in this configuration; nothing to build."
-    cd ${rootdir}
-    Exit 0
-  }
+
+  # Return to root directory.
+  cd ${rootdir}
 }
-
-# Built as an array, not a string: PowerShell hands a single string containing
-# spaces to a native command as one argument, which cmake rejects as an unknown
-# target name.  An affected selection is always a list, and the SME-style
-# multi-target EIGEN_CI_BUILD_TARGET is one too.
-$target = @()
-if ($selected_targets.Count -gt 0) {
-  $target = @("--target") + $selected_targets
-} elseif (${EIGEN_CI_BUILD_TARGET}) {
-  $target = @("--target") + @(${EIGEN_CI_BUILD_TARGET} -split '\s+' | Where-Object { $_ })
-}
-
-# Windows builds sometimes fail due heap errors. In that case, try
-# building the rest, then try to build again with a single thread.
-cmake --build . ${target} -- -k0 || cmake --build . ${target} -- -k0 -j1
-
-$success = $LASTEXITCODE
-
-# Hit/miss summary for judging what the cache pays for on this job. Runs on
-# failures too: the cache is pushed even then (cache:when: always), so the
-# stats still describe what the next attempt can reuse.
-if ($compiler_launcher -eq "sccache" -and $sccache_exe) {
-  & $sccache_exe --show-stats
-  & $sccache_exe --stop-server | Out-Null
-  if ($cred_server_job) {
-    Stop-Job $cred_server_job -ErrorAction SilentlyContinue
-    Remove-Job $cred_server_job -ErrorAction SilentlyContinue
-  }
-  # Incompatible cache formats: purge unused .ccache\ before cache upload so the
-  # uploaded cache archive only holds .sccache\ and stays strictly below the 5 GB runner cap.
-  $old_ccache = Join-Path $rootdir ".ccache"
-  if (Test-Path $old_ccache) { Remove-Item -Recurse -Force $old_ccache }
-} elseif ($compiler_launcher -eq "ccache" -and $ccache_exe) {
-  & $ccache_exe --show-log-stats
-  if (Test-Path $env:CCACHE_STATSLOG) {
-    Remove-Item $env:CCACHE_STATSLOG -Force
-  }
-  # Incompatible cache formats: purge unused .sccache\ before cache upload.
-  $old_sccache = Join-Path $rootdir ".sccache"
-  if (Test-Path $old_sccache) { Remove-Item -Recurse -Force $old_sccache }
-}
-
-# Return to root directory.
-cd ${rootdir}
 
 # Explicitly propagate exit code to indicate pass/failure of build command.
 if($success -ne 0) { Exit $success }
