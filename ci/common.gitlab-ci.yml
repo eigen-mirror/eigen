@@ -263,6 +263,26 @@
     # Call script in current shell - it sets up some environment variables.
     - . ci/scripts/common.linux.before_script.sh
 
+# Stops every sccache server started from this job's checkout, leaving other
+# runner slots' servers alone. A build that exits before its
+# `sccache --stop-server` leaves the server running, since it detaches from the
+# job's process tree, and Windows cannot delete a running executable: the next
+# job on this checkout then fails in `git clean` on .sccache-bin/sccache.exe
+# before any script runs. `.build:windows` runs this as its after_script, which
+# GitLab also runs on cancellation; `.common:windows` runs it again before the
+# checkout, for a server that outlived even that. It is inline because the
+# pre-checkout copy runs before ci/scripts/ exists. Filtering on the name
+# instead of `Get-Process -Name` keeps a no-match from writing an error, which
+# the runner's `$?` check would turn into a job failure.
+.windows:stop-sccache:
+  script:
+    - |
+      $root = [IO.Path]::GetFullPath("${env:CI_PROJECT_DIR}\")
+      Get-Process |
+        Where-Object { $_.ProcessName -eq "sccache" -and $_.Path -and
+                       $_.Path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) } |
+        Stop-Process -Force -PassThru | Wait-Process -Timeout 30
+
 # Base configuration for Windows builds and tests.
 .common:windows:
   variables:
@@ -270,6 +290,8 @@
     EIGEN_CI_MSVC_VER: "14.29"
     EIGEN_CI_ADDITIONAL_ARGS: ""
     EIGEN_CI_BEFORE_SCRIPT: ""
+  hooks:
+    pre_get_sources_script: !reference [.windows:stop-sccache, script]
   before_script:
      - . ci/scripts/common.windows.before_script.ps1
 
