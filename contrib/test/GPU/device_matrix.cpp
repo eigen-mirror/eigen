@@ -352,6 +352,72 @@ void test_empty() {
   VERIFY_IS_EQUAL(result.cols(), 0);
 }
 
+// ---- isView() ---------------------------------------------------------------
+
+void test_is_view() {
+  const MatrixXd A = MatrixXd::Random(8, 4);
+  auto owner = gpu::DeviceMatrix<double>::fromHost(A);
+  VERIFY(!owner.isView());
+  VERIFY(!gpu::DeviceMatrix<double>().isView());
+
+  auto v = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  VERIFY(v.isView());
+  VERIFY_IS_EQUAL(v.toHost(), A);
+  gpu::DeviceMatrix<double> moved(std::move(v));
+  VERIFY(moved.isView());
+
+  // release() hands back the owner's pointer, frees nothing, and leaves no view.
+  VERIFY(moved.release() == owner.data());
+  VERIFY(!moved.isView());
+  VERIFY_IS_EQUAL(owner.toHost(), A);
+
+  // A new size gives the view storage of its own.
+  auto w = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  w.resize(2, 2);
+  VERIFY(!w.isView());
+  VERIFY(w.data() != owner.data());
+  auto z = gpu::DeviceMatrix<double>::view(owner.data(), 8, 4);
+  z.resize(0, 0);
+  VERIFY(!z.isView());
+  VERIFY_IS_EQUAL(owner.toHost(), A);
+}
+
+// ---- Moving a view into a solver --------------------------------------------
+
+// A view borrows another object's storage, so a solver that takes a matrix by
+// move must copy a view rather than factor over (and later free) that storage.
+void test_solver_copies_moved_view() {
+  const Index n = 32;
+  const MatrixXd A = MatrixXd::Random(n, n) + MatrixXd::Identity(n, n) * double(n);
+  const MatrixXd B = MatrixXd::Random(n, 2);
+  gpu::SVD<double> svd(A);
+  const MatrixXd U = svd.matrixU();
+  gpu::LU<double> lu;
+  lu.compute(svd.d_matrixU());
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * lu.solve(B)), B);
+  const MatrixXd X = lu.solve(svd.d_matrixU()).toHost();
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * X), U);
+  gpu::Context ctx;
+  gpu::LU<double> lu_ctx(ctx, svd.d_matrixU());
+  VERIFY_IS_APPROX(svd.matrixU(), U);
+  VERIFY_IS_APPROX(MatrixXd(U * lu_ctx.solve(B)), B);
+
+  // The remaining adopting overloads, each given a view of d_S.
+  const MatrixXd S = A * A.transpose();
+  auto d_S = gpu::DeviceMatrix<double>::fromHost(S);
+  const auto view_of_S = [&] { return gpu::DeviceMatrix<double>::view(d_S.data(), n, n); };
+  gpu::LLT<double> llt(view_of_S());
+  VERIFY_IS_APPROX(MatrixXd(S * llt.solve(view_of_S()).toHost()), S);
+  gpu::QR<double> qr(view_of_S());
+  VERIFY_IS_APPROX(MatrixXd(S * qr.solve(B)), B);
+  gpu::SVD<double> svd_of_S(view_of_S());
+  gpu::SelfAdjointEigenSolver<double> es(view_of_S());
+  VERIFY_IS_APPROX(VectorXd(svd_of_S.singularValues().reverse()), es.eigenvalues());
+  VERIFY_IS_EQUAL(d_S.toHost(), S);
+}
+
 // ---- Per-scalar driver ------------------------------------------------------
 
 template <typename Scalar>
@@ -721,6 +787,8 @@ EIGEN_DECLARE_TEST(gpu_device_matrix) {
   CALL_SUBTEST(test_host_transfer_ready());
   CALL_SUBTEST(test_host_transfer_move());
   CALL_SUBTEST(test_host_transfer_move_assign());
+  CALL_SUBTEST(test_is_view());
+  CALL_SUBTEST(test_solver_copies_moved_view());
   CALL_SUBTEST((test_allocate<float>(100, 50)));
   CALL_SUBTEST((test_allocate<double>(100, 50)));
   CALL_SUBTEST(test_scalar<float>());

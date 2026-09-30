@@ -92,6 +92,17 @@ void test_qr_solve_device(Index n, Index nrhs) {
 
   RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
   VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+
+  // Context-bound rvalue constructor adopts a square A instead of copying it.
+  gpu::Context ctx;
+  auto d_A_ctx = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::QR<Scalar> qr_ctx(ctx, std::move(d_A_ctx));
+  VERIFY(d_A_ctx.empty());
+  VERIFY_IS_EQUAL(qr_ctx.info(), Success);
+  VERIFY(qr_ctx.stream() == ctx.stream());
+  Mat X_ctx = qr_ctx.solve(B);
+  residual = (A * X_ctx - B).norm() / (A.norm() * X_ctx.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
 }
 
 // ---- Solve overdetermined via device path -----------------------------------

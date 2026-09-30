@@ -63,7 +63,7 @@ class LLT {
   /** Factor a device-resident A immediately (D2D copy). */
   explicit LLT(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
 
-  /** Factor a device-resident A immediately (adopt, no copy). */
+  /** Factor a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit LLT(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
 
   /** Bind to \p ctx and factor A immediately. */
@@ -74,6 +74,9 @@ class LLT {
 
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LLT(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
+
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy; a view is copied). */
+  LLT(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
 
   ~LLT() = default;
 
@@ -135,8 +138,10 @@ class LLT {
     return *this;
   }
 
-  /** Compute the Cholesky factorization from a device matrix (move, no copy). */
+  /** Compute the Cholesky factorization from a device matrix (move, no copy).
+   * A view is copied instead: its storage belongs to another object. */
   LLT& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     eigen_assert(d_A.rows() == d_A.cols());
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -195,8 +200,10 @@ class LLT {
   }
 
   /** Solve in place: consumes \p d_B and returns it holding the solution —
-   * no RHS copy and no allocation (potrs overwrites its RHS). */
+   * no RHS copy and no allocation (potrs overwrites its RHS). A view is copied
+   * instead: its storage belongs to another object. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B) const {
+    if (d_B.isView()) return solve(static_cast<const DeviceMatrix<Scalar>&>(d_B));
     eigen_assert(solver_ctx_.info() == Success && "LLT::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream());
@@ -213,7 +220,7 @@ class LLT {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_factor_;  // grow-only
+  internal::DeviceBuffer d_factor_;  // adopted from an rvalue input, else grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;
 

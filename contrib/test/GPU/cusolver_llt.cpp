@@ -245,6 +245,14 @@ void test_context_bound_solver(Index n, Index nrhs) {
   Mat X2 = d_X2.toHost();
   VERIFY((A * X2 - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());
   VERIFY(d_B.data() == nullptr);  // moved-from
+
+  // Context-bound rvalue constructor adopts d_A instead of copying it.
+  gpu::LLT<Scalar> llt_adopt(ctx, std::move(d_A));
+  VERIFY(d_A.empty());
+  VERIFY(llt_adopt.info() == Success);
+  VERIFY(llt_adopt.stream() == ctx.stream());
+  Mat X3 = llt_adopt.solve(B);
+  VERIFY((A * X3 - B).norm() / B.norm() < RealScalar(n) * NumTraits<Scalar>::epsilon());
 }
 
 // ---- Non-plain host input ---------------------------------------------------

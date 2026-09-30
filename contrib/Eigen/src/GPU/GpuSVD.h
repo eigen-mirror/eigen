@@ -49,7 +49,7 @@ class SVD {
     compute(d_A, options);
   }
 
-  /** Decompose a device-resident A immediately (adopt when m >= n, no copy). */
+  /** Decompose a device-resident A immediately (adopt when m >= n, no copy; a view is copied). */
   explicit SVD(DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
     compute(std::move(d_A), options);
   }
@@ -65,6 +65,11 @@ class SVD {
   SVD(Context& ctx, const DeviceMatrix<Scalar>& d_A, unsigned int options = ComputeThinU | ComputeThinV)
       : solver_ctx_(ctx) {
     compute(d_A, options);
+  }
+
+  /** Bind to \p ctx and decompose a device-resident A (adopt when m >= n, no copy; a view is copied). */
+  SVD(Context& ctx, DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) : solver_ctx_(ctx) {
+    compute(std::move(d_A), options);
   }
 
   ~SVD() = default;
@@ -148,8 +153,9 @@ class SVD {
 
   /** Decompose a device matrix (move). For m >= n the buffer is adopted and
    * consumed in place by gesvd — no copy; for m < n a transposed copy is
-   * unavoidable. */
+   * unavoidable. A view is copied: its storage belongs to another object. */
   SVD& compute(DeviceMatrix<Scalar>&& d_A, unsigned int options = ComputeThinU | ComputeThinV) {
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A), options);
     if (!begin_compute(d_A, options)) return *this;
 
     if (transposed_) {

@@ -55,7 +55,7 @@ class LU {
   /** Factor a device-resident A immediately (D2D copy). */
   explicit LU(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
 
-  /** Factor a device-resident A immediately (adopt, no copy). */
+  /** Factor a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit LU(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
 
   /** Bind to \p ctx and factor A immediately. */
@@ -66,6 +66,9 @@ class LU {
 
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   LU(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
+
+  /** Bind to \p ctx and factor a device-resident A (adopt, no copy; a view is copied). */
+  LU(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
 
   ~LU() = default;
 
@@ -130,8 +133,10 @@ class LU {
     return *this;
   }
 
-  /** Compute the LU factorization from a device matrix (move, no copy). */
+  /** Compute the LU factorization from a device matrix (move, no copy). A view
+   * is copied instead: its storage belongs to another object. */
   LU& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     eigen_assert(d_A.rows() == d_A.cols() && "LU requires a square matrix");
     if (!begin_compute(d_A.rows())) return *this;
 
@@ -194,8 +199,10 @@ class LU {
   }
 
   /** Solve in place: consumes \p d_B and returns it holding the solution —
-   * no RHS copy and no allocation (getrs overwrites its RHS). */
+   * no RHS copy and no allocation (getrs overwrites its RHS). A view is copied
+   * instead: its storage belongs to another object. */
   DeviceMatrix<Scalar> solve(DeviceMatrix<Scalar>&& d_B, GpuOp op = GpuOp::NoTrans) const {
+    if (d_B.isView()) return solve(static_cast<const DeviceMatrix<Scalar>&>(d_B), op);
     eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(d_B.rows() == n_);
     d_B.waitReady(solver_ctx_.stream());
@@ -213,7 +220,7 @@ class LU {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_lu_;    // grow-only
+  internal::DeviceBuffer d_lu_;    // adopted from an rvalue input, else grow-only
   internal::DeviceBuffer d_ipiv_;  // grow-only
   int64_t n_ = 0;
   int64_t lda_ = 0;

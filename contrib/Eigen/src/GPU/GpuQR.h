@@ -47,7 +47,7 @@ class QR {
 
   explicit QR(const DeviceMatrix<Scalar>& d_A) { compute(d_A); }
 
-  /** Factor a device-resident A immediately (adopt when m >= n, no copy). */
+  /** Factor a device-resident A immediately (adopt when m >= n, no copy; a view is copied). */
   explicit QR(DeviceMatrix<Scalar>&& d_A) { compute(std::move(d_A)); }
 
   /** Bind to \p ctx and factor A immediately. */
@@ -58,6 +58,9 @@ class QR {
 
   /** Bind to \p ctx and factor a device-resident A (D2D copy). */
   QR(Context& ctx, const DeviceMatrix<Scalar>& d_A) : solver_ctx_(ctx) { compute(d_A); }
+
+  /** Bind to \p ctx and factor a device-resident A (adopt when m >= n, no copy; a view is copied). */
+  QR(Context& ctx, DeviceMatrix<Scalar>&& d_A) : solver_ctx_(ctx) { compute(std::move(d_A)); }
 
   ~QR() = default;
 
@@ -121,8 +124,10 @@ class QR {
   }
 
   /** Factor a device matrix (move). For m >= n the buffer is adopted and
-   * factored in place — no copy; for m < n a transposed copy is unavoidable. */
+   * factored in place — no copy; for m < n a transposed copy is unavoidable. A
+   * view is copied: its storage belongs to another object. */
   QR& compute(DeviceMatrix<Scalar>&& d_A) {
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A));
     if (!begin_compute(d_A)) return *this;
 
     if (transposed_) {
@@ -189,7 +194,9 @@ class QR {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_qr_;   // grow-only; QR factors (reflectors below diag, R above)
+  // QR factors (reflectors below diag, R above). Host and rvalue input are
+  // adopted when m >= n; the copying paths are grow-only.
+  internal::DeviceBuffer d_qr_;
   internal::DeviceBuffer d_tau_;  // grow-only; Householder scalars (length k)
   int64_t m_ = 0;                 // original A.rows()
   int64_t n_ = 0;                 // original A.cols()

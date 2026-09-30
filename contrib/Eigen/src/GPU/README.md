@@ -392,7 +392,8 @@ auto d_V = es.d_eigenvectors();           // DeviceMatrix view of eigenvectors
 The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
-copy (for QR/SVD with m < n the internal transpose still copies), and all five
+copy (for QR/SVD with m < n the internal transpose still copies, and a view is
+always copied because its storage belongs to another object), and all five
 can bind to a `gpu::Context` to share its stream and handles. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
@@ -862,6 +863,7 @@ Index   rows()
 Index   cols()
 size_t  sizeInBytes()
 bool    empty()
+bool    isView()                                         // Holds storage borrowed through view()
 Scalar* data()                                           // Raw device pointer
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough
@@ -967,11 +969,11 @@ gpu::LLT(Context& ctx, ...)                               // Bind + factorize in
 
 gpu::LLT&            compute(const DenseBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
-gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (no copy)
+gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (a view is copied)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
-DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc
+DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc (a view is copied)
 
 ComputationInfo    info()                                // Lazy sync on first call: Success or NumericalIssue
 Index              rows() / cols()
@@ -996,10 +998,15 @@ QR factorization via `cusolverDnXgeqrf`. Solve uses ORMQR (apply Q^H) + TRSM
 
 ```cpp
 gpu::QR()                                                  // Default construct
+gpu::QR(Context& ctx)                                      // Bind to ctx's stream + handles
 gpu::QR(const DenseBase<D>& A)                             // Convenience: upload + factorize
+gpu::QR(const DeviceMatrix& d_A)                           // Convenience: D2D copy + factorize
+gpu::QR(DeviceMatrix&& d_A)                                // Convenience: adopt (m >= n) + factorize
+gpu::QR(Context& ctx, ...)                                 // Bind + factorize in one step
 
 gpu::QR&             compute(const DenseBase<D>& A)        // Upload + factorize
 gpu::QR&             compute(const DeviceMatrix& d_A)      // D2D copy + factorize
+gpu::QR&             compute(DeviceMatrix&& d_A)           // Adopt + factorize (copies when m < n or for a view)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async)
@@ -1018,10 +1025,15 @@ handled by internal transpose.
 
 ```cpp
 gpu::SVD()                                                 // Default construct, then call compute()
+gpu::SVD(Context& ctx)                                     // Bind to ctx's stream + handles
 gpu::SVD(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)  // Convenience
+gpu::SVD(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)  // D2D copy
+gpu::SVD(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)  // Adopt (m >= n)
+gpu::SVD(Context& ctx, ...)                                // Bind + decompose in one step
 
 gpu::SVD&            compute(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)
 gpu::SVD&            compute(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)
+gpu::SVD&            compute(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)
 
 RealVector         singularValues()                      // -> host vector (syncs, downloads)
 PlainMatrix        matrixU()                             // -> host Matrix (syncs, downloads)
@@ -1054,14 +1066,19 @@ views are owning (one `cublasXgeam` adjoint pass).
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
 Symmetric/Hermitian eigenvalue decomposition via `cusolverDnXsyevd`.
-`ComputeMode` enum: `EigenvaluesOnly`, `ComputeEigenvectors`.
+`options`: `ComputeEigenvectors` (the default) or `EigenvaluesOnly`.
 
 ```cpp
 gpu::SelfAdjointEigenSolver()                              // Default construct, then call compute()
-gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(Context& ctx)                  // Bind to ctx's stream + handles
+gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, int options = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(const DeviceMatrix& d_A, int options = ComputeEigenvectors)  // D2D copy
+gpu::SelfAdjointEigenSolver(DeviceMatrix&& d_A, int options = ComputeEigenvectors)  // Adopt (a view is copied)
+gpu::SelfAdjointEigenSolver(Context& ctx, ...)             // Bind + decompose in one step
 
-gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)
-gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(DeviceMatrix&& d_A, int options = ComputeEigenvectors)
 
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
 PlainMatrix        eigenvectors()                        // -> host Matrix (syncs, downloads, columns)

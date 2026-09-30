@@ -350,6 +350,12 @@ class DeviceMatrix {
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
 
+  /** Whether this matrix holds storage borrowed through view(). Destroying a
+   * view does not free that storage, and release() on a view returns a pointer
+   * that its owner still frees. resize() to a different size replaces a view
+   * with storage of its own; resize() to the same size leaves it a view. */
+  bool isView() const { return data_ != nullptr && data_.get_deleter().borrow; }
+
   /** Size of the device allocation in bytes. */
   size_t sizeInBytes() const { return static_cast<size_t>(rows_) * static_cast<size_t>(cols_) * sizeof(Scalar); }
 
@@ -576,7 +582,9 @@ class DeviceMatrix {
     return dm;
   }
 
-  /** Transfer ownership of the device pointer out. Zeros internal state. */
+  /** Give up the device pointer and zero the internal state. An owning matrix
+   * transfers ownership to the caller; a view (isView()) returns its borrowed
+   * pointer, which its owner still frees. */
   Scalar* release() {
     Scalar* p = data_.release();
     rows_ = 0;

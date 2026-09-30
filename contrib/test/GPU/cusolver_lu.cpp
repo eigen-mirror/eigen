@@ -118,6 +118,17 @@ void test_device_matrix_move_compute(Index n) {
   MatrixType X = lu.solve(B);
   RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
   VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+
+  // Context-bound rvalue constructor adopts as well.
+  gpu::Context ctx;
+  auto d_A_ctx = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::LU<Scalar> lu_ctx(ctx, std::move(d_A_ctx));
+  VERIFY(d_A_ctx.empty());
+  VERIFY_IS_EQUAL(lu_ctx.info(), Success);
+  VERIFY(lu_ctx.stream() == ctx.stream());
+  MatrixType X_ctx = lu_ctx.solve(B);
+  residual = (A * X_ctx - B).norm() / (A.norm() * X_ctx.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
 }
 
 template <typename Scalar>

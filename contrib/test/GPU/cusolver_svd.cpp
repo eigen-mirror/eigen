@@ -137,6 +137,16 @@ void test_svd_solve_context(Index m, Index n, Index nrhs) {
   const RealScalar cond = S(0) / S(S.size() - 1);
   const RealScalar tol = RealScalar(8) * cond * NumTraits<Scalar>::epsilon();
   VERIFY((X - X_ref).norm() / X_ref.norm() < tol);
+
+  // Context-bound rvalue constructor adopts A when m >= n (a wide A is
+  // transposed into a copy).
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::SVD<Scalar> svd_adopt(ctx, std::move(d_A), ComputeThinU | ComputeThinV);
+  VERIFY(m < n || d_A.empty());
+  VERIFY_IS_EQUAL(svd_adopt.info(), Success);
+  VERIFY(svd_adopt.stream() == ctx.stream());
+  Mat X_adopt = svd_adopt.solve(B);
+  VERIFY((X_adopt - X_ref).norm() / X_ref.norm() < tol);
 }
 
 // ---- Solve: truncated -------------------------------------------------------
