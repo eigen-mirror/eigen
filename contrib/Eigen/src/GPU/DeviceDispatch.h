@@ -91,13 +91,8 @@ void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExp
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
-  // cuBLAS reads alpha and beta through host pointers. Holding them in an array
-  // keeps the compiler from eliding their stack slots — at -O1+ clang and MSVC
-  // otherwise drop the stores for complex types, leaving cuBLAS with a dangling
-  // pointer.
-  Scalar scalars[2] = {alpha_local, beta_val};
-  cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda, B.data(),
-                ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
+  cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &alpha_local, A.data(), lda,
+                B.data(), ldb, &beta_val, dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
                 ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
 
   dst.recordReady(ctx.stream());
@@ -302,11 +297,10 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, Up
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  // The array keeps the host-pointer stack slots alive; see the GEMM dispatch.
-  Scalar scalars[2] = {Scalar(1), Scalar(0)};
+  const Scalar one(1), zero(0);
 
-  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(), A.rows(),
-                                 B.data(), B.rows(), &scalars[1], dst.data(), dst.rows()));
+  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &one, A.data(), A.rows(), B.data(),
+                                 B.rows(), &zero, dst.data(), dst.rows()));
 
   dst.recordReady(ctx.stream());
 }
@@ -363,10 +357,9 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<Scala
   if (m > 0 && n > 0) {
     A.waitReady(ctx.stream());
     B.waitReady(ctx.stream());
-    // See the GEMM dispatch: array prevents compiler from eliding host-pointer stack slots.
-    Scalar scalars[2] = {expr.alpha(), expr.beta()};
-    EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &scalars[0], A.data(), m,
-                                   &scalars[1], B.data(), m, dst.data(), m));
+    const Scalar alpha_val = expr.alpha(), beta_val = expr.beta();
+    EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &alpha_val, A.data(), m,
+                                   &beta_val, B.data(), m, dst.data(), m));
     dst.recordReady(ctx.stream());
   }
 }
