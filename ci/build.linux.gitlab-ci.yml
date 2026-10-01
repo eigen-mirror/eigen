@@ -524,9 +524,13 @@ build:linux:cross:arm:clang-14:default:
     # +sme-f64f64 (FEAT_SME_F64F64) enables the double-precision GEMM kernel:
     # GCC refuses to compile its fp64 FMOPA without it, and qemu's `max` CPU
     # implements the extension, so the test jobs below exercise that kernel.
+    # The -march goes in CMAKE_CXX_FLAGS, not EIGEN_TEST_CUSTOM_CXX_FLAGS:
+    # EIGEN_TEST_SME adds -DEIGEN_ARM64_USE_SME to CMAKE_CXX_FLAGS, so every
+    # target needs the SME2 -march, not only those ei_add_test registers --
+    # e.g. blas_ilp64 and the ILP64 BLAS library it links.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SME=ON
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2+sme-f64f64
+      -DCMAKE_CXX_FLAGS=-march=armv9.2-a+sme2+sme-f64f64
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
     # SME ACLE (arm_sme.h, __arm_streaming, +sme2) requires GCC >= 14.
     # The build stage only cross-compiles and never invokes the emulator, so
@@ -592,7 +596,7 @@ build:linux:cross:sme:gcc-14:no-f64f64:
     # The anchor's arguments, less +sme-f64f64.
     EIGEN_CI_ADDITIONAL_ARGS: >-
       -DEIGEN_TEST_SME=ON
-      -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-march=armv9.2-a+sme2
+      -DCMAKE_CXX_FLAGS=-march=armv9.2-a+sme2
       -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-aarch64;-L;/usr/aarch64-linux-gnu
     EIGEN_CI_BUILD_TARGET: product_sme
 
