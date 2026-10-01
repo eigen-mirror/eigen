@@ -110,10 +110,15 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
    * For dynamic-size matrices, creates an empty matrix of size 0. Does not allocate any array. Such a matrix
    * is called a null matrix. An existing matrix can also be turned into a null matrix by resizing it to 0.
    *
+   * Unless \c EIGEN_INITIALIZE_MATRICES_BY_ZERO or \c EIGEN_INITIALIZE_MATRICES_BY_NAN is defined, this constructor is
+   * defaulted, so value-initialization (<tt>Array a{};</tt>, <tt>Array()</tt>, or <tt>a()</tt> in a member
+   * initializer list) zero-initializes the whole object first, including the unused part of a fixed-maximum-size
+   * inline buffer. Default-initialization (<tt>Array a;</tt>) only default-initializes the coefficients.
+   *
    * \sa resize(Index,Index)
    */
 #ifdef EIGEN_INITIALIZE_COEFFS
-  EIGEN_DEVICE_FUNC constexpr Array() : Base() { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
+  EIGEN_DEVICE_FUNC constexpr Array() { EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED }
 #else
   EIGEN_DEVICE_FUNC constexpr Array() = default;
 #endif

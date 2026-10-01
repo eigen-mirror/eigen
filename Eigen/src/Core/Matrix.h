@@ -247,6 +247,11 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
    * For dynamic-size matrices, creates an empty matrix of size 0. Does not allocate any array. Such a matrix
    * is called a null matrix. An existing matrix can also be turned into a null matrix by resizing it to 0.
    *
+   * Unless \c EIGEN_INITIALIZE_MATRICES_BY_ZERO or \c EIGEN_INITIALIZE_MATRICES_BY_NAN is defined, this constructor is
+   * defaulted, so value-initialization (<tt>Matrix m{};</tt>, <tt>Matrix()</tt>, or <tt>m()</tt> in a member
+   * initializer list) zero-initializes the whole object first, including the unused part of a fixed-maximum-size
+   * inline buffer. Default-initialization (<tt>Matrix m;</tt>) only default-initializes the coefficients.
+   *
    * \sa resize(Index,Index)
    */
 #if defined(EIGEN_INITIALIZE_COEFFS)
