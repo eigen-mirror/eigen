@@ -1345,6 +1345,18 @@ void packetmath_real() {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
+
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+      // Whether to rescale a subnormal input is decided per lane, even beside a positive normal lane.
+      // bfloat16 is evaluated in float and misses the tolerance by rounding alone, as in the TODOs above.
+      if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present && !std::is_same<Scalar, bfloat16>::value) {
+        data1[0] = std::numeric_limits<Scalar>::denorm_min();
+        data1[1] = Scalar(2);
+        h.store(data2, internal::plog(h.load(data1)));
+        VERIFY_IS_APPROX(std::log(data1[0]), data2[0]);
+        VERIFY_IS_APPROX(std::log(data1[1]), data2[1]);
+      }
+#endif
     }
     if (PacketTraits::HasLog10) {
       test::packet_helper<PacketTraits::HasLog10, Packet> h;

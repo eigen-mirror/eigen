@@ -432,6 +432,11 @@ extern "C" {
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_VSX 1
+// The POWER8 (ISA 2.07) vector instructions, such as 64-bit integer lane arithmetic and compares and vec_neg; a
+// POWER7 target has VSX without them.
+#if defined(__POWER8_VECTOR__)
+#define EIGEN_VECTORIZE_POWER8_VECTOR
+#endif
 #define EIGEN_VECTORIZE_FMA
 #include <altivec.h>
 // We need to #undef macros defined by <altivec.h> that conflict with standard C++ names.
@@ -699,6 +704,8 @@ inline static const char* SimdInstructionSetsInUse(void) {
   return "SSE, SSE2";
 #elif defined(EIGEN_VECTORIZE_ALTIVEC)
   return "AltiVec";
+#elif defined(EIGEN_VECTORIZE_POWER8_VECTOR)
+  return "VSX, POWER8 vector";
 #elif defined(EIGEN_VECTORIZE_VSX)
   return "VSX";
 #elif defined(EIGEN_VECTORIZE_NEON)

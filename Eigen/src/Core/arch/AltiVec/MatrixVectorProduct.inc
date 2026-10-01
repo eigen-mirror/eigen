@@ -1020,7 +1020,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pconj2(const Packet1cd& a) {
 
 /** \internal packet conjugate with real & imaginary operation inverted */
 EIGEN_ALWAYS_INLINE Packet2cf pconjinv(const Packet2cf& a) {
-#ifdef __POWER8_VECTOR__
+#ifdef EIGEN_VECTORIZE_POWER8_VECTOR
   return Packet2cf(Packet4f(vec_neg(Packet2d(a.v))));
 #else
   return Packet2cf(pxor(a.v, reinterpret_cast<Packet4f>(p16uc_COMPLEX32_CONJ_XOR2)));
@@ -1071,7 +1071,7 @@ EIGEN_ALWAYS_INLINE Packet1cd pcplxconjflip(const Packet1cd& a) {
 
 /** \internal packet negate */
 EIGEN_ALWAYS_INLINE Packet2cf pnegate2(const Packet2cf& a) {
-#ifdef __POWER8_VECTOR__
+#ifdef EIGEN_VECTORIZE_POWER8_VECTOR
   return Packet2cf(vec_neg(a.v));
 #else
   return Packet2cf(pxor(a.v, reinterpret_cast<Packet4f>(p16uc_COMPLEX32_NEGATE)));
@@ -1079,7 +1079,7 @@ EIGEN_ALWAYS_INLINE Packet2cf pnegate2(const Packet2cf& a) {
 }
 
 EIGEN_ALWAYS_INLINE Packet1cd pnegate2(const Packet1cd& a) {
-#ifdef __POWER8_VECTOR__
+#ifdef EIGEN_VECTORIZE_POWER8_VECTOR
   return Packet1cd(vec_neg(a.v));
 #else
   return Packet1cd(pxor(a.v, reinterpret_cast<Packet2d>(p16uc_COMPLEX64_NEGATE)));
@@ -1153,7 +1153,7 @@ EIGEN_ALWAYS_INLINE void pload_realimag(RhsScalar* src, Packet2d& r, Packet2d& i
 #endif
 }
 
-#ifndef __POWER8_VECTOR__
+#ifndef EIGEN_VECTORIZE_POWER8_VECTOR
 const Packet16uc p16uc_MERGEE = {0x00, 0x01, 0x02, 0x03, 0x10, 0x11, 0x12, 0x13,
                                  0x08, 0x09, 0x0A, 0x0B, 0x18, 0x19, 0x1A, 0x1B};
 
@@ -1165,7 +1165,7 @@ const Packet16uc p16uc_MERGEO = {0x04, 0x05, 0x06, 0x07, 0x14, 0x15, 0x16, 0x17,
 template <typename RhsScalar>
 EIGEN_ALWAYS_INLINE void pload_realimag_row(RhsScalar* src, Packet4f& r, Packet4f& i) {
   Packet4f t = ploadu<Packet4f>(reinterpret_cast<float*>(src));
-#ifdef __POWER8_VECTOR__
+#ifdef EIGEN_VECTORIZE_POWER8_VECTOR
   r = vec_mergee(t, t);
   i = vec_mergeo(t, t);
 #else
