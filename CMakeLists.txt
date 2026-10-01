@@ -523,6 +523,16 @@ if (EIGEN_BUILD_TESTING)
     option(EIGEN_TEST_AVX512FP16 "Enable/Disable AVX512-FP16 in tests/examples" OFF)
     if(EIGEN_TEST_AVX512FP16)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx512f -mfma -mavx512vl -mavx512fp16")
+      # GCC before 14.4, and 15.1-15.2, if-convert a _Float16 store of c ? x : 0 into vmovsh with zero-masking on a
+      # memory destination, which the ISA does not have. A recent assembler rejects it ("unsupported masking for
+      # `vmovsh'"); an older one encodes it, and the store raises #UD on AVX512-FP16 hardware. Evaluating arg() or a
+      # typed comparison of a half expression into a temporary, as isApprox does, reaches it at -O2, and at -O3 too
+      # with -mavx512vl. GCC 12.1 is the first with -mavx512fp16.
+      if(CMAKE_COMPILER_IS_GNUCXX AND
+         (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 14.4 OR
+          (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15.1 AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15.3)))
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-if-conversion")
+      endif()
     message(STATUS "Enabling AVX512-FP16 in tests/examples")
     endif()
 
