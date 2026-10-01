@@ -89,6 +89,11 @@ intended, so keep the construct narrow.
   compiled with `EIGEN_TEST_PART_ALL=1`.
 - An explicit `EIGEN_TEST_PART_N` marker forces splitting even when the option is off. If any such marker is present,
   all suffixes discovered in that source are emitted.
+- [`cmake/EigenTestPartGroups.cmake`](../cmake/EigenTestPartGroups.cmake) lists part ranges that compile as one
+  executable named after the range's first part, e.g. `array_cwise_1` for `1-4`; `ctest -R '<name>'` still selects
+  them. A range may only hold parts that differ by `CALL_SUBTEST_N` alone and that are not individually smoke-listed,
+  and its compile must stay under the 4 GiB peak RSS the file header records. Adding or renumbering subtests inside a
+  listed range grows that compile, so re-measure it.
 
 `ctest -R '^<name>$'` does not match split parts. Use `ctest -R '<name>'` for every part or anchor one generated name.
 

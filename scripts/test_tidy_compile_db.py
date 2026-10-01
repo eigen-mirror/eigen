@@ -23,23 +23,32 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from style_common import REPO_ROOT  # noqa: E402
-from tidy_compile_db import (MAX_PARTS, added_lines, configuration_of, part_of,  # noqa: E402
+from tidy_compile_db import (MAX_PARTS, added_lines, configuration_of, parts_of,  # noqa: E402
                              reduce_entries, required_parts, summarize)
 
 SCRIPT = os.path.join(REPO_ROOT, "scripts", "tidy_compile_db.py")
 
 
 def entry(source, part=None, extra=(), output="obj"):
-    """A compilation-database entry the way CMake's Ninja generator writes one."""
-    flags = " ".join(list(extra) + (["-DEIGEN_TEST_PART_%s=1" % part] if part else []))
+    """A compilation-database entry the way CMake's Ninja generator writes one.
+
+    ``part`` is one part, or the list of parts a grouped range defines.
+    """
+    parts = [part] if isinstance(part, str) else list(part or ())
+    flags = " ".join(list(extra) + ["-DEIGEN_TEST_PART_%s=1" % member for member in parts])
     return {"directory": "/build", "file": source,
             "command": "/usr/bin/c++ %s -I/repo -std=c++14 -o %s -c %s" % (flags, output, source),
             "output": output}
 
 
+def part_label(kept):
+    """The parts an entry defines, as "3" or, for a grouped range, "1,2,3"."""
+    return ",".join(sorted(parts_of(kept), key=int))
+
+
 def parts_kept(matches, text, lines):
     keep, _, _ = reduce_entries(matches, text, lines)
-    return [part_of(kept) for kept in keep]
+    return [part_label(kept) for kept in keep]
 
 
 def test_part_define_does_not_distinguish_configurations():
@@ -47,7 +56,7 @@ def test_part_define_does_not_distinguish_configurations():
     first = entry("/repo/test/t.cpp", part="1", output="t_1.o")
     second = entry("/repo/test/t.cpp", part="2", output="t_2.o")
     assert configuration_of(first) == configuration_of(second)
-    assert part_of(first) == "1" and part_of(second) == "2"
+    assert part_label(first) == "1" and part_label(second) == "2"
     # A macro that is not a part define does distinguish them, and so does no
     # define at all.
     shared = entry("/repo/blas/b.cpp", extra=["-DEIGEN_BLAS_BUILD_DLL", "-fPIC"])
@@ -138,6 +147,28 @@ def test_nested_guards_intersect():
     assert required_parts(text, [3], frozenset(["1", "2", "3"])) == [frozenset(["1"])]
 
 
+def test_grouped_range_covers_each_of_its_parts():
+    """A grouped range is one entry defining every part in it.
+
+    Keying an entry on its first part define would leave parts 2 and 3 to no
+    entry, and a line inside `CALL_SUBTEST_3` would go unchecked.
+    """
+    matches = [entry("/repo/test/t.cpp", part=["1", "2", "3"], output="t_1.o"),
+               entry("/repo/test/t.cpp", part="4", output="t_4.o")]
+    text = ("void run() {\n"
+            "  CALL_SUBTEST_3(f());\n"
+            "  CALL_SUBTEST_4(g());\n"
+            "}\n")
+    keep, skipped, unreachable = reduce_entries(matches, text, [2])
+    assert [part_label(kept) for kept in keep] == ["1,2,3"] and not skipped and not unreachable
+    assert "checking parts 1, 2, 3" in summarize(matches, keep, skipped, unreachable)
+    assert parts_kept(matches, text, [2, 3]) == ["1,2,3", "4"]
+    assert parts_kept(matches, text, [3]) == ["4"]
+    # Entries that share a part are not one configuration split into parts.
+    overlapping = matches + [entry("/repo/test/t.cpp", part="3", output="t_3.o")]
+    assert parts_kept(overlapping, text, [3]) == ["1,2,3", "4", "3"]
+
+
 def test_cap_reports_the_parts_it_leaves_out():
     count = MAX_PARTS + 2
     matches = [entry("/repo/test/t.cpp", part=str(n), output="t_%d.o" % n)
@@ -187,7 +218,7 @@ def test_configurations_and_parts_combine():
             "  CALL_SUBTEST_2(f());\n"
             "}\n")
     keep, _, _ = reduce_entries(matches, text, [2])
-    assert [(part_of(kept), kept["output"]) for kept in keep] == [("2", "plain_2.o"),
+    assert [(part_label(kept), kept["output"]) for kept in keep] == [("2", "plain_2.o"),
                                                                   ("2", "novec_2.o")]
 
 
@@ -224,7 +255,7 @@ def test_command_line_writes_the_reduced_database():
         assert done.returncode == 0, done
         with open(os.path.join(outdir, "compile_commands.json")) as handle:
             reduced = json.load(handle)
-        assert [part_of(kept) for kept in reduced] == ["3"], reduced
+        assert [part_label(kept) for kept in reduced] == ["3"], reduced
         assert "checking part 3" in done.stdout, done.stdout
 
         # A source outside the database is reported by exit status, not output.

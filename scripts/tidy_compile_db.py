@@ -6,8 +6,9 @@
 
 ``ci/scripts/run-clang-tidy.sh`` checks a changed source through the build
 directory's ``compile_commands.json``.  clang-tidy parses the file once per
-entry naming it, and a split test contributes one entry per ``EIGEN_TEST_PART``
--- 17 for ``test/eigensolver_selfadjoint.cpp``, 41 for ``test/array_cwise.cpp``,
+entry naming it, and a split test contributes one entry per ``EIGEN_TEST_PART``,
+or per range of parts ``cmake/EigenTestPartGroups.cmake`` compiles together
+-- 17 for ``test/eigensolver_selfadjoint.cpp``, 14 for ``test/array_cwise.cpp``,
 at roughly a minute and 3 GB each.  A merge request touching such a file spends
 the job's entire timeout on it, and every file after it goes unchecked without
 saying so.
@@ -47,8 +48,8 @@ import re
 import shlex
 import sys
 
-# A part costs about a minute and 2 GB, against a 15 minute job budget shared
-# with every other changed file, so cover as many parts as a diff needs only up
+# An entry costs about a minute and 2 GB, against a 15 minute job budget shared
+# with every other changed file, so keep as many entries as a diff needs only up
 # to this many.  Beyond it the summary line names the parts left unchecked
 # rather than letting the job run into its timeout, which is the silent failure
 # this whole reduction exists to remove.
@@ -75,10 +76,13 @@ def arguments_of(entry):
     return list(entry.get("arguments", ()))
 
 
-def part_of(entry):
-    """The ``EIGEN_TEST_PART`` an entry defines, as a string, or None."""
-    found = _PART_ARG.search(entry.get("command") or " ".join(entry.get("arguments", ())))
-    return found.group(1) if found else None
+def parts_of(entry):
+    """The ``EIGEN_TEST_PART``s an entry defines, as a frozenset of strings.
+
+    An entry for a range in ``cmake/EigenTestPartGroups.cmake`` defines every
+    part of the range; any other entry of a split test defines one.
+    """
+    return frozenset(_PART_ARG.findall(entry.get("command") or " ".join(entry.get("arguments", ()))))
 
 
 def configuration_of(entry):
@@ -224,23 +228,21 @@ def required_parts(text, lines, universe):
             for number in lines if number < len(guards)]
 
 
-def select_parts(required, order, limit=MAX_PARTS):
-    """The smallest set of parts covering ``required``, capped at ``limit``.
+def select_entries(required, entries, limit=MAX_PARTS):
+    """The fewest entries whose parts cover ``required``, capped at ``limit``.
 
-    Returns the chosen parts and the requirements the cap left uncovered. Ties
-    go to the part the database lists first, which is what a diff that names no
-    part at all gets.
+    ``entries`` holds the parts each entry defines, in database order.  Returns
+    the positions chosen in ``entries`` and the requirements the cap left
+    uncovered.  Ties go to the entry the database lists first, which is what a
+    diff that names no part at all gets.
     """
     chosen = []
     uncovered = [need for need in required if need]
     while uncovered and len(chosen) < limit:
-        counts = {}
-        for need in uncovered:
-            for part in need:
-                counts[part] = counts.get(part, 0) + 1
-        best = min(counts, key=lambda part: (-counts[part], order.index(part)))
+        counts = [sum(1 for need in uncovered if need & members) for members in entries]
+        best = max(range(len(entries)), key=lambda position: (counts[position], -position))
         chosen.append(best)
-        uncovered = [need for need in uncovered if best not in need]
+        uncovered = [need for need in uncovered if not need & entries[best]]
     return chosen, uncovered
 
 
@@ -256,18 +258,18 @@ def reduce_entries(matches, text, lines):
 
     keep, skipped, unreachable = set(), set(), 0
     for group in groups.values():
-        parts = [part_of(matches[index]) for index in group]
-        if len(group) == 1 or None in parts or len(set(parts)) != len(parts):
-            # Not one configuration split into parts: every entry here parses
-            # something the others do not.
+        parts = [parts_of(matches[index]) for index in group]
+        universe = frozenset().union(*parts)
+        if len(group) == 1 or not all(parts) or sum(map(len, parts)) != len(universe):
+            # Not one configuration split into disjoint parts: every entry here
+            # parses something the others do not.
             keep.update(group)
             continue
-        universe = frozenset(parts)
         required = required_parts(text, lines, universe)
         unreachable = max(unreachable, sum(1 for need in required if not need))
-        chosen, uncovered = select_parts(required, parts)
+        chosen, uncovered = select_entries(required, parts)
         skipped |= {part for need in uncovered for part in need}
-        keep.update(index for index, part in zip(group, parts) if part in chosen)
+        keep.update(group[position] for position in chosen)
     return [matches[index] for index in sorted(keep)], sorted(skipped, key=int), unreachable
 
 
@@ -288,7 +290,7 @@ def summarize(matches, keep, skipped, unreachable):
     """
     if len(keep) == len(matches) and not skipped and not unreachable:
         return ""
-    parts = sorted((part for part in (part_of(entry) for entry in keep) if part), key=int)
+    parts = sorted({part for entry in keep for part in parts_of(entry)}, key=int)
     if not parts:
         checking = "%d entries" % len(keep)
     else:
