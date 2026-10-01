@@ -18,15 +18,16 @@
  *  A is an n by n hermitian matrix.
  */
 EIGEN_BLAS_FUNC(hemv)
-(const char *uplo, const int *n, const RealScalar *palpha, const RealScalar *pa, const int *lda, const RealScalar *px,
- const int *incx, const RealScalar *pbeta, RealScalar *py, const int *incy) {
-  typedef void (*functype)(int, const Scalar *, int, const Scalar *, Scalar *, Scalar);
+(const char *uplo, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda,
+ const RealScalar *px, const EIGEN_BLAS_INT *incx, const RealScalar *pbeta, RealScalar *py,
+ const EIGEN_BLAS_INT *incy) {
+  typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, const Scalar *, Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::selfadjoint_matrix_vector_product<Scalar, int, Eigen::ColMajor, Eigen::Upper, false,
+      (Eigen::internal::selfadjoint_matrix_vector_product<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false,
                                                           false>::run),
       // array index: LO
-      (Eigen::internal::selfadjoint_matrix_vector_product<Scalar, int, Eigen::ColMajor, Eigen::Lower, false,
+      (Eigen::internal::selfadjoint_matrix_vector_product<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false,
                                                           false>::run),
   };
 
@@ -37,12 +38,12 @@ EIGEN_BLAS_FUNC(hemv)
   Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
 
   // check arguments
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
     info = 2;
-  else if (*lda < std::max(1, *n))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *n))
     info = 5;
   else if (*incx == 0)
     info = 7;
@@ -82,15 +83,15 @@ EIGEN_BLAS_FUNC(hemv)
  *  Diagonal elements are real; off-diagonal contributions use conjugation.
  */
 EIGEN_BLAS_FUNC(hbmv)
-(char *uplo, int *n, int *k, RealScalar *palpha, RealScalar *pa, int *lda, RealScalar *px, int *incx, RealScalar *pbeta,
- RealScalar *py, int *incy) {
+(char *uplo, EIGEN_BLAS_INT *n, EIGEN_BLAS_INT *k, RealScalar *palpha, RealScalar *pa, EIGEN_BLAS_INT *lda,
+ RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pbeta, RealScalar *py, EIGEN_BLAS_INT *incy) {
   const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
@@ -128,10 +129,10 @@ EIGEN_BLAS_FUNC(hbmv)
     // Vectorized path: use Eigen Map segments for the inner band operations.
     ConstMatrixType band(a, *k + 1, *n, *lda);
     if (UPLO(*uplo) == UP) {
-      for (int j = 0; j < *n; ++j) {
-        int start = std::max(0, j - *k);
-        int len = j - start;
-        int offset = *k - (j - start);
+      for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
+        EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *k);
+        EIGEN_BLAS_INT len = j - start;
+        EIGEN_BLAS_INT offset = *k - (j - start);
         Scalar temp1 = alpha * actual_x[j];
         actual_y[j] += Scalar(Eigen::numext::real(band(*k, j))) * temp1;
         if (len > 0) {
@@ -140,8 +141,8 @@ EIGEN_BLAS_FUNC(hbmv)
         }
       }
     } else {
-      for (int j = 0; j < *n; ++j) {
-        int len = std::min(*n - 1, j + *k) - j;
+      for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
+        EIGEN_BLAS_INT len = std::min(*n - 1, j + *k) - j;
         Scalar temp1 = alpha * actual_x[j];
         actual_y[j] += Scalar(Eigen::numext::real(band(0, j))) * temp1;
         if (len > 0) {
@@ -153,10 +154,10 @@ EIGEN_BLAS_FUNC(hbmv)
   } else {
     // Scalar path: for narrow bandwidth, avoid Map overhead.
     if (UPLO(*uplo) == UP) {
-      for (int j = 0; j < *n; ++j) {
+      for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
         Scalar temp1 = alpha * actual_x[j];
         Scalar temp2 = Scalar(0);
-        for (int i = std::max(0, j - *k); i < j; ++i) {
+        for (EIGEN_BLAS_INT i = std::max<EIGEN_BLAS_INT>(0, j - *k); i < j; ++i) {
           Scalar aij = a[(*k + i - j) + j * *lda];
           actual_y[i] += temp1 * aij;
           temp2 += Eigen::numext::conj(aij) * actual_x[i];
@@ -164,11 +165,11 @@ EIGEN_BLAS_FUNC(hbmv)
         actual_y[j] += Scalar(Eigen::numext::real(a[*k + j * *lda])) * temp1 + alpha * temp2;
       }
     } else {
-      for (int j = 0; j < *n; ++j) {
+      for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
         Scalar temp1 = alpha * actual_x[j];
         Scalar temp2 = Scalar(0);
         actual_y[j] += Scalar(Eigen::numext::real(a[j * *lda])) * temp1;
-        for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
+        for (EIGEN_BLAS_INT i = j + 1; i <= std::min(*n - 1, j + *k); ++i) {
           Scalar aij = a[(i - j) + j * *lda];
           actual_y[i] += temp1 * aij;
           temp2 += Eigen::numext::conj(aij) * actual_x[i];
@@ -191,15 +192,15 @@ EIGEN_BLAS_FUNC(hbmv)
  *  Diagonal elements are real; off-diagonal contributions use conjugation.
  */
 EIGEN_BLAS_FUNC(hpmv)
-(char *uplo, int *n, RealScalar *palpha, RealScalar *pap, RealScalar *px, int *incx, RealScalar *pbeta, RealScalar *py,
- int *incy) {
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *pap, RealScalar *px, EIGEN_BLAS_INT *incx,
+ RealScalar *pbeta, RealScalar *py, EIGEN_BLAS_INT *incy) {
   const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
   const Scalar *ap = reinterpret_cast<const Scalar *>(pap);
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
@@ -229,10 +230,10 @@ EIGEN_BLAS_FUNC(hpmv)
     return;
   }
 
-  int kk = 0;
+  EIGEN_BLAS_INT kk = 0;
   if (UPLO(*uplo) == UP) {
     // Upper triangle packed: column j occupies ap[kk..kk+j].
-    for (int j = 0; j < *n; ++j) {
+    for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
       Scalar temp1 = alpha * actual_x[j];
       // Diagonal is real.
       actual_y[j] += Scalar(Eigen::numext::real(ap[kk + j])) * temp1;
@@ -244,8 +245,8 @@ EIGEN_BLAS_FUNC(hpmv)
     }
   } else {
     // Lower triangle packed: column j occupies ap[kk..kk+(n-j-1)].
-    for (int j = 0; j < *n; ++j) {
-      int len = *n - j - 1;
+    for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
+      EIGEN_BLAS_INT len = *n - j - 1;
       Scalar temp1 = alpha * actual_x[j];
       // Diagonal is real.
       actual_y[j] += Scalar(Eigen::numext::real(ap[kk])) * temp1;
@@ -268,20 +269,23 @@ EIGEN_BLAS_FUNC(hpmv)
  *  where alpha is a real scalar, x is an n element vector and A is an
  *  n by n hermitian matrix, supplied in packed form.
  */
-EIGEN_BLAS_FUNC(hpr)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *pap) {
-  typedef void (*functype)(int, Scalar *, const Scalar *, RealScalar);
+EIGEN_BLAS_FUNC(hpr)
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pap) {
+  typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, RealScalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, int, Eigen::ColMajor, Eigen::Upper, false, Conj>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false,
+                                                        Conj>::run),
       // array index: LO
-      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, int, Eigen::ColMajor, Eigen::Lower, false, Conj>::run),
+      (Eigen::internal::selfadjoint_packed_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false,
+                                                        Conj>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *ap = reinterpret_cast<Scalar *>(pap);
   RealScalar alpha = *palpha;
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
@@ -310,13 +314,14 @@ EIGEN_BLAS_FUNC(hpr)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int
  *  n by n hermitian matrix, supplied in packed form.
  */
 EIGEN_BLAS_FUNC(hpr2)
-(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *py, int *incy, RealScalar *pap) {
-  typedef void (*functype)(int, Scalar *, const Scalar *, const Scalar *, Scalar);
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pap) {
+  typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::packed_rank2_update_selector<Scalar, int, Eigen::Upper>::run),
+      (Eigen::internal::packed_rank2_update_selector<Scalar, EIGEN_BLAS_INT, Eigen::Upper>::run),
       // array index: LO
-      (Eigen::internal::packed_rank2_update_selector<Scalar, int, Eigen::Lower>::run),
+      (Eigen::internal::packed_rank2_update_selector<Scalar, EIGEN_BLAS_INT, Eigen::Lower>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -324,7 +329,7 @@ EIGEN_BLAS_FUNC(hpr2)
   Scalar *ap = reinterpret_cast<Scalar *>(pap);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
@@ -356,27 +361,29 @@ EIGEN_BLAS_FUNC(hpr2)
  *  where alpha is a real scalar, x is an n element vector and A is an
  *  n by n hermitian matrix.
  */
-EIGEN_BLAS_FUNC(her)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *pa, int *lda) {
-  typedef void (*functype)(int, Scalar *, int, const Scalar *, const Scalar *, const Scalar &);
+EIGEN_BLAS_FUNC(her)
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pa,
+ EIGEN_BLAS_INT *lda) {
+  typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, const Scalar &);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::selfadjoint_rank1_update<Scalar, int, Eigen::ColMajor, Eigen::Upper, false, Conj>::run),
+      (Eigen::selfadjoint_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Upper, false, Conj>::run),
       // array index: LO
-      (Eigen::selfadjoint_rank1_update<Scalar, int, Eigen::ColMajor, Eigen::Lower, false, Conj>::run),
+      (Eigen::selfadjoint_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, Eigen::Lower, false, Conj>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   RealScalar alpha = *reinterpret_cast<RealScalar *>(palpha);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
     info = 2;
   else if (*incx == 0)
     info = 5;
-  else if (*lda < std::max(1, *n))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *n))
     info = 7;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "HER  ", &info, kBlasNameLength);
 
@@ -402,14 +409,14 @@ EIGEN_BLAS_FUNC(her)(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int
  *  by n hermitian matrix.
  */
 EIGEN_BLAS_FUNC(her2)
-(char *uplo, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *py, int *incy, RealScalar *pa,
- int *lda) {
-  typedef void (*functype)(int, Scalar *, int, const Scalar *, const Scalar *, Scalar);
+(char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
+  typedef void (*functype)(EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar *, const Scalar *, Scalar);
   static const functype func[2] = {
       // array index: UP
-      (Eigen::internal::rank2_update_selector<Scalar, int, Eigen::Upper>::run),
+      (Eigen::internal::rank2_update_selector<Scalar, EIGEN_BLAS_INT, Eigen::Upper>::run),
       // array index: LO
-      (Eigen::internal::rank2_update_selector<Scalar, int, Eigen::Lower>::run),
+      (Eigen::internal::rank2_update_selector<Scalar, EIGEN_BLAS_INT, Eigen::Lower>::run),
   };
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -417,7 +424,7 @@ EIGEN_BLAS_FUNC(her2)
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (*n < 0)
@@ -426,7 +433,7 @@ EIGEN_BLAS_FUNC(her2)
     info = 5;
   else if (*incy == 0)
     info = 7;
-  else if (*lda < std::max(1, *n))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *n))
     info = 9;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2 ", &info, kBlasNameLength);
 
@@ -454,13 +461,14 @@ EIGEN_BLAS_FUNC(her2)
  *  vector and A is an m by n matrix.
  */
 EIGEN_BLAS_FUNC(geru)
-(int *m, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *py, int *incy, RealScalar *pa, int *lda) {
+(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (*m < 0)
     info = 1;
   else if (*n < 0)
@@ -469,7 +477,7 @@ EIGEN_BLAS_FUNC(geru)
     info = 5;
   else if (*incy == 0)
     info = 7;
-  else if (*lda < std::max(1, *m))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *m))
     info = 9;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "GERU ", &info, kBlasNameLength);
 
@@ -478,8 +486,8 @@ EIGEN_BLAS_FUNC(geru)
   Scalar *x_cpy = get_compact_vector(x, *m, *incx);
   Scalar *y_cpy = get_compact_vector(y, *n, *incy);
 
-  Eigen::internal::general_rank1_update<Scalar, int, Eigen::ColMajor, false, false>::run(*m, *n, a, *lda, x_cpy, y_cpy,
-                                                                                         alpha);
+  Eigen::internal::general_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, false, false>::run(
+      *m, *n, a, *lda, x_cpy, y_cpy, alpha);
 
   if (x_cpy != x) delete[] x_cpy;
   if (y_cpy != y) delete[] y_cpy;
@@ -493,13 +501,14 @@ EIGEN_BLAS_FUNC(geru)
  *  vector and A is an m by n matrix.
  */
 EIGEN_BLAS_FUNC(gerc)
-(int *m, int *n, RealScalar *palpha, RealScalar *px, int *incx, RealScalar *py, int *incy, RealScalar *pa, int *lda) {
+(EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py,
+ EIGEN_BLAS_INT *incy, RealScalar *pa, EIGEN_BLAS_INT *lda) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (*m < 0)
     info = 1;
   else if (*n < 0)
@@ -508,7 +517,7 @@ EIGEN_BLAS_FUNC(gerc)
     info = 5;
   else if (*incy == 0)
     info = 7;
-  else if (*lda < std::max(1, *m))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *m))
     info = 9;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "GERC ", &info, kBlasNameLength);
 
@@ -517,8 +526,8 @@ EIGEN_BLAS_FUNC(gerc)
   Scalar *x_cpy = get_compact_vector(x, *m, *incx);
   Scalar *y_cpy = get_compact_vector(y, *n, *incy);
 
-  Eigen::internal::general_rank1_update<Scalar, int, Eigen::ColMajor, false, Conj>::run(*m, *n, a, *lda, x_cpy, y_cpy,
-                                                                                        alpha);
+  Eigen::internal::general_rank1_update<Scalar, EIGEN_BLAS_INT, Eigen::ColMajor, false, Conj>::run(*m, *n, a, *lda,
+                                                                                                   x_cpy, y_cpy, alpha);
 
   if (x_cpy != x) delete[] x_cpy;
   if (y_cpy != y) delete[] y_cpy;

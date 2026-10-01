@@ -6,6 +6,7 @@ New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
 - `ArrayBase::logicalShiftRight<N>()`, a zero-filling right shift, alongside `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` as the spelled-out names for the existing shift operators [!2816]
+- Support building Eigen's in-tree BLAS library with 64-bit (`ILP64`) integers (`eigen_blas_ilp64` and `eigen_blas_ilp64_static`, controlled by `EIGEN_BUILD_BLAS_ILP64`)
 
 Bug fixes:
 - Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]

@@ -88,46 +88,45 @@ typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>, 0, Eigen::InnerStri
 typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1> > CompactVectorType;
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> > matrix(
-    T* data, int rows, int cols, int stride) {
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>> matrix(
+    T* data, EIGEN_BLAS_INT rows, EIGEN_BLAS_INT cols, EIGEN_BLAS_INT stride) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> >(
       data, rows, cols, Eigen::OuterStride<>(stride));
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> > matrix(
-    const T* data, int rows, int cols, int stride) {
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>> matrix(
+    const T* data, EIGEN_BLAS_INT rows, EIGEN_BLAS_INT cols, EIGEN_BLAS_INT stride) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> >(
       data, rows, cols, Eigen::OuterStride<>(stride));
 }
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> > make_vector(T* data, int size,
-                                                                                                    int incr) {
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic>> make_vector(
+    T* data, EIGEN_BLAS_INT size, EIGEN_BLAS_INT incr) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> >(
       data, size, Eigen::InnerStride<Eigen::Dynamic>(incr));
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> > make_vector(const T* data,
-                                                                                                          int size,
-                                                                                                          int incr) {
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic>> make_vector(
+    const T* data, EIGEN_BLAS_INT size, EIGEN_BLAS_INT incr) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> >(
       data, size, Eigen::InnerStride<Eigen::Dynamic>(incr));
 }
 
 template <typename T>
-Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1> > make_vector(T* data, int size) {
+Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1>> make_vector(T* data, EIGEN_BLAS_INT size) {
   return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, 1> >(data, size);
 }
 
 template <typename T>
-Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1> > make_vector(const T* data, int size) {
+Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>> make_vector(const T* data, EIGEN_BLAS_INT size) {
   return Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1> >(data, size);
 }
 
 template <typename T>
-T* get_compact_vector(T* x, int n, int incx) {
+T* get_compact_vector(T* x, EIGEN_BLAS_INT n, EIGEN_BLAS_INT incx) {
   if (incx == 1) return x;
 
   std::remove_const_t<T>* ret = new Scalar[n];
@@ -139,7 +138,7 @@ T* get_compact_vector(T* x, int n, int incx) {
 }
 
 template <typename T>
-T* copy_back(T* x_cpy, T* x, int n, int incx) {
+T* copy_back(T* x_cpy, T* x, EIGEN_BLAS_INT n, EIGEN_BLAS_INT incx) {
   if (x_cpy == x) return 0;
 
   if (incx < 0)

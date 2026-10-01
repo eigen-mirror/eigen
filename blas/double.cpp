@@ -20,7 +20,8 @@
 #include "level2_real_impl.h"
 #include "level3_impl.h"
 
-extern "C" double EIGEN_BLAS_FUNC_NAME(sdot)(int* n, float* x, int* incx, float* y, int* incy) {
+extern "C" double EIGEN_BLAS_FUNC_NAME(sdot)(EIGEN_BLAS_INT* n, float* x, EIGEN_BLAS_INT* incx, float* y,
+                                             EIGEN_BLAS_INT* incy) {
   if (*n <= 0) return 0;
 
   if (*incx == 1 && *incy == 1)

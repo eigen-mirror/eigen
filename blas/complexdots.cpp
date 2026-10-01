@@ -27,13 +27,23 @@
 #define EIGEN_BLAS_CDOT_API
 #endif
 
+#include <stdint.h>
+
+#ifndef EIGEN_BLAS_INT
+#if defined(EIGEN_64BIT_BLAS)
+#define EIGEN_BLAS_INT int64_t
+#else
+#define EIGEN_BLAS_INT int
+#endif
+#endif
+
 extern "C" {
 
 // Worker function declarations (defined in level1_cplx_impl.h via complex_single.cpp / complex_double.cpp).
-void cdotcw_(int *n, float *cx, int *incx, float *cy, int *incy, float *res);
-void cdotuw_(int *n, float *cx, int *incx, float *cy, int *incy, float *res);
-void zdotcw_(int *n, double *cx, int *incx, double *cy, int *incy, double *res);
-void zdotuw_(int *n, double *cx, int *incx, double *cy, int *incy, double *res);
+void cdotcw_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy, EIGEN_BLAS_INT *incy, float *res);
+void cdotuw_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy, EIGEN_BLAS_INT *incy, float *res);
+void zdotcw_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy, EIGEN_BLAS_INT *incy, double *res);
+void zdotuw_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy, EIGEN_BLAS_INT *incy, double *res);
 
 // POD complex types for C-compatible return values (matches Fortran complex layout).
 struct eigen_blas_complex_float {
@@ -44,28 +54,32 @@ struct eigen_blas_complex_double {
 };
 
 // CDOTC computes the conjugated dot product of two single-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(int *n, float *cx, int *incx, float *cy, int *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
+                                                    EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
   cdotcw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // CDOTU computes the unconjugated dot product of two single-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(int *n, float *cx, int *incx, float *cy, int *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
+                                                    EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
   cdotuw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // ZDOTC computes the conjugated dot product of two double-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(int *n, double *cx, int *incx, double *cy, int *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
+                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
   zdotcw_(n, cx, incx, cy, incy, &res.r);
   return res;
 }
 
 // ZDOTU computes the unconjugated dot product of two double-precision complex vectors.
-EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotu_(int *n, double *cx, int *incx, double *cy, int *incy) {
+EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotu_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
+                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
   zdotuw_(n, cx, incx, cy, incy, &res.r);
   return res;

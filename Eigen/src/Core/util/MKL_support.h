@@ -126,10 +126,12 @@
  * EIGEN_64BIT_BLAS to select the 64-bit-integer ("ILP64") interface. It is an ABI-affecting macro and must be
  * consistent across all translation units.
  */
+#ifndef EIGEN_BLAS_INT
 #if defined(EIGEN_64BIT_BLAS)
 #define EIGEN_BLAS_INT std::int64_t
 #else
 #define EIGEN_BLAS_INT int
+#endif
 #endif
 
 /* Suffix appended to external BLAS symbol names, for libraries that expose the 64-bit interface under decorated names
