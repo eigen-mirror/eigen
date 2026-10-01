@@ -364,8 +364,12 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   target_compile_definitions(redux_bounded_compile PRIVATE EIGEN_DONT_VECTORIZE)
   add_dependencies(redux_bounded redux_bounded_compile)
   add_executable(redux_bounded_compile_vectorized EXCLUDE_FROM_ALL redux_bounded_compile_vectorized.cpp)
-  target_link_libraries(redux_bounded_compile_vectorized PRIVATE Eigen3::Eigen)
-  target_compile_options(redux_bounded_compile_vectorized PRIVATE -O3 -Werror=array-bounds)
+  # EIGEN_TEST_CUSTOM_LINKER_FLAGS accompanies the custom compile flags below: sanitizer flags need both.
+  target_link_libraries(redux_bounded_compile_vectorized PRIVATE Eigen3::Eigen ${EIGEN_TEST_CUSTOM_LINKER_FLAGS})
+  # The job's ISA flags, as for bug1213 below: without them an SME build defines EIGEN_ARM64_USE_SME with no SME
+  # target and stops at an #error, and other jobs check a packet path they did not select. They go first so that -O3
+  # overrides an optimization level among them.
+  target_compile_options(redux_bounded_compile_vectorized PRIVATE ${EIGEN_TEST_CUSTOM_CXX_FLAGS} -O3 -Werror=array-bounds)
   target_compile_definitions(redux_bounded_compile_vectorized PRIVATE EIGEN_NO_DEBUG)
   add_dependencies(redux_bounded redux_bounded_compile_vectorized)
 endif()
