@@ -57,8 +57,8 @@ though nothing distinguished two hosts within one tag pool before this either.
 `affected-tests` and `all-tests` each suppress the smoke jobs (`.rules:libeigen:smoketest`), because both go deeper
 than the fixed list on the same native runners and the smoke jobs would only pay for it twice. The suppression is
 scoped to the `libeigen` namespace, since neither wider tier has any job in a fork. The NVHPC pair sits behind
-`.rules:libeigen:scheduled-or-web`: its frontend accounted for roughly a quarter of the project's hosted-runner
-minutes while it was in the `all-tests` matrix.
+`.rules:libeigen:nvhpc`, which admits a merge request only through its own `nvhpc-tests` label: its frontend accounted
+for roughly a quarter of the project's hosted-runner minutes while it was in the `all-tests` matrix.
 
 Under `affected-tests`, platforms beyond the four unconditional jobs are added on two independent triggers,
 `rules:changes:` on the backend directory and `$CI_MERGE_REQUEST_LABELS`, as two entries per rule set because GitLab

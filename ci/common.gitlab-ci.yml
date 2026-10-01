@@ -231,12 +231,15 @@
   variables:
     EIGEN_CI_CCACHE_SCOPE: ""
 
-.rules:libeigen:scheduled-or-web:
+# .rules:libeigen:all-tests with `nvhpc-tests` in place of the `all-tests`
+# label; the NVHPC section of build.linux.gitlab-ci.yml says why.
+.rules:libeigen:nvhpc:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/nvhpc-tests/"
 
 .rules:libeigen:scheduled-or-web:default-branch:
   rules:

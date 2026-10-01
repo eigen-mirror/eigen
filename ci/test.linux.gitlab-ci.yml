@@ -265,7 +265,7 @@ test:linux:x86-64:clang-19:default:asan-ubsan:contrib:
     EIGEN_CI_INSTALL: ""
   # Match the rules on the paired builds in build.linux.gitlab-ci.yml: a test
   # job whose build did not run has nothing to execute.
-  rules: !reference [.rules:libeigen:scheduled-or-web, rules]
+  rules: !reference [.rules:libeigen:nvhpc, rules]
 
 test:linux:x86-64:nvhpc-26.1:default:official:
   extends: .test:linux:x86-64:nvhpc-26.1:default

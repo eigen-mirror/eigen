@@ -50,12 +50,14 @@ Three tiers, in increasing cost:
 |---|---|---|
 | smoke | every MR with neither label below | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64, under gcc and clang |
 | affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 (gcc AVX2, clang baseline) and aarch64 (gcc, clang), plus any platform the diff or a `*-tests` label selects |
-| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
+| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the NVHPC pair below |
 
-One configuration sits outside all three tiers and runs only on schedules and web pipelines: the NVHPC (`nvc++`) build
-and test pair, whose frontend is slow enough that those two builds alone once took roughly a quarter of the project's
-hosted-runner minutes. Start a web pipeline when a change plausibly affects `nvc++` rather than waiting for the
-scheduled run to find it.
+One configuration sits outside all three tiers: the NVHPC (`nvc++`) build and test pair, whose frontend is slow enough
+that those two builds alone once took roughly a quarter of the project's hosted-runner minutes. It runs on schedules,
+web pipelines, and merge requests labelled `nvhpc-tests`, a label that needs no other and leaves the smoke jobs in
+place. Apply `nvhpc-tests` when a change plausibly affects `nvc++` rather than waiting for the scheduled run to find it;
+like `all-tests`, it requires explicit user permission. A web pipeline is no substitute on a merge request: it needs the
+branch in `libeigen/eigen` and runs the full tier as well.
 
 The affected tier exists because the smoke list samples: it is broad but shallow, so a change confined to one module
 gets only the one part of each related test that the list happens to name. Use `affected-tests` for depth, then choose
