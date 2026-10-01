@@ -186,6 +186,22 @@ void bdcsvd_mixed_option_enum_regression() {
 }
 #endif
 
+#if defined(EIGEN_TEST_PART_65) || defined(EIGEN_TEST_PART_ALL)
+void bdcsvd_switch_size() {
+  const MatrixXd m = MatrixXd::Random(20, 20);
+  BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> svd(m.rows(), m.cols());
+  svd.setSwitchSize(32);
+  svd.compute(m);
+  svd_check_full(m, svd);
+  svd.setSwitchSize(4);
+  svd.compute(m);
+  svd_check_full(m, svd);
+  svd.setSwitchSize(32);
+  svd.compute(m);
+  svd_check_full(m, svd);
+}
+#endif
+
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
 void bdcsvd_extreme_scale_regressions() {
   typedef Matrix<double, 6, 6> Matrix6d;
@@ -515,4 +531,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<float>(12, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
+  CALL_SUBTEST_65((bdcsvd_switch_size()));
 }
