@@ -190,7 +190,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T RandomToTypeNormal(uint64_t* state, uint
     const T x = u - T(0.449871);
     const T y = numext::abs(v) + T(0.386595);
     q = x * x + y * (T(0.196) * y - T(0.25472) * x);
-  } while (q > T(0.27597) && (q > T(0.27846) || v * v > T(-4) * numext::log(u) * u * u));
+    // u == 0 is outside the acceptance region (q > 0.27597 there), but -4 * log(0) * 0 * 0 is NaN, so the last test
+    // would accept it and return v / 0 = +/-inf.
+  } while (u == T(0) || (q > T(0.27597) && (q > T(0.27846) || v * v > T(-4) * numext::log(u) * u * u)));
 
   return v / u;
 }
