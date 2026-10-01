@@ -74,9 +74,11 @@ static constexpr int sme_tile() {
 // the literal-plus-Index bounds the packers pass.  Name every spelling Index
 // takes, mix the two argument types, and check the predicate so the traits'
 // widening cannot change which lanes are active.
+// EIGEN_DONT_INLINE here and below: GCC (14.1 through trunk) inlines a __arm_locally_streaming function into a
+// non-streaming caller without its mode switch, running the body as non-streaming SVE at that vector length.
 template <typename Scalar, typename Begin, typename End = Begin>
-__arm_locally_streaming static bool sme_whilelt_covers_first_lane_only() {
-  using Traits = internal::sme_traits<Scalar>;
+EIGEN_DONT_INLINE __arm_locally_streaming static bool sme_whilelt_covers_first_lane_only() {
+  using Traits = internal::sme_packet_traits<Scalar>;
   const svbool_t pg = Traits::whilelt(Begin(0), End(1));
   return svptest_first(Traits::ptrue(), pg) && svcntp_b8(Traits::ptrue(), pg) == 1;
 }
@@ -88,6 +90,55 @@ static void test_whilelt_operand_types() {
   VERIFY((sme_whilelt_covers_first_lane_only<Scalar, long long>()));
   VERIFY((sme_whilelt_covers_first_lane_only<Scalar, Index>()));
   VERIFY((sme_whilelt_covers_first_lane_only<Scalar, int, Index>()));
+}
+
+// Column j of out (n rows, one streaming vector) receives the j-th operation's result.
+template <typename Scalar>
+EIGEN_DONT_INLINE __arm_locally_streaming static Scalar sme_packet_ops(Scalar* out, const Scalar* a, const Scalar* b,
+                                                                       const Scalar* c, Index active) {
+  using Traits = internal::sme_packet_traits<Scalar>;
+  using Vec = typename Traits::type;
+  const svbool_t all = Traits::ptrue();
+  const svbool_t pg = Traits::whilelt(0, active);
+  const Index n = Traits::size();
+  const Vec va = internal::ploadu(all, a), vb = internal::ploadu(all, b), vc = internal::ploadu(all, c);
+  internal::pstoreu(all, out, internal::pmadd(all, va, vb, vc));
+  internal::pstoreu(all, out + n, internal::pnmadd(all, va, vb, vc));
+  internal::pstoreu(all, out + 2 * n, internal::pmadd_m(pg, va, vb, vc));
+  internal::pstoreu(all, out + 3 * n, internal::padd(all, va, vb));
+  internal::pstoreu(all, out + 4 * n, internal::pmul(all, va, vb));
+  internal::pstoreu(all, out + 5 * n, internal::pnegate(all, va));
+  internal::pstoreu(pg, out + 6 * n, internal::pset1<Vec>(Scalar(7)));
+  return internal::predux(pg, va);
+}
+
+// Operand order and predication of the packet layer, on small integers so every result is exact.
+// a_i = i + 2, b_i = -(i + 3), c_i = 2i + 5 are pairwise distinct and never +-1, so swapping two
+// operands of pmadd or pnmadd changes every lane: ab + c - (ac + b) = (b - c)(a - 1), and so on.
+template <typename Scalar>
+static void test_packet_ops() {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index n = internal::sme_packet_traits<Scalar>::size();
+  const Vec a = Vec::LinSpaced(n, Scalar(2), Scalar(n + 1));
+  const Vec b = Vec::LinSpaced(n, Scalar(-3), Scalar(-(n + 2)));
+  const Vec c = Vec::LinSpaced(n, Scalar(5), Scalar(2 * n + 3));
+  for (Index active = 0; active <= n; ++active) {
+    Mat out = Mat::Constant(n, 7, Scalar(-1));
+    const Scalar sum = sme_packet_ops(out.data(), a.data(), b.data(), c.data(), active);
+    Mat ref(n, 7);
+    ref.col(0) = a.cwiseProduct(b) + c;
+    ref.col(1) = c - a.cwiseProduct(b);
+    ref.col(2) = c;
+    ref.col(2).head(active) = ref.col(0).head(active);
+    ref.col(3) = a + b;
+    ref.col(4) = a.cwiseProduct(b);
+    ref.col(5) = -a;
+    ref.col(6).setConstant(Scalar(-1));
+    ref.col(6).head(active).setConstant(Scalar(7));
+    VERIFY_IS_EQUAL(out, ref);
+    VERIFY_IS_EQUAL(sum, a.head(active).sum());
+  }
 }
 
 // Write one element into a packed panel of width w, in the layout the SME
@@ -1133,6 +1184,7 @@ static void test_products() {
 
 EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_whilelt_operand_types<float>());
+  CALL_SUBTEST_1(test_packet_ops<float>());
   CALL_SUBTEST_1(test_products<float>());
   CALL_SUBTEST_1(test_conjugated_products<float>());
   CALL_SUBTEST_1(test_symm_pack<float>());
@@ -1153,6 +1205,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_conjugated_products<double>());
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_2(test_whilelt_operand_types<double>());
+  CALL_SUBTEST_2(test_packet_ops<double>());
   CALL_SUBTEST_2(test_symm_pack<double>());
   CALL_SUBTEST_2(test_pack_direct<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());

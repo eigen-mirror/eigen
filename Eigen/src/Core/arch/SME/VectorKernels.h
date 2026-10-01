@@ -9,43 +9,6 @@
 namespace Eigen {
 namespace internal {
 
-// SME2 multi-vector FMLA updates four streaming vectors per ZA group. Four independent groups
-// hide accumulator latency. ACLE: https://arm-software.github.io/acle/main/acle.html
-
-static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
-                                                svfloat32_t y) __arm_streaming __arm_inout("za") {
-  svmla_single_za32_f32_vg1x4(slice, x, y);
-}
-static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat32x4_t x,
-                                                svfloat32x4_t y) __arm_streaming __arm_inout("za") {
-  svmla_za32_f32_vg1x4(slice, x, y);
-}
-static EIGEN_ALWAYS_INLINE svfloat32x4_t sme_vector_read(unsigned int slice, float) __arm_streaming __arm_in("za") {
-  return svread_za32_f32_vg1x4(slice);
-}
-static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
-                                                 svfloat32x4_t x) __arm_streaming __arm_inout("za") {
-  svwrite_za32_f32_vg1x4(slice, x);
-}
-
-#ifdef EIGEN_VECTORIZE_SME_F64F64
-static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
-                                                svfloat64_t y) __arm_streaming __arm_inout("za") {
-  svmla_single_za64_f64_vg1x4(slice, x, y);
-}
-static EIGEN_ALWAYS_INLINE void sme_vector_madd(unsigned int slice, svfloat64x4_t x,
-                                                svfloat64x4_t y) __arm_streaming __arm_inout("za") {
-  svmla_za64_f64_vg1x4(slice, x, y);
-}
-static EIGEN_ALWAYS_INLINE svfloat64x4_t sme_vector_read(unsigned int slice, double) __arm_streaming __arm_in("za") {
-  return svread_za64_f64_vg1x4(slice);
-}
-static EIGEN_ALWAYS_INLINE void sme_vector_write(unsigned int slice,
-                                                 svfloat64x4_t x) __arm_streaming __arm_inout("za") {
-  svwrite_za64_f64_vg1x4(slice, x);
-}
-#endif
-
 #if EIGEN_COMP_CLANG
 #define EIGEN_SME_VECTOR_UNROLL4 _Pragma("unroll")
 #elif EIGEN_COMP_GNUC
@@ -64,87 +27,89 @@ static EIGEN_ALWAYS_INLINE bool sme_rounds_toward_negative() {
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_axpy(Index n, const Scalar* x, Scalar* y, Scalar alpha, Index prefix) {
-  using Traits = sme_traits<Scalar>;
-  const Index lanes = Traits::svl();
+  using Traits = sme_packet_traits<Scalar>;
+  using Vec = typename Traits::type;
+  const Index lanes = Traits::size();
   const auto pn = Traits::ptrue_c();
-  const auto a = Traits::dup(alpha);
+  const auto a = pset1<Vec>(alpha);
   Index i = 0;
   for (; i < prefix; i += prefix - i < lanes ? prefix - i : lanes) {
     auto active = Traits::whilelt(i, prefix);
-    sme_st1(active, y + i, svmla_x(active, sme_ld1(active, y + i), sme_ld1(active, x + i), alpha));
+    pstoreu(active, y + i, pmadd(active, ploadu(active, x + i), a, ploadu(active, y + i)));
   }
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
     EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k) {
-      auto xv = sme_ld1_x4(pn, x + i + k * 4 * lanes);
-      sme_vector_write(k, sme_ld1_x4(pn, y + i + k * 4 * lanes));
-      sme_vector_madd(k, xv, a);
+      auto xv = ploadu_x4(pn, x + i + k * 4 * lanes);
+      sme_write_za_vg1x4(k, ploadu_x4(pn, y + i + k * 4 * lanes));
+      sme_madd_za_vg1x4(k, xv, a);
     }
     EIGEN_SME_VECTOR_UNROLL4
-    for (int k = 0; k < 4; ++k) svst1(pn, y + i + k * 4 * lanes, sme_vector_read(k, Scalar(0)));
+    for (int k = 0; k < 4; ++k) pstoreu_x4(pn, y + i + k * 4 * lanes, sme_read_za_vg1x4<Scalar>(k));
   }
   for (; i <= n - 4 * lanes; i += 4 * lanes) {
-    auto xv = sme_ld1_x4(pn, x + i);
-    sme_vector_write(0, sme_ld1_x4(pn, y + i));
-    sme_vector_madd(0, xv, a);
-    svst1(pn, y + i, sme_vector_read(0, Scalar(0)));
+    auto xv = ploadu_x4(pn, x + i);
+    sme_write_za_vg1x4(0, ploadu_x4(pn, y + i));
+    sme_madd_za_vg1x4(0, xv, a);
+    pstoreu_x4(pn, y + i, sme_read_za_vg1x4<Scalar>(0));
   }
   for (; i < n; i += n - i < lanes ? n - i : lanes) {
     auto tail = Traits::whilelt(i, n);
-    sme_st1(tail, y + i, svmla_x(tail, sme_ld1(tail, y + i), sme_ld1(tail, x + i), alpha));
+    pstoreu(tail, y + i, pmadd(tail, ploadu(tail, x + i), a, ploadu(tail, y + i)));
   }
 }
 
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming EIGEN_DONT_INLINE Scalar sme_dot(Index n, const Scalar* x, const Scalar* y) {
-  using Traits = sme_traits<Scalar>;
-  const Index lanes = Traits::svl();
+  using Traits = sme_packet_traits<Scalar>;
+  using Vec = typename Traits::type;
+  const Index lanes = Traits::size();
   const auto pg = Traits::ptrue();
   const auto pn = Traits::ptrue_c();
   // -0 is the additive identity except under roundTowardNegative, so a zero sum gets the IEEE sign.
-  const auto negative_zero = Traits::dup(Scalar(-0.0));
+  const auto negative_zero = pset1<Vec>(Scalar(-0.0));
   EIGEN_SME_VECTOR_UNROLL4
   for (int k = 0; k < 4; ++k)
-    sme_vector_write(k, svcreate4(negative_zero, negative_zero, negative_zero, negative_zero));
+    sme_write_za_vg1x4(k, pcreate(negative_zero, negative_zero, negative_zero, negative_zero));
   Index i = 0;
   for (; i <= n - 16 * lanes; i += 16 * lanes) {
     EIGEN_SME_VECTOR_UNROLL4
     for (int k = 0; k < 4; ++k)
-      sme_vector_madd(k, sme_ld1_x4(pn, x + i + k * 4 * lanes), sme_ld1_x4(pn, y + i + k * 4 * lanes));
+      sme_madd_za_vg1x4(k, ploadu_x4(pn, x + i + k * 4 * lanes), ploadu_x4(pn, y + i + k * 4 * lanes));
   }
-  for (; i <= n - 4 * lanes; i += 4 * lanes) sme_vector_madd(0, sme_ld1_x4(pn, x + i), sme_ld1_x4(pn, y + i));
+  for (; i <= n - 4 * lanes; i += 4 * lanes) sme_madd_za_vg1x4(0, ploadu_x4(pn, x + i), ploadu_x4(pn, y + i));
   auto tail_accumulator = negative_zero;
   for (; i < n; i += n - i < lanes ? n - i : lanes) {
     auto tail = Traits::whilelt(i, n);
-    tail_accumulator = svmla_m(tail, tail_accumulator, sme_ld1(tail, x + i), sme_ld1(tail, y + i));
+    tail_accumulator = pmadd_m(tail, ploadu(tail, x + i), ploadu(tail, y + i), tail_accumulator);
   }
   auto sum = tail_accumulator;
   EIGEN_SME_VECTOR_UNROLL4
   for (int k = 0; k < 4; ++k) {
-    auto v = sme_vector_read(k, Scalar(0));
-    sum = svadd_x(pg, sum,
-                  svadd_x(pg, svadd_x(pg, sme_get<0>(v), sme_get<1>(v)), svadd_x(pg, sme_get<2>(v), sme_get<3>(v))));
+    auto v = sme_read_za_vg1x4<Scalar>(k);
+    sum = padd(pg, sum, padd(pg, padd(pg, pget<0>(v), pget<1>(v)), padd(pg, pget<2>(v), pget<3>(v))));
   }
-  return svaddv(pg, sum);
+  return predux(pg, sum);
 }
 
 // y += alpha * ZA group k, updated in ZA like the accumulation.
 template <typename Scalar, typename Vec>
 static EIGEN_ALWAYS_INLINE void sme_gemv_update(unsigned int k, svcount_t active, Scalar* y,
                                                 Vec alpha) __arm_streaming __arm_inout("za") {
-  const auto sum = sme_vector_read(k, Scalar(0));
-  sme_vector_write(k, sme_ld1_x4(active, y));
-  sme_vector_madd(k, sum, alpha);
-  svst1(active, y, sme_vector_read(k, Scalar(0)));
+  const auto sum = sme_read_za_vg1x4<Scalar>(k);
+  sme_write_za_vg1x4(k, ploadu_x4(active, y));
+  sme_madd_za_vg1x4(k, sum, alpha);
+  pstoreu_x4(active, y, sme_read_za_vg1x4<Scalar>(k));
 }
 
 template <typename Scalar, typename Index>
 __arm_new("za") __arm_locally_streaming
     EIGEN_DONT_INLINE void sme_gemv(Index rows, Index cols, const Scalar* a, Index stride, const Scalar* x, Scalar* y,
                                     Scalar alpha, Index block_cols) {
-  using Traits = sme_traits<Scalar>;
-  const Index lanes = Traits::svl();
-  const auto scale = Traits::dup(alpha);
+  using Traits = sme_packet_traits<Scalar>;
+  using Vec = typename Traits::type;
+  const Index lanes = Traits::size();
+  const auto scale = pset1<Vec>(alpha);
   // Match the generic GEMV's scaled column batches to bound the unscaled sums.
   for (Index first = 0; first < cols;) {
     const Index end = first + (cols - first < block_cols ? cols - first : block_cols);
@@ -159,12 +124,12 @@ __arm_new("za") __arm_locally_streaming
                   o3 = remaining > 12 * lanes ? 12 * lanes : 0;
       svzero_za();
       for (Index j = first; j < end; ++j) {
-        const auto b = Traits::dup(x[j]);
+        const auto b = pset1<Vec>(x[j]);
         const Scalar* column = a + i + j * stride;
-        sme_vector_madd(0, sme_ld1_x4(p0, column), b);
-        sme_vector_madd(1, sme_ld1_x4(p1, column + o1), b);
-        sme_vector_madd(2, sme_ld1_x4(p2, column + o2), b);
-        sme_vector_madd(3, sme_ld1_x4(p3, column + o3), b);
+        sme_madd_za_vg1x4(0, ploadu_x4(p0, column), b);
+        sme_madd_za_vg1x4(1, ploadu_x4(p1, column + o1), b);
+        sme_madd_za_vg1x4(2, ploadu_x4(p2, column + o2), b);
+        sme_madd_za_vg1x4(3, ploadu_x4(p3, column + o3), b);
       }
       sme_gemv_update(0, p0, y + i, scale);
       sme_gemv_update(1, p1, y + i + o1, scale);
