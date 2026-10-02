@@ -385,9 +385,7 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   }
 
   /** \sa MapBase::outerStride() */
-  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept {
-    return internal::traits<BlockType>::HasSameStorageOrderAsXprType ? m_xpr.outerStride() : m_xpr.innerStride();
-  }
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const noexcept { return m_outerStride; }
 
   EIGEN_DEVICE_FUNC constexpr StorageIndex startRow() const noexcept { return m_startRow.value(); }
 
