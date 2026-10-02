@@ -968,34 +968,44 @@ namespace internal {
 template <typename Other>
 struct quaternionbase_assign_impl<Other, 3, 3> {
   using Scalar = typename Other::Scalar;
-  template <class Derived>
+
+  template <int AxisI, int AxisJ, int AxisK, class Derived, class Mat>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar assign_branch(QuaternionBase<Derived>& q, const Mat& mat,
+                                                                    Scalar mii, Scalar mjj, Scalar mkk) {
+    // Guard against slightly negative argument from non-orthogonal matrices.
+    Scalar t = numext::maxi(mii - mjj - mkk + Scalar(1.0), Scalar(0));
+    q.coeffs().coeffRef(AxisI) = t;
+    q.w() = mat.coeff(AxisK, AxisJ) - mat.coeff(AxisJ, AxisK);
+    q.coeffs().coeffRef(AxisJ) = mat.coeff(AxisJ, AxisI) + mat.coeff(AxisI, AxisJ);
+    q.coeffs().coeffRef(AxisK) = mat.coeff(AxisK, AxisI) + mat.coeff(AxisI, AxisK);
+    return t;
+  }
+
+  template <bool Normalize = true, class Derived>
   EIGEN_DEVICE_FUNC static inline void run(QuaternionBase<Derived>& q, const Other& a_mat) {
     const typename internal::nested_eval<Other, 2>::type mat(a_mat);
     EIGEN_USING_STD(sqrt)
     // This algorithm comes from  "Quaternion Calculus and Fast Animation",
     // Ken Shoemake, 1987 SIGGRAPH course notes
-    Scalar t = mat.trace();
+    const Scalar m00 = mat.coeff(0, 0);
+    const Scalar m11 = mat.coeff(1, 1);
+    const Scalar m22 = mat.coeff(2, 2);
+    Scalar t = m00 + m11 + m22;
     if (t > Scalar(0)) {
-      t = sqrt(numext::maxi(t + Scalar(1.0), Scalar(0)));
-      q.w() = Scalar(0.5) * t;
-      t = Scalar(0.5) / t;
-      q.x() = (mat.coeff(2, 1) - mat.coeff(1, 2)) * t;
-      q.y() = (mat.coeff(0, 2) - mat.coeff(2, 0)) * t;
-      q.z() = (mat.coeff(1, 0) - mat.coeff(0, 1)) * t;
+      t = numext::maxi(t + Scalar(1.0), Scalar(0));
+      q.w() = t;
+      q.x() = mat.coeff(2, 1) - mat.coeff(1, 2);
+      q.y() = mat.coeff(0, 2) - mat.coeff(2, 0);
+      q.z() = mat.coeff(1, 0) - mat.coeff(0, 1);
+    } else if (m00 >= m11 && m00 >= m22) {
+      t = assign_branch<0, 1, 2>(q, mat, m00, m11, m22);
+    } else if (m11 >= m22) {
+      t = assign_branch<1, 2, 0>(q, mat, m11, m22, m00);
     } else {
-      Index i = 0;
-      if (mat.coeff(1, 1) > mat.coeff(0, 0)) i = 1;
-      if (mat.coeff(2, 2) > mat.coeff(i, i)) i = 2;
-      Index j = (i + 1) % 3;
-      Index k = (j + 1) % 3;
-
-      // Guard against slightly negative argument from non-orthogonal matrices.
-      t = sqrt(numext::maxi(mat.coeff(i, i) - mat.coeff(j, j) - mat.coeff(k, k) + Scalar(1.0), Scalar(0)));
-      q.coeffs().coeffRef(i) = Scalar(0.5) * t;
-      t = Scalar(0.5) / t;
-      q.w() = (mat.coeff(k, j) - mat.coeff(j, k)) * t;
-      q.coeffs().coeffRef(j) = (mat.coeff(j, i) + mat.coeff(i, j)) * t;
-      q.coeffs().coeffRef(k) = (mat.coeff(k, i) + mat.coeff(i, k)) * t;
+      t = assign_branch<2, 0, 1>(q, mat, m22, m00, m11);
+    }
+    if (Normalize) {
+      q.coeffs() *= Scalar(0.5) / sqrt(t);
     }
   }
 };
