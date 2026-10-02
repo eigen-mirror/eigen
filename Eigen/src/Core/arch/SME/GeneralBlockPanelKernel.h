@@ -1077,8 +1077,12 @@ struct sme_pack_lhs_colmajor {
     }
   }
 
-  __arm_locally_streaming static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
-                                                  Index depth, Index rows, Index dst_stride, Index dst_offset) {
+  // EIGEN_DONT_INLINE: GCC (14.1 through trunk) may inline a __arm_locally_streaming function into a
+  // non-streaming caller and drop its mode switch. The other streaming entry points are __arm_new("za"),
+  // which GCC does not inline.
+  __arm_locally_streaming EIGEN_DONT_INLINE static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
+                                                                    Index src_stride, Index depth, Index rows,
+                                                                    Index dst_stride, Index dst_offset) {
     const Index peeled_rows = (rows / MR) * MR;
     const Index i0 = sme_pack_quad_panels<PanelMode>(dst_base, src, src_stride, depth, peeled_rows, Index(MR),
                                                      dst_stride, dst_offset);
@@ -1250,8 +1254,10 @@ struct sme_pack_rhs_rowmajor {
     }
   }
 
-  __arm_locally_streaming static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src, Index src_stride,
-                                                  Index depth, Index cols, Index dst_stride, Index dst_offset) {
+  // EIGEN_DONT_INLINE: as in sme_pack_lhs_colmajor::pack_direct.
+  __arm_locally_streaming EIGEN_DONT_INLINE static void pack_direct(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
+                                                                    Index src_stride, Index depth, Index cols,
+                                                                    Index dst_stride, Index dst_offset) {
     const Index peeled_cols = (cols / NR) * NR;
 
     for (Index j = 0; j < peeled_cols; j += NR) {
