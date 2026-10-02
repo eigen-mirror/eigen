@@ -172,6 +172,7 @@ void evalSolverSugarFunction(const POLYNOMIAL& pols, const REAL_ROOTS& real_root
   verify_polynomialsolver_sugar(psolve, numext::sqrt(test_precision<RealScalar>()));
 }
 
+template <typename = void>
 void polynomialsolver_sugar_cluster() {
   Matrix<float, 7, 1> roots;
   roots << -0.8f, 0.2f, 0.2001f, 0.5f, 0.7f, 0.9f, 1.0f;
@@ -180,6 +181,7 @@ void polynomialsolver_sugar_cluster() {
   evalSolverSugarFunction<7>(poly, roots);
 }
 
+template <typename = void>
 void polynomialsolver_sugar_filtering() {
   Vector4d poly;
   poly << 0, 1, 0, 1;
@@ -304,6 +306,7 @@ void polynomialsolver_refinement_accuracy(int deg) {
 
 // At |z| = 3 rounding dominates the residual of the pair 0.1 +- 3i, which is still an accurate root; comparing that
 // residual with the one at the real part 0.1 once reported the pair as a double real root.
+template <typename = void>
 void polynomialsolver_complex_pair_kept() {
   Matrix<std::complex<float>, 12, 1> roots;
   roots << std::complex<float>(0.1f, 3.0f), std::complex<float>(0.1f, -3.0f), 0.2f, -0.2f, 0.4f, -0.4f, 0.6f, -0.6f,
@@ -322,6 +325,7 @@ void polynomialsolver_complex_pair_kept() {
 
 // The companion eigenvalue of a root at 1e-12 carries an absolute error of order eps, a backward error of about
 // 3e3 eps; refinement restores the root's full relative accuracy.
+template <typename = void>
 void polynomialsolver_tiny_root() {
   Matrix<double, 5, 1> roots;
   roots << 1e-12, 0.25, -0.5, 0.75, -1.0;
@@ -407,8 +411,8 @@ void polynomialsolver_real_starts_for_complex_pair() {
 }
 
 EIGEN_DECLARE_TEST(polynomialsolver) {
-  CALL_SUBTEST_7(polynomialsolver_sugar_cluster());
-  CALL_SUBTEST_13(polynomialsolver_sugar_filtering());
+  CALL_SUBTEST_7(polynomialsolver_sugar_cluster<>());
+  CALL_SUBTEST_13(polynomialsolver_sugar_filtering<>());
   CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<6>());
   CALL_SUBTEST_18(polynomialsolver_real_starts_for_complex_pair<Dynamic>());
   for (int i = 0; i < g_repeat; i++) {
@@ -434,8 +438,8 @@ EIGEN_DECLARE_TEST(polynomialsolver) {
         internal::random<int>(2, 13))));
     CALL_SUBTEST_22((polynomialsolver_refinement_accuracy<double, long double, Dynamic>(internal::random<int>(2, 20))));
   }
-  CALL_SUBTEST_15(polynomialsolver_complex_pair_kept());
-  CALL_SUBTEST_15(polynomialsolver_tiny_root());
+  CALL_SUBTEST_15(polynomialsolver_complex_pair_kept<>());
+  CALL_SUBTEST_15(polynomialsolver_tiny_root<>());
   CALL_SUBTEST_16(polynomialsolver_real_part_is_another_root<float>());
   CALL_SUBTEST_23(polynomialsolver_real_part_is_another_root<double>());
   CALL_SUBTEST_24(polynomialsolver_real_part_is_another_root<std::complex<double>>());

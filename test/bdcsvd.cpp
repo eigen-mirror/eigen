@@ -53,6 +53,7 @@ void compare_bdc_jacobi(const MatrixType& a = MatrixType(), int algoswap = 16, b
 #if defined(EIGEN_TEST_PART_46) || defined(EIGEN_TEST_PART_47) || defined(EIGEN_TEST_PART_48) || \
     defined(EIGEN_TEST_PART_49) || defined(EIGEN_TEST_PART_ALL)
 // Verifies total deflation is **not** triggered.
+template <typename = void>
 void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
   MatrixXd m(4, 3);
   if (structure_as_m) {
@@ -174,6 +175,7 @@ void bdcsvd_bidiagonal_hard_cases() {
 }
 
 #if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_mixed_option_enum_regression() {
   using NoQrFullSVD = BDCSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
   using ReversedMixedSVD = BDCSVD<MatrixXd, ComputeThinU | DisableQRDecomposition | ComputeFullV>;
@@ -187,6 +189,7 @@ void bdcsvd_mixed_option_enum_regression() {
 #endif
 
 #if defined(EIGEN_TEST_PART_65) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_switch_size() {
   const MatrixXd m = MatrixXd::Random(20, 20);
   BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> svd(m.rows(), m.cols());
@@ -214,6 +217,7 @@ void bdcsvd_switch_size() {
 #endif
 
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_extreme_scale_regressions() {
   typedef Matrix<double, 6, 6> Matrix6d;
   const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
@@ -266,6 +270,7 @@ void bdcsvd_extreme_scale_regressions() {
 #endif
 
 #if defined(EIGEN_TEST_PART_54) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_fast_math_regression_1588() {
   const Index n = 500;
   MatrixXd matrix = MatrixXd::Zero(n, n);
@@ -332,6 +337,7 @@ void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
   });
 }
 
+template <typename = void>
 void bdcsvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
   const Index size = 20;
@@ -455,7 +461,7 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
-  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression<>()));
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_9((bdcsvd_thin_full_options<Matrix2d>()));
@@ -510,18 +516,18 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
-  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling());
+  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling<>());
   CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
   CALL_SUBTEST_45((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
 
   // Without total deflation issues.
-  CALL_SUBTEST_46((compare_bdc_jacobi_instance(true)));
-  CALL_SUBTEST_47((compare_bdc_jacobi_instance(false)));
+  CALL_SUBTEST_46((compare_bdc_jacobi_instance<>(true)));
+  CALL_SUBTEST_47((compare_bdc_jacobi_instance<>(false)));
 
   // With total deflation issues before, when it shouldn't be triggered.
-  CALL_SUBTEST_48((compare_bdc_jacobi_instance(true, 3)));
-  CALL_SUBTEST_49((compare_bdc_jacobi_instance(false, 3)));
+  CALL_SUBTEST_48((compare_bdc_jacobi_instance<>(true, 3)));
+  CALL_SUBTEST_49((compare_bdc_jacobi_instance<>(false, 3)));
 
   // Convergence for large constant matrix (https://gitlab.com/libeigen/eigen/-/issues/2491)
   CALL_SUBTEST_50(bdcsvd_check_convergence<MatrixXf>(MatrixXf::Constant(500, 500, 1)));
@@ -529,8 +535,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // Bidiagonal SVD hard test cases
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
-  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions()));
-  CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
+  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions<>()));
+  CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588<>()));
   CALL_SUBTEST_55((bdcsvd_secular_extrapolation<float>()));
   CALL_SUBTEST_56((bdcsvd_secular_extrapolation<double>()));
   CALL_SUBTEST_57((bdcsvd_qr_crossover<float, ColMajor>()));
@@ -542,5 +548,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<float>(12, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
-  CALL_SUBTEST_65((bdcsvd_switch_size()));
+  CALL_SUBTEST_65((bdcsvd_switch_size<>()));
 }

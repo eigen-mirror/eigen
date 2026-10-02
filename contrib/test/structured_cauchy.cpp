@@ -143,6 +143,7 @@ void test_cauchy_lu(Index n) {
 // The Hilbert matrix as a Cauchy matrix (x_i = i+1, y_j = -j): deterministic
 // residual bounds far below what the astronomical conditioning would allow a
 // forward-error test, plus the closed-form determinant against the dense LU one.
+template <typename = void>
 void test_cauchy_hilbert() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -179,6 +180,7 @@ void test_cauchy_hilbert() {
 
 // Clustered row nodes make leading minors nearly singular: partial pivoting must
 // keep the factorization backward stable (residual check).
+template <typename = void>
 void test_cauchy_lu_pivoting(Index n) {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -200,6 +202,7 @@ void test_cauchy_lu_pivoting(Index n) {
 
 // A duplicated row node makes two rows identical, hence the matrix exactly
 // singular; a zero pivot must survive partial pivoting and be reported.
+template <typename = void>
 void test_cauchy_lu_singular() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec x(5), y(5);
@@ -428,6 +431,7 @@ void test_cauchy_mixed_scalar(Index m, Index n) {
 // Wide-dynamic-range determinants: the closed-form factors overflow or underflow
 // individually while the determinant itself is representable, so the balanced
 // m * 2^e accumulation must carry the exponent past the intermediate extremes.
+template <typename = void>
 void test_cauchy_determinant_range() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -504,6 +508,7 @@ void test_cauchy_determinant_range() {
 // halved-operand recomputation, so only the determinant's own overflow or
 // underflow is visible in the result -- saturated to a zero or infinity of the
 // mathematically correct sign.
+template <typename = void>
 void test_cauchy_determinant_overflow_boundary() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const double M = 0.6 * (std::numeric_limits<double>::max)();
@@ -606,6 +611,7 @@ void test_cauchy_determinant_overflow_boundary() {
 // the products and the CauchyLU factorization must all produce the guarded
 // value -- and agree with determinant(), which derives the same quantity
 // through its balanced accumulation.
+template <typename = void>
 void test_cauchy_boundary_coefficients() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -786,9 +792,9 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_2((test_cauchy_lu<double>(30)));
     CALL_SUBTEST_2((test_cauchy_lu<std::complex<double>>(16)));
     CALL_SUBTEST_2((test_cauchy_lu<float>(10)));
-    CALL_SUBTEST_2(test_cauchy_hilbert());
-    CALL_SUBTEST_2(test_cauchy_lu_pivoting(20));
-    CALL_SUBTEST_2(test_cauchy_lu_singular());
+    CALL_SUBTEST_2(test_cauchy_hilbert<>());
+    CALL_SUBTEST_2(test_cauchy_lu_pivoting<>(20));
+    CALL_SUBTEST_2(test_cauchy_lu_singular<>());
     CALL_SUBTEST_2((test_cauchy_lu_scaled_generators<double>()));
     CALL_SUBTEST_2((test_cauchy_lu_scaled_generators<std::complex<double>>()));
 
@@ -809,8 +815,8 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_4((test_cauchy_delayed_product<std::complex<double>>(7, 10)));
     CALL_SUBTEST_4((test_cauchy_mixed_scalar<double>(10, 13)));
     CALL_SUBTEST_4((test_cauchy_mixed_scalar<float>(9, 6)));
-    CALL_SUBTEST_4(test_cauchy_determinant_range());
-    CALL_SUBTEST_4(test_cauchy_determinant_overflow_boundary());
-    CALL_SUBTEST_4(test_cauchy_boundary_coefficients());
+    CALL_SUBTEST_4(test_cauchy_determinant_range<>());
+    CALL_SUBTEST_4(test_cauchy_determinant_overflow_boundary<>());
+    CALL_SUBTEST_4(test_cauchy_boundary_coefficients<>());
   }
 }

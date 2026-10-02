@@ -629,6 +629,7 @@ void tridiagonal_eigensolver_narrow() {
   }
 }
 
+template <typename = void>
 void tridiagonal_eigensolver_power_of_two_scaling() {
   // An input sensitive to normalization rounding; bisection promises normwise accuracy, not correct rounding.
   Vector3f diag;
@@ -813,7 +814,7 @@ void tridiagonal_eigensolver_flushed_subnormal_coupling() {
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
-  CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling<>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
   for (Index n : {Index(1), Index(2), Index(9)}) {

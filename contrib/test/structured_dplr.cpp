@@ -285,6 +285,7 @@ void test_dplr_mixed_scalar(Index n, Index k) {
 // when the determinant itself is representable, whatever the ordering of large
 // and small diagonal entries. Genuinely non-representable determinants must
 // still saturate to infinity / zero.
+template <typename = void>
 void test_dplr_determinant_scaled() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -346,6 +347,7 @@ void test_dplr_determinant_scaled() {
 // the determinant is ~1, since D^{-1} scales the capacitance entries by the reciprocal diagonal. Both
 // det(D) and det(capacitance) must therefore accumulate in the balanced mantissa * 2^e form, the
 // latter from the LU pivots rather than the plain pivot product .determinant() would form.
+template <typename = void>
 void test_dplr_determinant_capacitance() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -423,6 +425,7 @@ void test_dplr_determinant_capacitance() {
 // factor before the other, tiny factor pulls the product back down. The Woodbury kernels form these
 // products from exactly rescaled factors so no spurious Inf/NaN reaches determinant(), solve() or
 // inverse().
+template <typename = void>
 void test_dplr_capacitance_overflow() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -673,9 +676,9 @@ EIGEN_DECLARE_TEST(structured_dplr) {
     CALL_SUBTEST_4((test_dplr_delayed_product<std::complex<double>>(10, 3)));
     CALL_SUBTEST_4((test_dplr_mixed_scalar<double>(12, 3)));
     CALL_SUBTEST_4((test_dplr_mixed_scalar<float>(9, 2)));
-    CALL_SUBTEST_4(test_dplr_determinant_scaled());
-    CALL_SUBTEST_4(test_dplr_determinant_capacitance());
-    CALL_SUBTEST_4(test_dplr_capacitance_overflow());
+    CALL_SUBTEST_4(test_dplr_determinant_scaled<>());
+    CALL_SUBTEST_4(test_dplr_determinant_capacitance<>());
+    CALL_SUBTEST_4(test_dplr_capacitance_overflow<>());
     CALL_SUBTEST_4((test_dplr_capacitance_fast_path<double>(11, 3)));
     CALL_SUBTEST_4((test_dplr_capacitance_fast_path<std::complex<double>>(9, 2)));
     CALL_SUBTEST_4((test_dplr_fixed_rank0<double, 5>()));

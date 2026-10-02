@@ -132,6 +132,7 @@ void test_bjorck_pereyra_roots_of_unity(Index n) {
 // Eigen::half has explicit conversion from the wider type returned by the
 // standard scaling functions. Instantiate both product and solver paths so the
 // range-protection helpers retain support for narrow floating-point scalars.
+template <typename = void>
 void test_vandermonde_half() {
   typedef Matrix<half, 2, 1> Vec;
   Vec nodes, coefficients;
@@ -152,6 +153,7 @@ void test_vandermonde_half() {
 // Björck-Pereyra's celebrated accuracy property (Higham, ASNA ch. 22): for
 // monotone nodes and an alternating-sign right-hand side the forward error is
 // tiny even though the matrix conditioning is astronomical. Deterministic.
+template <typename = void>
 void test_bjorck_pereyra_higham() {
   typedef Matrix<double, Dynamic, 1> Vec;
 
@@ -192,6 +194,7 @@ void test_bjorck_pereyra_higham() {
 // The transpose and adjoint recurrences must be distinguished for genuinely
 // complex nodes. A rotated root-of-unity grid keeps both systems well
 // conditioned while avoiding the unrotated grid's extra symmetries.
+template <typename = void>
 void test_bjorck_pereyra_complex_transpose_adjoint(Index n) {
   typedef std::complex<double> Scalar;
   typedef Matrix<double, Dynamic, 1> RealVec;
@@ -248,6 +251,7 @@ void test_bjorck_pereyra_complex_transpose_adjoint(Index n) {
 
 // Repeated nodes make the matrix exactly singular, while non-finite nodes make
 // the solver input invalid. Both must be reported before solve evaluation.
+template <typename = void>
 void test_bjorck_pereyra_singular() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec x(5);
@@ -419,6 +423,7 @@ double reference_vandermonde_det(const Matrix<double, Dynamic, 1>& x) {
 // product is kept as mantissa * 2^e with exact frexp/ldexp renormalization, so
 // partial products that leave the representable range cannot destroy a
 // representable determinant, while zeros and genuine overflow still propagate.
+template <typename = void>
 void test_vandermonde_determinant_scaled() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -510,6 +515,7 @@ void test_vandermonde_determinant_scaled() {
 // DBL_MAX - (-DBL_MAX) = 2^1025 overflows, yet det = -576 DBL_MAX^11 d^10 ~ -3.1633e160. The
 // overflowing difference must be halved (exact for these huge normal operands) and the factor of
 // two carried in the running exponent.
+template <typename = void>
 void test_vandermonde_determinant_overflowing_differences() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -559,6 +565,7 @@ void test_vandermonde_determinant_overflowing_differences() {
 // is Inf, but the value is exactly fl(0.75 DBL_MAX). The scaled path must return it bit-exactly,
 // the plain path must match the naive loop for moderate data, and genuinely unrepresentable values
 // must still saturate.
+template <typename = void>
 void test_vandermonde_scaled_horner() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef std::complex<double> Complex;
@@ -699,6 +706,7 @@ void test_vandermonde_fixed() {
 
 // Core rewrites alpha * (V * a) as (alpha * V) * a. Keep the two scaled
 // expression forms together because they share the same structured wrapper.
+template <typename = void>
 void test_vandermonde_expression_regressions() {
   typedef Matrix<double, 1, 1> Vec1;
   typedef Matrix<double, 3, 1> Vec3;
@@ -725,6 +733,7 @@ void test_vandermonde_expression_regressions() {
   VERIFY_IS_APPROX((V * (B * C)).eval(), (dense * (B * C)).eval());
 }
 
+template <typename = void>
 void test_vandermonde_dimension_checks() {
   VectorXd x(2);
   x << 0.0, 1.0;
@@ -738,6 +747,7 @@ void test_vandermonde_dimension_checks() {
 // returned from factories remain alive. Their node storage must therefore avoid
 // over-alignment: generic Product and cwise wrapper types do not supply aligned
 // operator new under C++14.
+template <typename = void>
 void test_vandermonde_fixed_heap_expressions() {
   typedef Matrix<double, 4, 1> Vec4;
   typedef Matrix<double, 4, 4> Mat4;
@@ -783,22 +793,22 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_2((test_bjorck_pereyra<std::complex<double>>(10)));
     CALL_SUBTEST_2((test_bjorck_pereyra_roots_of_unity<double>(64)));
     CALL_SUBTEST_2((test_bjorck_pereyra_roots_of_unity<float>(32)));
-    CALL_SUBTEST_2(test_vandermonde_half());
-    CALL_SUBTEST_2(test_bjorck_pereyra_higham());
-    CALL_SUBTEST_2(test_bjorck_pereyra_complex_transpose_adjoint(12));
-    CALL_SUBTEST_2(test_bjorck_pereyra_singular());
+    CALL_SUBTEST_2(test_vandermonde_half<>());
+    CALL_SUBTEST_2(test_bjorck_pereyra_higham<>());
+    CALL_SUBTEST_2(test_bjorck_pereyra_complex_transpose_adjoint<>(12));
+    CALL_SUBTEST_2(test_bjorck_pereyra_singular<>());
 
     // Closed-form determinant and fixed sizes.
     CALL_SUBTEST_3((test_vandermonde_determinant<double>(8)));
     CALL_SUBTEST_3((test_vandermonde_determinant<std::complex<double>>(7)));
-    CALL_SUBTEST_3(test_vandermonde_determinant_scaled());
-    CALL_SUBTEST_3(test_vandermonde_determinant_overflowing_differences());
-    CALL_SUBTEST_3(test_vandermonde_scaled_horner());
+    CALL_SUBTEST_3(test_vandermonde_determinant_scaled<>());
+    CALL_SUBTEST_3(test_vandermonde_determinant_overflowing_differences<>());
+    CALL_SUBTEST_3(test_vandermonde_scaled_horner<>());
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 6, 4>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 5, 5>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<std::complex<float>, 4, 4>()));
-    CALL_SUBTEST_3(test_vandermonde_expression_regressions());
-    CALL_SUBTEST_3(test_vandermonde_fixed_heap_expressions());
+    CALL_SUBTEST_3(test_vandermonde_expression_regressions<>());
+    CALL_SUBTEST_3(test_vandermonde_fixed_heap_expressions<>());
 
     // Product regressions: aliasing, operand lifetime, mixed scalars.
     CALL_SUBTEST_4((test_vandermonde_aliased_product<double>(8)));
@@ -812,5 +822,5 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_4((test_vandermonde_mixed_scalar<float>(7, 9)));
   }
 
-  CALL_SUBTEST_3(test_vandermonde_dimension_checks());
+  CALL_SUBTEST_3(test_vandermonde_dimension_checks<>());
 }

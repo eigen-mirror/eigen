@@ -55,6 +55,7 @@ Solver move_computed_solver(const MatrixType& matrix) {
   return moved;
 }
 
+template <typename = void>
 void test_move_initialized_bdcsvd() {
   MatrixXd matrix(3, 3);
   matrix << 4.0, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0;
@@ -70,6 +71,7 @@ void test_move_initialized_bdcsvd() {
   VERIFY_IS_APPROX(actual, expected);
 }
 
+template <typename = void>
 void test_move_initialized_simplicial_llt() {
   const SparseMatrix<double> matrix = make_spd_matrix();
   VectorXd expected(3);
@@ -101,8 +103,8 @@ void test_move_initialized_iterative_solver() {
 }
 
 EIGEN_DECLARE_TEST(special_members) {
-  CALL_SUBTEST_1(test_move_initialized_bdcsvd());
-  CALL_SUBTEST_2(test_move_initialized_simplicial_llt());
+  CALL_SUBTEST_1(test_move_initialized_bdcsvd<>());
+  CALL_SUBTEST_2(test_move_initialized_simplicial_llt<>());
   CALL_SUBTEST_3((test_move_initialized_iterative_solver<ConjugateGradient<SparseMatrix<double>, Lower | Upper>>()));
   CALL_SUBTEST_4((test_move_initialized_iterative_solver<BiCGSTAB<SparseMatrix<double>>>()));
 }

@@ -389,6 +389,7 @@ struct InplaceLowerOnly {
   }
 };
 
+template <typename = void>
 void inplace_plain_lower_triangle() {
   auto input = MatrixXd::NullaryExpr(3, 3, InplaceLowerOnly());
   SelfAdjointEigenSolver<MatrixXd> mutableSolver(input);
@@ -404,7 +405,7 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, 3, 3, RowMajor | DontAlign>>()));
   CALL_SUBTEST_10((inplace_special_values<MatrixXd>(2)));
   CALL_SUBTEST_10((inplace_special_values<MatrixXd>(1)));
-  CALL_SUBTEST_11(inplace_plain_lower_triangle());
+  CALL_SUBTEST_11(inplace_plain_lower_triangle<>());
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(128)));
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(129)));
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ, ColMajor>()));

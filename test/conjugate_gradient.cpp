@@ -36,6 +36,7 @@ void test_default_construct_fixed_size() {
   LeastSquaresConjugateGradient<MatrixType> lscg;
 }
 
+template <typename = void>
 void test_conjugate_gradient_extreme_rhs() {
   const Matrix2d mat = Matrix2d::Identity();
   const Vector2d direction = (Vector2d() << 1, -1).finished();
@@ -58,6 +59,7 @@ void test_conjugate_gradient_extreme_rhs() {
 }
 
 // solveWithGuessInPlace() must agree with solveWithGuess() and report through info().
+template <typename = void>
 void test_solve_with_guess_in_place() {
   const Index n = 60;
   MatrixXd M = MatrixXd::Random(n, n);
@@ -82,6 +84,6 @@ EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_2((test_conjugate_gradient_T<std::complex<double>, int>()));
   CALL_SUBTEST_3((test_conjugate_gradient_T<double, long int>()));
   CALL_SUBTEST_4(test_default_construct_fixed_size<Matrix3d>());
-  CALL_SUBTEST_5(test_conjugate_gradient_extreme_rhs());
-  CALL_SUBTEST_6(test_solve_with_guess_in_place());
+  CALL_SUBTEST_5(test_conjugate_gradient_extreme_rhs<>());
+  CALL_SUBTEST_6(test_solve_with_guess_in_place<>());
 }

@@ -25,6 +25,7 @@ void test_gmres_T() {
   // CALL_SUBTEST( check_sparse_square_solving(gmres_colmajor_ssor)     );
 }
 
+template <typename = void>
 void test_gmres_solve_with_guess_tolerance() {
   const SparseMatrix<double>::StorageIndex size = 20;
   SparseMatrix<double> matrix(size, size);
@@ -58,6 +59,7 @@ void test_gmres_solve_with_guess_tolerance() {
   VERIFY(gmres.error() < gmres.tolerance());
 }
 
+template <typename = void>
 void test_gmres_large_restart() {
   const SparseMatrix<double>::StorageIndex size = 4;
   SparseMatrix<double> matrix(size, size);
@@ -82,6 +84,6 @@ void test_gmres_large_restart() {
 EIGEN_DECLARE_TEST(gmres) {
   CALL_SUBTEST_1(test_gmres_T<double>());
   CALL_SUBTEST_2(test_gmres_T<std::complex<double> >());
-  CALL_SUBTEST_3(test_gmres_solve_with_guess_tolerance());
-  CALL_SUBTEST_4(test_gmres_large_restart());
+  CALL_SUBTEST_3(test_gmres_solve_with_guess_tolerance<>());
+  CALL_SUBTEST_4(test_gmres_large_restart<>());
 }

@@ -10,13 +10,14 @@
 
 static long int nb_temporaries;
 
+template <typename = void>
 inline void on_temporary_creation() {
   // here's a great place to set a breakpoint when debugging failures in this test!
   nb_temporaries++;
 }
 
 #define EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN \
-  { on_temporary_creation(); }
+  { on_temporary_creation<>(); }
 
 #include "sparse.h"
 
@@ -590,6 +591,7 @@ void test_mixed_storage_imp() {
   }
 }
 
+template <typename = void>
 void test_mixed_storage() {
   test_mixed_storage_imp<RowMajor, RowMajor, RowMajor>();
   test_mixed_storage_imp<RowMajor, RowMajor, ColMajor>();
@@ -606,6 +608,7 @@ void test_mixed_storage() {
 // (index, value) nodes depending on the estimated density. Both storage modes
 // must construct, move, and destroy the coefficients properly for
 // non-trivially-copyable scalars (issue #2873).
+template <typename = void>
 void test_pruned_product_custom_scalar() {
   typedef SparseMatrix<AnnoyingScalar> SpMat;
   typedef Matrix<AnnoyingScalar, Dynamic, Dynamic> DenseMat;
@@ -648,6 +651,7 @@ void test_pruned_product_custom_scalar() {
 // reaches it through init(), which drops the list too. Neither may abandon the
 // coefficients the dropped nodes own, and neither may leave a node behind for
 // the next coeffRef() to construct over.
+template <typename = void>
 void test_ambivector_discard_custom_scalar() {
   typedef internal::AmbiVector<AnnoyingScalar, int> AmbiVec;
   const Index n = 32;
@@ -678,6 +682,7 @@ void test_ambivector_discard_custom_scalar() {
 
 // resize() reuses its allocation whenever the new size still fits, and the
 // sub-vector bounds an iterator walks describe the size the vector had before.
+template <typename = void>
 void test_ambivector_resize_bounds() {
   typedef internal::AmbiVector<double, int> AmbiVec;
   {
@@ -769,6 +774,7 @@ bool ThrowingScalar::throw_on_relocation = false;
 
 // A coefficient that fails to construct leaves no node: the count of live nodes
 // the destructor walks may not include it, and the vector must remain usable.
+template <typename = void>
 void test_ambivector_failed_insertion() {
   using ambivector_throwing::ThrowingScalar;
   typedef internal::AmbiVector<ThrowingScalar, int> AmbiVec;
@@ -835,6 +841,7 @@ void test_ambivector_failed_insertion() {
 // next insertion relocates again instead of writing past its end. The leak
 // itself shows up under a leak checker; the retry below is what fails when the
 // capacity has already been advanced.
+template <typename = void>
 void test_ambivector_failed_reallocation() {
   using ambivector_throwing::ThrowingScalar;
   typedef internal::AmbiVector<ThrowingScalar, int> AmbiVec;
@@ -878,6 +885,7 @@ void test_ambivector_failed_reallocation() {
 }
 #endif  // EIGEN_EXCEPTIONS
 
+template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
   sv.insert(0) = 1.0;
@@ -894,7 +902,7 @@ EIGEN_DECLARE_TEST(sparse_product) {
   sparse_structured_view_product_sfinae<SparseMatrix<double, RowMajor>>();
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1((test_sparse_vector_dense_product()));
+    CALL_SUBTEST_1((test_sparse_vector_dense_product<>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));
@@ -905,14 +913,14 @@ EIGEN_DECLARE_TEST(sparse_product) {
         (sparse_product_regression_test<SparseMatrix<double, RowMajor>, Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 
     CALL_SUBTEST_5((test_mixing_types<float>()));
-    CALL_SUBTEST_5((test_mixed_storage()));
+    CALL_SUBTEST_5((test_mixed_storage<>()));
 
-    CALL_SUBTEST_6((test_pruned_product_custom_scalar()));
-    CALL_SUBTEST_6((test_ambivector_discard_custom_scalar()));
-    CALL_SUBTEST_6((test_ambivector_resize_bounds()));
+    CALL_SUBTEST_6((test_pruned_product_custom_scalar<>()));
+    CALL_SUBTEST_6((test_ambivector_discard_custom_scalar<>()));
+    CALL_SUBTEST_6((test_ambivector_resize_bounds<>()));
 #if defined(EIGEN_EXCEPTIONS)
-    CALL_SUBTEST_6((test_ambivector_failed_insertion()));
-    CALL_SUBTEST_6((test_ambivector_failed_reallocation()));
+    CALL_SUBTEST_6((test_ambivector_failed_insertion<>()));
+    CALL_SUBTEST_6((test_ambivector_failed_reallocation<>()));
 #endif
   }
 }

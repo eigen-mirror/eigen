@@ -279,6 +279,7 @@ void test_bccb_prime_dimensions(Index n2, Index n1) {
 // or solve expression is built. (Incompatible *fixed* sizes are rejected at
 // compile time by a static assertion in operator* / solve, which a runtime test
 // cannot exercise.)
+template <typename = void>
 void test_bccb_dimension_asserts() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -351,6 +352,7 @@ void test_bccb_zero(Index n2, Index n1) {
   VERIFY(C.solve(b).isZero());
 }
 
+template <typename = void>
 void test_bccb_nan_propagation(Index n2, Index n1) {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -369,6 +371,7 @@ void test_bccb_nan_propagation(Index n2, Index n1) {
 // every entry of the true result is representable. The apply path rescales the
 // symbol and each right-hand-side column by exact powers of two and folds the
 // exponent back at the end.
+template <typename = void>
 void test_bccb_finite_overflow() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -528,6 +531,7 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
 // operator holds non-finite data: every row of a BCCB touches every generator
 // entry, so each result entry is a dot product with an Inf coefficient times
 // zero -- NaN under IEEE, not zero.
+template <typename = void>
 void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -553,6 +557,7 @@ void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
 // plain product of the eigenvalues in FFT order overflows to infinity (or
 // underflows to an exact zero) partway through. Pins the balanced accumulation
 // in determinant().
+template <typename = void>
 void test_bccb_determinant_scaled() {
   typedef std::complex<double> Complex;
   typedef Matrix<Complex, Dynamic, Dynamic> CMat;
@@ -606,6 +611,7 @@ void test_bccb_determinant_scaled() {
 // smallest-normal symbol entry is still inverted -- the comparison is strict,
 // matching SVDBase::rank(), which likewise reports rank one -- a subnormal entry
 // is treated as an exact zero, and non-finite entries count as non-zero.
+template <typename = void>
 void test_bccb_rank_boundaries() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -636,6 +642,7 @@ void test_bccb_rank_boundaries() {
 // moduli, turning it into infinity: the rank was under-reported and solve()
 // zeroed valid Fourier modes. Both are now evaluated in an exactly rescaled
 // frame.
+template <typename = void>
 void test_bccb_rank_complex_boundary() {
   typedef std::complex<double> Complex;
   typedef Matrix<Complex, Dynamic, 1> CVec;
@@ -726,6 +733,7 @@ void test_bccb_flushed_subnormal_rhs(Index n2, Index n1) {
 // exponent range, and reads as zero under flush-to-zero: every scaled modulus
 // and the threshold collapse together, the rank is over-reported, and solve()
 // inverts a mode it should have truncated. Hence the two exact factors.
+template <typename = void>
 void test_bccb_rank_flush_to_zero() {
   ScopedFlushToZero flush_to_zero;
   if (!flush_to_zero.isSupported()) return;
@@ -1086,7 +1094,7 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_3((test_bccb_rank_deficient<std::complex<double>>(6, 8, 4)));
     CALL_SUBTEST_3((test_bccb_rank_deficient<std::complex<float>>(4, 5, 2)));
     CALL_SUBTEST_3((test_bccb_zero<double>(4, 5)));
-    CALL_SUBTEST_3(test_bccb_nan_propagation(6, 7));
+    CALL_SUBTEST_3(test_bccb_nan_propagation<>(6, 7));
 
     // Closed-form eigendecomposition, SVD, inverse, determinant.
     CALL_SUBTEST_4((test_bccb_eigen<double>(4, 5)));
@@ -1126,17 +1134,17 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(3, 4)));
     CALL_SUBTEST_6((test_bccb_mixed_scalar<double>(6, 8)));
     CALL_SUBTEST_6((test_bccb_mixed_scalar<float>(8, 8)));
-    CALL_SUBTEST_6(test_bccb_dimension_asserts());
+    CALL_SUBTEST_6(test_bccb_dimension_asserts<>());
 
     // Finite-range robustness: scaled transforms, the complex overflow boundary,
     // balanced determinant accumulation, and the rank threshold boundary.
-    CALL_SUBTEST_7(test_bccb_finite_overflow());
+    CALL_SUBTEST_7(test_bccb_finite_overflow<>());
     CALL_SUBTEST_7((test_bccb_fft_complex_boundary<double>(6, 8)));
     CALL_SUBTEST_7((test_bccb_fft_complex_boundary<float>(6, 8)));
-    CALL_SUBTEST_7(test_bccb_determinant_scaled());
-    CALL_SUBTEST_7(test_bccb_rank_boundaries());
-    CALL_SUBTEST_7(test_bccb_rank_complex_boundary());
-    CALL_SUBTEST_7(test_bccb_rank_flush_to_zero());
+    CALL_SUBTEST_7(test_bccb_determinant_scaled<>());
+    CALL_SUBTEST_7(test_bccb_rank_boundaries<>());
+    CALL_SUBTEST_7(test_bccb_rank_complex_boundary<>());
+    CALL_SUBTEST_7(test_bccb_rank_flush_to_zero<>());
 
     // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
     // direct kernel; small ones are IEEE-exact already. A zero right-hand side
@@ -1144,7 +1152,7 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(6, 8)));
     CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(3, 4)));
     CALL_SUBTEST_7((test_bccb_nonfinite_product<std::complex<double>>(6, 8)));
-    CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs(6, 8));
+    CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs<>(6, 8));
 
     CALL_SUBTEST_8(test_structured_symbol_reciprocals<float>());
     CALL_SUBTEST_8(test_structured_symbol_reciprocals<double>());

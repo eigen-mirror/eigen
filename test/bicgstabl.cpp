@@ -25,6 +25,7 @@ void test_bicgstabl_T() {
   CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_ilut));
 }
 
+template <typename = void>
 void test_bicgstabl_solve_with_guess_restart() {
   // Regression for a solveWithGuess case where the recursive residual reached
   // the tolerance before the true residual did.
@@ -35,5 +36,5 @@ void test_bicgstabl_solve_with_guess_restart() {
 EIGEN_DECLARE_TEST(bicgstabl) {
   CALL_SUBTEST_1(test_bicgstabl_T<double>());
   CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
-  CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart());
+  CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart<>());
 }

@@ -276,6 +276,7 @@ struct casting_test_runner<SrcScalar, std::enable_if_t<(NumTraits<SrcScalar>::Is
   }
 };
 
+template <typename = void>
 void casting_all() {
   casting_test_runner<bool>::run();
   casting_test_runner<int8_t>::run();
@@ -366,7 +367,7 @@ EIGEN_DECLARE_TEST(basicstuff) {
     CALL_SUBTEST_6(basicStuff(Matrix<float, 100, 100>()));
     CALL_SUBTEST_7(basicStuff(Matrix<long double, Dynamic, Dynamic>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                     internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_8(casting_all());
+    CALL_SUBTEST_8(casting_all<>());
 
     CALL_SUBTEST_3(basicStuffComplex(
         MatrixXcf(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));

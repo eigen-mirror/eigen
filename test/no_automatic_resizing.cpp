@@ -192,6 +192,7 @@ void testSparseNoAutomaticResizing() {
   VERIFY_IS_EQUAL(r, RowVector3d(0, 0, 7));
 }
 
+template <typename = void>
 void testProductNoAutomaticResizing() {
   const MatrixXd lhs = MatrixXd::Ones(3, 2);
   const MatrixXd rhs = MatrixXd::Constant(2, 4, 2.0);
@@ -223,7 +224,7 @@ void testProductNoAutomaticResizing() {
 EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_1(testNoAutomaticResizing<float>());
   CALL_SUBTEST_2(testNoAutomaticResizing<double>());
-  CALL_SUBTEST_2(testProductNoAutomaticResizing());
+  CALL_SUBTEST_2(testProductNoAutomaticResizing<>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<ColMajor>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<RowMajor>());
   CALL_SUBTEST_2(testResizeToMatchVector<VectorXd>());

@@ -227,6 +227,7 @@ void test_dpr1_close_undeflated(Index n) {
 
 // stableNorm keeps huge z representable: with float z ~ 2e19, z.squaredNorm()
 // would overflow but rho*||z||^2 is a perfectly ordinary number.
+template <typename = void>
 void test_dpr1_huge_z() {
   typedef Matrix<float, Dynamic, 1> Vec;
   Vec d(1), z(1);
@@ -254,6 +255,7 @@ void test_dpr1_huge_z() {
 
 // Non-finite input must be rejected up front (it would otherwise break the
 // sorting comparator and silently deflate everything).
+template <typename = void>
 void test_dpr1_nonfinite() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec d = Vec::Random(6), z = Vec::Random(6);
@@ -275,6 +277,7 @@ void test_dpr1_nonfinite() {
   VERIFY(e5.info() == InvalidInput);
 }
 
+template <typename = void>
 void test_dpr1_invalid_options() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const Vec d = Vec::LinSpaced(3, 1.0, 3.0);
@@ -289,6 +292,7 @@ void test_dpr1_invalid_options() {
 // exact power of two; the solver used to report Success with an infinite eigenvalue. The reference is
 // a dense solve of the rescaled problem 2^-e * (d, rho), whose spectrum is exactly 2^-e times the
 // original.
+template <typename = void>
 void test_dpr1_full_range_poles() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -323,6 +327,7 @@ void test_dpr1_full_range_poles() {
 // perfectly representable; the solver used to return InvalidInput. It must
 // instead normalize z by an exact power of two, 2^-p z with rho 2^(2p), which
 // leaves the matrix identical -- the same rewrite gives the dense reference.
+template <typename = void>
 void test_dpr1_huge_z_norm() {
   if (!dpr1_preserves_subnormal_inputs<double>()) return;
 
@@ -352,6 +357,7 @@ void test_dpr1_huge_z_norm() {
 // puts the secular root ~rho*z_0^2 ~ 6.3e-30 from its pole; bisecting the O(1)
 // bracket down to it takes ~150 halvings, beyond the old 2*digits+32 iteration
 // cap, and used to report NoConvergence (check_dpr1 requires Success).
+template <typename = void>
 void test_dpr1_near_deflation_root() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec d(2), z(2);
@@ -363,6 +369,7 @@ void test_dpr1_near_deflation_root() {
 // Regression (MR 2694 review): finite 1x1 input whose only eigenvalue
 // d + rho*z^2 = 2*DBL_MAX overflows. The documented contract for a spectrum
 // that is not representable is InvalidInput, not Success carrying infinity.
+template <typename = void>
 void test_dpr1_overflowing_spectrum() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const double dmax = (std::numeric_limits<double>::max)();
@@ -386,6 +393,7 @@ void test_dpr1_overflowing_spectrum() {
 // exact spectrum. The first update has lambda = DBL_MAX - 19/256 ulp, which rounds to DBL_MAX; the
 // second has lambda = DBL_MAX + 3739/2048 ulp and genuinely overflows. Constants are assembled from
 // their exact significands, hexadecimal float literals not being in the C++14 baseline.
+template <typename = void>
 void test_dpr1_maximum_range_rounding() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const double dmax = (std::numeric_limits<double>::max)();
@@ -485,6 +493,7 @@ void test_dpr1_overflowing_update_representable_spectrum() {
 // representable -- the top root lands near +0.4*DBL_MAX, the rest interlace
 // the poles. Verified against a dense solve of the exactly rescaled problem,
 // whose spectrum is exactly 2^-e times the original.
+template <typename = void>
 void test_dpr1_huge_representable_spectrum() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -523,6 +532,7 @@ void test_dpr1_huge_representable_spectrum() {
 // separate underflow handling -- scaling up from anywhere at or above the
 // normal range is exact, and the eigenvalues here are all normal. Verified
 // against a dense solve of the exactly upscaled problem.
+template <typename = void>
 void test_dpr1_tiny_scale() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -566,6 +576,7 @@ void test_dpr1_tiny_scale() {
   }
 }
 
+template <typename = void>
 void test_dpr1_ftz_mode() {
   const double underflowBefore = underflowProbe<double>();
   bool flushToZeroSupported = false;
@@ -669,6 +680,7 @@ void test_dpr1_subnormal_rho() {
 
 // A huge diagonal spread makes every z entry individually negligible even though
 // rho itself is not: the whole update deflates and m == 0.
+template <typename = void>
 void test_dpr1_all_deflated() {
   typedef Matrix<double, Dynamic, 1> Vec;
   Vec d(4), z(4);
@@ -708,7 +720,7 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_3((test_dpr1_scaling<double>(14)));
     CALL_SUBTEST_3((test_dpr1_edges<long double>()));
     CALL_SUBTEST_3((test_dpr1_scaling<long double>(14)));
-    CALL_SUBTEST_3(test_dpr1_invalid_options());
+    CALL_SUBTEST_3(test_dpr1_invalid_options<>());
 
     // Gu-Eisenstat litmus (close but undeflated poles), orthogonality growth at
     // larger n, extreme scales, non-finite rejection, full-deflation pin.
@@ -716,25 +728,25 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_4((test_dpr1_close_undeflated<float>(16)));
     CALL_SUBTEST_4((test_dpr1_random<double>(128)));
     CALL_SUBTEST_4((test_dpr1_close_undeflated<long double>(16)));
-    CALL_SUBTEST_4(test_dpr1_huge_z());
-    CALL_SUBTEST_4(test_dpr1_nonfinite());
-    CALL_SUBTEST_4(test_dpr1_all_deflated());
+    CALL_SUBTEST_4(test_dpr1_huge_z<>());
+    CALL_SUBTEST_4(test_dpr1_nonfinite<>());
+    CALL_SUBTEST_4(test_dpr1_all_deflated<>());
 
     // MR 2694 review regressions: exponent-range extremes and deep bisection.
-    CALL_SUBTEST_5(test_dpr1_full_range_poles());
-    CALL_SUBTEST_5(test_dpr1_huge_z_norm());
-    CALL_SUBTEST_5(test_dpr1_near_deflation_root());
-    CALL_SUBTEST_5(test_dpr1_overflowing_spectrum());
-    CALL_SUBTEST_5(test_dpr1_maximum_range_rounding());
+    CALL_SUBTEST_5(test_dpr1_full_range_poles<>());
+    CALL_SUBTEST_5(test_dpr1_huge_z_norm<>());
+    CALL_SUBTEST_5(test_dpr1_near_deflation_root<>());
+    CALL_SUBTEST_5(test_dpr1_overflowing_spectrum<>());
+    CALL_SUBTEST_5(test_dpr1_maximum_range_rounding<>());
     CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<float>()));
     CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<double>()));
     CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<long double>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<double>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<float>()));
     CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<long double>()));
-    CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum());
-    CALL_SUBTEST_5(test_dpr1_tiny_scale());
-    CALL_SUBTEST_5(test_dpr1_ftz_mode());
+    CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum<>());
+    CALL_SUBTEST_5(test_dpr1_tiny_scale<>());
+    CALL_SUBTEST_5(test_dpr1_ftz_mode<>());
     CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<float>());
     CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<double>());
     CALL_SUBTEST_5(test_dpr1_subnormal_rho<float>());

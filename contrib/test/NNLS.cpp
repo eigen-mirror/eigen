@@ -102,6 +102,7 @@ void test_nnls_random_problem(const MatrixType &) {
   verify_nnls_optimality(A, b, x, tolerance);
 }
 
+template <typename = void>
 void test_nnls_handles_zero_rhs() {
   //
   // SETUP
@@ -125,6 +126,7 @@ void test_nnls_handles_zero_rhs() {
   VERIFY_IS_EQUAL(x, VectorXd::Zero(cols));
 }
 
+template <typename = void>
 void test_nnls_handles_Mx0_matrix() {
   //
   // SETUP
@@ -147,6 +149,7 @@ void test_nnls_handles_Mx0_matrix() {
   VERIFY_IS_EQUAL(x.size(), 0);
 }
 
+template <typename = void>
 void test_nnls_handles_0x0_matrix() {
   //
   // SETUP
@@ -168,6 +171,7 @@ void test_nnls_handles_0x0_matrix() {
   VERIFY_IS_EQUAL(x.size(), 0);
 }
 
+template <typename = void>
 void test_nnls_handles_0xN_matrix() {
   const MatrixXd A(0, 3);
   const VectorXd b(0);
@@ -180,6 +184,7 @@ void test_nnls_handles_0xN_matrix() {
   VERIFY_IS_EQUAL(x, VectorXd::Zero(3));
 }
 
+template <typename = void>
 void test_nnls_handles_dependent_columns() {
   //
   // SETUP
@@ -214,6 +219,7 @@ void test_nnls_handles_dependent_columns() {
   }
 }
 
+template <typename = void>
 void test_nnls_handles_wide_matrix() {
   //
   // SETUP
@@ -248,6 +254,7 @@ void test_nnls_handles_wide_matrix() {
   }
 }
 
+template <typename = void>
 void test_nnls_wide_matrix_at_row_capacity() {
   Matrix<double, 2, 3> A;
   A << 1, 0, -1, 0, 1, -1;
@@ -262,6 +269,7 @@ void test_nnls_wide_matrix_at_row_capacity() {
   verify_nnls_optimality(A, b, x, nnls.tolerance());
 }
 
+template <typename = void>
 void test_nnls_does_not_report_false_success_at_row_capacity() {
   Matrix<double, 2, 4> A;
   A << 9000, 9000, -3000, 1e-11, 9000, 9000, -3000, -1e-11;
@@ -277,6 +285,7 @@ void test_nnls_does_not_report_false_success_at_row_capacity() {
   VERIFY_IS_EQUAL(nnls.iterations(), 2);
 }
 
+template <typename = void>
 void test_nnls_reports_nonfinite_inactive_solution() {
   const Matrix<double, 3, 2> A = Matrix<double, 3, 2>::Zero();
   Vector3d b;
@@ -289,6 +298,7 @@ void test_nnls_reports_nonfinite_inactive_solution() {
 }
 
 // 4x2 problem, unconstrained solution positive
+template <typename = void>
 void test_nnls_known_1() {
   Matrix<double, 4, 2> A(4, 2);
   Matrix<double, 4, 1> b(4);
@@ -301,6 +311,7 @@ void test_nnls_known_1() {
 }
 
 // 4x3 problem, unconstrained solution positive
+template <typename = void>
 void test_nnls_known_2() {
   Matrix<double, 4, 3> A(4, 3);
   Matrix<double, 4, 1> b(4);
@@ -314,6 +325,7 @@ void test_nnls_known_2() {
 }
 
 // Simple 4x4 problem, unconstrained solution non-negative
+template <typename = void>
 void test_nnls_known_3() {
   Matrix<double, 4, 4> A(4, 4);
   Matrix<double, 4, 1> b(4);
@@ -327,6 +339,7 @@ void test_nnls_known_3() {
 }
 
 // Simple 4x3 problem, unconstrained solution non-negative
+template <typename = void>
 void test_nnls_known_4() {
   Matrix<double, 4, 3> A(4, 3);
   Matrix<double, 4, 1> b(4);
@@ -340,6 +353,7 @@ void test_nnls_known_4() {
 }
 
 // Simple 4x3 problem, unconstrained solution indefinite
+template <typename = void>
 void test_nnls_known_5() {
   Matrix<double, 4, 3> A(4, 3);
   Matrix<double, 4, 1> b(4);
@@ -353,14 +367,16 @@ void test_nnls_known_5() {
   test_nnls_known_solution(A, b, x);
 }
 
+template <typename = void>
 void test_nnls_small_reference_problems() {
-  test_nnls_known_1();
-  test_nnls_known_2();
-  test_nnls_known_3();
-  test_nnls_known_4();
-  test_nnls_known_5();
+  test_nnls_known_1<>();
+  test_nnls_known_2<>();
+  test_nnls_known_3<>();
+  test_nnls_known_4<>();
+  test_nnls_known_5<>();
 }
 
+template <typename = void>
 void test_nnls_with_half_precision() {
   // The random matrix generation tools don't work with `half`,
   // so here's a simpler setup mostly just to check that NNLS compiles & runs with custom scalar types.
@@ -379,6 +395,7 @@ void test_nnls_with_half_precision() {
   verify_nnls_optimality(A, b, x, half(64) * NumTraits<half>::epsilon());
 }
 
+template <typename = void>
 void test_nnls_special_case_solves_in_zero_iterations() {
   // The particular NNLS algorithm that is implemented starts with all variables
   // in the active set.
@@ -406,6 +423,7 @@ void test_nnls_special_case_solves_in_zero_iterations() {
   VERIFY(nnls.iterations() == 0);
 }
 
+template <typename = void>
 void test_nnls_special_case_solves_in_n_iterations() {
   // The particular NNLS algorithm that is implemented starts with all variables
   // in the active set and then adds one variable to the inactive set each iteration.
@@ -430,6 +448,7 @@ void test_nnls_special_case_solves_in_n_iterations() {
   VERIFY(nnls.iterations() == n);
 }
 
+template <typename = void>
 void test_nnls_returns_NoConvergence_when_maxIterations_is_too_low() {
   // Using the special case that takes `n` iterations,
   // from `test_nnls_special_case_solves_in_n_iterations`,
@@ -451,6 +470,7 @@ void test_nnls_returns_NoConvergence_when_maxIterations_is_too_low() {
   VERIFY(nnls.iterations() == max_iters);
 }
 
+template <typename = void>
 void test_nnls_default_maxIterations_is_twice_column_count() {
   const Index cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   const Index rows = internal::random<Index>(cols, EIGEN_TEST_MAX_SIZE);
@@ -461,6 +481,7 @@ void test_nnls_default_maxIterations_is_twice_column_count() {
   VERIFY_IS_EQUAL(nnls.maxIterations(), 2 * cols);
 }
 
+template <typename = void>
 void test_nnls_does_not_allocate_during_solve() {
   const Index cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   const Index rows = internal::random<Index>(cols, EIGEN_TEST_MAX_SIZE);
@@ -474,6 +495,7 @@ void test_nnls_does_not_allocate_during_solve() {
   internal::set_is_malloc_allowed(true);
 }
 
+template <typename = void>
 void test_nnls_repeated_calls_to_compute_and_solve() {
   const Index cols2 = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   const Index rows2 = internal::random<Index>(cols2, EIGEN_TEST_MAX_SIZE);
@@ -501,35 +523,35 @@ void test_nnls_repeated_calls_to_compute_and_solve() {
 
 EIGEN_DECLARE_TEST(NNLS) {
   // Small matrices with known solutions:
-  CALL_SUBTEST_1(test_nnls_small_reference_problems());
-  CALL_SUBTEST_1(test_nnls_handles_Mx0_matrix());
-  CALL_SUBTEST_1(test_nnls_handles_0x0_matrix());
-  CALL_SUBTEST_1(test_nnls_handles_0xN_matrix());
-  CALL_SUBTEST_6(test_nnls_wide_matrix_at_row_capacity());
-  CALL_SUBTEST_6(test_nnls_does_not_report_false_success_at_row_capacity());
-  CALL_SUBTEST_6(test_nnls_reports_nonfinite_inactive_solution());
+  CALL_SUBTEST_1(test_nnls_small_reference_problems<>());
+  CALL_SUBTEST_1(test_nnls_handles_Mx0_matrix<>());
+  CALL_SUBTEST_1(test_nnls_handles_0x0_matrix<>());
+  CALL_SUBTEST_1(test_nnls_handles_0xN_matrix<>());
+  CALL_SUBTEST_6(test_nnls_wide_matrix_at_row_capacity<>());
+  CALL_SUBTEST_6(test_nnls_does_not_report_false_success_at_row_capacity<>());
+  CALL_SUBTEST_6(test_nnls_reports_nonfinite_inactive_solution<>());
 
   for (int i = 0; i < g_repeat; i++) {
     // Essential NNLS properties, across different types.
     CALL_SUBTEST_2(test_nnls_random_problem(MatrixXf()));
     CALL_SUBTEST_3(test_nnls_random_problem(MatrixXd()));
     CALL_SUBTEST_4(test_nnls_random_problem(Matrix<double, 12, 5>()));
-    CALL_SUBTEST_5(test_nnls_with_half_precision());
+    CALL_SUBTEST_5(test_nnls_with_half_precision<>());
 
     // Robustness tests:
-    CALL_SUBTEST_6(test_nnls_handles_zero_rhs());
-    CALL_SUBTEST_6(test_nnls_handles_dependent_columns());
-    CALL_SUBTEST_6(test_nnls_handles_wide_matrix());
+    CALL_SUBTEST_6(test_nnls_handles_zero_rhs<>());
+    CALL_SUBTEST_6(test_nnls_handles_dependent_columns<>());
+    CALL_SUBTEST_6(test_nnls_handles_wide_matrix<>());
 
     // Properties specific to the implementation,
     // not NNLS in general.
-    CALL_SUBTEST_7(test_nnls_special_case_solves_in_zero_iterations());
-    CALL_SUBTEST_7(test_nnls_special_case_solves_in_n_iterations());
-    CALL_SUBTEST_7(test_nnls_returns_NoConvergence_when_maxIterations_is_too_low());
-    CALL_SUBTEST_7(test_nnls_default_maxIterations_is_twice_column_count());
-    CALL_SUBTEST_8(test_nnls_repeated_calls_to_compute_and_solve());
+    CALL_SUBTEST_7(test_nnls_special_case_solves_in_zero_iterations<>());
+    CALL_SUBTEST_7(test_nnls_special_case_solves_in_n_iterations<>());
+    CALL_SUBTEST_7(test_nnls_returns_NoConvergence_when_maxIterations_is_too_low<>());
+    CALL_SUBTEST_7(test_nnls_default_maxIterations_is_twice_column_count<>());
+    CALL_SUBTEST_8(test_nnls_repeated_calls_to_compute_and_solve<>());
 
     // This test fails. It hits allocations in HouseholderSequence.h
-    // test_nnls_does_not_allocate_during_solve();
+    // test_nnls_does_not_allocate_during_solve<>();
   }
 }

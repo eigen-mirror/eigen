@@ -201,6 +201,7 @@ void test_hankel_product(Index m, Index n) {
 // unchanged finite values, not NaNs: the FFT intermediates overflow unless each
 // column is scaled by an exact power of two derived from the column's and the
 // symbol's magnitudes.
+template <typename = void>
 void test_hankel_fft_overflow() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const Index n = 40;
@@ -558,6 +559,7 @@ void test_hankel_solve_lookahead(Index n) {
 // calibrated with a ~100x margin against measured values. The look-ahead Levinson
 // solver is weakly stable: the forward error grows like eps * cond, but the
 // residual stays small far beyond the point where the solution itself is lost.
+template <typename = void>
 void test_hankel_hilbert() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -1188,6 +1190,7 @@ void test_circulant_zero(Index n) {
 
 // A NaN in the generator must propagate to the solution (and count as non-zero in
 // rank()) instead of being silently laundered into zeros by the rank threshold.
+template <typename = void>
 void test_circulant_nan_propagation(Index n) {
   typedef Matrix<double, Dynamic, 1> Vec;
 
@@ -1238,6 +1241,7 @@ void test_circulant_determinant(Index n) {
 // plain product of the eigenvalues in FFT order overflows to infinity (or
 // underflows to an exact zero) partway through. Pins the balanced accumulation
 // in determinant().
+template <typename = void>
 void test_circulant_determinant_scaled() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<std::complex<double>, Dynamic, 1> CVec;
@@ -1282,6 +1286,7 @@ void test_circulant_determinant_scaled() {
 // smallest-normal symbol entry is still inverted -- the comparison is strict,
 // matching SVDBase::rank(), which likewise reports rank one -- a subnormal entry
 // is treated as an exact zero, and non-finite entries count as non-zero.
+template <typename = void>
 void test_circulant_rank_boundaries() {
   typedef Matrix<double, Dynamic, 1> Vec;
   const double mn = (std::numeric_limits<double>::min)();
@@ -1314,6 +1319,7 @@ bool subnormals_survive() { return !numext::is_exactly_zero(underflowProbe<doubl
 // moduli, turning it into infinity: the rank was under-reported and solve()
 // zeroed valid Fourier modes. Both are now evaluated in an exactly rescaled
 // frame.
+template <typename = void>
 void test_circulant_rank_complex_boundary() {
   typedef std::complex<double> Complex;
   typedef Matrix<double, Dynamic, 1> Vec;
@@ -1554,6 +1560,7 @@ void test_levinson_wellcond(Index n) {
 // Indefinite / ill-conditioned matrices that force look-ahead block steps. The
 // generators and required block sizes are from Chan & Hansen's test set; the true
 // solution is the all-ones vector.
+template <typename = void>
 void test_levinson_lookahead() {
   typedef Matrix<double, Dynamic, 1> Vec;
   // Loose bound for these deliberately ill-conditioned look-ahead cases (~1e-9);
@@ -1603,6 +1610,7 @@ void test_levinson_lookahead() {
 }
 
 // Fixed-size Toeplitz operators also feed the solver.
+template <typename = void>
 void test_levinson_fixed() {
   typedef Matrix<double, 12, 1> Vec12;
   Vec12 c = Vec12::Random(), r = Vec12::Random();
@@ -1646,6 +1654,7 @@ void test_levinson_solve_in_expression(Index n) {
 }
 
 // A numerically singular Toeplitz must be reported through info().
+template <typename = void>
 void test_levinson_singular() {
   typedef Matrix<double, Dynamic, 1> Vec;
   for (Index n : {4, 9}) {
@@ -1831,7 +1840,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<float>>(16, 2)));
     CALL_SUBTEST_7((test_circulant_zero<double>(12)));
     CALL_SUBTEST_7((test_circulant_zero<std::complex<double>>(7)));
-    CALL_SUBTEST_7(test_circulant_nan_propagation(20));
+    CALL_SUBTEST_7(test_circulant_nan_propagation<>(20));
     CALL_SUBTEST_7((test_circulant_inverse<double>(1)));
     CALL_SUBTEST_7((test_circulant_inverse<double>(50)));
     CALL_SUBTEST_7((test_circulant_inverse<double>(97)));  // prime: inverse rebuilds the padded product symbol
@@ -1860,9 +1869,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_8((test_circulant_mixed_scalar<float>(97)));
     CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(8, 8)));
     CALL_SUBTEST_8((test_toeplitz_mixed_scalar<double>(64, 40)));
-    CALL_SUBTEST_8(test_circulant_determinant_scaled());
-    CALL_SUBTEST_8(test_circulant_rank_boundaries());
-    CALL_SUBTEST_8(test_circulant_rank_complex_boundary());
+    CALL_SUBTEST_8(test_circulant_determinant_scaled<>());
+    CALL_SUBTEST_8(test_circulant_rank_boundaries<>());
+    CALL_SUBTEST_8(test_circulant_rank_complex_boundary<>());
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(40)));
     CALL_SUBTEST_8((test_structured_fft_overflow<double>(97)));  // prime, no 5-smooth padding
     CALL_SUBTEST_8((test_structured_fft_overflow<float>(40)));
@@ -1892,9 +1901,9 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_11((test_levinson_wellcond<float>(40)));
     CALL_SUBTEST_12((test_levinson_wellcond<std::complex<double>>(30)));
     CALL_SUBTEST_12((test_levinson_solve_in_expression<std::complex<double>>(16)));
-    CALL_SUBTEST_13(test_levinson_lookahead());
-    CALL_SUBTEST_13(test_levinson_fixed());
-    CALL_SUBTEST_13(test_levinson_singular());
+    CALL_SUBTEST_13(test_levinson_lookahead<>());
+    CALL_SUBTEST_13(test_levinson_fixed<>());
+    CALL_SUBTEST_13(test_levinson_singular<>());
     CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(1)));
     CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(24)));
     CALL_SUBTEST_14((test_levinson_wellcond<std::complex<float>>(24)));
@@ -1938,7 +1947,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_9((test_hankel_solve<float>(16)));
     CALL_SUBTEST_9((test_hankel_solve_lookahead<double>(20)));
     CALL_SUBTEST_9((test_hankel_solve_lookahead<std::complex<double>>(15)));
-    CALL_SUBTEST_9(test_hankel_hilbert());
+    CALL_SUBTEST_9(test_hankel_hilbert<>());
     CALL_SUBTEST_9((test_hankel_least_squares<double>(60, 40)));
     CALL_SUBTEST_9((test_hankel_least_squares<std::complex<double>>(48, 32)));
     CALL_SUBTEST_9((test_hankel_fixed<double, 4, 6>()));
@@ -1950,7 +1959,7 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     // MR 2688 review regressions: finite-overflow scaling in the FFT tier,
     // delayed (value-nested) products, aliased right-hand sides across the
     // dispatch tiers, and mixed real/complex products.
-    CALL_SUBTEST_10(test_hankel_fft_overflow());
+    CALL_SUBTEST_10(test_hankel_fft_overflow<>());
     CALL_SUBTEST_10((test_hankel_fft_complex_boundary<double>(40)));
     CALL_SUBTEST_10((test_hankel_fft_complex_boundary<float>(40)));
     CALL_SUBTEST_10((test_hankel_delayed_product<double>(24, 12)));
