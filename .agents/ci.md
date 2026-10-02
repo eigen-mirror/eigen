@@ -99,7 +99,7 @@ jobs on two independent triggers, either of which is enough:
 | `arch/SSE` | `sse-tests` | x86-64 gcc-10 baseline, AVX, and AVX-512DQ | yes |
 | `arch/AVX` | `avx-tests` | x86-64 gcc-10 AVX and AVX-512DQ | yes |
 | `arch/AVX512` | `avx512-tests` | x86-64 gcc-10 AVX-512DQ | yes |
-| `arch/AVX512/*FP16*` | `avx512-tests` | the split gcc-13 AVX512-FP16 compile builds | no |
+| `arch/AVX512/*FP16*` | `avx512-tests` | the split clang-19 AVX512-FP16 compile builds | no |
 | `arch/NEON` | `neon-tests` | 32-bit arm (aarch64 already runs unconditionally) | yes |
 | `arch/AltiVec` | `altivec-tests` | ppc64le gcc-14, under qemu | yes |
 | `arch/LSX` | `lsx-tests` | loongarch64 gcc-14, under qemu | yes |

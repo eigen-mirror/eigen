@@ -105,7 +105,7 @@ build:linux:cross:x86-64:gcc-10:default:
     EIGEN_CI_CROSS_C_COMPILER: x86_64-linux-gnu-gcc-10
     EIGEN_CI_CROSS_CXX_COMPILER: x86_64-linux-gnu-g++-10
 
-# GCC-13 for AVX512-FP16 (_Float16 support).
+# GCC-13.
 build:linux:cross:x86-64:gcc-13:default:
   extends: .build:linux:cross:x86-64
   variables:
@@ -130,28 +130,6 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
-# AVX512-FP16 builds are split into official/contrib because building all
-# tests exceeds the 3-hour GitLab SaaS shared-runner timeout.
-.build:linux:cross:x86-64:gcc-13:avx512fp16:
-  extends: build:linux:cross:x86-64:gcc-13:default
-  variables:
-    # Force -O2 via EIGEN_TEST_CUSTOM_CXX_FLAGS (appended after the default
-    # Release -O3 -DNDEBUG; last -O wins). GCC bug at -O3 generates invalid
-    # masked vmovsh with {z} on memory stores for _Float16 operations
-    # (zero-masking on memory destinations is architecturally illegal in
-    # AVX-512).
-    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-O2"
-
-build:linux:cross:x86-64:gcc-13:avx512fp16:official:
-  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
-  variables:
-    EIGEN_CI_BUILD_TARGET: BuildOfficial
-
-build:linux:cross:x86-64:gcc-13:avx512fp16:contrib:
-  extends: .build:linux:cross:x86-64:gcc-13:avx512fp16
-  variables:
-    EIGEN_CI_BUILD_TARGET: BuildContrib
-
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
   extends: .build:linux:cross:x86-64
@@ -170,6 +148,30 @@ build:linux:cross:x86-64:clang-14:avx512dq:
   extends: build:linux:cross:x86-64:clang-14:default
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
+
+# AVX512-FP16 builds are split into official/contrib because building all
+# tests exceeds the 3-hour GitLab SaaS shared-runner timeout. Clang, because
+# GCC 12.1-14.3 and 15.1-15.2 emit a zero-masked vmovsh store for _Float16
+# selects (see EIGEN_TEST_AVX512FP16 in CMakeLists.txt). Clang 18 crashes in
+# its backend on packetmath, array_cwise, matrix_cwise and half_float here.
+.build:linux:cross:x86-64:clang-19:avx512fp16:
+  extends: .build:linux:cross:x86-64
+  variables:
+    EIGEN_CI_INSTALL: clang-19
+    EIGEN_CI_C_COMPILER: clang-19
+    EIGEN_CI_CXX_COMPILER: clang++-19
+    EIGEN_CI_CROSS_INSTALL: g++-14-x86-64-linux-gnu clang-19
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512FP16=on -DEIGEN_TEST_AVX512DQ=on -DEIGEN_TEST_F16C=on"
+
+build:linux:cross:x86-64:clang-19:avx512fp16:official:
+  extends: .build:linux:cross:x86-64:clang-19:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildOfficial
+
+build:linux:cross:x86-64:clang-19:avx512fp16:contrib:
+  extends: .build:linux:cross:x86-64:clang-19:avx512fp16
+  variables:
+    EIGEN_CI_BUILD_TARGET: BuildContrib
 
 # Generic vector extension backend.
 build:linux:cross:x86-64:clang-19:generic:avx512dq:
@@ -963,16 +965,16 @@ build:linux:cross:x86-64:gcc-10:avx512dq:affected:
 
 # The FP16 builds reuse the existing split compile-only jobs; there is no runner
 # with AVX512-FP16 hardware for a paired test job.
-build:linux:cross:x86-64:gcc-13:avx512fp16:official:affected:
-  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:official
+build:linux:cross:x86-64:clang-19:avx512fp16:official:affected:
+  extends: build:linux:cross:x86-64:clang-19:avx512fp16:official
   variables:
-    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-13-avx512fp16-official
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-clang-19-avx512fp16-official
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
-build:linux:cross:x86-64:gcc-13:avx512fp16:contrib:affected:
-  extends: build:linux:cross:x86-64:gcc-13:avx512fp16:contrib
+build:linux:cross:x86-64:clang-19:avx512fp16:contrib:affected:
+  extends: build:linux:cross:x86-64:clang-19:avx512fp16:contrib
   variables:
-    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-gcc-13-avx512fp16-contrib
+    EIGEN_CI_CCACHE_POOL: build-linux-cross-x86-64-clang-19-avx512fp16-contrib
   rules: !reference [.rules:libeigen:affected-tests:avx512fp16, rules]
 
 # 32-bit arm: a distinct NEON code path from the aarch64 job above.
