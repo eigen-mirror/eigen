@@ -623,7 +623,7 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, test::REF_MUL, internal::pmul);
       CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
-      CHECK_CWISE1(ref_abs, internal::pabs);
+      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasAbs, ref_abs, internal::pabs);
     };
 
     constexpr Scalar high = 0x11111111;
@@ -963,7 +963,7 @@ void packetmath() {
   packetmath_integer_predicates_test<Scalar, Packet>::run();
   packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
-  CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
+  CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasAdd, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
     nmsub_test<Scalar, Packet>(data1, data2, ref, PacketSize);
   }
@@ -977,8 +977,8 @@ void packetmath() {
     data1[i + 2 * PacketSize] = Scalar(0) - abs_helper(internal::random<Scalar>());
   }
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
-    CHECK_CWISE3_IF(true, REF_MSUB, internal::pmsub);
-    CHECK_CWISE3_IF(true, REF_NMADD, internal::pnmadd);
+    CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasSub, REF_MSUB, internal::pmsub);
+    CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasSub, REF_NMADD, internal::pnmadd);
   }
 
   CHECK_CWISE1_IF(PacketTraits::HasSqrt, numext::sqrt, internal::psqrt);
