@@ -199,6 +199,17 @@ void bdcsvd_switch_size() {
   svd.setSwitchSize(32);
   svd.compute(m);
   svd_check_full(m, svd);
+
+  // The bidiagonal entry point allocates through the same path.
+  const VectorXd diag = VectorXd::Random(20);
+  const VectorXd superdiag = VectorXd::Random(19);
+  MatrixXd bidiag = MatrixXd::Zero(20, 20);
+  bidiag.diagonal() = diag;
+  bidiag.diagonal(1) = superdiag;
+  BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> bidiag_svd(bidiag.rows(), bidiag.cols());
+  bidiag_svd.setSwitchSize(32);
+  bidiag_svd.compute(diag, superdiag);
+  svd_check_full(bidiag, bidiag_svd);
 }
 #endif
 
