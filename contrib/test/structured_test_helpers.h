@@ -22,6 +22,15 @@ Matrix<Scalar, Dynamic, 1> reference_product_ieee(const Matrix<Scalar, Dynamic, 
   return result;
 }
 
+// The FFT-based products mix every input entry into every output entry, so an Inf or NaN may make more entries
+// non-finite than the dense product does. \returns whether it makes at least those.
+template <typename Actual, typename Reference>
+bool nonfinite_covers_reference(const Actual& actual, const Reference& reference) {
+  for (Index i = 0; i < reference.size(); ++i)
+    if (!(numext::isfinite)(reference[i]) && (numext::isfinite)(actual[i])) return false;
+  return true;
+}
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_TEST_HELPERS_H

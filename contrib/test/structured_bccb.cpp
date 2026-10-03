@@ -8,7 +8,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include "fp_control.h"
 #include "structured_test_helpers.h"
 
 #include <contrib/Eigen/StructuredMatrices>
@@ -366,105 +365,8 @@ void test_bccb_nan_propagation(Index n2, Index n1) {
   VERIFY(!(x.array() == x.array()).all());
 }
 
-// Inputs at the very top (and bottom) of the exponent range: the transforms sum
-// up to N terms, so without scaling the FFT intermediates overflow even though
-// every entry of the true result is representable. The apply path rescales the
-// symbol and each right-hand-side column by exact powers of two and folds the
-// exponent back at the end.
-template <typename = void>
-void test_bccb_finite_overflow() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-
-  const double huge = (std::numeric_limits<double>::max)() / 16;
-  // The 2-D FFT round trip costs a few ulps per entry; a norm-based comparison
-  // would itself overflow at these magnitudes, hence the entrywise bound.
-  const double kFftRoundTripTol = 100 * NumTraits<double>::epsilon();
-
-  // Reviewer repro: a 36x36 identity BCCB applied to a vector of DBL_MAX/16
-  // must return the vector, not 36 NaNs.
-  Mat G = Mat::Zero(6, 6);
-  G(0, 0) = 1.0;
-  Bccb<double> C(G);
-  Vec x = Vec::Constant(36, huge);
-  Vec y = C * x;
-  VERIFY(y.allFinite());
-  VERIFY(((y - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
-
-  // A huge generator makes a huge symbol: the scaling must come from the symbol
-  // side as well.
-  Mat Gh = Mat::Zero(6, 6);
-  Gh(0, 0) = huge;  // C == huge * Identity
-  Bccb<double> Ch(Gh);
-  Vec ones = Vec::Ones(36);
-  Vec z = Ch * ones;
-  VERIFY(z.allFinite());
-  VERIFY(((z.array() - huge).abs() <= kFftRoundTripTol * huge).all());
-
-  // The inverse symbol of a tiny operator is huge; solve() shares the scaled
-  // apply path.
-  Mat Gt = Mat::Zero(6, 6);
-  Gt(0, 0) = 1.0 / huge;
-  Bccb<double> Ct(Gt);
-  Vec w = Ct.solve(ones);
-  VERIFY(w.allFinite());
-  VERIFY(((w.array() - huge).abs() <= kFftRoundTripTol * huge).all());
-
-  // An exactly zero column maps to an exactly zero column (short-circuited
-  // before any scaling), while nonzero columns are still transformed.
-  Mat B(36, 2);
-  B.col(0).setConstant(huge);
-  B.col(1).setZero();
-  Mat Y = C * B;
-  VERIFY(Y.col(1).isZero());
-  VERIFY(((Y.col(0) - x).array().abs() <= kFftRoundTripTol * x.array().abs()).all());
-
-  // A genuine NaN among huge inputs keeps propagating; such right-hand sides
-  // take the direct kernel (see test_bccb_nonfinite_product for the entrywise
-  // semantics).
-  Vec xn = x;
-  xn[7] = std::numeric_limits<double>::quiet_NaN();
-  Vec yn = C * xn;
-  VERIFY(!(yn.array() == yn.array()).all());
-}
-
-// The scaling exponents are derived from component-wise magnitudes: a finite
-// complex value near the overflow threshold has a non-representable modulus,
-// which would otherwise disable the scaling and turn an exactly representable
-// product into NaN.
-template <typename RealScalar>
-void test_bccb_fft_complex_boundary(Index n2, Index n1) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
-  const RealScalar kFftRoundTripTol = RealScalar(100) * NumTraits<RealScalar>::epsilon();
-  const RealScalar big = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
-  const Index N = n1 * n2;
-
-  // Identity BCCB with a complex generator: the product returns the right-hand
-  // side unchanged even though |x_k| overflows.
-  CMat G = CMat::Zero(n2, n1);
-  G(0, 0) = Complex(1);
-  Bccb<Complex> C(G);
-  CVec x = CVec::Constant(N, Complex(big, big));
-  CVec y = C * x;
-  VERIFY(y.allFinite());
-  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
-
-  // A real identity operator applied to the same complex right-hand side takes
-  // the mixed-scalar product path.
-  RMat Gr = RMat::Zero(n2, n1);
-  Gr(0, 0) = RealScalar(1);
-  Bccb<RealScalar> Cr(Gr);
-  y = Cr * x;
-  VERIFY(y.allFinite());
-  VERIFY(((y - x).cwiseAbs() / big).maxCoeff() <= kFftRoundTripTol);
-}
-
-// A single Inf or NaN in the data must propagate like the reference product --
-// through the dot products that touch it -- instead of being smeared into NaNs
-// across the whole output by the transforms.
+// An Inf or NaN in the data is never lost and does not leak into other columns
+// (see nonfinite_covers_reference()).
 template <typename Scalar>
 void test_bccb_nonfinite_product(Index n2, Index n1) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -478,57 +380,43 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   Bccb<Scalar> C(G);
   Mat dense = reference_bccb<Scalar>(G);
 
-  // Inf in the right-hand side.
   Vec x = Vec::Random(N);
   x[N / 2] = Scalar(inf);
-  VERIFY_IS_CWISE_APPROX((C * x).eval(), reference_product_ieee(dense, x));
-
-  // NaN in the right-hand side.
+  VERIFY(nonfinite_covers_reference((C * x).eval(), reference_product_ieee(dense, x)));
   Vec xn = Vec::Random(N);
   xn[N - 1] = Scalar(nan);
-  VERIFY_IS_CWISE_APPROX((C * xn).eval(), reference_product_ieee(dense, xn));
+  VERIFY(nonfinite_covers_reference((C * xn).eval(), reference_product_ieee(dense, xn)));
+  Vec xz = Vec::Zero(N);
+  xz[0] = Scalar(nan);
+  VERIFY(nonfinite_covers_reference((C * xz).eval(), reference_product_ieee(dense, xz)));
 
-  // Mixed multi-column right-hand side: the non-finite column falls back to the
-  // direct kernel individually while the finite column keeps the FFT path.
   Mat Xm(N, 2);
   Xm.col(0) = Vec::Random(N);
   Xm.col(1) = x;
   Mat Ym = C * Xm;
   VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY_IS_CWISE_APPROX(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1))));
+  VERIFY(nonfinite_covers_reference(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
 
-  // A zero column carrying a single NaN must not take the zero-column shortcut:
-  // the fast-max routing scan can miss a NaN among zeros (an Inf always
-  // surfaces), so the shortcut rechecks exactly and such a column falls back.
-  Vec xz = Vec::Zero(N);
-  xz[0] = Scalar(nan);
-  VERIFY_IS_CWISE_APPROX((C * xz).eval(), reference_product_ieee(dense, xz));
-
-  // Inf in the generating array: the operator itself is non-finite, whatever the
-  // right-hand side.
   Mat G2 = Mat::Random(n2, n1);
   G2(n2 / 2, n1 / 2) = Scalar(-inf);
   Bccb<Scalar> C2(G2);
   Mat dense2 = reference_bccb<Scalar>(G2);
   Vec x2 = Vec::Random(N);
-  VERIFY_IS_CWISE_APPROX((C2 * x2).eval(), reference_product_ieee(dense2, x2));
+  VERIFY(nonfinite_covers_reference((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
 
-  // Non-finite right-hand sides of solve() apply the pseudo-inverse -- itself a
-  // BCCB operator -- through the direct kernel, so the Inf propagates entrywise
-  // instead of NaN-ing the whole output through the transforms. The operator is
-  // diagonally dominant, so no symbol entry is thresholded and the pseudo-inverse
-  // coincides with inverse(), whose dense form serves as the reference matrix.
   Mat Gd = Mat::Random(n2, n1);
   Gd(0, 0) += Scalar(RealScalar(2 * N));
   Bccb<Scalar> Cd(Gd);
-  Mat pinv = Mat(Cd.inverse());
-  Vec binf = Vec::Random(N);
-  binf[N / 3] = Scalar(inf);
-  VERIFY_IS_CWISE_APPROX(Cd.solve(binf), reference_product_ieee(pinv, binf));
+  Mat B(N, 2);
+  B.col(0) = Vec::Random(N);
+  B.col(1) = x;
+  Mat X = Cd.solve(B);
+  VERIFY_IS_APPROX((reference_bccb<Scalar>(Gd) * X.col(0)).eval(), Vec(B.col(0)));
+  VERIFY(!X.col(1).allFinite());
 }
 
-// An all-zero right-hand side must not short-circuit to an exact zero when the
-// operator holds non-finite data: every row of a BCCB touches every generator
+// An all-zero right-hand side does not produce an exact zero when the operator
+// holds non-finite data: every row of a BCCB touches every generator
 // entry, so each result entry is a dot product with an Inf coefficient times
 // zero -- NaN under IEEE, not zero.
 template <typename = void>
@@ -545,7 +433,7 @@ void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
   const Vec z = Vec::Zero(N);
   Vec y = C * z;
   VERIFY(y.hasNaN());
-  VERIFY_IS_CWISE_APPROX(y, reference_product_ieee(dense, z));
+  VERIFY(nonfinite_covers_reference(y, reference_product_ieee(dense, z)));
 
   // The same holds for solve(): the symbol of a non-finite operator holds NaN,
   // so the pseudo-inverse applied to a zero right-hand side is NaN, not zero.
@@ -635,120 +523,6 @@ void test_bccb_rank_boundaries() {
     VERIFY_IS_EQUAL(C.rank(), 1);
     VERIFY((numext::isinf)(C.determinant()));
   }
-}
-
-// A finite complex symbol entry near the overflow threshold has a
-// non-representable modulus. The rank threshold used to be computed from the raw
-// moduli, turning it into infinity: the rank was under-reported and solve()
-// zeroed valid Fourier modes. Both are now evaluated in an exactly rescaled
-// frame.
-template <typename = void>
-void test_bccb_rank_complex_boundary() {
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
-  const double mx = (std::numeric_limits<double>::max)();
-
-  // n2 = 2, n1 = 1: the symbol is exactly [g0 + g1, g0 - g1], so pick the
-  // generator from the desired spectrum. |s0| overflows while both of its
-  // components are finite.
-  const Complex s0(0.75 * mx, 0.75 * mx), s1(1e300, 0.0);
-  CMat G(2, 1);
-  G(0, 0) = (s0 + s1) * 0.5;
-  G(1, 0) = (s0 - s1) * 0.5;
-  Bccb<Complex> C(G);
-  VERIFY_IS_EQUAL(C.rank(), 2);
-
-  // The second Fourier mode must be inverted, not zeroed: a product of a small
-  // vector solves back to that vector (the accuracy is limited by the condition
-  // number |s0| / |s1| ~ 2.5e8).
-  CVec x0(2);
-  x0[0] = Complex(1e-10, -2e-10);
-  x0[1] = Complex(-3e-10, 1e-10);
-  CVec b = C * x0;
-  VERIFY(b.allFinite());
-  CVec x = C.solve(b);
-  VERIFY(((x - x0).cwiseAbs().maxCoeff() / x0.cwiseAbs().maxCoeff()) <= 1e-6);
-
-  // A genuinely negligible second entry still truncates in the scaled frame.
-  CMat G2(2, 1);
-  G2(0, 0) = (s0 + Complex(1)) * 0.5;
-  G2(1, 0) = (s0 - Complex(1)) * 0.5;
-  VERIFY_IS_EQUAL(Bccb<Complex>(G2).rank(), 1);
-}
-
-template <typename Scalar>
-struct bccb_subnormal_entry {
-  template <typename Bits>
-  static Scalar run(Bits real, Bits) {
-    return numext::bit_cast<Scalar>(real);
-  }
-};
-
-template <typename Real>
-struct bccb_subnormal_entry<std::complex<Real>> {
-  template <typename Bits>
-  static std::complex<Real> run(Bits real, Bits imag) {
-    return std::complex<Real>(numext::bit_cast<Real>(real), numext::bit_cast<Real>(imag));
-  }
-};
-
-// The FFT frame of a column depends only on its exponent bound, so for an
-// all-subnormal x: C x == 2^-k (C (2^k x)) exactly, plainly and under
-// flush-to-zero. A huge generator keeps C x itself normal.
-template <typename Scalar>
-void test_bccb_flushed_subnormal_rhs(Index n2, Index n1) {
-  using Real = typename NumTraits<Scalar>::Real;
-  using Binary = internal::binary_floating_point_traits<Real>;
-  using Bits = typename Binary::Bits;
-  using Vec = Matrix<Scalar, Dynamic, 1>;
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  const Index N = n1 * n2;
-  VERIFY(N > internal::structured_direct_threshold());  // the FFT path, not the direct product
-  // |G| ~ 2^(max_exponent - 40): the symbol, at most N |G|, stays finite and the products of a right-hand side
-  // just below the smallest normal are normal.
-  const Mat G = Mat::Random(n2, n1) * Scalar(numext::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 40));
-  const Bccb<Scalar> C(G);
-  // Signed subnormal significands of digits - 2 bits: entries in [2^(min_exponent - 3), 2^(min_exponent - 2)).
-  const Bits top = Bits(1) << (std::numeric_limits<Real>::digits - 3);
-  const auto significand = [&]() {
-    const Bits sign = internal::random<bool>() ? Binary::kSignBit : Bits(0);
-    return sign | (top + internal::random<Bits>(Bits(0), top - Bits(1)));
-  };
-  Vec x(N);
-  for (Index i = 0; i < N; ++i) x(i) = bccb_subnormal_entry<Scalar>::run(significand(), significand());
-  const int k = 40;
-  const Vec xs = x.unaryExpr(internal::scale_by_exponent_op<Real>(k));
-  const Vec ys = C * xs;
-  const Vec expected = ys.unaryExpr(internal::scale_by_exponent_op<Real>(-k));
-  VERIFY(expected.allFinite());
-
-  forEachFlushToZeroMode([&](FlushToZeroMode) {
-    const Vec y = C * x;
-    VERIFY_IS_EQUAL(y, expected);
-  });
-}
-
-// A single 2^-e frame factor is itself subnormal once the frame exceeds the
-// exponent range, and reads as zero under flush-to-zero: every scaled modulus
-// and the threshold collapse together, the rank is over-reported, and solve()
-// inverts a mode it should have truncated. Hence the two exact factors.
-template <typename = void>
-void test_bccb_rank_flush_to_zero() {
-  ScopedFlushToZero flush_to_zero;
-  if (!flush_to_zero.isSupported()) return;
-
-  using Complex = std::complex<double>;
-  using CMat = Matrix<Complex, Dynamic, Dynamic>;
-  const double mx = (std::numeric_limits<double>::max)();
-
-  // Spectrum [s0, 1] with |s0| at the overflow boundary: the second mode is
-  // negligible against it, so the operator is rank one.
-  const Complex s0(0.75 * mx, 0.75 * mx);
-  CMat G(2, 1);
-  G(0, 0) = (s0 + Complex(1)) * 0.5;
-  G(1, 0) = (s0 - Complex(1)) * 0.5;
-  VERIFY_IS_EQUAL(Bccb<Complex>(G).rank(), 1);
 }
 
 template <typename Scalar>
@@ -870,143 +644,11 @@ void test_bccb_fixed() {
 }
 
 template <typename RealScalar>
-void test_structured_symbol_reciprocals() {
-  using Complex = std::complex<RealScalar>;
-  using CVector = Matrix<Complex, Dynamic, 1>;
-  using RVector = Matrix<RealScalar, Dynamic, 1>;
-  constexpr Index kPacketSize = internal::packet_traits<Complex>::size;
-  const Index count = 3 * kPacketSize + 1;
-  const RealScalar epsilon = NumTraits<RealScalar>::epsilon();
-  const RealScalar lower = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent / 2);
-  const RealScalar upper = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 2 - 1);
-  const RealScalar minimum = (std::numeric_limits<RealScalar>::min)();
-  const RealScalar maximum = (std::numeric_limits<RealScalar>::max)();
-  const RealScalar infinity = NumTraits<RealScalar>::infinity();
-  const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
-  const RealScalar values[] = {RealScalar(0),
-                               -RealScalar(0),
-                               RealScalar(1),
-                               RealScalar(-1),
-                               lower / 2,
-                               lower,
-                               upper,
-                               upper * 2,
-                               minimum,
-                               minimum / 2,
-                               std::numeric_limits<RealScalar>::denorm_min(),
-                               RealScalar(0.75) * maximum,
-                               infinity,
-                               nan};
-  CVector symbol(count + 2), inverse(count + 2), unthresholded(count + 2);
-  RVector moduli(count + 2);
-  // Slide each special value through every lane, with unaligned inputs and a scalar tail.
-  for (Index offset = 0; offset <= 1; ++offset) {
-    for (Index lane = 0; lane < kPacketSize; ++lane) {
-      for (RealScalar real : values) {
-        for (RealScalar imag : values) {
-          symbol.setConstant(Complex(3, 4));
-          moduli.setOnes();
-          symbol(offset + lane) = Complex(real, imag);
-          symbol(offset + count - 1) = Complex(real, imag);
-          inverse.setConstant(Complex(9));
-          internal::structured_symbol_reciprocal<RealScalar>(symbol.data() + offset, moduli.data() + offset,
-                                                             RealScalar(1), inverse.data() + offset, count);
-          unthresholded = symbol;
-          internal::structured_symbol_reciprocal(unthresholded.data() + offset, count);
-          VERIFY_IS_EQUAL(unthresholded(offset + count), symbol(offset + count));
-          if (offset) VERIFY_IS_EQUAL(unthresholded(0), symbol(0));
-          VERIFY_IS_EQUAL(inverse(offset + count), Complex(9));
-          if (offset) VERIFY_IS_EQUAL(inverse(0), Complex(9));
-          for (Index k = offset; k < offset + count; ++k) {
-            const Complex expected = internal::structured_scaled_reciprocal(symbol(k));
-            for (const CVector* result : {&inverse, &unthresholded}) {
-              for (Index component = 0; component < 2; ++component) {
-                const RealScalar actual = component ? (*result)(k).imag() : (*result)(k).real();
-                const RealScalar reference = component ? expected.imag() : expected.real();
-                if ((numext::isnan)(reference)) {
-                  VERIFY((numext::isnan)(actual));
-                } else if ((numext::isinf)(reference) || reference == RealScalar(0)) {
-                  VERIFY_IS_EQUAL(actual, reference);
-                  VERIFY_IS_EQUAL(std::signbit(actual), std::signbit(reference));
-                } else {
-                  VERIFY((numext::isfinite)(actual));
-                  VERIFY(numext::abs(actual / reference - RealScalar(1)) <= RealScalar(8) * epsilon);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Positive denominator: two squares, their sum and a division, plus reference rounding.
-  for (Index trial = 0; trial < 100; ++trial) {
-    for (Index k = 0; k < count; ++k) {
-      const int exponent = internal::random<int>(std::numeric_limits<RealScalar>::min_exponent / 2,
-                                                 std::numeric_limits<RealScalar>::max_exponent / 2 - 1);
-      const RealScalar re = numext::ldexp(internal::random<RealScalar>(RealScalar(0.5), RealScalar(1)), exponent);
-      const RealScalar im = numext::ldexp(internal::random<RealScalar>(RealScalar(-1), RealScalar(-0.5)), exponent);
-      symbol(k) = Complex(re, im);
-    }
-    moduli.setOnes();
-    internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
-                                                       count);
-    for (Index k = 0; k < count; ++k) {
-      const long double re = static_cast<long double>(symbol(k).real());
-      const long double im = static_cast<long double>(symbol(k).imag());
-      const long double scale = (std::max)(std::abs(re), std::abs(im));
-      const long double a = re / scale, b = im / scale;
-      const long double denom = a * a + b * b;
-      const long double expected[] = {(a / denom) / scale, (-b / denom) / scale};
-      for (Index component = 0; component < 2; ++component) {
-        const long double actual = static_cast<long double>(component ? inverse(k).imag() : inverse(k).real());
-        VERIFY(std::abs(actual / expected[component] - 1) <= 8 * static_cast<long double>(epsilon));
-      }
-    }
-  }
-
-  symbol.setConstant(Complex(3, 4));
-  moduli.setOnes();
-  for (Index k = 0; k < count; k += 2) {
-    symbol(k) = Complex(0);
-    moduli(k) = RealScalar(0);
-  }
-  std::fenv_t saved_environment;
-  const bool environment_saved = std::feholdexcept(&saved_environment) == 0;
-  internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
-                                                     count);
-  if (environment_saved) {
-    const int exceptions = std::fetestexcept(FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
-    std::fesetenv(&saved_environment);
-    VERIFY_IS_EQUAL(exceptions, 0);
-  }
-  for (Index k = 0; k < count; ++k) {
-    if (k % 2 == 0) {
-      VERIFY_IS_EQUAL(inverse(k), Complex(0));
-      VERIFY(!std::signbit(inverse(k).real()));
-      VERIFY(!std::signbit(inverse(k).imag()));
-    } else {
-      const Complex expected(RealScalar(3) / RealScalar(25), -RealScalar(4) / RealScalar(25));
-      VERIFY(numext::abs(inverse(k) - expected) <= RealScalar(8) * epsilon);
-    }
-  }
-  // NaN moduli, like exact equality above, must remain in the inverted set.
-  symbol.setConstant(Complex(3, 4));
-  moduli.setConstant(nan);
-  internal::structured_symbol_reciprocal<RealScalar>(symbol.data(), moduli.data(), RealScalar(1), inverse.data(),
-                                                     count);
-  VERIFY((inverse.head(count).array().abs() > RealScalar(0)).all());
-  internal::structured_symbol_reciprocal<RealScalar>(nullptr, nullptr, RealScalar(1), nullptr, 0);
-  internal::structured_symbol_reciprocal<RealScalar>(nullptr, 0);
-}
-
-template <typename RealScalar>
-void test_structured_packet_reciprocals() {
+void test_constant_symbol_solves() {
   using Complex = std::complex<RealScalar>;
   using CMatrix = Matrix<Complex, Dynamic, Dynamic>;
   CMatrix generator = CMatrix::Zero(3, 5);
-  generator(0, 0) = Complex(3, 4);  // Constant non-real symbol exercises packets and the tail.
+  generator(0, 0) = Complex(3, 4);  // A constant non-real symbol.
   const Bccb<Complex> op(generator);
   const CMatrix expected = CMatrix::Random(15, 2);
   const CMatrix rhs = generator(0, 0) * expected;
@@ -1037,33 +679,9 @@ void test_circulant_inverse_modes() {
   VERIFY_IS_EQUAL(circulant.rank(), 1);
   const Complex circulant_mode = circulant.inverse().symbol()(1);
   VERIFY(numext::abs(circulant_mode * epsilon - Complex(1)) <= RealScalar(8) * epsilon);
-
-  // 1/(a+ia) = (0.5/a)(1-i), even when an unscaled denominator overflows.
-  const RealScalar a = RealScalar(0.75) * (std::numeric_limits<RealScalar>::max)();
-  for (Index n : {Index(1), Index(48)}) {
-    column.setZero(n);
-    column(0) = Complex(a, a);
-    const CVector circulant_inverse = Circulant<Complex>(column).inverse().symbol();
-    VERIFY(circulant_inverse.allFinite());
-    volatile RealScalar minimum = (std::numeric_limits<RealScalar>::min)();
-    if (!numext::is_exactly_zero(minimum * RealScalar(0.5))) {
-      for (Index k = 0; k < n; ++k) {
-        VERIFY(numext::abs(circulant_inverse(k).real() * a - RealScalar(0.5)) <= RealScalar(64) * epsilon);
-        VERIFY(numext::abs(circulant_inverse(k).imag() * a + RealScalar(0.5)) <= RealScalar(64) * epsilon);
-      }
-    }
-  }
 }
 
 EIGEN_DECLARE_TEST(structured_bccb) {
-  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<long double>::Vectorizable));
-#ifdef EIGEN_VECTORIZE_SSE2
-  STATIC_CHECK((internal::structured_reciprocal_packet_traits<float>::Vectorizable));
-  STATIC_CHECK((internal::structured_reciprocal_packet_traits<double>::Vectorizable));
-#else
-  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<float>::Vectorizable));
-  STATIC_CHECK((!internal::structured_reciprocal_packet_traits<double>::Vectorizable));
-#endif
   for (int i = 0; i < g_repeat; ++i) {
     // Products, dense assignment, coefficient access: scalar tier (N <= 32) and
     // 2-D FFT tier, including single-row/column-of-blocks degenerate shapes.
@@ -1136,35 +754,20 @@ EIGEN_DECLARE_TEST(structured_bccb) {
     CALL_SUBTEST_6((test_bccb_mixed_scalar<float>(8, 8)));
     CALL_SUBTEST_6(test_bccb_dimension_asserts<>());
 
-    // Finite-range robustness: scaled transforms, the complex overflow boundary,
-    // balanced determinant accumulation, and the rank threshold boundary.
-    CALL_SUBTEST_7(test_bccb_finite_overflow<>());
-    CALL_SUBTEST_7((test_bccb_fft_complex_boundary<double>(6, 8)));
-    CALL_SUBTEST_7((test_bccb_fft_complex_boundary<float>(6, 8)));
+    // Balanced determinant accumulation and the rank threshold boundary.
     CALL_SUBTEST_7(test_bccb_determinant_scaled<>());
     CALL_SUBTEST_7(test_bccb_rank_boundaries<>());
-    CALL_SUBTEST_7(test_bccb_rank_complex_boundary<>());
-    CALL_SUBTEST_7(test_bccb_rank_flush_to_zero<>());
 
-    // Entrywise Inf/NaN propagation: FFT-sized operators must fall back to the
-    // direct kernel; small ones are IEEE-exact already. A zero right-hand side
+    // Inf/NaN propagation on the direct and FFT tiers. A zero right-hand side
     // under a non-finite operator yields NaN, not zero.
     CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(6, 8)));
     CALL_SUBTEST_7((test_bccb_nonfinite_product<double>(3, 4)));
     CALL_SUBTEST_7((test_bccb_nonfinite_product<std::complex<double>>(6, 8)));
     CALL_SUBTEST_7(test_bccb_nonfinite_zero_rhs<>(6, 8));
 
-    CALL_SUBTEST_8(test_structured_symbol_reciprocals<float>());
-    CALL_SUBTEST_8(test_structured_symbol_reciprocals<double>());
-    CALL_SUBTEST_8(test_structured_symbol_reciprocals<long double>());
-    CALL_SUBTEST_8(test_structured_packet_reciprocals<float>());
-    CALL_SUBTEST_8(test_structured_packet_reciprocals<double>());
+    CALL_SUBTEST_8(test_constant_symbol_solves<float>());
+    CALL_SUBTEST_8(test_constant_symbol_solves<double>());
     CALL_SUBTEST_8(test_circulant_inverse_modes<float>());
     CALL_SUBTEST_8(test_circulant_inverse_modes<double>());
-
-    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<float>(8, 8)));
-    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<double>(12, 4)));
-    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<std::complex<float>>(6, 8)));
-    CALL_SUBTEST_8((test_bccb_flushed_subnormal_rhs<std::complex<double>>(8, 8)));
   }
 }

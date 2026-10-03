@@ -140,7 +140,6 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     if (n > 1) m_h.tail(n - 1) = row.tail(n - 1);
     if (m > 1 && n > 1 && (m > internal::structured_direct_threshold() || n > internal::structured_direct_threshold()))
       m_symbol = computeSymbol();
-    m_fftUsable = computeFftUsable();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_rows.value(); }
@@ -275,28 +274,18 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * The FFT path evaluates the circular convolution
    * \f[ (Hx)_i = \sum_{j=0}^{n-1} h_{i+j} x_j. \f]
    * Reversing \f$x\f$ and rotating the padded symbol by \f$n-1\f$ places these
-   * entries at the start of the inverse transform.
-   *
-   * Non-finite data takes the direct kernels: the transforms would smear a
-   * single Inf/NaN into NaNs across the whole output, where the dense product
-   * only propagates it through the dot products that touch it. A non-finite
-   * generating sequence or cached symbol (which can overflow even for a finite
-   * sequence) routes the whole product; a non-finite right-hand-side column is
-   * detected inside the FFT loop -- in the same pass that derives its scaling
-   * exponent, so finite data pays no extra scan -- and falls back per column. */
+   * entries at the start of the inverse transform. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     const bool small = m == 1 || n == 1 ||
                        (m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold());
-    if (small || !m_fftUsable) {
+    if (small) {
       directProduct(dst, rhs, alpha);
       return;
     }
-    // Reversal preserves which right-hand-side columns need the direct fallback.
-    internal::structured_fft_apply(dst, m_symbol, m, rhs.colwise().reverse(), alpha,
-                                   [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
+    internal::structured_fft_apply(dst, m_symbol, m, rhs.colwise().reverse(), alpha);
   }
 
  private:
@@ -308,20 +297,12 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * public constructor. Used by transpose(), conjugate() and adjoint(), whose
    * symbols are cheap transformations of the existing one. */
   Hankel(const GeneratorType& h, Index rows, Index cols, const ComplexVector& symbol)
-      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol), m_fftUsable(computeFftUsable()) {}
-
-  /** \internal Whether products may take the FFT path: the generating sequence
-   * and the cached symbol must be finite. The symbol accumulates up to p addends,
-   * so it can overflow to Inf even for a finite sequence; such operators fall
-   * back to the direct kernels, which stay exact. */
-  bool computeFftUsable() const { return m_h.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite()); }
+      : m_rows(rows), m_cols(cols), m_h(h), m_symbol(symbol) {}
 
   /** \internal Direct kernel for column \a k of the right-hand side: computes
    * \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms. Serves
-   * operators below the FFT threshold, single-row and single-column operators
-   * (whose products cost O(n) directly, however large the operator), and any
-   * column involving non-finite data, whose entrywise IEEE semantics the
-   * transforms cannot preserve. */
+   * operators below the FFT threshold and single-row and single-column operators
+   * (whose products cost O(n) directly, however large the operator). */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
@@ -424,7 +405,6 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   internal::variable_if_dynamic<Index, ColsAtCompileTime> m_cols;
   GeneratorType m_h;
   ComplexVector m_symbol;
-  bool m_fftUsable;
 };
 
 /** \ingroup StructuredMatrices_Module

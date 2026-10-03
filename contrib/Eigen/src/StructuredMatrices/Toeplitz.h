@@ -117,7 +117,6 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
     // no consumer, so skip the embedding altogether.
     if (rows() > internal::structured_direct_threshold() || cols() > internal::structured_direct_threshold())
       m_symbol = computeSymbol();
-    m_fftUsable = computeFftUsable();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_col.size(); }
@@ -249,26 +248,16 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
    * promoted scalar of the product (complex when a real operator is applied to a
-   * complex right-hand side); the accumulation runs in the promoted type.
-   *
-   * Non-finite data takes the direct O(mn) kernel: the transforms would smear a
-   * single Inf/NaN into NaNs across the whole output, where the dense product
-   * only propagates it through the dot products that touch it. Non-finite
-   * generators or a non-finite cached embedding symbol (which can overflow even
-   * for finite generators) route the whole product; a non-finite right-hand-side
-   * column is detected inside the FFT loop -- in the same pass that derives its
-   * scaling exponent, so finite data pays no extra scan -- and falls back per
-   * column. */
+   * complex right-hand side); the accumulation runs in the promoted type. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
     const bool small = m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold();
-    if (small || !m_fftUsable)
+    if (small)
       directProduct(dst, rhs, alpha);
     else
-      internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha,
-                                     [&](Index k) { directProductColumn(dst, rhs, k, alpha); });
+      internal::structured_fft_apply(dst, m_symbol, m, rhs, alpha);
   }
 
  private:
@@ -282,23 +271,11 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
    * by transpose(), conjugate() and adjoint(), whose symbols are cheap
    * transformations of the existing one. */
   Toeplitz(const ColGeneratorType& col, const RowGeneratorType& row, const ComplexVector& symbol)
-      : m_col(col), m_row(row), m_symbol(symbol) {
-    m_fftUsable = computeFftUsable();
-  }
-
-  /** \internal Whether products may take the FFT path: the generators and the
-   * cached embedding symbol must be finite. The symbol accumulates up to p
-   * addends, so it can overflow to Inf even for finite generators; such operators
-   * fall back to the direct kernel, which stays exact. */
-  bool computeFftUsable() const {
-    return m_col.allFinite() && m_row.allFinite() && (m_symbol.size() == 0 || m_symbol.allFinite());
-  }
+      : m_col(col), m_row(row), m_symbol(symbol) {}
 
   /** \internal Direct O(mn) kernel for column \a k of the right-hand side:
-   * computes \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms.
-   * Serves operators below the FFT threshold and any column involving
-   * non-finite data, whose entrywise IEEE semantics the transforms cannot
-   * preserve. */
+   * computes \c dst.col(k) += alpha * (*this) * rhs.col(k) without transforms,
+   * for operators below the FFT threshold. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void directProductColumn(Dest& dst, const Rhs& rhs, Index k, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
@@ -350,7 +327,6 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   ColGeneratorType m_col;
   RowGeneratorType m_row;
   ComplexVector m_symbol;
-  bool m_fftUsable;
 };
 
 /** \ingroup StructuredMatrices_Module

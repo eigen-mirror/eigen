@@ -11,10 +11,10 @@
 //  [1] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
 //      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
 //      powers of two, the technique behind structured_exponent_bound() and the
-//      column scaling in structured_fft_apply() and Bccb::applySymbol().
+//      balanced determinant accumulations.
 //  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
-//      Scaling by a power of two is exact, so the scaled transforms introduce
-//      no roundoff beyond the transforms themselves.
+//      Scaling by a power of two is exact, so the balanced accumulations
+//      introduce no roundoff of their own.
 
 #ifndef EIGEN_STRUCTURED_MATRIX_UTILS_H
 #define EIGEN_STRUCTURED_MATRIX_UTILS_H
@@ -123,106 +123,6 @@ Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
   constexpr Exponent kMaxExponent = Exponent(1) << 24;
   const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
   return structured_balance_impl<Scalar>::apply_exponent(z, e);
-}
-
-/** \internal \returns 1 / \a z, formed in a balanced frame where the direct
- * reciprocal is unreliable: near the representable boundary both conj(z)/|z|^2
- * and Smith's algorithm (internal::complex_divide_fast and _smith) overflow to
- * zero when |Re z| and |Im z| are each around half the largest finite value.
- * Balancing puts the larger component in [0.5, 1), where the reciprocal is
- * always representable, and both rescalings are exact. Zeros and non-finite
- * values pass through structured_balance() untouched. */
-template <typename Scalar>
-Scalar structured_scaled_reciprocal(const Scalar& z) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  const RealScalar mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-  const RealScalar m2 = mag * mag;
-  // Where |z|^2 <= 2*mag^2 is normal, no implementation of the reciprocal can
-  // overflow or underflow, so only the remaining entries pay for the balancing.
-  if (m2 >= (std::numeric_limits<RealScalar>::min)() && (numext::isfinite)(m2 + m2)) return Scalar(1) / z;
-  Index e = 0;
-  const Scalar zs = structured_balance(z, e);
-  return structured_ldexp_clamped(Scalar(1) / zs, -e);
-}
-
-template <typename RealScalar>
-struct structured_reciprocal_packet_traits {
-  // These backends provide interleaved complex packets, ploaddup and mask reductions.
-#if defined(EIGEN_VECTORIZE_SSE2)
-  static constexpr bool Vectorizable =
-      std::is_same<RealScalar, float>::value || std::is_same<RealScalar, double>::value;
-#else
-  static constexpr bool Vectorizable = false;
-#endif
-};
-
-template <typename RealScalar, bool ApplyThreshold,
-          bool Vectorize = structured_reciprocal_packet_traits<RealScalar>::Vectorizable>
-struct structured_symbol_reciprocal_impl {
-  using Complex = std::complex<RealScalar>;
-  static void run(const Complex* symbol, const RealScalar* moduli, RealScalar tol, Complex* inverse, Index size) {
-    for (Index k = 0; k < size; ++k)
-      inverse[k] = ApplyThreshold && moduli[k] < tol ? Complex(0) : structured_scaled_reciprocal(symbol[k]);
-  }
-};
-
-template <typename RealScalar, bool ApplyThreshold>
-struct structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, true> {
-  using Complex = std::complex<RealScalar>;
-  using Packet = typename packet_traits<Complex>::type;
-  using RealPacket = typename unpacket_traits<Packet>::as_real;
-
-  EIGEN_DONT_INLINE static void run(const Complex* symbol, const RealScalar* moduli, RealScalar tol, Complex* inverse,
-                                    Index size) {
-    constexpr Index kPacketSize = unpacket_traits<Packet>::size;
-    const Packet zero = pset1<Packet>(Complex(0));
-    const Packet safe_value = pset1<Packet>(Complex(1, 1));
-    const RealPacket threshold = pset1<RealPacket>(tol);
-    // min_normal <= mag^2 and 2*mag^2 <= 2^(max_exponent-1) < max_finite.
-    const RealPacket lower =
-        pset1<RealPacket>(numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::min_exponent / 2));
-    const RealPacket upper =
-        pset1<RealPacket>(numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 2 - 1));
-    const Index packet_end = size - size % kPacketSize;
-    Index k = 0;
-    for (; k < packet_end; k += kPacketSize) {
-      const RealPacket discard = ApplyThreshold ? pcmp_lt(ploaddup<RealPacket>(moduli + k), threshold) : zero.v;
-      // Sanitize before arithmetic: selecting the output alone still divides discarded zeros.
-      const Packet z = pselect(Packet(discard), safe_value, ploadu<Packet>(symbol + k));
-      const RealPacket a = pabs(z.v);
-      const RealPacket mag = pmax(a, pcplxflip(Packet(a)).v);
-      // Zero components use the scalar path to preserve std::complex's signed-zero choices.
-      const RealPacket safe = pand(pand(pcmp_le(lower, mag), pcmp_le(mag, upper)), pcmp_lt(zero.v, a));
-      if (!predux_any(pandnot(ptrue(safe), safe))) {
-        const RealPacket square = pmul(z.v, z.v);
-        const RealPacket denom = padd(square, pcplxflip(Packet(square)).v);
-        const Packet reciprocal(pdiv(pconj(z).v, denom));
-        // Underflowed components also retain the scalar signed-zero convention.
-        if (!predux_any(pcmp_eq(reciprocal.v, zero.v))) {
-          pstoreu(inverse + k, pselect(Packet(discard), zero, reciprocal));
-          continue;
-        }
-      }
-      structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, false>::run(
-          symbol + k, ApplyThreshold ? moduli + k : nullptr, tol, inverse + k, kPacketSize);
-    }
-    if (k < size)
-      structured_symbol_reciprocal_impl<RealScalar, ApplyThreshold, false>::run(
-          symbol + k, ApplyThreshold ? moduli + k : nullptr, tol, inverse + k, size - k);
-  }
-};
-
-// The input and output may alias exactly. Threshold equality and NaN moduli are retained.
-template <typename RealScalar>
-void structured_symbol_reciprocal(const std::complex<RealScalar>* symbol, const RealScalar* moduli, RealScalar tol,
-                                  std::complex<RealScalar>* inverse, Index size) {
-  structured_symbol_reciprocal_impl<RealScalar, true>::run(symbol, moduli, tol, inverse, size);
-}
-
-// True inverses retain every mode and reuse the symbol storage without allocating a modulus array.
-template <typename RealScalar>
-void structured_symbol_reciprocal(std::complex<RealScalar>* symbol, Index size) {
-  structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol, nullptr, RealScalar(0), symbol, size);
 }
 
 /** \internal \returns the indices sorted by decreasing precomputed modulus
@@ -479,163 +379,70 @@ ComplexVectorType structured_reverse_symbol(const ComplexVectorType& symbol) {
   return reversed;
 }
 
-/** \internal Default pointwise step: multiply the transformed column by the symbol. */
-struct structured_symbol_multiply {
-  template <typename SymbolType>
-  int exponent_growth(const SymbolType& symbol) const {
-    return structured_exponent_bound(symbol);
-  }
-  template <typename XfType, typename SymbolType>
-  void operator()(XfType& xf, const SymbolType& symbol) const {
-    xf.array() *= symbol.array();
-  }
-};
-
-/** \internal
- * By default computes
- * \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for every column of
- * \a rhs, i.e. applies the circulant operator whose eigenvalues are \a symbol.
- * A caller may supply another pointwise operation with its matching exponent
- * growth bound. The leading \a outSize entries of each back-transform form the
- * corresponding output column. All workspace is allocated once outside the
- * per-column loop; right-hand sides shorter than the transform length are
- * zero-padded into the preallocated buffer so the FFT never re-allocates.
+/** \internal Computes \c dst.col(k) += alpha * ifft( symbol .* fft(rhs.col(k)) ) for
+ * every column of \a rhs, i.e. applies the circulant operator whose eigenvalues
+ * are \a symbol; the leading \a outSize entries of each back-transform form the
+ * output column. Right-hand sides shorter than the transform length are
+ * zero-padded into a buffer allocated once outside the column loop.
  *
- * The transforms accumulate up to \c p addends, so a finite column near the
- * overflow threshold (or one applied through a symbol of huge magnitude) would
- * overflow inside the FFT and turn a representable result into Inf/NaN. Each
- * column is therefore scaled down by a power of two -- an exact shift, no
- * roundoff -- derived from the column's exponent and the pointwise operation's
- * maximum exponent growth, and the exponent is folded back into the output after
- * the back-transform. The scale is one whenever the conservative intermediate
- * bound cannot overflow, so results are bit-identical for inputs of moderate
- * magnitude; zero columns are never scaled. If \f$|x_i|<2^c\f$ and the pointwise
- * operation magnifies by less than \f$2^g\f$, its result and both transforms are
- * bounded by
- * \f[ 2^{c+g+2\lceil\log_2 p\rceil+1}. \f]
- *
- * Genuinely non-finite data must not go through the transforms: they mix every
- * input entry into every output entry, so a single special value would
- * contaminate the whole column with NaN where the dense product only propagates
- * it through the dot products that touch it. A non-finite symbol is the
- * caller's responsibility (the operators route it to their direct kernels up
- * front); a non-finite column is detected here -- in the same single pass that
- * derives its scaling exponent -- and handed to \a directColumn, the caller's
- * per-column direct kernel, so the remaining columns keep the fast path.
- */
-template <typename Scalar, typename Dest, typename Rhs, typename DirectColumn,
-          typename Pointwise = structured_symbol_multiply>
+ * The transforms are evaluated in plain floating-point arithmetic: a column within
+ * a factor of about p * max|symbol| of the overflow threshold can overflow in the
+ * intermediates even when the result is representable, and a single Inf or NaN
+ * makes the whole output column non-finite. */
+template <typename Scalar, typename Dest, typename Rhs>
 void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha, DirectColumn&& directColumn,
-                          Pointwise pointwise = Pointwise(), Index outExpAdjust = 0) {
+                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Complex = std::complex<RealScalar>;
   using ComplexVector = Matrix<Complex, Dynamic, 1>;
 
   const Index p = symbol.size();
   eigen_assert(rhs.rows() <= p && outSize <= p);
-
-  // Growth of the pointwise step -- max|symbol| for a multiply, the largest
-  // retained reciprocal for a divide -- included in the pre-scaling so a
-  // representable result cannot overflow before the output rescaling.
-  const int pointwiseExp = pointwise.exponent_growth(symbol);
-
   if (p == 1) {
-    // The length-one DFT is the identity and is unsupported by kissfft. The
-    // pointwise step still runs, scaled around just as the transforms are on the
-    // general path.
-    const int budget = NumTraits<RealScalar>::max_exponent() - 2;
-    ComplexVector xf(1);
-    for (Index k = 0; k < rhs.cols(); ++k) {
-      int colExp;
-      if (!structured_exponent_bound_finite(rhs.col(k), colExp)) {
-        directColumn(k);
-        continue;
-      }
-      const int e = numext::maxi(colExp + pointwiseExp - budget, 0);
-      const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)),
-                       down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
-      const int eo = e - static_cast<int>(outExpAdjust);
-      const RealScalar up1 = numext::ldexp(RealScalar(1), eo / 2), up2 = numext::ldexp(RealScalar(1), eo - eo / 2);
-      xf.coeffRef(0) = static_cast<Complex>((rhs.coeff(0, k) * down1) * down2);
-      pointwise(xf, symbol);
-      dst.coeffRef(0, k) += alpha * structured_scalar_part_impl<Scalar>::run_scalar((xf.coeff(0) * up1) * up2);
-    }
+    // The length-one DFT is the identity and is unsupported by kissfft.
+    dst.row(0) += alpha * structured_scalar_part_impl<Scalar>::run(Complex(symbol.coeff(0)) *
+                                                                   rhs.row(0).template cast<Complex>());
     return;
   }
-
-  // The bit width of p (>= 1 here), an upper bound for the ceil(log2 p) of the
-  // magnitude bound above -- one bit looser at power-of-two transform lengths.
-  const int log2p = log2_floor(static_cast<std::make_unsigned_t<Index>>(p)) + 1;
-  const int budget = NumTraits<RealScalar>::max_exponent() - 2 * log2p - 2;
 
   auto&& fft = structured_fft_engine<RealScalar>();
   ComplexVector xt = ComplexVector::Zero(p);
   ComplexVector xf(p), yt(p);
   for (Index k = 0; k < rhs.cols(); ++k) {
-    int colExp;  // 0 for an all-zero column: no scaling
-    if (!structured_exponent_bound_finite(rhs.col(k), colExp)) {
-      directColumn(k);
-      continue;
-    }
-    const int e = numext::maxi(colExp + pointwiseExp - budget, 0);
-    // Each power of two is split in halves so that the factors themselves stay
-    // inside the exponent range even when e exceeds it (a huge column applied
-    // through a huge symbol); scaling by the two exact factors in sequence is
-    // still an exact shift wherever the result is representable.
-    const RealScalar down1 = numext::ldexp(RealScalar(1), -(e / 2)), down2 = numext::ldexp(RealScalar(1), -(e - e / 2));
-    // A caller that pre-balanced the symbol passes its exponent in outExpAdjust,
-    // so the pointwise step sees an O(1) symbol whose result never passes through
-    // a subnormal; the exponent is folded back into the output here.
-    const int eo = e - static_cast<int>(outExpAdjust);
-    const RealScalar up1 = numext::ldexp(RealScalar(1), eo / 2), up2 = numext::ldexp(RealScalar(1), eo - eo / 2);
-    xt.head(rhs.rows()) = ((rhs.col(k) * down1) * down2).template cast<Complex>();
+    xt.head(rhs.rows()) = rhs.col(k).template cast<Complex>();
     fft.fwd(xf, xt, p);
-    pointwise(xf, symbol);
+    xf.array() *= symbol.array();
     fft.inv(yt, xf, p);
-    dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run((yt.head(outSize) * up1) * up2);
+    dst.col(k) += alpha * structured_scalar_part_impl<Scalar>::run(yt.head(outSize));
   }
 }
 
-/** \internal Overload for callers that guarantee finite right-hand-side data
- * (e.g. solve(), which checks its input up front and takes a dedicated
- * pseudo-inverse fallback otherwise): a non-finite column has no direct kernel
- * here and would be skipped, so it asserts. */
-template <typename Scalar, typename Dest, typename Rhs>
-void structured_fft_apply(Dest& dst, const Matrix<std::complex<typename NumTraits<Scalar>::Real>, Dynamic, 1>& symbol,
-                          Index outSize, const Rhs& rhs, const Scalar& alpha) {
-  structured_fft_apply(dst, symbol, outSize, rhs, alpha,
-                       [](Index) { eigen_assert(false && "non-finite column requires a direct kernel"); });
+/** \internal \returns the pseudo-inverse symbol of a circulant-diagonalized
+ * operator: the reciprocal of every entry of \a symbol whose modulus is at least
+ * \c tol, zero for the others. With \c w = 1/|z| the reciprocal is formed as
+ * \c (conj(z) w) w, which stays representable wherever 1/z is and vectorizes as
+ * plain products. A NaN entry fails the comparison and stays in the inverted set,
+ * so it propagates instead of being silently truncated. */
+template <typename SymbolType, typename ModsType, typename RealScalar>
+SymbolType structured_pinv_symbol(const SymbolType& symbol, const ModsType& mods, const RealScalar& tol) {
+  using Complex = typename SymbolType::Scalar;
+  const auto w = (mods.array() < tol).select(RealScalar(0), mods.array().inverse()).template cast<Complex>().eval();
+  return (symbol.array().conjugate() * w * w).matrix();
 }
 
-/** \internal Pointwise step for the pseudo-inverse solve: divides by the symbol
- * instead of multiplying by its reciprocal, since the reciprocal of an entry near
- * the representable boundary is subnormal -- and lost under flush-to-zero -- while
- * the quotient stays normal. Entries below the rank threshold are zeroed, matching
- * the pseudo-inverse convention. */
-template <typename ModsType, typename RealScalar>
-struct structured_symbol_divide {
-  const ModsType* mods;
-  RealScalar tol;
-  template <typename SymbolType>
-  int exponent_growth(const SymbolType&) const {
-    if (mods->size() == 0) return 0;
-    const auto retained = (RealScalar(1) - mods->cwiseTypedLess(tol).array()) *
-                          mods->cwiseTypedGreater(RealScalar(0)).array() * mods->array().isFiniteTyped();
-    const RealScalar smallest = retained.select(mods->array(), NumTraits<RealScalar>::infinity()).minCoeff();
-    if (!(numext::isfinite)(smallest)) return 0;
-    int modExp;
-    EIGEN_USING_STD(frexp);
-    frexp(smallest, &modExp);
-    // The smallest retained modulus maximizes 2-frexp(mod).exponent.
-    return numext::maxi(0, 2 - modExp);
-  }
-  template <typename XfType, typename SymbolType>
-  void operator()(XfType& xf, const SymbolType& symbol) const {
-    using Complex = std::complex<RealScalar>;
-    xf.array() = (mods->array() < tol).select(Complex(0), xf.array() / symbol.array());
-  }
-};
+/** \internal \returns the rank threshold \c size * epsilon * max|symbol| of [Golub
+ * and Van Loan, Matrix Computations, 4th ed., 5.4], clamped from below by the
+ * smallest normal number like SVDBase::rank(); \a mods holds |symbol|. A finite
+ * entry whose modulus overflows would make the threshold infinite and truncate
+ * every mode, so that rare case takes the maximum from the halved symbol. */
+template <typename SymbolType, typename ModsType>
+typename ModsType::Scalar structured_rank_threshold(const SymbolType& symbol, const ModsType& mods) {
+  using RealScalar = typename ModsType::Scalar;
+  const RealScalar factor = RealScalar(mods.size()) * NumTraits<RealScalar>::epsilon();
+  RealScalar tol = factor * mods.maxCoeff();
+  if (!(numext::isfinite)(tol)) tol = (RealScalar(2) * factor) * (symbol * RealScalar(0.5)).cwiseAbs().maxCoeff();
+  return numext::maxi(tol, (std::numeric_limits<RealScalar>::min)());
+}
 
 /** \internal Shared product implementation for the structured operator types.
  * Forwards to the operator's \c addProduct member, which performs the fast
