@@ -1201,6 +1201,20 @@ EIGEN_ALWAYS_INLINE void ppc_optimization_barrier(T& x) {
 // "w" constraint will not compile.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+g"(X));
 #endif
+#elif EIGEN_ARCH_i386_OR_x86_64 && EIGEN_COMP_NVHPC
+// nvc++ rejects a long double asm operand under every constraint, so its bytes go through memory instead.
+namespace Eigen {
+namespace internal {
+template <typename T>
+EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(T& x) {
+  __asm__("" : "+g,x"(x));
+}
+EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
+  __asm__("" : "+m"(*reinterpret_cast<unsigned char(*)[sizeof(long double)]>(&x)));
+}
+}  // namespace internal
+}  // namespace Eigen
+#define EIGEN_OPTIMIZATION_BARRIER(X) Eigen::internal::nvhpc_optimization_barrier(X);
 #elif EIGEN_ARCH_i386_OR_x86_64
 // General, SSE.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+g,x"(X));
