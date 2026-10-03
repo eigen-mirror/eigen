@@ -108,6 +108,40 @@ void angleaxis_edge_cases() {
     VERIFY_IS_APPROX(aa.toRotationMatrix(), aa2.toRotationMatrix());
   }
 
+  // Near-180-degree rotation with negative dominant axis component:
+  // when sin(angle) is well above machine epsilon (e.g. angle = pi - 0.25 * sqrt(eps)),
+  // the axis sign is well-defined and must not flip.
+  {
+    Scalar delta = Scalar(0.25) * numext::sqrt(NumTraits<Scalar>::epsilon());
+    Scalar a = Scalar(EIGEN_PI) - delta;
+    for (int d = 0; d < 3; ++d) {
+      Vector3 axis(Scalar(0.1), Scalar(-0.2), Scalar(0.15));
+      axis(d) = Scalar(-1);
+      axis.normalize();
+      AngleAxisx aa(a, axis);
+      Matrix3 m = aa.toRotationMatrix();
+      AngleAxisx aa2;
+      aa2.fromRotationMatrix(m);
+      VERIFY_IS_APPROX(aa2.axis(), axis);
+      VERIFY_IS_APPROX(aa2.angle(), a);
+    }
+  }
+
+  // Near-180-degree rotation extracted from a composed rotation matrix
+  // R_parent^T * (R_parent * R_true): rounding errors in R must not be
+  // amplified by 1 / sin(angle).
+  {
+    Vector3 r_true(Scalar(-3.134111), Scalar(-0.011655), Scalar(-0.003976));
+    AngleAxisx aa_true(r_true.norm(), r_true.normalized());
+    Matrix3 R_true = aa_true.toRotationMatrix();
+    Vector3 r_parent(Scalar(1.946572), Scalar(-1.908926), Scalar(0.648041));
+    Matrix3 R_parent = AngleAxisx(r_parent.norm(), r_parent.normalized()).toRotationMatrix();
+    Matrix3 R_composed = R_parent.transpose() * (R_parent * R_true);
+    AngleAxisx aa_extracted(R_composed);
+    Vector3 r_extracted = aa_extracted.angle() * aa_extracted.axis();
+    VERIFY((r_extracted - r_true).norm() < Scalar(16) * NumTraits<Scalar>::epsilon());
+  }
+
   // Accessors
   {
     Vector3 axis = Vector3::Random().normalized();
