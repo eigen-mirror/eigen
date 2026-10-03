@@ -34,6 +34,25 @@ static void BM_JacobiSVD(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations());
 }
 
+// Square A = Q1 diag(sigma) Q2^T, sigma_i = kappa^(-i/(n-1)): the graded spectrum on which
+// PreconditionSquareMatrix pays off. Args: n, log10(kappa).
+template <int Options>
+static void BM_JacobiSVD_Graded(benchmark::State& state) {
+  const Index n = state.range(0);
+  const double log10Kappa = double(state.range(1));
+  VectorXd sigma(n);
+  for (Index i = 0; i < n; ++i) sigma(i) = std::pow(10.0, -log10Kappa * double(i) / double(n > 1 ? n - 1 : 1));
+  const MatrixXd q1 = HouseholderQR<MatrixXd>(MatrixXd::Random(n, n)).householderQ();
+  const MatrixXd q2 = HouseholderQR<MatrixXd>(MatrixXd::Random(n, n)).householderQ();
+  const MatrixXd A = q1 * sigma.asDiagonal() * q2.transpose();
+  JacobiSVD<MatrixXd, Options> svd(n, n);
+  for (auto _ : state) {
+    do_compute(svd, A);
+    benchmark::DoNotOptimize(svd.singularValues().data());
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+
 // ---------- BDCSVD ----------
 
 template <typename Scalar, int Options>
@@ -109,3 +128,17 @@ BENCHMARK(BM_JacobiSVD<double, ComputeThinU | ComputeThinV | HouseholderQRPrecon
 BENCHMARK(BM_JacobiSVD<double, ComputeFullU | ComputeFullV | FullPivHouseholderQRPreconditioner>)
     ->Args({64, 64})
     ->Name("JacobiSVD_double_FullPivQR");
+
+// JacobiSVD — PreconditionSquareMatrix against the default on graded square inputs (double)
+BENCHMARK(BM_JacobiSVD_Graded<0>)
+    ->ArgsProduct({{4, 8, 16, 24, 32}, {2, 6, 12}})
+    ->Name("JacobiSVD_double_Graded_ValuesOnly");
+BENCHMARK(BM_JacobiSVD_Graded<PreconditionSquareMatrix>)
+    ->ArgsProduct({{4, 8, 16, 24, 32}, {2, 6, 12}})
+    ->Name("JacobiSVD_double_Graded_PrecondSquare_ValuesOnly");
+BENCHMARK(BM_JacobiSVD_Graded<ComputeThinU | ComputeThinV>)
+    ->ArgsProduct({{4, 8, 16, 24, 32}, {2, 6, 12}})
+    ->Name("JacobiSVD_double_Graded_ThinUV");
+BENCHMARK(BM_JacobiSVD_Graded<PreconditionSquareMatrix | ComputeThinU | ComputeThinV>)
+    ->ArgsProduct({{4, 8, 16, 24, 32}, {2, 6, 12}})
+    ->Name("JacobiSVD_double_Graded_PrecondSquare_ThinUV");

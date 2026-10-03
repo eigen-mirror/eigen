@@ -677,6 +677,63 @@ void svd_check_max_size_matrix(int initialRows, int initialCols) {
   VERIFY_RAISES_ASSERT(fullSvd.compute(dynamicMatrix));
 }
 
+// For A = Q D with Q unitary and D diagonal, column-pivoted QR gives R = D up to rounding, so the Jacobi sweep on R
+// recovers every singular value to high relative accuracy:
+//   |sigma_i - d_i| / d_i <= 4 n eps.
+// For n below BDCSVD's switch size, BDCSVD will invoke JacobiSVD.
+template <typename MatrixType>
+void svd_precondition_square_matrix_accuracy(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  // The scaling below spans [1e-12, 1] only for n >= 2.
+  VERIFY(n >= 2);
+  VectorX<RealScalar> scaling(n);
+  for (Index i = 0; i < n; ++i) scaling(i) = RealScalar(std::pow(1e12, -double(i) / double(n - 1)));
+  const MatrixType m = generateRandomUnitaryMatrix<MatrixType>(n) * scaling.template cast<Scalar>().asDiagonal();
+
+  const VectorX<RealScalar> singularValues =
+      SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix)(m).singularValues();
+  const RealScalar bound = RealScalar(4 * n) * NumTraits<RealScalar>::epsilon();
+  VERIFY(((singularValues - scaling).array().abs() / scaling.array()).template maxCoeff<PropagateNaN>() <= bound);
+}
+
+// PreconditionSquareMatrix in Options must not change what the deprecated runtime options request: U and V are computed
+// exactly when their bits are set, thin or full as requested.
+template <typename SvdType, typename MatrixType>
+void svd_check_runtime_options_match(const MatrixType& m, const SvdType& svd, unsigned int options) {
+  const Index diagSize = (std::min)(m.rows(), m.cols());
+  VERIFY_IS_EQUAL(svd.computeU(), (options & (ComputeThinU | ComputeFullU)) != 0);
+  VERIFY_IS_EQUAL(svd.computeV(), (options & (ComputeThinV | ComputeFullV)) != 0);
+  if (svd.computeU()) {
+    VERIFY_IS_EQUAL(svd.matrixU().rows(), m.rows());
+    VERIFY_IS_EQUAL(svd.matrixU().cols(), (options & ComputeThinU) ? diagSize : m.rows());
+    VERIFY(svd.matrixU().isUnitary());
+  }
+  if (svd.computeV()) {
+    VERIFY_IS_EQUAL(svd.matrixV().rows(), m.cols());
+    VERIFY_IS_EQUAL(svd.matrixV().cols(), (options & ComputeThinV) ? diagSize : m.cols());
+    VERIFY(svd.matrixV().isUnitary());
+  }
+  if (svd.computeU() && svd.computeV()) svd_check_scaled_residual(m, svd, 0);
+}
+
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DISABLE_DEPRECATED_WARNING
+template <typename MatrixType>
+void svd_precondition_square_matrix_runtime_options(Index size) {
+  MatrixType m(size, size);
+  svd_fill_random(m);
+  for (unsigned int options : {0u, unsigned(ComputeThinU | ComputeThinV), unsigned(ComputeFullU | ComputeFullV),
+                               unsigned(ComputeFullU), unsigned(ComputeThinV)}) {
+    const SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix) constructed(m, options);
+    svd_check_runtime_options_match(m, constructed, options);
+    SVD_STATIC_OPTIONS(MatrixType, PreconditionSquareMatrix) computed;
+    computed.compute(m, options);
+    svd_check_runtime_options_match(m, computed, options);
+  }
+}
+EIGEN_DIAGNOSTICS(pop)
+
 #undef SVD_DEFAULT
 #undef SVD_FOR_MIN_NORM
 #undef SVD_STATIC_OPTIONS
