@@ -396,22 +396,16 @@ void test_vandermonde_determinant(Index n) {
 }
 
 // Reference for the wide-dynamic-range determinant tests: the same factor sequence with explicit
-// exponent tracking, halving any factor whose node difference overflows (exact, since a difference
-// only overflows for huge normal operands). Power-of-two rescaling is exact, so this reproduces the
-// exact product up to one rounding per multiplication, representable where naive partial products
-// leave the double range. Finite nodes only.
+// exponent tracking. Power-of-two rescaling is exact, so this reproduces the exact product up to one
+// rounding per multiplication, representable where naive partial products leave the double range.
+// Finite node differences only.
 double reference_vandermonde_det(const Matrix<double, Dynamic, 1>& x) {
   double mantissa = 1.0;
   Index exponent = 0;
   for (Index j = 1; j < x.size(); ++j)
     for (Index i = 0; i < j; ++i) {
-      double diff = x[j] - x[i];
-      if (!(numext::isfinite)(diff)) {
-        diff = 0.5 * x[j] - 0.5 * x[i];
-        ++exponent;
-      }
       int e;
-      mantissa *= std::frexp(diff, &e);
+      mantissa *= std::frexp(x[j] - x[i], &e);
       exponent += e;
       mantissa = std::frexp(mantissa, &e);
       exponent += e;
@@ -510,167 +504,13 @@ void test_vandermonde_determinant_scaled() {
   }
 }
 
-// Reviewer reproducer on MR 2691: a node difference can overflow while the determinant stays
-// representable. For nodes [-DBL_MAX, DBL_MAX, d, 2d, ..., 5d] with d the smallest subnormal,
-// DBL_MAX - (-DBL_MAX) = 2^1025 overflows, yet det = -576 DBL_MAX^11 d^10 ~ -3.1633e160. The
-// overflowing difference must be halved (exact for these huge normal operands) and the factor of
-// two carried in the running exponent.
+// Horner's rule matches a naive scalar Horner loop to its forward error bound (Higham, ASNA 2nd ed.,
+// section 5.1): |p(x) - fl(p(x))| <= gamma_{2n} sum_j |a_j| |x|^j <= 2n eps sum_j |a_j| for |x| <= 1.
+// A genuinely unrepresentable value saturates.
 template <typename = void>
-void test_vandermonde_determinant_overflowing_differences() {
+void test_vandermonde_horner() {
   typedef Matrix<double, Dynamic, 1> Vec;
-  typedef std::complex<double> Complex;
-  const double M = (std::numeric_limits<double>::max)();
-  const double d = std::numeric_limits<double>::denorm_min();
-  const double kBalancedTol = 16 * NumTraits<double>::epsilon();
-  const double kAnalyticTol = 100 * NumTraits<double>::epsilon();
-
-  Vec x(7);
-  x << -M, M, d, 2 * d, 3 * d, 4 * d, 5 * d;
-  const double det = Vandermonde<double>(x).determinant();
-  VERIFY((numext::isfinite)(det));
-
-  // Scaled reference computation with the identical factor sequence.
-  const double ref = reference_vandermonde_det(x);
-  VERIFY(numext::abs(det / ref - 1.0) <= kBalancedTol);
-
-  // Analytic factored form, accumulated with the same exponent bookkeeping:
-  // every huge factor rounds to +-DBL_MAX (and the halved leading factor is
-  // exactly DBL_MAX * 2), the d-spaced block contributes exactly 288 * 2^-10740,
-  // so det = -2 * 288 * DBL_MAX^11 * 2^-10740.
-  double mantissa = -576.0;
-  Index exponent = -10740;
-  for (int t = 0; t < 11; ++t) {
-    int e;
-    mantissa *= std::frexp(M, &e);
-    exponent += e;
-    mantissa = std::frexp(mantissa, &e);
-    exponent += e;
-  }
-  const double expected = std::ldexp(mantissa, static_cast<int>(exponent));
-  VERIFY(numext::abs(det / expected - 1.0) <= kAnalyticTol);
-  VERIFY(numext::abs(det / -3.1633e160 - 1.0) <= 1e-3);  // the reviewer's quoted value
-
-  // Complex nodes i*x: every factor becomes i*(x_j - x_i) -- the overflow now
-  // sits in the imaginary components, which the component-wise finiteness check
-  // must catch -- and det picks up i^21 = i.
-  Matrix<Complex, Dynamic, 1> xc = Complex(0, 1) * x.cast<Complex>();
-  const Complex detc = Vandermonde<Complex>(xc).determinant();
-  const Complex refc = Complex(0, 1) * Complex(ref);
-  VERIFY((numext::isfinite)(detc));
-  VERIFY(numext::abs(detc - refc) <= kBalancedTol * numext::abs(refc));
-}
-
-// Reviewer reproducer on MR 2691: Horner intermediates can overflow while the value stays
-// representable. At node 1/2 with coefficients [0, DBL_MAX, DBL_MAX] the intermediate 1.5 DBL_MAX
-// is Inf, but the value is exactly fl(0.75 DBL_MAX). The scaled path must return it bit-exactly,
-// the plain path must match the naive loop for moderate data, and genuinely unrepresentable values
-// must still saturate.
-template <typename = void>
-void test_vandermonde_scaled_horner() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  const double M = (std::numeric_limits<double>::max)();
-
   {
-    // The reviewer's exact reproducer, in each accumulation form.
-    Vec x(1);
-    x << 0.5;
-    Vandermonde<double> V(x, 3);
-    Vec a(3);
-    a << 0.0, M, M;
-    Vec y = V * a;
-    VERIFY_IS_EQUAL(y[0], 0.75 * M);
-    y.setZero();
-    y.noalias() += V * a;
-    VERIFY_IS_EQUAL(y[0], 0.75 * M);
-    // Two identical columns exercise the per-column screening.
-    Matrix<double, Dynamic, Dynamic> A(3, 2);
-    A.col(0) = a;
-    A.col(1) = a;
-    Matrix<double, Dynamic, Dynamic> Y = V * A;
-    VERIFY_IS_EQUAL(Y(0, 0), 0.75 * M);
-    VERIFY_IS_EQUAL(Y(0, 1), 0.75 * M);
-  }
-  {
-    // Complex path: the same coefficients rotated by i keep the overflow in a
-    // single component; the value is i * fl(0.75 * DBL_MAX).
-    CVec xc(1);
-    xc << Complex(0.5, 0.0);
-    Vandermonde<Complex> Vc(xc, 3);
-    CVec ac(3);
-    ac << Complex(0), Complex(0, M), Complex(0, M);
-    CVec yc = Vc * ac;
-    VERIFY_IS_EQUAL(numext::real(yc[0]), 0.0);
-    VERIFY_IS_EQUAL(numext::imag(yc[0]), 0.75 * M);
-  }
-  {
-    // Genuine overflow must still saturate: value 3 * DBL_MAX at the node 2.
-    Vec x(1);
-    x << 2.0;
-    Vandermonde<double> V(x, 2);
-    Vec a(2);
-    a << M, M;
-    Vec y = V * a;
-    VERIFY((numext::isinf)(y[0]) && y[0] > 0.0);
-    a << M, -M;  // value -DBL_MAX: representable again, sign preserved
-    y = V * a;
-    VERIFY_IS_EQUAL(y[0], -M);
-  }
-  {
-    // A vanished accumulator has no scale (reviewer repro): after the running
-    // value becomes exactly zero -- a zero node annihilating it, or an exact
-    // cancellation -- the frame exponent must reset, or the trailing small
-    // coefficient underflows in the stale huge frame and the value 0 is
-    // returned instead of the coefficient itself.
-    const double mn = (std::numeric_limits<double>::min)();
-    const double dm = std::numeric_limits<double>::denorm_min();
-    Vec x(1);
-    x << 0.0;  // zero node: the value is exactly a[0]
-    Vandermonde<double> V0(x, 3);
-    Vec a(3);
-    a << mn, M, M;
-    Vec y = V0 * a;
-    VERIFY_IS_EQUAL(y[0], mn);
-
-    x << 1.0;  // exact cancellation: M - M + dm = dm
-    Vandermonde<double> V1(x, 3);
-    a << dm, -M, M;
-    y = V1 * a;
-    VERIFY_IS_EQUAL(y[0], dm);
-  }
-  {
-    // Complex variant: the real components cancel exactly while the tiny
-    // imaginary coefficient must survive in a fresh frame.
-    const double dm = std::numeric_limits<double>::denorm_min();
-    CVec xc(1);
-    xc << Complex(1.0, 0.0);
-    Vandermonde<Complex> Vc(xc, 3);
-    CVec ac(3);
-    ac << Complex(0.0, dm), Complex(-M, 0.0), Complex(M, 0.0);
-    CVec yc = Vc * ac;
-    VERIFY_IS_EQUAL(numext::real(yc[0]), 0.0);
-    VERIFY_IS_EQUAL(numext::imag(yc[0]), dm);
-  }
-  {
-    // Near-cancellation: M - (M - 2^971) leaves the tiny nonzero intermediate
-    // 2^971 (mantissa 2^-53 in the huge frame), which the frexp renormalization
-    // must rebase; the trailing coefficient 1 then rounds away exactly as in
-    // real arithmetic: fl(2^971 + 1) = 2^971.
-    const double big = std::ldexp(1.0, 971);  // ulp(DBL_MAX), and M - big is exact
-    Vec x(1);
-    x << 1.0;
-    Vandermonde<double> V(x, 3);
-    Vec a(3);
-    a << 1.0, -(M - big), M;
-    Vec y = V * a;
-    VERIFY_IS_EQUAL(y[0], big);
-  }
-  {
-    // Moderate data keeps the plain path, so this matches a naive Horner loop to Horner's own forward
-    // error bound (Higham, ASNA 2nd ed., section 5.1): |p(x) - fl(p(x))| <= gamma_{2n} sum_j |a_j| |x|^j
-    // <= 2n eps sum_j |a_j| for |x| <= 1. Not bit-identical, since the compiler may contract
-    // acc * x[i] + a[j] into an FMA in one of the two loops and not the other.
     const Index m = 7, n = 6;
     Vec x = Vec::Random(m), a = Vec::Random(n);
     Vandermonde<double> V(x, n);
@@ -681,6 +521,35 @@ void test_vandermonde_scaled_horner() {
       for (Index j = n - 2; j >= 0; --j) acc = acc * x[i] + a[j];
       VERIFY(numext::abs(y[i] - acc) <= bound);
     }
+  }
+  {
+    const double M = (std::numeric_limits<double>::max)();
+    Vec x(1);
+    x << 2.0;
+    Vandermonde<double> V(x, 2);
+    Vec a(2);
+    a << M, M;  // value 3 * DBL_MAX
+    Vec y = V * a;
+    VERIFY((numext::isinf)(y[0]) && y[0] > 0.0);
+  }
+  {
+    // Complex values at real nodes keep real-times-complex arithmetic: an infinite real part, from the
+    // data or from overflow, leaves the imaginary part exactly zero as in a dense product.
+    typedef std::complex<double> Complex;
+    typedef Matrix<Complex, Dynamic, 1> CVec;
+    const double inf = std::numeric_limits<double>::infinity();
+    Vec x(2);
+    x << 2.0, 3.0;
+    CVec a(2);
+    a << Complex(1), Complex(inf, 0);
+    CVec y = Vandermonde<double>(x, 2) * a;
+    for (Index i = 0; i < 2; ++i) VERIFY((numext::isinf)(numext::real(y[i])) && numext::imag(y[i]) == 0.0);
+    Vec x1(1);
+    x1 << 10.0;
+    CVec a3(3);
+    a3 << Complex(1), Complex(1), Complex(1e308);
+    CVec y3 = Vandermonde<double>(x1, 3) * a3;
+    VERIFY((numext::isinf)(numext::real(y3[0])) && numext::imag(y3[0]) == 0.0);
   }
 }
 
@@ -802,8 +671,7 @@ EIGEN_DECLARE_TEST(structured_vandermonde) {
     CALL_SUBTEST_3((test_vandermonde_determinant<double>(8)));
     CALL_SUBTEST_3((test_vandermonde_determinant<std::complex<double>>(7)));
     CALL_SUBTEST_3(test_vandermonde_determinant_scaled<>());
-    CALL_SUBTEST_3(test_vandermonde_determinant_overflowing_differences<>());
-    CALL_SUBTEST_3(test_vandermonde_scaled_horner<>());
+    CALL_SUBTEST_3(test_vandermonde_horner<>());
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 6, 4>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<double, 5, 5>()));
     CALL_SUBTEST_3((test_vandermonde_fixed<std::complex<float>, 4, 4>()));

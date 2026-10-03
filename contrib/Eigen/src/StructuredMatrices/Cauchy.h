@@ -14,7 +14,7 @@
 //      (fraction, exponent) pair to avoid spurious overflow/underflow.
 //  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
 //      Scaling by a power of two is exact, the property the balanced
-//      accumulation and the guarded boundary-node evaluations rely on.
+//      accumulation relies on.
 
 #ifndef EIGEN_STRUCTURED_CAUCHY_H
 #define EIGEN_STRUCTURED_CAUCHY_H
@@ -64,62 +64,6 @@ struct traits<CauchyLU<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>> {
   static constexpr unsigned int Flags = BaseTraits::Flags & RowMajorBit;
   static constexpr int CoeffReadCost = Dynamic;
 };
-
-/** \internal \returns the Cauchy coefficient \c 1 / (a - b), guarded against a
- * spurious overflow of the difference (internal::structured_guarded_diff): a
- * naively formed coefficient would collapse to 1/Inf = 0, where the true value
- * is a representable (possibly subnormal) number. When the guard fires, one
- * half is divided directly by the halved difference, so the subnormal result is
- * rounded only once. Every coefficient evaluation exposed by Cauchy -- coeff(),
- * dense materialization and the product kernel -- goes through this helper.
- * CauchyLU and determinant() use the same guarded difference inside their
- * balanced accumulations. */
-template <typename Scalar>
-Scalar cauchy_reciprocal_diff(const Scalar& a, const Scalar& b) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  int e;
-  const Scalar t = structured_guarded_diff(a, b, e);
-  return Scalar(e == 0 ? RealScalar(1) : RealScalar(0.5)) / t;
-}
-
-/** \internal \returns a guarded node difference as a balanced mantissa, with
- * its power of two in \a exponent. */
-template <typename Scalar>
-Scalar cauchy_balanced_diff(const Scalar& a, const Scalar& b, Index& exponent) {
-  int guardedExponent;
-  const Scalar difference = structured_guarded_diff(a, b, guardedExponent);
-  exponent = guardedExponent;
-  return structured_balance(difference, exponent);
-}
-
-/** \internal Evaluates a GKO Schur-complement entry from generators stored as
- * mantissa/exponent pairs. The guarded node difference is balanced before the
- * division, and the accumulated power of two is applied only to the final
- * result, so finite entries do not overflow or underflow in intermediate
- * generator arithmetic. */
-template <typename Scalar>
-Scalar cauchy_scaled_entry(const Scalar& a, Index aExponent, const Scalar& b, Index bExponent, const Scalar& x,
-                           const Scalar& y) {
-  // Preserve the single-rounding coefficient path for the initial generators.
-  if (aExponent == 0 && bExponent == 0 && a == Scalar(1) && b == Scalar(1)) return cauchy_reciprocal_diff(x, y);
-  Index diffExponent;
-  const Scalar diff = cauchy_balanced_diff(x, y, diffExponent);
-  Index exponent = aExponent + bExponent - diffExponent;
-  const Scalar value = structured_balance(Scalar((a * b) / diff), exponent);
-  return structured_ldexp_clamped(value, exponent);
-}
-
-/** \internal \returns the balanced mantissa of \c (a - b) / (a - c), with its
- * power of two in \a exponent. Separately balancing both guarded differences
- * prevents a representable ratio from passing through Inf/Inf or zero. */
-template <typename Scalar>
-Scalar cauchy_balanced_diff_ratio(const Scalar& a, const Scalar& b, const Scalar& c, Index& exponent) {
-  Index numeratorExponent, denominatorExponent;
-  const Scalar numerator = cauchy_balanced_diff(a, b, numeratorExponent);
-  const Scalar denominator = cauchy_balanced_diff(a, c, denominatorExponent);
-  exponent = numeratorExponent - denominatorExponent;
-  return structured_balance(Scalar(numerator / denominator), exponent);
-}
 
 }  // namespace internal
 
@@ -191,7 +135,6 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(XDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(YDerived)
     eigen_assert(m_x.size() > 0 && m_y.size() > 0 && "Cauchy node vectors must be non-empty");
-    m_boundary = computeBoundary();
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_x.size(); }
@@ -202,11 +145,8 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   /** \returns the column node vector \c y. */
   const ColNodeVector& colNodes() const { return m_y; }
 
-  /** \returns the coefficient at row \a row and column \a col, evaluated
-   * through the guarded reciprocal: nodes at the overflow boundary yield the
-   * correctly rounded (possibly subnormal) value instead of a spurious
-   * 1/Inf = 0. */
-  Scalar coeff(Index row, Index col) const { return internal::cauchy_reciprocal_diff(m_x.coeff(row), m_y.coeff(col)); }
+  /** \returns the coefficient at row \a row and column \a col. */
+  Scalar coeff(Index row, Index col) const { return Scalar(1) / (m_x.coeff(row) - m_y.coeff(col)); }
 
   /** \returns the transpose of \c *this, itself a Cauchy operator:
    * \f$ C(x,y)^T = C(-y,-x) \f$. */
@@ -229,14 +169,11 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * convention of LINPACK's xGEDI [1]) -- every factor and the running value
    * are renormalized to unit magnitude with the power of two tracked separately
    * (exact frexp/ldexp rescaling [2]), numerator factors multiplied in and
-   * denominator factors divided out -- so no intermediate can overflow or
-   * underflow when the determinant itself is representable. A node difference
-   * that overflows even though both nodes are finite (nodes near opposite ends
-   * of the exponent range) is recomputed from the halved nodes -- exact, since
-   * such an overflow implies huge normal operands -- with the removed power of
-   * two entering the same exponent bookkeeping, so it too cannot push the
-   * accumulation to a spurious Inf. Zero factors (coincident \c x or \c y
-   * nodes) and genuinely non-finite factors propagate exactly. */
+   * denominator factors divided out -- so no partial product can overflow or
+   * underflow when the determinant itself is representable. Zero factors
+   * (coincident \c x or \c y nodes) and non-finite factors propagate exactly;
+   * a node difference that overflows makes its factor infinite, which turns the
+   * determinant into NaN when it meets a zero or another infinite factor. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Cauchy::determinant requires a square matrix");
     const Index n = rows();
@@ -244,18 +181,15 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        Index factorExponent;
-        const Scalar xDiff = internal::cauchy_balanced_diff(m_x.coeff(j), m_x.coeff(i), factorExponent);
-        exponent += factorExponent;
+        const Scalar xDiff = internal::structured_balance(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent);
         det = internal::structured_balance(Scalar(det * xDiff), exponent);
-        const Scalar yDiff = internal::cauchy_balanced_diff(m_y.coeff(i), m_y.coeff(j), factorExponent);
-        exponent += factorExponent;
+        const Scalar yDiff = internal::structured_balance(Scalar(m_y.coeff(i) - m_y.coeff(j)), exponent);
         det = internal::structured_balance(Scalar(det * yDiff), exponent);
       }
     for (Index j = 0; j < n; ++j)
       for (Index i = 0; i < n; ++i) {
         Index denomExponent = 0;
-        const Scalar d = internal::cauchy_balanced_diff(m_x.coeff(i), m_y.coeff(j), denomExponent);
+        const Scalar d = internal::structured_balance(Scalar(m_x.coeff(i) - m_y.coeff(j)), denomExponent);
         exponent -= denomExponent;
         det = internal::structured_balance(Scalar(det / d), exponent);
       }
@@ -263,10 +197,7 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   }
 
   /** \internal Writes the dense representation into \a dst, one vectorized
-   * column at a time. Operators whose nodes reach the overflow boundary (see
-   * computeBoundary()) instead evaluate every entry through the guarded
-   * reciprocal, staying consistent with coeff(). Invoked through
-   * \c dense = cauchy; */
+   * column at a time. Invoked through \c dense = cauchy; */
   template <typename Dest>
   void evalTo(Dest& dst) const {
     applyAssignment(dst, internal::assign_op<typename Dest::Scalar, Scalar>());
@@ -300,60 +231,33 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
 
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
    * promoted scalar of the product (complex when a real operator is applied to a
-   * complex right-hand side); the accumulation runs in the promoted type. The
-   * coefficients enter through the guarded reciprocal, so the product uses
-   * exactly the values coeff() exposes, boundary nodes included. */
+   * complex right-hand side); the accumulation runs in the promoted type. Each
+   * column of the operator is formed on the fly, vectorized over the rows. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
-    const Index m = rows(), n = cols();
+    const Index n = cols();
     eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    // A unit alpha must not multiply: even the identity complex scalar (1,0)
+    // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
+    const bool unitAlpha = alpha == ProductScalar(1);
     for (Index k = 0; k < rhs.cols(); ++k)
-      for (Index i = 0; i < m; ++i) {
-        const Scalar xi = m_x.coeff(i);
-        ProductScalar acc(0);
-        for (Index j = 0; j < n; ++j) acc += rhs.coeff(j, k) * internal::cauchy_reciprocal_diff(xi, m_y.coeff(j));
-        dst.coeffRef(i, k) += alpha * acc;
+      for (Index j = 0; j < n; ++j) {
+        const ProductScalar w = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
+        dst.col(k) += w * (m_x.array() - m_y.coeff(j)).inverse().matrix();
       }
   }
 
  private:
   template <typename Dest, typename Assignment>
   void applyAssignment(Dest& dst, const Assignment& assignment) const {
-    if (m_boundary) {
-      for (Index j = 0; j < cols(); ++j)
-        for (Index i = 0; i < rows(); ++i)
-          assignment.assignCoeff(dst.coeffRef(i, j), internal::cauchy_reciprocal_diff(m_x.coeff(i), m_y.coeff(j)));
-      return;
-    }
     for (Index j = 0; j < cols(); ++j) {
       auto dstColumn = dst.col(j);
       internal::call_assignment_no_alias(dstColumn, (m_x.array() - m_y.coeff(j)).inverse().matrix(), assignment);
     }
   }
 
-  /** \internal Whether some node difference \c x_i - y_j could overflow on
-   * finite nodes (conservative componentwise bound: the largest \c |x| and
-   * \c |y| components sum past the largest finite value), or a node is
-   * non-finite. The dense materialization then takes the guarded scalar path
-   * instead of the vectorized column expression; for moderate nodes the bound
-   * guarantees the two paths are bit-identical, so the vectorized path is kept.
-   * The magnitudes are taken componentwise: the modulus of a finite complex
-   * node near the overflow threshold is not representable. */
-  bool computeBoundary() const {
-    RealScalar mx, my;
-    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
-      mx = numext::maxi(m_x.real().cwiseAbs().maxCoeff(), m_x.imag().cwiseAbs().maxCoeff());
-      my = numext::maxi(m_y.real().cwiseAbs().maxCoeff(), m_y.imag().cwiseAbs().maxCoeff());
-    } else {
-      mx = m_x.cwiseAbs().maxCoeff();
-      my = m_y.cwiseAbs().maxCoeff();
-    }
-    return !(mx + my <= (std::numeric_limits<RealScalar>::max)());
-  }
-
   RowNodeVector m_x;
   ColNodeVector m_y;
-  bool m_boundary;
 };
 
 /** \ingroup StructuredMatrices_Module
@@ -407,7 +311,6 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
   EIGEN_GENERIC_PUBLIC_INTERFACE(CauchyLU)
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
   using DenseVector = Matrix<Scalar, Dynamic, 1>;
-  using IndexVector = Matrix<Index, Dynamic, 1>;
 
   /** Default constructor; call \ref compute before \ref solve. */
   CauchyLU() : m_isInitialized(false), m_info(InvalidInput) {}
@@ -433,19 +336,15 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
     const DenseVector y = C.colNodes();
     DenseVector a = DenseVector::Ones(n);
     DenseVector b = DenseVector::Ones(n);
-    IndexVector aExponent = IndexVector::Zero(n);
-    IndexVector bExponent = IndexVector::Zero(n);
     m_lu.resize(n, n);
     m_perm.resize(static_cast<std::size_t>(n));
     m_info = Success;
 
     for (Index k = 0; k < n; ++k) {
-      // Guarded differences preserve subnormal Schur-complement entries at the
-      // exponent boundary instead of creating zero pivots or NaN generators.
       Index piv = k;
       RealScalar best(-1);
       for (Index i = k; i < n; ++i) {
-        m_lu(i, k) = internal::cauchy_scaled_entry(a[i], aExponent[i], b[k], bExponent[k], x[i], y[k]);
+        m_lu(i, k) = a[i] * b[k] / (x[i] - y[k]);
         const RealScalar mag = numext::abs(m_lu(i, k));
         if ((numext::isnan)(mag) || mag > best) {
           best = mag;
@@ -456,7 +355,6 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
         m_lu.row(piv).head(k + 1).swap(m_lu.row(k).head(k + 1));
         std::swap(x[piv], x[k]);
         std::swap(a[piv], a[k]);
-        std::swap(aExponent[piv], aExponent[k]);
       }
       m_perm[static_cast<std::size_t>(k)] = piv;
       const Scalar pivot = m_lu(k, k);
@@ -468,21 +366,11 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
       }
       m_lu.col(k).tail(n - k - 1) /= pivot;
       for (Index j = k + 1; j < n; ++j) {
-        m_lu(k, j) = internal::cauchy_scaled_entry(a[k], aExponent[k], b[j], bExponent[j], x[k], y[j]);
+        m_lu(k, j) = a[k] * b[j] / (x[k] - y[j]);
         if (!(numext::isfinite)(m_lu(k, j))) m_info = NumericalIssue;
       }
-      for (Index i = k + 1; i < n; ++i) {
-        Index ratioExponent;
-        const Scalar ratio = internal::cauchy_balanced_diff_ratio(x[i], x[k], y[k], ratioExponent);
-        aExponent[i] += ratioExponent;
-        a[i] = internal::structured_balance(Scalar(a[i] * ratio), aExponent[i]);
-      }
-      for (Index j = k + 1; j < n; ++j) {
-        Index ratioExponent;
-        const Scalar ratio = internal::cauchy_balanced_diff_ratio(y[j], y[k], x[k], ratioExponent);
-        bExponent[j] += ratioExponent;
-        b[j] = internal::structured_balance(Scalar(b[j] * ratio), bExponent[j]);
-      }
+      for (Index i = k + 1; i < n; ++i) a[i] *= (x[i] - x[k]) / (x[i] - y[k]);
+      for (Index j = k + 1; j < n; ++j) b[j] *= (y[j] - y[k]) / (y[j] - x[k]);
     }
     m_isInitialized = true;
     return *this;

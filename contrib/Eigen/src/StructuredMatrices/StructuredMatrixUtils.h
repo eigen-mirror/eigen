@@ -225,27 +225,6 @@ void structured_symbol_reciprocal(std::complex<RealScalar>* symbol, Index size) 
   structured_symbol_reciprocal_impl<RealScalar, false>::run(symbol, nullptr, RealScalar(0), symbol, size);
 }
 
-/** \internal \returns \c a - b guarded against spurious overflow: when the
- * plain difference of two finite values overflows to infinity, it is
- * recomputed from the halved operands with \a e set to 1 so the caller can
- * carry the factor of two in its running exponent (the balanced accumulations
- * fold it into \c exponent at the call site). The recomputation is exact where
- * it matters: a difference of finite values only overflows when both operands
- * are huge, normal values, whose halves and halved difference are exactly
- * representable. For complex scalars the finiteness tests are component-wise;
- * a subnormal component riding along with a huge one loses its last bit to the
- * halving, an error far below one ulp of the factor's magnitude. Non-finite
- * operands (genuine Inf/NaN nodes) propagate untouched, with \a e = 0. */
-template <typename Scalar>
-Scalar structured_guarded_diff(const Scalar& a, const Scalar& b, int& e) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  e = 0;
-  const Scalar t = a - b;
-  if ((numext::isfinite)(t) || !(numext::isfinite)(a) || !(numext::isfinite)(b)) return t;
-  e = 1;
-  return a * RealScalar(0.5) - b * RealScalar(0.5);
-}
-
 /** \internal \returns the indices sorted by decreasing precomputed modulus
  * \a mods (each modulus is computed once, not on every comparison); the shared
  * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is

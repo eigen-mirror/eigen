@@ -11,10 +11,10 @@
 //  [1] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
 //      SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
 //      powers of two, the technique behind determinant()'s balanced
-//      accumulation and the scaled Horner recurrence of addProduct().
+//      accumulation.
 //  [2] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
 //      Scaling by a power of two is exact, the property the balanced
-//      accumulation and the scaled Horner recurrence rely on.
+//      accumulation relies on.
 //  [3] J. J. Dongarra, J. R. Bunch, C. B. Moler and G. W. Stewart, "LINPACK
 //      Users' Guide", SIAM, 1979. determinant()'s balanced accumulation follows
 //      the convention of its xGEDI routines, which return determinants as a
@@ -119,8 +119,8 @@ struct traits<BjorckPereyra<Scalar_>> : traits<Matrix<Scalar_, Dynamic, Dynamic>
  * \f[ (Va)_i = \sum_{j=0}^{n-1} a_j x_i^j, \qquad
  *     p_{n-1}=a_{n-1},\quad p_j=a_j+x_i p_{j+1}. \f]
  * The class stores only the \c m nodes; products evaluate this Horner recurrence
- * rule at O(mn) operations -- the same cost as a dense product, but with O(m)
- * storage and without ever forming the matrix.
+ * at all nodes at once in O(mn) operations -- the same cost as a dense product,
+ * but with O(m) storage and without ever forming the matrix.
  *
  * Square systems are solved in O(n^2) by the Björck-Pereyra algorithm (class
  * \ref BjorckPereyra), whose \c transpose().solve() form covers the dual
@@ -221,23 +221,17 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * products can neither overflow nor underflow when the determinant itself is
    * representable, whatever the spread of the nodes. Zero factors (repeated
    * nodes, giving an exactly singular matrix) and non-finite factors propagate
-   * exactly. */
+   * exactly; a node difference that overflows makes the determinant infinite, or
+   * NaN when a zero factor is also present. */
   Scalar determinant() const {
     eigen_assert(rows() == cols() && "Vandermonde::determinant requires a square matrix");
     const Index n = rows();
     Scalar det(1);
     internal::structured_exponent_type exponent = 0;
     for (Index j = 1; j < n; ++j)
-      for (Index i = 0; i < j; ++i) {
-        // A node difference can overflow even though the determinant is
-        // representable (e.g. nodes near +-max); the guarded difference then
-        // enters at half scale with the factor of two carried by the running
-        // exponent.
-        int shift;
-        const Scalar diff = internal::structured_guarded_diff(m_x.coeff(j), m_x.coeff(i), shift);
-        exponent += shift;
-        det = internal::structured_balance(det * internal::structured_balance(diff, exponent), exponent);
-      }
+      for (Index i = 0; i < j; ++i)
+        det = internal::structured_balance(
+            det * internal::structured_balance(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent), exponent);
     // ldexp saturates cleanly to zero / infinity once the accumulated exponent
     // leaves the representable range; the clamp only guards the narrowing to int.
     return internal::structured_ldexp_clamped(det, exponent);
@@ -276,7 +270,7 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
 
   /** \returns the product expression \c (*this) * \a a: the polynomial with
    * ascending coefficients \c a (per column) evaluated at every node by Horner's
-   * rule, at O(mn) operations and O(1) extra storage. The expression carries the
+   * rule, at O(mn) operations and O(m) extra storage. The expression carries the
    * default product tag, so assigning it behaves like any dense product: a
    * temporary resolves aliasing between the destination and \a a, and
    * \c .noalias() skips it. */
@@ -289,162 +283,57 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     return Product<Vandermonde, Rhs>(*this, a.derived());
   }
 
-  /** \internal Computes \c dst += alpha * (*this) * rhs by Horner's rule.
-   * \c ProductScalar is the promoted scalar of the product (complex when a real
-   * operator is applied to a complex right-hand side); the accumulation runs in
-   * the promoted type.
-   *
-   * Horner intermediates can overflow even when the polynomial value itself is
-   * representable (e.g. coefficients near the overflow threshold evaluated at a
-   * node of magnitude 1/2). Each (node, column) pair is therefore screened with
-   * a conservative exponent bound: when no intermediate can overflow -- every
-   * input of moderate magnitude -- the plain Horner loop runs, matching the naive
-   * evaluation step for step, though not necessarily bit for bit: the compiler
-   * may contract one loop's multiply-add into an FMA and not the other's.
-   * Otherwise scaledHorner() keeps the running value in
-   * the balanced form m * 2^e of determinant(). Non-finite nodes or coefficients
-   * also take the plain loop, which propagates Inf/NaN entrywise like a dense
-   * product; and a unit alpha must not multiply -- even the identity complex
-   * scalar (1,0) pollutes an (Inf,0) value with NaN through the 0*Inf cross
-   * term.
-   *
-   * The column's finiteness and its exponent bound come from the single
-   * fast-max pass of internal::structured_exponent_bound_finite(), which is not
-   * guaranteed to propagate NaN. That is sufficient here for the same reason as
-   * in the FFT products: an Inf in NaN-free data always surfaces in a fast
-   * maximum, and a column containing NaN yields the NaN results dense-product
-   * semantics require through the plain loop and the scaled recurrence alike
-   * (every Horner step folds the NaN coefficient in, and the balancing helpers
-   * pass non-finite values through), so missing a NaN cannot change the
-   * result. */
+  /** \internal Computes \c dst += alpha * (*this) * rhs by Horner's rule,
+   * vectorized across the nodes. \c ProductScalar is the promoted scalar of the
+   * product (complex when a real operator is applied to a complex right-hand
+   * side); the accumulation runs in the promoted type, and real nodes with
+   * complex values run one real recurrence per component. The recurrence runs
+   * in plain floating-point arithmetic, so an intermediate can overflow even
+   * when the polynomial value is representable. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
-    const Index m = rows(), n = m_cols;
-    using Exponent = internal::structured_exponent_type;
-    eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    eigen_assert(rhs.rows() == m_cols && "invalid product: dimensions do not match");
+    // A unit alpha must not multiply: even the identity complex scalar (1,0)
+    // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
     const bool unitAlpha = alpha == ProductScalar(1);
-    int log2n = 0;  // n < 2^log2n: bounds the number of addends of the Horner sum
-    for (Index t = n; t > 0; t /= 2) ++log2n;
+    using SplitComponents =
+        internal::bool_constant<!NumTraits<Scalar>::IsComplex && NumTraits<ProductScalar>::IsComplex>;
+    // Sized like the nodes: a fixed-size Index constructor would be ambiguous.
+    Array<ProductScalar, Rows_, 1> acc = m_x.array().template cast<ProductScalar>();
     for (Index k = 0; k < rhs.cols(); ++k) {
-      int colExp;  // max modulus < 2^colExp; 0 for a zero or non-finite column
-      const bool colFinite = internal::structured_exponent_bound_finite(rhs.col(k), colExp);
-      for (Index i = 0; i < m; ++i) {
-        const Scalar xi = m_x.coeff(i);
-        // |p_j| < 2^(colExp+log2n+(n-1) max(xiExp,0)+1).
-        const Exponent intermediateBound =
-            Exponent(colExp) + Exponent(log2n) + (Exponent(n) - 1) * Exponent(numext::maxi(exponentBound(xi), 0)) + 2;
-        const bool plain = !colFinite || !(numext::isfinite)(xi) ||
-                           intermediateBound <= Exponent(NumTraits<RealScalar>::max_exponent());
-        ProductScalar acc;
-        if (plain) {
-          acc = rhs.coeff(n - 1, k);
-          for (Index j = n - 2; j >= 0; --j) acc = acc * xi + rhs.coeff(j, k);
-        } else {
-          acc = scaledHorner<ProductScalar>(xi, rhs, k);
-        }
-        dst.coeffRef(i, k) += unitAlpha ? acc : ProductScalar(alpha * acc);
-      }
+      horner(acc, rhs, k, SplitComponents());
+      if (unitAlpha)
+        dst.col(k) += acc.matrix();
+      else
+        dst.col(k) += alpha * acc.matrix();
     }
   }
 
  private:
-  /** \internal \returns an exponent bound \c e with \c |z| < 2^e (the modulus
-   * for a complex \a z), or 0 for a zero or non-finite \a z; the
-   * single-coefficient analogue of internal::structured_exponent_bound(). */
-  template <typename T>
-  static int exponentBound(const T& z) {
-    return exponentBoundImpl(z, internal::bool_constant<NumTraits<T>::IsComplex>());
-  }
-
-  template <typename T>
-  static int exponentBoundImpl(const T& z, std::false_type) {
-    if (!(numext::abs(z) > T(0)) || !(numext::isfinite)(z)) return 0;
-    int e;
-    EIGEN_USING_STD(frexp);
-    frexp(z, &e);
-    return e;
-  }
-
-  template <typename T>
-  static int exponentBoundImpl(const T& z, std::true_type) {
-    using Real = typename NumTraits<T>::Real;
-    const Real mag = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-    if (!(mag > Real(0)) || !(numext::isfinite)(mag)) return 0;
-    int e;
-    EIGEN_USING_STD(frexp);
-    frexp(mag, &e);
-    return e + 1;  // the modulus is at most sqrt(2) times the largest component
-  }
-
-  /** \internal \returns \a z * 2^e computed through two exact half-factors, so
-   * the factors themselves stay representable for the exponent swings the scaled
-   * Horner recurrence produces (|e| up to about twice the scalar's exponent
-   * range on the negative side, at most one exponent range on the positive
-   * side); a factor past the underflow threshold flushes to zero together with
-   * the then-negligible contribution it scales. */
-  template <typename T>
-  static T twoHalfScale(const T& z, internal::structured_exponent_type e) {
-    using Real = typename NumTraits<T>::Real;
-    constexpr internal::structured_exponent_type kMaxExponent = internal::structured_exponent_type(1) << 24;
-    const int ec = static_cast<int>(numext::mini(numext::maxi(e, -kMaxExponent), kMaxExponent));
-    const Real h1 = numext::ldexp(Real(1), ec / 2);
-    const Real h2 = numext::ldexp(Real(1), ec - ec / 2);
-    return (z * h1) * h2;
-  }
-
-  /** \internal Evaluates the polynomial with ascending coefficients
-   * \c rhs.col(k) at the node \a xi, keeping the running value in the balanced
-   * form \c acc * 2^exponent of determinant() (overflow-avoiding power-of-two
-   * rescaling [1], exact by [2]): the node enters through its unit mantissa
-   * with its exponent folded into the running one, the mantissa is
-   * renormalized after every step, and each coefficient is folded into the
-   * running frame scaled by an exact power of two split into two half-factors
-   * (when the coefficient dominates the frame, the frame is rebased onto the
-   * coefficient's exponent instead). Intermediates can therefore neither
-   * overflow nor underflow, and the final ldexp saturates to +-Inf / +-0 exactly
-   * where the true value leaves the representable range.
-   *
-   * An exactly zero mantissa carries no scale, so the frame is reset before
-   * every fold: after an exact cancellation (or a zero node annihilating the
-   * running value) a stale huge frame would otherwise underflow the next small
-   * coefficient to zero. A cancellation that leaves a tiny nonzero mantissa
-   * needs no such care -- the frexp renormalization rebases the frame to the
-   * surviving magnitude (which is a multiple of the operands' unit roundoff,
-   * hence never subnormal for real scalars, and frexp is exact on subnormal
-   * component values regardless).
-   * \pre the node is finite and the column passed the fast-max routing
-   * predicate of addProduct(): it holds no Inf without an accompanying NaN. A
-   * NaN-bearing column can reach the recurrence when the fast maximum misses
-   * the NaN; every helper passes non-finite values through, so it produces the
-   * NaN result dense-product semantics require. */
   template <typename ProductScalar, typename Rhs>
-  ProductScalar scaledHorner(const Scalar& xi, const Rhs& rhs, Index k) const {
-    using Exponent = internal::structured_exponent_type;
-    Exponent xiE = 0;
-    const Scalar xiMant = internal::structured_balance(xi, xiE);  // xi = xiMant * 2^xiE, exactly
-    ProductScalar acc(0);
-    Exponent exponent = 0;  // running value = acc * 2^exponent
-    for (Index j = m_cols - 1; j >= 0; --j) {
-      if (j < m_cols - 1) {
-        exponent += xiE;
-        acc = internal::structured_balance(acc * xiMant, exponent);
-      }
-      // A zero value has no scale: reset the frame so the next coefficient
-      // enters at its own magnitude instead of underflowing in a stale one.
-      if (acc == ProductScalar(0)) exponent = 0;
-      const ProductScalar aj(rhs.coeff(j, k));
-      if (aj == ProductScalar(0)) continue;
-      const Exponent ajExp = exponentBound(aj);
-      if (exponent < ajExp) {
-        // The coefficient dominates the running frame: rebase onto the
-        // coefficient's exponent. The running value rescales exactly, or
-        // underflows harmlessly once it is negligible against the coefficient.
-        acc = twoHalfScale(acc, exponent - ajExp);
-        exponent = ajExp;
-      }
-      acc = internal::structured_balance(acc + twoHalfScale(aj, -exponent), exponent);
+  void horner(Array<ProductScalar, Rows_, 1>& acc, const Rhs& rhs, Index k, std::false_type) const {
+    const Index n = m_cols;
+    acc.setConstant(ProductScalar(rhs.coeff(n - 1, k)));
+    for (Index j = n - 2; j >= 0; --j)
+      acc = acc * m_x.array().template cast<ProductScalar>() + ProductScalar(rhs.coeff(j, k));
+  }
+
+  // Complex values at real nodes: (re + i im) x keeps the exact
+  // real-times-complex arithmetic of a dense product, which the
+  // complex-times-complex form would break through 0 * Inf cross terms.
+  template <typename ProductScalar, typename Rhs>
+  void horner(Array<ProductScalar, Rows_, 1>& acc, const Rhs& rhs, Index k, std::true_type) const {
+    using NodeArray = Array<Scalar, Rows_, 1>;
+    const Index n = m_cols;
+    const ProductScalar top(rhs.coeff(n - 1, k));
+    NodeArray re = NodeArray::Constant(rows(), numext::real(top));
+    NodeArray im = NodeArray::Constant(rows(), numext::imag(top));
+    for (Index j = n - 2; j >= 0; --j) {
+      const ProductScalar c(rhs.coeff(j, k));
+      re = re * m_x.array() + numext::real(c);
+      im = im * m_x.array() + numext::imag(c);
     }
-    return internal::structured_ldexp_clamped(acc, exponent);
+    acc = re.binaryExpr(im, [](const Scalar& a, const Scalar& b) { return ProductScalar(a, b); });
   }
 
   NodeVector m_x;
@@ -626,21 +515,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
 #endif
 
  private:
-  static RealScalar lejaLogAbs(const Scalar& z) {
-    const RealScalar re = numext::abs(numext::real(z));
-    const RealScalar im = numext::abs(numext::imag(z));
-    const RealScalar scale = numext::maxi(re, im);
-    if (scale == RealScalar(0)) return -NumTraits<RealScalar>::infinity();
-    const RealScalar scaledRe = re / scale;
-    const RealScalar scaledIm = im / scale;
-    return numext::log(scale) + RealScalar(0.5) * numext::log(scaledRe * scaledRe + scaledIm * scaledIm);
-  }
-
-  static RealScalar lejaLogDistance(const Scalar& a, const Scalar& b) {
-    int exponent;
-    const Scalar difference = internal::structured_guarded_diff(a, b, exponent);
-    return lejaLogAbs(difference) + RealScalar(exponent) * numext::log(RealScalar(2));
-  }
+  static RealScalar lejaLogAbs(const Scalar& z) { return numext::log(numext::abs(z)); }
 
   void initializeNodeOrder(const NodeVector&, std::false_type) {}
 
@@ -668,7 +543,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
       RealScalar candidateScore = -NumTraits<RealScalar>::infinity();
       for (Index i = 0; i < n; ++i) {
         if (selected[static_cast<std::size_t>(i)]) continue;
-        scores[static_cast<std::size_t>(i)] += lejaLogDistance(original[i], original[next]);
+        scores[static_cast<std::size_t>(i)] += lejaLogAbs(original[i] - original[next]);
         if (candidate < 0 || scores[static_cast<std::size_t>(i)] > candidateScore) {
           candidate = i;
           candidateScore = scores[static_cast<std::size_t>(i)];
