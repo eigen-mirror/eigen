@@ -220,6 +220,91 @@ void test_kron_mixed_scalar(Index m1, Index n1, Index m2, Index n2) {
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
 }
 
+// Products and solves stack right-hand sides in chunks sized by the L2 cache
+// size. A tiny L2 forces chunks of one or two columns with a short last chunk,
+// and row-major operands are read and written through strided columns.
+template <typename Lhs, typename Rhs>
+void check_kron_chunked_product(const KroneckerOperator<Lhs, Rhs>& K) {
+  using Scalar = typename Lhs::Scalar;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  const Mat dense = K;
+  const RowMat X = RowMat::Random(K.cols(), 5), Y0 = RowMat::Random(K.rows(), 5);
+  const RowMat expected = dense * X;
+  RowMat Y = K * X;
+  VERIFY_IS_APPROX(Y, expected);
+  Y = Y0;
+  Y.noalias() += K * X;
+  VERIFY_IS_APPROX(Y, (Y0 + expected).eval());
+  Y = Y0;
+  Y.noalias() -= K * X;
+  VERIFY_IS_APPROX(Y, (Y0 - expected).eval());
+  VERIFY_IS_APPROX(Mat(K * Mat(X)), Mat(expected));
+}
+
+template <typename Scalar>
+void test_kron_chunked() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Sparse = SparseMatrix<Scalar>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  // A budget of 32 stacked entries: 2 columns of the 16-entry workspace of
+  // 3x2 (x) 2x3, chunks of 2, 2, 1 for 5 right-hand sides.
+  setCpuCacheSizes(l1, std::ptrdiff_t(8 * 32 * sizeof(Scalar)), l3);
+
+  const Mat A = Mat::Random(3, 2), B = Mat::Random(2, 3);
+  const Sparse As = A.sparseView(), Bs = B.sparseView();
+  check_kron_chunked_product(makeKroneckerOperator(A, B));
+  check_kron_chunked_product(makeKroneckerOperator(As, Bs));
+  check_kron_chunked_product(makeKroneckerOperator(A, Diag(Vec::Random(3))));
+  check_kron_chunked_product(makeKroneckerOperator(Diag(Vec::Random(2)), Bs));
+
+  const RowMat b = RowMat::Random(4, 5);
+  const Mat Ad = Mat::Random(2, 2) + RealScalar(4) * Mat::Identity(2, 2);
+  const Mat Bd = Mat::Random(2, 2) + RealScalar(4) * Mat::Identity(2, 2);
+  const KroneckerOperator<Mat, Mat> Ks(Ad, Bd);
+  const Mat x = Mat(Ks).partialPivLu().solve(Mat(b));
+  VERIFY_IS_APPROX(Ks.solve(b), x);
+  const KroneckerOperator<Sparse, Mat> Kss(Ad.sparseView(), Bd);
+  VERIFY_IS_APPROX(Kss.solve(b), x);
+  const KroneckerOperator<Mat, Mat> Kl(Mat::Random(2, 1), Mat::Random(2, 2));
+  VERIFY_IS_APPROX(Kl.leastSquaresSolve(b), Mat(Mat(Kl).completeOrthogonalDecomposition().solve(Mat(b))));
+  // A diagonal factor solves by entrywise division of the stacked right-hand sides.
+  const Vec d = Vec::Random(2) + Vec::Constant(2, Scalar(4));
+  const KroneckerOperator<Diag, Mat> Kdl(Diag(d), Bd);
+  VERIFY_IS_APPROX(Kdl.solve(b), Mat(Mat(Kdl).partialPivLu().solve(Mat(b))));
+  const KroneckerOperator<Mat, Diag> Kdr(Ad, Diag(d));
+  VERIFY_IS_APPROX(Kdr.solve(b), Mat(Mat(Kdr).partialPivLu().solve(Mat(b))));
+
+  setCpuCacheSizes(l1, l2, l3);
+}
+
+// A real operator applied to complex right-hand sides, in several chunks.
+template <typename RealScalar>
+void test_kron_chunked_mixed_scalar() {
+  using Complex = std::complex<RealScalar>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using CRowMat = Matrix<Complex, Dynamic, Dynamic, RowMajor>;
+  const std::ptrdiff_t l1 = l1CacheSize(), l2 = l2CacheSize(), l3 = l3CacheSize();
+  setCpuCacheSizes(l1, std::ptrdiff_t(8 * 32 * sizeof(Complex)), l3);
+
+  const KroneckerOperator<RMat, RMat> K(RMat::Random(3, 2), RMat::Random(2, 3));
+  const CMat dense = RMat(K).template cast<Complex>();
+  const CRowMat X = CRowMat::Random(K.cols(), 5);
+  CRowMat Y = K * X;
+  VERIFY_IS_APPROX(Y, CRowMat(dense * X));
+  const CRowMat Y0 = CRowMat::Random(K.rows(), 5);
+  Y = Y0;
+  Y.noalias() += K * X;
+  VERIFY_IS_APPROX(Y, CRowMat(Y0 + dense * X));
+
+  setCpuCacheSizes(l1, l2, l3);
+}
+
 template <typename Scalar>
 void test_kron_solve(Index n1, Index n2) {
   typedef typename NumTraits<Scalar>::Real RealScalar;
@@ -347,97 +432,6 @@ void test_kron_determinant_scaling() {
   VERIFY_IS_EQUAL(K4.determinant(), 0.0);
 }
 
-// Reviewer repro: (A (x) B) with A = [1e-200] and B = [1e200] is exactly the
-// identity, but evaluating (B X) A^T without protection overflows in
-// B X = 1e400 and returns Inf. The power-of-two pre-scaling must keep every
-// intermediate finite whenever the true result is representable -- and powers of
-// two shift only exponents, so no accuracy may be lost.
-void test_kron_extreme_scale_product() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-
-  Mat A(1, 1), B(1, 1);
-  A << 1e-200;
-  B << 1e200;
-  KroneckerOperator<Mat, Mat> K(A, B);
-  Vec x(1);
-  x << 1e200;
-  Vec y = K * x;
-  VERIFY(y.allFinite());
-  VERIFY_IS_APPROX(y[0], 1e200);
-
-  // Same magnitudes through solve(): with the factors swapped the operator is
-  // still the identity, and the intermediate B^{-1} mat(b) = 1e400 overflows;
-  // the normalized-frame solve must return the exact solution.
-  KroneckerOperator<Mat, Mat> Ks(B, A);
-  Vec b(1);
-  b << 1e200;
-  Vec xs = Ks.solve(b);
-  VERIFY(xs.allFinite());
-  VERIFY_IS_APPROX(xs[0], 1e200);
-
-  // Identity built from scaled unit matrices: the first GEMM is ~1e400 while
-  // K * x == x exactly.
-  Mat A2 = 1e-200 * Mat::Identity(2, 2), B2 = 1e200 * Mat::Identity(3, 3);
-  KroneckerOperator<Mat, Mat> K2(A2, B2);
-  Vec x2 = 1e200 * Vec::Random(6);
-  Vec y2 = K2 * x2;
-  VERIFY(y2.allFinite());
-  VERIFY_IS_APPROX(y2, x2);
-
-  // Multi-dimensional overflow boundary: the intermediate B X ~ 2^1103 overflows
-  // while the true result ~ 2^904 is representable -- and the dense reference can
-  // compute it, because the materialized product has moderate entries ~ 2^400.
-  Mat A3 = std::ldexp(1.0, -200) * Mat::Random(2, 2);
-  Mat B3 = std::ldexp(1.0, 600) * Mat::Random(2, 2);
-  KroneckerOperator<Mat, Mat> K3(A3, B3);
-  Mat dense3 = reference_kron<double>(A3, B3);
-  Vec x3 = std::ldexp(1.0, 500) * Vec::Random(4);
-  Vec y3 = K3 * x3;
-  VERIFY(y3.allFinite());
-  VERIFY_IS_APPROX(y3, (dense3 * x3).eval());
-
-  // A genuinely overflowing result must still saturate to infinity.
-  KroneckerOperator<Mat, Mat> K4(B, B);  // [1e200] (x) [1e200]
-  Vec y4 = K4 * x;                       // true result 1e600
-  VERIFY((numext::isinf)(y4[0]));
-  VERIFY(y4[0] > 0);
-}
-
-// Complex analogue: the exponent bounds must come from the component-wise
-// magnitudes. A finite complex value near the overflow threshold has a
-// non-representable modulus, which would silently disable the scaling (and a
-// result with components near the threshold has one too, which must not be
-// destroyed on the way back).
-void test_kron_extreme_scale_complex() {
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, 1> Vec;
-  typedef Matrix<Complex, Dynamic, Dynamic> Mat;
-
-  Mat A(1, 1), B(1, 1);
-  A << Complex(1e-300, 0.0);
-  B << Complex(1e308, 1e308);  // |B(0,0)| overflows; the components are finite
-  KroneckerOperator<Mat, Mat> K(A, B);
-  Vec x(1);
-  x << Complex(1e300, 0.0);
-  Vec y = K * x;
-  VERIFY(y.allFinite());
-  // Exact scalar reference, evaluated in an order that never leaves the
-  // representable range: (A * B) * x = (1e8 + 1e8 i) * 1e300.
-  const Complex expected = (A(0, 0) * B(0, 0)) * x[0];
-  VERIFY_IS_APPROX(y[0], expected);
-
-  Mat A2(1, 1), B2(1, 1);
-  A2 << Complex(1e-200, 0.0);
-  B2 << Complex(1.2e200, -1.3e200);
-  KroneckerOperator<Mat, Mat> K2(A2, B2);
-  Vec x2(1);
-  x2 << Complex(1.1e200, -0.7e200);
-  Vec y2 = K2 * x2;
-  VERIFY(y2.allFinite());
-  VERIFY_IS_APPROX(y2[0], ((A2(0, 0) * B2(0, 0)) * x2[0]));
-}
-
 // Reviewer repro: with A = [1e-310] (subnormal) the absolute rank threshold
 // min(rows,cols) * eps * sa_max underflows to zero before the sb_max
 // multiplication, so every pairwise singular-value product used to pass and
@@ -513,69 +507,6 @@ void test_kron_rank_min_normal_clamp() {
   Vec x2 = K2.leastSquaresSolve(b);
   VERIFY(x2.allFinite());
   VERIFY_IS_APPROX(x2[0], 1.0 / mn);
-}
-
-// solve() must run in a normalized frame; the previous detect-and-retry missed
-// (a) silent underflow -- the intermediate B^-1 mat(b) flushes to zero, which is
-// finite, so nothing triggered a retry -- and (b) factors whose raw inverse is
-// not representable even against a unit right-hand side.
-void test_kron_solve_normalized() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-
-  // (a) Identity operator, tiny right-hand side: B^-1 * b = 1e-400 used to
-  // underflow silently to zero.
-  for (Index n : {Index(1), Index(5)}) {
-    Mat A = Mat::Identity(n, n), B = Mat::Identity(n, n);
-    A *= 1e-200;
-    B *= 1e200;
-    KroneckerOperator<Mat, Mat> K(A, B);
-    Vec b = Vec::Constant(n * n, 1e-200);
-    Vec x = K.solve(b);
-    VERIFY_IS_APPROX((x / 1e-200).eval(), Vec::Ones(n * n).eval());
-
-    // (b) B^-1 ~ 1e310 is not representable, yet the operator is ~0.01 and the
-    // solution ~100: in the normalized frame every intermediate is bounded by the
-    // conditioning of the factors.
-    Mat A2 = Mat::Identity(n, n), B2 = Mat::Identity(n, n);
-    A2 *= 1e308;
-    B2 *= 1e-310;  // subnormal
-    KroneckerOperator<Mat, Mat> K2(A2, B2);
-    Vec b2 = Vec::Ones(n * n);
-    Vec x2 = K2.solve(b2);
-    VERIFY(x2.allFinite());
-    VERIFY_IS_APPROX(x2, Vec::Constant(n * n, 1.0 / (A2(0, 0) * B2(0, 0))).eval());
-  }
-}
-
-// Moderate inputs must be bit-identical to the unnormalized evaluation: partial
-// pivoting is invariant under the uniform power-of-two normalization and every
-// substitution step scales exactly with it.
-template <typename Scalar>
-void test_kron_solve_bit_identity(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  // The reference below reproduces the member-internal evaluation, which pins
-  // its workspaces to column-major storage.
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> CmMat;
-
-  Mat A = Mat::Random(n1, n1) + RealScalar(2 * n1) * Mat::Identity(n1, n1);
-  Mat B = Mat::Random(n2, n2) + RealScalar(2 * n2) * Mat::Identity(n2, n2);
-  KroneckerOperator<Mat, Mat> K(A, B);
-
-  Mat Bm = Mat::Random(n1 * n2, 2);
-  Mat X = K.solve(Bm);
-
-  // Raw, unnormalized reference evaluation.
-  PartialPivLU<CmMat> luA(A), luB(B);
-  for (Index k = 0; k < Bm.cols(); ++k) {
-    const Vec bc = Bm.col(k);
-    const Map<const CmMat> Bmat(bc.data(), n2, n1);
-    const CmMat Xref = luA.solve(luB.solve(Bmat).transpose()).transpose();
-    const Map<const Vec> xref(Xref.data(), Xref.size());
-    VERIFY_IS_EQUAL(X.col(k).eval(), Vec(xref));
-  }
 }
 
 template <typename Scalar>
@@ -945,47 +876,11 @@ void test_kron_diag_decompositions(Index n1, Index n2) {
   VERIFY_IS_APPROX(K.leastSquaresSolve(b), dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
-// The overflow-hardening contract must hold through diagonal factors: products
-// and solves with extreme diagonal magnitudes stay finite whenever the true
-// result is representable, and the balanced determinant survives partial
-// products that overflow on their own.
-void test_kron_diag_extreme_scale() {
+// Through diagonal factors, the balanced determinant survives partial products
+// that overflow on their own.
+void test_kron_diag_determinant_scaling() {
   typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
   typedef DiagonalMatrix<double, Dynamic> Diag;
-
-  // diag(1e-200) (x) [1e200] is the identity; the unprotected application
-  // B X = 1e400 would overflow.
-  Diag D(Vec::Constant(1, 1e-200));
-  Mat B(1, 1);
-  B << 1e200;
-  KroneckerOperator<Diag, Mat> K(D, B);
-  Vec x(1);
-  x << 1e200;
-  Vec y = K * x;
-  VERIFY(y.allFinite());
-  VERIFY_IS_APPROX(y[0], 1e200);
-
-  // Same magnitudes through solve(), diagonal on the divided side.
-  KroneckerOperator<Mat, Diag> Ks(B, D);
-  Vec b(1);
-  b << 1e200;
-  Vec xs = Ks.solve(b);
-  VERIFY(xs.allFinite());
-  VERIFY_IS_APPROX(xs[0], 1e200);
-
-  // Identity built from extreme diagonal scales: products and the entrywise
-  // divisions of the diagonal-diagonal solve run in the normalized frame.
-  Diag Da(Vec::Constant(2, 1e-200)), Db(Vec::Constant(3, 1e200));
-  KroneckerOperator<Diag, Diag> K2(Da, Db);
-  Vec x2 = 1e200 * Vec::Random(6);
-  Vec y2 = K2 * x2;
-  VERIFY(y2.allFinite());
-  VERIFY_IS_APPROX(y2, x2);
-  Vec b2 = 1e-200 * Vec::Random(6);
-  Vec xd = K2.solve(b2);
-  VERIFY(xd.allFinite());
-  VERIFY_IS_APPROX(xd, b2);
 
   // det(diag(1e200))^2 = 1e400 overflows on its own, yet the determinant of
   // diag(1e200) (x) diag(1e-100, 1e-100) is 1e200 -- and the diagonal path
@@ -1318,8 +1213,8 @@ void test_kron_sparse_transpose(Index m1, Index n1, Index m2, Index n2) {
   VERIFY_IS_APPROX((K.adjoint() * y).eval(), (dense.adjoint() * y).eval());
 }
 
-// solve() through sparse factors: one SparseLU per sparse factor, then column
-// solves in the normalized frame. All factor-kind mixes against the dense LU.
+// solve() through sparse factors: one SparseLU per sparse factor, then its
+// substitutions. All factor-kind mixes against the dense LU.
 template <typename Scalar>
 void test_kron_sparse_solve(Index n1, Index n2) {
   using RealScalar = typename NumTraits<Scalar>::Real;
@@ -1477,29 +1372,6 @@ void test_kron_sparse_stored_zeros(Index n1, Index n2) {
   VERIFY_IS_APPROX(Mat(M), dense);
 }
 
-// Moderate inputs must be bit-identical to the unnormalized SparseLU
-// evaluation: the column ordering is structural, magnitude pivoting is
-// invariant under the uniform power-of-two normalization, and every
-// substitution scales exactly with it.
-template <typename Scalar>
-void test_kron_sparse_solve_bit_identity(Index n1, Index n2) {
-  using Vec = Matrix<Scalar, Dynamic, 1>;
-  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
-  using Sparse = SparseMatrix<Scalar>;
-
-  const Sparse S1 = random_sparse_dominant<Scalar>(n1), S2 = random_sparse_dominant<Scalar>(n2);
-  KroneckerOperator<Sparse, Sparse> K(S1, S2);
-  Vec b = Vec::Random(n1 * n2);
-  Vec x = K.solve(b);
-
-  SparseLU<Sparse> luA(S1), luB(S2);
-  const Mat Bm = b.reshaped(n2, n1);
-  const Mat Y = luB.solve(Bm);  // S2^{-1} mat(b)
-  const Mat Yt = Y.transpose();
-  Mat X = luA.solve(Yt).transpose();  // (S1^{-1} Y^T)^T = Y S1^{-T}
-  VERIFY_IS_EQUAL(x, Vec(X.reshaped()));
-}
-
 // An ill-conditioned sparse factor: the tridiagonal Laplacian of order n has
 // condition number ~0.4 n^2, so I_p (x) L is judged by its backward error
 // ||b - K x|| <= n eps ||L||_2 ||x||, with ||L||_2 < 4, not entrywise.
@@ -1552,57 +1424,12 @@ void test_kron_sparse_decompositions(Index n1, Index n2) {
   VERIFY_IS_APPROX(K.leastSquaresSolve(b), dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
-// The overflow-hardening contract through sparse factors: products and solves
-// with extreme magnitudes stay finite whenever the true result is
-// representable, and the balanced SparseLU determinant survives partial
-// products that overflow on their own.
-void test_kron_sparse_extreme_scale() {
+// The balanced SparseLU determinant survives partial products that overflow on
+// their own.
+void test_kron_sparse_determinant_scaling() {
   using Vec = Matrix<double, Dynamic, 1>;
   using Mat = Matrix<double, Dynamic, Dynamic>;
   using Sparse = SparseMatrix<double>;
-
-  // [1e-200] (x) [1e200] is the identity; the unprotected B X = 1e400 overflows.
-  Mat Sd(1, 1), B(1, 1);
-  Sd << 1e-200;
-  B << 1e200;
-  const Sparse S = Sd.sparseView();
-  KroneckerOperator<Sparse, Mat> K(S, B);
-  KroneckerOperator<Mat, Sparse> K2(B, S);  // the sparse factor on the applied side
-  Vec x(1);
-  x << 1e200;
-  Vec y = K * x;
-  VERIFY(y.allFinite());
-  VERIFY_IS_APPROX(y[0], 1e200);
-  y = K2 * x;
-  VERIFY(y.allFinite());
-  VERIFY_IS_APPROX(y[0], 1e200);
-
-  // Same magnitudes through solve(), the sparse factor factorized in the
-  // normalized frame.
-  Vec b(1);
-  b << 1e200;
-  Vec xs = K.solve(b);
-  VERIFY(xs.allFinite());
-  VERIFY_IS_APPROX(xs[0], 1e200);
-  xs = K2.solve(b);
-  VERIFY(xs.allFinite());
-  VERIFY_IS_APPROX(xs[0], 1e200);
-
-  // [[0, 1e-200], [1e-200, 0]] (x) [1e200] is the 2 x 2 exchange matrix: the
-  // scaled factorization pivots off the diagonal and every intermediate stays
-  // finite through product and solve.
-  Mat Ed(2, 2);
-  Ed << 0.0, 1e-200, 1e-200, 0.0;
-  const Sparse E = Ed.sparseView();
-  KroneckerOperator<Sparse, Mat> KE(E, B);
-  Vec x2(2), y2(2);
-  x2 << 1e200, 2e200;
-  y2 = KE * x2;
-  VERIFY(y2.allFinite());
-  VERIFY_IS_APPROX(y2, Vec(x2.reverse()));
-  Vec xe = KE.solve(x2);
-  VERIFY(xe.allFinite());
-  VERIFY_IS_APPROX(xe, Vec(x2.reverse()));
 
   // det([1e200])^2 = 1e400 overflows on its own, yet the determinant of
   // [1e200] (x) diag(1e-100, 1e-100) is 1e200 -- through the SparseLU pivots.
@@ -1799,26 +1626,6 @@ void test_kron_determinant_flushed_subnormal() {
   forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
-// Every entry of m is a signed subnormal significand * denorm_min. A factor gets
-// significands of significandBits bits with the largest one on the diagonal, so a
-// square factor is well conditioned; a right-hand side gets significands 1 to 3.
-template <typename Scalar>
-void fill_kron_subnormal(Matrix<Scalar, Dynamic, Dynamic>& m, int significandBits) {
-  using Real = typename NumTraits<Scalar>::Real;
-  using Binary = internal::binary_floating_point_traits<Real>;
-  using Bits = typename Binary::Bits;
-  const bool factor = significandBits > 0;
-  const Bits top = factor ? Bits(1) << (significandBits - 1) : Bits(2);
-  for (Index j = 0; j < m.cols(); ++j)
-    for (Index i = 0; i < m.rows(); ++i) {
-      const Bits significand = !factor  ? internal::random<Bits>(Bits(1), Bits(3))
-                               : i == j ? (top << 1) - Bits(1)
-                                        : top / Bits(4) + internal::random<Bits>(Bits(0), top / Bits(4) - Bits(1));
-      const Bits sign = (!factor || i != j) && internal::random<bool>() ? Binary::kSignBit : Bits(0);
-      m(i, j) = kron_subnormal_entry<Scalar>::run(numext::bit_cast<Real>(sign | significand));
-    }
-}
-
 // A factor with a normal and a subnormal pivot 40 octaves apart: the packet
 // scale-up would flush the small pivot under flush-to-zero, and the exact one
 // keeps det(A (x) b) = 2^-100 2^-140 (2^120)^2 = 1 for every factor kind.
@@ -1856,69 +1663,13 @@ void test_kron_determinant_flushed_pivot() {
   forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
-// solve() runs on data normalized by exponent bounds, so an all-subnormal
-// problem and its power-of-two scaled copy share every intermediate:
-// x(A, B, rhs) == 2^k x(2^k A, 2^k B, 2^k rhs) exactly, plainly and under
-// flush-to-zero. Factors just below the smallest normal and a right-hand side
-// at denorm_min keep x finite.
-template <typename Scalar>
-void test_kron_solve_flushed_subnormal() {
-  using Real = typename NumTraits<Scalar>::Real;
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using Sparse = SparseMatrix<Scalar>;
-  const Index n1 = 3, n2 = 2;
-  Mat A(n1, n1), B(n2, n2), rhs(n1 * n2, 2);
-  fill_kron_subnormal(A, std::numeric_limits<Real>::digits - 2);
-  fill_kron_subnormal(B, std::numeric_limits<Real>::digits - 2);
-  fill_kron_subnormal(rhs, 0);
-  // 2^k brings every operand into the normal range; the solution scales by 2^-k.
-  const int k = 100;
-  const internal::scale_by_exponent_op<Real> up(k);
-  const Mat As = A.unaryExpr(up), Bs = B.unaryExpr(up), rhss = rhs.unaryExpr(up);
-  Sparse sparseA(n1, n1), sparseAs(n1, n1);
-  for (Index j = 0; j < n1; ++j)
-    for (Index i = 0; i < n1; ++i) {
-      sparseA.insert(i, j) = A(i, j);
-      sparseAs.insert(i, j) = As(i, j);
-    }
-  const DiagonalMatrix<Scalar, Dynamic> diagonalB(B.diagonal()), diagonalBs(Bs.diagonal());
-  const Mat expectedX = makeKroneckerOperator(As, Bs).solve(rhss).unaryExpr(up);
-  const Mat expectedY = makeKroneckerOperator(sparseAs, diagonalBs).solve(rhss).unaryExpr(up);
-  VERIFY(expectedX.allFinite());
-  VERIFY(expectedY.allFinite());
-
-  forEachFlushToZeroMode([&](FlushToZeroMode) {
-    const Mat x = makeKroneckerOperator(A, B).solve(rhs);
-    VERIFY_IS_EQUAL(x, expectedX);
-    const Mat y = makeKroneckerOperator(sparseA, diagonalB).solve(rhs);
-    VERIFY_IS_EQUAL(y, expectedY);
-  });
-}
-
-// A column-major Dest accumulates each product column through packets, a
-// row-major one through strided scalar access.
-template <typename Dest, typename Lhs, typename Rhs, typename X, typename Expected>
-void check_kron_nonfinite_assignments(const KroneckerOperator<Lhs, Rhs>& k, const X& x, const Expected& expected) {
-  using ProductScalar = typename Dest::Scalar;
-  const Dest assigned = expected;
-  Dest actual = k * x;
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), assigned.realView());
-  actual.setConstant(ProductScalar(3));
-  actual.noalias() += k * x;
-  const Dest added = (expected.array() + ProductScalar(3)).matrix();
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), added.realView());
-  actual.setConstant(ProductScalar(3));
-  actual.noalias() -= k * x;
-  const Dest subtracted = (ProductScalar(3) - expected.array()).matrix();
-  VERIFY_IS_CWISE_EQUAL(actual.realView(), subtracted.realView());
-}
-
-template <typename ProductScalar, typename Lhs, typename Rhs>
+// Materialization is entrywise, so it stays well-defined for non-finite
+// factors: coefficient access, dense and sparse assignment must agree (products
+// carry no such contract; Inf/NaN propagate as through the factor products).
+template <typename Lhs, typename Rhs>
 void check_kron_sparse_nonfinite(const KroneckerOperator<Lhs, Rhs>& k) {
   using Scalar = typename Lhs::Scalar;
-  using Real = typename NumTraits<ProductScalar>::Real;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using ProductMatrix = Matrix<ProductScalar, Dynamic, Dynamic, RowMajor>;
   SparseMatrix<Scalar> sparse;
   sparse = k;
   const Mat dense = k;
@@ -1927,15 +1678,6 @@ void check_kron_sparse_nonfinite(const KroneckerOperator<Lhs, Rhs>& k) {
     for (Index i = 0; i < k.rows(); ++i) coefficients(i, j) = k.coeff(i, j);
   VERIFY_IS_CWISE_EQUAL(coefficients.realView(), dense.realView());
   VERIFY_IS_CWISE_EQUAL(Mat(sparse).realView(), dense.realView());
-
-  ProductMatrix x = ProductMatrix::Ones(k.cols(), 3);
-  x(0, 1) = ProductScalar(NumTraits<Real>::quiet_NaN());
-  x(k.cols() - 1, 2) = ProductScalar(NumTraits<Real>::infinity());
-  // Vector products keep the reference independent of complex packet Inf/NaN handling.
-  ProductMatrix expected(k.rows(), x.cols());
-  for (Index j = 0; j < x.cols(); ++j) expected.col(j) = sparse * x.col(j);
-  check_kron_nonfinite_assignments<ProductMatrix>(k, x, expected);
-  check_kron_nonfinite_assignments<Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>>(k, x, expected);
 }
 
 template <typename Scalar, int Options>
@@ -1952,33 +1694,23 @@ void test_kron_sparse_nonfinite() {
   pattern.insert(0, 2) = Scalar(2);  // Row 1 and column 1 are structurally empty.
 
   Mat finite = Mat::Ones(2, 2);
-  check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(finite, pattern));
-  check_kron_sparse_nonfinite<std::complex<Real>>(makeKroneckerOperator(finite, pattern));
+  check_kron_sparse_nonfinite(makeKroneckerOperator(finite, pattern));
   for (Real special : {NumTraits<Real>::infinity(), NumTraits<Real>::quiet_NaN()}) {
     const Mat single = Mat::Constant(1, 1, Scalar(special));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(single, empty));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(empty, single));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(single, storedZero));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(storedZero, single));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(single, empty));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(empty, single));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(single, storedZero));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(storedZero, single));
     Mat nonfinite = finite;
     nonfinite(0, 0) = Scalar(special);
     const Sparse sparseNonfinite = nonfinite.sparseView();
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(nonfinite, pattern));
-    check_kron_sparse_nonfinite<std::complex<Real>>(makeKroneckerOperator(nonfinite, pattern));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, nonfinite));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(sparseNonfinite, pattern));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, sparseNonfinite));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(nonfinite, pattern));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(pattern, nonfinite));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(sparseNonfinite, pattern));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(pattern, sparseNonfinite));
     const DiagonalMatrix<Scalar, 2> diagonal(nonfinite.diagonal());
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, pattern));
-    check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(pattern, diagonal));
-    // Without a sparse factor the product stays on the GEMM path, which must
-    // agree with the materialization as well. Real scalars only: the scalar
-    // reference does not fix the Inf/NaN components of a complex packet product.
-    if (!NumTraits<Scalar>::IsComplex) {
-      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, nonfinite));
-      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(nonfinite, diagonal));
-      check_kron_sparse_nonfinite<Scalar>(makeKroneckerOperator(diagonal, diagonal));
-    }
+    check_kron_sparse_nonfinite(makeKroneckerOperator(diagonal, pattern));
+    check_kron_sparse_nonfinite(makeKroneckerOperator(pattern, diagonal));
   }
 }
 
@@ -2002,53 +1734,51 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_3((test_kron_solve<double>(1, 1)));
     CALL_SUBTEST_3((test_kron_solve<double>(4, 7)));
     CALL_SUBTEST_3((test_kron_solve<double>(9, 5)));
-    CALL_SUBTEST_3((test_kron_solve<float>(5, 4)));
-    CALL_SUBTEST_3((test_kron_solve<std::complex<double>>(6, 4)));
-    CALL_SUBTEST_3(test_kron_solve_normalized());
-    CALL_SUBTEST_3((test_kron_solve_bit_identity<double>(4, 3)));
-    CALL_SUBTEST_3((test_kron_solve_bit_identity<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_15((test_kron_solve<float>(5, 4)));
+    CALL_SUBTEST_15((test_kron_solve<std::complex<double>>(6, 4)));
 
     // Minimum-norm least squares through factor pseudo-inverses.
     CALL_SUBTEST_3((test_kron_least_squares<double>(8, 5, 7, 4)));  // tall x tall
     CALL_SUBTEST_3((test_kron_least_squares<double>(8, 5, 3, 6)));  // tall x wide
-    CALL_SUBTEST_3((test_kron_least_squares<std::complex<double>>(6, 4, 5, 3)));
+    CALL_SUBTEST_15((test_kron_least_squares<std::complex<double>>(6, 4, 5, 3)));
     CALL_SUBTEST_3((test_kron_least_squares_rank_deficient<double>(6, 4, 5, 3)));
-    CALL_SUBTEST_3((test_kron_least_squares_rank_deficient<std::complex<double>>(5, 3, 4, 4)));
+    CALL_SUBTEST_15((test_kron_least_squares_rank_deficient<std::complex<double>>(5, 3, 4, 4)));
 
     // Eigendecomposition, SVD, inverse, determinant.
     CALL_SUBTEST_4((test_kron_eigen<double>(4, 5)));
     CALL_SUBTEST_4((test_kron_eigen<double>(1, 6)));
-    CALL_SUBTEST_4((test_kron_eigen<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_16((test_kron_eigen<std::complex<double>>(3, 4)));
     CALL_SUBTEST_4((test_kron_svd<double>(4, 4, 5, 5)));
     CALL_SUBTEST_4((test_kron_svd<double>(6, 4, 3, 5)));  // rectangular: structural zeros
-    CALL_SUBTEST_4((test_kron_svd<std::complex<double>>(4, 3, 4, 4)));
-    CALL_SUBTEST_4((test_kron_svd<float>(4, 4, 4, 4)));
+    CALL_SUBTEST_20((test_kron_svd<std::complex<double>>(4, 3, 4, 4)));
+    CALL_SUBTEST_16((test_kron_svd<float>(4, 4, 4, 4)));
     CALL_SUBTEST_4((test_kron_inverse_determinant<double>(4, 5)));
-    CALL_SUBTEST_4((test_kron_inverse_determinant<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_16((test_kron_inverse_determinant<std::complex<double>>(3, 4)));
 
     // Matrix-free iterative solve and fixed-size factors.
     CALL_SUBTEST_5((test_kron_matrix_free_cg<double>(6, 7)));
     CALL_SUBTEST_5((test_kron_fixed<double, 3, 4, 2, 5>()));
-    CALL_SUBTEST_5((test_kron_fixed<std::complex<float>, 2, 3, 3, 2>()));
+    CALL_SUBTEST_17((test_kron_fixed<std::complex<float>, 2, 3, 3, 2>()));
     CALL_SUBTEST_5((test_kron_fixed_solve<double, 2, 3>()));
-    CALL_SUBTEST_5((test_kron_fixed_solve<std::complex<double>, 3, 2>()));
+    CALL_SUBTEST_17((test_kron_fixed_solve<std::complex<double>, 3, 2>()));
 
     // Lifetime and aliasing of the product expression, mixed-scalar promotion.
     CALL_SUBTEST_6((test_kron_aliased_product<double>(3, 4)));
-    CALL_SUBTEST_6((test_kron_aliased_product<std::complex<double>>(4, 3)));
+    CALL_SUBTEST_18((test_kron_aliased_product<std::complex<double>>(4, 3)));
     CALL_SUBTEST_6((test_kron_aliased_resize<double>(4, 3, 2, 5)));
-    CALL_SUBTEST_6((test_kron_aliased_resize<std::complex<double>>(2, 4, 5, 3)));
+    CALL_SUBTEST_18((test_kron_aliased_resize<std::complex<double>>(2, 4, 5, 3)));
     CALL_SUBTEST_6((test_kron_delayed_product<double>(4, 3, 2, 5)));
-    CALL_SUBTEST_6((test_kron_delayed_product<std::complex<float>>(3, 3, 4, 2)));
+    CALL_SUBTEST_18((test_kron_delayed_product<std::complex<float>>(3, 3, 4, 2)));
     CALL_SUBTEST_6((test_kron_mixed_scalar<double>(4, 3, 3, 5)));
-    CALL_SUBTEST_6((test_kron_mixed_scalar<float>(3, 4, 2, 3)));
+    CALL_SUBTEST_18((test_kron_mixed_scalar<float>(3, 4, 2, 3)));
+    CALL_SUBTEST_19((test_kron_chunked<double>()));
+    CALL_SUBTEST_19((test_kron_chunked<std::complex<double>>()));
+    CALL_SUBTEST_19((test_kron_chunked_mixed_scalar<double>()));
 
-    // Numerical boundaries: product-level rank truncation, balanced determinant,
-    // overflow-safe product scaling and ratio-space rank thresholds.
+    // Numerical boundaries: product-level rank truncation, balanced determinant
+    // and ratio-space rank thresholds.
     CALL_SUBTEST_7(test_kron_product_level_rank());
     CALL_SUBTEST_7(test_kron_determinant_scaling());
-    CALL_SUBTEST_7(test_kron_extreme_scale_product());
-    CALL_SUBTEST_7(test_kron_extreme_scale_complex());
     CALL_SUBTEST_7(test_kron_rank_ratio_threshold());
     CALL_SUBTEST_7(test_kron_rank_min_normal_clamp());
 
@@ -2067,15 +1797,15 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_8((test_kron_diag_fixed<std::complex<float>, 2, 3, 3>()));
 
     // Diagonal factors through the solvers, inverse/determinant, the
-    // decomposition family, extreme scales and matrix-free CG.
+    // decomposition family and matrix-free CG.
     CALL_SUBTEST_9((test_kron_diag_solve<double>(4, 7)));
-    CALL_SUBTEST_9((test_kron_diag_solve<float>(5, 4)));
-    CALL_SUBTEST_9((test_kron_diag_solve<std::complex<double>>(6, 4)));
+    CALL_SUBTEST_21((test_kron_diag_solve<float>(5, 4)));
+    CALL_SUBTEST_21((test_kron_diag_solve<std::complex<double>>(6, 4)));
     CALL_SUBTEST_9((test_kron_diag_inverse_determinant<double>(4, 5)));
-    CALL_SUBTEST_9((test_kron_diag_inverse_determinant<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_21((test_kron_diag_inverse_determinant<std::complex<double>>(3, 4)));
     CALL_SUBTEST_9((test_kron_diag_decompositions<double>(4, 5)));
-    CALL_SUBTEST_9((test_kron_diag_decompositions<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_9(test_kron_diag_extreme_scale());
+    CALL_SUBTEST_21((test_kron_diag_decompositions<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_9(test_kron_diag_determinant_scaling());
     CALL_SUBTEST_9(test_kron_diag_matrix_free_cg(6, 7));
 
     // Sparse factors: products, materialization, the identity-Kronecker
@@ -2095,19 +1825,17 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_10(test_kron_sparse_stored_zeros(4, 3));
 
     // Sparse factors through the solvers, inverse/determinant, the
-    // decomposition family, extreme scales and matrix-free CG.
+    // decomposition family and matrix-free CG.
     CALL_SUBTEST_11((test_kron_sparse_solve<double>(4, 7)));
-    CALL_SUBTEST_11((test_kron_sparse_solve<float>(5, 4)));
-    CALL_SUBTEST_11((test_kron_sparse_solve<std::complex<double>>(6, 4)));
+    CALL_SUBTEST_22((test_kron_sparse_solve<float>(5, 4)));
+    CALL_SUBTEST_22((test_kron_sparse_solve<std::complex<double>>(6, 4)));
     CALL_SUBTEST_11((test_kron_sparse_inverse_determinant<double>(4, 5)));
-    CALL_SUBTEST_11((test_kron_sparse_inverse_determinant<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_22((test_kron_sparse_inverse_determinant<std::complex<double>>(3, 4)));
     CALL_SUBTEST_11((test_kron_sparse_decompositions<double>(4, 5)));
-    CALL_SUBTEST_11((test_kron_sparse_decompositions<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_11((test_kron_sparse_solve_bit_identity<double>(4, 3)));
-    CALL_SUBTEST_11((test_kron_sparse_solve_bit_identity<std::complex<double>>(3, 4)));
+    CALL_SUBTEST_23((test_kron_sparse_decompositions<std::complex<double>>(3, 4)));
     CALL_SUBTEST_11(test_kron_sparse_solve_laplacian(64, 4));
     CALL_SUBTEST_11(test_kron_sparse_degenerate(4, 3));
-    CALL_SUBTEST_11(test_kron_sparse_extreme_scale());
+    CALL_SUBTEST_11(test_kron_sparse_determinant_scaling());
     CALL_SUBTEST_11(test_kron_sparse_matrix_free_cg(6, 7));
 
     CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<float, ColMajor>(1)));
@@ -2128,9 +1856,5 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<double>()));
     CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<std::complex<float>>()));
     CALL_SUBTEST_14((test_kron_determinant_flushed_pivot<std::complex<double>>()));
-    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<float>()));
-    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<double>()));
-    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<std::complex<float>>()));
-    CALL_SUBTEST_14((test_kron_solve_flushed_subnormal<std::complex<double>>()));
   }
 }

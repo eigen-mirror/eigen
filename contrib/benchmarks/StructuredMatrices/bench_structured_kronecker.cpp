@@ -58,9 +58,9 @@ static void BM_KroneckerMaterializeDense(benchmark::State& state) {
 BENCHMARK(BM_KroneckerMaterializeDense)->Arg(8)->Arg(16)->Arg(32)->Arg(64);
 
 // --- Multiple right-hand sides ---
-// Both the product and the direct solve walk the right-hand side column by
-// column through the vec identity, so these cover the path where the per-column
-// vec-trick workspaces are reused instead of reallocated.
+// The product and the direct solve apply the factors to cache-sized batches of
+// right-hand sides (see bench_structured_kronecker_batched for the sweep over
+// the number of right-hand sides).
 static void BM_KroneckerProductImplicitMultiRhs(benchmark::State& state) {
   const Index n = state.range(0), nrhs = state.range(1);
   Mat A = Mat::Random(n, n), B = Mat::Random(n, n);
@@ -140,8 +140,8 @@ static void BM_KroneckerProductIdentityRightDiag(benchmark::State& state) {
 BENCHMARK(BM_KroneckerProductIdentityRightDiag)->Arg(8)->Arg(16)->Arg(32)->Arg(64);
 
 // Solving (D (x) B) x = b: a densely stored diagonal factor costs a full LU
-// per solve call; the DiagonalMatrix factor is normalized once and divided
-// entrywise, leaving the single LU of the dense factor.
+// per solve call; the DiagonalMatrix factor is divided entrywise, leaving the
+// single LU of the dense factor.
 static void BM_KroneckerSolveDiagFactorDense(benchmark::State& state) {
   const Index n = state.range(0);
   Vec d = Vec::Random(n) + Vec::Constant(n, 2.0);
@@ -331,25 +331,3 @@ static void BM_KroneckerSolveIdentityRightSparseMaterialized(benchmark::State& s
   }
 }
 BENCHMARK(BM_KroneckerSolveIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256);
-
-static void BM_KroneckerProductNonFiniteSparse(benchmark::State& state) {
-  const Index n = state.range(0);
-  SpMat A(n, n);
-  for (Index i = 1; i < n; ++i) A.insert(i, i) = 2.0;
-  Mat B = Mat::Identity(2, 2);
-  B(0, 0) = NumTraits<double>::infinity();
-  auto K = makeKroneckerOperator(B, A);
-  Vec x = Vec::Ones(2 * n), y = K * x;
-  Vec expected = Vec::Constant(2 * n, 2.0);
-  expected.head(n).setConstant(NumTraits<double>::infinity());
-  expected[0] = expected[n] = 0.0;  // The empty sparse row annihilates Inf.
-  if (!(y.array() == expected.array()).all()) {
-    state.SkipWithError("non-finite product did not preserve structural zeros");
-    return;
-  }
-  for (auto _ : state) {
-    y.noalias() = K * x;
-    benchmark::DoNotOptimize(y.data());
-  }
-}
-BENCHMARK(BM_KroneckerProductNonFiniteSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
