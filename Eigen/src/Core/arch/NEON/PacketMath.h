@@ -2642,6 +2642,17 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet2f pgather<float, Packet2f>(const fl
 }
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
+  if (stride == 2) {
+    // Overlap the loads so the second ends at the last gathered coefficient, from[6].
+#if EIGEN_ARCH_ARM64
+    // lo = [0 1 2 3], hi = [3 4 5 6]. GCC turns the equivalent vuzp2q(vrev64q(lo), hi) into a slower TBL.
+    Packet4f lo = vld1q_f32(from);
+    Packet4f hi = vld1q_f32(from + 3);
+    return vcombine_f32(vget_low_f32(vuzp1q_f32(lo, lo)), vget_high_f32(vuzp2q_f32(hi, hi)));
+#else
+    return vcombine_f32(vld2_f32(from).val[0], vld2_f32(from + 3).val[1]);
+#endif
+  }
   Packet4f res = vld1q_dup_f32(from);
   res = vld1q_lane_f32(from + 1 * stride, res, 1);
   res = vld1q_lane_f32(from + 2 * stride, res, 2);
