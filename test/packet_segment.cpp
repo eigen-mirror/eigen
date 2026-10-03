@@ -119,9 +119,26 @@ struct packet_segment_test_impl {
 
     verify_data(aligned_data_in, aligned_data_out, b, begin, count);
   }
+  static void test_all_ranges() {
+    // every (begin, count) with begin + count <= PacketSize: lanes in the range are copied, the rest are untouched
+    VectorX<Scalar> data_in(PacketSize), data_out(PacketSize), data_ref(PacketSize);
+    for (Index begin = 0; begin <= PacketSize; begin++) {
+      for (Index count = 0; begin + count <= PacketSize; count++) {
+        data_in.setRandom();
+        data_out.setRandom();
+        data_ref = data_out;
+        // A scalar loop: a segment assignment would run the primitives under test.
+        for (Index i = begin; i < begin + count; ++i) data_ref(i) = data_in(i);
+        Packet a = internal::ploaduSegment<Packet>(data_in.data(), begin, count);
+        internal::pstoreuSegment<Scalar, Packet>(data_out.data(), a, begin, count);
+        VERIFY_IS_CWISE_EQUAL(data_out, data_ref);
+      }
+    }
+  }
   static void run() {
     test_unaligned();
     test_aligned();
+    test_all_ranges();
   }
 };
 

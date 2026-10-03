@@ -486,6 +486,40 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<PacketXcf, N>& kernel) {
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(PacketXcf, PacketXf)
 EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(PacketXcd, PacketXd)
 
+/*---------------- load/store segment support ----------------*/
+
+// A complex lane is two real lanes, so the predicate is formed over 2 * begin and 2 * count.
+
+template <>
+struct has_packet_segment<PacketXcf> : std::true_type {};
+
+template <>
+inline PacketXcf ploaduSegment<PacketXcf>(const std::complex<float>* from, Index begin, Index count) {
+  return PacketXcf(svld1_f32(sve_segment_predicate_b32(2 * begin, 2 * count), reinterpret_cast<const float*>(from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<float>, PacketXcf>(std::complex<float>* to, const PacketXcf& from, Index begin,
+                                                           Index count) {
+  svst1_f32(sve_segment_predicate_b32(2 * begin, 2 * count), reinterpret_cast<float*>(to), from.v);
+}
+
+template <>
+struct has_packet_segment<PacketXcd> : std::true_type {};
+
+template <>
+inline PacketXcd ploaduSegment<PacketXcd>(const std::complex<double>* from, Index begin, Index count) {
+  return PacketXcd(svld1_f64(sve_segment_predicate_b64(2 * begin, 2 * count), reinterpret_cast<const double*>(from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<double>, PacketXcd>(std::complex<double>* to, const PacketXcd& from,
+                                                            Index begin, Index count) {
+  svst1_f64(sve_segment_predicate_b64(2 * begin, 2 * count), reinterpret_cast<double*>(to), from.v);
+}
+
+/*---------------- end load/store segment support ----------------*/
+
 }  // end namespace internal
 }  // end namespace Eigen
 

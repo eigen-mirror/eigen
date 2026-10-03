@@ -1384,6 +1384,86 @@ EIGEN_STRONG_INLINE PacketXd prsqrt<PacketXd>(const PacketXd& a) {
   return generic_rsqrt_newton_step<PacketXd, /*Steps=*/3>::run(a, svrsqrte_f64(a));
 }
 
+/*---------------- load/store segment support ----------------*/
+
+// Predicates with lanes [begin, begin + count) active. begin is a literal 0 at the assignment
+// call sites, so that branch folds and the common case is a single whilelt.
+EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b32(Index begin, Index count) {
+  eigen_assert(begin >= 0 && count >= 0);
+  if (begin == 0) return svwhilelt_b32(uint64_t(0), uint64_t(count));
+  return svnot_b_z(svwhilelt_b32(uint64_t(0), uint64_t(begin + count)), svwhilelt_b32(uint64_t(0), uint64_t(begin)));
+}
+
+EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b64(Index begin, Index count) {
+  eigen_assert(begin >= 0 && count >= 0);
+  if (begin == 0) return svwhilelt_b64(uint64_t(0), uint64_t(count));
+  return svnot_b_z(svwhilelt_b64(uint64_t(0), uint64_t(begin + count)), svwhilelt_b64(uint64_t(0), uint64_t(begin)));
+}
+
+/*---------------- int32 ----------------*/
+
+template <>
+struct has_packet_segment<PacketXi> : std::true_type {};
+
+template <>
+inline PacketXi ploaduSegment<PacketXi>(const numext::int32_t* from, Index begin, Index count) {
+  return svld1_s32(sve_segment_predicate_b32(begin, count), from);
+}
+
+template <>
+inline void pstoreuSegment<numext::int32_t, PacketXi>(numext::int32_t* to, const PacketXi& from, Index begin,
+                                                      Index count) {
+  svst1_s32(sve_segment_predicate_b32(begin, count), to, from);
+}
+
+/*---------------- int64 ----------------*/
+
+template <>
+struct has_packet_segment<PacketXl> : std::true_type {};
+
+template <>
+inline PacketXl ploaduSegment<PacketXl>(const numext::int64_t* from, Index begin, Index count) {
+  return svld1_s64(sve_segment_predicate_b64(begin, count), from);
+}
+
+template <>
+inline void pstoreuSegment<numext::int64_t, PacketXl>(numext::int64_t* to, const PacketXl& from, Index begin,
+                                                      Index count) {
+  svst1_s64(sve_segment_predicate_b64(begin, count), to, from);
+}
+
+/*---------------- float ----------------*/
+
+template <>
+struct has_packet_segment<PacketXf> : std::true_type {};
+
+template <>
+inline PacketXf ploaduSegment<PacketXf>(const float* from, Index begin, Index count) {
+  return svld1_f32(sve_segment_predicate_b32(begin, count), from);
+}
+
+template <>
+inline void pstoreuSegment<float, PacketXf>(float* to, const PacketXf& from, Index begin, Index count) {
+  svst1_f32(sve_segment_predicate_b32(begin, count), to, from);
+}
+
+/*---------------- double ----------------*/
+
+template <>
+struct has_packet_segment<PacketXd> : std::true_type {};
+
+template <>
+inline PacketXd ploaduSegment<PacketXd>(const double* from, Index begin, Index count) {
+  return svld1_f64(sve_segment_predicate_b64(begin, count), from);
+}
+
+template <>
+inline void pstoreuSegment<double, PacketXd>(double* to, const PacketXd& from, Index begin, Index count) {
+  svst1_f64(sve_segment_predicate_b64(begin, count), to, from);
+}
+
+/*---------------- end load/store segment support ----------------*/
+
 }  // namespace internal
 }  // namespace Eigen
 

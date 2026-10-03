@@ -2852,6 +2852,44 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
 
 /*---------------- load/store segment support ----------------*/
 
+template <>
+struct has_packet_segment<Packet4f> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8f> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4i> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8i> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4ui> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8ui> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet2d> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4d> : std::true_type {};
+
+#ifdef EIGEN_VECTORIZE_AVX2
+template <>
+struct has_packet_segment<Packet2l> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4l> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4ul> : std::true_type {};
+#endif
+
+// With AVX-512VL these packets use k-masked loads and stores instead; see AVX512/PacketMath.h.
+#ifndef EIGEN_VECTORIZE_AVX512VL
+
 // returns a mask of 8-bit elements (at most 4) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
 inline __m128i segment_mask_4x8(Index begin, Index count) {
   eigen_assert(begin >= 0 && begin + count <= 4);
@@ -2923,12 +2961,6 @@ inline __m256i segment_mask_4x64(Index begin, Index count) {
 /*---------------- float ----------------*/
 
 template <>
-struct has_packet_segment<Packet4f> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8f> : std::true_type {};
-
-template <>
 inline Packet4f ploaduSegment<Packet4f>(const float* from, Index begin, Index count) {
   return _mm_maskload_ps(from, segment_mask_4x32(begin, count));
 }
@@ -2949,12 +2981,6 @@ inline void pstoreuSegment<float, Packet8f>(float* to, const Packet8f& from, Ind
 }
 
 /*---------------- int32 ----------------*/
-
-template <>
-struct has_packet_segment<Packet4i> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8i> : std::true_type {};
 
 #ifdef EIGEN_VECTORIZE_AVX2
 
@@ -3005,12 +3031,6 @@ inline void pstoreuSegment<int, Packet8i>(int* to, const Packet8i& from, Index b
 /*---------------- uint32 ----------------*/
 
 template <>
-struct has_packet_segment<Packet4ui> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8ui> : std::true_type {};
-
-template <>
 inline Packet4ui ploaduSegment<Packet4ui>(const uint32_t* from, Index begin, Index count) {
   return Packet4ui(ploaduSegment<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
 }
@@ -3031,12 +3051,6 @@ inline void pstoreuSegment<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& f
 }
 
 /*---------------- double ----------------*/
-
-template <>
-struct has_packet_segment<Packet2d> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet4d> : std::true_type {};
 
 template <>
 inline Packet2d ploaduSegment<Packet2d>(const double* from, Index begin, Index count) {
@@ -3063,12 +3077,6 @@ inline void pstoreuSegment<double, Packet4d>(double* to, const Packet4d& from, I
 /*---------------- int64_t ----------------*/
 
 template <>
-struct has_packet_segment<Packet2l> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet4l> : std::true_type {};
-
-template <>
 inline Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
   return _mm_maskload_epi64(reinterpret_cast<const long long*>(from), segment_mask_2x64(begin, count));
 }
@@ -3088,9 +3096,6 @@ inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, const Packet4l& from,
 /*---------------- uint64_t ----------------*/
 
 template <>
-struct has_packet_segment<Packet4ul> : std::true_type {};
-
-template <>
 inline Packet4ul ploaduSegment<Packet4ul>(const uint64_t* from, Index begin, Index count) {
   return Packet4ul(ploaduSegment<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
 }
@@ -3099,6 +3104,8 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
   pstoreuSegment<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), Packet4l(from), begin, count);
 }
 #endif
+
+#endif  // EIGEN_VECTORIZE_AVX512VL
 
 /*---------------- end load/store segment support ----------------*/
 
