@@ -45,10 +45,10 @@ void gemv_bfloat16_strided_tail() {
 }
 #endif
 
-#if defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS
+#if (defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS) || defined(EIGEN_VECTORIZE_VSX)
 // Place packed A, packed B, and C right before PROT_NONE guard pages to catch
-// any out-of-bounds lookahead or tail over-read in AVX-512 GEBP kernels.
-template <typename Scalar>
+// any out-of-bounds lookahead or tail over-read in GEBP kernels.
+template <typename Scalar, int ResIncr = Dynamic>
 void gebp_guard_page_tail() {
   struct GuardedArena {
     long page_size;
@@ -75,7 +75,7 @@ void gebp_guard_page_tail() {
   };
 
   using Traits = internal::gebp_traits<Scalar, Scalar>;
-  using ResMapper = internal::blas_data_mapper<Scalar, Index, ColMajor, Unaligned, Dynamic>;
+  using ResMapper = internal::blas_data_mapper<Scalar, Index, ColMajor, Unaligned, ResIncr>;
   using LhsMapper = internal::const_blas_data_mapper<Scalar, Index, ColMajor>;
   using RhsMapper = internal::const_blas_data_mapper<Scalar, Index, ColMajor>;
   internal::gemm_pack_lhs<Scalar, Index, LhsMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing,
@@ -107,6 +107,7 @@ void gebp_guard_page_tail() {
         }
 
         for (Index inc : {1, 2}) {
+          if (ResIncr == 1 && inc != 1) continue;
           for (Scalar alpha : {Scalar(1), Scalar(2)}) {
             Index ldc = m * inc;
             Scalar* C = arenaC.place_at_end(ldc * n);
@@ -466,9 +467,16 @@ EIGEN_DECLARE_TEST(product_large) {
   CALL_SUBTEST_6(gemv_small_cols_systematic<0>());
   CALL_SUBTEST_6(gemv_rowmajor_large_stride_varied_rows<0>());
   CALL_SUBTEST_6(product_extreme_aspect_ratios<0>());
-#if defined(__unix__) && defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS
+#if defined(__unix__) && \
+    ((defined(EIGEN_VECTORIZE_AVX512) && EIGEN_USE_AVX512_GEMM_KERNELS) || defined(EIGEN_VECTORIZE_VSX))
   CALL_SUBTEST_6(gebp_guard_page_tail<float>());
   CALL_SUBTEST_6(gebp_guard_page_tail<double>());
+  CALL_SUBTEST_6(gebp_guard_page_tail<std::complex<float>>());
+  CALL_SUBTEST_6(gebp_guard_page_tail<std::complex<double>>());
+  CALL_SUBTEST_6((gebp_guard_page_tail<float, 1>()));
+  CALL_SUBTEST_6((gebp_guard_page_tail<double, 1>()));
+  CALL_SUBTEST_6((gebp_guard_page_tail<std::complex<float>, 1>()));
+  CALL_SUBTEST_6((gebp_guard_page_tail<std::complex<double>, 1>()));
 #endif
 
   // Regression test for bug 714:
