@@ -1189,6 +1189,10 @@ EIGEN_DEVICE_FUNC inline Packet pdupimag(const Packet& a) {
  * Special math functions
  ***************************/
 
+// Declared ahead of pisnan_impl so the complex case can use a backend's pisnan for the real packet.
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pisnan(const Packet& a);
+
 // Implemented without ptrue: an all-ones float packet is a NaN bit pattern, which under
 // fast-math flags clang turns into a poison constant that deletes any expression it flows
 // into.
@@ -1213,7 +1217,7 @@ struct pisnan_impl<Packet, true, false, IsInteger> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
     using RealPacket = typename unpacket_traits<Packet>::as_real;
     // A NaN in either the real or the imaginary lane marks the whole complex element.
-    Packet nan_lanes = Packet(pcmp_lt_or_nan<RealPacket>(a.v, a.v));
+    Packet nan_lanes = Packet(pisnan<RealPacket>(a.v));
     return por(nan_lanes, pcplxflip(nan_lanes));
   }
 };

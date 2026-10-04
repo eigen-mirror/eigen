@@ -1713,6 +1713,34 @@ EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const P
   return vreinterpretq_f32_u32(vmvnq_u32(neon_vcgeq_f32(a, b)));
 }
 
+// Classify with absolute comparisons against infinity: |a| >= inf holds only for +-inf, inf > |a| only for finite
+// values, and |a| <= inf fails only for NaN. Each is one instruction (FACGE/FACGT, VACGE/VACGT), is unaffected by
+// flushing subnormal inputs, and avoids the self-comparison a != a, which Clang rewrites into two comparisons.
+template <>
+EIGEN_STRONG_INLINE Packet2f pisinf<Packet2f>(const Packet2f& a) {
+  return vreinterpret_f32_u32(vcage_f32(a, pinf<Packet2f>()));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pisinf<Packet4f>(const Packet4f& a) {
+  return vreinterpretq_f32_u32(vcageq_f32(a, pinf<Packet4f>()));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2f pisfinite<Packet2f>(const Packet2f& a) {
+  return vreinterpret_f32_u32(vcagt_f32(pinf<Packet2f>(), a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pisfinite<Packet4f>(const Packet4f& a) {
+  return vreinterpretq_f32_u32(vcagtq_f32(pinf<Packet4f>(), a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2f pisnan<Packet2f>(const Packet2f& a) {
+  return vreinterpret_f32_u32(vmvn_u32(vcage_f32(pinf<Packet2f>(), a)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4f pisnan<Packet4f>(const Packet4f& a) {
+  return vreinterpretq_f32_u32(vmvnq_u32(vcageq_f32(pinf<Packet4f>(), a)));
+}
+
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
 template <>
 EIGEN_STRONG_INLINE Packet2f pand<Packet2f>(const Packet2f& a, const Packet2f& b) {
@@ -5351,6 +5379,22 @@ EIGEN_STRONG_INLINE Packet2d psqrt(const Packet2d& _x) {
   return vsqrtq_f64(_x);
 }
 
+// Absolute comparisons as for Packet4f.
+template <>
+EIGEN_STRONG_INLINE Packet2d pisinf<Packet2d>(const Packet2d& a) {
+  return vreinterpretq_f64_u64(vcageq_f64(a, pinf<Packet2d>()));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2d pisfinite<Packet2d>(const Packet2d& a) {
+  return vreinterpretq_f64_u64(vcagtq_f64(pinf<Packet2d>(), a));
+}
+// |bits| > inf bits as an unsigned comparison. !vcage(inf, a) is one instruction shorter inside a select, but Clang's
+// inliner charges more for the intrinsic, and pexp_complex<Packet1cd> sits within a few units of its threshold.
+template <>
+EIGEN_STRONG_INLINE Packet2d pisnan<Packet2d>(const Packet2d& a) {
+  return vreinterpretq_f64_u64(vcgtq_u64(vreinterpretq_u64_f64(vabsq_f64(a)), vdupq_n_u64(0x7ff0000000000000ull)));
+}
+
 #endif  // EIGEN_ARCH_ARM64
 
 // Do we have fp16 and support Neon intrinsics?
@@ -5864,6 +5908,32 @@ EIGEN_STRONG_INLINE Packet4hf pcmp_lt_or_nan<Packet4hf>(const Packet4hf& a, cons
   return vreinterpret_f16_u16(vmvn_u16(vcge_f16(a, b)));
 }
 
+// Absolute comparisons as for Packet4f.
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisinf<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vcage_f16(a, pinf<Packet4hf>()));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisinf<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vcageq_f16(a, pinf<Packet8hf>()));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisfinite<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vcagt_f16(pinf<Packet4hf>(), a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisfinite<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vcagtq_f16(pinf<Packet8hf>(), a));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisnan<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vmvn_u16(vcage_f16(pinf<Packet4hf>(), a)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisnan<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vmvnq_u16(vcageq_f16(pinf<Packet8hf>(), a)));
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8hf print<Packet8hf>(const Packet8hf& a) {
   return vrndnq_f16(a);
@@ -6229,6 +6299,41 @@ EIGEN_HALF_HORIZONTAL_REDUX(predux_max, max);
 #undef EIGEN_MAKE_HALF_BINOP
 
 #endif  // end EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+
+#if !EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC
+// Without FP16 arithmetic, half comparisons convert lane by lane. Classify on the raw bits instead, as for bfloat16:
+// |a| ==, >, < 0x7c00.
+EIGEN_STRONG_INLINE uint16x4_t neon_half_abs_bits(const Packet4hf& a) {
+  return vbic_u16(vreinterpret_u16_f16(a), vdup_n_u16(0x8000));
+}
+EIGEN_STRONG_INLINE uint16x8_t neon_half_abs_bits(const Packet8hf& a) {
+  return vbicq_u16(vreinterpretq_u16_f16(a), vdupq_n_u16(0x8000));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisinf<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vceq_u16(neon_half_abs_bits(a), vdup_n_u16(0x7c00)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisinf<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vceqq_u16(neon_half_abs_bits(a), vdupq_n_u16(0x7c00)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisnan<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vcgt_u16(neon_half_abs_bits(a), vdup_n_u16(0x7c00)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisnan<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vcgtq_u16(neon_half_abs_bits(a), vdupq_n_u16(0x7c00)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet4hf pisfinite<Packet4hf>(const Packet4hf& a) {
+  return vreinterpret_f16_u16(vclt_u16(neon_half_abs_bits(a), vdup_n_u16(0x7c00)));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8hf pisfinite<Packet8hf>(const Packet8hf& a) {
+  return vreinterpretq_f16_u16(vcltq_u16(neon_half_abs_bits(a), vdupq_n_u16(0x7c00)));
+}
+#endif
 
 #define EIGEN_MAKE_HALF_NEG_FMA(name, base, packet)                                                      \
   template <>                                                                                            \

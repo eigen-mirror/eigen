@@ -593,6 +593,56 @@ struct packetmath_integer_predicates_test<
   }
 };
 
+template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_float_predicates_test {
+  static void run() {}
+};
+
+// Floating-point pisnan/pisinf/pisfinite against the scalar predicates over signed zeros, subnormals, infinities and
+// NaNs with a payload. Masks are compared bitwise: true is ptrue of the tested type, false is +0.
+template <typename Scalar, typename Packet>
+struct packetmath_float_predicates_test<
+    Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex>> {
+  static void run() {
+    using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+    const int PacketSize = internal::unpacket_traits<Packet>::size;
+    Scalar inf = NumTraits<Scalar>::infinity();
+    Scalar nan = NumTraits<Scalar>::quiet_NaN();
+    Scalar values[] = {Scalar(0),
+                       -Scalar(0),
+                       Scalar(1),
+                       -Scalar(1),
+                       std::numeric_limits<Scalar>::denorm_min(),
+                       -std::numeric_limits<Scalar>::denorm_min(),
+                       (std::numeric_limits<Scalar>::min)(),
+                       NumTraits<Scalar>::highest(),
+                       NumTraits<Scalar>::lowest(),
+                       inf,
+                       -inf,
+                       nan,
+                       -nan,
+                       numext::bit_cast<Scalar>(Bits(numext::bit_cast<Bits>(nan) | Bits(1)))};
+    const int num_values = sizeof(values) / sizeof(values[0]);
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar res[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar lane_true[PacketSize];
+    internal::pstore(lane_true, internal::ptrue(internal::pset1<Packet>(Scalar(0))));
+    auto mask = [&](int i, bool expected) { return expected ? numext::bit_cast<Bits>(lane_true[i]) : Bits(0); };
+    for (int start = 0; start < num_values; start += PacketSize) {
+      for (int i = 0; i < PacketSize; ++i) data[i] = values[(start + i) % num_values];
+      internal::pstore(res, internal::pisnan(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isnan)(data[i])) && "pisnan");
+      internal::pstore(res, internal::pisinf(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isinf)(data[i])) && "pisinf");
+      internal::pstore(res, internal::pisfinite(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isfinite)(data[i])) && "pisfinite");
+    }
+  }
+};
+
 template <typename Scalar, typename Packet, typename = void>
 struct packetmath_64bit_boundary_test {
   static void run() {}
@@ -961,6 +1011,7 @@ void packetmath() {
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
   packetmath_integer_predicates_test<Scalar, Packet>::run();
+  packetmath_float_predicates_test<Scalar, Packet>::run();
   packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
   CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasAdd, REF_MADD, internal::pmadd);
