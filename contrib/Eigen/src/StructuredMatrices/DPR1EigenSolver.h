@@ -44,15 +44,12 @@ namespace Eigen {
  *
  * Both signs of \f$ \rho \f$ are supported (negative \f$ \rho \f$ is handled by
  * negating the matrix), as are \f$ \rho = 0 \f$, zero \c z, repeated diagonal
- * entries and any ordering of \c d. The problem is rescaled internally by
- * exact powers of two chosen from the component exponents alone, so data
- * anywhere in the representable range is handled without internal overflow --
- * including inputs for which \f$ \rho \|z\|^2 \f$ alone exceeds the largest
- * finite value while every eigenvalue is still representable. \c InvalidInput
- * is reported only for non-finite input or a spectrum that is itself not
- * representable. On well-scaled data the rescaling changes no bits of the
- * result (rounding can occur only at the subnormal boundary, far below the
- * deflation backward-error budget).
+ * entries and any ordering of \c d. The problem is rescaled internally by the
+ * exact power of two that brings \f$ \max(\|D\|_\infty, |\rho| \|z\|^2) \f$ into
+ * [1/2, 1), which changes no bits of the result when \f$ \rho \|z\|^2 \f$ and
+ * the scaled poles are normal. \c InvalidInput is reported for non-finite
+ * input, for an update \f$ \rho \|z\|^2 \f$ that overflows, and for a computed
+ * eigenvalue that is not finite.
  *
  * \code
  *   DPR1EigenSolver<double> es(d, rho, z);
@@ -66,15 +63,9 @@ namespace Eigen {
  *  - M. Gu and S. C. Eisenstat, "A stable and efficient algorithm for the
  *    rank-one modification of the symmetric eigenproblem," SIAM J. Matrix Anal.
  *    Appl., 15(4):1266-1276, 1994.
- *  - N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
- *    SIAM, 2002, chapter 27. Avoiding spurious overflow by rescaling with
- *    powers of two: the whole-problem scale chosen from component exponents
- *    and the (mantissa, exponent) handling of rho*||z||^2 follow this
- *    technique.
  *  - P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
- *    Scaling by a power of two is exact, the property the frexp/ldexp
- *    problem scaling and the full-range ArrayBase::ldexp unscaling of the
- *    eigenvalues rely on.
+ *    Scaling by a power of two is exact, the property the problem scaling
+ *    relies on.
  *
  * \sa class SelfAdjointEigenSolver
  */
@@ -118,9 +109,9 @@ class DPR1EigenSolver {
   }
 
   /** \returns \c Success if the decomposition succeeded, \c NoConvergence if a
-   * secular root or the spectrum's finite-range boundary could not be fully
-   * resolved, \c InvalidInput if the input was non-finite or its spectrum is
-   * not representable in the scalar type. */
+   * secular root could not be fully resolved, \c InvalidInput if the input was
+   * non-finite, \f$ \rho \|z\|^2 \f$ overflows, or a computed eigenvalue is
+   * not finite (the eigenvalues are then NaN). */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "DPR1EigenSolver is not initialized.");
     return m_info;
@@ -132,47 +123,6 @@ class DPR1EigenSolver {
     Index i, j;
     RealScalar c, s;
   };
-
-  struct DoubleWord {
-    RealScalar hi, lo;
-  };
-
-  enum class SpectrumRange { Representable, ExactBoundary, Overflow, Uncertain };
-
-  static DoubleWord addDoubleWords(const DoubleWord& x, const DoubleWord& y) {
-    DoubleWord result;
-    internal::twosum(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
-    return result;
-  }
-
-  static DoubleWord multiplyDoubleWords(const DoubleWord& x, const DoubleWord& y) {
-    DoubleWord result;
-    internal::twoprod(x.hi, x.lo, y.hi, y.lo, result.hi, result.lo);
-    return result;
-  }
-
-  static DoubleWord divideDoubleWords(const DoubleWord& x, const DoubleWord& y) {
-    DoubleWord quotient;
-    internal::doubleword_div_fp(x.hi, x.lo, y.hi, quotient.hi, quotient.lo);
-    const DoubleWord product = multiplyDoubleWords(quotient, y);
-    const DoubleWord remainder = addDoubleWords(x, DoubleWord{-product.hi, -product.lo});
-    DoubleWord correction;
-    internal::doubleword_div_fp(remainder.hi, remainder.lo, y.hi, correction.hi, correction.lo);
-    return addDoubleWords(quotient, correction);
-  }
-
-  static DoubleWord scaleDoubleWord(const DoubleWord& x, int exponent) {
-    EIGEN_USING_STD(ldexp)
-    DoubleWord result{ldexp(x.hi, exponent), ldexp(x.lo, exponent)};
-    if ((numext::isfinite)(result.hi)) {
-      DoubleWord normalized;
-      internal::fast_twosum(result.hi, result.lo, normalized.hi, normalized.lo);
-      result = normalized;
-    }
-    return result;
-  }
-
-  static SpectrumRange classifySpectrumRange(const VectorType& d, RealScalar rho, const VectorType& z);
 
   /** \internal Evaluates the shifted secular function
    * g(tau) = 1 + rho * sum_i zeta_i^2 / (delta_i - tau), with delta_i the pole
@@ -187,117 +137,6 @@ class DPR1EigenSolver {
   bool m_vectorsComputed = false;
   ComputationInfo m_info = InvalidInput;
 };
-
-template <typename RealScalar_>
-typename DPR1EigenSolver<RealScalar_>::SpectrumRange DPR1EigenSolver<RealScalar_>::classifySpectrumRange(
-    const VectorType& d, RealScalar rho, const VectorType& z) {
-  // For rho >= 0 only the largest eigenvalue can leave the finite range; with M = highest(), the
-  // matrix determinant lemma gives lambda_max <= M iff rho * sum_i z_i^2 / (M - d_i) <= 1. Evaluated
-  // from the original data, not the normalized secular problem, which has already rounded rho*||z||^2.
-  // Double-word arithmetic and its O(u^2) bounds follow Joldes, Muller and Popescu, "Tight and
-  // rigorous error bounds for basic building blocks of double-word arithmetic", ACM TOMS 44(2), 2017.
-  if (numext::is_exactly_zero_no_flush(rho)) return SpectrumRange::Representable;
-
-  EIGEN_USING_STD(frexp)
-  EIGEN_USING_STD(ldexp)
-  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
-  const RealScalar highestHalf = highest / RealScalar(2);
-  // A subnormal rho reaches this classification with a huge z; read its exponent from the representation.
-  int rhoExponent = 0;
-  const RealScalar rhoFraction = internal::frexp_preserving_subnormals(rho, rhoExponent);
-  DoubleWord sum{RealScalar(0), RealScalar(0)};
-  bool exactSumValid = true;
-  Index active = 0;
-
-  for (Index i = 0; i < d.size(); ++i) {
-    if (z[i] == RealScalar(0)) continue;
-    ++active;
-    if (d[i] == highest) return SpectrumRange::Overflow;
-
-    int zExponent = 0;
-    const RealScalar zFraction = frexp(numext::abs(z[i]), &zExponent);
-    DoubleWord numerator;
-    internal::twoprod(rhoFraction, zFraction, numerator.hi, numerator.lo);
-    const bool numeratorExact = numerator.lo == RealScalar(0) || zFraction == RealScalar(0.5);
-    if (zFraction == RealScalar(0.5)) {
-      numerator.hi *= zFraction;
-      numerator.lo *= zFraction;
-      DoubleWord normalized;
-      internal::fast_twosum(numerator.hi, numerator.lo, normalized.hi, normalized.lo);
-      numerator = normalized;
-    } else if (numerator.lo == RealScalar(0)) {
-      DoubleWord product;
-      internal::twoprod(numerator.hi, zFraction, product.hi, product.lo);
-      numerator = product;
-    } else {
-      DoubleWord product;
-      internal::twoprod(numerator.hi, numerator.lo, zFraction, product.hi, product.lo);
-      numerator = product;
-    }
-
-    // Work with (M - d_i)/2, which cannot overflow even when d_i = -M.
-    const RealScalar dHalf = d[i] / RealScalar(2);
-    DoubleWord denominator;
-    internal::twosum(highestHalf, RealScalar(0), -dHalf, RealScalar(0), denominator.hi, denominator.lo);
-    const bool denominatorExact = d[i] == RealScalar(0) || dHalf * RealScalar(2) == d[i];
-    const DoubleWord unscaledDenominator = denominator;
-    int denominatorExponent = 0;
-    frexp(unscaledDenominator.hi, &denominatorExponent);
-    const RealScalar scaledDenominatorHi = ldexp(unscaledDenominator.hi, -denominatorExponent);
-    const RealScalar scaledDenominatorLo = ldexp(unscaledDenominator.lo, -denominatorExponent);
-    const bool denominatorScaleExact = ldexp(scaledDenominatorHi, denominatorExponent) == unscaledDenominator.hi &&
-                                       ldexp(scaledDenominatorLo, denominatorExponent) == unscaledDenominator.lo;
-    denominator = scaleDoubleWord(unscaledDenominator, -denominatorExponent);
-
-    const int termExponent = rhoExponent + 2 * zExponent - denominatorExponent - 1;
-    const DoubleWord quotient = divideDoubleWords(numerator, denominator);
-    const DoubleWord term = scaleDoubleWord(quotient, termExponent);
-    if (!(numext::isfinite)(term.hi) || term.hi > RealScalar(2)) return SpectrumRange::Overflow;
-
-    const RealScalar previousSum = sum.hi;
-    sum = addDoubleWords(sum, term);
-    if (!(numext::isfinite)(sum.hi) || sum.hi > RealScalar(2)) return SpectrumRange::Overflow;
-
-    // Certify an exact endpoint equality only from terms whose division,
-    // exponent scaling, and scalar accumulation are all proven exact. This is
-    // deliberately stricter than the O(u^2) sign estimate below: a rounded
-    // equality must remain Uncertain rather than become a false Success.
-    if (exactSumValid) {
-      const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
-      bool exactTerm = numeratorExact && denominatorExact && denominatorScaleExact && denominator.lo == RealScalar(0) &&
-                       quotient.lo == RealScalar(0) && term.lo == RealScalar(0) && term.hi >= normalMin &&
-                       ldexp(term.hi, -termExponent) == quotient.hi;
-      if (exactTerm) {
-        DoubleWord recoveredNumerator;
-        internal::twoprod(quotient.hi, denominator.hi, recoveredNumerator.hi, recoveredNumerator.lo);
-        exactTerm = recoveredNumerator.hi == numerator.hi && recoveredNumerator.lo == numerator.lo;
-      }
-      if (exactTerm) {
-        const RealScalar larger = numext::maxi(previousSum, term.hi);
-        const RealScalar smaller = numext::mini(previousSum, term.hi);
-        // The reversible subtraction remains a proof if FTZ erases a
-        // subnormal low word from the double-word addition.
-        exactSumValid = sum.lo == RealScalar(0) && sum.hi - larger == smaller;
-      } else {
-        exactSumValid = false;
-      }
-    }
-  }
-
-  if (active == 0) return SpectrumRange::Representable;
-  if (exactSumValid && sum.hi == RealScalar(1)) return SpectrumRange::ExactBoundary;
-
-  const DoubleWord difference = addDoubleWords(sum, DoubleWord{RealScalar(-1), RealScalar(0)});
-  const RealScalar estimate = difference.hi + difference.lo;
-  const RealScalar unitRoundoff = NumTraits<RealScalar>::epsilon() / RealScalar(2);
-  // The factor 32 covers two products, corrected division, exponent scaling,
-  // and accumulation per active term. Proven exact endpoint equality is handled
-  // above rather than widened into the uncertainty interval.
-  const RealScalar error = RealScalar(32) * RealScalar(active + 1) * unitRoundoff * unitRoundoff;
-  if (estimate < -error) return SpectrumRange::Representable;
-  if (estimate > error) return SpectrumRange::Overflow;
-  return SpectrumRange::Uncertain;
-}
 
 template <typename RealScalar_>
 DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const VectorType& d, RealScalar rho,
@@ -326,87 +165,41 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     return *this;
   }
 
-  // rho's sign and exponent come from its representation: a comparison reads a negative subnormal as zero under DAZ,
-  // and the C library's frexp can flush it. rhoFrac is in [0.5, 1) or 0, and rhoW = |rho| is rebuilt exactly.
-  int rhoExp = 0;
-  RealScalar rhoFrac = internal::frexp_preserving_subnormals(rho, rhoExp);
-  const bool negated = rhoFrac < RealScalar(0);
-  if (negated) rhoFrac = -rhoFrac;
-  VectorType dW = negated ? VectorType(-d) : d;
-  RealScalar rhoW = internal::ldexp_preserving_subnormals(rhoFrac, rhoExp);
+  const bool negated = rho < RealScalar(0);
+  const VectorType dW = negated ? VectorType(-d) : d;
 
-  // pi maps each sorted working index to its input row. A comparison reads a
-  // subnormal pole as zero under flush-to-zero, so a diagonal below the recovery
-  // threshold is sorted on its exact power-of-two scale-up, which keeps the order.
-  const VectorType* sortKeys = &dW;
-  VectorType scaledKeys;
-  const int keyExponent = internal::structured_exponent_bound(dW);
-  if (keyExponent - 1 < internal::safe_scaling<RealScalar>::subnormal_recovery_exponent()) {
-    scaledKeys = dW;
-    internal::structured_ldexp_entries(scaledKeys, -keyExponent, keyExponent);
-    sortKeys = &scaledKeys;
-  }
+  // pi maps each sorted working index to its input row.
   std::vector<Index> pi;
   pi.reserve(static_cast<std::size_t>(n));
   for (Index i = 0; i < n; ++i) pi.push_back(i);
-  std::stable_sort(pi.begin(), pi.end(), [sortKeys](Index a, Index b) { return (*sortKeys)[a] < (*sortKeys)[b]; });
+  std::stable_sort(pi.begin(), pi.end(), [&dW](Index a, Index b) { return dW[a] < dW[b]; });
   VectorType ds(n), zs(n);
   for (Index i = 0; i < n; ++i) {
     ds[i] = dW[pi[static_cast<std::size_t>(i)]];
     zs[i] = z[pi[static_cast<std::size_t>(i)]];
   }
 
-  // Normalize z and absorb ||z||^2 into rho. Power-of-two scaling is exact away
-  // from the subnormal boundary, unlike the general scaling in LAPACK xLAED*.
+  // Normalize z and absorb ||z||^2 into rho, then scale the problem by the exact
+  // power of two s = 2^-scaleExp that brings max(||D||_inf, rho ||z||^2) into
+  // [1/2, 1): eig(sD + s rho zz^T) = s eig(D + rho zz^T).
+  const RealScalar znorm = zs.stableNorm();
+  if (znorm > RealScalar(0)) zs /= znorm;
+  RealScalar rhoW = rho == RealScalar(0) || znorm == RealScalar(0) ? RealScalar(0) : (numext::abs(rho) * znorm) * znorm;
+  if (!(numext::isfinite)(rhoW)) {
+    // An overflowing update would make the deflation tolerance infinite and
+    // silently deflate it away.
+    m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
+    m_info = InvalidInput;
+    m_isInitialized = true;
+    return *this;
+  }
   EIGEN_USING_STD(frexp)
   EIGEN_USING_STD(ldexp)
-  // With max|z_i| < 2^zExp, ||2^-zExp z|| is representable even if ||z|| is not.
-  const int zExp = internal::structured_exponent_bound(zs);
-  internal::structured_ldexp_entries(zs, -zExp, zExp);
-  const RealScalar znorm = zs.stableNorm();  // in [0.5, sqrt(n)): safe
-  int znormExp = 0;
-  const RealScalar znormFrac = frexp(znorm, &znormExp);
-  if (znorm > RealScalar(0)) zs /= znorm;
-  // Store rho ||z||^2 = rhoMant * 2^rhoTotExp without materializing a possibly
-  // overflowing product; each mantissa factor lies in [1/4,1).
-  int rhoAdj = 0;
-  const RealScalar rhoMant = frexp((rhoFrac * znormFrac) * znormFrac, &rhoAdj);  // in [0.5, 1), or 0
-  // Each frexp exponent is bounded by the scalar's exponent range, but their
-  // accumulation is kept in a wide integer type until the (clamped) narrowing
-  // to the int that ldexp takes.
-  const numext::int64_t rhoTotExp =
-      numext::int64_t(rhoExp) + 2 * (numext::int64_t(zExp) + numext::int64_t(znormExp)) + numext::int64_t(rhoAdj);
-  // For s = 2^-scaleExp, eig(sD + s rho zz^T) = s eig(D + rho zz^T).
-  // Choose s so max(||sD||_inf, s rho ||z||^2) lies in [1/2,1), comparing the
-  // two scales as mantissa-exponent pairs to avoid overflow.
-  int dExp = 0;
-  const RealScalar dFrac = internal::frexp_preserving_subnormals(
-      internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(ds, ds.cwiseAbs().maxCoeff()), dExp);
-  RealScalar scaledNorm;  // max(|d|_inf, rho*||z||^2) * 2^-scaleExp, in [0.5, 1) (or 0 for a zero matrix)
-  numext::int64_t scaleExpWide;
-  if (rhoMant == RealScalar(0) ||
-      (dFrac > RealScalar(0) &&
-       (numext::int64_t(dExp) > rhoTotExp || (numext::int64_t(dExp) == rhoTotExp && dFrac >= rhoMant)))) {
-    scaledNorm = dFrac;
-    scaleExpWide = dExp;
-  } else {
-    scaledNorm = rhoMant;
-    scaleExpWide = rhoTotExp;
-  }
-  // Clamp before narrowing: 2^(2^30) is far beyond any scalar's exponent
-  // range, so the clamp never changes which values are representable.
-  const numext::int64_t expCap = numext::int64_t(1) << 30;
-  const int scaleExp = static_cast<int>(numext::maxi(-expCap, numext::mini(expCap, scaleExpWide)));
-  SpectrumRange spectrumRange = SpectrumRange::Representable;
-  if (scaleExpWide >= numext::int64_t(std::numeric_limits<RealScalar>::max_exponent) - 1) {
-    spectrumRange = classifySpectrumRange(dW, rhoW, z);
-  }
-  // Every pole matters whatever its size relative to the largest, so scale exactly.
-  internal::structured_ldexp_entries_exact(ds, -scaleExp);
-  // Materialize rho * ||z||^2 only in scaled form: its exponent is <= 0 by the
-  // choice of scaleExp, so this cannot overflow; it can only underflow when
-  // the update is negligible against |d|_inf, in which case it deflates below.
-  rhoW = ldexp(rhoMant, static_cast<int>(numext::maxi(-expCap, rhoTotExp - scaleExpWide)));
+  RealScalar scaledNorm = numext::maxi(ds.cwiseAbs().maxCoeff(), rhoW);  // in [1/2, 1) once scaled
+  int scaleExp = 0;
+  if (scaledNorm > RealScalar(0)) scaledNorm = frexp(scaledNorm, &scaleExp);
+  ds = ds.array().ldexp(-scaleExp).matrix();
+  rhoW = ldexp(rhoW, -scaleExp);
 
   // Backward-error budget: dropping a coupling of size <= tol perturbs the
   // matrix by O(tol), like LAPACK's xLAED2. Using max(|d|_inf, rho*||z||^2) as
@@ -612,28 +405,10 @@ DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const Vector
     for (Index i = 0; i < n; ++i) m_eivec(pi[static_cast<std::size_t>(i)], outCol) = wvec[i];
   }
 
-  // Undo the problem scaling in one full-range pass: exact for representable
-  // results, saturating genuine overflow to infinity (validated below), and
-  // keeping eigenvalues that land in the subnormal range under flush-to-zero.
-  internal::structured_ldexp_entries_exact(m_eivalues, scaleExp);
-
-  // Range classification uses the original data. The normalized secular
-  // problem can round a root across the maximum-finite boundary before this
-  // rescaling, so finiteness of the rounded result alone is not evidence that
-  // the exact spectrum is (or is not) representable.
-  const Index extreme = negated ? 0 : n - 1;
-  const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
-  if (spectrumRange == SpectrumRange::Overflow) {
+  m_eivalues = m_eivalues.array().ldexp(scaleExp).matrix();
+  if (!m_eivalues.allFinite()) {
     m_eivalues.setConstant(NumTraits<RealScalar>::quiet_NaN());
     m_info = InvalidInput;
-  } else {
-    // A proven boundary root and a root the rescaling saturated to infinity both belong at the
-    // largest finite value: the first is exactly it, the second rounded across it.
-    if (spectrumRange == SpectrumRange::ExactBoundary || !(numext::isfinite)(m_eivalues[extreme])) {
-      m_eivalues[extreme] = negated ? -highest : highest;
-    }
-    if (spectrumRange == SpectrumRange::Uncertain && m_info == Success) m_info = NoConvergence;
-    if (!m_eivalues.allFinite() && m_info == Success) m_info = NoConvergence;
   }
 
   m_vectorsComputed = computeVectors && m_info != InvalidInput;

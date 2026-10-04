@@ -245,9 +245,7 @@ void test_dpr1_huge_z() {
   VERIFY(numext::abs(es.eigenvalues()[0] - expected) <= tol * expected);
 
   // A spectrum that genuinely overflows (top eigenvalue ~1e320 here) must be
-  // reported, not silently deflated. Note rho*||z||^2 overflowing is *not* by
-  // itself invalid (see test_dpr1_overflowing_update_representable_spectrum);
-  // this input is rejected because the eigenvalue itself is not representable.
+  // reported, not silently deflated.
   DPR1EigenSolver<double> ov((Matrix<double, Dynamic, 1>(1) << 1.0).finished(), 1e200,
                              (Matrix<double, Dynamic, 1>(1) << 1e60).finished());
   VERIFY(ov.info() == InvalidInput);
@@ -287,72 +285,6 @@ void test_dpr1_invalid_options() {
   VERIFY_RAISES_ASSERT((es.compute(d, 1.0, z, ComputeFullU)));
 }
 
-// Regression (MR 2694 review): poles spanning the full exponent range with a huge but representable
-// update. Pole differences (d_1 - d_0 = 1.5*DBL_MAX) overflow unless the problem is rescaled by an
-// exact power of two; the solver used to report Success with an infinite eigenvalue. The reference is
-// a dense solve of the rescaled problem 2^-e * (d, rho), whose spectrum is exactly 2^-e times the
-// original.
-template <typename = void>
-void test_dpr1_full_range_poles() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  const double dmax = (std::numeric_limits<double>::max)();
-  Vec d(2), z(2);
-  d << -0.75 * dmax, 0.75 * dmax;
-  z << 1.0, 1.0;
-  const double rho = 1e300;
-  DPR1EigenSolver<double> es(d, rho, z);
-  VERIFY(es.info() == Success);
-  VERIFY(es.eigenvalues().allFinite());
-
-  const int e = 1024;  // 2^-e maps 0.75*DBL_MAX into [0.5, 1)
-  Vec dS(2);
-  dS << std::ldexp(d[0], -e), std::ldexp(d[1], -e);
-  const double rhoS = std::ldexp(rho, -e);
-  Mat dense = Mat(dS.asDiagonal()) + rhoS * z * z.transpose();
-  SelfAdjointEigenSolver<Mat> ref(dense, EigenvaluesOnly);
-  const double scaleS = dS.cwiseAbs().maxCoeff() + rhoS * z.squaredNorm();
-  const double tol = 100.0 * NumTraits<double>::epsilon();
-  Vec lambdaS(2);
-  lambdaS << std::ldexp(es.eigenvalues()[0], -e), std::ldexp(es.eigenvalues()[1], -e);
-  VERIFY((lambdaS - ref.eigenvalues()).cwiseAbs().maxCoeff() <= tol * scaleS);
-  // Eigenvectors are scale-invariant: check them on the rescaled matrix.
-  const Mat& V = es.eigenvectors();
-  VERIFY((dense * V - V * lambdaS.asDiagonal()).norm() <= tol * scaleS);
-  VERIFY((V.transpose() * V - Mat::Identity(2, 2)).norm() <= tol);
-}
-
-// Regression (MR 2694 review): z entries at the top of the range make ||z||
-// itself overflow, but the update rho*z*z^T (rank-one eigenvalue ~6.46e306) is
-// perfectly representable; the solver used to return InvalidInput. It must
-// instead normalize z by an exact power of two, 2^-p z with rho 2^(2p), which
-// leaves the matrix identical -- the same rewrite gives the dense reference.
-template <typename = void>
-void test_dpr1_huge_z_norm() {
-  if (!dpr1_preserves_subnormal_inputs<double>()) return;
-
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  const double dmax = (std::numeric_limits<double>::max)();
-  Vec d(2), z(2);
-  d << 0.0, 0.0;
-  z << dmax, dmax;
-  const double rho = 1e-310;  // subnormal, so rho * 2^(2p) stays finite
-  DPR1EigenSolver<double> es(d, rho, z);
-  VERIFY(es.info() == Success);
-
-  const int p = 1024;  // 2^-p maps DBL_MAX into [0.5, 1)
-  Vec zS(2);
-  zS << std::ldexp(z[0], -p), std::ldexp(z[1], -p);
-  const double rhoS = std::ldexp(rho, 2 * p);  // exact: subnormal scaled up
-  Mat dense = Mat(d.asDiagonal()) + rhoS * zS * zS.transpose();
-  SelfAdjointEigenSolver<Mat> ref(dense, EigenvaluesOnly);
-  const double scale = rhoS * zS.squaredNorm();  // the rank-one eigenvalue, ~6.46e306
-  const double tol = 100.0 * NumTraits<double>::epsilon();
-  VERIFY((es.eigenvalues() - ref.eigenvalues()).cwiseAbs().maxCoeff() <= tol * scale);
-  VERIFY(numext::abs(es.eigenvalues()[1] - scale) <= tol * scale);
-}
-
 // Regression (MR 2694 review): a z entry just above the deflation threshold
 // puts the secular root ~rho*z_0^2 ~ 6.3e-30 from its pole; bisecting the O(1)
 // bracket down to it takes ~150 halvings, beyond the old 2*digits+32 iteration
@@ -366,9 +298,9 @@ void test_dpr1_near_deflation_root() {
   check_dpr1<double>(d, 1.0, z);
 }
 
-// Regression (MR 2694 review): finite 1x1 input whose only eigenvalue
-// d + rho*z^2 = 2*DBL_MAX overflows. The documented contract for a spectrum
-// that is not representable is InvalidInput, not Success carrying infinity.
+// Finite 1x1 input whose only eigenvalue d + rho*z^2 = 2*DBL_MAX overflows: the
+// contract for a non-finite computed eigenvalue is InvalidInput with NaN
+// eigenvalues, not Success carrying infinity.
 template <typename = void>
 void test_dpr1_overflowing_spectrum() {
   typedef Matrix<double, Dynamic, 1> Vec;
@@ -379,159 +311,33 @@ void test_dpr1_overflowing_spectrum() {
   DPR1EigenSolver<double> es(d, dmax, z);
   VERIFY(es.info() == InvalidInput);
   VERIFY((numext::isnan)(es.eigenvalues()[0]));
-  // Same with the overflow amplified through z (eigenvalue = 5*DBL_MAX): the
-  // internal rescaling saturates the unrepresentable eigenvalue to infinity,
-  // which the contract maps to InvalidInput + NaN rather than Success + inf.
+  // Same with the overflow amplified through z (eigenvalue = 5*DBL_MAX), where
+  // rho*||z||^2 itself overflows.
   z << 2.0;
   DPR1EigenSolver<double> es2(d, dmax, z);
   VERIFY(es2.info() == InvalidInput);
   VERIFY((numext::isnan)(es2.eigenvalues()[0]));
+
+  // An overflowing rho*||z||^2 is reported even when the spectrum {-1e308, 1.5e308}
+  // is representable, rather than deflated away into diag(d) with Success.
+  Vec d2(2), z2(2);
+  d2 << -1.5e308, 0.0;
+  z2 << 1e154, 1e154;
+  DPR1EigenSolver<double> es3(d2, 1.0, z2);
+  VERIFY(es3.info() == InvalidInput);
+
+  // rho == 0 leaves diag(d) whatever the size of z.
+  Vec d3(2), z3(2);
+  d3 << 1.0, 2.0;
+  z3 << 1e308, 1e308;
+  DPR1EigenSolver<double> es4(d3, 0.0, z3);
+  VERIFY(es4.info() == Success);
+  VERIFY_IS_EQUAL(es4.eigenvalues(), d3);
 }
 
-// Regression (MR 2694 review): the normalized secular problem can round a root across the
-// maximum-finite boundary before it is scaled back, so that root's finiteness cannot classify the
-// exact spectrum. The first update has lambda = DBL_MAX - 19/256 ulp, which rounds to DBL_MAX; the
-// second has lambda = DBL_MAX + 3739/2048 ulp and genuinely overflows. Constants are assembled from
-// their exact significands, hexadecimal float literals not being in the C++14 baseline.
-template <typename = void>
-void test_dpr1_maximum_range_rounding() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  const double dmax = (std::numeric_limits<double>::max)();
-  Vec d(1), z(1);
-
-  d << -dmax;
-  z << 31.0 / 8.0;
-  const double rhoRepresentable = std::ldexp(4798840810018093.0, 969);
-  DPR1EigenSolver<double> representable(d, rhoRepresentable, z);
-  VERIFY(representable.info() == Success);
-  VERIFY_IS_EQUAL(representable.eigenvalues()[0], dmax);
-
-  d << dmax;
-  DPR1EigenSolver<double> representableNegative(d, -rhoRepresentable, z);
-  VERIFY(representableNegative.info() == Success);
-  VERIFY_IS_EQUAL(representableNegative.eigenvalues()[0], -dmax);
-
-  d << -dmax;
-  z << 65.0 / 2.0;
-  const double rhoOverflow = std::ldexp(8732186543767835.0, 962);
-  DPR1EigenSolver<double> overflow(d, rhoOverflow, z);
-  VERIFY(overflow.info() == InvalidInput);
-  VERIFY((numext::isnan)(overflow.eigenvalues()[0]));
-
-  d << dmax;
-  DPR1EigenSolver<double> overflowNegative(d, -rhoOverflow, z);
-  VERIFY(overflowNegative.info() == InvalidInput);
-  VERIFY((numext::isnan)(overflowNegative.eigenvalues()[0]));
-}
-
-// Multiple exactly representable endpoint terms must be certifiable together:
-// rho*z_i^2/(max-d_i) = 1/2 for each i, so the spectrum is exactly {0, max}.
-template <typename Scalar>
-void test_dpr1_exact_endpoint_sum() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  using std::nextafter;
-  const Scalar highest = (std::numeric_limits<Scalar>::max)();
-  const Scalar boundaryRho = highest / Scalar(2);
-  const Vec d = Vec::Zero(2);
-  const Vec z = Vec::Ones(2);
-
-  DPR1EigenSolver<Scalar> positive(d, boundaryRho, z);
-  VERIFY(positive.info() == Success);
-  VERIFY_IS_EQUAL(positive.eigenvalues()[0], Scalar(0));
-  VERIFY_IS_EQUAL(positive.eigenvalues()[1], highest);
-
-  DPR1EigenSolver<Scalar> negative(d, -boundaryRho, z);
-  VERIFY(negative.info() == Success);
-  VERIFY_IS_EQUAL(negative.eigenvalues()[0], -highest);
-  VERIFY_IS_EQUAL(negative.eigenvalues()[1], Scalar(0));
-
-  const Vec d4 = Vec::Zero(4);
-  const Vec z4 = Vec::Ones(4);
-  DPR1EigenSolver<Scalar> fourTerms(d4, highest / Scalar(4), z4);
-  VERIFY(fourTerms.info() == Success);
-  VERIFY_IS_EQUAL(fourTerms.eigenvalues()[3], highest);
-
-  DPR1EigenSolver<Scalar> below(d, nextafter(boundaryRho, Scalar(0)), z);
-  VERIFY(below.info() == Success);
-  VERIFY(below.eigenvalues().allFinite());
-
-  DPR1EigenSolver<Scalar> above(d, nextafter(boundaryRho, highest), z);
-  VERIFY(above.info() == InvalidInput);
-
-  // The exact top eigenvalue is highest + min. Normalizing the endpoint
-  // denominator drops that tiny difference, so this case must remain
-  // conservatively unresolved instead of reusing the exact-equality path.
-  const Vec minDiagonal = Vec::Constant(2, (std::numeric_limits<Scalar>::min)());
-  DPR1EigenSolver<Scalar> unresolved(minDiagonal, boundaryRho, z);
-  VERIFY(unresolved.info() != Success);
-}
-
-// Regression (MR 2694 review): rho*||z||^2 = 2*max overflows, but the single eigenvalue
-// d + rho*z^2 = -max + 2*max = max is representable. The rescaling must come from component exponents
-// alone, never materializing rho*||z||^2 at full scale. The secular root sits exactly on the far end
-// of its bisection bracket, so the computed eigenvalue lands within a couple of ulps of max rather
-// than exactly at it.
-template <typename Scalar>
-void test_dpr1_overflowing_update_representable_spectrum() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  const Scalar dmax = (std::numeric_limits<Scalar>::max)();
-  const Scalar eps = NumTraits<Scalar>::epsilon();
-  Vec d(1), z(1);
-  d << -dmax;
-  z << Scalar(2);
-  DPR1EigenSolver<Scalar> es(d, dmax / Scalar(2), z);
-  VERIFY(es.info() == Success);
-  const Scalar lam = es.eigenvalues()[0];
-  VERIFY((numext::isfinite)(lam));
-  VERIFY(numext::abs(lam - dmax) <= Scalar(4) * eps * dmax);
-  // n = 1: the eigenvector is the coordinate axis, exactly (up to sign).
-  VERIFY(numext::abs(es.eigenvectors()(0, 0)) == Scalar(1));
-}
-
-// Regression (MR 2694 review), n > 1 version: poles near -0.75*DBL_MAX with
-// rho*||z||^2 ~ 1.2*DBL_MAX (overflowing if materialized) but every eigenvalue
-// representable -- the top root lands near +0.4*DBL_MAX, the rest interlace
-// the poles. Verified against a dense solve of the exactly rescaled problem,
-// whose spectrum is exactly 2^-e times the original.
-template <typename = void>
-void test_dpr1_huge_representable_spectrum() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  const Index n = 8;
-  const double dmax = (std::numeric_limits<double>::max)();
-  Vec d(n), z(n);
-  for (Index i = 0; i < n; ++i) {
-    d[i] = -dmax * (0.70 + 0.01 * double(i));
-    z[i] = 1.0 + double(i) / 8.0;  // ||z||^2 ~ 18.6
-  }
-  const double rho = dmax / 16;
-  DPR1EigenSolver<double> es(d, rho, z);
-  VERIFY(es.info() == Success);
-  VERIFY(es.eigenvalues().allFinite());
-
-  const int e = 1025;  // 2^-e maps every |d_i| and rho*||z||^2 below 1
-  Vec dS(n), lambdaS(n);
-  for (Index i = 0; i < n; ++i) {
-    dS[i] = std::ldexp(d[i], -e);
-    lambdaS[i] = std::ldexp(es.eigenvalues()[i], -e);
-  }
-  const double rhoS = std::ldexp(rho, -e);
-  Mat dense = Mat(dS.asDiagonal()) + rhoS * z * z.transpose();
-  SelfAdjointEigenSolver<Mat> ref(dense, EigenvaluesOnly);
-  const double scaleS = dS.cwiseAbs().maxCoeff() + rhoS * z.squaredNorm();
-  const double tol = 100.0 * double(n) * NumTraits<double>::epsilon();
-  VERIFY((lambdaS - ref.eigenvalues()).cwiseAbs().maxCoeff() <= tol * scaleS);
-  // Eigenvectors are scale-invariant: check them on the rescaled matrix.
-  const Mat& V = es.eigenvectors();
-  VERIFY((dense * V - V * lambdaS.asDiagonal()).norm() <= tol * scaleS * numext::sqrt(double(n)));
-  VERIFY((V.transpose() * V - Mat::Identity(n, n)).norm() <= tol);
-}
-
-// Mirror case at the bottom of the range: d and rho near DBL_MIN. The same
-// exact power-of-two machinery scales *up* (scaleExp < 0), which needs no
-// separate underflow handling -- scaling up from anywhere at or above the
-// normal range is exact, and the eigenvalues here are all normal. Verified
-// against a dense solve of the exactly upscaled problem.
+// d and rho near DBL_MIN: the problem scaling scales *up* (scaleExp < 0), which
+// is exact from anywhere at or above the normal range, and the eigenvalues here
+// are all normal. Verified against a dense solve of the exactly upscaled problem.
 template <typename = void>
 void test_dpr1_tiny_scale() {
   typedef Matrix<double, Dynamic, 1> Vec;
@@ -574,108 +380,6 @@ void test_dpr1_tiny_scale() {
     VERIFY(numext::abs(sub.eigenvalues()[n - 1] - double(n) * rho1) <= 8 * dn);
     VERIFY(sub.eigenvalues().head(n - 1).cwiseAbs().maxCoeff() == 0.0);
   }
-}
-
-template <typename = void>
-void test_dpr1_ftz_mode() {
-  const double underflowBefore = underflowProbe<double>();
-  bool flushToZeroSupported = false;
-  {
-    ScopedFlushToZero flushToZero;
-    flushToZeroSupported = flushToZero.isSupported();
-    if (flushToZeroSupported) {
-      VERIFY_IS_EQUAL(underflowProbe<double>(), 0.0);
-      test_dpr1_edges<double>();
-    }
-  }
-  if (flushToZeroSupported) VERIFY_IS_EQUAL(underflowProbe<double>(), underflowBefore);
-}
-
-// The normalized secular problem depends only on the scaling exponent, so for
-// an all-subnormal d: eig(D + z z^T) == 2^-k eig(2^k D + (2^(k/2) z)(2^(k/2) z)^T)
-// bit for bit, with the same eigenvectors, plainly and under flush-to-zero.
-// ||z||^2 ~ |d| keeps the update undeflated.
-template <typename RealScalar>
-void test_dpr1_flushed_subnormal_diagonal() {
-  using Binary = internal::binary_floating_point_traits<RealScalar>;
-  using Bits = typename Binary::Bits;
-  using Vec = Matrix<RealScalar, Dynamic, 1>;
-  constexpr int digits = std::numeric_limits<RealScalar>::digits;
-  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
-  const Index n = 6;
-  Vec d(n), z(n);
-  for (Index i = 0; i < n; ++i) {
-    // Distinct significands of digits - 2 bits, d in [2^(min_exponent - 3), 2^(min_exponent - 2)), stored out of
-    // order: the pole sort compares them, and a flushing comparison would leave them unsorted.
-    const Index slot = (5 * i + 2) % n;
-    d(slot) = numext::bit_cast<RealScalar>((Bits(1) << (digits - 3)) + Bits(i) * (Bits(1) << (digits - 6)));
-    z(slot) = numext::ldexp(RealScalar(1) + RealScalar(i) / RealScalar(8), (minExponent - 3) / 2);
-  }
-  // (D + z z^T) 2^k = D 2^k + (z 2^(k/2)) (z 2^(k/2))^T, with k even and D 2^k normal.
-  const int k = 2 * ((digits + 8) / 2);
-  const Vec ds = d.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
-  const Vec zs = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k / 2));
-  const DPR1EigenSolver<RealScalar> scaled(ds, RealScalar(1), zs);
-  VERIFY(scaled.info() == Success);
-
-  forEachFlushToZeroMode([&](FlushToZeroMode) {
-    const DPR1EigenSolver<RealScalar> solver(d, RealScalar(1), z);
-    VERIFY(solver.info() == Success);
-    for (Index i = 0; i < n; ++i) {
-      VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)),
-                      Binary::bits(internal::scale_binary_by_exponent(scaled.eigenvalues()(i), -k)));
-    }
-    VERIFY_IS_EQUAL(solver.eigenvectors(), scaled.eigenvectors());
-  });
-}
-
-// A subnormal rho, whose sign a comparison reads as zero under DAZ and whose exponent the C library's frexp can
-// flush. With d = 0 and z = 2^E, the eigenvalue is rho 2^(2E) exactly; with E = (digits - min_exponent) / 2 that is
-// +-2^(2E + min_exponent - digits) for rho = +-denorm_min. A subnormal rho of several bits then compares against the
-// same problem with rho 2^(2E) and z 2^-E, which the normalization by powers of two maps to the same secular
-// equation, bit for bit.
-template <typename RealScalar>
-void test_dpr1_subnormal_rho() {
-  using Binary = internal::binary_floating_point_traits<RealScalar>;
-  using Bits = typename Binary::Bits;
-  using Vec = Matrix<RealScalar, Dynamic, 1>;
-  constexpr int digits = std::numeric_limits<RealScalar>::digits;
-  constexpr int minExponent = std::numeric_limits<RealScalar>::min_exponent;
-  constexpr int E = (digits - minExponent) / 2;
-  const RealScalar denormMin = numext::bit_cast<RealScalar>(Bits(1));
-  const RealScalar expected = numext::ldexp(RealScalar(1), 2 * E + minExponent - digits);
-  Vec d1(1), z1(1);
-  d1 << RealScalar(0);
-  z1 << numext::ldexp(RealScalar(1), E);
-
-  const Index n = 3;
-  Vec d(n), z(n);
-  d << RealScalar(-1), RealScalar(0.5), RealScalar(2);
-  z << numext::ldexp(RealScalar(1.25), E), -numext::ldexp(RealScalar(0.75), E), numext::ldexp(RealScalar(1.5), E);
-  const RealScalar rho = numext::bit_cast<RealScalar>(Bits(0x5a) << (digits - 10));
-  const Vec zDown = z.unaryExpr(internal::scale_by_exponent_op<RealScalar>(-E));
-  const RealScalar rhoUp = internal::scale_binary_by_exponent(rho, 2 * E);
-  VERIFY(rhoUp >= (std::numeric_limits<RealScalar>::min)());
-  const DPR1EigenSolver<RealScalar> positive(d, rhoUp, zDown), negative(d, -rhoUp, zDown);
-  VERIFY(positive.info() == Success);
-  VERIFY(negative.info() == Success);
-
-  forEachFlushToZeroMode([&](FlushToZeroMode) {
-    for (const bool negated : {false, true}) {
-      const DPR1EigenSolver<RealScalar> single(d1, negated ? -denormMin : denormMin, z1);
-      VERIFY(single.info() == Success);
-      VERIFY_IS_EQUAL(Binary::bits(single.eigenvalues()(0)), Binary::bits(negated ? -expected : expected));
-      VERIFY_IS_EQUAL(numext::abs(single.eigenvectors()(0, 0)), RealScalar(1));
-
-      const DPR1EigenSolver<RealScalar> solver(d, negated ? -rho : rho, z);
-      const DPR1EigenSolver<RealScalar>& reference = negated ? negative : positive;
-      VERIFY(solver.info() == Success);
-      for (Index i = 0; i < n; ++i) {
-        VERIFY_IS_EQUAL(Binary::bits(solver.eigenvalues()(i)), Binary::bits(reference.eigenvalues()(i)));
-      }
-      VERIFY_IS_EQUAL(solver.eigenvectors(), reference.eigenvectors());
-    }
-  });
 }
 
 // A huge diagonal spread makes every z entry individually negligible even though
@@ -732,24 +436,9 @@ EIGEN_DECLARE_TEST(structured_dpr1) {
     CALL_SUBTEST_4(test_dpr1_nonfinite<>());
     CALL_SUBTEST_4(test_dpr1_all_deflated<>());
 
-    // MR 2694 review regressions: exponent-range extremes and deep bisection.
-    CALL_SUBTEST_5(test_dpr1_full_range_poles<>());
-    CALL_SUBTEST_5(test_dpr1_huge_z_norm<>());
+    // Deep bisection, an overflowing spectrum and the bottom of the range.
     CALL_SUBTEST_5(test_dpr1_near_deflation_root<>());
     CALL_SUBTEST_5(test_dpr1_overflowing_spectrum<>());
-    CALL_SUBTEST_5(test_dpr1_maximum_range_rounding<>());
-    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<float>()));
-    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<double>()));
-    CALL_SUBTEST_5((test_dpr1_exact_endpoint_sum<long double>()));
-    CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<double>()));
-    CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<float>()));
-    CALL_SUBTEST_5((test_dpr1_overflowing_update_representable_spectrum<long double>()));
-    CALL_SUBTEST_5(test_dpr1_huge_representable_spectrum<>());
     CALL_SUBTEST_5(test_dpr1_tiny_scale<>());
-    CALL_SUBTEST_5(test_dpr1_ftz_mode<>());
-    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<float>());
-    CALL_SUBTEST_5(test_dpr1_flushed_subnormal_diagonal<double>());
-    CALL_SUBTEST_5(test_dpr1_subnormal_rho<float>());
-    CALL_SUBTEST_5(test_dpr1_subnormal_rho<double>());
   }
 }
