@@ -411,11 +411,13 @@ struct llt_inplace<Scalar, Lower> {
   static Index blocked(MatrixType& m) {
     eigen_assert(m.rows() == m.cols());
     Index size = m.rows();
-    if (size < 32) return unblocked(m);
+    // The unblocked kernel walks row k of the factor, which strides through memory: it wins up to about 48 columns,
+    // and beyond that 16-column blocks keep those walks short while amortizing the level-3 updates.
+    if (size <= 48) return unblocked(m);
 
     Index blockSize = size / 8;
     blockSize = (blockSize / 16) * 16;
-    blockSize = (std::min)((std::max)(blockSize, Index(8)), Index(128));
+    blockSize = (std::min)((std::max)(blockSize, Index(16)), Index(128));
 
     for (Index k = 0; k < size; k += blockSize) {
       // partition the matrix:
