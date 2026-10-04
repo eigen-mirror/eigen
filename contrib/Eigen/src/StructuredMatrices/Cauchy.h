@@ -216,10 +216,10 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   }
 
   /** \returns the product expression \c (*this) * \a v, evaluated directly at
-   * O(mn) operations and O(1) extra storage. The expression carries the default
-   * product tag, so assigning it behaves like any dense product: a temporary
-   * resolves aliasing between the destination and \a v, and \c .noalias() skips
-   * it. */
+   * O(mn) operations per right-hand side and at most O(m) extra storage. The
+   * expression carries the default product tag, so assigning it behaves like any
+   * dense product: a temporary resolves aliasing between the destination and
+   * \a v, and \c .noalias() skips it. */
   template <typename Rhs>
   Product<Cauchy, Rhs> operator*(const MatrixBase<Rhs>& v) const {
     EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
@@ -232,7 +232,9 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   /** \internal Computes \c dst += alpha * (*this) * rhs. \c ProductScalar is the
    * promoted scalar of the product (complex when a real operator is applied to a
    * complex right-hand side); the accumulation runs in the promoted type. Each
-   * column of the operator is formed on the fly, vectorized over the rows. */
+   * column of the operator is formed on the fly, vectorized over the rows; for
+   * several right-hand sides of the operator's own scalar type it is formed once
+   * per block of rows and reused across them, with identical results. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = cols();
@@ -240,11 +242,30 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
     const bool unitAlpha = alpha == ProductScalar(1);
-    for (Index k = 0; k < rhs.cols(); ++k)
-      for (Index j = 0; j < n; ++j) {
-        const ProductScalar w = unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
-        dst.col(k) += w * (m_x.array() - m_y.coeff(j)).inverse().matrix();
+    const auto weight = [&](Index j, Index k) {
+      return unitAlpha ? ProductScalar(rhs.coeff(j, k)) : ProductScalar(alpha * rhs.coeff(j, k));
+    };
+    // Reuse saves (r-1)/r of the divisions. A real operator applied to a complex
+    // right-hand side gains nothing: the complex updates dominate its real divisions.
+    if (rhs.cols() > 1 && std::is_same<ProductScalar, Scalar>::value) {
+      // Row blocks keep the r destination columns of a block in cache across all
+      // n reciprocal columns; the floor keeps the per-column updates long.
+      constexpr Index kBlockBytes = Index(1) << 19;
+      constexpr Index kMinBlockRows = 1024;
+      const Index m = rows(), r = rhs.cols();
+      const Index blockRows = numext::mini(m, numext::maxi(kMinBlockRows, kBlockBytes / (r * Index(sizeof(Scalar)))));
+      Matrix<Scalar, Dynamic, 1, ColMajor, Rows_> reciprocals(blockRows);
+      for (Index i = 0; i < m; i += blockRows) {
+        const Index b = numext::mini(blockRows, m - i);
+        for (Index j = 0; j < n; ++j) {
+          reciprocals.head(b) = (m_x.segment(i, b).array() - m_y.coeff(j)).inverse();
+          for (Index k = 0; k < r; ++k) dst.col(k).segment(i, b) += weight(j, k) * reciprocals.head(b);
+        }
       }
+      return;
+    }
+    for (Index k = 0; k < rhs.cols(); ++k)
+      for (Index j = 0; j < n; ++j) dst.col(k) += weight(j, k) * (m_x.array() - m_y.coeff(j)).inverse().matrix();
   }
 
  private:

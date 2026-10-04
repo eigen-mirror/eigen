@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 // Vandermonde and Cauchy operators with n x n nodes: products Y = A X with r
-// right-hand sides, the GKO factorization CauchyLU and the closed-form
-// determinants.
+// right-hand sides (also for a tall m x 32 Cauchy), the GKO factorization
+// CauchyLU and the closed-form determinants.
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Dense>
@@ -39,6 +39,14 @@ void BM_VandermondeProduct(benchmark::State& state) {
 
 void BM_CauchyProduct(benchmark::State& state) { runProduct(state, interlacedCauchy(state.range(0))); }
 
+// A tall m x 32 Cauchy matrix (m = range(0)), where the r destination columns
+// outgrow the cache.
+void BM_CauchyProductTall(benchmark::State& state) {
+  const Index m = state.range(0), n = 32;
+  runProduct(state,
+             Cauchy<double>(Vec(Vec::LinSpaced(m, 0.5, double(m) - 0.5)), Vec(Vec::LinSpaced(n, 0.0, double(n - 1)))));
+}
+
 void BM_CauchyLU(benchmark::State& state) {
   const Cauchy<double> C = interlacedCauchy(state.range(0));
   for (auto _ : state) {
@@ -67,6 +75,7 @@ void Products(benchmark::Benchmark* b) {
 
 BENCHMARK(BM_VandermondeProduct)->Apply(Products);
 BENCHMARK(BM_CauchyProduct)->Apply(Products);
+BENCHMARK(BM_CauchyProductTall)->ArgsProduct({{1 << 16, 1 << 20}, {4, 16}});
 BENCHMARK(BM_CauchyLU)->Arg(64)->Arg(256)->Arg(1024);
 BENCHMARK(BM_VandermondeDeterminant)->Arg(64)->Arg(256)->Arg(1024);
 BENCHMARK(BM_CauchyDeterminant)->Arg(64)->Arg(256)->Arg(1024);

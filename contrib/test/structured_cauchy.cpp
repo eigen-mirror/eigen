@@ -67,6 +67,30 @@ void test_cauchy_product(Index m, Index n) {
   Vec w0 = w;
   w.noalias() += C * v;
   VERIFY_IS_APPROX(w, (w0 + dense * v).eval());
+
+  // Several right-hand sides share each reciprocal column; -= passes alpha = -1.
+  Mat W = Mat::Random(m, 3);
+  const Mat W0 = W;
+  W.noalias() -= C * V;
+  VERIFY_IS_APPROX(W, (W0 - dense * V).eval());
+}
+
+// With 100 right-hand sides, 1100 rows exceed the 1024-row block floor of the
+// multi-column product, so the rows split into a full and a ragged block.
+template <typename Scalar>
+void test_cauchy_product_row_blocks() {
+  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  const Index m = 1100, n = 8, r = 100;
+  Vec x, y;
+  separated_nodes<Scalar>(m, n, x, y);
+  Cauchy<Scalar> C(x, y);
+  const Mat dense = reference_cauchy<Scalar>(x, y);
+  const Mat V = Mat::Random(n, r);
+  Mat W = Mat::Random(m, r);
+  const Mat W0 = W;
+  W.noalias() -= C * V;
+  VERIFY_IS_APPROX(W, (W0 - dense * V).eval());
 }
 
 template <typename Scalar>
@@ -385,6 +409,12 @@ void test_cauchy_mixed_scalar(Index m, Index n) {
   w.noalias() += C * v;
   VERIFY_IS_APPROX(w, (w0 + dense * v).eval());
 
+  CMat V = CMat::Random(n, 3);
+  CMat W = CMat::Random(m, 3);
+  const CMat W0 = W;
+  W.noalias() -= C * V;
+  VERIFY_IS_APPROX(W, (W0 - dense * V).eval());
+
   CVec xc, yc;
   separated_nodes<Complex>(m, n, xc, yc);
   Cauchy<Complex> Cc(xc, yc);
@@ -534,6 +564,12 @@ void test_cauchy_fixed() {
   Matrix<Scalar, M, 1> w2;
   w2.noalias() = C * v;
   VERIFY_IS_APPROX(w2, (dense * v).eval());
+
+  // Several right-hand sides take the fixed-size reciprocal workspace.
+  const Matrix<Scalar, N, 3> V = Matrix<Scalar, N, 3>::Random();
+  Matrix<Scalar, M, 3> W;
+  W.noalias() = C * V;
+  VERIFY_IS_APPROX(W, (dense * V).eval());
 }
 
 EIGEN_DECLARE_TEST(structured_cauchy) {
@@ -546,6 +582,8 @@ EIGEN_DECLARE_TEST(structured_cauchy) {
     CALL_SUBTEST_1((test_cauchy_product<float>(10, 10)));
     CALL_SUBTEST_1((test_cauchy_product<std::complex<double>>(9, 7)));
     CALL_SUBTEST_1((test_cauchy_product<std::complex<float>>(7, 9)));
+    CALL_SUBTEST_1(test_cauchy_product_row_blocks<double>());
+    CALL_SUBTEST_1(test_cauchy_product_row_blocks<std::complex<double>>());
     CALL_SUBTEST_1((test_cauchy_transpose<double>(10, 14)));
     CALL_SUBTEST_1((test_cauchy_transpose<std::complex<double>>(8, 6)));
 
