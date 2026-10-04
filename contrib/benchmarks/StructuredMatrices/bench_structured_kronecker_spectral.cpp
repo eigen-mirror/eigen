@@ -29,7 +29,7 @@ void BM_KroneckerLeastSquaresMultiRhs(benchmark::State& state) {
     benchmark::ClobberMemory();
   }
 }
-BENCHMARK_TEMPLATE(BM_KroneckerLeastSquaresMultiRhs, double)->ArgsProduct({{8, 16, 32}, {1, 8, 64}});
+BENCHMARK_TEMPLATE(BM_KroneckerLeastSquaresMultiRhs, double)->ArgsProduct({{8, 16, 32, 64}, {1, 8, 64}});
 BENCHMARK_TEMPLATE(BM_KroneckerLeastSquaresMultiRhs, std::complex<double>)->ArgsProduct({{8, 16}, {1, 8, 64}});
 
 template <typename Scalar>

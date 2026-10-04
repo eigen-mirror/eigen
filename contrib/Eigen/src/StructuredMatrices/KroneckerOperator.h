@@ -402,11 +402,12 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
  *   right-hand sides are applied in cache-sized batches, one product with each
  *   factor per batch;
  * - linear solves and \ref inverse factor through decompositions of \c A and
- *   \c B (\f$ (A \otimes B)^{-1} = A^{-1} \otimes B^{-1} \f$); \ref rank and
- *   minimum-norm least-squares solves (\f$ (A \otimes B)^+ = A^+ \otimes B^+ \f$)
- *   go through the factor SVDs, thresholding the pairwise singular-value
- *   products \f$ \sigma_i(A)\,\sigma_j(B) \f$ -- the singular values of the
- *   Kronecker product -- at the product level;
+ *   \c B (\f$ (A \otimes B)^{-1} = A^{-1} \otimes B^{-1} \f$); minimum-norm
+ *   least-squares solves (\f$ (A \otimes B)^+ = A^+ \otimes B^+ \f$) use one
+ *   complete orthogonal decomposition per factor, deciding each factor's rank
+ *   on its own; \ref rank goes through the factor SVDs, thresholding the
+ *   pairwise singular-value products \f$ \sigma_i(A)\,\sigma_j(B) \f$ -- the
+ *   singular values of the Kronecker product -- at the product level;
  * - the eigendecomposition and the (thin) SVD are Kronecker products of the
  *   factor decompositions: the eigenvector and singular-vector matrices are
  *   returned as \c KroneckerOperator objects themselves, never materialized;
@@ -610,20 +611,27 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   }
 
   /** \returns the minimum-norm least-squares solution of \c (*this) * x = b,
-   * through one SVD per factor: with \f$ A = U_A \Sigma_A V_A^H \f$ and
-   * \f$ B = U_B \Sigma_B V_B^H \f$, the SVD of the product is
-   * \f$ (U_A \otimes U_B)(\Sigma_A \otimes \Sigma_B)(V_A \otimes V_B)^H \f$, and
-   * the pseudo-inverse is applied via the vec identity. The singular values of
-   * the product are the pairwise products \f$ \sigma_i(A)\,\sigma_j(B) \f$, so
-   * the truncation thresholds those products against the product-level
-   * threshold of \ref rank, in the same overflow-safe ratio form -- factor-wise
-   * truncation would invert modes that are negligible at the product level.
-   * Handles rectangular and rank-deficient factors. Supports multiple
-   * right-hand sides, applied in cache-sized batches with one product per
-   * factor matrix per batch. A retained mode is scaled by the reciprocal of
-   * \f$ \sigma_i(A)\,\sigma_j(B) \f$, which loses precision once that product
-   * exceeds \f$ 2^{e_{max}-2} \f$ and vanishes once it overflows, even when the
-   * solution \f$ x \f$ is representable. */
+   * from one complete orthogonal decomposition per factor. Since
+   * \f$ (A \otimes B)^+ = A^+ \otimes B^+ \f$, the solution is
+   * \f$ X = B^+ \mathrm{mat}(b)\,(A^+)^T \f$, applied as one multi-right-hand-side
+   * solve with each factor's decomposition per batch, no SVD needed. Handles
+   * rectangular and rank-deficient factors. Supports multiple right-hand sides,
+   * applied in cache-sized batches.
+   *
+   * The numerical rank is decided per factor, from the diagonal of the pivoted
+   * QR inside \c CompleteOrthogonalDecomposition (so, as for any column-pivoted
+   * QR, a near-deficiency of the Kahan type can go undetected). This is
+   * backward stable: the decompositions perturb \c A and \c B separately, so
+   * each product singular value \f$ \sigma_i(A)\,\sigma_j(B) \f$ inherits only
+   * its factors' relative errors. It therefore need not agree with \ref rank,
+   * which thresholds the pairwise singular-value products at the product level:
+   * factors that are each full rank can form modes that \ref rank drops but this
+   * method inverts.
+   *
+   * Each factor is scaled by an exact power of two before its decomposition, so
+   * factor magnitudes alone cannot over- or underflow the decompositions or the
+   * intermediates; the right-hand side is not rescaled. A non-finite factor
+   * solves to NaN. */
   template <typename Rhs>
   Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> leastSquaresSolve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
@@ -631,35 +639,29 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index m1 = m_A.rows(), m2 = m_B.rows(), n1 = m_A.cols(), n2 = m_B.cols(), r = b.cols();
     eigen_assert(b.rows() == m1 * m2 && "right-hand side has the wrong number of rows");
-    BDCSVD<DenseMatrix, ComputeThinU | ComputeThinV> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
-    const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
-    const Index kA = sa.size(), kB = sb.size();
     Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(cols(), r);
-    if (sa[0] == RealScalar(0) || sb[0] == RealScalar(0)) {
-      // An exactly zero factor zeroes the whole operator, whose pseudo-inverse is
-      // zero (and the singular-value ratios below would be 0/0).
-      x.setZero();
+    // The pivoted QR squares column norms, which over- or underflow on extreme
+    // factor magnitudes, so decompose 2^-eA A and 2^-eB B and fold
+    // 2^-(eA+eB) back into the solution.
+    DenseMatrix An = LhsOps::denseFactor(m_A), Bn = RhsOps::denseFactor(m_B);
+    if (!An.allFinite() || !Bn.allFinite()) {
+      // The pivoted QR would rank a non-finite column out instead of propagating it.
+      x.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
       return x;
     }
-    // The reciprocals of the retained singular-value products, as in SVDBase::solve.
-    const RealScalar tol = relativeRankThreshold();
-    const SingularModes modesA(sa), modesB(sb);
-    Matrix<RealScalar, Dynamic, Dynamic, ColMajor> inverses(kB, kA);
-    for (Index j = 0; j < kA; ++j)
-      for (Index i = 0; i < kB; ++i)
-        inverses(i, j) = modesA.retains(modesB, j, i, tol) ? RealScalar(1) / (sa[j] * sb[i]) : RealScalar(0);
+    const int eA = internal::structured_exponent_bound(An), eB = internal::structured_exponent_bound(Bn);
+    internal::structured_ldexp_entries_exact(An, -eA);
+    internal::structured_ldexp_entries_exact(Bn, -eB);
+    const CompleteOrthogonalDecomposition<DenseMatrix> codA(An), codB(Bn);
     typename internal::nested_eval<Rhs, 1>::type actualRhs(b.derived());
-    DenseMatrix S, T, M, V, X;
-    const Index chunk = rhsChunk<Scalar>(m1 * m2 + kB * m1 + kB * kA + n2 * kA + n1 * n2);
+    DenseMatrix S, Z, X;
+    const Index chunk = rhsChunk<Scalar>(m1 * m2 + n2 * m1 + n1 * n2);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
-      // By [1], block k of M = U_B^H mat(b_k) conj(U_A) matricizes (U_A (x) U_B)^H b_k.
       stackColumns(S, actualRhs.middleCols(k0, c), m2, m1);
-      T.noalias() = svdB.matrixU().adjoint() * S.reshaped(m2, c * m1);
-      M.noalias() = T.reshaped(kB * c, m1) * svdA.matrixU().conjugate();
-      M.array() *= inverses.array().replicate(c, fix<1>);
-      V.noalias() = svdB.matrixV() * M.reshaped(kB, c * kA);
-      X.noalias() = V.reshaped(n2 * c, kA) * svdA.matrixV().transpose();
+      Z = codB.solve(S.reshaped(m2, c * m1));
+      X = codA.solve(Z.reshaped(n2 * c, m1).transpose()).transpose();
+      internal::structured_ldexp_entries(X, -(eA + eB));
       for (Index k = 0; k < c; ++k) x.col(k0 + k).reshaped(n2, n1) = X.middleRows(k * n2, n2);
     }
     return x;
@@ -675,11 +677,11 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \f$ (\sigma_i(A)/\sigma_{max}(A))(\sigma_j(B)/\sigma_{max}(B)) \f$ against
    * \c min(rows(),cols()) * epsilon, and the clamp in exponent space, so that
    * neither the thresholds nor the products can spuriously under- or overflow.
-   * This is the same threshold \ref leastSquaresSolve uses to decide which
-   * modes to invert. Thresholding the products matters: factors that are each
+   * Thresholding the products matters: factors that are each
    * full rank against their own threshold can still form pairwise products
    * that are negligible at the product level, so the rank can be smaller than
-   * the product of the factor ranks. */
+   * the product of the factor ranks. This costs two SVDs; \ref leastSquaresSolve
+   * decides each factor's rank on its own instead. */
   Index rank() const {
     BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
@@ -952,7 +954,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return numext::maxi(Index(1), budget / numext::maxi(perColumn, Index(1)));
   }
 
-  /** \internal \returns the relative rank/pseudo-inversion threshold for the
+  /** \internal \returns the relative rank threshold for the
    * pairwise singular-value products, in the spirit of the SVD-based
    * pseudo-inverse: a mode \c (i,j) is kept when
    * \c (sa[i]/sa[0]) * (sb[j]/sb[0]) >= min(rows,cols) * epsilon, the \c SVDBase
@@ -967,8 +969,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     return RealScalar(numext::mini(rows(), cols())) * NumTraits<RealScalar>::epsilon();
   }
 
-  // Factor-level ratios and frexp decompositions are independent of the RHS and
-  // of the other factor. Keep rank() and pseudo-inversion on the same predicate.
+  // Factor-level ratios and frexp decompositions, independent of the other factor.
   struct SingularModes {
     explicit SingularModes(const RealVector& s) : ratios(s.size()), mantissas(s.size()), exponents(s.size()) {
       for (Index i = 0; i < s.size(); ++i) {
@@ -980,7 +981,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     }
 
     bool retains(const SingularModes& other, Index i, Index j, RealScalar tol) const {
-      // Negation keeps NaN ratios in the inverted set, matching SVDBase.
+      // Negation counts NaN ratios as retained, matching SVDBase.
       if (ratios[i] * other.ratios[j] < tol) return false;
       const RealScalar m = mantissas[i] * other.mantissas[j];
       if (!(numext::isfinite)(m)) return true;

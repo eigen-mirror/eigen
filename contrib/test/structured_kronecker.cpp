@@ -361,35 +361,62 @@ void test_kron_least_squares_rank_deficient(Index m1, Index n1, Index m2, Index 
   VERIFY_IS_APPROX(x, dense.completeOrthogonalDecomposition().solve(b).eval());
 }
 
-// Near-rank-deficiency must be judged at the product level: with
+// leastSquaresSolve() decomposes each factor scaled by an exact power of two,
+// so scaling a factor by 2^s scales the solution by exactly 2^-s -- including
+// for s where the unscaled pivoted QR's squared column norms overflow
+// (2^(2s) > max) or underflow. A non-finite factor solves to NaN
+// instead of being ranked out by the pivoted QR.
+template <typename Scalar>
+void test_kron_least_squares_scaling(Index m1, Index n1, Index m2, Index n2) {
+  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
+  const int maxExp = std::numeric_limits<RealScalar>::max_exponent;
+
+  Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2), b = Mat::Random(m1 * m2, 3);
+  const Mat x0 = KroneckerOperator<Mat, Mat>(A, B).leastSquaresSolve(b);
+  for (int s : {maxExp / 2 + 8, -(maxExp / 2 + 12)}) {
+    const RealScalar up = std::ldexp(RealScalar(1), s), down = std::ldexp(RealScalar(1), -s);
+    const Mat xa = KroneckerOperator<Mat, Mat>(A * up, B).leastSquaresSolve(b);
+    const Mat xb = KroneckerOperator<Mat, Mat>(A, B * down).leastSquaresSolve(b);
+    VERIFY((xa * up).eval() == x0);
+    VERIFY((xb * down).eval() == x0);
+  }
+
+  Mat Ainf = A, Bnan = B;
+  Ainf(m1 - 1, 0) = Scalar(std::numeric_limits<RealScalar>::infinity());
+  Bnan(0, n2 - 1) = Scalar(std::numeric_limits<RealScalar>::quiet_NaN());
+  const Mat xinf = KroneckerOperator<Mat, Mat>(Ainf, B).leastSquaresSolve(b);
+  const Mat xnan = KroneckerOperator<Mat, Mat>(A, Bnan).leastSquaresSolve(b);
+  VERIFY(xinf.array().isNaN().all());
+  VERIFY(xnan.array().isNaN().all());
+}
+
+// rank() judges near-rank-deficiency at the product level: with
 // A = B = diag(1, 1e-8) each factor is full rank against its own threshold, but
 // the smallest singular value of the product, 1e-16, falls below the
-// product-level threshold min(rows,cols) * eps * sigma_max(A) * sigma_max(B).
-// The rank is 3 -- matching the dense complete orthogonal decomposition -- and
-// leastSquaresSolve() must truncate the 1e-16 mode instead of inverting it.
+// product-level threshold min(rows,cols) * eps * sigma_max(A) * sigma_max(B),
+// so rank() is 3 -- matching the dense complete orthogonal decomposition.
+// leastSquaresSolve() decides rank per factor instead (it never forms the
+// pairwise products), so it applies A^+ (x) B^+ with both 1e-8 modes inverted.
 void test_kron_product_level_rank() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
-  const double small = 1e-8;  // sqrt(eps)-ish: kept per factor, truncated as a pairwise product
+  const double small = 1e-8;
   Mat A(2, 2);
   A << 1, 0, 0, small;
   Mat B = A;
   KroneckerOperator<Mat, Mat> K(A, B);
   Mat dense = reference_kron<double>(A, B);
 
-  CompleteOrthogonalDecomposition<Mat> cod(dense);
-  VERIFY_IS_EQUAL(cod.rank(), 3);
-  VERIFY_IS_EQUAL(K.rank(), cod.rank());
+  VERIFY_IS_EQUAL(K.rank(), 3);
+  VERIFY_IS_EQUAL(K.rank(), CompleteOrthogonalDecomposition<Mat>(dense).rank());
 
+  Mat Ainv(2, 2);
+  Ainv << 1, 0, 0, 1 / small;
   Vec b = Vec::Random(4);
   Vec x = K.leastSquaresSolve(b);
-  VERIFY_IS_APPROX(x, cod.solve(b).eval());
-  // Direct encoding of "the 1e-16 mode is not inverted": the solution is bounded
-  // by the reciprocal of the smallest kept singular value (with slack), far below
-  // the 1e16 blow-up an inverted product mode would produce.
-  const double invertedModeBound = double(10) / small;  // smallest kept product singular value is `small`
-  VERIFY(x.norm() <= invertedModeBound * b.norm());
+  VERIFY_IS_APPROX(x, (reference_kron<double>(Ainv, Ainv) * b).eval());
 }
 
 // det(A (x) B) = det(A)^n2 * det(B)^n1 must be accumulated with exponent
@@ -476,8 +503,7 @@ void test_kron_rank_ratio_threshold() {
 // The ratio test alone dropped SVDBase's smallest-normal clamp: a subnormal
 // product singular value, whose reciprocal overflows, must count as an exact
 // zero. A = [1], B = [DBL_MIN/2] has the singular value DBL_MIN/2: the dense
-// rank is 0 and the pseudo-inverse is zero, but without the clamp the
-// structured rank was 1 and leastSquaresSolve returned ~9e307. The boundary
+// rank is 0, but without the clamp the structured rank was 1. The boundary
 // DBL_MIN itself stays rank one, matching SVDBase::rank()'s >= convention.
 void test_kron_rank_min_normal_clamp() {
   typedef Matrix<double, Dynamic, 1> Vec;
@@ -494,8 +520,12 @@ void test_kron_rank_min_normal_clamp() {
   VERIFY_IS_EQUAL(K.rank(), svd.rank());
   Vec b(1);
   b << 1.0;
-  VERIFY_IS_EQUAL(K.leastSquaresSolve(b).norm(), 0.0);
   VERIFY_IS_EQUAL(svd.solve(b).norm(), 0.0);
+  // leastSquaresSolve has no singular values to clamp: the factor is full rank
+  // against its own scale, and 1 / (DBL_MIN / 2) is representable.
+  Vec x = K.leastSquaresSolve(b);
+  VERIFY(x.allFinite());
+  VERIFY_IS_APPROX(x[0], 2 / mn);
 
   // Boundary: the smallest normal number is the smallest kept singular value.
   Mat B2(1, 1);
@@ -1743,6 +1773,9 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_15((test_kron_least_squares<std::complex<double>>(6, 4, 5, 3)));
     CALL_SUBTEST_3((test_kron_least_squares_rank_deficient<double>(6, 4, 5, 3)));
     CALL_SUBTEST_15((test_kron_least_squares_rank_deficient<std::complex<double>>(5, 3, 4, 4)));
+    CALL_SUBTEST_3((test_kron_least_squares<float>(6, 4, 5, 3)));
+    CALL_SUBTEST_3((test_kron_least_squares_scaling<double>(6, 4, 3, 5)));
+    CALL_SUBTEST_15((test_kron_least_squares_scaling<std::complex<float>>(4, 5, 6, 3)));
 
     // Eigendecomposition, SVD, inverse, determinant.
     CALL_SUBTEST_4((test_kron_eigen<double>(4, 5)));
