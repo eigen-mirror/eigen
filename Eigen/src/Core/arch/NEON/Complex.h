@@ -203,16 +203,19 @@ EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2c
 #else
 template <>
 EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
-  Packet4f v1, v2;
-
-  // Get the real values of a | a1_re | a1_re | a2_re | a2_re |
-  v1 = vcombine_f32(vdup_lane_f32(vget_low_f32(a.v), 0), vdup_lane_f32(vget_high_f32(a.v), 0));
-  // Get the imag values of a | a1_im | a1_im | a2_im | a2_im |
-  v2 = vcombine_f32(vdup_lane_f32(vget_low_f32(a.v), 1), vdup_lane_f32(vget_high_f32(a.v), 1));
+  // a_re = | a1_re | a1_re | a2_re | a2_re |, a_im = | a1_im | a1_im | a2_im | a2_im |
+#if EIGEN_ARCH_ARM64
+  Packet4f a_re = vtrn1q_f32(a.v, a.v);
+  Packet4f a_im = vtrn2q_f32(a.v, a.v);
+#else
+  // ARMv7 vtrn overwrites both operands, so vtrnq_f32(a, a) costs a copy and measured slower than two vdup.
+  Packet4f a_re = vcombine_f32(vdup_lane_f32(vget_low_f32(a.v), 0), vdup_lane_f32(vget_high_f32(a.v), 0));
+  Packet4f a_im = vcombine_f32(vdup_lane_f32(vget_low_f32(a.v), 1), vdup_lane_f32(vget_high_f32(a.v), 1));
+#endif
   // Multiply the real a with b
-  v1 = vmulq_f32(v1, b.v);
+  Packet4f v1 = vmulq_f32(a_re, b.v);
   // Multiply the imag a with b
-  v2 = vmulq_f32(v2, b.v);
+  Packet4f v2 = vmulq_f32(a_im, b.v);
   // Conjugate v2
   v2 = vreinterpretq_f32_u32(veorq_u32(vreinterpretq_u32_f32(v2), p4ui_CONJ_XOR()));
   // Swap real/imag elements in v2.
@@ -331,31 +334,26 @@ EIGEN_STRONG_INLINE void pstoreu<std::complex<float>>(std::complex<float>* to, c
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet1cf pgather<std::complex<float>, Packet1cf>(const std::complex<float>* from,
-                                                                           Index stride) {
-  const Packet2f tmp = vdup_n_f32(std::real(from[0 * stride]));
-  return Packet1cf(vset_lane_f32(std::imag(from[0 * stride]), tmp, 1));
+EIGEN_DEVICE_FUNC inline Packet1cf pgather<std::complex<float>, Packet1cf>(const std::complex<float>* from, Index) {
+  return ploadu<Packet1cf>(from);
 }
 template <>
 EIGEN_DEVICE_FUNC inline Packet2cf pgather<std::complex<float>, Packet2cf>(const std::complex<float>* from,
                                                                            Index stride) {
-  Packet4f res = vdupq_n_f32(std::real(from[0 * stride]));
-  res = vsetq_lane_f32(std::imag(from[0 * stride]), res, 1);
-  res = vsetq_lane_f32(std::real(from[1 * stride]), res, 2);
-  res = vsetq_lane_f32(std::imag(from[1 * stride]), res, 3);
-  return Packet2cf(res);
+  return Packet2cf(vcombine_f32(vld1_f32(reinterpret_cast<const float*>(from)),
+                                vld1_f32(reinterpret_cast<const float*>(from + stride))));
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<std::complex<float>, Packet1cf>(std::complex<float>* to, const Packet1cf& from,
-                                                                       Index stride) {
-  to[stride * 0] = std::complex<float>(vget_lane_f32(from.v, 0), vget_lane_f32(from.v, 1));
+                                                                       Index) {
+  pstoreu(to, from);
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<std::complex<float>, Packet2cf>(std::complex<float>* to, const Packet2cf& from,
                                                                        Index stride) {
-  to[stride * 0] = std::complex<float>(vgetq_lane_f32(from.v, 0), vgetq_lane_f32(from.v, 1));
-  to[stride * 1] = std::complex<float>(vgetq_lane_f32(from.v, 2), vgetq_lane_f32(from.v, 3));
+  vst1_f32(reinterpret_cast<float*>(to), vget_low_f32(from.v));
+  vst1_f32(reinterpret_cast<float*>(to + stride), vget_high_f32(from.v));
 }
 
 template <>
@@ -378,7 +376,7 @@ EIGEN_STRONG_INLINE std::complex<float> pfirst<Packet2cf>(const Packet2cf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2cf preverse(const Packet2cf& a) {
-  return Packet2cf(vcombine_f32(vget_high_f32(a.v), vget_low_f32(a.v)));
+  return Packet2cf(vextq_f32(a.v, a.v, 2));
 }
 
 template <>
@@ -616,18 +614,14 @@ EIGEN_STRONG_INLINE void prefetch<std::complex<double>>(const std::complex<doubl
 }
 
 template <>
-EIGEN_DEVICE_FUNC inline Packet1cd pgather<std::complex<double>, Packet1cd>(const std::complex<double>* from,
-                                                                            Index stride) {
-  Packet2d res = pset1<Packet2d>(0.0);
-  res = vsetq_lane_f64(std::real(from[0 * stride]), res, 0);
-  res = vsetq_lane_f64(std::imag(from[0 * stride]), res, 1);
-  return Packet1cd(res);
+EIGEN_DEVICE_FUNC inline Packet1cd pgather<std::complex<double>, Packet1cd>(const std::complex<double>* from, Index) {
+  return ploadu<Packet1cd>(from);
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<std::complex<double>, Packet1cd>(std::complex<double>* to, const Packet1cd& from,
-                                                                        Index stride) {
-  to[stride * 0] = std::complex<double>(vgetq_lane_f64(from.v, 0), vgetq_lane_f64(from.v, 1));
+                                                                        Index) {
+  pstoreu(to, from);
 }
 
 template <>

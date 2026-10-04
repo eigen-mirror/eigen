@@ -1412,13 +1412,44 @@ EIGEN_STRONG_INLINE Packet2ul pmax<Packet2ul>(const Packet2ul& a, const Packet2u
   return vaddq_u64(b, vqsubq_u64(a, b));
 }
 
+// GCC defines the ARM32 vcge/vcgt float intrinsics as generic vector comparisons and, unless
+// -funsafe-math-optimizations is given, expands them one lane at a time through VFP, because Advanced SIMD
+// flushes subnormal inputs. Emit the Advanced SIMD comparison directly, as Clang does.
+#if EIGEN_COMP_GNUC_STRICT && !EIGEN_ARCH_ARM64
+EIGEN_STRONG_INLINE uint32x2_t neon_vcge_f32(float32x2_t a, float32x2_t b) {
+  uint32x2_t r;
+  __asm__("vcge.f32 %P0, %P1, %P2" : "=w"(r) : "w"(a), "w"(b));
+  return r;
+}
+EIGEN_STRONG_INLINE uint32x4_t neon_vcgeq_f32(float32x4_t a, float32x4_t b) {
+  uint32x4_t r;
+  __asm__("vcge.f32 %q0, %q1, %q2" : "=w"(r) : "w"(a), "w"(b));
+  return r;
+}
+EIGEN_STRONG_INLINE uint32x2_t neon_vcgt_f32(float32x2_t a, float32x2_t b) {
+  uint32x2_t r;
+  __asm__("vcgt.f32 %P0, %P1, %P2" : "=w"(r) : "w"(a), "w"(b));
+  return r;
+}
+EIGEN_STRONG_INLINE uint32x4_t neon_vcgtq_f32(float32x4_t a, float32x4_t b) {
+  uint32x4_t r;
+  __asm__("vcgt.f32 %q0, %q1, %q2" : "=w"(r) : "w"(a), "w"(b));
+  return r;
+}
+#else
+EIGEN_STRONG_INLINE uint32x2_t neon_vcge_f32(float32x2_t a, float32x2_t b) { return vcge_f32(a, b); }
+EIGEN_STRONG_INLINE uint32x4_t neon_vcgeq_f32(float32x4_t a, float32x4_t b) { return vcgeq_f32(a, b); }
+EIGEN_STRONG_INLINE uint32x2_t neon_vcgt_f32(float32x2_t a, float32x2_t b) { return vcgt_f32(a, b); }
+EIGEN_STRONG_INLINE uint32x4_t neon_vcgtq_f32(float32x4_t a, float32x4_t b) { return vcgtq_f32(a, b); }
+#endif
+
 template <>
 EIGEN_STRONG_INLINE Packet2f pcmp_le<Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return vreinterpret_f32_u32(vcle_f32(a, b));
+  return vreinterpret_f32_u32(neon_vcge_f32(b, a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_le<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vreinterpretq_f32_u32(vcleq_f32(a, b));
+  return vreinterpretq_f32_u32(neon_vcgeq_f32(b, a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcmp_le<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -1481,11 +1512,11 @@ EIGEN_STRONG_INLINE Packet4ui pcmp_le<Packet4ui>(const Packet4ui& a, const Packe
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pcmp_lt<Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return vreinterpret_f32_u32(vclt_f32(a, b));
+  return vreinterpret_f32_u32(neon_vcgt_f32(b, a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_lt<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vreinterpretq_f32_u32(vcltq_f32(a, b));
+  return vreinterpretq_f32_u32(neon_vcgtq_f32(b, a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4c pcmp_lt<Packet4c>(const Packet4c& a, const Packet4c& b) {
@@ -1675,11 +1706,11 @@ EIGEN_STRONG_INLINE Packet2l pcmp_eq<Packet2l>(const Packet2l& a, const Packet2l
 
 template <>
 EIGEN_STRONG_INLINE Packet2f pcmp_lt_or_nan<Packet2f>(const Packet2f& a, const Packet2f& b) {
-  return vreinterpret_f32_u32(vmvn_u32(vcge_f32(a, b)));
+  return vreinterpret_f32_u32(vmvn_u32(neon_vcge_f32(a, b)));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vreinterpretq_f32_u32(vmvnq_u32(vcgeq_f32(a, b)));
+  return vreinterpretq_f32_u32(vmvnq_u32(neon_vcgeq_f32(a, b)));
 }
 
 // Logical Operations are not supported for float, so we have to reinterpret casts using NEON intrinsics
