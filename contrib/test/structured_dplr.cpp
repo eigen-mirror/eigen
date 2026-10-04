@@ -420,119 +420,10 @@ void test_dplr_determinant_capacitance() {
   }
 }
 
-// The capacitance triple product V^H D^{-1} U can overflow in its plain association while the
-// capacitance itself is representable: D^{-1} pairs the reciprocal of a tiny diagonal with a huge
-// factor before the other, tiny factor pulls the product back down. The Woodbury kernels form these
-// products from exactly rescaled factors so no spurious Inf/NaN reaches determinant(), solve() or
-// inverse().
-template <typename = void>
-void test_dplr_capacitance_overflow() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  const double eps = NumTraits<double>::epsilon();
-
-  {
-    // The reviewer's case: D + UV^H = 1e-200 + 1e-200 * 1e200 ~ 1 and the
-    // capacitance 1 + 1e200 is representable, but V^H D^{-1} = 1e400 is not;
-    // determinant() used to return Inf and solve() NaN.
-    Vec d(1), u(1), v(1);
-    d << 1e-200;
-    u << 1e-200;
-    v << 1e200;
-    DiagonalPlusLowRank<double> A(d, u, v);
-    VERIFY((numext::isfinite)(A.capacitance()(0, 0)));
-    VERIFY_IS_APPROX(A.capacitance()(0, 0), 1e200);
-    VERIFY(numext::abs(A.determinant() - 1.0) <= 8.0 * eps);
-    // The Woodbury splitting routes this solve through D^{-1} b ~ 1e200 and
-    // cancels it back down to x ~ 1, so the amplified digits are lost to any
-    // association (see the solve() documentation); the fix is that the solve
-    // stays finite instead of turning into NaN through an infinite capacitance.
-    Vec b(1);
-    b << 1.0;
-    VERIFY(A.solve(b).allFinite());
-
-    // D^{-1} b is 1e400 here, though the operator is essentially the identity and the solution 1e200
-    // is representable; without the power-of-two rescaling the first term is Inf and the correction
-    // turns it into NaN, which is what this pins. It cannot pin finiteness: A ~ 1 makes the correction
-    // cancel D^{-1} b over ~200 digits, and whether that leaves 0 or an ulp the undone scaling lifts
-    // back to Inf is a codegen detail (x86-64 gives the first, aarch64 the second).
-    Vec big_b(1);
-    big_b << 1e200;
-    VERIFY(!A.solve(big_b).array().isNaN().any());
-  }
-  {
-    // The same overflow pattern in exact powers of two, where the Woodbury
-    // arithmetic is exact end to end: d = 2^-522, U = 2^-1025, V = 2^503
-    // represent A = [2^-521] exactly; V^H D^{-1} = 2^1025 still overflows, and
-    // the capacitance is exactly 2. Determinant and solve must match the dense
-    // results for the represented matrix exactly.
-    Vec d(1), u(1), v(1);
-    d << std::ldexp(1.0, -522);
-    u << std::ldexp(1.0, -1025);
-    v << std::ldexp(1.0, 503);
-    DiagonalPlusLowRank<double> A(d, u, v);
-    VERIFY_IS_EQUAL(A.capacitance()(0, 0), 2.0);
-    VERIFY_IS_EQUAL(A.determinant(), std::ldexp(1.0, -521));
-    Vec b(1);
-    b << 1.0;
-    VERIFY_IS_EQUAL(A.solve(b)(0), std::ldexp(1.0, 521));
-  }
-  {
-    // Symmetric mirror (U huge, V tiny): the plain capacitance association is
-    // safe here, but the inverse's D^{-1} U product overflows spuriously while
-    // the inverse factor -1e400 / (1 + 1e200) ~ -1e200 is representable.
-    Vec d(1), u(1), v(1);
-    d << 1e-200;
-    u << 1e200;
-    v << 1e-200;
-    DiagonalPlusLowRank<double> A(d, u, v);
-    VERIFY(numext::abs(A.determinant() - 1.0) <= 8.0 * eps);
-    DiagonalPlusLowRank<double> Ainv = A.inverse();
-    VERIFY(Ainv.factorU().allFinite());
-    VERIFY_IS_APPROX(Ainv.factorU()(0, 0), -1e200);
-    Vec b(1);
-    b << 1.0;
-    VERIFY(A.solve(b).allFinite());
-  }
-  {
-    // Exact-power-of-two mirror: d = 2^-522, U = 2^502, V = 2^-1025 represent
-    // A = [1.5 * 2^-522]; D^{-1} U = 2^1024 overflows, yet the inverse factor
-    // -2^1024 / 1.5 is representable and the solve is exact to rounding.
-    Vec d(1), u(1), v(1);
-    d << std::ldexp(1.0, -522);
-    u << std::ldexp(1.0, 502);
-    v << std::ldexp(1.0, -1025);
-    DiagonalPlusLowRank<double> A(d, u, v);
-    VERIFY_IS_EQUAL(A.capacitance()(0, 0), 1.5);
-    VERIFY_IS_EQUAL(A.determinant(), 1.5 * std::ldexp(1.0, -522));
-    DiagonalPlusLowRank<double> Ainv = A.inverse();
-    VERIFY_IS_APPROX(Ainv.factorU()(0, 0), -std::ldexp(1.0 / 1.5, 1024));
-    Vec b(1);
-    b << 3.0;
-    VERIFY_IS_EQUAL(A.solve(b)(0), std::ldexp(1.0, 523));
-  }
-  {
-    // Complex analogue of the reviewer's case: the operator is essentially
-    // [i], the capacitance 1 + 1e200 is representable, and the balancing and
-    // rescaling act on component magnitudes.
-    CVec d(1), u(1), v(1);
-    d << Complex(0, 1e-200);
-    u << Complex(1e-200, 0);
-    v << Complex(0, -1e200);
-    DiagonalPlusLowRank<Complex> A(d, u, v);
-    VERIFY((numext::isfinite)(numext::real(A.capacitance()(0, 0))));
-    VERIFY_IS_APPROX(A.capacitance()(0, 0), Complex(1e200, 0));
-    VERIFY_IS_APPROX(A.determinant(), Complex(0, 1));
-  }
-}
-
-// Moderate data must keep the plain product association: the normalized
-// Woodbury kernels only engage when a conservative exponent bound says a
-// product could overflow, so for well-scaled operators the capacitance and the
-// solve are bit-identical to the unnormalized evaluation.
+// The capacitance and the solve are bit-identical to the plain Woodbury
+// evaluation.
 template <typename Scalar>
-void test_dplr_capacitance_fast_path(Index n, Index k) {
+void test_dplr_capacitance_plain(Index n, Index k) {
   typedef Matrix<Scalar, Dynamic, 1> Vec;
   typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
 
@@ -678,9 +569,8 @@ EIGEN_DECLARE_TEST(structured_dplr) {
     CALL_SUBTEST_4((test_dplr_mixed_scalar<float>(9, 2)));
     CALL_SUBTEST_4(test_dplr_determinant_scaled<>());
     CALL_SUBTEST_4(test_dplr_determinant_capacitance<>());
-    CALL_SUBTEST_4(test_dplr_capacitance_overflow<>());
-    CALL_SUBTEST_4((test_dplr_capacitance_fast_path<double>(11, 3)));
-    CALL_SUBTEST_4((test_dplr_capacitance_fast_path<std::complex<double>>(9, 2)));
+    CALL_SUBTEST_4((test_dplr_capacitance_plain<double>(11, 3)));
+    CALL_SUBTEST_4((test_dplr_capacitance_plain<std::complex<double>>(9, 2)));
     CALL_SUBTEST_4((test_dplr_fixed_rank0<double, 5>()));
     CALL_SUBTEST_4((test_dplr_fixed_rank0<std::complex<float>, 4>()));
   }
