@@ -248,7 +248,8 @@ struct triangular_solve_packet_kernel {
   // and second solve<1> copy measured slower even for solves that never pad.
   static EIGEN_DONT_INLINE void solve_padded(Index size, const TriMapper& a, const Scalar* inverse, Scalar* other,
                                              Index otherStride, Index cols) {
-    Map<Matrix<Scalar, Dynamic, Dynamic>, Unaligned, OuterStride<>> rest(other, size, cols, OuterStride<>(otherStride));
+    Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<>> rest(other, size, cols,
+                                                                                   OuterStride<>(otherStride));
     Matrix<Scalar, Dynamic, Dynamic, ColMajor, Traits::WorkspaceRows, PacketSize> padded(size, Index(PacketSize));
     padded.leftCols(cols) = rest;
     padded.rightCols(PacketSize - cols).setZero();
