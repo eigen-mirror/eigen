@@ -156,7 +156,14 @@ struct copy_using_evaluator_traits {
       : Traversal == SliceVectorizedTraversal ? (MayUnrollInner ? InnerUnrolling : NoUnrolling)
 #endif
                                               : NoUnrolling;
-  static constexpr bool UsePacketSegment = has_packet_segment<PacketType>::value;
+  // Scalar tails for expressions bounded to <= 4 packets (runtime-sized blocks of small fixed matrices, as in the
+  // column steps of a 4x4 Cholesky): their results are reread almost at once, and a masked store does not forward to
+  // the following loads. That pays only while a tail is a few cheap coefficients: packets of <= 8 lanes, and a source
+  // cost below HugeCost (a lazy product with a runtime inner size computes a dot product per coefficient).
+  static constexpr bool UsePacketSegment =
+      has_packet_segment<PacketType>::value &&
+      !(MaxSizeAtCompileTime != Dynamic && MaxSizeAtCompileTime <= 4 * int(unpacket_traits<PacketType>::size) &&
+        unpacket_traits<PacketType>::size <= 8 && int(SrcEvaluator::CoeffReadCost) < HugeCost);
 
 #ifdef EIGEN_DEBUG_ASSIGN
   static void debug() {
@@ -516,7 +523,13 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
   using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, SrcAlignment, UsePacketSegment, false>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
-    const Index size = kernel.size();
+    // When a small bound disables available packet segments, GCC's -Waggressive-loop-optimizations fires on the
+    // scalar head and tail loops unless they see that bound; the no-op clamp supplies it. Backends without segments
+    // keep the unclamped size and their existing codegen.
+    constexpr int MaxSize = Kernel::AssignmentTraits::MaxSizeAtCompileTime;
+    constexpr bool ClampToMaxSize = has_packet_segment<PacketType>::value && !UsePacketSegment && MaxSize != Dynamic;
+    eigen_assert(MaxSize == Dynamic || kernel.size() <= MaxSize);
+    const Index size = ClampToMaxSize ? numext::mini(kernel.size(), Index(MaxSize)) : kernel.size();
     const Index alignedStart = DstIsAligned ? 0 : first_aligned<Alignment>(kernel.dstDataPtr(), size);
 
     head_loop::run(kernel, 0, alignedStart);
