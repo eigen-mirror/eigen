@@ -199,7 +199,6 @@ void test_autodiff_scalar() {
   VERIFY_IS_APPROX(res.value(), foo(p.x(), p.y()));
 }
 
-// TODO also check actual derivatives!
 template <int>
 void test_autodiff_vector() {
   Vector2f p = Vector2f::Random();
@@ -211,6 +210,36 @@ void test_autodiff_vector() {
 
   AD res = foo<VectorAD>(ap);
   VERIFY_IS_APPROX(res.value(), foo(p));
+}
+
+// foo(p) = |p - (-1, 1)| + 2 |p|^2, so grad foo(p) = (p - (-1, 1)) / |p - (-1, 1)| + 4 p.
+inline void check_autodiff_vector_derivative(const Vector2f& p, float expected_value,
+                                             const Vector2f& expected_gradient) {
+  using AD = AutoDiffScalar<Vector2f>;
+  using VectorAD = Matrix<AD, 2, 1>;
+  VectorAD ap = p.cast<AD>();
+  ap.x().derivatives() = Vector2f::UnitX();
+  ap.y().derivatives() = Vector2f::UnitY();
+  const AD res = foo<VectorAD>(ap);
+  VERIFY_IS_APPROX(res.value(), expected_value);
+  VERIFY_IS_APPROX(res.derivatives(), expected_gradient);
+}
+
+template <int>
+void test_autodiff_vector_derivative() {
+  Vector2f p = Vector2f::Random();
+  // Stay away from the kink of the norm term at (-1, 1).
+  if (numext::abs(p.x() + 1.0f) < 0.01f) p.x() = -0.9f;
+  const float x = p.x(), y = p.y();
+  const float norm = std::sqrt((x + 1.0f) * (x + 1.0f) + (y - 1.0f) * (y - 1.0f));
+  check_autodiff_vector_derivative(p, norm + 2.0f * (x * x + y * y),
+                                   Vector2f((x + 1.0f) / norm + 4.0f * x, (y - 1.0f) / norm + 4.0f * y));
+}
+
+template <int>
+void test_autodiff_vector_derivative_specific_values() {
+  check_autodiff_vector_derivative(Vector2f(2.0f, 3.0f), 29.605551f, Vector2f(8.832050f, 12.554700f));
+  check_autodiff_vector_derivative(Vector2f(-3.4f, 7.2f), 133.448308f, Vector2f(-13.960994f, 29.732568f));
 }
 
 template <int>
@@ -452,9 +481,11 @@ EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<1>());
     CALL_SUBTEST_2(test_autodiff_vector<1>());
+    CALL_SUBTEST_2(test_autodiff_vector_derivative<1>());
     CALL_SUBTEST_3(test_autodiff_jacobian<1>());
     CALL_SUBTEST_4(test_autodiff_hessian<1>());
   }
+  CALL_SUBTEST_2(test_autodiff_vector_derivative_specific_values<1>());
 
   CALL_SUBTEST_5(bug_1222());
   CALL_SUBTEST_5(bug_1223());
