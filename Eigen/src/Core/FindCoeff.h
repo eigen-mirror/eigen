@@ -108,9 +108,11 @@ struct min_coeff_functor<Scalar, PropagateNumbers, false> {
   }
 };
 
+// The packet loop needs pcmp_lt (and pcmp_lt_or_nan/pisnan for the NaN-aware functors); predux_max/predux_min
+// fall back to a per-lane reduction, so HasMax/HasMin are not required.
 template <typename Scalar>
 struct min_max_traits {
-  static constexpr bool PacketAccess = packet_traits<Scalar>::Vectorizable;
+  static constexpr bool PacketAccess = packet_traits<Scalar>::Vectorizable && packet_traits<Scalar>::HasCmp;
 };
 template <typename Scalar, int NaNPropagation>
 struct functor_traits<max_coeff_functor<Scalar, NaNPropagation>> : min_max_traits<Scalar> {};
