@@ -251,6 +251,48 @@ static void verify_conjugated_products(int n) {
   C.setZero();
   C.noalias() += alpha * (A.adjoint() * B);
   VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(alpha * Aa.lazyProduct(Bp)));
+
+  // A deep rectangular product reaches GEMM even for half-tile output widths.
+  const LhsMat deepA = LhsMat::Random(n, 65);
+  const RhsMat deepB = RhsMat::Random(65, n);
+  const ResMat initial = ResMat::Random(n, n);
+  const SmeColMajorMat<Scalar> reference = deepA.lazyProduct(deepB);
+  C = initial;
+  C.noalias() += deepA * deepB;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + reference));
+  C = initial;
+  C.noalias() += alpha * (deepA * deepB);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + alpha * reference));
+  // A real alpha takes the complex store's fused path: -1 from -=, and a
+  // non-unit real scale.
+  const Scalar real_alpha(typename NumTraits<Scalar>::Real(1.375));
+  C = initial;
+  C.noalias() -= deepA * deepB;
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial - reference));
+  C = initial;
+  C.noalias() += real_alpha * (deepA * deepB);
+  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + real_alpha * reference));
+
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+  // RowMajor GEMM normally transposes the computation. Call the packed kernel
+  // too, so RowMajor C actually reaches its horizontal ZA slice store.
+  if (n <= sme_tile<Scalar>()) {
+    std::vector<Scalar> packedA(n * 65), packedB(n * 65);
+    for (Index k = 0; k < 65; ++k) {
+      for (Index i = 0; i < n; ++i) {
+        set_packed(packedA.data(), Index(n), k, i, deepA(i, k));
+        set_packed(packedB.data(), Index(n), k, i, deepB(k, i));
+      }
+    }
+    for (Scalar scale : {Scalar(1), alpha, Scalar(-1), real_alpha}) {
+      C = initial;
+      internal::sme_gebp_dispatch<Scalar, false, false>::run(
+          C.data(), Index(ResMat::IsRowMajor ? n : 1), Index(ResMat::IsRowMajor ? 1 : n), packedA.data(),
+          packedB.data(), Index(n), Index(65), Index(n), scale, Index(65), Index(65), Index(0), Index(0));
+      VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + scale * reference));
+    }
+  }
+#endif
 }
 
 // Exercise the kc split path just above the SME blocking heuristic's depth cap
@@ -1059,8 +1101,8 @@ static std::vector<int> sme_edge_sizes() {
   const int T = sme_tile<Scalar>();
   const int MR = sme_mr<Scalar>();
   const int NR = sme_nr<Scalar>();
-  std::vector<int> sizes = {1,  T - 1,  T,          T + 1,  MR - 1,     MR,         MR + 1, NR - 1,
-                            NR, NR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1, 2 * NR - 1, 2 * NR, 2 * NR + 1};
+  std::vector<int> sizes = {T / 2,  T + T / 2, 1,      T - 1,      T,      T + 1,      MR - 1,     MR,     MR + 1,
+                            NR - 1, NR,        NR + 1, 2 * MR - 1, 2 * MR, 2 * MR + 1, 2 * NR - 1, 2 * NR, 2 * NR + 1};
   std::sort(sizes.begin(), sizes.end());
   sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
   return sizes;
@@ -1182,6 +1224,67 @@ static void test_products() {
   }
 }
 
+// Folding C into the complex alpha chain, (c_re + re*ar) - im*ai, overflows
+// for acc = (h,h), alpha = (1,1), C = (3h,0) although the exact result
+// (3h,2h) is finite (#3139 review).  Widths straddle the one-vector slice
+// width, which selects the store form; a real alpha takes the fused store.
+// RowMajor GEMM transposes the computation, so the packed kernel is also
+// called directly to reach the horizontal slice store.
+template <typename Real, int Order>
+static void test_complex_alpha_range() {
+  using Scalar = std::complex<Real>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  const int svl = internal::sme_packet_traits<Real>::size();
+  const Real h = std::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 2);
+  const Index depth = 65;
+  const Scalar initial(3 * h, 0);
+  const Scalar alphas[] = {Scalar(1, 1), Scalar(-1, 0)};
+  const Scalar expected[] = {Scalar(3 * h, 2 * h), Scalar(2 * h, -h)};
+  for (int n : {svl / 2 - 1, svl / 2, svl / 2 + 1, svl, svl + 1}) {
+    if (n < 2) continue;
+    Mat a = Mat::Zero(n, depth), b = Mat::Zero(depth, n);
+    a.col(0).setConstant(Scalar(h, h));
+    b.row(0).setOnes();
+    const Mat ac = a.conjugate(), bc = b.conjugate();
+    for (int t = 0; t < 2; ++t) {
+      const Scalar alpha = alphas[t];
+      for (int conjugation = 0; conjugation < 4; ++conjugation) {
+        Mat c = Mat::Constant(n, n, initial);
+        if (conjugation == 0) c.noalias() += alpha * (a * b);
+        if (conjugation == 1) c.noalias() += alpha * (ac.conjugate() * b);
+        if (conjugation == 2) c.noalias() += alpha * (a * bc.conjugate());
+        if (conjugation == 3) c.noalias() += alpha * (ac.conjugate() * bc.conjugate());
+        for (Index j = 0; j < n; ++j) {
+          for (Index i = 0; i < n; ++i) {
+            VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
+            VERIFY(c(i, j) == expected[t]);
+          }
+        }
+      }
+      // One packed panel; a larger runtime SVL may exceed its static width.
+      if (n <= numext::mini(sme_mr<Scalar>(), sme_nr<Scalar>())) {
+        std::vector<Scalar> pa(n * depth), pb(n * depth);
+        for (Index k = 0; k < depth; ++k) {
+          for (Index i = 0; i < n; ++i) {
+            set_packed(pa.data(), Index(n), k, i, a(i, k));
+            set_packed(pb.data(), Index(n), k, i, b(k, i));
+          }
+        }
+        Mat c = Mat::Constant(n, n, initial);
+        internal::sme_gebp_dispatch<Scalar, false, false>::run(
+            c.data(), Index(Order == RowMajor ? n : 1), Index(Order == RowMajor ? 1 : n), pa.data(), pb.data(),
+            Index(n), depth, Index(n), alpha, depth, depth, Index(0), Index(0));
+        for (Index j = 0; j < n; ++j) {
+          for (Index i = 0; i < n; ++i) {
+            VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
+            VERIFY(c(i, j) == expected[t]);
+          }
+        }
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_whilelt_operand_types<float>());
   CALL_SUBTEST_1(test_packet_ops<float>());
@@ -1226,6 +1329,8 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
   CALL_SUBTEST_3(test_fp_flags<std::complex<float>>());
   CALL_SUBTEST_3(test_disjoint_parts<std::complex<float>>());
+  CALL_SUBTEST_3((test_complex_alpha_range<float, ColMajor>()));
+  CALL_SUBTEST_3((test_complex_alpha_range<float, RowMajor>()));
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -1238,6 +1343,8 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
   CALL_SUBTEST_4(test_fp_flags<std::complex<double>>());
   CALL_SUBTEST_4(test_disjoint_parts<std::complex<double>>());
+  CALL_SUBTEST_4((test_complex_alpha_range<double, ColMajor>()));
+  CALL_SUBTEST_4((test_complex_alpha_range<double, RowMajor>()));
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the

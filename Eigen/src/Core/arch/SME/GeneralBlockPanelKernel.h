@@ -1485,9 +1485,11 @@ static EIGEN_ALWAYS_INLINE void outer_product_2x2(
  * (FMOPA) or subtract (FMOPS) -- a compile-time choice, with no work in the
  * depth loop and no separate conjugating packer.
  *
- * Slices come back out through sme_read_scaled_slice, which applies the complex
+ * Slices come back out through sme_read_slice, which applies the complex
  * alpha and interleaves the halves with ZIP1/ZIP2 into the two vectors that
- * cover one slice's worth of contiguous complex results.
+ * cover one slice's worth of contiguous complex results.  The kernel that
+ * folds a real alpha keeps them deinterleaved instead (see
+ * sme_accumulate_pair_real_alpha).
  *
  * A ZA tile number is an instruction immediate, so cells outside the tile grid
  * (complex<float> has two tile pairs, hence a single grid row) are dropped by
@@ -1553,12 +1555,67 @@ EIGEN_ALWAYS_INLINE void sme_accumulate_pair_impl(
   }
 }
 
+// A real alpha on slices spanning two vectors, in the FoldRealAlpha kernel:
+// LD2/ST2 keep C deinterleaved with one predicate lane per complex result, so
+// each half is one FMA, c + alpha*acc, as in the real-scalar store.  A single
+// FMA rounds once, so it overflows only when the exact result does.  This
+// covers C.noalias() -= A*B, whose alpha is -1.
+//
+// `limit`, the slices left in the C block from the first one, bounds the
+// prefetch to the block (unbounded, it measured 0.45-0.5x on 32^3 and 64^3).
+// The prefetch runs 8 slices ahead of the C load that heads each FMA; without
+// it the fold ran at 0.94x of that at 1024^3.  The barrier keeps the prefetch
+// address setup inside its branch.
+//
+// A complex alpha keeps sme_accumulate_pair_impl, which forms alpha*acc before
+// adding C.  Folding C into either of its two FMAs, e.g. (c_re + re*ar) - im*ai,
+// saves two ops per slice but overflows when C and the first product exceed
+// the range before the second cancels them (!3139 review: acc = (h,h),
+// alpha = (1,1), C = (3h,0)).  On Apple M4, LD2/ST2 measured no gain with
+// unchanged arithmetic and 0.68-0.75x on one-vector slices, and FCMLA 0.70x
+// (#3129).
 template <typename RealScalar, int TileRe, int TileIm, bool Vertical, typename Index>
+EIGEN_ALWAYS_INLINE void sme_accumulate_pair_real_alpha(
+    RealScalar* EIGEN_RESTRICT p, Index step, int slices, Index limit, svbool_t pg,
+    typename sme_packet_traits<RealScalar>::type valpha,
+    typename sme_packet_traits<RealScalar>::type vzero) __arm_streaming __arm_inout("za") {
+  using Traits = sme_packet_traits<RealScalar>;
+  using Vec = typename Traits::type;
+  const int svl = Traits::size();
+  constexpr int kPrefetchSlices = 8;
+  for (int s = 0; s < slices; ++s, p += step) {
+    if (s + kPrefetchSlices < limit) {
+      RealScalar* pf = p;
+      EIGEN_OPTIMIZATION_BARRIER(pf)
+      pf = sme_offset(pf, Index(kPrefetchSlices) * step);
+      __builtin_prefetch(pf, 1, 3);
+      __builtin_prefetch(sme_offset(pf, Index(svl)), 1, 3);
+    }
+    Vec re, im;
+    EIGEN_IF_CONSTEXPR (Vertical) {
+      re = sme_read_ver_za<TileRe>(vzero, pg, uint32_t(s));
+      im = sme_read_ver_za<TileIm>(vzero, pg, uint32_t(s));
+    } else {
+      re = sme_read_hor_za<TileRe>(vzero, pg, uint32_t(s));
+      im = sme_read_hor_za<TileIm>(vzero, pg, uint32_t(s));
+    }
+    const typename Traits::type_x2 c = pld2(pg, p);
+    pst2(pg, p, pcreate(pmadd(pg, re, valpha, pget<0>(c)), pmadd(pg, im, valpha, pget<1>(c))));
+  }
+}
+
+// FoldRealAlpha selects the kernel instantiation.  The folding kernel only
+// sees a real alpha other than 1 (see sme_gebp_dispatch); the other kernel
+// keeps exactly the unscaled and complex-alpha paths, so the fold's code never
+// reaches products that cannot use it.
+template <typename RealScalar, int TileRe, int TileIm, bool Vertical, bool FoldRealAlpha, typename Index>
 EIGEN_ALWAYS_INLINE void sme_accumulate_pair(
-    bool scale_by_alpha, RealScalar* EIGEN_RESTRICT p, Index step, int slices, int lanes, svbool_t pg,
+    bool scale_by_alpha, RealScalar* EIGEN_RESTRICT p, Index step, int slices, Index limit, int lanes, svbool_t pg,
     typename sme_packet_traits<RealScalar>::type valpha_re, typename sme_packet_traits<RealScalar>::type valpha_im,
     typename sme_packet_traits<RealScalar>::type vzero) __arm_streaming __arm_inout("za") {
-  if (scale_by_alpha) {
+  if (FoldRealAlpha && lanes > sme_packet_traits<RealScalar>::size()) {
+    sme_accumulate_pair_real_alpha<RealScalar, TileRe, TileIm, Vertical>(p, step, slices, limit, pg, valpha_re, vzero);
+  } else if (scale_by_alpha) {
     sme_accumulate_pair_impl<RealScalar, TileRe, TileIm, Vertical, true>(p, step, slices, lanes, pg, valpha_re,
                                                                          valpha_im, vzero);
   } else {
@@ -1569,10 +1626,11 @@ EIGEN_ALWAYS_INLINE void sme_accumulate_pair(
 
 // Store one complex tile pair back to C.  `pw` is the row-predicate width for
 // this cell and `cw` the column one, both <= the runtime svl.
-template <typename RealScalar, int TileRe, int TileIm, typename Index>
+template <typename RealScalar, int TileRe, int TileIm, bool FoldRealAlpha, typename Index>
 EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTRICT C, Index C_stride_row,
                                            Index C_stride_col, std::complex<RealScalar> alpha, Index row_start, int pw,
-                                           Index col_start, int cw) __arm_streaming __arm_inout("za") {
+                                           Index col_start, int cw, Index rows,
+                                           Index cols) __arm_streaming __arm_inout("za") {
   using Scalar = std::complex<RealScalar>;
   using Traits = sme_packet_traits<RealScalar>;
   using Vec = typename Traits::type;
@@ -1589,6 +1647,8 @@ EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTR
   const Vec valpha_im = pset1<Vec>(alpha_parts[1]);
   // Scaling by 1 + 0i is exact, so skipping it is bit-identical -- and it is by
   // far the common case, since a plain product carries alpha = 1.
+  // With FoldRealAlpha, sme_gebp_dispatch has already established that alpha
+  // is real and not 1.
   const bool scale = !(alpha_parts[0] == RealScalar(1) && alpha_parts[1] == RealScalar(0));
   RealScalar* EIGEN_RESTRICT rC = reinterpret_cast<RealScalar*>(C);
 
@@ -1596,13 +1656,13 @@ EIGEN_ALWAYS_INLINE void sme_store_za_pair(std::complex<RealScalar>* EIGEN_RESTR
     // Column-major C: vertical slices are the tile pair's columns, and one
     // slice is pw contiguous complex results, i.e. 2*pw reals.
     RealScalar* p = rC + Index(2) * (row_start + col_start * C_stride_col);
-    sme_accumulate_pair<RealScalar, TileRe, TileIm, true>(scale, p, Index(2) * C_stride_col, cw, 2 * pw, pg_m,
-                                                          valpha_re, valpha_im, vzero);
+    sme_accumulate_pair<RealScalar, TileRe, TileIm, true, FoldRealAlpha>(
+        scale, p, Index(2) * C_stride_col, cw, cols - col_start, 2 * pw, pg_m, valpha_re, valpha_im, vzero);
   } else if (C_stride_col == 1) {
     // Row-major C: horizontal slices are the tile pair's rows.
     RealScalar* p = rC + Index(2) * (row_start * C_stride_row + col_start);
-    sme_accumulate_pair<RealScalar, TileRe, TileIm, false>(scale, p, Index(2) * C_stride_row, pw, 2 * cw, pg_n,
-                                                           valpha_re, valpha_im, vzero);
+    sme_accumulate_pair<RealScalar, TileRe, TileIm, false, FoldRealAlpha>(
+        scale, p, Index(2) * C_stride_row, pw, rows - row_start, 2 * cw, pg_n, valpha_re, valpha_im, vzero);
   } else {
     // General stride: interleave a row into a temp buffer, scatter to C.  Every
     // caller passes cw <= min(svl, nr), so nr is a static bound on the buffer,
@@ -1645,12 +1705,12 @@ struct sme_complex_cell {
     sme_mopa_signed<kTileIm, ConjLhs>(pm, pn, a_im, b_re);
   }
 
-  template <typename Index>
+  template <bool FoldRealAlpha, typename Index>
   static EIGEN_ALWAYS_INLINE void store(Scalar* EIGEN_RESTRICT dst, Index C_stride_row, Index C_stride_col,
-                                        Scalar alpha, Index row_start, int pw, Index col_start,
-                                        int cw) __arm_streaming __arm_inout("za") {
-    sme_store_za_pair<RealScalar, kTileRe, kTileIm>(dst, C_stride_row, C_stride_col, alpha, row_start, pw, col_start,
-                                                    cw);
+                                        Scalar alpha, Index row_start, int pw, Index col_start, int cw, Index rows,
+                                        Index cols) __arm_streaming __arm_inout("za") {
+    sme_store_za_pair<RealScalar, kTileRe, kTileIm, FoldRealAlpha>(dst, C_stride_row, C_stride_col, alpha, row_start,
+                                                                   pw, col_start, cw, rows, cols);
   }
 };
 
@@ -1659,9 +1719,9 @@ struct sme_complex_cell<Scalar, R, C, ConjLhs, ConjRhs, false> {
   using Vec = typename sme_packet_traits<typename NumTraits<Scalar>::Real>::type;
   static EIGEN_ALWAYS_INLINE void accumulate(svbool_t, svbool_t, Vec, Vec, Vec, Vec) __arm_streaming __arm_inout("za") {
   }
-  template <typename Index>
-  static EIGEN_ALWAYS_INLINE void store(Scalar*, Index, Index, Scalar, Index, int, Index,
-                                        int) __arm_streaming __arm_inout("za") {}
+  template <bool FoldRealAlpha, typename Index>
+  static EIGEN_ALWAYS_INLINE void store(Scalar*, Index, Index, Scalar, Index, int, Index, int, Index,
+                                        Index) __arm_streaming __arm_inout("za") {}
 };
 
 /*****************************************************************************
@@ -1784,23 +1844,24 @@ EIGEN_ALWAYS_INLINE void sme_process(Scalar* EIGEN_RESTRICT C, Index C_stride_ro
  * dropped at compile time by sme_complex_cell, so a narrower grid simply never
  * reaches them (its hi widths are structurally zero).
  *****************************************************************************/
-template <typename Scalar, bool ConjLhs, bool ConjRhs, typename Index>
+template <typename Scalar, bool ConjLhs, bool ConjRhs, bool FoldRealAlpha, typename Index>
 EIGEN_ALWAYS_INLINE void sme_store_complex_grid(Scalar* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                                 Scalar alpha, Index row_start, int rlo, int rhi, Index col_start,
-                                                int clo, int chi) __arm_streaming __arm_inout("za") {
+                                                int clo, int chi, Index rows,
+                                                Index cols) __arm_streaming __arm_inout("za") {
   const int svl = sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
-  sme_complex_cell<Scalar, 0, 0, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start, rlo,
-                                                          col_start, clo);
+  sme_complex_cell<Scalar, 0, 0, ConjLhs, ConjRhs>::template store<FoldRealAlpha>(
+      C, C_stride_row, C_stride_col, alpha, row_start, rlo, col_start, clo, rows, cols);
   if (chi > 0) {
-    sme_complex_cell<Scalar, 0, 1, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start, rlo,
-                                                            col_start + svl, chi);
+    sme_complex_cell<Scalar, 0, 1, ConjLhs, ConjRhs>::template store<FoldRealAlpha>(
+        C, C_stride_row, C_stride_col, alpha, row_start, rlo, col_start + svl, chi, rows, cols);
   }
   if (rhi > 0) {
-    sme_complex_cell<Scalar, 1, 0, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start + svl, rhi,
-                                                            col_start, clo);
+    sme_complex_cell<Scalar, 1, 0, ConjLhs, ConjRhs>::template store<FoldRealAlpha>(
+        C, C_stride_row, C_stride_col, alpha, row_start + svl, rhi, col_start, clo, rows, cols);
     if (chi > 0) {
-      sme_complex_cell<Scalar, 1, 1, ConjLhs, ConjRhs>::store(C, C_stride_row, C_stride_col, alpha, row_start + svl,
-                                                              rhi, col_start + svl, chi);
+      sme_complex_cell<Scalar, 1, 1, ConjLhs, ConjRhs>::template store<FoldRealAlpha>(
+          C, C_stride_row, C_stride_col, alpha, row_start + svl, rhi, col_start + svl, chi, rows, cols);
     }
   }
 }
@@ -1814,12 +1875,12 @@ EIGEN_ALWAYS_INLINE void sme_store_complex_grid(Scalar* EIGEN_RESTRICT C, Index 
  * are four contiguous predicated loads at a fixed offset apart, and the four
  * outer products they feed reuse all of them.
  *****************************************************************************/
-template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
+template <bool ConjLhs, bool ConjRhs, bool FoldRealAlpha, typename RealScalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C, Index C_stride_row, Index C_stride_col,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blA,
                                      const std::complex<RealScalar>* EIGEN_RESTRICT blB, Index depth,
                                      std::complex<RealScalar> alpha, Index row_start, int pw, Index col_start, int cw,
-                                     Index lhs_step) __arm_streaming __arm_inout("za") {
+                                     Index lhs_step, Index rows, Index cols) __arm_streaming __arm_inout("za") {
   // Complex panels are always packed (split real/imaginary halves): lhs_step is pw.
   EIGEN_UNUSED_VARIABLE(lhs_step);
   using Scalar = std::complex<RealScalar>;
@@ -1881,8 +1942,8 @@ EIGEN_ALWAYS_INLINE void sme_process(std::complex<RealScalar>* EIGEN_RESTRICT C,
         }
       }
 
-      sme_store_complex_grid<Scalar, ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, alpha, row_start + rt, r0, r1,
-                                                       col_start + ct, c0, c1);
+      sme_store_complex_grid<Scalar, ConjLhs, ConjRhs, FoldRealAlpha>(
+          C, C_stride_row, C_stride_col, alpha, row_start + rt, r0, r1, col_start + ct, c0, c1, rows, cols);
     }
   }
 }
@@ -2007,23 +2068,25 @@ EIGEN_ALWAYS_INLINE void sme_process_split(Scalar* EIGEN_RESTRICT C, Index C_str
 
 // One pw x cw block: sme_process_split when it fills at most two tiles of the 2 x 2 grid; complex blocks keep
 // sme_process. `split_ok` (sme_split_ok) holds once per call, outside the block loops.
-template <bool ConjLhs, bool ConjRhs, typename Scalar, typename Index>
+template <bool ConjLhs, bool ConjRhs, bool FoldRealAlpha, typename Scalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_block(Scalar* C, Index rs, Index cs, const Scalar* blA, const Scalar* blB,
                                            Index depth, Scalar alpha, Index row_start, int pw, Index col_start, int cw,
-                                           Index a_step, bool split_ok) __arm_streaming __arm_inout("za") {
+                                           Index a_step, bool split_ok, Index,
+                                           Index) __arm_streaming __arm_inout("za") {
   const int svl = sme_packet_traits<Scalar>::size();
   if (split_ok && (pw <= svl || cw <= svl))
     sme_process_split(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
   else
     sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
 }
-template <bool ConjLhs, bool ConjRhs, typename RealScalar, typename Index>
+template <bool ConjLhs, bool ConjRhs, bool FoldRealAlpha, typename RealScalar, typename Index>
 EIGEN_ALWAYS_INLINE void sme_process_block(std::complex<RealScalar>* C, Index rs, Index cs,
                                            const std::complex<RealScalar>* blA, const std::complex<RealScalar>* blB,
                                            Index depth, std::complex<RealScalar> alpha, Index row_start, int pw,
-                                           Index col_start, int cw, Index a_step,
-                                           bool) __arm_streaming __arm_inout("za") {
-  sme_process<ConjLhs, ConjRhs>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step);
+                                           Index col_start, int cw, Index a_step, bool, Index rows,
+                                           Index cols) __arm_streaming __arm_inout("za") {
+  sme_process<ConjLhs, ConjRhs, FoldRealAlpha>(C, rs, cs, blA, blB, depth, alpha, row_start, pw, col_start, cw, a_step,
+                                               rows, cols);
 }
 
 // Whether the vector length gives the tile shapes the block kernels assume: the depth-split kernel covers one 2 x 2
@@ -2067,7 +2130,7 @@ static EIGEN_ALWAYS_INLINE void sme_prefetch_next_c(const Scalar* C, Index C_str
       __builtin_prefetch(reinterpret_cast<const char*>(C + i + (j + c) * C_stride_col) + b, 1, 2);
 }
 
-template <typename Scalar, bool ConjLhs, bool ConjRhs, typename Index>
+template <typename Scalar, bool ConjLhs, bool ConjRhs, bool FoldRealAlpha = false, typename Index>
 EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
     Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB, Index rows,
     Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA, Index offsetB) {
@@ -2104,11 +2167,43 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl(
       if (prefetch_c)
         sme_prefetch_next_c(C, C_stride_row, C_stride_col, i + MR < rows ? i + MR : Index(0),
                             i + MR < rows ? j : j + NR, rows, cols, MR, NR);
-      sme_process_block<ConjLhs, ConjRhs>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw, j, cw,
-                                          Index(pw), split_ok);
+      sme_process_block<ConjLhs, ConjRhs, FoldRealAlpha>(C, C_stride_row, C_stride_col, blA, blB, depth, alpha, i, pw,
+                                                         j, cw, Index(pw), split_ok, rows, cols);
     }
   }
 }
+
+// Picks the sme_gebp_impl instantiation.  A complex product with a real alpha
+// other than 1, e.g. the -1 of C.noalias() -= A*B, gets the kernel that folds
+// C into one FMA per component (see sme_accumulate_pair_real_alpha); every
+// other product gets the kernel without that path.  Real scalars have one.
+template <typename Scalar, bool ConjLhs, bool ConjRhs, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct sme_gebp_dispatch {
+  template <typename Index>
+  static void run(Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB,
+                  Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA,
+                  Index offsetB) {
+    sme_gebp_impl<Scalar, ConjLhs, ConjRhs, false>(C, C_stride_row, C_stride_col, blockA, blockB, rows, depth, cols,
+                                                   alpha, strideA, strideB, offsetA, offsetB);
+  }
+};
+
+template <typename Scalar, bool ConjLhs, bool ConjRhs>
+struct sme_gebp_dispatch<Scalar, ConjLhs, ConjRhs, true> {
+  template <typename Index>
+  static void run(Scalar* C, Index C_stride_row, Index C_stride_col, const Scalar* blockA, const Scalar* blockB,
+                  Index rows, Index depth, Index cols, Scalar alpha, Index strideA, Index strideB, Index offsetA,
+                  Index offsetB) {
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    if (numext::imag(alpha) == RealScalar(0) && numext::real(alpha) != RealScalar(1)) {
+      sme_gebp_impl<Scalar, ConjLhs, ConjRhs, true>(C, C_stride_row, C_stride_col, blockA, blockB, rows, depth, cols,
+                                                    alpha, strideA, strideB, offsetA, offsetB);
+    } else {
+      sme_gebp_impl<Scalar, ConjLhs, ConjRhs, false>(C, C_stride_row, C_stride_col, blockA, blockB, rows, depth, cols,
+                                                     alpha, strideA, strideB, offsetA, offsetB);
+    }
+  }
+};
 
 // gebp with the LHS read from a ColMajor source: rows i..i+pw of column k are
 // at lhs + i + k * lda, the packed layout with a_step = lda. Real scalars only.
@@ -2129,8 +2224,8 @@ EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_gebp_impl_dir
                            static_cast<int>(sme_min(rows - i - MR, Index(MR))), blB, cw, depth, alpha, i, j);
     for (; i < rows; i += MR) {
       const int pw = static_cast<int>(sme_min(rows - i, Index(MR)));
-      sme_process_block<false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw, lda,
-                                      split_ok);
+      sme_process_block<false, false, false>(C, C_stride_row, C_stride_col, lhs + i, blB, depth, alpha, i, pw, j, cw,
+                                             lda, split_ok, rows, cols);
     }
   }
 }
@@ -2596,8 +2691,8 @@ struct sme_gebp_kernel {
     }
 
     sme_fpsr_guard fpsr;
-    sme_gebp_impl<Scalar, ConjugateLhs, ConjugateRhs>(C_base, C_stride_row, C_stride_col, blockA, blockB, rows, depth,
-                                                      cols, alpha, strideA, strideB, offsetA, offsetB);
+    sme_gebp_dispatch<Scalar, ConjugateLhs, ConjugateRhs>::run(C_base, C_stride_row, C_stride_col, blockA, blockB, rows,
+                                                               depth, cols, alpha, strideA, strideB, offsetA, offsetB);
   }
 
   // The LHS block read from its ColMajor source (see sme_direct_lhs_ok); only

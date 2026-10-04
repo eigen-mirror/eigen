@@ -34,7 +34,7 @@ namespace internal {
 // names and argument order where a counterpart exists (pset1, ploadu, pstoreu,
 // padd, pmul, pnegate, pmadd, pnmadd, predux), the arithmetic and memory
 // operations taking the SVE governing predicate first; the SVE name with Eigen's
-// p prefix where none does (pget, pcreate, puzp1/2, pzip1/2, psplice); an sme_
+// p prefix where none does (pget, pcreate, pld2, pst2, puzp1/2, pzip1/2, psplice); an sme_
 // prefix for the ZA tile operations; and the predicates and lane counts as
 // members of sme_packet_traits. Eigen's templates of the same names drop out of
 // overload resolution, by arity or by substitution failure on the empty
@@ -168,6 +168,17 @@ template <typename Scalar>
 EIGEN_ALWAYS_INLINE void pstoreu_x4(svcount_t pn, Scalar* to,
                                     typename sme_packet_traits<Scalar>::type_x4 from) __arm_streaming {
   svst1(pn, to, from);
+}
+// Two-element structure load and store (LD2/ST2): pld2 splits interleaved pairs into the even and odd
+// lanes, the real and imaginary parts of a complex array, and pst2 interleaves them back.
+template <typename Scalar>
+EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x2 pld2(svbool_t pg, const Scalar* from) __arm_streaming {
+  return svld2(pg, from);
+}
+template <typename Scalar>
+EIGEN_ALWAYS_INLINE void pst2(svbool_t pg, Scalar* to,
+                              typename sme_packet_traits<Scalar>::type_x2 from) __arm_streaming {
+  svst2(pg, to, from);
 }
 
 // Arithmetic in Eigen's argument order after the predicate: pmadd(pg, a, b, c) = a * b + c and
