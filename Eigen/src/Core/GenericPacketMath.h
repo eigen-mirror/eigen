@@ -1897,7 +1897,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pcarg(const Packet& a) {
 }
 
 /** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
- * outside this range are not defined. \a *from does not need to be aligned, and can be null if \a count is zero.*/
+ * outside this range are zero. \a *from does not need to be aligned, and can be null if \a count is zero.*/
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {
@@ -1912,7 +1912,7 @@ EIGEN_DEVICE_FUNC inline Packet ploaduSegment(const typename unpacket_traits<Pac
 }
 
 /** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
- * outside this range are not defined. \a *from must be aligned, and cannot be null.*/
+ * outside this range are zero. \a *from must be aligned, and cannot be null.*/
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet ploadSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                              Index count) {
@@ -1942,7 +1942,7 @@ EIGEN_DEVICE_FUNC inline void pstoreSegment(Scalar* to, const Packet& from, Inde
 }
 
 /** \internal \returns a packet populated with values in the range [begin, begin + count). Elements
- * outside this range are not defined.*/
+ * outside this range are zero.*/
 template <typename Packet, int Alignment>
 EIGEN_DEVICE_FUNC inline Packet ploadtSegment(const typename unpacket_traits<Packet>::type* from, Index begin,
                                               Index count) {

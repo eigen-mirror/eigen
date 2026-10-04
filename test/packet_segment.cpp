@@ -135,10 +135,26 @@ struct packet_segment_test_impl {
       }
     }
   }
+  static void test_zero_fill() {
+    // ploaduSegment zeroes the lanes outside [begin, begin + count), even when the memory there holds nonzero values;
+    // the GEMV kernels sum whole segment packets.
+    VectorX<Scalar> data_in = VectorX<Scalar>::Constant(PacketSize, Scalar(1));
+    VectorX<Scalar> lanes(PacketSize);
+    for (Index begin = 0; begin <= PacketSize; begin++) {
+      for (Index count = 0; begin + count <= PacketSize; count++) {
+        internal::pstoreu(lanes.data(), internal::ploaduSegment<Packet>(data_in.data(), begin, count));
+        for (Index i = 0; i < PacketSize; ++i) {
+          const bool in_range = i >= begin && i < begin + count;
+          VERIFY_IS_EQUAL(lanes(i), in_range ? Scalar(1) : Scalar(0));
+        }
+      }
+    }
+  }
   static void run() {
     test_unaligned();
     test_aligned();
     test_all_ranges();
+    test_zero_fill();
   }
 };
 
