@@ -526,7 +526,7 @@ EIGEN_DONT_INLINE void real_2x2_jacobi_svd(const MatrixType& matrix, Index p, In
     // If d!=0, then t/d cannot overflow because the magnitude of the
     // entries forming d are not too small compared to the ones forming t.
     RealScalar u = t / d;
-    s1 = RealScalar(1) / numext::sqrt(RealScalar(1) + numext::abs2(u));
+    s1 = RealScalar(1) / numext::sqrt<RealScalar>(RealScalar(1) + numext::abs2(u));
     c1 = u * s1;
   }
 

@@ -18,6 +18,7 @@ Bug fixes:
 - `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
 - `BDCSVD` with QR-only `Options`, such as `DisableQRDecomposition`, dropped runtime unitary requests for inputs below the switch size, so `matrixU()` asserted, or returned an empty `U` and `V` under `NDEBUG` [!3212]
 - `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
+- `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]

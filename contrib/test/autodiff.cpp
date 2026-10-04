@@ -10,7 +10,10 @@
 
 #include "main.h"
 #include <Eigen/Jacobi>
+#include <Eigen/QR>
+#include <Eigen/SVD>
 #include <contrib/Eigen/AutoDiff>
+#include <contrib/Eigen/Splines>
 
 template <typename Scalar>
 EIGEN_DONT_INLINE Scalar foo(const Scalar& x, const Scalar& y) {
@@ -373,6 +376,78 @@ void test_autodiff_makegivens() {
   }
 }
 
+// Householder and Jacobi kernels must materialize AutoDiffScalar expressions before numext::sqrt and need
+// isnan/isinf overloads.
+template <typename Derivatives>
+void test_autodiff_householder_qr() {
+  using AD = AutoDiffScalar<Derivatives>;
+  Matrix<AD, 2, 2> a;
+  for (int k = 0; k < 4; ++k) a(k / 2, k % 2) = AD(double(k + 1), Derivatives(Vector4d::Unit(k)));
+  HouseholderQR<Matrix<AD, 2, 2>> qr(a);
+  const AD r00 = qr.matrixQR()(0, 0);
+  const double n = std::sqrt(10.0);
+  VERIFY_IS_APPROX(numext::abs(r00.value()), n);
+  VERIFY_IS_APPROX(r00.derivatives(), Vector4d(1.0 / n, 0, 3.0 / n, 0) * numext::sign(r00.value()));
+  const Matrix<AD, 2, 2> q = qr.householderQ();
+  const Matrix<AD, 2, 2> r = qr.matrixQR().template triangularView<Upper>();
+  const Matrix<AD, 2, 2> qra = q * r;
+  for (int k = 0; k < 4; ++k) {
+    VERIFY_IS_APPROX(qra(k / 2, k % 2).value(), a(k / 2, k % 2).value());
+    VERIFY_IS_APPROX(qra(k / 2, k % 2).derivatives(), Derivatives(Vector4d::Unit(k)));
+  }
+}
+
+template <typename Derivatives>
+void test_autodiff_jacobi_svd() {
+  using AD = AutoDiffScalar<Derivatives>;
+  Matrix<AD, 2, 2> a;
+  for (int k = 0; k < 4; ++k) a(k / 2, k % 2) = AD(double(k + 1), Derivatives(Vector4d::Unit(k)));
+  JacobiSVD<Matrix<AD, 2, 2>, ComputeFullU | ComputeFullV> svd(a);
+  const Matrix<AD, 2, 2> usv = svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose();
+  for (int k = 0; k < 4; ++k) {
+    VERIFY_IS_APPROX(usv(k / 2, k % 2).value(), a(k / 2, k % 2).value());
+    VERIFY_IS_APPROX(usv(k / 2, k % 2).derivatives(), Derivatives(Vector4d::Unit(k)));
+  }
+}
+
+// SplineFitting::Interpolate solves its collocation system with HouseholderQR.
+template <typename Derivatives>
+void test_autodiff_spline_interpolate() {
+  using AD = AutoDiffScalar<Derivatives>;
+  using Spline1 = Spline<AD, 1>;
+  const Vector4d values(1, 2, 5, 10);
+  Matrix<AD, 1, 4> points;
+  for (int k = 0; k < 4; ++k) points(k) = AD(values(k), Derivatives(Vector4d::Unit(k)));
+  Matrix<AD, 1, 4> parameters;
+  parameters << AD(0.0), AD(1.0 / 3), AD(2.0 / 3), AD(1.0);
+  const Spline1 spline = SplineFitting<Spline1>::Interpolate(points, 2, parameters);
+  for (int k = 0; k < 4; ++k) {
+    const AD y = spline(parameters(k))(0);
+    VERIFY_IS_APPROX(y.value(), values(k));
+    VERIFY_IS_APPROX(y.derivatives(), Derivatives(Vector4d::Unit(k)));
+  }
+  // With fixed parameters the interpolant is linear in the points: y(u) = sum_k (dy/dp_k) p_k.
+  const AD y = spline(AD(0.5))(0);
+  VERIFY_IS_APPROX(y.value(), Vector4d(y.derivatives()).dot(values));
+  VERIFY_IS_APPROX(Vector4d(y.derivatives()).sum(), 1.0);
+
+  // Chord-length parameters depend on the points; the total derivative of y(u_k(p), p) is still e_k.
+  Matrix<AD, 2, 4> points2;
+  for (int k = 0; k < 4; ++k) {
+    points2(0, k) = AD(double(k), Derivatives(Vector4d::Zero()));
+    points2(1, k) = points(k);
+  }
+  using Spline2 = Spline<AD, 2>;
+  typename Spline2::KnotVectorType chordLengths;
+  ChordLengths(points2, chordLengths);
+  const Spline2 spline2 = SplineFitting<Spline2>::Interpolate(points2, 2, chordLengths);
+  for (int k = 0; k < 4; ++k) {
+    const AD y2 = spline2(chordLengths(k))(1);
+    VERIFY_IS_APPROX(y2.value(), values(k));
+    VERIFY_IS_APPROX(y2.derivatives(), Derivatives(Vector4d::Unit(k)));
+  }
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<1>());
@@ -389,4 +464,10 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
   CALL_SUBTEST_6(test_autodiff_makegivens<Vector2d>());
   CALL_SUBTEST_6(test_autodiff_makegivens<VectorXd>());
+  CALL_SUBTEST_7(test_autodiff_householder_qr<Vector4d>());
+  CALL_SUBTEST_7(test_autodiff_householder_qr<VectorXd>());
+  CALL_SUBTEST_7(test_autodiff_jacobi_svd<Vector4d>());
+  CALL_SUBTEST_7(test_autodiff_jacobi_svd<VectorXd>());
+  CALL_SUBTEST_7(test_autodiff_spline_interpolate<Vector4d>());
+  CALL_SUBTEST_7(test_autodiff_spline_interpolate<VectorXd>());
 }

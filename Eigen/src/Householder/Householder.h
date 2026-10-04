@@ -165,7 +165,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     // not survive -ffinite-math-only, which folds that test away, whereas a comparison against a finite bound is
     // still evaluated.
     const RealScalar sqNormBound = NumTraits<RealScalar>::highest() / RealScalar(2);
-    const RealScalar componentBound = numext::sqrt(sqNormBound / RealScalar(2));
+    const RealScalar componentBound = numext::sqrt<RealScalar>(sqNormBound / RealScalar(2));
     const RealScalar c0Max = numext::maxi(numext::abs(numext::real(c0)), numext::abs(numext::imag(c0)));
     unscaledSqNormOverflows = !(c0Max <= componentBound) || !(tailSqNorm <= sqNormBound);
   }
@@ -230,7 +230,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     tau = conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
     return;
   }
-  beta = numext::sqrt(numext::abs2(c0) + tailSqNorm);
+  beta = numext::sqrt<RealScalar>(numext::abs2(c0) + tailSqNorm);
   if (numext::real(c0) >= RealScalar(0)) beta = -beta;
   essential = tail.unwind() / (c0 - beta);
   tau = conj((beta - c0) / beta);
