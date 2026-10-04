@@ -386,6 +386,7 @@ ei_add_test(no_automatic_resizing)
 ei_add_test(conservative_resize)
 ei_add_test(product_small)
 ei_add_test(product_large)
+ei_add_test(product_threshold)
 if(EIGEN_TEST_SME)
   # EIGEN_TEST_SME defines EIGEN_ARM64_USE_SME (root CMakeLists.txt), which turns
   # a toolchain without SME2 into a build error rather than a NEON fallback; the

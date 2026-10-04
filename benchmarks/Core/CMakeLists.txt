@@ -65,6 +65,15 @@ eigen_add_benchmark(bench_syr2 bench_syr2.cpp)
 eigen_add_benchmark(bench_construction bench_construction.cpp)
 eigen_add_benchmark(bench_fixed_size bench_fixed_size.cpp)
 eigen_add_benchmark(bench_fixed_size_double bench_fixed_size.cpp DEFINITIONS SCALAR=double)
+eigen_add_benchmark(bench_fixed_size_complex bench_fixed_size.cpp DEFINITIONS "SCALAR=std::complex<float>")
+eigen_add_benchmark(bench_fixed_size_complex_double bench_fixed_size.cpp DEFINITIONS "SCALAR=std::complex<double>")
+# EIGEN_BENCH_FORCE_GEMM: the same sweep with every product on the GEMM path, to compare against the default.
+eigen_add_benchmark(bench_fixed_size_gemm bench_fixed_size.cpp DEFINITIONS EIGEN_BENCH_FORCE_GEMM)
+eigen_add_benchmark(bench_fixed_size_gemm_double bench_fixed_size.cpp DEFINITIONS EIGEN_BENCH_FORCE_GEMM SCALAR=double)
+eigen_add_benchmark(bench_fixed_size_gemm_complex bench_fixed_size.cpp
+    DEFINITIONS EIGEN_BENCH_FORCE_GEMM "SCALAR=std::complex<float>")
+eigen_add_benchmark(bench_fixed_size_gemm_complex_double bench_fixed_size.cpp
+    DEFINITIONS EIGEN_BENCH_FORCE_GEMM "SCALAR=std::complex<double>")
 eigen_add_benchmark(bench_small_matrix bench_small_matrix.cpp)
 eigen_add_benchmark(bench_scaled_product bench_scaled_product.cpp)
 eigen_add_benchmark(bench_outer_product bench_outer_product.cpp)
