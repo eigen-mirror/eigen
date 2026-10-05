@@ -1031,6 +1031,85 @@ void householder_noncommutative_scalar() {
   VERIFY(a == expected);
 }
 
+// Whether applyHouseholderOnTheRight on Derived with this essential type selects the fused row loop.
+template <typename Derived, typename EssentialPart>
+constexpr bool householder_right_fused() {
+  return std::is_same<internal::householder_apply_right_impl<Derived, EssentialPart>,
+                      internal::householder_apply_right_impl<Derived, EssentialPart, true>>::value;
+}
+
+// a H = a - (a v) tau v^* with v = [1; essential], formed explicitly.
+template <typename MatrixType, typename EssentialType>
+MatrixType householder_right_reference(const MatrixType& a, const EssentialType& essential,
+                                       const typename MatrixType::Scalar& tau) {
+  using Scalar = typename MatrixType::Scalar;
+  Matrix<Scalar, Dynamic, 1> v(essential.size() + 1);
+  v << Scalar(1), essential;
+  return a - (a * v) * tau * v.adjoint();
+}
+
+// Applies [1; essential] and tau to columns j..j+K of a, through a fixed-width and a runtime-width block, with
+// essential and tau either separate or stored in the block being updated.
+template <int K, typename MatrixType>
+void verify_householder_right_columns(const MatrixType& input, Index j) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using EssentialType = Matrix<Scalar, K, 1>;
+  using FixedBlock = Block<MatrixType, Dynamic, K + 1>;
+  using RuntimeBlock = Block<MatrixType, Dynamic, Dynamic>;
+  constexpr bool kFused = !MatrixType::IsRowMajor && internal::packet_traits<Scalar>::Vectorizable;
+  STATIC_CHECK((householder_right_fused<FixedBlock, EssentialType>() == kFused));
+  STATIC_CHECK((householder_right_fused<RuntimeBlock, EssentialType>() == kFused));
+  const Index rows = input.rows();
+  Matrix<Scalar, Dynamic, 1> workspace(rows);
+
+  const auto check = [&](const MatrixType& result, const EssentialType& essential, const Scalar& tau) {
+    MatrixType expected = input;
+    expected.middleCols(j, K + 1) = householder_right_reference(input.middleCols(j, K + 1).eval(), essential, tau);
+    // Each entry is a (K + 2)-term expression in a, essential and tau; the other columns must not change.
+    const RealScalar scale = RealScalar(1) + numext::abs(tau) * (RealScalar(1) + essential.squaredNorm());
+    const RealScalar bound = RealScalar(16 * (K + 2)) * NumTraits<RealScalar>::epsilon() * scale * input.norm();
+    VERIFY((result - expected).norm() <= bound);
+  };
+
+  Matrix<Scalar, K + 1, 1> x = Matrix<Scalar, K + 1, 1>::Random();
+  EssentialType essential;
+  Scalar tau;
+  RealScalar beta;
+  x.makeHouseholder(essential, tau, beta);
+  MatrixType a = input;
+  a.template middleCols<K + 1>(j).applyHouseholderOnTheRight(essential, tau, workspace.data());
+  check(a, essential, tau);
+  a = input;
+  a.middleCols(j, K + 1).applyHouseholderOnTheRight(essential, tau, workspace.data());
+  check(a, essential, tau);
+
+  // The fused loop copies essential and tau before its first store; here they are coefficients of row r of the
+  // block, so the reference uses the values read before the update.
+  if (kFused) {
+    const Index r = internal::random<Index>(0, rows - 1);
+    const EssentialType aliasedEssential = input.row(r).segment(j + 1, K).transpose();
+    const Scalar aliasedTau = input(r, j);
+    a = input;
+    a.template middleCols<K + 1>(j).applyHouseholderOnTheRight(a.row(r).template segment<K>(j + 1).transpose(), a(r, j),
+                                                               workspace.data());
+    check(a, aliasedEssential, aliasedTau);
+  }
+}
+
+// The two- and three-column right updates of the Francis QR step, over row counts that cover the packet loop and
+// the scalar tail, with spare columns on both sides of the updated block.
+template <typename Scalar, int StorageOrder>
+void householder_right_fixed_columns() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  const Index maxRows = 4 * internal::packet_traits<Scalar>::size + 3;
+  for (Index rows = 1; rows <= maxRows; ++rows) {
+    const Mat input = Mat::Random(rows, 5);
+    verify_householder_right_columns<1>(input, internal::random<Index>(0, 3));
+    verify_householder_right_columns<2>(input, internal::random<Index>(0, 2));
+  }
+}
+
 // Q times a diagonal, triangular, self-adjoint or permutation matrix, both orders, against the products with the
 // dense Q.
 template <typename Scalar>
@@ -1196,6 +1275,12 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_23(
         householder_structured_products<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
     CALL_SUBTEST_23(householder_structured_products_noncommutative<>());
+    CALL_SUBTEST_24((householder_right_fixed_columns<float, ColMajor>()));
+    CALL_SUBTEST_24((householder_right_fixed_columns<double, ColMajor>()));
+    CALL_SUBTEST_24((householder_right_fixed_columns<double, RowMajor>()));
+    CALL_SUBTEST_25((householder_right_fixed_columns<std::complex<float>, ColMajor>()));
+    CALL_SUBTEST_25((householder_right_fixed_columns<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_25((householder_right_fixed_columns<std::complex<double>, RowMajor>()));
   }
   CALL_SUBTEST_23(householder_structured_products<double>(1));
 }
