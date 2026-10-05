@@ -1502,9 +1502,14 @@ EIGEN_ALWAYS_INLINE void pger_common(PacketBlock<Packet, N>* acc, const Packet& 
   }
 }
 
-template <int N, typename Scalar, typename Packet, bool NegativeAccumulate>
+template <int N, typename Scalar, typename Packet, bool NegativeAccumulate, Index remaining_rows = 0>
 EIGEN_ALWAYS_INLINE void pger(PacketBlock<Packet, N>* acc, const Scalar* lhs, const Packet* rhsV) {
-  Packet lhsV = pload<Packet>(lhs);
+  Packet lhsV;
+  EIGEN_IF_CONSTEXPR (remaining_rows > 0) {
+    lhsV = ploadu_partial<Packet>(lhs, remaining_rows);
+  } else {
+    lhsV = ploadLhs<Packet>(lhs);
+  }
 
   pger_common<Packet, NegativeAccumulate, N>(acc, lhsV, rhsV);
 }
@@ -1529,15 +1534,26 @@ EIGEN_ALWAYS_INLINE void pgerc_common(PacketBlock<Packet, N>* accReal, PacketBlo
   }
 }
 
-template <int N, typename Scalar, typename Packet, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal>
+template <int N, typename Scalar, typename Packet, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal, bool RhsIsReal,
+          Index remaining_rows = 0>
 EIGEN_ALWAYS_INLINE void pgerc(PacketBlock<Packet, N>* accReal, PacketBlock<Packet, N>* accImag, const Scalar* lhs_ptr,
                                const Scalar* lhs_ptr_imag, const Packet* rhsV, const Packet* rhsVi) {
-  Packet lhsV = ploadLhs<Packet>(lhs_ptr);
+  Packet lhsV;
+  EIGEN_IF_CONSTEXPR (remaining_rows > 0) {
+    lhsV = ploadu_partial<Packet>(lhs_ptr, remaining_rows);
+  } else {
+    lhsV = ploadLhs<Packet>(lhs_ptr);
+  }
   Packet lhsVi;
-  EIGEN_IF_CONSTEXPR (!LhsIsReal)
-    lhsVi = ploadLhs<Packet>(lhs_ptr_imag);
-  else
+  EIGEN_IF_CONSTEXPR (!LhsIsReal) {
+    EIGEN_IF_CONSTEXPR (remaining_rows > 0) {
+      lhsVi = ploadu_partial<Packet>(lhs_ptr_imag, remaining_rows);
+    } else {
+      lhsVi = ploadLhs<Packet>(lhs_ptr_imag);
+    }
+  } else {
     EIGEN_UNUSED_VARIABLE(lhs_ptr_imag);
+  }
 
   pgerc_common<N, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(accReal, accImag, lhsV, lhsVi, rhsV, rhsVi);
 }
@@ -1625,16 +1641,18 @@ EIGEN_ALWAYS_INLINE void bstore(PacketBlock<Packet, N>& acc, const DataMapper& r
   }
 }
 
-#ifdef USE_PARTIAL_PACKETS
+// When Complex && full, the first N packets are full loads and `elements` counts only the second half at row + accCols.
 template <typename DataMapper, typename Packet, const Index accCols, bool Complex, Index N, bool full>
 EIGEN_ALWAYS_INLINE void bload_partial(PacketBlock<Packet, N*(Complex ? 2 : 1)>& acc, const DataMapper& res, Index row,
                                        Index elements) {
-  for (Index M = 0; M < N; M++) {
-    acc.packet[M] = res.template loadPacketPartial<Packet>(row, M, elements);
-  }
   EIGEN_IF_CONSTEXPR (Complex && full) {
     for (Index M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacket<Packet>(row, M);
       acc.packet[M + N] = res.template loadPacketPartial<Packet>(row + accCols, M, elements);
+    }
+  } else {
+    for (Index M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacketPartial<Packet>(row, M, elements);
     }
   }
 }
@@ -1645,7 +1663,6 @@ EIGEN_ALWAYS_INLINE void bstore_partial(PacketBlock<Packet, N>& acc, const DataM
     res.template storePacketPartial<Packet>(row, M, acc.packet[M], elements);
   }
 }
-#endif
 
 #ifdef _ARCH_PWR10
 #define USE_P10_AND_PVIPR2_0 (EIGEN_COMP_LLVM || (__GNUC__ >= 11))
@@ -1900,11 +1917,11 @@ EIGEN_ALWAYS_INLINE void bcouple(PacketBlock<Packet, N>& taccReal, PacketBlock<P
     MICRO_PREFETCHN1(ptr_imag, N);  \
   }
 
-template <typename Scalar, typename Packet, const Index accRows, const Index remaining_rows>
+template <typename Scalar, typename Packet, const Index accRows, const Index remaining_rows, const Index load_rows = 0>
 EIGEN_ALWAYS_INLINE void MICRO_EXTRA_ROW(const Scalar*& lhs_ptr, const Scalar*& rhs_ptr0, const Scalar*& rhs_ptr1,
                                          const Scalar*& rhs_ptr2, PacketBlock<Packet, accRows>& accZero) {
   MICRO_BROADCAST_EXTRA
-  pger<accRows, Scalar, Packet, false>(&accZero, lhs_ptr, rhsV);
+  pger<accRows, Scalar, Packet, false, load_rows>(&accZero, lhs_ptr, rhsV);
   lhs_ptr += remaining_rows;
 }
 
@@ -1921,41 +1938,30 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_row_iteration(const DataMapper& res, cons
   MICRO_SRC2_PTR
   bsetzero<Packet, accRows>(accZero0);
 
-  Index remaining_depth = depth & -quad_traits<Scalar>::rows;
+  const Index peel_depth = depth - (accCols - remaining_rows);
   Index k = 0;
-  if (remaining_depth >= PEEL_ROW) {
+  if (peel_depth >= PEEL_ROW) {
     MICRO_ZERO_PEEL_ROW
     do {
       MICRO_PREFETCHN(accRows)
       EIGEN_POWER_PREFETCH(lhs_ptr);
       MICRO_WORK_PEEL_ROW
-    } while ((k += PEEL_ROW) + PEEL_ROW <= remaining_depth);
+    } while ((k += PEEL_ROW) + PEEL_ROW <= peel_depth);
     MICRO_ADD_PEEL_ROW
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_EXTRA_ROW<Scalar, Packet, accRows, remaining_rows>(lhs_ptr, rhs_ptr0, rhs_ptr1, rhs_ptr2, accZero0);
   }
+  for (; k < depth; k++) {
+    MICRO_EXTRA_ROW<Scalar, Packet, accRows, remaining_rows, remaining_rows>(lhs_ptr, rhs_ptr0, rhs_ptr1, rhs_ptr2,
+                                                                             accZero0);
+  }
 
-#ifdef USE_PARTIAL_PACKETS
   EIGEN_UNUSED_VARIABLE(rows);
   EIGEN_UNUSED_VARIABLE(pMask);
   bload_partial<DataMapper, Packet, 0, false, accRows>(acc, res, row, remaining_rows);
   bscale<Packet, accRows>(acc, accZero0, pAlpha);
   bstore_partial<DataMapper, Packet, accRows>(acc, res, row, remaining_rows);
-#else
-  bload<DataMapper, Packet, 0, ColMajor, false, accRows>(acc, res, row, 0);
-  if ((accRows == 1) || (rows >= accCols)) {
-    bscale<Packet, accRows, true>(acc, accZero0, pAlpha, pMask);
-    bstore<DataMapper, Packet, accRows>(acc, res, row);
-  } else {
-    bscale<Packet, accRows, false>(acc, accZero0, pAlpha, pMask);
-    for (Index j = 0; j < accRows; j++) {
-      for (Index i = 0; i < remaining_rows; i++) {
-        res(row + i, j) = acc.packet[j][i];
-      }
-    }
-  }
-#endif
 }
 
 #define MICRO_EXTRA(MICRO_EXTRA_UNROLL, value, is_col)                   \
@@ -2017,9 +2023,15 @@ EIGEN_ALWAYS_INLINE void gemm_extra_row(const DataMapper& res, const Scalar* lhs
   MICRO_TYPE(4, MICRO_TYPE_PEEL4, MICRO_WORK_ONE, MICRO_LOAD_ONE) \
   MICRO_ADD_ROWS(size)
 
+#define MICRO_UNROLL_TYPE_PARTIAL(MICRO_TYPE, size)                       \
+  MICRO_TYPE(4, MICRO_TYPE_PEEL4, MICRO_WORK_ONE, MICRO_LOAD_PARTIAL_ONE) \
+  MICRO_ADD_ROWS(size)
+
 #define MICRO_ONE_PEEL4 MICRO_UNROLL_TYPE(MICRO_UNROLL_TYPE_PEEL, PEEL)
 
 #define MICRO_ONE4 MICRO_UNROLL_TYPE(MICRO_UNROLL_TYPE_ONE, 1)
+
+#define MICRO_ONE4_PARTIAL MICRO_UNROLL_TYPE_PARTIAL(MICRO_UNROLL_TYPE_ONE, 1)
 
 #define MICRO_DST_PTR_ONE(iter)               \
   EIGEN_IF_CONSTEXPR (unroll_factor > iter) { \
@@ -2034,7 +2046,6 @@ EIGEN_ALWAYS_INLINE void gemm_extra_row(const DataMapper& res, const Scalar* lhs
 
 #define MICRO_PREFETCH MICRO_UNROLL(MICRO_PREFETCH_ONE)
 
-#ifdef USE_PARTIAL_PACKETS
 #define MICRO_STORE_ONE(iter)                                                                         \
   EIGEN_IF_CONSTEXPR (unroll_factor > iter) {                                                         \
     EIGEN_IF_CONSTEXPR (MICRO_NORMAL_PARTIAL(iter)) {                                                 \
@@ -2047,33 +2058,14 @@ EIGEN_ALWAYS_INLINE void gemm_extra_row(const DataMapper& res, const Scalar* lhs
       bstore_partial<DataMapper, Packet, accRows>(acc, res, row + iter * accCols, accCols2);          \
     }                                                                                                 \
   }
-#else
-#define MICRO_STORE_ONE(iter)                                                                  \
-  EIGEN_IF_CONSTEXPR (unroll_factor > iter) {                                                  \
-    bload<DataMapper, Packet, 0, ColMajor, false, accRows>(acc, res, row + iter * accCols, 0); \
-    bscale<Packet, accRows, !(MICRO_NORMAL(iter))>(acc, accZero##iter, pAlpha, pMask);         \
-    bstore<DataMapper, Packet, accRows>(acc, res, row + iter * accCols);                       \
-  }
-#endif
 
 #define MICRO_STORE MICRO_UNROLL(MICRO_STORE_ONE)
 
-#ifdef USE_PARTIAL_PACKETS
 template <int unroll_factor, typename Scalar, typename Packet, typename DataMapper, const Index accRows,
           const Index accCols, bool full>
-#else
-template <int unroll_factor, typename Scalar, typename Packet, typename DataMapper, const Index accRows,
-          const Index accCols, const Index accCols2>
-#endif
 EIGEN_ALWAYS_INLINE void gemm_unrolled_iteration(const DataMapper& res, const Scalar* lhs_base, const Scalar* rhs_base,
                                                  Index depth, Index strideA, Index offsetA, Index strideB, Index& row,
-                                                 const Packet& pAlpha,
-#ifdef USE_PARTIAL_PACKETS
-                                                 Index accCols2
-#else
-                                                 const Packet& pMask
-#endif
-) {
+                                                 const Packet& pAlpha, Index accCols2) {
   const Scalar *rhs_ptr0 = rhs_base, *rhs_ptr1 = nullptr, *rhs_ptr2 = nullptr;
   const Scalar *lhs_ptr0 = nullptr, *lhs_ptr1 = nullptr, *lhs_ptr2 = nullptr, *lhs_ptr3 = nullptr, *lhs_ptr4 = nullptr,
                *lhs_ptr5 = nullptr, *lhs_ptr6 = nullptr, *lhs_ptr7 = nullptr;
@@ -2084,31 +2076,30 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_iteration(const DataMapper& res, const Sc
   MICRO_SRC_PTR
   MICRO_DST_PTR
 
+  const Index peel_depth = full ? depth : (depth - (accCols - accCols2));
   Index k = 0;
-  for (; k + PEEL <= depth; k += PEEL) {
+  for (; k + PEEL <= peel_depth; k += PEEL) {
     MICRO_PREFETCHN(accRows)
     MICRO_PREFETCH
     MICRO_ONE_PEEL4
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_ONE4
+  }
+  EIGEN_IF_CONSTEXPR (!full) {
+    for (; k < depth; k++) {
+      MICRO_ONE4_PARTIAL
+    }
   }
   MICRO_STORE
 
   MICRO_UPDATE
 }
 
-#ifdef USE_PARTIAL_PACKETS
 #define MICRO_UNROLL_ITER2(N, M)                                                                              \
   gemm_unrolled_iteration<N + ((M) ? 1 : 0), Scalar, Packet, DataMapper, accRows, accCols, !M>(               \
       res3, lhs_base, rhs_base, depth, strideA, offsetA, strideB, row, pAlpha, M ? remaining_rows : accCols); \
   if (M) return;
-#else
-#define MICRO_UNROLL_ITER2(N, M)                                                                             \
-  gemm_unrolled_iteration<N + ((M) ? 1 : 0), Scalar, Packet, DataMapper, accRows, accCols, M ? M : accCols>( \
-      res3, lhs_base, rhs_base, depth, strideA, offsetA, strideB, row, pAlpha, pMask);                       \
-  if (M) return;
-#endif
 
 template <typename Scalar, typename Packet, typename DataMapper, const Index accRows, const Index accCols>
 EIGEN_ALWAYS_INLINE void gemm_cols(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index depth,
@@ -2308,7 +2299,7 @@ EIGEN_STRONG_INLINE void gemm(const DataMapper& res, const Scalar* blockA, const
   MICRO_COMPLEX_ADD_PEEL(2, 0) MICRO_COMPLEX_ADD_PEEL(3, 1) MICRO_COMPLEX_ADD_PEEL(1, 0)
 
 template <typename Scalar, typename Packet, const Index accRows, bool ConjugateLhs, bool ConjugateRhs, bool LhsIsReal,
-          bool RhsIsReal, const Index remaining_rows>
+          bool RhsIsReal, const Index remaining_rows, const Index load_rows = 0>
 EIGEN_ALWAYS_INLINE void MICRO_COMPLEX_EXTRA_ROW(const Scalar*& lhs_ptr_real, const Scalar*& lhs_ptr_imag,
                                                  const Scalar*& rhs_ptr_real0, const Scalar*& rhs_ptr_real1,
                                                  const Scalar*& rhs_ptr_real2, const Scalar*& rhs_ptr_imag0,
@@ -2316,8 +2307,8 @@ EIGEN_ALWAYS_INLINE void MICRO_COMPLEX_EXTRA_ROW(const Scalar*& lhs_ptr_real, co
                                                  PacketBlock<Packet, accRows>& accReal,
                                                  PacketBlock<Packet, accRows>& accImag) {
   MICRO_COMPLEX_BROADCAST_EXTRA
-  pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal>(&accReal, &accImag, lhs_ptr_real,
-                                                                                   lhs_ptr_imag, rhsV, rhsVi);
+  pgerc<accRows, Scalar, Packet, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal, load_rows>(
+      &accReal, &accImag, lhs_ptr_real, lhs_ptr_imag, rhsV, rhsVi);
   MICRO_COMPLEX_ADD_COLS(1)
 }
 
@@ -2347,9 +2338,9 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_complex_row_iteration(const DataMapper& r
   bsetzero<Packet, accRows>(accReal0);
   bsetzero<Packet, accRows>(accImag0);
 
-  Index remaining_depth = depth & -quad_traits<Scalar>::rows;
+  const Index peel_depth = depth - (accCols - remaining_rows);
   Index k = 0;
-  if (remaining_depth >= PEEL_COMPLEX_ROW) {
+  if (peel_depth >= PEEL_COMPLEX_ROW) {
     MICRO_COMPLEX_ZERO_PEEL_ROW
     do {
       MICRO_COMPLEX_PREFETCHN(accRows)
@@ -2358,39 +2349,40 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_complex_row_iteration(const DataMapper& r
         EIGEN_POWER_PREFETCH(lhs_ptr_imag);
       }
       MICRO_COMPLEX_WORK_PEEL_ROW
-    } while ((k += PEEL_COMPLEX_ROW) + PEEL_COMPLEX_ROW <= remaining_depth);
+    } while ((k += PEEL_COMPLEX_ROW) + PEEL_COMPLEX_ROW <= peel_depth);
     MICRO_COMPLEX_ADD_PEEL_ROW
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_COMPLEX_EXTRA_ROW<Scalar, Packet, accRows, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal, remaining_rows>(
         lhs_ptr_real, lhs_ptr_imag, rhs_ptr_real0, rhs_ptr_real1, rhs_ptr_real2, rhs_ptr_imag0, rhs_ptr_imag1,
         rhs_ptr_imag2, accReal0, accImag0);
   }
+  for (; k < depth; k++) {
+    MICRO_COMPLEX_EXTRA_ROW<Scalar, Packet, accRows, ConjugateLhs, ConjugateRhs, LhsIsReal, RhsIsReal, remaining_rows,
+                            remaining_rows>(lhs_ptr_real, lhs_ptr_imag, rhs_ptr_real0, rhs_ptr_real1, rhs_ptr_real2,
+                                            rhs_ptr_imag0, rhs_ptr_imag1, rhs_ptr_imag2, accReal0, accImag0);
+  }
 
+  EIGEN_UNUSED_VARIABLE(rows);
   constexpr bool full = (remaining_rows > accColsC);
-  bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row, 0);
-  if ((accRows == 1) || (rows >= accCols)) {
-    bscalec<Packet, accRows, true>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
-    bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
-    bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
-    EIGEN_IF_CONSTEXPR (full) {
-      bstore<DataMapper, Packetc, accRows>(acc1, res, row + accColsC);
-    }
+  constexpr bool odd = (sizeof(Scalar) == sizeof(float)) && (remaining_rows & 1);
+  EIGEN_IF_CONSTEXPR (odd) {
+    bload_partial<DataMapper, Packetc, accColsC, true, accRows, full>(tRes, res, row, 1);
   } else {
-    bscalec<Packet, accRows, false>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
-    bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
-
-    if ((sizeof(Scalar) == sizeof(float)) && (remaining_rows == 1)) {
-      for (Index j = 0; j < accRows; j++) {
-        res(row + 0, j) = pfirst<Packetc>(acc0.packet[j]);
-      }
+    bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row, 0);
+  }
+  bscalec<Packet, accRows, true>(accReal0, accImag0, pAlphaReal, pAlphaImag, taccReal, taccImag, pMask);
+  bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);
+  EIGEN_IF_CONSTEXPR (odd && !full) {
+    bstore_partial<DataMapper, Packetc, accRows>(acc0, res, row + 0, 1);
+  } else {
+    bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
+  }
+  EIGEN_IF_CONSTEXPR (full) {
+    EIGEN_IF_CONSTEXPR (odd) {
+      bstore_partial<DataMapper, Packetc, accRows>(acc1, res, row + accColsC, 1);
     } else {
-      bstore<DataMapper, Packetc, accRows>(acc0, res, row + 0);
-      EIGEN_IF_CONSTEXPR (full) {
-        for (Index j = 0; j < accRows; j++) {
-          res(row + accColsC, j) = pfirst<Packetc>(acc1.packet[j]);
-        }
-      }
+      bstore<DataMapper, Packetc, accRows>(acc1, res, row + accColsC);
     }
   }
 }
@@ -2443,9 +2435,15 @@ EIGEN_ALWAYS_INLINE void gemm_complex_extra_row(const DataMapper& res, const Sca
   MICRO_COMPLEX_TYPE(4, MICRO_COMPLEX_TYPE_PEEL4, MICRO_COMPLEX_WORK_ONE4, MICRO_COMPLEX_LOAD_ONE) \
   MICRO_COMPLEX_ADD_ROWS(size, false)
 
+#define MICRO_COMPLEX_UNROLL_TYPE_PARTIAL(MICRO_COMPLEX_TYPE, size)                                        \
+  MICRO_COMPLEX_TYPE(4, MICRO_COMPLEX_TYPE_PEEL4, MICRO_COMPLEX_WORK_ONE4, MICRO_COMPLEX_LOAD_PARTIAL_ONE) \
+  MICRO_COMPLEX_ADD_ROWS(size, false)
+
 #define MICRO_COMPLEX_ONE_PEEL4 MICRO_COMPLEX_UNROLL_TYPE(MICRO_COMPLEX_UNROLL_TYPE_PEEL, PEEL_COMPLEX)
 
 #define MICRO_COMPLEX_ONE4 MICRO_COMPLEX_UNROLL_TYPE(MICRO_COMPLEX_UNROLL_TYPE_ONE, 1)
+
+#define MICRO_COMPLEX_ONE4_PARTIAL MICRO_COMPLEX_UNROLL_TYPE_PARTIAL(MICRO_COMPLEX_UNROLL_TYPE_ONE, 1)
 
 #define MICRO_COMPLEX_DST_PTR_ONE(iter)       \
   EIGEN_IF_CONSTEXPR (unroll_factor > iter) { \
@@ -2465,13 +2463,26 @@ EIGEN_ALWAYS_INLINE void gemm_complex_extra_row(const DataMapper& res, const Sca
 #define MICRO_COMPLEX_STORE_ONE(iter)                                                                               \
   EIGEN_IF_CONSTEXPR (unroll_factor > iter) {                                                                       \
     constexpr bool full = ((MICRO_NORMAL(iter)) || (accCols2 > accColsC));                                          \
-    bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row + iter * accCols, 0);        \
+    constexpr bool odd = !(MICRO_NORMAL(iter)) && (sizeof(Scalar) == sizeof(float)) && (accCols2 & 1);              \
+    EIGEN_IF_CONSTEXPR (odd) {                                                                                      \
+      bload_partial<DataMapper, Packetc, accColsC, true, accRows, full>(tRes, res, row + iter * accCols, 1);        \
+    } else {                                                                                                        \
+      bload<DataMapper, Packetc, accColsC, ColMajor, true, accRows, full>(tRes, res, row + iter * accCols, 0);      \
+    }                                                                                                               \
     bscalec<Packet, accRows, !(MICRO_NORMAL(iter))>(accReal##iter, accImag##iter, pAlphaReal, pAlphaImag, taccReal, \
                                                     taccImag, pMask);                                               \
     bcouple<Packet, Packetc, accRows, full>(taccReal, taccImag, tRes, acc0, acc1);                                  \
-    bstore<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0);                                      \
+    EIGEN_IF_CONSTEXPR (odd && !full) {                                                                             \
+      bstore_partial<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0, 1);                         \
+    } else {                                                                                                        \
+      bstore<DataMapper, Packetc, accRows>(acc0, res, row + iter * accCols + 0);                                    \
+    }                                                                                                               \
     EIGEN_IF_CONSTEXPR (full) {                                                                                     \
-      bstore<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC);                             \
+      EIGEN_IF_CONSTEXPR (odd) {                                                                                    \
+        bstore_partial<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC, 1);                \
+      } else {                                                                                                      \
+        bstore<DataMapper, Packetc, accRows>(acc1, res, row + iter * accCols + accColsC);                           \
+      }                                                                                                             \
     }                                                                                                               \
   }
 
@@ -2501,14 +2512,20 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_iteration(const DataMapper& res, 
   MICRO_COMPLEX_SRC_PTR
   MICRO_COMPLEX_DST_PTR
 
+  const Index peel_depth = depth - (accCols - accCols2);
   Index k = 0;
-  for (; k + PEEL_COMPLEX <= depth; k += PEEL_COMPLEX) {
+  for (; k + PEEL_COMPLEX <= peel_depth; k += PEEL_COMPLEX) {
     MICRO_COMPLEX_PREFETCHN(accRows)
     MICRO_COMPLEX_PREFETCH
     MICRO_COMPLEX_ONE_PEEL4
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_COMPLEX_ONE4
+  }
+  EIGEN_IF_CONSTEXPR (accCols != accCols2) {
+    for (; k < depth; k++) {
+      MICRO_COMPLEX_ONE4_PARTIAL
+    }
   }
   MICRO_COMPLEX_STORE
 

@@ -64,12 +64,17 @@ EIGEN_ALWAYS_INLINE void storeComplexAccumulator(Index i, const DataMapper& data
                                                  const Packet& alphaImag, const Packet& pMask, __vector_quad* accReal,
                                                  __vector_quad* accImag) {
   constexpr bool full = (accCols2 > accColsC);
+  constexpr bool odd = (accCols != accCols2) && (sizeof(__UNPACK_TYPE__(Packet)) == sizeof(float)) && (accCols2 & 1);
   PacketBlock<Packet, 4> resultReal, resultImag;
   __builtin_mma_disassemble_acc(&resultReal.packet, accReal);
   __builtin_mma_disassemble_acc(&resultImag.packet, accImag);
 
   PacketBlock<Packetc, 8> tRes;
-  bload<DataMapper, Packetc, accColsC, ColMajor, true, 4, full>(tRes, data, i, 0);
+  EIGEN_IF_CONSTEXPR (odd) {
+    bload_partial<DataMapper, Packetc, accColsC, true, 4, full>(tRes, data, i, 1);
+  } else {
+    bload<DataMapper, Packetc, accColsC, ColMajor, true, 4, full>(tRes, data, i, 0);
+  }
 
   PacketBlock<Packet, 4> taccReal, taccImag;
   bscalec<Packet, 4, (accCols != accCols2)>(resultReal, resultImag, alphaReal, alphaImag, taccReal, taccImag, pMask);
@@ -77,9 +82,17 @@ EIGEN_ALWAYS_INLINE void storeComplexAccumulator(Index i, const DataMapper& data
   PacketBlock<Packetc, 4> acc1, acc2;
   bcouple<Packet, Packetc, 4, full>(taccReal, taccImag, tRes, acc1, acc2);
 
-  bstore<DataMapper, Packetc, 4>(acc1, data, i);
-  if (full) {
-    bstore<DataMapper, Packetc, 4>(acc2, data, i + accColsC);
+  EIGEN_IF_CONSTEXPR (odd && !full) {
+    bstore_partial<DataMapper, Packetc, 4>(acc1, data, i, 1);
+  } else {
+    bstore<DataMapper, Packetc, 4>(acc1, data, i);
+  }
+  EIGEN_IF_CONSTEXPR (full) {
+    EIGEN_IF_CONSTEXPR (odd) {
+      bstore_partial<DataMapper, Packetc, 4>(acc2, data, i + accColsC, 1);
+    } else {
+      bstore<DataMapper, Packetc, 4>(acc2, data, i + accColsC);
+    }
   }
 }
 
@@ -280,6 +293,10 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV) { p
   MICRO_MMA_TYPE(MICRO_MMA_WORK_ONE, MICRO_LOAD_ONE, RhsPacket) \
   MICRO_MMA_UPDATE_RHS(size)
 
+#define MICRO_MMA_UNROLL_TYPE_PARTIAL(MICRO_MMA_TYPE, size)             \
+  MICRO_MMA_TYPE(MICRO_MMA_WORK_ONE, MICRO_LOAD_PARTIAL_ONE, RhsPacket) \
+  MICRO_MMA_UPDATE_RHS(size)
+
 #ifndef VECTOR_PAIR_LOADS_LHS
 #define MICRO_MMA_ONE_PEEL MICRO_MMA_UNROLL_TYPE(MICRO_MMA_UNROLL_TYPE_PEEL, PEEL_MMA)
 #else
@@ -291,6 +308,8 @@ EIGEN_ALWAYS_INLINE void ploadLhsMMA(const double* lhs, __vector_pair& lhsV) { p
 #endif
 
 #define MICRO_MMA_ONE MICRO_MMA_UNROLL_TYPE(MICRO_MMA_UNROLL_TYPE_ONE, 1)
+
+#define MICRO_MMA_ONE_PARTIAL MICRO_MMA_UNROLL_TYPE_PARTIAL(MICRO_MMA_UNROLL_TYPE_ONE, 1)
 
 #define MICRO_MMA_DST_PTR_ONE(iter)       \
   if (unroll_factor * accItr > iter) {    \
@@ -361,14 +380,20 @@ EIGEN_ALWAYS_INLINE void gemm_unrolled_MMA_iteration(const DataMapper& res0, con
   MICRO_MMA_SRC_PTR
   MICRO_MMA_DST_PTR
 
-  Index k = 0, depth2 = depth - PEEL_MMA;
+  const Index peel_depth = full ? depth : (depth - (accCols - accCols2));
+  Index k = 0, depth2 = peel_depth - PEEL_MMA;
   for (; k <= depth2; k += PEEL_MMA) {
     EIGEN_POWER_PREFETCH(rhs_ptr);
     MICRO_MMA_PREFETCH
     MICRO_MMA_ONE_PEEL
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_MMA_ONE
+  }
+  EIGEN_IF_CONSTEXPR (!full) {
+    for (; k < depth; k++) {
+      MICRO_MMA_ONE_PARTIAL
+    }
   }
   MICRO_MMA_STORE
 
@@ -641,6 +666,10 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
   MICRO_COMPLEX_MMA_TYPE(MICRO_COMPLEX_MMA_WORK_ONE, MICRO_COMPLEX_LOAD_ONE, RhsPacket) \
   MICRO_COMPLEX_MMA_UPDATE_RHS(size);
 
+#define MICRO_COMPLEX_MMA_UNROLL_TYPE_PARTIAL(MICRO_COMPLEX_MMA_TYPE, size)                     \
+  MICRO_COMPLEX_MMA_TYPE(MICRO_COMPLEX_MMA_WORK_ONE, MICRO_COMPLEX_LOAD_PARTIAL_ONE, RhsPacket) \
+  MICRO_COMPLEX_MMA_UPDATE_RHS(size);
+
 #ifndef VECTOR_PAIR_LOADS_LHS
 #define MICRO_COMPLEX_MMA_ONE_PEEL MICRO_COMPLEX_MMA_UNROLL_TYPE(MICRO_COMPLEX_MMA_UNROLL_TYPE_PEEL, PEEL_COMPLEX_MMA)
 #else
@@ -653,6 +682,8 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
 #endif
 
 #define MICRO_COMPLEX_MMA_ONE MICRO_COMPLEX_MMA_UNROLL_TYPE(MICRO_COMPLEX_MMA_UNROLL_TYPE_ONE, 1)
+
+#define MICRO_COMPLEX_MMA_ONE_PARTIAL MICRO_COMPLEX_MMA_UNROLL_TYPE_PARTIAL(MICRO_COMPLEX_MMA_UNROLL_TYPE_ONE, 1)
 
 #define MICRO_COMPLEX_MMA_DST_PTR_ONE(iter) \
   if (unroll_factor * accItr > iter) {      \
@@ -753,7 +784,8 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_MMA_iteration(const DataMapper& r
   MICRO_COMPLEX_MMA_SRC_PTR
   MICRO_COMPLEX_MMA_DST_PTR
 
-  Index k = 0, depth2 = depth - PEEL_COMPLEX_MMA;
+  const Index peel_depth = depth - (accCols - accCols2);
+  Index k = 0, depth2 = peel_depth - PEEL_COMPLEX_MMA;
   for (; k <= depth2; k += PEEL_COMPLEX_MMA) {
     EIGEN_POWER_PREFETCH(rhs_ptr_real);
     if (!RhsIsReal) {
@@ -762,8 +794,13 @@ EIGEN_ALWAYS_INLINE void gemm_complex_unrolled_MMA_iteration(const DataMapper& r
     MICRO_COMPLEX_MMA_PREFETCH
     MICRO_COMPLEX_MMA_ONE_PEEL
   }
-  for (; k < depth; k++) {
+  for (; k < peel_depth; k++) {
     MICRO_COMPLEX_MMA_ONE
+  }
+  EIGEN_IF_CONSTEXPR (accCols != accCols2) {
+    for (; k < depth; k++) {
+      MICRO_COMPLEX_MMA_ONE_PARTIAL
+    }
   }
   MICRO_COMPLEX_MMA_STORE
 
