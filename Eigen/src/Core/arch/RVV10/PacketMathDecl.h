@@ -287,11 +287,24 @@ struct rvv_default_float_packet_traits : rvv_default_packet_traits<Scalar, Packe
     HasSin = EIGEN_FAST_MATH,
     HasCos = EIGEN_FAST_MATH,
     HasTan = EIGEN_FAST_MATH,
+    HasSinh = 1,
+    HasCosh = 1,
+    HasASinh = 1,
+    HasACosh = 1,
+    HasATan = 1,
+    HasATanh = 1,
     HasLog = 1,
     HasExp = 1,
+    HasLog10 = 1,
+    HasLog1p = 1,
+    HasExpm1 = 1,
+    HasPow = 1,
     HasSqrt = 1,
+    HasCbrt = 1,
+    HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
-    HasErf = EIGEN_FAST_MATH
+    HasErf = EIGEN_FAST_MATH,
+    HasErfc = EIGEN_FAST_MATH
   };
 };
 
