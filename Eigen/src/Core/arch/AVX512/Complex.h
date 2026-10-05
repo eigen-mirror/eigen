@@ -449,6 +449,88 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4cd, 4>& kernel) {
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet4cd)
 EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(Packet8cf)
 
+/*---------------- load/store segment support ----------------*/
+
+// A complex lane is two real lanes, so the k-mask is formed over 2 * begin and 2 * count.
+
+/*---------------- std::complex<float> ----------------*/
+
+template <>
+struct has_packet_segment<Packet8cf> : std::true_type {};
+
+template <>
+inline Packet8cf ploaduSegment<Packet8cf>(const std::complex<float>* from, Index begin, Index count) {
+  return Packet8cf(
+      _mm512_maskz_loadu_ps(static_cast<__mmask16>(segment_kmask(2 * begin, 2 * count)), &numext::real_ref(*from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<float>, Packet8cf>(std::complex<float>* to, const Packet8cf& from, Index begin,
+                                                           Index count) {
+  _mm512_mask_storeu_ps(&numext::real_ref(*to), static_cast<__mmask16>(segment_kmask(2 * begin, 2 * count)), from.v);
+}
+
+/*---------------- std::complex<double> ----------------*/
+
+template <>
+struct has_packet_segment<Packet4cd> : std::true_type {};
+
+template <>
+inline Packet4cd ploaduSegment<Packet4cd>(const std::complex<double>* from, Index begin, Index count) {
+  return Packet4cd(
+      _mm512_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), &numext::real_ref(*from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<double>, Packet4cd>(std::complex<double>* to, const Packet4cd& from,
+                                                            Index begin, Index count) {
+  _mm512_mask_storeu_pd(&numext::real_ref(*to), static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), from.v);
+}
+
+#ifdef EIGEN_VECTORIZE_AVX512VL
+
+// The 256- and 128-bit packets declare has_packet_segment in AVX/Complex.h.
+
+template <>
+inline Packet4cf ploaduSegment<Packet4cf>(const std::complex<float>* from, Index begin, Index count) {
+  return Packet4cf(
+      _mm256_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), &numext::real_ref(*from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<float>, Packet4cf>(std::complex<float>* to, const Packet4cf& from, Index begin,
+                                                           Index count) {
+  _mm256_mask_storeu_ps(&numext::real_ref(*to), static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), from.v);
+}
+
+template <>
+inline Packet2cf ploaduSegment<Packet2cf>(const std::complex<float>* from, Index begin, Index count) {
+  return Packet2cf(
+      _mm_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), &numext::real_ref(*from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<float>, Packet2cf>(std::complex<float>* to, const Packet2cf& from, Index begin,
+                                                           Index count) {
+  _mm_mask_storeu_ps(&numext::real_ref(*to), static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), from.v);
+}
+
+template <>
+inline Packet2cd ploaduSegment<Packet2cd>(const std::complex<double>* from, Index begin, Index count) {
+  return Packet2cd(
+      _mm256_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), &numext::real_ref(*from)));
+}
+
+template <>
+inline void pstoreuSegment<std::complex<double>, Packet2cd>(std::complex<double>* to, const Packet2cd& from,
+                                                            Index begin, Index count) {
+  _mm256_mask_storeu_pd(&numext::real_ref(*to), static_cast<__mmask8>(segment_kmask(2 * begin, 2 * count)), from.v);
+}
+
+#endif  // EIGEN_VECTORIZE_AVX512VL
+
+/*---------------- end load/store segment support ----------------*/
+
 EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 
 }  // end namespace internal

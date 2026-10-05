@@ -47,7 +47,7 @@ scripts() {
   rc=0
   for t in scripts/test_affected_tests.py ci/scripts/test_test_cache.py \
            ci/scripts/test_prune_runner_cache.py scripts/test_check_style.py \
-           scripts/test_clang_tidy_hook.py; do
+           scripts/test_clang_tidy_hook.py scripts/test_tidy_compile_db.py; do
     echo "== $t"
     python3 "$t" || rc=1
   done

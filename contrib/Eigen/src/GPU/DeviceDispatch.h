@@ -69,6 +69,17 @@ void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExp
   if (resized) {
     dst.resize(m, n);
   }
+
+  // cuBLAS rejects ld = 0 (ld >= max(1, rows)) and the cublasLt heuristic
+  // faults on n == 0, so empty products stop here. For k == 0, C = beta * C
+  // with beta in {0, 1}; a resized C starts from zero.
+  if (m == 0 || n == 0 || k == 0) {
+    if ((resized || beta_val == Scalar(0)) && dst.sizeInBytes() > 0) {
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
+      dst.recordReady(ctx.stream());
+    }
+    return;
+  }
   const int64_t ldc = dst.rows();
 
   Scalar alpha_local = alpha_scale * traits_lhs::alpha(expr.lhs()) * traits_rhs::alpha(expr.rhs());
@@ -80,13 +91,8 @@ void dispatch(Context& ctx, DeviceMatrix<scalar_type_t<Lhs>>& dst, const GemmExp
     EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(dst.data(), 0, dst.sizeInBytes(), ctx.stream()));
   }
 
-  // cuBLAS reads alpha and beta through host pointers. Holding them in an array
-  // keeps the compiler from eliding their stack slots — at -O1+ clang and MSVC
-  // otherwise drop the stores for complex types, leaving cuBLAS with a dangling
-  // pointer.
-  Scalar scalars[2] = {alpha_local, beta_val};
-  cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &scalars[0], A.data(), lda, B.data(),
-                ldb, &scalars[1], dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
+  cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), transA, transB, m, n, k, &alpha_local, A.data(), lda,
+                B.data(), ldb, &beta_val, dst.data(), ldc, ctx.gemmWorkspace(), ctx.gemmPlanCache(),
                 ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
 
   dst.recordReady(ctx.stream());
@@ -291,11 +297,10 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const SymmExpr<Scalar, Up
   dst.resize(m, n);
 
   constexpr cublasFillMode_t uplo = (UpLo == Lower) ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
-  // The array keeps the host-pointer stack slots alive; see the GEMM dispatch.
-  Scalar scalars[2] = {Scalar(1), Scalar(0)};
+  const Scalar one(1), zero(0);
 
-  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &scalars[0], A.data(), A.rows(),
-                                 B.data(), B.rows(), &scalars[1], dst.data(), dst.rows()));
+  EIGEN_CUBLAS_CHECK(cublasXsymm(ctx.cublasHandle(), CUBLAS_SIDE_LEFT, uplo, m, n, &one, A.data(), A.rows(), B.data(),
+                                 B.rows(), &zero, dst.data(), dst.rows()));
 
   dst.recordReady(ctx.stream());
 }
@@ -352,10 +357,9 @@ void dispatch(Context& ctx, DeviceMatrix<Scalar>& dst, const DeviceAddExpr<Scala
   if (m > 0 && n > 0) {
     A.waitReady(ctx.stream());
     B.waitReady(ctx.stream());
-    // See the GEMM dispatch: array prevents compiler from eliding host-pointer stack slots.
-    Scalar scalars[2] = {expr.alpha(), expr.beta()};
-    EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &scalars[0], A.data(), m,
-                                   &scalars[1], B.data(), m, dst.data(), m));
+    const Scalar alpha_val = expr.alpha(), beta_val = expr.beta();
+    EIGEN_CUBLAS_CHECK(cublasXgeam(ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, &alpha_val, A.data(), m,
+                                   &beta_val, B.data(), m, dst.data(), m));
     dst.recordReady(ctx.stream());
   }
 }
@@ -544,13 +548,24 @@ void SelfAdjointView<Scalar_, UpLo_>::rankUpdate(const DeviceMatrix<Scalar_>& A,
 
 namespace internal {
 // Runs `f` with the handle temporarily in CUBLAS_POINTER_MODE_DEVICE, restoring
-// the caller's mode afterwards.
+// the caller's mode afterwards, also when a failure in `f` throws: the handle
+// would otherwise read host scalars of later calls as device pointers.
 template <typename F>
 void with_device_pointer_mode(cublasHandle_t h, F&& f) {
+  struct RestoreOnThrow {
+    cublasHandle_t handle;
+    cublasPointerMode_t mode;
+    bool armed;
+    ~RestoreOnThrow() {
+      if (armed) (void)cublasSetPointerMode(handle, mode);  // unchecked: may run during unwinding
+    }
+  };
   cublasPointerMode_t prev;
   EIGEN_CUBLAS_CHECK(cublasGetPointerMode(h, &prev));
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, CUBLAS_POINTER_MODE_DEVICE));
+  RestoreOnThrow restore{h, prev, true};
   f();
+  restore.armed = false;
   EIGEN_CUBLAS_CHECK(cublasSetPointerMode(h, prev));
 }
 }  // namespace internal
@@ -564,62 +579,84 @@ inline int64_t blas1_size(Index rows, Index cols) { return static_cast<int64_t>(
 }  // namespace internal
 
 template <typename Scalar_>
-DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
-                                                                                const DeviceMatrix& other) const {
+void DeviceMatrix<Scalar_>::dot(Context& ctx, const DeviceMatrix& other, DeviceScalar<Scalar>& result) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
   eigen_assert(n == internal::blas1_size(other.rows_, other.cols_));
+  eigen_assert(result.stream() == ctx.stream() && "DeviceMatrix::dot: result must live on ctx's stream");
   if (n > 0) {
-    // Allocated uninitialized: cublasXdot overwrites the slot, so uploading a
-    // zero first would be a wasted H2D transfer per reduction.
-    DeviceScalar<Scalar> result(ctx.stream());
     waitReady(ctx.stream());
     other.waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(
           internal::cublasXdot(ctx.cublasHandle(), n, data_.get(), 1, other.data_.get(), 1, result.devicePtr()));
     });
-    return result;
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(Scalar), ctx.stream()));
   }
-  return DeviceScalar<Scalar>(Scalar(0), ctx.stream());
 }
 
-namespace internal {
-// For real Scalar, dot(x,x) already has type DeviceScalar<RealScalar>, so a move
-// suffices and nothing syncs.
-template <typename Scalar, typename RealScalar>
-std::enable_if_t<std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t) {
-  return std::move(d);
+template <typename Scalar_>
+DeviceScalar<typename DeviceMatrix<Scalar_>::Scalar> DeviceMatrix<Scalar_>::dot(Context& ctx,
+                                                                                const DeviceMatrix& other) const {
+  // Allocated uninitialized: the reduction overwrites the slot.
+  DeviceScalar<Scalar> result(ctx.stream());
+  dot(ctx, other, result);
+  return result;
 }
-// Complex must sync to extract the real part: DeviceScalar arithmetic is real-only.
-template <typename Scalar, typename RealScalar>
-std::enable_if_t<!std::is_same<Scalar, RealScalar>::value, DeviceScalar<RealScalar>> squaredNorm_from_dot(
-    DeviceScalar<Scalar>&& d, cudaStream_t stream) {
-  return DeviceScalar<RealScalar>(numext::real(Scalar(d)), stream);
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::squaredNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
+  const int64_t n = internal::blas1_size(rows_, cols_);
+  eigen_assert(result.stream() == ctx.stream() && "DeviceMatrix::squaredNorm: result must live on ctx's stream");
+  if (n > 0) {
+    // ||x||^2 = x^T x over the 2n real and imaginary parts of a complex x
+    // (std::complex<T> has the layout of T[2]): real, so no host sync. Unscaled,
+    // and ~4.5x faster than nrm2^2; stableNorm() is the scaled form.
+    const int64_t reals = NumTraits<Scalar>::IsComplex ? 2 * n : n;
+    const RealScalar* x = reinterpret_cast<const RealScalar*>(data_.get());
+    waitReady(ctx.stream());
+    internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
+      EIGEN_CUBLAS_CHECK(internal::cublasXdot(ctx.cublasHandle(), reals, x, 1, x, 1, result.devicePtr()));
+    });
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
+  }
 }
-}  // namespace internal
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::squaredNorm(Context& ctx) const {
-  // dot(x,x) rather than nrm2()^2: the dot kernel is ~4.5x faster. It has no
-  // overflow protection, so callers guard the scale of x themselves; Eigen's
-  // iterative solver templates call stableNorm() instead.
-  return internal::squaredNorm_from_dot<Scalar_, RealScalar>(dot(ctx, *this), ctx.stream());
+  DeviceScalar<RealScalar> result(ctx.stream());
+  squaredNorm(ctx, result);
+  return result;
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::norm(Context& ctx, DeviceScalar<RealScalar>& result) const {
+  // sqrt of the dot product: a dot and a one-element NPP sqrt cost less than
+  // cuBLAS nrm2's scaled accumulation, see stableNorm().
+  squaredNorm(ctx, result);
+  internal::device_scalar_sqrt(result.devicePtr(), ctx.nppStreamContext());
 }
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::norm(Context& ctx) const {
+  DeviceScalar<RealScalar> result(ctx.stream());
+  norm(ctx, result);
+  return result;
+}
+
+template <typename Scalar_>
+void DeviceMatrix<Scalar_>::stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const {
   const int64_t n = internal::blas1_size(rows_, cols_);
+  eigen_assert(result.stream() == ctx.stream() && "DeviceMatrix::stableNorm: result must live on ctx's stream");
   if (n > 0) {
-    // See dot(): uninitialized on purpose, cublasXnrm2 overwrites the slot.
-    DeviceScalar<RealScalar> result(ctx.stream());
     waitReady(ctx.stream());
     internal::with_device_pointer_mode(ctx.cublasHandle(), [&] {
       EIGEN_CUBLAS_CHECK(internal::cublasXnrm2(ctx.cublasHandle(), n, data_.get(), 1, result.devicePtr()));
     });
-    return result;
+  } else {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaMemsetAsync(result.devicePtr(), 0, sizeof(RealScalar), ctx.stream()));
   }
-  return DeviceScalar<RealScalar>(RealScalar(0), ctx.stream());
 }
 
 template <typename Scalar_>
@@ -757,12 +794,14 @@ DeviceMatrix<Scalar_>& DeviceMatrix<Scalar_>::operator=(const DeviceMatrix& othe
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm(Context& ctx) const {
-  return norm(ctx);
+  DeviceScalar<RealScalar> result(ctx.stream());
+  stableNorm(ctx, result);
+  return result;
 }
 
 template <typename Scalar_>
 DeviceScalar<typename NumTraits<Scalar_>::Real> DeviceMatrix<Scalar_>::stableNorm() const {
-  return norm(Context::threadLocal());
+  return stableNorm(Context::threadLocal());
 }
 
 // this *= alpha  (scal, device pointer — avoids host sync)

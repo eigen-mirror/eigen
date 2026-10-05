@@ -38,6 +38,18 @@ static void BM_VectorProd(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
 }
 
+// allFinite() classifies every coefficient with pisfinite and reduces with all().
+template <typename Scalar>
+static void BM_VectorAllFinite(benchmark::State& state) {
+  Index n = state.range(0);
+  Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Random(n);
+  for (auto _ : state) {
+    bool finite = v.allFinite();
+    benchmark::DoNotOptimize(finite);
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar));
+}
+
 template <typename Scalar, int NaNPropagation = PropagateFast>
 static void BM_VectorMinCoeff(benchmark::State& state) {
   const Index n = state.range(0);
@@ -327,6 +339,7 @@ constexpr int64_t packetsOf(int n) {
 // --- Register: float ---
 BENCHMARK(BM_VectorSum<float>) VECTOR_SIZES(float) ->Name("VectorSum_float");
 BENCHMARK(BM_VectorProd<float>) VECTOR_SIZES(float) ->Name("VectorProd_float");
+BENCHMARK(BM_VectorAllFinite<float>) VECTOR_SIZES(float) ->Name("VectorAllFinite_float");
 BENCHMARK(BM_VectorMinCoeff<float>) VECTOR_SIZES(float) ->Name("VectorMinCoeff_float");
 BENCHMARK(BM_VectorMaxCoeff<float>) VECTOR_SIZES(float) ->Name("VectorMaxCoeff_float");
 BENCHMARK(BM_VectorMinCoeff<float, PropagateNaN>) VECTOR_SIZES(float) ->Name("VectorMinCoeffPropagateNaN_float");
@@ -355,6 +368,7 @@ BENCHMARK(BM_ColwiseSumRaggedTail<float>) RAGGED_SIZES ->Name("ColwiseSumRaggedT
 // --- Register: double ---
 BENCHMARK(BM_VectorSum<double>) VECTOR_SIZES(double) ->Name("VectorSum_double");
 BENCHMARK(BM_VectorProd<double>) VECTOR_SIZES(double) ->Name("VectorProd_double");
+BENCHMARK(BM_VectorAllFinite<double>) VECTOR_SIZES(double) ->Name("VectorAllFinite_double");
 BENCHMARK(BM_VectorMinCoeff<double>) VECTOR_SIZES(double) ->Name("VectorMinCoeff_double");
 BENCHMARK(BM_VectorMaxCoeff<double>) VECTOR_SIZES(double) ->Name("VectorMaxCoeff_double");
 BENCHMARK(BM_VectorMinCoeff<double, PropagateNaN>) VECTOR_SIZES(double) ->Name("VectorMinCoeffPropagateNaN_double");

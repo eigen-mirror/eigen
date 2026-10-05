@@ -62,6 +62,26 @@ void replicate(const MatrixType& m) {
   VERIFY_IS_APPROX(vx1, v1.colwise().replicate(f2));
 }
 
+void replicate_flexible_indexers() {
+  using Mat = Matrix<int, 2, 2>;
+  Mat m;
+  m << 1, 2, 3, 4;
+  const Matrix<int, 4, 6> ref = m.replicate<2, 3>();
+
+  VERIFY_IS_EQUAL(m.replicate(fix<2>, fix<3>), ref);
+  VERIFY_IS_EQUAL(m.replicate(fix<2>, 3), ref);
+  VERIFY_IS_EQUAL(m.replicate(fix<Dynamic>(2), fix<3>), ref);
+  VERIFY_IS_EQUAL(m.replicate(fix<2>(2), fix<3>(3)), ref);
+  VERIFY_IS_EQUAL(m.replicate(2, 3), ref);
+  VERIFY_IS_EQUAL(m.replicate(Index(2), Index(3)), ref);
+  STATIC_CHECK((std::is_same<std::decay_t<decltype(m.replicate(fix<2>, 3))>, Replicate<Mat, 2, Dynamic>>::value));
+  STATIC_CHECK(
+      (std::is_same<std::decay_t<decltype(m.replicate(fix<Dynamic>(2), fix<3>))>, Replicate<Mat, Dynamic, 3>>::value));
+  STATIC_CHECK((std::is_same<std::decay_t<decltype(m.replicate(2, 3))>, Replicate<Mat, Dynamic, Dynamic>>::value));
+  STATIC_CHECK(
+      (std::is_same<std::decay_t<decltype(m.replicate(Index(2), Index(3)))>, Replicate<Mat, Dynamic, Dynamic>>::value));
+}
+
 // A Replicate packet cannot cross a replication boundary, so the evaluator may serve packets
 // exactly when the inner (storage-order) direction is not replicated; without the flag, colwise
 // and rowwise broadcast operations silently fall back to scalar traversal.
@@ -126,6 +146,7 @@ void replicate_broadcasts(Index rows, Index cols) {
 }
 
 EIGEN_DECLARE_TEST(array_replicate) {
+  CALL_SUBTEST_1(replicate_flexible_indexers());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(replicate(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(replicate(Vector2f()));

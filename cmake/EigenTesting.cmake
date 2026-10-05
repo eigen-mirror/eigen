@@ -179,6 +179,13 @@ endmacro(ei_add_test_internal)
 # Moreover, targets <testname> are still generated, they
 # have the effect of building all the parts of the test.
 #
+# A test listed in EigenTestPartGroups.cmake compiles each listed range of
+# parts "<first>-<last>" as one executable <testname>_<first>, built with every
+# member's EIGEN_TEST_PART_<N> defined; unlisted parts stay separate.  Only
+# parts that differ by CALL_SUBTEST_<N> alone may be grouped, so a source with
+# explicit EIGEN_TEST_PART_<N> markers, or a part named individually in the
+# smoke-test list, is a configure error.
+#
 # Again, ctest -R allows to run all matching tests.
 macro(ei_add_test testname)
   get_property(EIGEN_TESTS_LIST GLOBAL PROPERTY EIGEN_TESTS_LIST)
@@ -206,7 +213,42 @@ macro(ei_add_test testname)
   endif()
   if( (EIGEN_SPLIT_LARGE_TESTS AND suffixes) OR explicit_suffixes)
     add_custom_target(${testname})
+    set(ei_grouped_suffixes "")
+    if(EIGEN_SPLIT_LARGE_TESTS AND DEFINED ei_test_part_groups_${testname})
+      if(test_source MATCHES "EIGEN_TEST_PART_[0-9]+")
+        message(FATAL_ERROR "${testname}: parts with EIGEN_TEST_PART_<N> markers cannot be grouped")
+      endif()
+      foreach(ei_part_range IN LISTS ei_test_part_groups_${testname})
+        if(NOT ei_part_range MATCHES "^([0-9]+)-([0-9]+)$")
+          message(FATAL_ERROR "${testname}: part group \"${ei_part_range}\" is not of the form <first>-<last>")
+        endif()
+        set(ei_part_first ${CMAKE_MATCH_1})
+        set(ei_part_last ${CMAKE_MATCH_2})
+        set(ei_part_members "")
+        foreach(suffix ${suffixes})
+          if(suffix GREATER_EQUAL ei_part_first AND suffix LESS_EQUAL ei_part_last)
+            if("${testname}_${suffix}" IN_LIST ei_smoke_test_list)
+              message(FATAL_ERROR "${testname}_${suffix} is a smoke test and cannot be grouped")
+            endif()
+            list(APPEND ei_part_members ${suffix})
+          endif()
+        endforeach()
+        if(ei_part_members)
+          list(SORT ei_part_members COMPARE NATURAL)
+          list(GET ei_part_members 0 ei_part_name)
+          ei_add_test_internal(${testname} ${testname}_${ei_part_name} "${ARGV1}" "${ARGV2}")
+          add_dependencies(${testname} ${testname}_${ei_part_name})
+          foreach(suffix ${ei_part_members})
+            target_compile_definitions(${testname}_${ei_part_name} PRIVATE -DEIGEN_TEST_PART_${suffix}=1)
+          endforeach()
+          list(APPEND ei_grouped_suffixes ${ei_part_members})
+        endif()
+      endforeach()
+    endif()
     foreach(suffix ${suffixes})
+      if(suffix IN_LIST ei_grouped_suffixes)
+        continue()
+      endif()
       ei_add_test_internal(${testname} ${testname}_${suffix} "${ARGV1}" "${ARGV2}")
       add_dependencies(${testname} ${testname}_${suffix})
       target_compile_definitions(${testname}_${suffix} PRIVATE -DEIGEN_TEST_PART_${suffix}=1)

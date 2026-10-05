@@ -627,7 +627,7 @@ class gemm_class {
     load_a_impl<um, uk, nelems, ktail>(std::make_integer_sequence<int, um_vecs - um>{}, ao);
   }
 
-  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x>
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool preload_next_k = true>
   EIGEN_ALWAYS_INLINE void innerkernel_1pow_one(const Scalar*& aa, const Scalar* const& ao, const Scalar* const& bo,
                                                 int& fetchA_idx, int& fetchB_idx) {
     const int idx = (pow / 2) + count;
@@ -644,27 +644,33 @@ class gemm_class {
     EIGEN_IF_CONSTEXPR (b_unroll >= pow) {
       compute<0, um_vecs, idx, uk, fetch_x, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg);
 
-      const Scalar* b_addr = bo + b_unroll * uk + idx + 1 + (b_unroll > 1) * !use_less_b_regs - b_shift;
-      b_load(b_reg, b_addr);
+      constexpr int b_load_offset = idx + 1 + (b_unroll > 1) * !use_less_b_regs;
+      EIGEN_IF_CONSTEXPR (preload_next_k || b_load_offset < b_unroll) {
+        const Scalar* b_addr = bo + b_unroll * uk + b_load_offset - b_shift;
+        b_load(b_reg, b_addr);
+      }
     }
   }
 
-  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, int... indices>
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool preload_next_k,
+            int... indices>
   EIGEN_ALWAYS_INLINE void innerkernel_1pow_impl(std::integer_sequence<int, indices...>, const Scalar*& aa,
                                                  const Scalar* const& ao, const Scalar* const& bo, int& fetchA_idx,
                                                  int& fetchB_idx) {
-    int unused[] = {0, (innerkernel_1pow_one<uk, pow, count + indices, um_vecs, b_unroll, ktail, fetch_x>(
-                            aa, ao, bo, fetchA_idx, fetchB_idx),
-                        0)...};
+    int unused[] = {0,
+                    (innerkernel_1pow_one<uk, pow, count + indices, um_vecs, b_unroll, ktail, fetch_x, preload_next_k>(
+                         aa, ao, bo, fetchA_idx, fetchB_idx),
+                     0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 
-  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool c_fetch>
+  template <int uk, int pow, int count, int um_vecs, int b_unroll, bool ktail, bool fetch_x, bool c_fetch,
+            bool preload_next_k = true>
   EIGEN_ALWAYS_INLINE void innerkernel_1pow(const Scalar*& aa, const Scalar* const& ao, const Scalar* const& bo,
                                             Scalar*& co2, int& fetchA_idx, int& fetchB_idx) {
     constexpr int max_count = (pow + 1) / 2;
     static_assert(count <= max_count, "invalid B load range");
-    innerkernel_1pow_impl<uk, pow, count, um_vecs, b_unroll, ktail, fetch_x>(
+    innerkernel_1pow_impl<uk, pow, count, um_vecs, b_unroll, ktail, fetch_x, preload_next_k>(
         std::make_integer_sequence<int, max_count - count>{}, aa, ao, bo, fetchA_idx, fetchB_idx);
 
     // Maybe prefetch C data after count-loop.
@@ -678,22 +684,26 @@ class gemm_class {
   }
 
   template <int uk, int max_b_unroll, int a_unroll, int b_unroll, bool ktail, bool fetch_x, bool c_fetch,
-            bool no_a_preload = false>
+            bool preload_next_k = true>
   EIGEN_ALWAYS_INLINE void innerkernel_1uk(const Scalar*& aa, const Scalar* const& ao, const Scalar* const& bo,
                                            Scalar*& co2, int& fetchA_idx, int& fetchB_idx) {
     const int um_vecs = numext::div_ceil(a_unroll, nelems_in_cache_line);
 
     EIGEN_IF_CONSTEXPR (max_b_unroll >= 1)
-      innerkernel_1pow<uk, 1, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch>(aa, ao, bo, co2, fetchA_idx, fetchB_idx);
+      innerkernel_1pow<uk, 1, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(aa, ao, bo, co2,
+                                                                                             fetchA_idx, fetchB_idx);
     EIGEN_IF_CONSTEXPR (max_b_unroll >= 2)
-      innerkernel_1pow<uk, 2, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch>(aa, ao, bo, co2, fetchA_idx, fetchB_idx);
+      innerkernel_1pow<uk, 2, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(aa, ao, bo, co2,
+                                                                                             fetchA_idx, fetchB_idx);
     EIGEN_IF_CONSTEXPR (max_b_unroll >= 4)
-      innerkernel_1pow<uk, 4, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch>(aa, ao, bo, co2, fetchA_idx, fetchB_idx);
+      innerkernel_1pow<uk, 4, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(aa, ao, bo, co2,
+                                                                                             fetchA_idx, fetchB_idx);
     EIGEN_IF_CONSTEXPR (max_b_unroll >= 8)
-      innerkernel_1pow<uk, 8, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch>(aa, ao, bo, co2, fetchA_idx, fetchB_idx);
+      innerkernel_1pow<uk, 8, 0, um_vecs, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(aa, ao, bo, co2,
+                                                                                             fetchA_idx, fetchB_idx);
 
     // Load A after pow-loop. Skip this at the end to prevent running over the buffer
-    if (!no_a_preload) load_a<0, um_vecs, uk, a_unroll, ktail>(ao);
+    if (preload_next_k) load_a<0, um_vecs, uk, a_unroll, ktail>(ao);
   }
 
   /*  Inner kernel loop structure.
@@ -710,8 +720,9 @@ class gemm_class {
    *              if (b_unroll >= pow) {
    *                  compute<0, um_vecs, idx, uk, fetchx, ktail>(ao, bo, fetchA_idx, fetchB_idx, b_reg);
    *
-   *                  const Scalar *b_addr = bo + b_unroll * uk + idx + 1 + (b_unroll > 1) - b_shift ;
-   *                  b_load(b_reg, b_addr);
+   *                  constexpr int b_load_offset = idx + 1 + (b_unroll > 1) * !use_less_b_regs;
+   *                  if (preload_next_k || b_load_offset < b_unroll)
+   *                      b_load(b_reg, bo + b_unroll * uk + b_load_offset - b_shift);
    *              }
    *              idx++;
    *          }
@@ -727,7 +738,7 @@ class gemm_class {
    *      }
    *
    *      Load A.
-   *      load_a<0, um_vecs, uk, ktail, a_unroll>(ao);
+   *      if (preload_next_k) load_a<0, um_vecs, uk, a_unroll, ktail>(ao);
    *  }
    *
    *  Advance A/B pointers after uk-loop.
@@ -736,7 +747,7 @@ class gemm_class {
    */
 
   template <int a_unroll, int b_unroll, int k_factor, int max_b_unroll, int max_k_factor, bool c_fetch,
-            bool no_a_preload = false>
+            bool preload_next_k = true>
   EIGEN_ALWAYS_INLINE void innerkernel(const Scalar*& aa, const Scalar*& ao, const Scalar*& bo, Scalar*& co2) {
     int fetchA_idx = 0;
     int fetchB_idx = 0;
@@ -745,20 +756,19 @@ class gemm_class {
     const bool ktail = k_factor == 1;
 
     static_assert(k_factor <= 4 && k_factor > 0, "innerkernel maximum k_factor supported is 4");
-    static_assert(no_a_preload == false || (no_a_preload == true && k_factor == 1),
-                  "skipping a preload only allowed when k unroll is 1");
+    static_assert(preload_next_k || k_factor == 1, "skipping next-k preload only allowed when k unroll is 1");
 
     if (k_factor > 0)
-      innerkernel_1uk<0, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, no_a_preload>(
+      innerkernel_1uk<0, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(
           aa, ao, bo, co2, fetchA_idx, fetchB_idx);
     if (k_factor > 1)
-      innerkernel_1uk<1, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, no_a_preload>(
+      innerkernel_1uk<1, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(
           aa, ao, bo, co2, fetchA_idx, fetchB_idx);
     if (k_factor > 2)
-      innerkernel_1uk<2, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, no_a_preload>(
+      innerkernel_1uk<2, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(
           aa, ao, bo, co2, fetchA_idx, fetchB_idx);
     if (k_factor > 3)
-      innerkernel_1uk<3, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, no_a_preload>(
+      innerkernel_1uk<3, max_b_unroll, a_unroll, b_unroll, ktail, fetch_x, c_fetch, preload_next_k>(
           aa, ao, bo, co2, fetchA_idx, fetchB_idx);
 
     // Advance A/B pointers after uk-loop.
@@ -779,7 +789,7 @@ class gemm_class {
     }
 
     b_load(zmm[b_regs[0]], bo - b_shift + 0);
-    EIGEN_IF_CONSTEXPR (!use_less_b_regs) {
+    EIGEN_IF_CONSTEXPR (b_unroll > 1 && !use_less_b_regs) {
       b_load(zmm[b_regs[1]], bo - b_shift + 1);
     }
 
@@ -829,7 +839,7 @@ class gemm_class {
       loop_count--;
     }
     if (loop_count > 0) {
-      innerkernel<a_unroll, b_unroll, 1, max_b_unroll, max_k_factor, 0, true>(aa, ao, bo, co2);
+      innerkernel<a_unroll, b_unroll, 1, max_b_unroll, max_k_factor, 0, false>(aa, ao, bo, co2);
     }
 
     // Update C matrix.
@@ -999,6 +1009,7 @@ template <typename Scalar, int max_a_unroll, int max_b_unroll, bool is_alpha1, b
 EIGEN_DONT_INLINE void gemm_kern_avx512(Index m, Index n, Index k, Scalar* alpha, const Scalar* a, const Scalar* b,
                                         Scalar* c, Index ldc, Index inc = 1, Index a_stride = -1, Index b_stride = -1,
                                         Index a_off = 0, Index b_off = 0) {
+  if (m <= 0 || n <= 0 || k <= 0) return;
   if (a_stride == -1) a_stride = k;
   if (b_stride == -1) b_stride = k;
 

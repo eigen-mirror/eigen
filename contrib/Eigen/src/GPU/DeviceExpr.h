@@ -18,7 +18,7 @@
 //   AdjointView<S>   — d_A.adjoint()  → marks ConjTrans for GEMM
 //   TransposeView<S> — d_A.transpose() → marks Trans for GEMM
 //   Scaled<Expr>     — alpha * expr    → carries scalar factor
-//   gpu::GemmExpr<Lhs, Rhs> — lhs * rhs    → dispatches to cublasXgemm
+//   gpu::GemmExpr<Lhs, Rhs> — lhs * rhs    → dispatches to cublasLtMatmul (cublasGemmEx fallback)
 
 #ifndef EIGEN_GPU_DEVICE_EXPR_H
 #define EIGEN_GPU_DEVICE_EXPR_H

@@ -103,7 +103,8 @@ class Replicate : public internal::dense_xpr_base<Replicate<MatrixType, RowFacto
  * Example: \include MatrixBase_replicate.cpp
  * Output: \verbinclude MatrixBase_replicate.out
  *
- * \sa VectorwiseOp::replicate(), DenseBase::replicate(Index,Index), class Replicate
+ * \sa VectorwiseOp::replicate(), DenseBase::replicate(Index,Index) const,
+ * DenseBase::replicate(NRowsType,NColsType) const, class Replicate
  */
 template <typename Derived>
 template <int RowFactor, int ColFactor>

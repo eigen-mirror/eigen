@@ -232,7 +232,8 @@ EIGEN_STRONG_INLINE Index predux_count(const Packet8d& a) {
 // Count 16-bit floating-point lanes through integer bits so fast-math cannot treat NaN masks as zero.
 EIGEN_STRONG_INLINE Index predux_count_16bit(const __m256i& a) {
 #if defined(EIGEN_VECTORIZE_AVX512VL) && defined(__AVX512BW__)
-  const unsigned int nonzero_lanes = _cvtmask16_u32(_mm256_test_epi16_mask(a, _mm256_set1_epi16(0x7fff)));
+  // A cast rather than _cvtmask16_u32, whose nvc++ definition calls a __builtin_ia32_kmovw that nvc++ cannot link.
+  const unsigned int nonzero_lanes = static_cast<unsigned int>(_mm256_test_epi16_mask(a, _mm256_set1_epi16(0x7fff)));
   return Index(popcount(nonzero_lanes));
 #else
   const __m256i magnitude = _mm256_and_si256(a, _mm256_set1_epi16(0x7fff));

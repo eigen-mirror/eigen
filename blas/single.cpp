@@ -19,6 +19,7 @@
 #include "level2_real_impl.h"
 #include "level3_impl.h"
 
-float EIGEN_BLAS_FUNC_NAME(dsdot)(int* n, float* alpha, float* x, int* incx, float* y, int* incy) {
+float EIGEN_BLAS_FUNC_NAME(dsdot)(EIGEN_BLAS_INT* n, float* alpha, float* x, EIGEN_BLAS_INT* incx, float* y,
+                                  EIGEN_BLAS_INT* incy) {
   return double(*alpha) + BLASFUNC(dsdot)(n, x, incx, y, incy);
 }

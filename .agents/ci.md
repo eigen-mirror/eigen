@@ -50,12 +50,14 @@ Three tiers, in increasing cost:
 |---|---|---|
 | smoke | every MR with neither label below | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64, under gcc and clang |
 | affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 (gcc AVX2, clang baseline) and aarch64 (gcc, clang), plus any platform the diff or a `*-tests` label selects |
-| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the schedule-only jobs below |
+| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the NVHPC pair below |
 
-One configuration sits outside all three tiers and runs only on schedules and web pipelines: the NVHPC (`nvc++`) build
-and test pair, whose frontend is slow enough that those two builds alone once took roughly a quarter of the project's
-hosted-runner minutes. Start a web pipeline when a change plausibly affects `nvc++` rather than waiting for the
-scheduled run to find it.
+One configuration sits outside all three tiers: the NVHPC (`nvc++`) build and test pair, whose frontend is slow enough
+that those two builds alone once took roughly a quarter of the project's hosted-runner minutes. It runs on schedules,
+web pipelines, and merge requests labelled `nvhpc-tests`, a label that needs no other and leaves the smoke jobs in
+place. Apply `nvhpc-tests` when a change plausibly affects `nvc++` rather than waiting for the scheduled run to find it;
+like `all-tests`, it requires explicit user permission. A web pipeline is no substitute on a merge request: it needs the
+branch in `libeigen/eigen` and runs the full tier as well.
 
 The affected tier exists because the smoke list samples: it is broad but shallow, so a change confined to one module
 gets only the one part of each related test that the list happens to name. Use `affected-tests` for depth, then choose
@@ -97,7 +99,7 @@ jobs on two independent triggers, either of which is enough:
 | `arch/SSE` | `sse-tests` | x86-64 gcc-10 baseline, AVX, and AVX-512DQ | yes |
 | `arch/AVX` | `avx-tests` | x86-64 gcc-10 AVX and AVX-512DQ | yes |
 | `arch/AVX512` | `avx512-tests` | x86-64 gcc-10 AVX-512DQ | yes |
-| `arch/AVX512/*FP16*` | `avx512-tests` | the split gcc-13 AVX512-FP16 compile builds | no |
+| `arch/AVX512/*FP16*` | `avx512-tests` | the split clang-19 AVX512-FP16 compile builds | no |
 | `arch/NEON` | `neon-tests` | 32-bit arm (aarch64 already runs unconditionally) | yes |
 | `arch/AltiVec` | `altivec-tests` | ppc64le gcc-14, under qemu | yes |
 | `arch/LSX` | `lsx-tests` | loongarch64 gcc-14, under qemu | yes |
@@ -105,7 +107,7 @@ jobs on two independent triggers, either of which is enough:
 | `arch/SVE` | `sve-tests` | SVE cross builds and test runs at 128, 256 and 512 bits under qemu | yes |
 | `arch/SME` | `sme-tests` | the full SME build, compile-only | no |
 | — | `windows-tests` | MSVC 14.29 x64 baseline | yes |
-| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake` and `cmake/EigenGpuTesting.cmake`, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
+| `arch/GPU`, the `Half.h`/`BFloat16.h` scalar headers, the `GpuHipCuda*.inc` alias files and `GpuRuntime.h`, `cmake/EigenTesting.cmake` and `cmake/EigenGpuTesting.cmake`, the `contrib/Eigen/GPU` module, the Tensor `*Gpu*.h` headers, the GPU tests and their harness headers (`.rules:libeigen:gpu` in [`ci/common.gitlab-ci.yml`](../ci/common.gitlab-ci.yml) has the exact list) | `gpu-tests` | the CUDA build and test jobs | no |
 
 Several labels select the union of their platforms — `neon-tests` with `altivec-tests` runs 32-bit arm and ppc64le and
 nothing else. Apart from `gpu-tests`, none of them does anything without `affected-tests`. `all-platforms` is a

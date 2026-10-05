@@ -71,6 +71,15 @@ static void test_normal_all_finite(Eigen::Index size) {
 }
 
 template <typename Scalar>
+static void test_normal_zero_uniform_draw() {
+  // Regression test: element 2429913123 of seed 12345 draws u == 0 (probability 2^-23 per float draw) with q between
+  // 0.27597 and 0.27846, where the ratio-of-uniforms loop reached the NaN log test and returned v / 0 = -inf. The
+  // element index is a uint64_t because it exceeds a 32-bit Index.
+  Eigen::internal::NormalRandomGenerator<Scalar> generator(12345);
+  VERIFY((numext::isfinite)(generator(numext::uint64_t(2429913123u))));
+}
+
+template <typename Scalar>
 static void test_uniform_range(Eigen::Index size) {
   // All uniform draws must lie in [0, 1).
   Tensor<Scalar, 1> vec(size);
@@ -206,6 +215,8 @@ EIGEN_DECLARE_TEST(tensor_random) {
   CALL_SUBTEST((test_normal<Eigen::bfloat16>()));
   CALL_SUBTEST((test_normal_all_finite<Eigen::half>(Eigen::Index(1) << 21)));
   CALL_SUBTEST((test_normal_all_finite<Eigen::bfloat16>(Eigen::Index(1) << 18)));
+  CALL_SUBTEST(test_normal_zero_uniform_draw<float>());
+  CALL_SUBTEST(test_normal_zero_uniform_draw<Eigen::half>());
   CALL_SUBTEST((test_uniform_range<Eigen::half>(Eigen::Index(1) << 16)));
   CALL_SUBTEST((test_uniform_range<Eigen::bfloat16>(Eigen::Index(1) << 16)));
   CALL_SUBTEST((test_block_materialization<float, Eigen::internal::UniformRandomGenerator<float>>()));

@@ -39,9 +39,12 @@ void jacobisvd_method() {
 template <typename MatrixType>
 void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
+  svd_thin_full_option_checks<MatrixType, PreconditionSquareMatrix>(input);
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
-  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(
-      input);  // FullPiv only used when computing full unitaries
+  svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
+  // FullPiv only used when computing full unitaries
+  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(input);
+  svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
 }
 
 template <typename MatrixType>
@@ -100,6 +103,7 @@ bool operator<(const Bar&, const Bar&) { return true; }
 }  // namespace Foo
 // regression test for a very strange MSVC issue for which simply
 // including SVDBase.h messes up with std::max and custom scalar type
+template <typename = void>
 void msvc_workaround() {
   const Foo::Bar a;
   const Foo::Bar b;
@@ -107,6 +111,7 @@ void msvc_workaround() {
   EIGEN_UNUSED_VARIABLE(c);
 }
 
+template <typename = void>
 void jacobisvd_mixed_option_enum_regression() {
   using NoQrFullSVD = JacobiSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
   using ReversedMixedSVD = JacobiSVD<MatrixXd, ComputeThinU | HouseholderQRPreconditioner | ComputeFullV>;
@@ -124,6 +129,26 @@ void jacobisvd_mixed_option_enum_regression() {
   STATIC_CHECK(((int(ReversedMixedSVD::Options) & ComputeThinV) == 0));
 }
 
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DISABLE_DEPRECATED_WARNING
+// Thin unitaries requested through the deprecated runtime options must be rejected with FullPiv, as they are
+// statically through Options.
+template <int Options>
+void jacobisvd_fullpiv_runtime_thin_asserts(Index rows, Index cols) {
+  using SVD = JacobiSVD<MatrixXd, FullPivHouseholderQRPreconditioner | Options>;
+  const MatrixXd m = MatrixXd::Random(rows, cols);
+  for (unsigned int thin : {unsigned(ComputeThinU), unsigned(ComputeThinV), unsigned(ComputeThinU | ComputeThinV)}) {
+    VERIFY_RAISES_ASSERT(SVD(m, thin));
+    VERIFY_RAISES_ASSERT(SVD(rows, cols, thin));
+    SVD svd;
+    VERIFY_RAISES_ASSERT(svd.compute(m, thin));
+  }
+  SVD full(m, ComputeFullU | ComputeFullV);
+  svd_check_full(m, full);
+}
+EIGEN_DIAGNOSTICS(pop)
+
+template <typename = void>
 void jacobisvd_large_tau_regression() {
   Matrix3f m;
   m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
@@ -240,6 +265,7 @@ void jacobisvd_subnormal_diagonals() {
   jacobisvd_subnormal_diagonal(belowRecovery);
 }
 
+template <typename = void>
 void jacobisvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value up by one ULP.
   Matrix2f matrix = Matrix2f::Zero();
@@ -291,8 +317,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_1((jacobisvd_verify_inputs<Matrix4d>()));
   CALL_SUBTEST_2((jacobisvd_verify_inputs(Matrix<float, 5, Dynamic>(5, 6))));
   CALL_SUBTEST_3((jacobisvd_verify_inputs<Matrix<std::complex<double>, 7, 5>>()));
-  CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression()));
-  CALL_SUBTEST_4((jacobisvd_large_tau_regression()));
+  CALL_SUBTEST_4((jacobisvd_mixed_option_enum_regression<>()));
+  CALL_SUBTEST_4((jacobisvd_large_tau_regression<>()));
 
   CALL_SUBTEST_11((jacobisvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_12((jacobisvd_thin_full_options<Matrix2d>()));
@@ -315,6 +341,22 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_31((jacobisvd_thin_full_options<MatrixXd>(MatrixXd(r, c))));
     CALL_SUBTEST_33((jacobisvd_thin_full_options<Matrix<double, 5, 7, RowMajor>>()));
     CALL_SUBTEST_35((jacobisvd_thin_full_options<Matrix<double, 7, 5, RowMajor>>()));
+
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(r)));
+    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
+    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<PreconditionSquareMatrix>(6, 6)));
+    CALL_SUBTEST_64((jacobisvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+        Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
     CALL_SUBTEST_37((svd_thin_full_option_checks<MatrixXcd, NoQRPreconditioner>(noQRTest)));
@@ -360,7 +402,7 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_55(svd_preallocate<void>());
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
-  CALL_SUBTEST_56(jacobisvd_power_of_two_scaling());
+  CALL_SUBTEST_56(jacobisvd_power_of_two_scaling<>());
   CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
   CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));
   CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcf>(4, 4)));
@@ -376,5 +418,5 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_58((svd_triangular_matrix<Matrix4f>()));
   CALL_SUBTEST_59((svd_triangular_matrix<Matrix<double, 10, 10>>()));
 
-  msvc_workaround();
+  msvc_workaround<>();
 }

@@ -32,11 +32,11 @@ struct band_solve_triangular_selector<Index, Mode, LhsScalar, ConjLhs, RhsScalar
                        const LhsMap&>
         cjLhs(lhs);
 
-    for (int col = 0; col < other.cols(); ++col) {
-      for (int ii = 0; ii < size; ++ii) {
-        int i = IsLower ? ii : size - ii - 1;
-        int actual_k = (std::min)(k, ii);
-        int actual_start = IsLower ? k - actual_k : 1;
+    for (Index col = 0; col < other.cols(); ++col) {
+      for (Index ii = 0; ii < size; ++ii) {
+        Index i = IsLower ? ii : size - ii - 1;
+        Index actual_k = (std::min)(k, ii);
+        Index actual_start = IsLower ? k - actual_k : 1;
 
         if (actual_k > 0)
           other.coeffRef(i, col) -= cjLhs.row(i)
@@ -63,11 +63,11 @@ struct band_solve_triangular_selector<Index, Mode, LhsScalar, ConjLhs, RhsScalar
                        const LhsMap&>
         cjLhs(lhs);
 
-    for (int col = 0; col < other.cols(); ++col) {
-      for (int ii = 0; ii < size; ++ii) {
-        int i = IsLower ? ii : size - ii - 1;
-        int actual_k = (std::min)(k, size - ii - 1);
-        int actual_start = IsLower ? 1 : k - actual_k;
+    for (Index col = 0; col < other.cols(); ++col) {
+      for (Index ii = 0; ii < size; ++ii) {
+        Index i = IsLower ? ii : size - ii - 1;
+        Index actual_k = (std::min)(k, size - ii - 1);
+        Index actual_start = IsLower ? 1 : k - actual_k;
 
         EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == 0) other.coeffRef(i, col) /= cjLhs(IsLower ? 0 : k, i);
 

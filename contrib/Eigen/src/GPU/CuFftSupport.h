@@ -23,11 +23,11 @@ namespace Eigen {
 namespace gpu {
 namespace internal {
 
-#define EIGEN_CUFFT_CHECK(x)                                       \
-  do {                                                             \
-    cufftResult _r = (x);                                          \
-    eigen_assert(_r == CUFFT_SUCCESS && "cuFFT call failed: " #x); \
-    EIGEN_UNUSED_VARIABLE(_r);                                     \
+#define EIGEN_CUFFT_CHECK(x)                                                                                \
+  do {                                                                                                      \
+    const cufftResult _r = (x);                                                                             \
+    if (_r != CUFFT_SUCCESS)                                                                                \
+      ::Eigen::gpu::internal::gpu_check_failed_code("cuFFT", static_cast<int>(_r), #x, __FILE__, __LINE__); \
   } while (0)
 
 template <typename Scalar>

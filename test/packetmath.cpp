@@ -593,6 +593,56 @@ struct packetmath_integer_predicates_test<
   }
 };
 
+template <typename Scalar, typename Packet, typename EnableIf = void>
+struct packetmath_float_predicates_test {
+  static void run() {}
+};
+
+// Floating-point pisnan/pisinf/pisfinite against the scalar predicates over signed zeros, subnormals, infinities and
+// NaNs with a payload. Masks are compared bitwise: true is ptrue of the tested type, false is +0.
+template <typename Scalar, typename Packet>
+struct packetmath_float_predicates_test<
+    Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger && !NumTraits<Scalar>::IsComplex>> {
+  static void run() {
+    using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+    const int PacketSize = internal::unpacket_traits<Packet>::size;
+    Scalar inf = NumTraits<Scalar>::infinity();
+    Scalar nan = NumTraits<Scalar>::quiet_NaN();
+    Scalar values[] = {Scalar(0),
+                       -Scalar(0),
+                       Scalar(1),
+                       -Scalar(1),
+                       std::numeric_limits<Scalar>::denorm_min(),
+                       -std::numeric_limits<Scalar>::denorm_min(),
+                       (std::numeric_limits<Scalar>::min)(),
+                       NumTraits<Scalar>::highest(),
+                       NumTraits<Scalar>::lowest(),
+                       inf,
+                       -inf,
+                       nan,
+                       -nan,
+                       numext::bit_cast<Scalar>(Bits(numext::bit_cast<Bits>(nan) | Bits(1)))};
+    const int num_values = sizeof(values) / sizeof(values[0]);
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar res[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar lane_true[PacketSize];
+    internal::pstore(lane_true, internal::ptrue(internal::pset1<Packet>(Scalar(0))));
+    auto mask = [&](int i, bool expected) { return expected ? numext::bit_cast<Bits>(lane_true[i]) : Bits(0); };
+    for (int start = 0; start < num_values; start += PacketSize) {
+      for (int i = 0; i < PacketSize; ++i) data[i] = values[(start + i) % num_values];
+      internal::pstore(res, internal::pisnan(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isnan)(data[i])) && "pisnan");
+      internal::pstore(res, internal::pisinf(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isinf)(data[i])) && "pisinf");
+      internal::pstore(res, internal::pisfinite(internal::pload<Packet>(data)));
+      for (int i = 0; i < PacketSize; ++i)
+        VERIFY(numext::bit_cast<Bits>(res[i]) == mask(i, (numext::isfinite)(data[i])) && "pisfinite");
+    }
+  }
+};
+
 template <typename Scalar, typename Packet, typename = void>
 struct packetmath_64bit_boundary_test {
   static void run() {}
@@ -623,7 +673,7 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMax, (std::max), internal::pmax);
       CHECK_CWISE2_IF(internal::packet_traits<Scalar>::HasMul, test::REF_MUL, internal::pmul);
       CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasNegate, test::negate, internal::pnegate);
-      CHECK_CWISE1(ref_abs, internal::pabs);
+      CHECK_CWISE1_IF(internal::packet_traits<Scalar>::HasAbs, ref_abs, internal::pabs);
     };
 
     constexpr Scalar high = 0x11111111;
@@ -961,9 +1011,10 @@ void packetmath() {
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
   packetmath_integer_predicates_test<Scalar, Packet>::run();
+  packetmath_float_predicates_test<Scalar, Packet>::run();
   packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
-  CHECK_CWISE3_IF(true, REF_MADD, internal::pmadd);
+  CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasAdd, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
     nmsub_test<Scalar, Packet>(data1, data2, ref, PacketSize);
   }
@@ -977,8 +1028,8 @@ void packetmath() {
     data1[i + 2 * PacketSize] = Scalar(0) - abs_helper(internal::random<Scalar>());
   }
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
-    CHECK_CWISE3_IF(true, REF_MSUB, internal::pmsub);
-    CHECK_CWISE3_IF(true, REF_NMADD, internal::pnmadd);
+    CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasSub, REF_MSUB, internal::pmsub);
+    CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasSub, REF_NMADD, internal::pnmadd);
   }
 
   CHECK_CWISE1_IF(PacketTraits::HasSqrt, numext::sqrt, internal::psqrt);
@@ -1167,12 +1218,10 @@ void packetmath_real() {
     data1[0] = Scalar(std::ldexp(Scalar(1.0), NumTraits<Scalar>::max_exponent() - 1));
     data1[PacketSize] = Scalar(+NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::max_exponent());
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
-    // Near-max magnitude with small negative exponents.  Regression guard for
-    // the 4-way scale-factor split: the remainder factor c2 = 2^(e-3*floor(e/4))
-    // is > 1 for e in {-1, -2, -5, -6, ...}, so the multiply tree must apply
-    // the downscale c1 before c2 -- otherwise (numext::abs(a)) * c2 spuriously
-    // overflows to inf for finite results like ldexp((numext::numeric_limits)
-    // <Scalar>::max(), -1).
+    // Near-max magnitude with small negative exponents: a scale factor above
+    // one, as the four-factor split's remainder 2^(e - 3 floor(e/4)) was for
+    // e in {-1, -2, -5, -6, ...}, overflows ldexp(max, -1) to inf when applied
+    // first.
     for (int i = 0; i < PacketSize; ++i) {
       data1[i] = (numext::numeric_limits<Scalar>::max)();
       data1[i + PacketSize] = Scalar(-1 - (i % 8));  // -1, -2, ..., -8
@@ -1196,6 +1245,61 @@ void packetmath_real() {
       data1[i + PacketSize] = Scalar(-2 * NumTraits<Scalar>::max_exponent() - (i % 4));
     }
     CHECK_CWISE2_IF(PacketTraits::HasExp, REF_LDEXP, internal::pldexp);
+    // An infinite exponent saturates like any exponent past the clamp. ldexp turns an int exponent beyond the range of
+    // half into +-inf, and vscalef alone gives NaN for 0 * 2^inf and inf * 2^-inf, and a number for NaN * 2^(+-inf).
+    // The scalar pldexp converts the exponent to int, undefined for inf, so only packets are checked.
+    if (!internal::is_scalar<Packet>::value && PacketTraits::HasExp) {
+      const Scalar inf = NumTraits<Scalar>::infinity(), big = (numext::numeric_limits<Scalar>::max)();
+      const Scalar bases[] = {Scalar(0), -Scalar(0), Scalar(1), -big, inf, -inf, NumTraits<Scalar>::quiet_NaN()};
+      test::packet_helper<PacketTraits::HasExp, Packet> h;
+      for (const int n : {(std::numeric_limits<int>::max)(), (std::numeric_limits<int>::min)()}) {
+        for (int k = 0; k < 7; k += PacketSize) {
+          for (int i = 0; i < PacketSize; ++i) {
+            data1[i] = bases[(k + i) % 7];
+            data1[i + PacketSize] = n > 0 ? inf : -inf;
+            ref[i] = static_cast<Scalar>(std::ldexp(static_cast<double>(data1[i]), n));
+          }
+          h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
+          for (int i = 0; i < PacketSize; ++i) {
+            VERIFY((numext::isnan)(ref[i]) ? (numext::isnan)(data2[i]) : test::biteq(data2[i], ref[i]));
+          }
+        }
+      }
+    }
+#if !EIGEN_ARCH_ARM
+    // Every integer exponent to past both ends of the range, on bases in every sixteenth binade from the smallest
+    // subnormal up, bit for bit against std::ldexp. Scaling in steps must not round twice: with the last mantissa
+    // bit dropped by a subnormal intermediate, denorm_min * (1 + eps) / 2 became zero and denorm_min * (1.5 - eps)
+    // became 2 * denorm_min.
+    {
+      const int max_exp = NumTraits<Scalar>::max_exponent(), min_exp = NumTraits<Scalar>::min_exponent(),
+                digits = NumTraits<Scalar>::digits();
+      const Scalar eps = NumTraits<Scalar>::epsilon();
+      const Scalar mantissas[] = {Scalar(1), Scalar(1) + eps, Scalar(1.5) - eps, Scalar(2) - eps};
+      std::vector<Scalar> bases = {Scalar(0), std::numeric_limits<Scalar>::denorm_min(),
+                                   (std::numeric_limits<Scalar>::max)()};
+      for (int be = min_exp - digits; be < max_exp; be += 16) {
+        for (Scalar m : mantissas) bases.push_back(Scalar(std::ldexp(m, be)));
+      }
+      test::packet_helper<PacketTraits::HasExp, Packet> h;
+      const int range = max_exp - min_exp + digits + 20;
+      for (int e = -range; e <= range; ++e) {
+        for (size_t k = 0; k < bases.size(); k += PacketSize) {
+          for (int i = 0; i < PacketSize; ++i) {
+            const Scalar base = bases[(k + i) % bases.size()];
+            data1[i] = (i % 2) ? -base : base;
+            data1[i + PacketSize] = Scalar(e);  // rounded for bfloat16 beyond 256, so read it back
+            ref[i] = Scalar(std::ldexp(data1[i], static_cast<int>(data1[i + PacketSize])));
+          }
+          h.store(data2, internal::pldexp(h.load(data1), h.load(data1 + PacketSize)));
+          for (int i = 0; i < PacketSize; ++i) {
+            VERIFY_IS_EQUAL(data2[i], ref[i]);  // prints the values; biteq also tells -0 from +0
+            VERIFY(test::biteq(data2[i], ref[i]));
+          }
+        }
+      }
+    }
+#endif
   }
 
   for (int i = 0; i < size; ++i) {
@@ -1292,6 +1396,18 @@ void packetmath_real() {
         VERIFY_IS_APPROX(std::log((std::numeric_limits<Scalar>::min)()), data2[0]);
       }
       VERIFY((numext::isnan)(data2[1]));
+
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+      // Whether to rescale a subnormal input is decided per lane, even beside a positive normal lane.
+      // bfloat16 is evaluated in float and misses the tolerance by rounding alone, as in the TODOs above.
+      if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present && !std::is_same<Scalar, bfloat16>::value) {
+        data1[0] = std::numeric_limits<Scalar>::denorm_min();
+        data1[1] = Scalar(2);
+        h.store(data2, internal::plog(h.load(data1)));
+        VERIFY_IS_APPROX(std::log(data1[0]), data2[0]);
+        VERIFY_IS_APPROX(std::log(data1[1]), data2[1]);
+      }
+#endif
     }
     if (PacketTraits::HasLog10) {
       test::packet_helper<PacketTraits::HasLog10, Packet> h;
@@ -2240,6 +2356,100 @@ void packetmath_bfloat16_abs_array() {
   }
 }
 
+template <typename Scalar>
+void packetmath_binary_sign_subnormals() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  constexpr Index packet_size = internal::unpacket_traits<Packet>::size;
+  constexpr Index count = 12 * packet_size + 1;
+  const Bits sign = Binary::kSignBit;
+  const Bits min_normal = Binary::kExponentUnit;
+  const Bits infinity = Binary::kExponentMask;
+  const Bits one = Binary::bits(Scalar(1));
+  const Bits nan = infinity | (min_normal >> 1) | Bits(0x12345);
+  const Bits samples[] = {Bits(0),
+                          sign,
+                          Bits(1),
+                          sign | Bits(1),
+                          min_normal - 1,
+                          sign | (min_normal - 1),
+                          one,
+                          sign | one,
+                          infinity,
+                          sign | infinity,
+                          nan,
+                          sign | nan};
+  Array<Scalar, Dynamic, 1> input(count), result(count);
+  for (Index i = 0; i < count; ++i) input(i) = numext::bit_cast<Scalar>(samples[i % 12]);
+  input(count - 1) = numext::bit_cast<Scalar>(sign | Bits(1));  // Exercise the scalar tail.
+  result = input.sign();
+  for (Index i = 0; i < count; ++i) {
+    const Bits bits = numext::bit_cast<Bits>(input(i));
+    const Bits magnitude = bits & ~sign;
+    const Bits expected = magnitude > infinity ? bits : magnitude == 0 ? Bits(0) : (bits & sign) | one;
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(result(i)), expected);
+  }
+
+  EIGEN_ALIGN_MAX Scalar lanes[packet_size];
+  for (Index i = 0; i < packet_size; ++i) lanes[i] = numext::bit_cast<Scalar>(samples[2 + (i % 4)]);
+  const Packet packet = internal::psign(internal::ploadu<Packet>(lanes));
+  internal::pstoreu(lanes, packet);
+  for (Index i = 0; i < packet_size; ++i) {
+    const Bits bits = samples[2 + (i % 4)];
+    const Bits expected = bits & sign ? sign | one : one;
+    VERIFY_IS_EQUAL(numext::bit_cast<Bits>(lanes[i]), expected);
+  }
+}
+
+template <typename Scalar>
+void packetmath_binary_sign_flushed() {
+  ScopedFlushToZero flush;
+  if (!flush.isSupported()) return;
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_binary_sign_subnormals<Scalar>();
+}
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+void packetmath_bfloat16_sign_bits() {
+  using Packet = internal::packet_traits<bfloat16>::type;
+  constexpr int packet_size = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_MAX bfloat16 input[packet_size], output[packet_size];
+  for (unsigned first = 0; first < 65536; first += packet_size) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
+    }
+    internal::pstoreu(output, internal::psign(internal::ploadu<Packet>(input)));
+    for (int i = 0; i < packet_size; ++i) {
+      const numext::uint16_t bits = static_cast<numext::uint16_t>(first + i);
+      const numext::uint16_t magnitude = bits & 0x7fff;
+      numext::uint16_t expected = 0;
+      if (magnitude > 0x7f80) {
+        expected = bits;
+      } else if (magnitude != 0) {
+        expected = static_cast<numext::uint16_t>((bits & 0x8000) | 0x3f80);
+      }
+      VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(output[i]), expected);
+    }
+  }
+}
+
+void packetmath_bfloat16_sign_bits_flushed() {
+  ScopedFlushToZero flush_to_zero;
+  if (!flush_to_zero.isSupported()) return;
+#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  // FTZ flushes results; DAZ makes float comparisons read subnormal inputs as zero.
+  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_bfloat16_sign_bits();
+}
+#endif
+
 namespace Eigen {
 namespace test {
 
@@ -2307,6 +2517,17 @@ EIGEN_DECLARE_TEST(packetmath) {
     ScopedFlushToZero flush_to_zero;
     packetmath_bfloat16_abs_array();
   });
+
+  CALL_SUBTEST_1(packetmath_binary_sign_subnormals<float>());
+  CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
+  CALL_SUBTEST_1(packetmath_binary_sign_flushed<float>());
+  CALL_SUBTEST_2(packetmath_binary_sign_flushed<double>());
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
+  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
+#endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
   CALL_SUBTEST_1((packetmath_redux_infinities<float, internal::Packet1Xf>()));

@@ -37,7 +37,42 @@ static void BM_Pgather(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * size);
 }
 
+template <typename Scalar>
+EIGEN_DONT_INLINE void scatter_packets(const Scalar* input, Scalar* output, Index size, Index stride) {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  constexpr Index PacketSize = internal::packet_traits<Scalar>::size;
+  for (Index i = 0; i < size; i += PacketSize) {
+    internal::pscatter<Scalar, Packet>(output + i * stride, internal::ploadu<Packet>(input + i), stride);
+  }
+}
+
+template <typename Scalar>
+static void BM_Pscatter(benchmark::State& state) {
+  Index size = state.range(0);
+  Index stride = state.range(1);
+  Array<Scalar, Dynamic, 1> input(size), output((size - 1) * stride + 1);
+  for (Index i = 0; i < size; ++i) input(i) = Scalar(i % 127);
+  scatter_packets(input.data(), output.data(), size, stride);
+  for (Index i = 0; i < size; ++i) {
+    if (output(i * stride) != input(i)) {
+      state.SkipWithError("Incorrect scattered coefficient");
+      return;
+    }
+  }
+  for (auto _ : state) {
+    benchmark::ClobberMemory();
+    scatter_packets(input.data(), output.data(), size, stride);
+    benchmark::DoNotOptimize(output.data());
+  }
+  state.SetItemsProcessed(state.iterations() * size);
+}
+
 BENCHMARK_TEMPLATE(BM_Pgather, float, 2)->Arg(64)->Arg(4096);
 BENCHMARK_TEMPLATE(BM_Pgather, double, 2)->Arg(64)->Arg(4096);
 BENCHMARK_TEMPLATE(BM_Pgather, float, Dynamic)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
 BENCHMARK_TEMPLATE(BM_Pgather, double, Dynamic)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
+BENCHMARK_TEMPLATE(BM_Pgather, std::complex<float>, Dynamic)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
+BENCHMARK_TEMPLATE(BM_Pgather, std::complex<double>, Dynamic)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
+BENCHMARK_TEMPLATE(BM_Pscatter, float)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
+BENCHMARK_TEMPLATE(BM_Pscatter, std::complex<float>)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});
+BENCHMARK_TEMPLATE(BM_Pscatter, std::complex<double>)->ArgsProduct({{64, 4096}, {1, 2, 3, 7}});

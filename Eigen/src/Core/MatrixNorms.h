@@ -85,8 +85,9 @@ struct selfadjoint_l1norm_real_lanes {
 
   // The running sums of a pass over two columns.
   struct Pass {
-    RPacket acc0 = pzero(RPacket());
-    RPacket acc1 = pzero(RPacket());
+    // pset1 rather than pzero(RPacket()): nvc++ 26.1 crashes on a value-initialized __m512 (#3193).
+    RPacket acc0 = pset1<RPacket>(Real(0));
+    RPacket acc1 = pset1<RPacket>(Real(0));
     template <typename SumsEvaluator>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, SumsEvaluator& s, Index i) {
       RPacket a = pabs(u);
@@ -125,8 +126,8 @@ struct selfadjoint_l1norm_complex_lanes {
   }
 
   struct Pass {
-    RPacket acc = pzero(RPacket());    // |u| in the even lanes, |v| in the odd ones
-    RPacket peak_ = pzero(RPacket());  // the largest component seen
+    RPacket acc = pset1<RPacket>(Real(0));    // |u| in the even lanes, |v| in the odd ones
+    RPacket peak_ = pset1<RPacket>(Real(0));  // the largest component seen
     template <typename SumsEvaluator>
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void step(const RPacket& u, const RPacket& v, SumsEvaluator& s, Index i) {
       peak_ = pmax(peak_, pmax(pabs(u), pabs(v)));

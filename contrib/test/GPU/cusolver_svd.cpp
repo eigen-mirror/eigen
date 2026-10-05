@@ -137,6 +137,16 @@ void test_svd_solve_context(Index m, Index n, Index nrhs) {
   const RealScalar cond = S(0) / S(S.size() - 1);
   const RealScalar tol = RealScalar(8) * cond * NumTraits<Scalar>::epsilon();
   VERIFY((X - X_ref).norm() / X_ref.norm() < tol);
+
+  // Context-bound rvalue constructor adopts A when m >= n (a wide A is
+  // transposed into a copy).
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::SVD<Scalar> svd_adopt(ctx, std::move(d_A), ComputeThinU | ComputeThinV);
+  VERIFY(m < n || d_A.empty());
+  VERIFY_IS_EQUAL(svd_adopt.info(), Success);
+  VERIFY(svd_adopt.stream() == ctx.stream());
+  Mat X_adopt = svd_adopt.solve(B);
+  VERIFY((X_adopt - X_ref).norm() / X_ref.norm() < tol);
 }
 
 // ---- Solve: truncated -------------------------------------------------------
@@ -384,6 +394,26 @@ void test_svd_chain_orthogonality(Index m, Index n) {
   VERIFY_IS_EQUAL(VT_again.cols(), n);
 }
 
+// ---- Host getters wait only for the solver's stream -------------------------
+// A download through the legacy default stream (cudaMemcpy) would also wait
+// for the unrelated blocking stream parked below.
+
+template <typename Scalar>
+void test_svd_getters_ignore_other_streams(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, n);
+  gpu::SVD<Scalar> svd(A, ComputeThinU | ComputeThinV);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+
+  gpu::Context other;
+  gpu_test::ParkedStream parked(other.stream());
+  (void)svd.singularValues();
+  (void)svd.matrixU();
+  (void)svd.matrixVT();
+  VERIFY(parked.held());
+}
+
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_svd_empty() {
@@ -481,6 +511,9 @@ void test_scalar() {
   // Chain device views into a downstream GEMM (orthogonality check).
   CALL_SUBTEST(test_svd_chain_orthogonality<Scalar>(64, 64));
   CALL_SUBTEST(test_svd_chain_orthogonality<Scalar>(96, 64));
+
+  CALL_SUBTEST(test_svd_getters_ignore_other_streams<Scalar>(64, 48));
+  CALL_SUBTEST(test_svd_getters_ignore_other_streams<Scalar>(48, 64));  // wide: U and V^T swap roles
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_svd) {

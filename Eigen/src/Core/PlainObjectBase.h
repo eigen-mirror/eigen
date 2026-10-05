@@ -485,8 +485,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    */
   template <typename... ArgTypes>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PlainObjectBase(const Scalar& a0, const Scalar& a1, const Scalar& a2,
-                                                        const Scalar& a3, const ArgTypes&... args)
-      : m_storage() {
+                                                        const Scalar& a3, const ArgTypes&... args) {
     EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(PlainObjectBase, sizeof...(args) + 4);
     m_storage.data()[0] = a0;
     m_storage.data()[1] = a1;
@@ -501,8 +500,7 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * lists
    */
   EIGEN_DEVICE_FUNC explicit constexpr EIGEN_STRONG_INLINE PlainObjectBase(
-      const std::initializer_list<std::initializer_list<Scalar>>& list)
-      : m_storage() {
+      const std::initializer_list<std::initializer_list<Scalar>>& list) {
     size_t list_size = 0;
     if (list.begin() != list.end()) {
       list_size = list.begin()->size();
@@ -541,14 +539,14 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
 
   /** \sa PlainObjectBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE PlainObjectBase(const DenseBase<OtherDerived>& other) : m_storage() {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE PlainObjectBase(const DenseBase<OtherDerived>& other) {
     resizeLike(other);
     _set_noalias(other);
   }
 
   /** \sa PlainObjectBase::operator=(const EigenBase<OtherDerived>&) */
   template <typename OtherDerived>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE PlainObjectBase(const EigenBase<OtherDerived>& other) : m_storage() {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE PlainObjectBase(const EigenBase<OtherDerived>& other) {
     resizeLike(other);
     *this = other.derived();
   }
@@ -705,8 +703,9 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _resize_to_match(const EigenBase<OtherDerived>& other) {
 #ifdef EIGEN_NO_AUTOMATIC_RESIZING
-    eigen_assert((this->size() == 0 || (IsVectorAtCompileTime ? (this->size() == other.size())
-                                                              : (rows() == other.rows() && cols() == other.cols()))) &&
+    eigen_assert((this->size() == 0 ||
+                  (IsVectorAtCompileTime ? ((other.rows() == 1 || other.cols() == 1) && this->size() == other.size())
+                                         : (rows() == other.rows() && cols() == other.cols()))) &&
                  "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
     if (this->size() == 0) resizeLike(other);
     EIGEN_ONLY_USED_FOR_DEBUG(other);

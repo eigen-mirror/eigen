@@ -52,4 +52,5 @@ static void BM_LLT(benchmark::State& state) {
   state.counters["GFLOPS"] =
       benchmark::Counter(cost, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
-BENCHMARK(BM_LLT)->RangeMultiplier(2)->Range(4, 1500);
+// 48 and 96 bracket the unblocked/blocked crossover.
+BENCHMARK(BM_LLT)->RangeMultiplier(2)->Range(4, 1500)->Arg(48)->Arg(96);

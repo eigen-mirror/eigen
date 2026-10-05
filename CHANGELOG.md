@@ -6,6 +6,8 @@ New features:
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
 - `ArrayBase::logicalShiftRight<N>()`, a zero-filling right shift, alongside `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` as the spelled-out names for the existing shift operators [!2816]
+- Support building Eigen's in-tree BLAS library with 64-bit (`ILP64`) integers (`eigen_blas_ilp64` and `eigen_blas_ilp64_static`, controlled by `EIGEN_BUILD_BLAS_ILP64`)
+- `PreconditionSquareMatrix` option, which applies JacobiSVD's QR preconditioners to square matrices. BDCSVD forwards this option to JacobiSVD for matrices smaller than the switch size [!3212]
 
 Bug fixes:
 - Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]
@@ -14,6 +16,9 @@ Bug fixes:
 - `numext::arithmetic_shift_right()` sign-extended unsigned scalars, so the scalar and vectorized paths of one shift expression disagreed [!2814]
 - `Transform::inverse(Projective)` returned an uninitialized result for every mode other than `Projective` [!2814]
 - `DGMRES::iterations()` returned `maxIterations()` after every solve, including converged ones [!2814]
+- `BDCSVD` with QR-only `Options`, such as `DisableQRDecomposition`, dropped runtime unitary requests for inputs below the switch size, so `matrixU()` asserted, or returned an empty `U` and `V` under `NDEBUG` [!3212]
+- `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
+- `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]

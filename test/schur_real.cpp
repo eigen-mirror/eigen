@@ -99,6 +99,7 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
   }
 }
 
+template <typename = void>
 void test_bug2633() {
   Eigen::MatrixXd A(4, 4);
   A << 0, 0, 0, -2, 1, 0, 0, -0, 0, 1, 0, 2, 0, 0, 2, -0;
@@ -106,6 +107,7 @@ void test_bug2633() {
   VERIFY(schur.info() == Eigen::Success);
 }
 
+template <typename = void>
 void real_schur_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller diagonal entry up by one ULP.
   Matrix2f matrix = Matrix2f::Zero();
@@ -275,8 +277,8 @@ EIGEN_DECLARE_TEST(schur_real) {
   // Test problem size constructors
   CALL_SUBTEST_5(RealSchur<MatrixXf>(10));
 
-  CALL_SUBTEST_6((test_bug2633()));
-  CALL_SUBTEST_6((real_schur_power_of_two_scaling()));
+  CALL_SUBTEST_6((test_bug2633<>()));
+  CALL_SUBTEST_6((real_schur_power_of_two_scaling<>()));
   CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2f>());
   CALL_SUBTEST_6(real_schur_subnormal_restoration<Matrix2d>());
   CALL_SUBTEST_7((schur_workspace_stride<float, ColMajor>()));

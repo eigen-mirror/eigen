@@ -34,6 +34,8 @@ constexpr int get_qr_preconditioner(int options) { return options & QRPreconditi
 
 constexpr int get_computation_options(int options) { return options & ComputationOptionsBits; }
 
+constexpr bool should_svd_precondition_square_matrix(int options) { return (options & PreconditionSquareMatrix) != 0; }
+
 constexpr bool should_svd_compute_thin_u(int options) { return (options & ComputeThinU) != 0; }
 constexpr bool should_svd_compute_full_u(int options) { return (options & ComputeFullU) != 0; }
 constexpr bool should_svd_compute_thin_v(int options) { return (options & ComputeThinV) != 0; }

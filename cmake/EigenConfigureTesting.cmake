@@ -25,6 +25,8 @@ add_custom_target(buildsmoketests)
 # test/ and contrib/test/ as a parent-scope variable, and ei_add_test_internal
 # checks it on every test it registers.
 include(EigenSmokeTestList)
+# Split-test parts that ei_add_test compiles together; see the file for the limits.
+include(EigenTestPartGroups)
 
 if (NOT EIGEN_CTEST_ARGS)
   # By default, run tests in parallel on all available cores.

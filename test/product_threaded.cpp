@@ -31,6 +31,7 @@ struct ScopedSerialGemm {
   int saved_threads_;
 };
 
+template <typename = void>
 void test_parallelize_gemm() {
   constexpr int n = 1024;
   constexpr int num_threads = 4;
@@ -52,6 +53,7 @@ void test_parallelize_gemm() {
   VERIFY_IS_APPROX(c, c_threaded);
 }
 
+template <typename = void>
 void test_parallelize_gemm_varied() {
   constexpr int num_threads = 4;
   static ThreadPool pool(num_threads);
@@ -102,6 +104,7 @@ void test_parallelize_gemm_varied() {
   }
 }
 
+template <typename = void>
 void test_balanced_gemm_range() {
   static const Index totals[] = {0, 1, 3, 4, 7, 12, 63, 100, 4096, 8192, 9216};
   static const Index part_counts[] = {1, 2, 3, 7, 8, 32, 64, 72};
@@ -144,6 +147,7 @@ void verify_threaded_product(ThreadPool& pool, Index rows, Index depth, Index co
   VERIFY_IS_APPROX(c_serial, c_threaded);
 }
 
+template <typename = void>
 void test_parallelize_gemm_indivisible() {
   // Shapes deliberately not divisible by the thread count, where the split has to spread the
   // remainder rather than append it to the last thread.
@@ -197,6 +201,7 @@ struct NumTraits<TrackedScalar> : GenericNumTraits<TrackedScalar> {
 };
 }  // namespace Eigen
 
+template <typename = void>
 void test_parallelize_gemm_require_initialization() {
   constexpr int n = 160;
   static ThreadPool pool(4);
@@ -233,6 +238,7 @@ void test_parallelize_gemm_tiny() {
 
 // Shapes the SME backend splits into disjoint parts per unit: odd sizes, a row-major result, and thin results split
 // along their long side; compared with a serial product.
+template <typename = void>
 void test_parallelize_gemm_parts() {
   static ThreadPool pool(4);
   Eigen::setGemmThreadPool(&pool);
@@ -286,6 +292,7 @@ void test_parallelize_gemm_parts_types() {
 
 // A block destination accumulated with a scale factor, and a fixed-size result, whose preallocated buffers keep the
 // shared session.
+template <typename = void>
 void test_parallelize_gemm_parts_blocks() {
   static ThreadPool pool(4);
   Eigen::setGemmThreadPool(&pool);
@@ -329,15 +336,15 @@ EIGEN_DECLARE_TEST(product_threaded) {
     EIGEN_UNUSED_VARIABLE(units);
     CALL_SUBTEST_6(with_sme_units(units, test_parallelize_gemm_tiny<float>));
     CALL_SUBTEST_6(with_sme_units(units, test_parallelize_gemm_tiny<double>));
-    CALL_SUBTEST_1(with_sme_units(units, test_parallelize_gemm));
-    CALL_SUBTEST_2(with_sme_units(units, test_parallelize_gemm_varied));
-    CALL_SUBTEST_4(with_sme_units(units, test_parallelize_gemm_indivisible));
-    CALL_SUBTEST_7(with_sme_units(units, test_parallelize_gemm_parts));
+    CALL_SUBTEST_1(with_sme_units(units, test_parallelize_gemm<>));
+    CALL_SUBTEST_2(with_sme_units(units, test_parallelize_gemm_varied<>));
+    CALL_SUBTEST_4(with_sme_units(units, test_parallelize_gemm_indivisible<>));
+    CALL_SUBTEST_7(with_sme_units(units, test_parallelize_gemm_parts<>));
     CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<double>));
     CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<float>>));
     CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<double>>));
-    CALL_SUBTEST_9(with_sme_units(units, test_parallelize_gemm_parts_blocks));
+    CALL_SUBTEST_9(with_sme_units(units, test_parallelize_gemm_parts_blocks<>));
   }
-  CALL_SUBTEST_3(test_balanced_gemm_range());
-  CALL_SUBTEST_5(test_parallelize_gemm_require_initialization());
+  CALL_SUBTEST_3(test_balanced_gemm_range<>());
+  CALL_SUBTEST_5(test_parallelize_gemm_require_initialization<>());
 }

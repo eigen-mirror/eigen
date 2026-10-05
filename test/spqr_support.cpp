@@ -55,6 +55,7 @@ void test_spqr_scalar() {
   VERIFY(x.isApprox(refX, test_precision<Scalar>()));
 }
 
+template <typename = void>
 void test_spqr_fixed_ordering_uses_identity_permutation() {
   typedef SparseMatrix<double, ColMajor> MatrixType;
   typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
@@ -94,6 +95,7 @@ void test_spqr_fixed_ordering_uses_identity_permutation() {
   VERIFY_IS_APPROX(x, refX);
 }
 
+template <typename = void>
 void test_spqr_matrix_q_times_identity_expression() {
   typedef SparseMatrix<double, ColMajor> MatrixType;
   typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
@@ -152,6 +154,6 @@ void test_spqr_matrix_q_times_identity_expression() {
 EIGEN_DECLARE_TEST(spqr_support) {
   CALL_SUBTEST_1(test_spqr_scalar<double>());
   CALL_SUBTEST_2(test_spqr_scalar<std::complex<double> >());
-  CALL_SUBTEST_3(test_spqr_fixed_ordering_uses_identity_permutation());
-  CALL_SUBTEST_3(test_spqr_matrix_q_times_identity_expression());
+  CALL_SUBTEST_3(test_spqr_fixed_ordering_uses_identity_permutation<>());
+  CALL_SUBTEST_3(test_spqr_matrix_q_times_identity_expression<>());
 }

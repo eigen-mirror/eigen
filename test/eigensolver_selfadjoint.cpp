@@ -416,6 +416,7 @@ void selfadjointeigensolver_extreme_eigenvalues(const MatrixType& m) {
   }
 }
 
+template <typename = void>
 void selfadjointeigensolver_subnormal_coefficients() {
   volatile float normalMinInput = (std::numeric_limits<float>::min)();
   const double scale = 256.0 * double(normalMinInput);
@@ -970,6 +971,7 @@ void generalizedselfadjointeigensolver_no_malloc() {
 }
 
 #if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void selfadjoint_iterative_scaling_rounding() {
   Matrix4f matrix = Matrix4f::Zero();
   matrix.diagonal() << numext::bit_cast<float>(numext::uint32_t(0x44123456)),
@@ -1331,7 +1333,7 @@ void direct_selfadjoint_low_precision_boundary() {
 #endif
 
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
-  CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding());
+  CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding<>());
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<float, ColMajor>()));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));
@@ -1361,7 +1363,7 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
   CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<float>());
   CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<double>());
-  CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients());
+  CALL_SUBTEST_13(selfadjointeigensolver_subnormal_coefficients<>());
 
   for (int i = 0; i < g_repeat; i++) {
     // trivial test for 1x1 matrices:

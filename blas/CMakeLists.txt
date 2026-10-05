@@ -25,6 +25,27 @@ if (EIGEN_BUILD_SHARED_LIBS)
   list(APPEND EIGEN_BLAS_TARGETS eigen_blas)
 endif()
 
+if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT EIGEN_TEST_32BIT)
+  option(EIGEN_BUILD_BLAS_ILP64 "Toggles the building of the 64-bit integer (ILP64) Eigen Blas library" ON)
+else()
+  set(EIGEN_BUILD_BLAS_ILP64 OFF)
+endif()
+
+if(EIGEN_BUILD_BLAS_ILP64)
+  add_library(eigen_blas_ilp64_static STATIC ${EigenBlas_SRCS})
+  target_compile_definitions(eigen_blas_ilp64_static PUBLIC "EIGEN_64BIT_BLAS")
+  list(APPEND EIGEN_BLAS_TARGETS eigen_blas_ilp64_static)
+
+  if(EIGEN_BUILD_SHARED_LIBS)
+    add_library(eigen_blas_ilp64 SHARED ${EigenBlas_SRCS} "eigen_blas.def")
+    target_compile_definitions(eigen_blas_ilp64 PUBLIC "EIGEN_BLAS_BUILD_DLL" "EIGEN_64BIT_BLAS")
+    set_target_properties(eigen_blas_ilp64 PROPERTIES CXX_VISIBILITY_PRESET hidden
+      VERSION ${EIGEN_VERSION_NUMBER}
+      SOVERSION ${EIGEN_MAJOR_VERSION})
+    list(APPEND EIGEN_BLAS_TARGETS eigen_blas_ilp64)
+  endif()
+endif()
+
 foreach(target IN LISTS EIGEN_BLAS_TARGETS)
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
       target_link_libraries(${target} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})

@@ -560,6 +560,81 @@ void visitor_vec_boundary() {
   }
 }
 
+// A vectorizable scalar whose packet type has no comparison ops, as in cppduals (#3195).
+struct NoPacketCmpScalar {
+  double v;
+  NoPacketCmpScalar(double x = 0) : v(x) {}
+  bool operator<(const NoPacketCmpScalar& b) const { return v < b.v; }
+  bool operator>(const NoPacketCmpScalar& b) const { return v > b.v; }
+  bool operator==(const NoPacketCmpScalar& b) const { return v == b.v; }
+  bool operator!=(const NoPacketCmpScalar& b) const { return v != b.v; }
+};
+struct NoPacketCmpPacket {
+  NoPacketCmpScalar v[2];
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<NoPacketCmpScalar> : GenericNumTraits<NoPacketCmpScalar> {};
+namespace internal {
+template <>
+struct packet_traits<NoPacketCmpScalar> : default_packet_traits {
+  using type = NoPacketCmpPacket;
+  using half = NoPacketCmpPacket;
+  enum { Vectorizable = 1, AlignedOnScalar = 0, size = 2, HasCmp = 0, HasMin = 0, HasMax = 0 };
+};
+template <>
+struct unpacket_traits<NoPacketCmpPacket> : default_unpacket_traits {
+  using type = NoPacketCmpScalar;
+  using half = NoPacketCmpPacket;
+  enum { size = 2, alignment = Unaligned, vectorizable = true };
+};
+template <>
+NoPacketCmpPacket pload<NoPacketCmpPacket>(const NoPacketCmpScalar* from) {
+  return NoPacketCmpPacket{{from[0], from[1]}};
+}
+template <>
+NoPacketCmpPacket ploadu<NoPacketCmpPacket>(const NoPacketCmpScalar* from) {
+  return NoPacketCmpPacket{{from[0], from[1]}};
+}
+template <>
+NoPacketCmpPacket pset1<NoPacketCmpPacket>(const NoPacketCmpScalar& a) {
+  return NoPacketCmpPacket{{a, a}};
+}
+template <>
+void pstore<NoPacketCmpScalar, NoPacketCmpPacket>(NoPacketCmpScalar* to, const NoPacketCmpPacket& from) {
+  to[0] = from.v[0];
+  to[1] = from.v[1];
+}
+template <>
+void pstoreu<NoPacketCmpScalar, NoPacketCmpPacket>(NoPacketCmpScalar* to, const NoPacketCmpPacket& from) {
+  to[0] = from.v[0];
+  to[1] = from.v[1];
+}
+}  // namespace internal
+}  // namespace Eigen
+
+template <int Options>
+void checkFindCoeffWithoutPacketCmp() {
+  using S = NoPacketCmpScalar;
+  Matrix<S, Dynamic, Dynamic, Options> m(5, 7);
+  for (Index k = 0; k < m.size(); ++k) m(k) = S(double((k * 11) % m.size()));
+  const S lo(-1), hi(100);
+  m(3, 2) = lo;
+  m(1, 4) = hi;
+  Index row, col;
+  VERIFY(m.minCoeff(&row, &col) == lo && row == 3 && col == 2);
+  VERIFY(m.maxCoeff(&row, &col) == hi && row == 1 && col == 4);
+  VERIFY(m.template minCoeff<PropagateNaN>(&row, &col) == lo && row == 3 && col == 2);
+  VERIFY(m.template maxCoeff<PropagateNaN>(&row, &col) == hi && row == 1 && col == 4);
+  VERIFY(m.template minCoeff<PropagateNumbers>(&row, &col) == lo && row == 3 && col == 2);
+  VERIFY(m.template maxCoeff<PropagateNumbers>(&row, &col) == hi && row == 1 && col == 4);
+  Matrix<S, Dynamic, 1> v = m.col(4);
+  Index index;
+  VERIFY(v.maxCoeff(&index) == hi && index == 1);
+  VERIFY(v.template minCoeff<PropagateNaN>(&index) == v.minCoeff());
+}
+
 EIGEN_DECLARE_TEST(visitor) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(matrixVisitor(Matrix<float, 1, 1>()));
@@ -595,4 +670,6 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14(checkVisitorShortCircuit<RowMajor>());
   CALL_SUBTEST_14((checkVisitorShortCircuit<ColMajor, true>()));
   CALL_SUBTEST_14((checkVisitorShortCircuit<RowMajor, true>()));
+  CALL_SUBTEST_15(checkFindCoeffWithoutPacketCmp<ColMajor>());
+  CALL_SUBTEST_15(checkFindCoeffWithoutPacketCmp<RowMajor>());
 }

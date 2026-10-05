@@ -148,6 +148,7 @@ void approx_comparisons_flush_to_zero() {
 }
 
 // The squared differences, 2^-118 and just below 2^-126, accumulate in float, where FTZ flushes the second.
+template <typename = void>
 void approx_comparisons_flush_to_zero_bfloat16() {
   ScopedFlushToZero flushToZero;
   using Vector = Matrix<bfloat16, 2, 1>;
@@ -210,6 +211,7 @@ void approx_comparisons_exact() {
   VERIFY(!one.isMuchSmallerThan(Scalar(1)));
 }
 
+template <typename = void>
 void approx_comparisons_expressions() {
   Matrix2d x;
   x << 1, 2, 3, 4;
@@ -345,9 +347,9 @@ EIGEN_DECLARE_TEST(approx_comparisons) {
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<half>());
   CALL_SUBTEST_3(approx_comparisons_rounding_boundary<bfloat16>());
   CALL_SUBTEST_3(approx_comparisons_flush_to_zero<bfloat16>());
-  CALL_SUBTEST_3(approx_comparisons_flush_to_zero_bfloat16());
+  CALL_SUBTEST_3(approx_comparisons_flush_to_zero_bfloat16<>());
   CALL_SUBTEST_4(approx_comparisons_exact<int>());
   CALL_SUBTEST_4(approx_comparisons_exact<unsigned int>());
   CALL_SUBTEST_4(approx_comparisons_exact<bool>());
-  CALL_SUBTEST_4(approx_comparisons_expressions());
+  CALL_SUBTEST_4(approx_comparisons_expressions<>());
 }

@@ -53,6 +53,7 @@ void compare_bdc_jacobi(const MatrixType& a = MatrixType(), int algoswap = 16, b
 #if defined(EIGEN_TEST_PART_46) || defined(EIGEN_TEST_PART_47) || defined(EIGEN_TEST_PART_48) || \
     defined(EIGEN_TEST_PART_49) || defined(EIGEN_TEST_PART_ALL)
 // Verifies total deflation is **not** triggered.
+template <typename = void>
 void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
   MatrixXd m(4, 3);
   if (structure_as_m) {
@@ -71,6 +72,7 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
 template <typename MatrixType>
 void bdcsvd_thin_full_options(const MatrixType& input = MatrixType()) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
+  svd_thin_full_option_checks<MatrixType, PreconditionSquareMatrix>(input);
 }
 
 template <typename MatrixType>
@@ -90,14 +92,14 @@ void bdcsvd_check_convergence(const MatrixType& input) {
 }
 
 // Verify SVD of bidiagonal matrix given as diagonal + superdiagonal vectors.
-template <typename RealScalar>
+template <typename RealScalar, int Options = ComputeFullU | ComputeFullV>
 void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                            const Matrix<RealScalar, Dynamic, 1>& superdiag) {
   typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
   typedef Matrix<RealScalar, Dynamic, 1> VectorXr;
   const Index n = diag.size();
 
-  BDCSVD<MatrixXr, ComputeFullU | ComputeFullV> bdcsvd(diag, superdiag);
+  BDCSVD<MatrixXr, Options> bdcsvd(diag, superdiag);
   VERIFY(bdcsvd.info() == Success);
 
   const VectorXr& sv = bdcsvd.singularValues();
@@ -129,7 +131,7 @@ void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
 }
 
 // Verify that bidiagonal API and matrix API produce matching singular values.
-template <typename RealScalar>
+template <typename RealScalar, int Options = 0>
 void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                                      const Matrix<RealScalar, Dynamic, 1>& superdiag) {
   typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
@@ -140,8 +142,8 @@ void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
   B.diagonal() = diag;
   if (n > 1) B.diagonal(1) = superdiag;
 
-  BDCSVD<MatrixXr> bidiag_svd(diag, superdiag);
-  BDCSVD<MatrixXr> matrix_svd(B);
+  BDCSVD<MatrixXr, Options> bidiag_svd(diag, superdiag);
+  BDCSVD<MatrixXr, Options> matrix_svd(B);
 
   VERIFY(bidiag_svd.info() == Success);
   VERIFY(matrix_svd.info() == Success);
@@ -155,8 +157,10 @@ void bdcsvd_bidiagonal_hard_cases() {
   // Use the shared tridiagonal test matrix generators.
   // Each generator fills (diag, offdiag) which we treat as (diagonal, superdiagonal)
   // of a bidiagonal matrix.
-  test::for_all_tridiag_test_matrices<RealScalar>(
-      [](const auto& diag, const auto& offdiag) { verify_bidiagonal_svd<RealScalar>(diag, offdiag); });
+  test::for_all_tridiag_test_matrices<RealScalar>([](const auto& diag, const auto& offdiag) {
+    verify_bidiagonal_svd<RealScalar>(diag, offdiag);
+    verify_bidiagonal_svd<RealScalar, PreconditionSquareMatrix | ComputeFullU | ComputeFullV>(diag, offdiag);
+  });
 
   // Additional SVD-specific test: identity with cross-validation against full matrix SVD.
   test::for_tridiag_sizes<RealScalar>([](auto& diag, auto& offdiag) {
@@ -174,6 +178,7 @@ void bdcsvd_bidiagonal_hard_cases() {
 }
 
 #if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_mixed_option_enum_regression() {
   using NoQrFullSVD = BDCSVD<MatrixXd, NoQRPreconditioner | ComputeFullU | ComputeFullV>;
   using ReversedMixedSVD = BDCSVD<MatrixXd, ComputeThinU | DisableQRDecomposition | ComputeFullV>;
@@ -183,10 +188,58 @@ void bdcsvd_mixed_option_enum_regression() {
 
   STATIC_CHECK((int(ReversedMixedSVD::QRDecomposition) == int(DisableQRDecomposition)));
   STATIC_CHECK((ReversedMixedSVD::ComputationOptions == (ComputeThinU | ComputeFullV)));
+
+  // Runtime unitary options must reach the JacobiSVD used below the switch size when Options holds only QR bits.
+  const MatrixXd m = MatrixXd::Random(5, 5);
+  EIGEN_DIAGNOSTICS(push)
+  EIGEN_DISABLE_DEPRECATED_WARNING
+  const BDCSVD<MatrixXd, DisableQRDecomposition> svd(m, ComputeFullU | ComputeFullV);
+  EIGEN_DIAGNOSTICS(pop)
+  svd_check_full(m, svd);
+}
+#endif
+
+#if defined(EIGEN_TEST_PART_65) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
+void bdcsvd_switch_size() {
+  const MatrixXd m = MatrixXd::Random(20, 20);
+  BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> svd(m.rows(), m.cols());
+  svd.setSwitchSize(32);
+  svd.compute(m);
+  svd_check_full(m, svd);
+  svd.setSwitchSize(4);
+  svd.compute(m);
+  svd_check_full(m, svd);
+  svd.setSwitchSize(32);
+  svd.compute(m);
+  svd_check_full(m, svd);
+
+  // The bidiagonal entry point allocates through the same path.
+  const VectorXd diag = VectorXd::Random(20);
+  const VectorXd superdiag = VectorXd::Random(19);
+  MatrixXd bidiag = MatrixXd::Zero(20, 20);
+  bidiag.diagonal() = diag;
+  bidiag.diagonal(1) = superdiag;
+  BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> bidiag_svd(bidiag.rows(), bidiag.cols());
+  bidiag_svd.setSwitchSize(32);
+  bidiag_svd.compute(diag, superdiag);
+  svd_check_full(bidiag, bidiag_svd);
+}
+#endif
+
+#if defined(EIGEN_TEST_PART_62) || defined(EIGEN_TEST_PART_ALL)
+// Below the switch size, the bidiagonal API forwards PreconditionSquareMatrix to BDCSVD's JacobiSVD.
+template <typename RealScalar>
+void bdcsvd_precondition_square_matrix_bidiagonal(Index n) {
+  using VectorXr = Matrix<RealScalar, Dynamic, 1>;
+  const VectorXr diagonal = VectorXr::Random(n);
+  const VectorXr superdiagonal = VectorXr::Random(n - 1);
+  verify_bidiagonal_vs_matrix_svd<RealScalar, PreconditionSquareMatrix>(diagonal, superdiagonal);
 }
 #endif
 
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_extreme_scale_regressions() {
   typedef Matrix<double, 6, 6> Matrix6d;
   const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
@@ -239,6 +292,7 @@ void bdcsvd_extreme_scale_regressions() {
 #endif
 
 #if defined(EIGEN_TEST_PART_54) || defined(EIGEN_TEST_PART_ALL)
+template <typename = void>
 void bdcsvd_fast_math_regression_1588() {
   const Index n = 500;
   MatrixXd matrix = MatrixXd::Zero(n, n);
@@ -305,6 +359,7 @@ void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
   });
 }
 
+template <typename = void>
 void bdcsvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
   const Index size = 20;
@@ -428,7 +483,7 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
   CALL_SUBTEST_4((bdcsvd_asserts<Matrix<float, 7, 10>>()));
   CALL_SUBTEST_5((bdcsvd_asserts<Matrix<std::complex<double>, 6, 9>>()));
-  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression()));
+  CALL_SUBTEST_6((bdcsvd_mixed_option_enum_regression<>()));
 
   CALL_SUBTEST_7((bdcsvd_thin_full_options<Matrix2cd>()));
   CALL_SUBTEST_9((bdcsvd_thin_full_options<Matrix2d>()));
@@ -472,6 +527,30 @@ EIGEN_DECLARE_TEST(bdcsvd) {
     CALL_SUBTEST_41(
         (svd_check_max_size_matrix<Matrix<float, Dynamic, Dynamic, RowMajor, 35, 20>, HouseholderQRPreconditioner>(r,
                                                                                                                    c)));
+
+    const Index smallSize = internal::random<Index>(2, 15);
+    TEST_SET_BUT_UNUSED_VARIABLE(smallSize);
+    CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<double>(smallSize)));
+    CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<float>(smallSize)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix2cd>(2)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<Matrix2f>(2)));
+    CALL_SUBTEST_64((bdcsvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+        Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
+    // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(10, 5))));
+    CALL_SUBTEST_64(
+        (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(5, 10))));
   }
 
   // test matrixbase method
@@ -483,18 +562,18 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
-  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling());
+  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling<>());
   CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
   CALL_SUBTEST_45((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
 
   // Without total deflation issues.
-  CALL_SUBTEST_46((compare_bdc_jacobi_instance(true)));
-  CALL_SUBTEST_47((compare_bdc_jacobi_instance(false)));
+  CALL_SUBTEST_46((compare_bdc_jacobi_instance<>(true)));
+  CALL_SUBTEST_47((compare_bdc_jacobi_instance<>(false)));
 
   // With total deflation issues before, when it shouldn't be triggered.
-  CALL_SUBTEST_48((compare_bdc_jacobi_instance(true, 3)));
-  CALL_SUBTEST_49((compare_bdc_jacobi_instance(false, 3)));
+  CALL_SUBTEST_48((compare_bdc_jacobi_instance<>(true, 3)));
+  CALL_SUBTEST_49((compare_bdc_jacobi_instance<>(false, 3)));
 
   // Convergence for large constant matrix (https://gitlab.com/libeigen/eigen/-/issues/2491)
   CALL_SUBTEST_50(bdcsvd_check_convergence<MatrixXf>(MatrixXf::Constant(500, 500, 1)));
@@ -502,8 +581,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // Bidiagonal SVD hard test cases
   CALL_SUBTEST_51((bdcsvd_bidiagonal_hard_cases<float>()));
   CALL_SUBTEST_52((bdcsvd_bidiagonal_hard_cases<double>()));
-  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions()));
-  CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588()));
+  CALL_SUBTEST_53((bdcsvd_extreme_scale_regressions<>()));
+  CALL_SUBTEST_54((bdcsvd_fast_math_regression_1588<>()));
   CALL_SUBTEST_55((bdcsvd_secular_extrapolation<float>()));
   CALL_SUBTEST_56((bdcsvd_secular_extrapolation<double>()));
   CALL_SUBTEST_57((bdcsvd_qr_crossover<float, ColMajor>()));
@@ -515,4 +594,5 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<float>(12, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
+  CALL_SUBTEST_65((bdcsvd_switch_size<>()));
 }

@@ -18,8 +18,12 @@
 #define EIGEN_UNSUPPORTED_TEST_GPU_TEST_HELPERS_H
 
 #include <Eigen/Core>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <type_traits>
 
 namespace gpu_test {
@@ -47,6 +51,68 @@ inline void require_cuda_device() {
               << " with " << count << " device(s)." << std::endl;
     std::exit(77);
   }
+}
+
+// Parks `stream` behind a host function that returns when the ParkedStream is
+// destroyed or after `timeout`, whichever comes first. An operation that does
+// not wait for `stream` returns while held() is still true; one that does
+// returns only after the timeout, when held() is false.
+class ParkedStream {
+ public:
+  explicit ParkedStream(cudaStream_t stream, std::chrono::milliseconds timeout = std::chrono::seconds(1))
+      : stream_(stream), timeout_(timeout) {
+    EIGEN_CUDA_RUNTIME_CHECK(cudaLaunchHostFunc(stream_, &ParkedStream::hold, this));
+  }
+
+  ~ParkedStream() {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      unpark_ = true;
+    }
+    cv_.notify_one();
+    (void)cudaStreamSynchronize(stream_);
+  }
+
+  ParkedStream(const ParkedStream&) = delete;
+  ParkedStream& operator=(const ParkedStream&) = delete;
+
+  bool held() const { return !released_.load(std::memory_order_acquire); }
+
+ private:
+  static void CUDART_CB hold(void* data) {
+    ParkedStream* self = static_cast<ParkedStream*>(data);
+    std::unique_lock<std::mutex> lock(self->mutex_);
+    self->cv_.wait_for(lock, self->timeout_, [self] { return self->unpark_; });
+    self->released_.store(true, std::memory_order_release);
+  }
+
+  cudaStream_t stream_;
+  std::chrono::milliseconds timeout_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool unpark_ = false;
+  std::atomic<bool> released_{false};
+};
+#endif
+
+#ifdef CUSOLVER_VERSION
+// cusolverDnXpotrf in cuSOLVER 11.4.1 (CUDA 11.8) and 11.4.2 (CUDA 12.0) reports
+// success on a matrix that is not positive definite and returns a NaN factor;
+// 11.4.4 (CUDA 12.1) and later set info > 0 again. Tests that expect
+// NumericalIssue from such an LLT pass the reported info here: on an affected
+// library this prints a warning and returns true, and the caller skips the check.
+inline bool cusolver_potrf_missed_non_spd(Eigen::ComputationInfo info) {
+  constexpr int kFirstVersionReportingNonSpd = 11404;
+  int version = 0;
+  if (cusolverGetVersion(&version) != CUSOLVER_STATUS_SUCCESS || version >= kFirstVersionReportingNonSpd ||
+      info != Eigen::Success) {
+    return false;
+  }
+  std::cout << "WARNING: cuSOLVER " << version / 1000 << '.' << version / 100 % 10 << '.' << version % 100
+            << " reported success for the potrf of a matrix that is not positive definite (defect in 11.4.1 and "
+               "11.4.2, fixed in 11.4.4); skipping the NumericalIssue check."
+            << std::endl;
+  return true;
 }
 #endif
 

@@ -580,6 +580,14 @@ template <typename Packet>
 struct use_double_word : bool_constant<is_double_word_base<typename unpacket_traits<Packet>::type>::value &&
                                        has_exponent_bit_ops<typename real_view<Packet>::type>::value> {};
 
+// ARMv7 NEON flushes subnormal float operands and results to zero in its arithmetic and comparisons; the scalar VFP
+// unit, which runs the scalar path, does not. Its dispatch is also under #if EIGEN_ARCH_ARM: elsewhere, although it
+// selects the unchanged path, GCC inlines the pow kernels differently.
+template <typename Packet>
+struct flushes_subnormals
+    : bool_constant<EIGEN_ARCH_ARM && !is_scalar<Packet>::value &&
+                    std::is_same<typename NumTraits<typename unpacket_traits<Packet>::type>::Real, float>::value> {};
+
 // Declared in GenericPacketMathFunctionsFwd.h so that a backend header can override them.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet exponent_bits_shift_right(const Packet& bits) {
@@ -629,7 +637,43 @@ struct binary_exponent_scaling {
         numext::numeric_limits<Scalar>::min_exponent - numext::numeric_limits<Scalar>::digits - 64;
     Packet zero_below = pset1<Packet>(Scalar(kZeroBelow));
     Packet value = pselect(pcmp_lt(e, zero_below), pmul(x, pzero(x)), x);
-    return pldexp(value, pmin(pmax(e, zero_below), pset1<Packet>(Scalar(kLimit))));
+    Packet exponent = pmin(pmax(e, zero_below), pset1<Packet>(Scalar(kLimit)));
+#if EIGEN_ARCH_ARM
+    return with_subnormals(value, exponent, pldexp(value, exponent), flushes_subnormals<Packet>());
+#else
+    return pldexp(value, exponent);
+#endif
+  }
+
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_subnormals(const Packet&, const Packet&, const Packet& r,
+                                                                      false_type) {
+    return r;
+  }
+  // A flushing pldexp returns zero where x * 2^e lies below the smallest normal, i.e. t = |x| * 2^(e - min_exponent +
+  // digits) < 2^kMantissaBits. Rounded once, as pldexp rounds, that is k * 2^(min_exponent - digits) for k = rint(t) <=
+  // 2^kMantissaBits, the bit pattern of its magnitude. Only lanes with |r| < min are scaled, as elsewhere the scaling
+  // can overflow and its conversion raise FE_INVALID, and of those only lanes with t < 2^kMantissaBits are rebuilt:
+  // pldexp also zeroes some normal x * 2^e through a flushed partial product (2^-124 * 2^-1 in float).
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet with_subnormals(const Packet& x, const Packet& e, const Packet& r,
+                                                                      true_type) {
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
+    constexpr int kShift = numext::numeric_limits<Scalar>::digits - numext::numeric_limits<Scalar>::min_exponent;
+    Packet below = pcmp_lt(pabs(r), pset1<Packet>((numext::numeric_limits<Scalar>::min)()));
+    if (!predux_any(below)) return r;
+    Packet t = pldexp(pand(below, pabs(x)), padd(e, pset1<Packet>(Scalar(kShift))));
+    Packet k = preinterpret<Packet>(pcast<Packet, PacketI>(print(t)));
+    Packet rebuilt = pand(below, pcmp_lt(t, pset1<Packet>(Scalar(Bits(1) << kMantissaBits))));
+    return pselect(rebuilt, por(k, pand(x, pset1<Packet>(Scalar(-0.0)))), r);
+  }
+
+  // Whether a lane is subnormal, tested on its bits, as a flushing comparison reads a subnormal as zero.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_subnormal(const Packet& x) {
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
+    using Int = typename unpacket_traits<PacketI>::type;
+    PacketI magnitude = preinterpret<PacketI>(pandnot(x, pset1<Packet>(Scalar(-0.0))));
+    PacketI subnormal =
+        pand(pcmp_lt(pzero(magnitude), magnitude), pcmp_lt(magnitude, pset1<PacketI>(Int(1) << kMantissaBits)));
+    return predux_any(preinterpret<Packet>(subnormal));
   }
 
   // Factors x = m * 2^e with 2 <= |m| < 4 for a finite, nonzero x, where m = (x * lift) * scale: lift is 2^digits
@@ -659,6 +703,13 @@ struct repeated_squaring_ops {
   struct State {
     Packet hi, lo, exponent, special;
   };
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_subnormal(const Packet& x) { return Scaling::any_subnormal(x); }
+  // Whether a finite nonzero base has a power r below the smallest normal.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_below_normal(const Packet& x, const Packet& r) {
+    Packet abs_x = pabs(x);
+    Packet regular = pand(pcmp_lt(pzero(x), abs_x), pcmp_lt(abs_x, pset1<Packet>(NumTraits<Scalar>::infinity())));
+    return predux_any(pand(regular, pcmp_lt(pabs(r), pset1<Packet>((numext::numeric_limits<Scalar>::min)()))));
+  }
   // Whether every lane lies within [1/bound, bound], where the power and its residuals stay normal without scaling.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool in_range(const Packet& x, const Packet& bound) {
     Packet abs_x = pabs(x);
@@ -845,6 +896,11 @@ struct repeated_squaring_ops<Packet, true> {
     bool any_separated;
     bool negative, any_zero;
   };
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_subnormal(const Packet& x) {
+    return Scaling::any_subnormal(x.v);
+  }
+  // A complex power has no single-operation form for the scalar path to round differently.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_below_normal(const Packet&, const Packet&) { return false; }
   // Four steps between renormalizations let the power fall to 2^-62 of the scale when the base is a reciprocal in
   // [1/4, 1/2), and the smaller component, of order r = |s/L| times the power, keeps normal residuals only for
   // r >= 2^(min_exponent - 1 + digits + 62). Below that the base is separated (see base()), and first order is
@@ -1109,9 +1165,10 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   AbsExponentType m = ExponentHelper::safe_abs(exponent);
   bool odd = (m & AbsExponentType(1)) != 0;
   if (m == AbsExponentType(1) && !negative) return x;
-  // A real x^-1 and x^2 are a single correctly rounded operation, which is what the double word would produce.
+  // A real x^-1 and x^2 are a single correctly rounded operation, which is what the double word would produce. On
+  // ARMv7 NEON pdiv is a refined reciprocal estimate instead.
   EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) {
-    if (m == AbsExponentType(1)) return pdiv(pset1<Packet>(Scalar(1)), x);
+    if (m == AbsExponentType(1) && !flushes_subnormals<Packet>::value) return pdiv(pset1<Packet>(Scalar(1)), x);
     if (m == AbsExponentType(2) && !negative) return pmul(x, x);
   }
   AbsExponentType top = highest_set_bit(m);
@@ -1130,6 +1187,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
   int b = numext::uint64_t(m) > numext::uint64_t(kBudget) ? 0 : kBudget / int(m);
   EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
     b = numext::mini(b - 1, (numext::numeric_limits<Real>::max_exponent - 1) / 2);
+  // A flushing packet always scales: the budget keeps the unscaled power normal, but not all of its residuals, nor the
+  // components and the norm of a complex reciprocal.
+  EIGEN_IF_CONSTEXPR (flushes_subnormals<Packet>::value) b = -1;
   typename Ops::Bound bound =
       pset1frombits<typename Ops::Bound>(RealBits(kBiasBits + RealBits(b < 0 ? 0 : b)) << kMantissaBits);
   bool scaled = b < 0 || !Ops::in_range(x, bound);
@@ -1154,8 +1214,41 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x
 }
 
 template <typename Packet, typename ScalarExponent>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent, true_type) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE Packet int_pow_lanewise(const Packet& x, const ScalarExponent& exponent) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar values[unpacket_traits<Packet>::size];
+  pstore(values, x);
+  for (Scalar& value : values) value = int_pow_double_word(value, exponent);
+  return pload<Packet>(values);
+}
+
+template <typename Packet, typename ScalarExponent>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x, const ScalarExponent& exponent,
+                                                                 false_type) {
   return int_pow_double_word(x, exponent);
+}
+
+// A flushing packet is computed lane by lane on scalars, whose arithmetic does not flush, where it holds a subnormal
+// base, which the comparisons, magnitudes and scalings of the base would all read as zero, or where a real x^-1 or x^2
+// falls below the smallest normal: the scalar path rounds those once, as 1/x and x * x do.
+template <typename Packet, typename ScalarExponent>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x, const ScalarExponent& exponent,
+                                                                 true_type) {
+  using Ops = repeated_squaring_ops<Packet>;
+  if (Ops::any_subnormal(x)) return int_pow_lanewise(x, exponent);
+  Packet r = int_pow_double_word(x, exponent);
+  if (exponent_helper<ScalarExponent>::safe_abs(exponent) <= 2 && Ops::any_below_normal(x, r))
+    return int_pow_lanewise(x, exponent);
+  return r;
+}
+
+template <typename Packet, typename ScalarExponent>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow(const Packet& x, const ScalarExponent& exponent, true_type) {
+#if EIGEN_ARCH_ARM
+  return int_pow_double_word(x, exponent, flushes_subnormals<Packet>());
+#else
+  return int_pow_double_word(x, exponent);
+#endif
 }
 
 template <typename Packet, typename ScalarExponent>

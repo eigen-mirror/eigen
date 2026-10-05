@@ -14,6 +14,8 @@
 #define EIGEN_USE_GPU
 #include "main.h"
 #include <contrib/Eigen/GPU>
+#include <cstdint>
+#include <new>
 
 #include "./gpu_test_helpers.h"
 
@@ -286,6 +288,77 @@ void test_gemm_explicit_context(Index m, Index n, Index k) {
   VERIFY((C - C_ref).norm() < tol);
 }
 
+// ---- GEMM with misaligned host alpha/beta -----------------------------------
+// cuBLAS reads alpha and beta as cuComplex/cuDoubleComplex, which declare 8- and
+// 16-byte alignment; std::complex<double> only needs 8, so a caller may hold it
+// at an odd multiple of 8. cublaslt_gemm must copy the scalars rather than pass
+// such storage on: on MSVC the dispatcher's locals land there. Only the GEMV
+// shapes (n == 1, or m == 1 with op(A) = A) and k == 1 fault without the copy,
+// so the callers below use those.
+
+// The strictest alignment cuBLAS declares for a host scalar, and the offset that
+// puts a scalar halfway between two such boundaries.
+constexpr std::size_t kCublasScalarAlign = alignof(cuDoubleComplex);
+constexpr std::size_t kMisalignment = kCublasScalarAlign / 2;
+
+template <typename Scalar>
+void test_gemm_misaligned_host_scalars(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+
+  gpu::Context ctx;
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B, ctx.stream());
+  gpu::DeviceMatrix<Scalar> d_C(m, n);
+
+  alignas(kCublasScalarAlign) unsigned char storage[kMisalignment + 2 * sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + kMisalignment) Scalar(2);
+  const Scalar* beta = ::new (storage + kMisalignment + sizeof(Scalar)) Scalar(0);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % kCublasScalarAlign, std::uintptr_t(kMisalignment));
+
+  gpu::internal::cublaslt_gemm(ctx.cublasLtHandle(), ctx.cublasHandle(), CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha,
+                               d_A.data(), m, d_B.data(), k, beta, d_C.data(), m, ctx.gemmWorkspace(),
+                               ctx.gemmPlanCache(), ctx.cublasLtMaxWorkspaceBytes(), ctx.stream());
+  d_C.recordReady(ctx.stream());
+
+  Mat C = d_C.toHost();
+  Mat C_ref = Scalar(2) * A * B;
+
+  RealScalar tol = RealScalar(k) * NumTraits<Scalar>::epsilon() * C_ref.norm();
+  VERIFY((C - C_ref).norm() < tol);
+}
+
+// ---- BLAS-1 with misaligned host alpha --------------------------------------
+// Zaxpy and Zscal fault on a host-mode alpha at 8 mod 16 like the GEMV paths
+// above; the complex axpy/scal wrappers must copy it.
+
+template <typename Scalar>
+void test_blas1_misaligned_host_alpha(Index n) {
+  using Vec = Eigen::Matrix<Scalar, Dynamic, 1>;
+
+  Vec x = Vec::Random(n);
+  Vec y = Vec::Random(n);
+
+  gpu::Context ctx;
+  auto d_x = gpu::DeviceMatrix<Scalar>::fromHost(x, ctx.stream());
+  auto d_y = gpu::DeviceMatrix<Scalar>::fromHost(y, ctx.stream());
+
+  alignas(kCublasScalarAlign) unsigned char storage[kMisalignment + sizeof(Scalar)];
+  const Scalar* alpha = ::new (storage + kMisalignment) Scalar(2);
+  VERIFY_IS_EQUAL(reinterpret_cast<std::uintptr_t>(alpha) % kCublasScalarAlign, std::uintptr_t(kMisalignment));
+
+  EIGEN_CUBLAS_CHECK(gpu::internal::cublasXaxpy(ctx.cublasHandle(), n, alpha, d_x.data(), 1, d_y.data(), 1));
+  EIGEN_CUBLAS_CHECK(gpu::internal::cublasXscal(ctx.cublasHandle(), n, alpha, d_x.data(), 1));
+  d_x.recordReady(ctx.stream());
+  d_y.recordReady(ctx.stream());
+
+  VERIFY_IS_APPROX(Vec(d_y.toHost()), Vec(y + Scalar(2) * x));
+  VERIFY_IS_APPROX(Vec(d_x.toHost()), Vec(Scalar(2) * x));
+}
+
 // ---- GEMM cross-context reuse of the same destination -----------------------
 
 template <typename Scalar>
@@ -371,6 +444,46 @@ void test_gemm_chain(Index n) {
 
   RealScalar tol = RealScalar(2) * RealScalar(n) * NumTraits<Scalar>::epsilon() * D_ref.norm();
   VERIFY((D - D_ref).norm() < tol);
+}
+
+// ---- GEMM with m, n, or k == 0 ---------------------------------------------
+
+template <typename Scalar>
+void test_gemm_empty_dim(Index m, Index n, Index k) {
+  using Mat = Eigen::Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, k);
+  Mat B = Mat::Random(k, n);
+  Mat C_init = Mat::Random(m, n);
+  const Mat zero = Mat::Zero(m, n);
+
+  auto d_A = gpu::DeviceMatrix<Scalar>::fromHost(A);
+  auto d_B = gpu::DeviceMatrix<Scalar>::fromHost(B);
+  auto d_AH = gpu::DeviceMatrix<Scalar>::fromHost(Mat(A.adjoint()));
+  auto d_BT = gpu::DeviceMatrix<Scalar>::fromHost(Mat(B.transpose()));
+
+  // A * B is the m x n zero matrix: `=` overwrites a stale destination, and
+  // `+=` / `-=` leave C unchanged.
+  auto d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
+  d_C = d_A * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), zero);
+
+  gpu::DeviceMatrix<Scalar> d_D;
+  d_D = d_AH.adjoint() * d_BT.transpose();
+  VERIFY_IS_CWISE_EQUAL(d_D.toHost(), zero);
+
+  d_C = gpu::DeviceMatrix<Scalar>::fromHost(C_init);
+  d_C += d_A * d_BT.transpose();
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), C_init);
+
+  gpu::Context ctx;
+  d_C.device(ctx) -= (Scalar(2) * d_AH.adjoint()) * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_C.toHost(), C_init);
+
+  // An empty destination accumulates from zero.
+  gpu::DeviceMatrix<Scalar> d_E;
+  d_E += d_A * d_B;
+  VERIFY_IS_CWISE_EQUAL(d_E.toHost(), zero);
 }
 
 // ---- LLT solve expression: d_X = d_A.llt().solve(d_B) ----------------------
@@ -740,9 +853,15 @@ void test_scalar() {
   CALL_SUBTEST(test_gemm_subtract<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_subtract_empty<Scalar>(64, 64, 64));
   CALL_SUBTEST(test_gemm_explicit_context<Scalar>(64, 64, 64));
+  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(64, 1, 32));
+  CALL_SUBTEST(test_gemm_misaligned_host_scalars<Scalar>(1, 48, 32));
+  CALL_SUBTEST(test_blas1_misaligned_host_alpha<Scalar>(1000));
   CALL_SUBTEST(test_gemm_cross_context_reuse<Scalar>(64));
   CALL_SUBTEST(test_gemm_cross_context_resize<Scalar>());
   CALL_SUBTEST(test_gemm_chain<Scalar>(64));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(0, 5, 3));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(4, 0, 3));
+  CALL_SUBTEST(test_gemm_empty_dim<Scalar>(4, 5, 0));
 
   // Solver expressions — zero-size edge cases (use dedicated tests, not residual-based)
 
@@ -788,6 +907,7 @@ void test_llt_not_spd() {
   // Negative definite matrix — LLT factorization must fail.
   MatrixXd A = -MatrixXd::Identity(8, 8);
   gpu::LLT<double> llt(A);
+  if (gpu_test::cusolver_potrf_missed_non_spd(llt.info())) return;
   VERIFY_IS_EQUAL(llt.info(), NumericalIssue);
 }
 

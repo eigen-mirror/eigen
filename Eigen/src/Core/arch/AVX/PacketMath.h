@@ -1911,17 +1911,19 @@ EIGEN_STRONG_INLINE Packet8f pldexp<Packet8f>(const Packet8f& a, const Packet8f&
 }
 
 // Build 2^k as Packet4d from a Packet4i holding the biased int32 exponent in
-// each lane.  AVX2 has a single-instruction widen+shift path; AVX-only must
-// split the 128-bit input into two halves, widen+shift each separately with
-// SSE intrinsics, and reassemble with vinsertf128.
+// each lane, shifted by Shift: 52 for the biased exponent, 51 for twice it.
+// AVX2 has a single-instruction widen+shift path; AVX-only must split the
+// 128-bit input into two halves, widen+shift each separately with SSE
+// intrinsics, and reassemble with vinsertf128.
+template <int Shift = 52>
 EIGEN_STRONG_INLINE Packet4d pldexp_avx_pow2_from_biased(const Packet4i& biased) {
 #ifdef EIGEN_VECTORIZE_AVX2
-  return _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(biased), 52));
+  return _mm256_castsi256_pd(_mm256_slli_epi64(_mm256_cvtepi32_epi64(biased), Shift));
 #else
   __m128i lo = _mm_cvtepi32_epi64(biased);                              // SSE4.1: lower 2 int32 -> 2 int64
   __m128i hi = _mm_cvtepi32_epi64(_mm_unpackhi_epi64(biased, biased));  // upper 2 int32 -> 2 int64
-  lo = _mm_slli_epi64(lo, 52);
-  hi = _mm_slli_epi64(hi, 52);
+  lo = _mm_slli_epi64(lo, Shift);
+  hi = _mm_slli_epi64(hi, Shift);
   return _mm256_castsi256_pd(_mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1));
 #endif
 }
@@ -1932,12 +1934,12 @@ EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d&
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
   const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
-  // Preserve the sequential 4-way split; see pldexp_generic.
+  // The single-rounding split of pldexp_generic.
   const Packet4i bias = pset1<Packet4i>(1023);
-  const Packet4i b = parithmetic_shift_right<2>(e);                          // floor(e/4)
-  const Packet4i b_remainder = psub(psub(e, b), padd(b, b));                 // e - 3b (depth 2)
-  const Packet4d c1 = pldexp_avx_pow2_from_biased(padd(b, bias));            // 2^b
-  const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(b_remainder, bias));  // 2^(e-3b)
+  const Packet4i b = pmin(pmax(e, pset1<Packet4i>(-1022)), pset1<Packet4i>(1022));
+  const Packet4i t = pandnot(psub(e, b), pset1<Packet4i>(1));                      // even
+  const Packet4d c1 = pldexp_avx_pow2_from_biased<51>(padd(t, padd(bias, bias)));  // 2^(t/2)
+  const Packet4d c2 = pldexp_avx_pow2_from_biased(padd(psub(e, t), bias));         // 2^(e-t)
 
   return pldexp_apply_factors(a, c1, c2);  // a * 2^e
 }
@@ -2698,6 +2700,15 @@ EIGEN_STRONG_INLINE Packet8bf pisnan<Packet8bf>(const Packet8bf& a) {
   return _mm_cmpgt_epi16(_mm_and_si128(a, _mm_set1_epi16(kAbsMask)), _mm_set1_epi16(kInf));
 }
 
+// Compare encoded lanes: widening bf16 subnormals to float loses them under DAZ/FZ.
+template <>
+EIGEN_STRONG_INLINE Packet8bf psign<Packet8bf>(const Packet8bf& a) {
+  const __m128i magnitude = _mm_and_si128(a, _mm_set1_epi16(0x7fff));
+  const __m128i is_nan = _mm_cmpgt_epi16(magnitude, _mm_set1_epi16(0x7f80));
+  const __m128i keep = _mm_or_si128(is_nan, _mm_set1_epi16(static_cast<short>(0xbf80u)));
+  return _mm_sign_epi16(_mm_and_si128(_mm_or_si128(a, _mm_set1_epi16(0x3f80)), keep), magnitude);
+}
+
 template <>
 EIGEN_STRONG_INLINE Packet8bf pisfinite<Packet8bf>(const Packet8bf& a) {
   constexpr uint16_t kInf = ((1 << 8) - 1) << 7;
@@ -2841,6 +2852,44 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet8bf, 4>& kernel) {
 
 /*---------------- load/store segment support ----------------*/
 
+template <>
+struct has_packet_segment<Packet4f> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8f> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4i> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8i> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4ui> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet8ui> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet2d> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4d> : std::true_type {};
+
+#ifdef EIGEN_VECTORIZE_AVX2
+template <>
+struct has_packet_segment<Packet2l> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4l> : std::true_type {};
+
+template <>
+struct has_packet_segment<Packet4ul> : std::true_type {};
+#endif
+
+// With AVX-512VL these packets use k-masked loads and stores instead; see AVX512/PacketMath.h.
+#ifndef EIGEN_VECTORIZE_AVX512VL
+
 // returns a mask of 8-bit elements (at most 4) that are all 1's in the range [begin, begin + count) and 0 elsewhere.
 inline __m128i segment_mask_4x8(Index begin, Index count) {
   eigen_assert(begin >= 0 && begin + count <= 4);
@@ -2912,12 +2961,6 @@ inline __m256i segment_mask_4x64(Index begin, Index count) {
 /*---------------- float ----------------*/
 
 template <>
-struct has_packet_segment<Packet4f> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8f> : std::true_type {};
-
-template <>
 inline Packet4f ploaduSegment<Packet4f>(const float* from, Index begin, Index count) {
   return _mm_maskload_ps(from, segment_mask_4x32(begin, count));
 }
@@ -2938,12 +2981,6 @@ inline void pstoreuSegment<float, Packet8f>(float* to, const Packet8f& from, Ind
 }
 
 /*---------------- int32 ----------------*/
-
-template <>
-struct has_packet_segment<Packet4i> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8i> : std::true_type {};
 
 #ifdef EIGEN_VECTORIZE_AVX2
 
@@ -2994,12 +3031,6 @@ inline void pstoreuSegment<int, Packet8i>(int* to, const Packet8i& from, Index b
 /*---------------- uint32 ----------------*/
 
 template <>
-struct has_packet_segment<Packet4ui> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet8ui> : std::true_type {};
-
-template <>
 inline Packet4ui ploaduSegment<Packet4ui>(const uint32_t* from, Index begin, Index count) {
   return Packet4ui(ploaduSegment<Packet4i>(reinterpret_cast<const int*>(from), begin, count));
 }
@@ -3020,12 +3051,6 @@ inline void pstoreuSegment<uint32_t, Packet8ui>(uint32_t* to, const Packet8ui& f
 }
 
 /*---------------- double ----------------*/
-
-template <>
-struct has_packet_segment<Packet2d> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet4d> : std::true_type {};
 
 template <>
 inline Packet2d ploaduSegment<Packet2d>(const double* from, Index begin, Index count) {
@@ -3052,12 +3077,6 @@ inline void pstoreuSegment<double, Packet4d>(double* to, const Packet4d& from, I
 /*---------------- int64_t ----------------*/
 
 template <>
-struct has_packet_segment<Packet2l> : std::true_type {};
-
-template <>
-struct has_packet_segment<Packet4l> : std::true_type {};
-
-template <>
 inline Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
   return _mm_maskload_epi64(reinterpret_cast<const long long*>(from), segment_mask_2x64(begin, count));
 }
@@ -3077,9 +3096,6 @@ inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, const Packet4l& from,
 /*---------------- uint64_t ----------------*/
 
 template <>
-struct has_packet_segment<Packet4ul> : std::true_type {};
-
-template <>
 inline Packet4ul ploaduSegment<Packet4ul>(const uint64_t* from, Index begin, Index count) {
   return Packet4ul(ploaduSegment<Packet4l>(reinterpret_cast<const int64_t*>(from), begin, count));
 }
@@ -3088,6 +3104,8 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
   pstoreuSegment<int64_t, Packet4l>(reinterpret_cast<int64_t*>(to), Packet4l(from), begin, count);
 }
 #endif
+
+#endif  // EIGEN_VECTORIZE_AVX512VL
 
 /*---------------- end load/store segment support ----------------*/
 

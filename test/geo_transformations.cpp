@@ -71,6 +71,7 @@ struct ScalarBinaryOpTraits<CustomPromotedScalar, float, Op> {
 };
 }  // namespace Eigen
 
+template <typename = void>
 void custom_scalar_test() {
   {
     Transform<float, 3, Affine> tf = Transform<float, 3, Affine>::Identity();
@@ -947,7 +948,7 @@ EIGEN_DECLARE_TEST(geo_transformations) {
     CALL_SUBTEST_1((transformations<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((non_projective_only<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((transformations_computed_scaling_continuity<double, Affine, AutoAlign>()));
-    CALL_SUBTEST_1(custom_scalar_test());
+    CALL_SUBTEST_1(custom_scalar_test<>());
 
     CALL_SUBTEST_2((transformations<float, AffineCompact, AutoAlign>()));
     CALL_SUBTEST_2((non_projective_only<float, AffineCompact, AutoAlign>()));

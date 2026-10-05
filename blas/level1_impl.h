@@ -11,7 +11,8 @@
 #include "common.h"
 
 EIGEN_BLAS_FUNC(axpy)
-(const int *n, const RealScalar *palpha, const RealScalar *px, const int *incx, RealScalar *py, const int *incy) {
+(const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, RealScalar *py,
+ const EIGEN_BLAS_INT *incy) {
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
@@ -31,13 +32,13 @@ EIGEN_BLAS_FUNC(axpy)
 }
 
 EIGEN_BLAS_FUNC(axpby)
-(const int *pn, const RealScalar *palpha, const RealScalar *px, const int *pincx, const RealScalar *pbeta,
- RealScalar *py, const int *pincy) {
+(const EIGEN_BLAS_INT *pn, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *pincx,
+ const RealScalar *pbeta, RealScalar *py, const EIGEN_BLAS_INT *pincy) {
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
-  const int n = *pn;
+  const EIGEN_BLAS_INT n = *pn;
 
   if (n <= 0) return;
 
@@ -46,8 +47,8 @@ EIGEN_BLAS_FUNC(axpby)
     return;
   }
 
-  const int incx = *pincx;
-  const int incy = *pincy;
+  const EIGEN_BLAS_INT incx = *pincx;
+  const EIGEN_BLAS_INT incy = *pincy;
 
   if (incx == 1 && incy == 1)
     make_vector(y, n) = alpha * make_vector(x, n) + beta * make_vector(y, n);
@@ -61,7 +62,7 @@ EIGEN_BLAS_FUNC(axpby)
     make_vector(y, n, -incy) = alpha * make_vector(x, n, -incx) + beta * make_vector(y, n, -incy);
 }
 
-EIGEN_BLAS_FUNC(copy)(int *n, RealScalar *px, int *incx, RealScalar *py, int *incy) {
+EIGEN_BLAS_FUNC(copy)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy) {
   if (*n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -73,7 +74,7 @@ EIGEN_BLAS_FUNC(copy)(int *n, RealScalar *px, int *incx, RealScalar *py, int *in
   else if (*incx == 0) {
     // Broadcast: copy x[0] to all elements of y.
     if (*incy < 0) y = y - (*n - 1) * (*incy);
-    for (int i = 0; i < *n; ++i) {
+    for (EIGEN_BLAS_INT i = 0; i < *n; ++i) {
       *y = *x;
       y += *incy;
     }
@@ -140,7 +141,7 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
   //   *s = r.s();
 }
 
-EIGEN_BLAS_FUNC(scal)(int *n, RealScalar *palpha, RealScalar *px, int *incx) {
+EIGEN_BLAS_FUNC(scal)(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -152,7 +153,7 @@ EIGEN_BLAS_FUNC(scal)(int *n, RealScalar *palpha, RealScalar *px, int *incx) {
     make_vector(x, *n, std::abs(*incx)) *= alpha;
 }
 
-EIGEN_BLAS_FUNC(swap)(int *n, RealScalar *px, int *incx, RealScalar *py, int *incy) {
+EIGEN_BLAS_FUNC(swap)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy) {
   if (*n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);

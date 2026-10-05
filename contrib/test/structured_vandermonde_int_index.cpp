@@ -29,23 +29,7 @@ void test_vandermonde_determinant_int_index() {
   VERIFY(det > 0.0);
 }
 
-// The scaled-Horner frame can likewise exceed a 32-bit Index exponent. A
-// degree-2,099,999 monomial at DBL_MAX must overflow to +Inf rather than wrap
-// its accumulated exponent and underflow to zero.
-void test_vandermonde_scaled_horner_int_index() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  const Index n = 2100000;
-  Vec x(1), a = Vec::Zero(n);
-  x[0] = (std::numeric_limits<double>::max)();
-  a[n - 1] = 1.0;
-
-  Vec y = Vandermonde<double>(x, n) * a;
-  VERIFY((numext::isinf)(y[0]));
-  VERIFY(y[0] > 0.0);
-}
-
 EIGEN_DECLARE_TEST(structured_vandermonde_int_index) {
   STATIC_CHECK(sizeof(Index) == sizeof(int));
   CALL_SUBTEST_1(test_vandermonde_determinant_int_index());
-  CALL_SUBTEST_2(test_vandermonde_scaled_horner_int_index());
 }

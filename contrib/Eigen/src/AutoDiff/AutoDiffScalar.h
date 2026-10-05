@@ -431,6 +431,18 @@ template <typename DerType>
 inline typename DerType::Scalar imag(const AutoDiffScalar<DerType>&) {
   return 0.;
 }
+template <typename DerType>
+inline bool(isnan)(const AutoDiffScalar<DerType>& x) {
+  return (numext::isnan)(x.value());
+}
+template <typename DerType>
+inline bool(isinf)(const AutoDiffScalar<DerType>& x) {
+  return (numext::isinf)(x.value());
+}
+template <typename DerType>
+inline bool(isfinite)(const AutoDiffScalar<DerType>& x) {
+  return (numext::isfinite)(x.value());
+}
 template <typename DerType, typename T>
 inline typename CleanedUpDerType<DerType>::type(min)(const AutoDiffScalar<DerType>& x, const T& y) {
   typedef typename CleanedUpDerType<DerType>::type ADS;

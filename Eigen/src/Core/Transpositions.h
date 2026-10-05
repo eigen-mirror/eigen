@@ -94,6 +94,10 @@ class TranspositionsBase {
 
   /** \returns the transpose transformation */
   inline Transpose<TranspositionsBase> transpose() const { return Transpose<TranspositionsBase>(derived()); }
+
+  /** \returns the adjoint transformation. Its matrix is a real permutation, so this equals transpose() and inverse().
+   */
+  Transpose<TranspositionsBase> adjoint() const { return Transpose<TranspositionsBase>(derived()); }
 };
 
 namespace internal {

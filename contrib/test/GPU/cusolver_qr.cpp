@@ -92,6 +92,17 @@ void test_qr_solve_device(Index n, Index nrhs) {
 
   RealScalar residual = (A * X - B).norm() / (A.norm() * X.norm());
   VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
+
+  // Context-bound rvalue constructor adopts a square A instead of copying it.
+  gpu::Context ctx;
+  auto d_A_ctx = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::QR<Scalar> qr_ctx(ctx, std::move(d_A_ctx));
+  VERIFY(d_A_ctx.empty());
+  VERIFY_IS_EQUAL(qr_ctx.info(), Success);
+  VERIFY(qr_ctx.stream() == ctx.stream());
+  Mat X_ctx = qr_ctx.solve(B);
+  residual = (A * X_ctx - B).norm() / (A.norm() * X_ctx.norm());
+  VERIFY(residual < RealScalar(10) * RealScalar(n) * NumTraits<Scalar>::epsilon());
 }
 
 // ---- Solve overdetermined via device path -----------------------------------
@@ -216,6 +227,24 @@ void test_qr_matrixR(Index m, Index n) {
   }
 }
 
+// ---- matrixR() waits only for the solver's stream ---------------------------
+// A download through the legacy default stream (cudaMemcpy) would also wait
+// for the unrelated blocking stream parked below.
+
+template <typename Scalar>
+void test_qr_matrixR_ignores_other_streams(Index m, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat A = Mat::Random(m, n);
+  gpu::QR<Scalar> qr(A);
+  VERIFY_IS_EQUAL(qr.info(), Success);
+
+  gpu::Context other;
+  gpu_test::ParkedStream parked(other.stream());
+  (void)qr.matrixR();
+  VERIFY(parked.held());
+}
+
 // ---- Multiple solves reuse the factorization --------------------------------
 
 template <typename Scalar>
@@ -254,6 +283,7 @@ void test_scalar() {
 
   CALL_SUBTEST(test_qr_matrixR<Scalar>(64, 64));
   CALL_SUBTEST(test_qr_matrixR<Scalar>(128, 64));
+  CALL_SUBTEST(test_qr_matrixR_ignores_other_streams<Scalar>(96, 64));
 
   CALL_SUBTEST(test_qr_solve_device<Scalar>(64, 4));
   CALL_SUBTEST(test_qr_solve_overdetermined_device<Scalar>(128, 64, 4));

@@ -281,6 +281,7 @@ using std::size_t;
 #include "src/Core/arch/NEON/TypeCasting.h"
 #include "src/Core/arch/NEON/MathFunctions.h"
 #include "src/Core/arch/NEON/Complex.h"
+#include "src/Core/arch/SME/PacketMath.h"
 #elif defined EIGEN_VECTORIZE_LSX
 #include "src/Core/arch/LSX/PacketMath.h"
 #include "src/Core/arch/LSX/TypeCasting.h"

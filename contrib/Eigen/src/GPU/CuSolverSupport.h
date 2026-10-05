@@ -19,13 +19,12 @@
 
 #include "./GpuSupport.h"
 #include <cusolverDn.h>
-#include <cstdio>
 
 namespace Eigen {
 namespace gpu {
 namespace internal {
 
-// cuSOLVER's public API has no cusolverGetErrorString(), so failed asserts would
+// cuSOLVER's public API has no cusolverGetErrorString(), so failure reports would
 // otherwise carry a bare numeric code.
 inline const char* cusolver_status_name(cusolverStatus_t s) {
   switch (s) {
@@ -52,21 +51,11 @@ inline const char* cusolver_status_name(cusolverStatus_t s) {
   }
 }
 
-inline bool report_cusolver_failure(cusolverStatus_t s, const char* expr, const char* file, int line) {
-  std::fprintf(stderr,
-               "cuSOLVER call failed\n"
-               "  expr:   %s\n"
-               "  status: %s (%d)\n"
-               "  at:     %s:%d\n",
-               expr, cusolver_status_name(s), static_cast<int>(s), file, line);
-  return false;
-}
-
-#define EIGEN_CUSOLVER_CHECK(expr)                                                                \
-  do {                                                                                            \
-    cusolverStatus_t _s = (expr);                                                                 \
-    eigen_assert(_s == CUSOLVER_STATUS_SUCCESS ||                                                 \
-                 ::Eigen::gpu::internal::report_cusolver_failure(_s, #expr, __FILE__, __LINE__)); \
+#define EIGEN_CUSOLVER_CHECK(expr)                                                                         \
+  do {                                                                                                     \
+    const cusolverStatus_t _s = (expr);                                                                    \
+    if (_s != CUSOLVER_STATUS_SUCCESS)                                                                     \
+      EIGEN_GPU_CHECK_FAILED(::Eigen::gpu::internal::cusolver_status_name(_s), #expr, __FILE__, __LINE__); \
   } while (0)
 
 struct CusolverParams {

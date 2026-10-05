@@ -171,7 +171,7 @@ struct hypot_impl {
 };
 
 template <typename ComplexT, bool Reciprocal>
-EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE constexpr ComplexT complex_sqrt_extreme(const ComplexT& z) {
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE ComplexT complex_sqrt_extreme(const ComplexT& z) {
   using T = typename NumTraits<ComplexT>::Real;
   const T x = numext::real(z);
   const T y = numext::imag(z);

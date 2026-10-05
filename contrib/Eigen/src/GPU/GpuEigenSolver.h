@@ -46,7 +46,7 @@ class SelfAdjointEigenSolver {
     compute(d_A, options);
   }
 
-  /** Decompose a device-resident A immediately (adopt, no copy). */
+  /** Decompose a device-resident A immediately (adopt, no copy; a view is copied). */
   explicit SelfAdjointEigenSolver(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
     compute(std::move(d_A), options);
   }
@@ -62,6 +62,12 @@ class SelfAdjointEigenSolver {
   SelfAdjointEigenSolver(Context& ctx, const DeviceMatrix<Scalar>& d_A, int options = ComputeEigenvectors)
       : solver_ctx_(ctx) {
     compute(d_A, options);
+  }
+
+  /** Bind to \p ctx and decompose a device-resident A (adopt, no copy; a view is copied). */
+  SelfAdjointEigenSolver(Context& ctx, DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors)
+      : solver_ctx_(ctx) {
+    compute(std::move(d_A), options);
   }
 
   ~SelfAdjointEigenSolver() = default;
@@ -116,8 +122,10 @@ class SelfAdjointEigenSolver {
   }
 
   /** Decompose a device matrix (move): the buffer is adopted and overwritten
-   * in place by syevd — no copy. */
+   * in place by syevd — no copy. A view is copied instead: its storage belongs
+   * to another object. */
   SelfAdjointEigenSolver& compute(DeviceMatrix<Scalar>&& d_A, int options = ComputeEigenvectors) {
+    if (d_A.isView()) return compute(static_cast<const DeviceMatrix<Scalar>&>(d_A), options);
     if (!begin_compute(d_A, options)) return *this;
 
     d_A_ = internal::DeviceBuffer::adopt(static_cast<void*>(d_A.release()),
@@ -137,8 +145,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(solver_ctx_.info() == Success);
     RealVector W(n_);
     if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(
-          cudaMemcpy(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar), cudaMemcpyDeviceToHost));
+      solver_ctx_.download(W.data(), d_W_.get(), static_cast<size_t>(n_) * sizeof(RealScalar));
     }
     return W;
   }
@@ -150,9 +157,7 @@ class SelfAdjointEigenSolver {
     eigen_assert(compute_eigenvectors_ && "eigenvectors() requires ComputeEigenvectors option");
     PlainMatrix V(n_, n_);
     if (n_ > 0) {
-      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy(V.data(), d_A_.get(),
-                                          static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar),
-                                          cudaMemcpyDeviceToHost));
+      solver_ctx_.download(V.data(), d_A_.get(), static_cast<size_t>(lda_) * static_cast<size_t>(n_) * sizeof(Scalar));
     }
     return V;
   }
@@ -186,7 +191,9 @@ class SelfAdjointEigenSolver {
 
  private:
   mutable internal::GpuSolverContext solver_ctx_;
-  internal::DeviceBuffer d_A_;  // grow-only; overwritten with eigenvectors by syevd
+  // Overwritten with eigenvectors by syevd. Host and rvalue input are adopted;
+  // the const& path is grow-only.
+  internal::DeviceBuffer d_A_;
   internal::DeviceBuffer d_W_;  // grow-only; eigenvalues (RealScalar, length n)
   bool compute_eigenvectors_ = true;
   int64_t n_ = 0;

@@ -109,6 +109,31 @@ class DiagonalBase : public EigenBase<Derived> {
     return diagonal().cwiseInverse().asDiagonal();
   }
 
+  using TransposeReturnType = DiagonalWrapper<const DiagonalVectorType>;
+
+  /** \returns the transpose of \c *this, a diagonal matrix with the same diagonal.
+   *
+   * \sa conjugate(), adjoint() */
+  EIGEN_DEVICE_FUNC const TransposeReturnType transpose() const { return diagonal().asDiagonal(); }
+
+  using ConjugateReturnType = std::conditional_t<
+      NumTraits<Scalar>::IsComplex,
+      DiagonalWrapper<const CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, const DiagonalVectorType>>,
+      TransposeReturnType>;
+
+  /** \returns the complex conjugate of \c *this; for real scalars, a diagonal matrix with the same diagonal.
+   *
+   * \sa transpose(), adjoint() */
+  EIGEN_DEVICE_FUNC const ConjugateReturnType conjugate() const { return diagonal().conjugate().asDiagonal(); }
+
+  using AdjointReturnType = ConjugateReturnType;
+
+  /** \returns the adjoint (conjugate transpose) of \c *this. A diagonal matrix equals its transpose, so this is
+   * conjugate().
+   *
+   * \sa transpose(), conjugate() */
+  EIGEN_DEVICE_FUNC const AdjointReturnType adjoint() const { return conjugate(); }
+
   using DiagonalScaleReturnType = DiagonalWrapper<const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(
       DiagonalVectorType, Scalar, internal::scalar_product_op)>;
 

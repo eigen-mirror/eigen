@@ -468,11 +468,13 @@ void int_pow_test_impl() {
   }
 }
 
+template <typename = void>
 void float_pow_test() {
   float_pow_test_impl<float, float>();
   float_pow_test_impl<double, double>();
 }
 
+template <typename = void>
 void mixed_pow_test() {
   // The following cases will test promoting a smaller exponent type
   // to a wider base type.
@@ -495,6 +497,7 @@ void mixed_pow_test() {
   // unary_pow_test<float, double>();
 }
 
+template <typename = void>
 void int_pow_test() {
   int_pow_test_impl<int, int>();
   int_pow_test_impl<unsigned int, unsigned int>();
@@ -550,6 +553,7 @@ void signbit_test() {
 
   VERIFY(all_pass);
 }
+template <typename = void>
 void signbit_tests() {
   signbit_test<float>();
   signbit_test<double>();
@@ -1416,6 +1420,7 @@ void cast_test() {
                   uint32_t, uint64_t, float, double, /*long double, */ half, bfloat16>::run();
 }
 
+template <typename = void>
 void bool_logical_ops() {
   const Index size = 67;
   ArrayX<bool> lhs = ArrayXi::Random(size) > 0;
@@ -1560,10 +1565,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
   CALL_SUBTEST_18(complex_classification<long double>());
 
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_19(float_pow_test());
-    CALL_SUBTEST_20(int_pow_test());
-    CALL_SUBTEST_21(mixed_pow_test());
-    CALL_SUBTEST_22(signbit_tests());
+    CALL_SUBTEST_19(float_pow_test<>());
+    CALL_SUBTEST_20(int_pow_test<>());
+    CALL_SUBTEST_21(mixed_pow_test<>());
+    CALL_SUBTEST_22(signbit_tests<>());
   }
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_34(ldexp_test<float>());
@@ -1581,7 +1586,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
-    CALL_SUBTEST_42(bool_logical_ops());
+    CALL_SUBTEST_42(bool_logical_ops<>());
   }
 
   for (int i = 0; i < g_repeat; i++) {

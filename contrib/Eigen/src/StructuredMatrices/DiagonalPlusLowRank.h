@@ -20,11 +20,8 @@
 //      (fraction, exponent) pair to avoid spurious overflow/underflow.
 //  [4] P. H. Sterbenz, "Floating-Point Computation", Prentice-Hall, 1974.
 //      Scaling by a power of two is exact, the property the balanced
-//      accumulation and the normalized Woodbury products rely on.
-//  [5] N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed.,
-//      SIAM, 2002, chapter 27. Overflow-avoiding rescaling of intermediate
-//      quantities, the technique behind the normalized capacitance products.
-//  [6] E. L. Yip, "A Note on the Stability of Solving a Rank-p Modification of
+//      accumulation relies on.
+//  [5] E. L. Yip, "A Note on the Stability of Solving a Rank-p Modification of
 //      a Linear System by the Sherman-Morrison-Woodbury Formula", SIAM Journal
 //      on Scientific and Statistical Computing, 7(3), pp. 507-513, 1986. The
 //      accuracy limitation of the Woodbury solve noted on solve().
@@ -65,77 +62,25 @@ struct evaluator_traits<DiagonalPlusLowRank<Scalar_, Size_, Rank_>> {
   using Shape = StructuredShape;
 };
 
-// Entrywise multiplication by the exact power of two 2^e [4], for the factor normalization of the
-// Woodbury products [5]. Uses structured_balance_impl::apply_exponent (an ldexp per component) rather
-// than a multiplication by 2^e or by two half powers 2^(e/2): ldexp is exact and saturates entrywise
-// for every exponent, whereas 2^-eu itself overflows for a subnormal factor bound and a saturated
-// half power turns zero entries into NaN through 0 * Inf.
-template <typename Scalar>
-struct dplr_ldexp_op {
-  int e;
-  Scalar operator()(const Scalar& x) const { return structured_balance_impl<Scalar>::apply_exponent(x, e); }
-};
-
-// The smallest e with n <= 2^e: the inner-dimension term of a product's entry
-// magnitude bound (a length-n dot product of entries below 2^a and 2^b stays
-// below 2^(a + b + e)).
-inline int dplr_index_exponent(Index n) { return log2_ceil(static_cast<std::make_unsigned_t<Index>>(n)); }
-
-// True when a product of operands with entry-magnitude exponent bounds ea and eb over an inner
-// dimension of length \a inner provably cannot overflow, with one bit of headroom for a trailing
-// addition. Where it fails the Woodbury kernels rescale their factors exactly [4][5]; where it holds
-// they keep the plain association.
-template <typename RealScalar>
-bool dplr_product_fits(int ea, int eb, Index inner) {
-  return ea + eb + dplr_index_exponent(inner) + 1 < NumTraits<RealScalar>::max_exponent();
-}
-
 // Compile-time dispatch keeps fixed rank zero from instantiating a 0 x 0 LU;
 // C++14 cannot express this branch with if constexpr.
 template <int Rank_>
 struct dplr_capacitance_impl {
   /** Applies the Woodbury correction
-   * \f[ x\mathrel{-}=D^{-1}U(I_k+V^H D^{-1}U)^{-1}V^Hx. \f]
-   * Exact power-of-two scaling is used only when either structural product can
-   * overflow [4][5], preserving the unscaled result bit-for-bit otherwise. */
+   * \f[ x\mathrel{-}=D^{-1}U(I_k+V^H D^{-1}U)^{-1}V^Hx. \f] */
   template <typename Op, typename Dinv, typename Workspace>
   static void subtractSolveCorrection(const Op& op, const Dinv& dinv, Workspace& x) {
-    using Scalar = typename Op::Scalar;
-    using RealScalar = typename Op::RealScalar;
     if (op.correctionRank() == 0 || x.size() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
-    const int eu = structured_exponent_bound(op.factorU());
-    const int ev = structured_exponent_bound(op.factorV());
-    const int ed = structured_exponent_bound(dinv);
-    const int ex = structured_exponent_bound(x);
-    if (dplr_product_fits<RealScalar>(ev, ex, op.rows()) && dplr_product_fits<RealScalar>(ed, eu, 1)) {
-      x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
-      return;
-    }
-    Matrix<Scalar, Rank_, Workspace::ColsAtCompileTime> y =
-        cap.solve(op.factorV().unaryExpr(dplr_ldexp_op<Scalar>{-ev}).adjoint() * x);
-    y = y.unaryExpr(dplr_ldexp_op<Scalar>{eu + ev});
-    x.noalias() -= dinv.asDiagonal() * (op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * y);
+    x.noalias() -= dinv.asDiagonal() * (op.factorU() * cap.solve(op.factorV().adjoint() * x));
   }
-  /** Forms \f$U'=-D^{-1}U(I_k+V^HD^{-1}U)^{-1}\f$. Scaling prevents a
-   * spurious overflow in \f$D^{-1}U\f$ when the capacitance inverse subsequently
-   * shrinks it [4][5]. */
+  /** Forms \f$U'=-D^{-1}U(I_k+V^HD^{-1}U)^{-1}\f$. */
   template <typename Op, typename Dinv, typename Factor>
   static void inverseFactor(const Op& op, const Dinv& dinv, Factor& Up) {
-    using Scalar = typename Op::Scalar;
-    using RealScalar = typename Op::RealScalar;
     if (op.correctionRank() == 0) return;
     PartialPivLU<typename Op::CapacitanceType> cap(op.capacitance());
     const typename Op::CapacitanceType K = cap.inverse();
-    const int eu = structured_exponent_bound(op.factorU());
-    const int ed = structured_exponent_bound(dinv);
-    const int ek = structured_exponent_bound(K);
-    if (dplr_product_fits<RealScalar>(ed, eu, 1) && dplr_product_fits<RealScalar>(ed + eu, ek, op.correctionRank())) {
-      Up.noalias() = -(dinv.asDiagonal() * op.factorU() * K);
-      return;
-    }
-    Up.noalias() = -(dinv.asDiagonal() * op.factorU().unaryExpr(dplr_ldexp_op<Scalar>{-eu}) * K);
-    Up = Up.unaryExpr(dplr_ldexp_op<Scalar>{eu});
+    Up.noalias() = -(dinv.asDiagonal() * op.factorU() * K);
   }
   /** Accumulates the determinant-lemma factor
    * \f$\det(I_k+V^HD^{-1}U)\f$ as a mantissa and power of two. Each LU pivot is
@@ -268,38 +213,16 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
 
   /** \returns the capacitance matrix \f$ I_k + V^H D^{-1} U \f$ of the Woodbury
    * identity. Every consumer of the triple product -- \ref solve, \ref inverse
-   * and \ref determinant -- forms it through this one method.
-   *
-   * With extreme factor magnitudes the plain association can overflow even
-   * though the capacitance itself is representable: for \c d = 1e-200,
-   * \c U = 1e-200, \c V = 1e200 the operator is essentially the identity and
-   * the capacitance \c 1 + 1e200 is representable, but \f$ V^H D^{-1} \f$ is
-   * \c 1e400. The factors are therefore rescaled by exact powers of two [4]
-   * when a conservative exponent bound detects the danger, the product is
-   * formed as \f$ \hat V^H (D^{-1} \hat U) \f$ -- whose intermediates are
-   * bounded by roughly \c n * max|1/d| -- and the removed exponent is folded
-   * back entrywise before the identity is added [5]. When the plain
-   * association provably cannot overflow it is kept, so results for moderate
-   * data are bit-identical to the unnormalized evaluation.
+   * and \ref determinant -- forms it through this one method. With extreme
+   * factor magnitudes the product can overflow even when the capacitance itself
+   * is representable.
    * \warning The diagonal must have no zero entries. */
   CapacitanceType capacitance() const {
     const Index k = correctionRank();
     CapacitanceType c = CapacitanceType::Identity(k, k);
     if (k == 0) return c;
     const DiagonalVector dinv = m_d.cwiseInverse();
-    const int eu = internal::structured_exponent_bound(m_U);
-    const int ev = internal::structured_exponent_bound(m_V);
-    const int ed = internal::structured_exponent_bound(dinv);
-    if (internal::dplr_product_fits<RealScalar>(ev, ed, 1) &&
-        internal::dplr_product_fits<RealScalar>(ev + ed, eu, rows())) {
-      c.noalias() += m_V.adjoint() * dinv.asDiagonal() * m_U;
-      return c;
-    }
-    const FactorType W = dinv.asDiagonal() * m_U.unaryExpr(internal::dplr_ldexp_op<Scalar>{-eu});
-    CapacitanceType t(k, k);
-    t.noalias() = m_V.unaryExpr(internal::dplr_ldexp_op<Scalar>{-ev}).adjoint() * W;
-    t = t.unaryExpr(internal::dplr_ldexp_op<Scalar>{eu + ev});
-    c += t;
+    c.noalias() += m_V.adjoint() * dinv.asDiagonal() * m_U;
     return c;
   }
 
@@ -312,9 +235,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * \warning The Woodbury splitting routes the solution through \f$ D^{-1} b \f$:
    * when \c max|1/d| greatly exceeds the norm of the operator's inverse, the
    * correction cancels most of those amplified digits and the achievable
-   * accuracy degrades accordingly, even for a well-conditioned operator [6].
-   * The normalized kernels keep such solves finite; they cannot restore the
-   * cancelled digits. */
+   * accuracy degrades accordingly, even for a well-conditioned operator [5]. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
@@ -322,20 +243,8 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
     const DiagonalVector dinv = m_d.cwiseInverse();
-    // D^{-1} b can overflow while the solution is representable: at d = 1e-200, b = 1e200 the operator
-    // is essentially the identity and x is 1e200, yet this term is 1e400. The solve is linear in b, so
-    // b is rescaled by an exact power of two [4] on the same exponent test the other kernels use and
-    // the exponent is folded back into the result [5]; the plain form is kept where it provably
-    // cannot overflow.
-    const int eb = internal::structured_exponent_bound(b.derived());
-    const int ed = internal::structured_exponent_bound(dinv);
-    const bool rescale = !internal::dplr_product_fits<RealScalar>(ed, eb, 1);
-
-    Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x =
-        rescale ? (dinv.asDiagonal() * b.derived().unaryExpr(internal::dplr_ldexp_op<Scalar>{-eb})).eval()
-                : (dinv.asDiagonal() * b).eval();
+    Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x = dinv.asDiagonal() * b;
     internal::dplr_capacitance_impl<Rank_>::subtractSolveCorrection(*this, dinv, x);
-    if (rescale) x = x.unaryExpr(internal::dplr_ldexp_op<Scalar>{eb});
     return x;
   }
 
@@ -356,13 +265,16 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * Both factors are accumulated in the balanced form \c m * 2^e (the split
    * fraction/exponent determinant convention of LINPACK's xGEDI [3]) -- the
    * diagonal entries and the LU pivots of the capacitance matrix are
-   * renormalized to unit magnitude one at a time, with the powers of two tracked
+   * renormalized to unit magnitude one at a time [4], with the powers of two tracked
    * in a shared exponent
-   * -- so no partial product, in particular neither ordinary determinant on its
-   * own, can overflow or underflow when the combined determinant is
-   * representable, whatever the ordering and magnitudes of the entries.
-   * Genuinely out-of-range determinants still saturate to (signed) zero or
-   * infinity.
+   * -- so neither ordinary determinant on its own can overflow or underflow
+   * when the combined determinant is representable, whatever the ordering and
+   * magnitudes of the entries. Genuinely out-of-range determinants still
+   * saturate to (signed) zero or infinity. The capacitance entries themselves
+   * are formed in plain arithmetic (see \ref capacitance): at extreme factor
+   * magnitudes such as \c d = 1e-200, \c U = 1e-200, \c V = 1e200 they, and
+   * with them the determinant, overflow although the determinant (~1) is
+   * representable.
    * \warning The diagonal must have no zero entries (use the lemma symmetrically
    * or a dense fallback for that case), and, as with \ref solve and \ref inverse,
    * its reciprocals must be finite: a subnormal diagonal entry overflows

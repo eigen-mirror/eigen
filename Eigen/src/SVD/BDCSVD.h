@@ -55,7 +55,9 @@ struct traits<BDCSVD<MatrixType_, Options> > : svd_traits<MatrixType_, Options> 
  *                  #DisableQRDecomposition. It is not possible to request both the thin and full version of \a U or
  *                  \a V. By default, unitaries are not computed. BDCSVD uses R-Bidiagonalization to improve
  *                  performance on tall and wide matrices. For backwards compatibility, the option
- *                  #DisableQRDecomposition can be used to disable this optimization.
+ *                  #DisableQRDecomposition can be used to disable this optimization. #PreconditionSquareMatrix is
+ *                  forwarded to the JacobiSVD that BDCSVD uses for inputs with fewer columns than the switch size,
+ *                  and does not affect larger inputs.
  *
  * This class first reduces the input matrix to bi-diagonal form using class UpperBidiagonalization,
  * and then performs a divide-and-conquer diagonalization. Small blocks are diagonalized using class JacobiSVD.
@@ -233,7 +235,10 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
 
   void setSwitchSize(int s) {
     eigen_assert(s >= 3 && "BDCSVD the size of the algo switch has to be at least 3.");
+    if (s == m_impl.algoSwap()) return;
     m_impl.setAlgoSwap(s);
+    // smallSvd is only allocated for sizes below the switch, so the next compute must reallocate.
+    m_isAllocated = false;
   }
 
  private:
@@ -255,7 +260,9 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
   bool m_isTranspose, m_useQrDecomp;
-  JacobiSVD<MatrixX> smallSvd;
+  // Only PreconditionSquareMatrix is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd
+  // needs its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
+  JacobiSVD<MatrixX, (Options & int(PreconditionSquareMatrix))> smallSvd;
   HouseholderQR<MatrixX> qrDecomp;
   internal::UpperBidiagonalization<MatrixX> bid;
   MatrixX copyWorkspace;
@@ -268,6 +275,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   using Base::m_computeThinU;
   using Base::m_computeThinV;
   using Base::m_info;
+  using Base::m_isAllocated;
   using Base::m_isInitialized;
   using Base::m_matrixU;
   using Base::m_matrixV;
@@ -284,7 +292,7 @@ void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int 
   if (Base::allocate(rows, cols, computationOptions)) return;
 
   if (cols < m_impl.algoSwap())
-    smallSvd.allocate(rows, cols, Options == 0 ? computationOptions : internal::get_computation_options(Options));
+    smallSvd.allocate(rows, cols, internal::get_computation_options(Options | computationOptions));
 
   m_isTranspose = (cols > rows);
 
@@ -315,7 +323,7 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::allocate_small(Index rows, Index cols, unsigned int computationOptions) {
   if (Base::allocate(rows, cols, computationOptions)) return;
 
-  smallSvd.allocate(rows, cols, Options == 0 ? computationOptions : internal::get_computation_options(Options));
+  smallSvd.allocate(rows, cols, internal::get_computation_options(Options | computationOptions));
   m_isTranspose = (cols > rows);
 }
 

@@ -18,6 +18,8 @@
 #include "./InternalHeaderCheck.h"
 
 #include <cuda_runtime.h>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include <limits>
@@ -32,14 +34,42 @@ namespace gpu {
 enum class GpuOp { NoTrans, Trans, ConjTrans };
 
 namespace internal {
-// Aborts via eigen_assert on failure, and eigen_assert throws where it is so
-// configured, so this must not be used in a destructor or any other noexcept
-// function: there the throw would call std::terminate.
-#define EIGEN_CUDA_RUNTIME_CHECK(expr)                             \
-  do {                                                             \
-    cudaError_t _e = (expr);                                       \
-    eigen_assert(_e == cudaSuccess && "CUDA runtime call failed"); \
+// Prints `file:line: call: error` to stderr and stops: std::abort() where
+// assertions are compiled out, a failed eigen_assert otherwise. No build goes
+// on past a failed call: its work was not done, and a sticky error leaves the
+// context unusable for every later call.
+inline void gpu_check_failed(const char* error, const char* expression, const char* file, int line) {
+  std::fprintf(stderr, "%s:%d: %s: %s\n", file, line, expression, error);
+#if defined(EIGEN_NO_DEBUG)
+  std::abort();
+#else
+  eigen_assert(false && "GPU runtime or library call failed");
+#endif
+}
+
+// Every check macro of the module reports failures here, in every build. It may
+// be defined to throw, so no destructor or noexcept function uses the checks.
+#ifndef EIGEN_GPU_CHECK_FAILED
+#define EIGEN_GPU_CHECK_FAILED(error, expression, file, line) \
+  ::Eigen::gpu::internal::gpu_check_failed(error, expression, file, line)
+#endif
+
+#define EIGEN_CUDA_RUNTIME_CHECK(expr)                                                              \
+  do {                                                                                              \
+    const cudaError_t _e = (expr);                                                                  \
+    if (_e != cudaSuccess) EIGEN_GPU_CHECK_FAILED(cudaGetErrorName(_e), #expr, __FILE__, __LINE__); \
   } while (0)
+
+// For the libraries without a status-to-string function: "<library> status <code>".
+inline void gpu_check_failed_code(const char* library, int status, const char* expression, const char* file, int line) {
+  char error[64];
+  std::snprintf(error, sizeof(error), "%s status %d", library, status);
+  // A user-defined EIGEN_GPU_CHECK_FAILED need not use every argument.
+  EIGEN_UNUSED_VARIABLE(expression);
+  EIGEN_UNUSED_VARIABLE(file);
+  EIGEN_UNUSED_VARIABLE(line);
+  EIGEN_GPU_CHECK_FAILED(error, expression, file, line);
+}
 
 // cuBLAS and the legacy cuSOLVER APIs take dimensions and leading dimensions as
 // 32-bit `int`, while Eigen's Index is 64-bit by default and GPU allocations can

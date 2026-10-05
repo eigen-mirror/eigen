@@ -110,6 +110,20 @@ run time. However, these assertions do cost time and can thus be turned off.
  - \b \c EIGEN_UNROLLING_LIMIT - defines the size of a loop to enable meta unrolling. Set it to zero to disable
    unrolling. The size of a loop here is expressed in %Eigen's own notion of "number of FLOPS", it does not
    correspond to the number of iterations or the number of instructions. The default is value 110.
+ - \b \c EIGEN_GEMM_TO_COEFFBASED_THRESHOLD - a matrix-matrix product that reaches the general (GEMM) product path
+   falls back at run time to the coefficient-based product when rows + cols + depth is below this value. Default is 20.
+   In an ARM SME build, the scalar types the SME GEMM kernel handles use \c EIGEN_SME_GEMM_TO_COEFFBASED_THRESHOLD
+   instead when it is defined, and also fall back when the result is not a vector and has at most
+   \c EIGEN_SME_GEMM_TO_COEFFBASED_OUTPUT_AREA_THRESHOLD(Scalar) coefficients (default 96 / sizeof(Scalar)).
+ - \b \c EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD - a product that would take the GEMM path and whose three
+   dimensions are all fixed at compile time uses the coefficient-based product instead, selected at compile time,
+   when rows + cols + depth is below this value. Default is 40. It does not follow
+   \c EIGEN_GEMM_TO_COEFFBASED_THRESHOLD, which still applies at run time to the fixed-size products this one sends to
+   the GEMM path, so their crossover is the larger of the two values.
+ - \b \c EIGEN_SME_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD - the same compile-time bound for the scalar types the ARM
+   SME GEMM kernel handles (\c float, \c std::complex<float>, and with FEAT_SME_F64F64 \c double and
+   \c std::complex<double>). Default is 61, measured on Apple M4 Pro; other scalar types use
+   \c EIGEN_FIXED_SIZE_GEMM_TO_COEFFBASED_THRESHOLD in an SME build too.
  - \b \c EIGEN_STACK_ALLOCATION_LIMIT - defines the maximum bytes for a buffer to be allocated on the stack. For internal
    temporary buffers, dynamic memory allocation is employed as a fall back; setting the limit to 0 disables stack
    allocation for them, so every such temporary is heap-allocated. For fixed-size matrices or arrays, exceeding this

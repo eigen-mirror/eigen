@@ -12,7 +12,7 @@
 
 // computes the sum of magnitudes of all vector elements or, for a complex vector x, the sum
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
-extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(int *n, Scalar *px, int *incx) {
+extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
   //   std::cerr << "_asum " << *n << " " << *incx << "\n";
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -25,7 +25,8 @@ extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(int *n, Scalar *px, int *incx) 
     return make_vector(x, *n, std::abs(*incx)).cwiseAbs().sum();
 }
 
-extern "C" int EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(int *n, Scalar *px, int *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, Scalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -34,10 +35,11 @@ extern "C" int EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(int *n, Scalar *px, int 
     make_vector(x, *n).cwiseAbs().maxCoeff(&ret);
   else
     make_vector(x, *n, std::abs(*incx)).cwiseAbs().maxCoeff(&ret);
-  return int(ret) + 1;
+  return EIGEN_BLAS_INT(ret) + 1;
 }
 
-extern "C" int EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(int *n, Scalar *px, int *incx) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, Scalar *px,
+                                                                   EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
@@ -46,11 +48,12 @@ extern "C" int EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(int *n, Scalar *px, int 
     make_vector(x, *n).cwiseAbs().minCoeff(&ret);
   else
     make_vector(x, *n, std::abs(*incx)).cwiseAbs().minCoeff(&ret);
-  return int(ret) + 1;
+  return EIGEN_BLAS_INT(ret) + 1;
 }
 
 // computes a vector-vector dot product.
-extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(int *n, Scalar *px, int *incx, Scalar *py, int *incy) {
+extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py,
+                                            EIGEN_BLAS_INT *incy) {
   //   std::cerr << "_dot " << *n << " " << *incx << " " << *incy << "\n";
 
   if (*n <= 0) return 0;
@@ -73,7 +76,7 @@ extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(int *n, Scalar *px, int *incx, Scala
 }
 
 // computes the Euclidean norm of a vector.
-extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(int *n, Scalar *px, int *incx) {
+extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
   if (*n <= 0) return 0;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
@@ -84,7 +87,8 @@ extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(int *n, Scalar *px, int *incx) {
     return make_vector(x, *n, std::abs(*incx)).stableNorm();
 }
 
-EIGEN_BLAS_FUNC(rot)(int *n, Scalar *px, int *incx, Scalar *py, int *incy, Scalar *pc, Scalar *ps) {
+EIGEN_BLAS_FUNC(rot)
+(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *pc, Scalar *ps) {
   //   std::cerr << "_rot " << *n << " " << *incx << " " << *incy << "\n";
   if (*n <= 0) return;
 
@@ -114,7 +118,8 @@ EIGEN_BLAS_FUNC(rot)(int *n, Scalar *px, int *incx, Scalar *py, int *incy, Scala
 //      1: H = [[h11, 1], [-1, h22]]             (h11, h22 from param)
 //     -2: H = identity                           (no-op)
 //   param[1..4] = h11, h21, h12, h22
-EIGEN_BLAS_FUNC(rotm)(int *n, Scalar *px, int *incx, Scalar *py, int *incy, Scalar *param) {
+EIGEN_BLAS_FUNC(rotm)
+(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *param) {
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
@@ -139,10 +144,10 @@ EIGEN_BLAS_FUNC(rotm)(int *n, Scalar *px, int *incx, Scalar *py, int *incy, Scal
     h22 = param[4];
   }
 
-  int kx = *incx > 0 ? 0 : (1 - *n) * *incx;
-  int ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+  EIGEN_BLAS_INT kx = *incx > 0 ? 0 : (1 - *n) * *incx;
+  EIGEN_BLAS_INT ky = *incy > 0 ? 0 : (1 - *n) * *incy;
 
-  for (int i = 0; i < *n; ++i) {
+  for (EIGEN_BLAS_INT i = 0; i < *n; ++i) {
     Scalar w = x[kx];
     Scalar z = y[ky];
     x[kx] = h11 * w + h12 * z;

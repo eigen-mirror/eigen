@@ -649,20 +649,42 @@ namespace internal {
 // Sign Function
 //----------------------------------------------------------------------
 
+template <typename Packet, typename Scalar = typename unpacket_traits<Packet>::type>
+struct psign_uses_binary_encoding
+    : bool_constant<!is_scalar<Packet>::value && packet_has_integer_packet<Packet>::value &&
+                    (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value)> {};
+
 template <typename Packet>
-struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
+struct psign_impl<Packet, std::enable_if_t<psign_uses_binary_encoding<Packet>::value>> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
+    using Scalar = typename unpacket_traits<Packet>::type;
+    using PacketI = typename unpacket_traits<Packet>::integer_packet;
+    using IntScalar = typename unpacket_traits<PacketI>::type;
+    using Binary = binary_floating_point_traits<Scalar>;
+
+    // Magnitude is a nonnegative integer. Comparing it with 1 avoids Clang
+    // folding an integer == 0 test into a DAZ-sensitive FP comparison.
+    const PacketI magnitude = pand(preinterpret<PacketI>(a), pset1<PacketI>(IntScalar(~Binary::kSignBit)));
+    const Packet is_zero = preinterpret<Packet>(pcmp_lt(magnitude, pset1<PacketI>(IntScalar(1))));
+    const Packet is_nan = preinterpret<Packet>(pcmp_lt(pset1<PacketI>(IntScalar(Binary::kExponentMask)), magnitude));
+    const Packet signed_one = por(pandnot(a, pabs(a)), pset1<Packet>(Scalar(1)));
+    return pselect(is_nan, a, pandnot(signed_one, is_zero));
+  }
+};
+
+template <typename Packet>
+struct psign_impl<Packet, std::enable_if_t<!psign_uses_binary_encoding<Packet>::value && !is_scalar<Packet>::value &&
                                            !NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
                                            !NumTraits<typename unpacket_traits<Packet>::type>::IsInteger>> {
   static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
     using Scalar = typename unpacket_traits<Packet>::type;
     const Packet cst_one = pset1<Packet>(Scalar(1));
-    const Packet cst_zero = pzero(a);
 
     const Packet abs_a = pabs(a);
     const Packet sign_mask = pandnot(a, abs_a);
-    const Packet nonzero_mask = pcmp_lt(cst_zero, abs_a);
+    const Packet zero_mask = pcmp_eq(abs_a, pzero(abs_a));
 
-    return pselect(nonzero_mask, por(sign_mask, cst_one), abs_a);
+    return pselect(pisnan(a), a, pselect(zero_mask, abs_a, por(sign_mask, cst_one)));
   }
 };
 

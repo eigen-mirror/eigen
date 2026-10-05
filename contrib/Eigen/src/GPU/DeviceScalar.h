@@ -87,9 +87,10 @@ class DeviceScalar {
   cudaStream_t stream() const { return stream_; }
 
   // The arithmetic below keeps results on device via the NPP helpers in
-  // DeviceScalarOps.h, and covers real types only; complex division falls back to
-  // the implicit conversion and its host sync. Unlike DeviceMatrix, DeviceScalar
-  // tracks no cross-stream readiness, so all operands must share one stream.
+  // DeviceScalarOps.h, which cover real types only: dividing or negating a
+  // complex DeviceScalar does not compile, so convert it to Scalar (a host sync)
+  // first. Unlike DeviceMatrix, DeviceScalar tracks no cross-stream readiness,
+  // so all operands must share one stream.
 
   friend DeviceScalar operator/(const DeviceScalar& a, const DeviceScalar& b) {
     eigen_assert(a.stream_ == b.stream_ && "DeviceScalar operator/: operands must share the same stream");

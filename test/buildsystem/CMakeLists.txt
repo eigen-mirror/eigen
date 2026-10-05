@@ -33,6 +33,7 @@ set(EIGEN_BUILDSYSTEM_SCENARIOS
     install_off_all_options
     exclude_from_all
     suitesparse_reconfigure
+    test_part_groups
     )
 
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)

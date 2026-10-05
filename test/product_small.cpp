@@ -262,6 +262,36 @@ void bug_1311() {
   VERIFY_IS_APPROX(res, A * b);
 }
 
+template <typename MatrixType>
+void fixed_size_product_assignments() {
+  MatrixType A = MatrixType::Random();
+  MatrixType B = MatrixType::Random();
+  MatrixType C = MatrixType::Random();
+  MatrixType ref = C;
+
+  C = A * B;
+  ref = A.lazyProduct(B);
+  VERIFY_IS_APPROX(C, ref);
+
+  C.setRandom();
+  ref = C;
+  C.noalias() += A * B;
+  ref.noalias() += A.lazyProduct(B);
+  VERIFY_IS_APPROX(C, ref);
+
+  C.setRandom();
+  ref = C;
+  C.noalias() -= A * B;
+  ref.noalias() -= A.lazyProduct(B);
+  VERIFY_IS_APPROX(C, ref);
+
+  C.setRandom();
+  ref = C;
+  C.noalias() += (2.0 * A) * (B * 3.0);
+  ref.noalias() += 6.0 * A.lazyProduct(B);
+  VERIFY_IS_APPROX(C, ref);
+}
+
 template <int>
 void product_small_regressions() {
   {
@@ -307,36 +337,11 @@ void product_small_regressions() {
     constexpr int kGemm = (internal::product_type<Matrix10, Matrix10>::FixedSizeThreshold + 2) / 3;
     typedef Eigen::Matrix<double, kGemm - 1, kGemm - 1> MatrixBelow;
     typedef Eigen::Matrix<double, kGemm, kGemm> MatrixAt;
-    VERIFY((internal::product_type<Matrix10, Matrix10>::value == CoeffBasedProductMode));
     VERIFY((internal::product_type<MatrixBelow, MatrixBelow>::value == CoeffBasedProductMode));
     VERIFY((internal::product_type<MatrixAt, MatrixAt>::value == GemmProduct));
 
-    Matrix10 A = Matrix10::Random();
-    Matrix10 B = Matrix10::Random();
-    Matrix10 C = Matrix10::Random();
-    Matrix10 ref = C;
-
-    C = A * B;
-    ref = A.lazyProduct(B);
-    VERIFY_IS_APPROX(C, ref);
-
-    C.setRandom();
-    ref = C;
-    C.noalias() += A * B;
-    ref.noalias() += A.lazyProduct(B);
-    VERIFY_IS_APPROX(C, ref);
-
-    C.setRandom();
-    ref = C;
-    C.noalias() -= A * B;
-    ref.noalias() -= A.lazyProduct(B);
-    VERIFY_IS_APPROX(C, ref);
-
-    C.setRandom();
-    ref = C;
-    C.noalias() += (2.0 * A) * (B * 3.0);
-    ref.noalias() += 6.0 * A.lazyProduct(B);
-    VERIFY_IS_APPROX(C, ref);
+    fixed_size_product_assignments<MatrixBelow>();
+    fixed_size_product_assignments<MatrixAt>();
   }
 }
 

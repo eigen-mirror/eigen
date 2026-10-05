@@ -587,6 +587,36 @@ struct functor_traits<count_visitor<Scalar>> {
   };
 };
 
+// Reduces pisfinite masks directly: their lanes are all-ones or zero, so the coefficients are all finite exactly when
+// no lane of the complement is set. predux_all, which all() on isFiniteTyped() uses, compares each lane against zero
+// instead, which a compiler can only fold away when it can prove the operand is a mask.
+template <typename Scalar>
+struct all_finite_visitor {
+  using result_type = bool;
+  using Packet = typename packet_traits<Scalar>::type;
+  EIGEN_DEVICE_FUNC inline bool finite_predux(const Packet& p) const { return !predux_any(pnot(pisfinite(p))); }
+  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (numext::isfinite)(value); }
+  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (numext::isfinite)(value); }
+  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = finite_predux(p); }
+  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = finite_predux(p); }
+  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) {
+    res = res && (numext::isfinite)(value);
+  }
+  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res && (numext::isfinite)(value); }
+  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res && finite_predux(p); }
+  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res && finite_predux(p); }
+  EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
+  bool res = true;
+};
+template <typename Scalar>
+struct functor_traits<all_finite_visitor<Scalar>> {
+  enum {
+    Cost = NumTraits<Scalar>::ReadCost + NumTraits<Scalar>::MulCost,
+    LinearAccess = true,
+    PacketAccess = packet_traits<Scalar>::HasCmp
+  };
+};
+
 template <typename Derived, bool AlwaysTrue = NumTraits<typename traits<Derived>::Scalar>::IsInteger>
 struct all_finite_impl {
   static EIGEN_DEVICE_FUNC inline bool run(const Derived& /*derived*/) { return true; }
@@ -594,7 +624,12 @@ struct all_finite_impl {
 #if !defined(__FINITE_MATH_ONLY__) || !(__FINITE_MATH_ONLY__)
 template <typename Derived>
 struct all_finite_impl<Derived, false> {
-  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) { return derived.array().isFiniteTyped().all(); }
+  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) {
+    using Visitor = all_finite_visitor<typename traits<Derived>::Scalar>;
+    Visitor visitor;
+    visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>::run(derived, visitor);
+    return visitor.res;
+  }
 };
 #endif
 

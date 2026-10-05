@@ -58,9 +58,10 @@ class HostTransfer {
   /** Non-blocking check: has the transfer completed? */
   bool ready() const {
     if (synced_) return true;
-    cudaError_t err = cudaEventQuery(event_);
+    const cudaError_t err = cudaEventQuery(event_);
     if (err == cudaSuccess) return true;
-    eigen_assert(err == cudaErrorNotReady && "cudaEventQuery failed");
+    if (err != cudaErrorNotReady)
+      EIGEN_GPU_CHECK_FAILED(cudaGetErrorName(err), "cudaEventQuery(event_)", __FILE__, __LINE__);
     return false;
   }
 
@@ -349,6 +350,12 @@ class DeviceMatrix {
   Index cols() const { return cols_; }
   bool empty() const { return rows_ == 0 || cols_ == 0; }
 
+  /** Whether this matrix holds storage borrowed through view(). Destroying a
+   * view does not free that storage, and release() on a view returns a pointer
+   * that its owner still frees. resize() to a different size replaces a view
+   * with storage of its own; resize() to the same size leaves it a view. */
+  bool isView() const { return data_ != nullptr && data_.get_deleter().borrow; }
+
   /** Size of the device allocation in bytes. */
   size_t sizeInBytes() const { return static_cast<size_t>(rows_) * static_cast<size_t>(cols_) * sizeof(Scalar); }
 
@@ -438,17 +445,26 @@ class DeviceMatrix {
    * DeviceScalar's conversion to Scalar, which syncs. */
   DeviceScalar<Scalar> dot(Context& ctx, const DeviceMatrix& other) const;
 
-  /** Squared L2 norm via dot(x, x). For real types the result stays on device;
-   * for complex it syncs, since DeviceScalar arithmetic is real-only. */
+  /** Squared L2 norm via dot(x, x), without a host sync. */
   DeviceScalar<typename NumTraits<Scalar>::Real> squaredNorm(Context& ctx) const;
 
-  /** L2 norm, without a host sync. */
+  /** L2 norm as sqrt(squaredNorm()), like MatrixBase::norm(), without a host
+   * sync: unscaled, so it overflows once some |x_i| > sqrt(max) and loses
+   * accuracy when every |x_i| < sqrt(min). */
   DeviceScalar<typename NumTraits<Scalar>::Real> norm(Context& ctx) const;
 
-  /** Overflow-safe L2 norm, the same as norm(): cuBLAS nrm2 already runs a
-   * scaled sum of squares. Provided so that Eigen's iterative solver templates,
-   * which call stableNorm(), compile against DeviceMatrix. */
+  /** Overflow-safe L2 norm, like MatrixBase::stableNorm(): cuBLAS nrm2's scaled
+   * sum of squares, without a host sync. Eigen's iterative solver templates call it. */
   DeviceScalar<typename NumTraits<Scalar>::Real> stableNorm(Context& ctx) const;
+
+  /** The reductions above written into \p result's existing storage on \p ctx,
+   * instead of a new DeviceScalar: no allocation per call, so a loop or a
+   * captured CUDA graph repeats them without allocator traffic. \p result must
+   * live on ctx.stream(). */
+  void dot(Context& ctx, const DeviceMatrix& other, DeviceScalar<Scalar>& result) const;
+  void squaredNorm(Context& ctx, DeviceScalar<RealScalar>& result) const;
+  void norm(Context& ctx, DeviceScalar<RealScalar>& result) const;
+  void stableNorm(Context& ctx, DeviceScalar<RealScalar>& result) const;
 
   /** Set all elements to zero. */
   void setZero(Context& ctx);
@@ -566,7 +582,9 @@ class DeviceMatrix {
     return dm;
   }
 
-  /** Transfer ownership of the device pointer out. Zeros internal state. */
+  /** Give up the device pointer and zero the internal state. An owning matrix
+   * transfers ownership to the caller; a view (isView()) returns its borrowed
+   * pointer, which its owner still frees. */
   Scalar* release() {
     Scalar* p = data_.release();
     rows_ = 0;

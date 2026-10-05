@@ -224,6 +224,7 @@ void stable_norm(const MatrixType& m) {
   }
 }
 
+template <typename = void>
 void test_empty() {
   Eigen::VectorXf empty(0);
   VERIFY_IS_EQUAL(empty.stableNorm(), 0.0f);
@@ -495,6 +496,7 @@ void stable_norm_denormal_rounding() {
   VERIFY_IS_EQUAL(input.hypotNorm(), denorm);
 }
 
+template <typename = void>
 void stable_norm_power_of_two_scaling() {
   // Reciprocal scaling rounds these norms two ULPs away from their correctly rounded values. Allow the fused and
   // non-fused reduction paths to differ by one ULP while still rejecting the previous results.
@@ -582,6 +584,7 @@ void stable_norm_complex_low_precision() {
   VERIFY(abs(static_cast<float>(input(0).imag()) - 0.8f) <= tolerance);
 }
 
+template <typename = void>
 void stable_normalize_promoted_factor() {
   typedef Matrix<half, Dynamic, 1> VectorX;
   using std::abs;
@@ -603,6 +606,7 @@ void stable_normalize_promoted_factor() {
   VERIFY(abs(input.template cast<float>().norm() - 1.0f) <= tolerance);
 }
 
+template <typename = void>
 void stable_normalize_no_malloc() {
   VectorXd input = VectorXd::Constant(2, (std::numeric_limits<double>::max)());
   const Vector2d expected = Vector2d::Constant(1.0 / std::sqrt(2.0));
@@ -613,6 +617,7 @@ void stable_normalize_no_malloc() {
   VERIFY_IS_APPROX(input, expected);
 }
 
+template <typename = void>
 void stable_norm_expression_and_stride() {
   const Index size = 31;
   Index evaluation_count = 0;
@@ -807,6 +812,7 @@ void stable_norm_block_boundary() {
   }
 }
 
+template <typename = void>
 void stable_normalize_custom_scalar() {
   using Scalar = AnnoyingScalar;
   Matrix<Scalar, 2, 1> expected;
@@ -825,7 +831,7 @@ void stable_normalize_custom_scalar() {
 }
 
 EIGEN_DECLARE_TEST(stable_norm) {
-  CALL_SUBTEST_1(test_empty());
+  CALL_SUBTEST_1(test_empty<>());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_3(test_hypot<double>());
@@ -866,15 +872,15 @@ EIGEN_DECLARE_TEST(stable_norm) {
   CALL_SUBTEST_11(stable_norm_mixed_underflow<double>());
   CALL_SUBTEST_11(stable_norm_denormal_rounding<float>());
   CALL_SUBTEST_11(stable_norm_denormal_rounding<double>());
-  CALL_SUBTEST_11(stable_norm_power_of_two_scaling());
+  CALL_SUBTEST_11(stable_norm_power_of_two_scaling<>());
   CALL_SUBTEST_11(stable_norm_power_of_two_ftz<float>());
   CALL_SUBTEST_11(stable_norm_power_of_two_ftz<double>());
   CALL_SUBTEST_12(stable_norm_low_precision<half>());
   CALL_SUBTEST_12(stable_norm_low_precision<bfloat16>());
   CALL_SUBTEST_12(stable_norm_complex_low_precision<half>());
   CALL_SUBTEST_12(stable_norm_complex_low_precision<bfloat16>());
-  CALL_SUBTEST_12(stable_normalize_promoted_factor());
-  CALL_SUBTEST_13(stable_norm_expression_and_stride());
-  CALL_SUBTEST_13(stable_normalize_no_malloc());
-  CALL_SUBTEST_13(stable_normalize_custom_scalar());
+  CALL_SUBTEST_12(stable_normalize_promoted_factor<>());
+  CALL_SUBTEST_13(stable_norm_expression_and_stride<>());
+  CALL_SUBTEST_13(stable_normalize_no_malloc<>());
+  CALL_SUBTEST_13(stable_normalize_custom_scalar<>());
 }

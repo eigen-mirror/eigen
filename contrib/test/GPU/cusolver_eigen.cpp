@@ -118,6 +118,16 @@ void test_eigen_device_matrix(Index n) {
   Mat A_hat = V * W_gpu.asDiagonal() * V.adjoint();
   RealScalar tol = RealScalar(8) * static_cast<RealScalar>(n) * NumTraits<Scalar>::epsilon() * A.norm();
   VERIFY((A_hat - A).norm() < tol);
+
+  // Context-bound rvalue constructor adopts d_A instead of copying it.
+  gpu::Context ctx;
+  auto d_A_ctx = gpu::DeviceMatrix<Scalar>::fromHost(A, ctx.stream());
+  gpu::SelfAdjointEigenSolver<Scalar> es_ctx(ctx, std::move(d_A_ctx));
+  VERIFY(d_A_ctx.empty());
+  VERIFY_IS_EQUAL(es_ctx.info(), Success);
+  VERIFY(es_ctx.stream() == ctx.stream());
+  Mat V_ctx = es_ctx.eigenvectors();
+  VERIFY((V_ctx * es_ctx.eigenvalues().asDiagonal() * V_ctx.adjoint() - A).norm() < tol);
 }
 
 // ---- Recompute (reuse solver object) ----------------------------------------
@@ -287,6 +297,26 @@ void test_eigen_move(Index n) {
   VERIFY_IS_EQUAL(context_solver.info(), Success);
 }
 
+// ---- Host getters wait only for the solver's stream -------------------------
+// A download through the legacy default stream (cudaMemcpy) would also wait
+// for the unrelated blocking stream parked below.
+
+template <typename Scalar>
+void test_eigen_getters_ignore_other_streams(Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+
+  Mat R = Mat::Random(n, n);
+  Mat A = R + R.adjoint();
+  gpu::SelfAdjointEigenSolver<Scalar> es(A);
+  VERIFY_IS_EQUAL(es.info(), Success);
+
+  gpu::Context other;
+  gpu_test::ParkedStream parked(other.stream());
+  (void)es.eigenvalues();
+  (void)es.eigenvectors();
+  VERIFY(parked.held());
+}
+
 // ---- Empty matrix -----------------------------------------------------------
 
 void test_eigen_empty() {
@@ -329,6 +359,8 @@ void test_scalar() {
 
   // Move constructor/assignment.
   CALL_SUBTEST(test_eigen_move<Scalar>(32));
+
+  CALL_SUBTEST(test_eigen_getters_ignore_other_streams<Scalar>(64));
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_eigen) {

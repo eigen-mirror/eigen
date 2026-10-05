@@ -134,6 +134,7 @@ void test_sparseqr_scalar() {
   VERIFY_IS_APPROX(Q, dQ);
 }
 
+template <typename = void>
 void test_sparseqr_factorize_uncompressed_input() {
   typedef SparseMatrix<double, ColMajor> MatrixType;
   typedef VectorXd Vector;
@@ -191,6 +192,7 @@ void verify_sparseqr_solves(const DenseMat& denseA, const DenseRhs& b, Index exp
   VERIFY_IS_APPROX(denseA * x, b);
 }
 
+template <typename = void>
 void test_sparseqr_lookahead_rejects_replaceable_weak_pivot() {
   Matrix<double, 4, 5> denseA;
   denseA << 10.875, 0.0, 0.0, 0.0, 0.0, -0.397597, 12.1403, 0.0, 0.0, 0.0317254, -0.851737, -0.0269339, 11.3113,
@@ -201,6 +203,7 @@ void test_sparseqr_lookahead_rejects_replaceable_weak_pivot() {
   verify_sparseqr_solves<COLAMDOrdering<int> >(denseA, b, 4);
 }
 
+template <typename = void>
 void test_sparseqr_tiny_independent_column() {
   Matrix<double, 2, 3> denseA;
   Matrix<double, 2, 1> b;
@@ -214,6 +217,7 @@ void test_sparseqr_tiny_independent_column() {
   verify_sparseqr_solves<COLAMDOrdering<int> >(denseA, b, 2);
 }
 
+template <typename = void>
 void test_sparseqr_lookahead_preserves_needed_weak_direction() {
   Matrix<double, 3, 4> denseA;
   Matrix<double, 3, 1> b;
@@ -227,6 +231,7 @@ void test_sparseqr_lookahead_preserves_needed_weak_direction() {
   verify_sparseqr_solves<NaturalOrdering<int> >(denseA, b, 3);
 }
 
+template <typename = void>
 void test_sparseqr_explicit_threshold_disables_lookahead() {
   typedef SparseMatrix<double, ColMajor> MatrixType;
   typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
@@ -308,11 +313,11 @@ EIGEN_DECLARE_TEST(sparseqr) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
     CALL_SUBTEST_2(test_sparseqr_scalar<std::complex<double> >());
   }
-  CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input());
-  CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot());
-  CALL_SUBTEST_5(test_sparseqr_tiny_independent_column());
-  CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead());
-  CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction());
+  CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input<>());
+  CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot<>());
+  CALL_SUBTEST_5(test_sparseqr_tiny_independent_column<>());
+  CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead<>());
+  CALL_SUBTEST_7(test_sparseqr_lookahead_preserves_needed_weak_direction<>());
   // The relative residual is a small multiple of the scalar's epsilon; bfloat16's coarser mantissa (7 bits vs
   // half's 10) loses more per operation, so it needs the larger factor despite the smaller system.
   CALL_SUBTEST_8(

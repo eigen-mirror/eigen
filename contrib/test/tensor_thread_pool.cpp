@@ -37,6 +37,7 @@ class TestAllocator : public Allocator {
   int dealloc_count_ = 0;
 };
 
+template <typename = void>
 void test_multithread_elementwise() {
   Tensor<float, 3> in1(200, 30, 70);
   Tensor<float, 3> in2(200, 30, 70);
@@ -58,6 +59,7 @@ void test_multithread_elementwise() {
   }
 }
 
+template <typename = void>
 void test_async_multithread_elementwise() {
   Tensor<float, 3> in1(200, 30, 70);
   Tensor<float, 3> in2(200, 30, 70);
@@ -82,6 +84,7 @@ void test_async_multithread_elementwise() {
   }
 }
 
+template <typename = void>
 void test_multithread_chip() {
   Tensor<float, 5> in(2, 3, 5, 7, 11);
   Tensor<float, 4> out(3, 5, 7, 11);
@@ -104,6 +107,7 @@ void test_multithread_chip() {
   }
 }
 
+template <typename = void>
 void test_async_multithread_chip() {
   Tensor<float, 5> in(2, 3, 5, 7, 11);
   Tensor<float, 4> out(3, 5, 7, 11);
@@ -128,6 +132,7 @@ void test_async_multithread_chip() {
   }
 }
 
+template <typename = void>
 void test_multithread_volume_patch() {
   Tensor<float, 5> in(4, 2, 3, 5, 7);
   Tensor<float, 6> out(4, 1, 1, 1, 2 * 3 * 5, 7);
@@ -144,6 +149,7 @@ void test_multithread_volume_patch() {
   }
 }
 
+template <typename = void>
 void test_async_multithread_volume_patch() {
   Tensor<float, 5> in(4, 2, 3, 5, 7);
   Tensor<float, 6> out(4, 1, 1, 1, 2 * 3 * 5, 7);
@@ -185,6 +191,7 @@ struct OverlapDetectingOp {
 // the argument through coeff() with BlockAccess independent of the argument,
 // so these tests exercise the tiled executor's per-task evaluator copy
 // regardless of how any one evaluator's traits evolve.
+template <typename = void>
 void test_multithread_tiled_stateful_functor() {
   Tensor<float, 4> in(64, 64, 64, 8);
   in.setRandom();
@@ -206,6 +213,7 @@ void test_multithread_tiled_stateful_functor() {
   }
 }
 
+template <typename = void>
 void test_async_multithread_tiled_stateful_functor() {
   Tensor<float, 4> in(64, 64, 64, 8);
   in.setRandom();
@@ -229,6 +237,7 @@ void test_async_multithread_tiled_stateful_functor() {
   }
 }
 
+template <typename = void>
 void test_multithread_compound_assignment() {
   Tensor<float, 3> in1(2, 3, 7);
   Tensor<float, 3> in2(2, 3, 7);
@@ -763,6 +772,7 @@ void test_multithreaded_reductions() {
   VERIFY_IS_APPROX(full_redux(), full_redux_tp());
 }
 
+template <typename = void>
 void test_multithreaded_complex_reduction() {
   using Scalar = std::complex<float>;
   constexpr Index size = 4096;
@@ -782,6 +792,7 @@ void test_multithreaded_complex_reduction() {
   VERIFY_IS_EQUAL(output(), Scalar(static_cast<float>(size), static_cast<float>(2 * size)));
 }
 
+template <typename = void>
 void test_multithreaded_complex_partial_reductions() {
   using Scalar = std::complex<float>;
   constexpr Index outer_size = 32;
@@ -812,6 +823,7 @@ void test_multithreaded_complex_partial_reductions() {
   }
 }
 
+template <typename = void>
 void test_memcpy() {
   for (int i = 0; i < 5; ++i) {
     const int num_threads = internal::random<int>(3, 11);
@@ -829,6 +841,7 @@ void test_memcpy() {
   }
 }
 
+template <typename = void>
 void test_multithread_random() {
   Eigen::ThreadPool tp(2);
   Eigen::ThreadPoolDevice device(&tp, 2);
@@ -860,6 +873,7 @@ void test_multithread_shuffle(Allocator* allocator) {
   }
 }
 
+template <typename = void>
 void test_threadpool_allocate(TestAllocator* allocator) {
   const int num_threads = internal::random<int>(2, 11);
   const int num_allocs = internal::random<int>(2, 11);
@@ -1133,22 +1147,22 @@ void test_multithread_zero_dim_outer_zeros() {
 }
 
 EIGEN_DECLARE_TEST(tensor_thread_pool) {
-  CALL_SUBTEST_1(test_multithread_elementwise());
-  CALL_SUBTEST_1(test_async_multithread_elementwise());
-  CALL_SUBTEST_1(test_multithread_compound_assignment());
+  CALL_SUBTEST_1(test_multithread_elementwise<>());
+  CALL_SUBTEST_1(test_async_multithread_elementwise<>());
+  CALL_SUBTEST_1(test_multithread_compound_assignment<>());
 
   CALL_SUBTEST_2(test_multithread_contraction<ColMajor>());
   CALL_SUBTEST_2(test_multithread_contraction<RowMajor>());
   CALL_SUBTEST_2(test_multithread_gemv_transpose<ColMajor>());
   CALL_SUBTEST_2(test_multithread_gemv_transpose<RowMajor>());
 
-  CALL_SUBTEST_3(test_multithread_chip());
-  CALL_SUBTEST_3(test_async_multithread_chip());
+  CALL_SUBTEST_3(test_multithread_chip<>());
+  CALL_SUBTEST_3(test_async_multithread_chip<>());
 
-  CALL_SUBTEST_4(test_multithread_volume_patch());
-  CALL_SUBTEST_4(test_async_multithread_volume_patch());
-  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor());
-  CALL_SUBTEST_4(test_async_multithread_tiled_stateful_functor());
+  CALL_SUBTEST_4(test_multithread_volume_patch<>());
+  CALL_SUBTEST_4(test_async_multithread_volume_patch<>());
+  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor<>());
+  CALL_SUBTEST_4(test_async_multithread_tiled_stateful_functor<>());
 
   CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<ColMajor>());
   CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<RowMajor>());
@@ -1178,16 +1192,16 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_11(test_multithreaded_reductions<ColMajor>());
   CALL_SUBTEST_11(test_multithreaded_reductions<RowMajor>());
-  CALL_SUBTEST_11(test_multithreaded_complex_reduction());
-  CALL_SUBTEST_11(test_multithreaded_complex_partial_reductions());
+  CALL_SUBTEST_11(test_multithreaded_complex_reduction<>());
+  CALL_SUBTEST_11(test_multithreaded_complex_partial_reductions<>());
 
-  CALL_SUBTEST_12(test_memcpy());
-  CALL_SUBTEST_12(test_multithread_random());
+  CALL_SUBTEST_12(test_memcpy<>());
+  CALL_SUBTEST_12(test_multithread_random<>());
 
   TestAllocator test_allocator;
   CALL_SUBTEST_13(test_multithread_shuffle<ColMajor>(nullptr));
   CALL_SUBTEST_13(test_multithread_shuffle<RowMajor>(&test_allocator));
-  CALL_SUBTEST_13(test_threadpool_allocate(&test_allocator));
+  CALL_SUBTEST_13(test_threadpool_allocate<>(&test_allocator));
 
   CALL_SUBTEST_14(test_multithread_zero_dim_contraction<ColMajor>());
   CALL_SUBTEST_14(test_multithread_zero_dim_contraction<RowMajor>());

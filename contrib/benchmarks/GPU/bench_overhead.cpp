@@ -17,6 +17,8 @@
 //   FromHost / FromHostAsync    — extra host-side PlainMatrix copy in fromHost()
 //   GemmFreshDst / PreallocDst  — cudaMalloc/cudaFree per GEMM temporary
 //   DotDeviceScalar / DotRaw    — DeviceScalar wrapper cost per reduction
+//   DotIntoDeviceScalar         — the same reduction into an existing DeviceScalar
+//   NormRead / StableNormRead   — norm() (dot + NPP sqrt) vs stableNorm() (nrm2), read back
 //   OneShotLltExpr / CachedLlt / RawPotrs — expression-solve sync + allocs
 //   CudaMalloc / CudaMallocAsync — stream-ordered allocation as a remedy
 //   SmallBuffer* / PoolAllocFree — small DeviceBuffer round trip (idle, behind in-flight work) and the pool itself
@@ -163,6 +165,50 @@ static void BM_DotRawCublas(benchmark::State& state) {
   EIGEN_CUDA_RUNTIME_CHECK(cudaFree(d_result));
 }
 BENCHMARK(BM_DotRawCublas)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
+
+// The reduction into a DeviceScalar allocated once: no allocation per call.
+static void BM_DotIntoDeviceScalar(benchmark::State& state) {
+  const Index n = state.range(0);
+  gpu::Context& ctx = gpu::Context::threadLocal();
+  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  DeviceMatrix d_y = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  gpu::DeviceScalar<Scalar> r(ctx.stream());
+  for (auto _ : state) {
+    d_x.dot(ctx, d_y, r);
+    benchmark::DoNotOptimize(r.devicePtr());
+    syncStream(ctx.stream());
+  }
+}
+BENCHMARK(BM_DotIntoDeviceScalar)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
+
+// norm() is a dot and a one-element NPP sqrt; stableNorm() is cuBLAS nrm2's
+// scaled accumulation. Each iteration reads the norm back to the host, as the
+// convergence test of an iterative method does.
+static void BM_NormRead(benchmark::State& state) {
+  const Index n = state.range(0);
+  gpu::Context& ctx = gpu::Context::threadLocal();
+  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  gpu::DeviceScalar<Scalar> r(ctx.stream());
+  for (auto _ : state) {
+    d_x.norm(ctx, r);
+    Scalar value = r;
+    benchmark::DoNotOptimize(value);
+  }
+}
+BENCHMARK(BM_NormRead)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
+
+static void BM_StableNormRead(benchmark::State& state) {
+  const Index n = state.range(0);
+  gpu::Context& ctx = gpu::Context::threadLocal();
+  DeviceMatrix d_x = DeviceMatrix::fromHost(HostMatrix::Random(n, 1), ctx.stream());
+  gpu::DeviceScalar<Scalar> r(ctx.stream());
+  for (auto _ : state) {
+    d_x.stableNorm(ctx, r);
+    Scalar value = r;
+    benchmark::DoNotOptimize(value);
+  }
+}
+BENCHMARK(BM_StableNormRead)->Arg(1 << 12)->Arg(1 << 20)->UseRealTime()->MinWarmUpTime(0.5);
 
 // ---------------------------------------------------------------------------
 // 4. Cholesky solve paths.

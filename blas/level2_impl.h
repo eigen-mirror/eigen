@@ -25,16 +25,18 @@ struct general_matrix_vector_product_wrapper {
 };
 
 EIGEN_BLAS_FUNC(gemv)
-(const char *opa, const int *m, const int *n, const RealScalar *palpha, const RealScalar *pa, const int *lda,
- const RealScalar *pb, const int *incb, const RealScalar *pbeta, RealScalar *pc, const int *incc) {
-  typedef void (*functype)(int, int, const Scalar *, int, const Scalar *, int, Scalar *, int, Scalar);
+(const char *opa, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa,
+ const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *incb, const RealScalar *pbeta, RealScalar *pc,
+ const EIGEN_BLAS_INT *incc) {
+  typedef void (*functype)(EIGEN_BLAS_INT, EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, const Scalar *,
+                           EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, Scalar);
   static const functype func[4] = {
       // array index: NOTR
-      (general_matrix_vector_product_wrapper<int, Scalar, Eigen::ColMajor, false, false>::run),
+      (general_matrix_vector_product_wrapper<EIGEN_BLAS_INT, Scalar, Eigen::ColMajor, false, false>::run),
       // array index: TR
-      (general_matrix_vector_product_wrapper<int, Scalar, Eigen::RowMajor, false, false>::run),
+      (general_matrix_vector_product_wrapper<EIGEN_BLAS_INT, Scalar, Eigen::RowMajor, false, false>::run),
       // array index: ADJ
-      (general_matrix_vector_product_wrapper<int, Scalar, Eigen::RowMajor, Conj, false>::run), 0};
+      (general_matrix_vector_product_wrapper<EIGEN_BLAS_INT, Scalar, Eigen::RowMajor, Conj, false>::run), 0};
 
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
@@ -43,14 +45,14 @@ EIGEN_BLAS_FUNC(gemv)
   Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
 
   // check arguments
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (OP(*opa) == INVALID)
     info = 1;
   else if (*m < 0)
     info = 2;
   else if (*n < 0)
     info = 3;
-  else if (*lda < std::max(1, *m))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *m))
     info = 6;
   else if (*incb == 0)
     info = 8;
@@ -60,8 +62,8 @@ EIGEN_BLAS_FUNC(gemv)
 
   if (*m == 0 || *n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  int actual_m = *m;
-  int actual_n = *n;
+  EIGEN_BLAS_INT actual_m = *m;
+  EIGEN_BLAS_INT actual_n = *n;
   int code = OP(*opa);
   if (code != NOTR) std::swap(actual_m, actual_n);
 
@@ -84,51 +86,60 @@ EIGEN_BLAS_FUNC(gemv)
 }
 
 EIGEN_BLAS_FUNC(trsv)
-(const char *uplo, const char *opa, const char *diag, const int *n, const RealScalar *pa, const int *lda,
- RealScalar *pb, const int *incb) {
-  typedef void (*functype)(int, const Scalar *, int, Scalar *);
+(const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *n, const RealScalar *pa,
+ const EIGEN_BLAS_INT *lda, RealScalar *pb, const EIGEN_BLAS_INT *incb) {
+  typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, Scalar *);
   using Eigen::ColMajor;
   using Eigen::Lower;
   using Eigen::OnTheLeft;
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
-  static const functype func[16] = {
-      // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, false, ColMajor>::run),
-      // array index: TR    | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, false, RowMajor>::run),
-      // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, Conj, RowMajor>::run), 0,
-      // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, false, ColMajor>::run),
-      // array index: TR    | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, false, RowMajor>::run),
-      // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, Conj, RowMajor>::run), 0,
-      // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, false,
-                                                ColMajor>::run),
-      // array index: TR    | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, false,
-                                                RowMajor>::run),
-      // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, Conj, RowMajor>::run),
-      0,
-      // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, false,
-                                                ColMajor>::run),
-      // array index: TR    | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, false,
-                                                RowMajor>::run),
-      // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, Conj, RowMajor>::run),
-      0};
+  static const functype func[16] = {// array index: NOTR  | (UP << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | 0, false, ColMajor>::run),
+                                    // array index: TR    | (UP << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | 0, false, RowMajor>::run),
+                                    // array index: ADJ   | (UP << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | 0, Conj, RowMajor>::run),
+                                    0,
+                                    // array index: NOTR  | (LO << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | 0, false, ColMajor>::run),
+                                    // array index: TR    | (LO << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | 0, false, RowMajor>::run),
+                                    // array index: ADJ   | (LO << 2) | (NUNIT << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | 0, Conj, RowMajor>::run),
+                                    0,
+                                    // array index: NOTR  | (UP << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | UnitDiag, false, ColMajor>::run),
+                                    // array index: TR    | (UP << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | UnitDiag, false, RowMajor>::run),
+                                    // array index: ADJ   | (UP << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | UnitDiag, Conj, RowMajor>::run),
+                                    0,
+                                    // array index: NOTR  | (LO << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Lower | UnitDiag, false, ColMajor>::run),
+                                    // array index: TR    | (LO << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | UnitDiag, false, RowMajor>::run),
+                                    // array index: ADJ   | (LO << 2) | (UNIT  << 3)
+                                    (Eigen::internal::triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft,
+                                                                              Upper | UnitDiag, Conj, RowMajor>::run),
+                                    0};
 
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   Scalar *b = reinterpret_cast<Scalar *>(pb);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*opa) == INVALID)
@@ -137,7 +148,7 @@ EIGEN_BLAS_FUNC(trsv)
     info = 3;
   else if (*n < 0)
     info = 4;
-  else if (*lda < std::max(1, *n))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *n))
     info = 6;
   else if (*incb == 0)
     info = 8;
@@ -152,9 +163,10 @@ EIGEN_BLAS_FUNC(trsv)
 }
 
 EIGEN_BLAS_FUNC(trmv)
-(const char *uplo, const char *opa, const char *diag, const int *n, const RealScalar *pa, const int *lda,
- RealScalar *pb, const int *incb) {
-  typedef void (*functype)(int, int, const Scalar *, int, const Scalar *, int, Scalar *, int, const Scalar &);
+(const char *uplo, const char *opa, const char *diag, const EIGEN_BLAS_INT *n, const RealScalar *pa,
+ const EIGEN_BLAS_INT *lda, RealScalar *pb, const EIGEN_BLAS_INT *incb) {
+  typedef void (*functype)(EIGEN_BLAS_INT, EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, const Scalar *,
+                           EIGEN_BLAS_INT, Scalar *, EIGEN_BLAS_INT, const Scalar &);
   using Eigen::ColMajor;
   using Eigen::Lower;
   using Eigen::OnTheLeft;
@@ -163,44 +175,50 @@ EIGEN_BLAS_FUNC(trmv)
   using Eigen::Upper;
   static const functype func[16] = {
       // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | 0, Scalar, false, Scalar, false, ColMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar, false,
+                                                         ColMajor>::run),
       // array index: TR    | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | 0, Scalar, false, Scalar, false, RowMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar, false,
+                                                         RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | 0, Scalar, Conj, Scalar, false, RowMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, Conj, Scalar, false,
+                                                         RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | 0, Scalar, false, Scalar, false, ColMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar, false,
+                                                         ColMajor>::run),
       // array index: TR    | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | 0, Scalar, false, Scalar, false, RowMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar, false,
+                                                         RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | 0, Scalar, Conj, Scalar, false, RowMajor>::run),
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, Conj, Scalar, false,
+                                                         RowMajor>::run),
       0,
       // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, false, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar, false,
                                                          ColMajor>::run),
       // array index: TR    | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, false, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar, false,
                                                          RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, Conj, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, Conj, Scalar, false,
                                                          RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, false, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar, false,
                                                          ColMajor>::run),
       // array index: TR    | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, false, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar, false,
                                                          RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, Conj, Scalar, false,
+      (Eigen::internal::triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, Conj, Scalar, false,
                                                          RowMajor>::run),
       0};
 
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   Scalar *b = reinterpret_cast<Scalar *>(pb);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*opa) == INVALID)
@@ -209,7 +227,7 @@ EIGEN_BLAS_FUNC(trmv)
     info = 3;
   else if (*n < 0)
     info = 4;
-  else if (*lda < std::max(1, *n))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *n))
     info = 6;
   else if (*incb == 0)
     info = 8;
@@ -238,16 +256,17 @@ EIGEN_BLAS_FUNC(trmv)
  *  m by n band matrix, with kl sub-diagonals and ku super-diagonals.
  */
 EIGEN_BLAS_FUNC(gbmv)
-(char *trans, int *m, int *n, int *kl, int *ku, RealScalar *palpha, RealScalar *pa, int *lda, RealScalar *px, int *incx,
- RealScalar *pbeta, RealScalar *py, int *incy) {
+(char *trans, EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, EIGEN_BLAS_INT *kl, EIGEN_BLAS_INT *ku, RealScalar *palpha,
+ RealScalar *pa, EIGEN_BLAS_INT *lda, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *pbeta, RealScalar *py,
+ EIGEN_BLAS_INT *incy) {
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
-  int coeff_rows = *kl + *ku + 1;
+  EIGEN_BLAS_INT coeff_rows = *kl + *ku + 1;
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (OP(*trans) == INVALID)
     info = 1;
   else if (*m < 0)
@@ -268,8 +287,8 @@ EIGEN_BLAS_FUNC(gbmv)
 
   if (*m == 0 || *n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  int actual_m = *m;
-  int actual_n = *n;
+  EIGEN_BLAS_INT actual_m = *m;
+  EIGEN_BLAS_INT actual_n = *n;
   if (OP(*trans) != NOTR) std::swap(actual_m, actual_n);
 
   const Scalar *actual_x = get_compact_vector(x, actual_n, *incx);
@@ -284,12 +303,12 @@ EIGEN_BLAS_FUNC(gbmv)
 
   ConstMatrixType mat_coeffs(a, coeff_rows, *n, *lda);
 
-  int nb = std::min(*n, (*m) + (*ku));
-  for (int j = 0; j < nb; ++j) {
-    int start = std::max(0, j - *ku);
-    int end = std::min((*m) - 1, j + *kl);
-    int len = end - start + 1;
-    int offset = (*ku) - j + start;
+  EIGEN_BLAS_INT nb = std::min(*n, (*m) + (*ku));
+  for (EIGEN_BLAS_INT j = 0; j < nb; ++j) {
+    EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *ku);
+    EIGEN_BLAS_INT end = std::min((*m) - 1, j + *kl);
+    EIGEN_BLAS_INT len = end - start + 1;
+    EIGEN_BLAS_INT offset = (*ku) - j + start;
     if (OP(*trans) == NOTR)
       make_vector(actual_y + start, len) += (alpha * actual_x[j]) * mat_coeffs.col(j).segment(offset, len);
     else if (OP(*trans) == TR)
@@ -315,11 +334,12 @@ EIGEN_BLAS_FUNC(gbmv)
  *  lower triangle stores A[i,j] at a[(i-j) + j*lda].
  */
 EIGEN_BLAS_FUNC(tbmv)
-(char *uplo, char *opa, char *diag, int *n, int *k, RealScalar *pa, int *lda, RealScalar *px, int *incx) {
+(char *uplo, char *opa, char *diag, EIGEN_BLAS_INT *n, EIGEN_BLAS_INT *k, RealScalar *pa, EIGEN_BLAS_INT *lda,
+ RealScalar *px, EIGEN_BLAS_INT *incx) {
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*opa) == INVALID)
@@ -349,20 +369,20 @@ EIGEN_BLAS_FUNC(tbmv)
     ConstMatrixType band(a, *k + 1, *n, *lda);
     if (op == NOTR) {
       if (upper) {
-        for (int j = 0; j < *n; ++j) {
+        for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
           if (actual_x[j] != Scalar(0)) {
-            int start = std::max(0, j - *k);
-            int len = j - start;
-            int offset = *k - (j - start);
+            EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *k);
+            EIGEN_BLAS_INT len = j - start;
+            EIGEN_BLAS_INT offset = *k - (j - start);
             Scalar temp = actual_x[j];
             if (len > 0) make_vector(actual_x + start, len) += temp * band.col(j).segment(offset, len);
             if (!unit) actual_x[j] = temp * band(*k, j);
           }
         }
       } else {
-        for (int j = *n - 1; j >= 0; --j) {
+        for (EIGEN_BLAS_INT j = *n - 1; j >= 0; --j) {
           if (actual_x[j] != Scalar(0)) {
-            int len = std::min(*n - 1, j + *k) - j;
+            EIGEN_BLAS_INT len = std::min(*n - 1, j + *k) - j;
             Scalar temp = actual_x[j];
             if (len > 0) make_vector(actual_x + j + 1, len) += temp * band.col(j).segment(1, len);
             if (!unit) actual_x[j] = temp * band(0, j);
@@ -371,10 +391,10 @@ EIGEN_BLAS_FUNC(tbmv)
       }
     } else if (op == TR) {
       if (upper) {
-        for (int j = *n - 1; j >= 0; --j) {
-          int start = std::max(0, j - *k);
-          int len = j - start;
-          int offset = *k - (j - start);
+        for (EIGEN_BLAS_INT j = *n - 1; j >= 0; --j) {
+          EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *k);
+          EIGEN_BLAS_INT len = j - start;
+          EIGEN_BLAS_INT offset = *k - (j - start);
           Scalar temp = actual_x[j];
           if (!unit) temp *= band(*k, j);
           if (len > 0)
@@ -382,8 +402,8 @@ EIGEN_BLAS_FUNC(tbmv)
           actual_x[j] = temp;
         }
       } else {
-        for (int j = 0; j < *n; ++j) {
-          int len = std::min(*n - 1, j + *k) - j;
+        for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
+          EIGEN_BLAS_INT len = std::min(*n - 1, j + *k) - j;
           Scalar temp = actual_x[j];
           if (!unit) temp *= band(0, j);
           if (len > 0) temp += (band.col(j).segment(1, len).cwiseProduct(make_vector(actual_x + j + 1, len))).sum();
@@ -393,18 +413,18 @@ EIGEN_BLAS_FUNC(tbmv)
     } else {
       // Conjugate transpose: .dot() computes conj(lhs) . rhs.
       if (upper) {
-        for (int j = *n - 1; j >= 0; --j) {
-          int start = std::max(0, j - *k);
-          int len = j - start;
-          int offset = *k - (j - start);
+        for (EIGEN_BLAS_INT j = *n - 1; j >= 0; --j) {
+          EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *k);
+          EIGEN_BLAS_INT len = j - start;
+          EIGEN_BLAS_INT offset = *k - (j - start);
           Scalar temp = actual_x[j];
           if (!unit) temp *= Eigen::numext::conj(band(*k, j));
           if (len > 0) temp += band.col(j).segment(offset, len).dot(make_vector(actual_x + start, len));
           actual_x[j] = temp;
         }
       } else {
-        for (int j = 0; j < *n; ++j) {
-          int len = std::min(*n - 1, j + *k) - j;
+        for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
+          EIGEN_BLAS_INT len = std::min(*n - 1, j + *k) - j;
           Scalar temp = actual_x[j];
           if (!unit) temp *= Eigen::numext::conj(band(0, j));
           if (len > 0) temp += band.col(j).segment(1, len).dot(make_vector(actual_x + j + 1, len));
@@ -416,18 +436,20 @@ EIGEN_BLAS_FUNC(tbmv)
     // Scalar path: for narrow bandwidth, avoid Map overhead.
     if (op == NOTR) {
       if (upper) {
-        for (int j = 0; j < *n; ++j) {
+        for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
           if (actual_x[j] != Scalar(0)) {
             Scalar temp = actual_x[j];
-            for (int i = std::max(0, j - *k); i < j; ++i) actual_x[i] += temp * a[(*k + i - j) + j * *lda];
+            for (EIGEN_BLAS_INT i = std::max<EIGEN_BLAS_INT>(0, j - *k); i < j; ++i)
+              actual_x[i] += temp * a[(*k + i - j) + j * *lda];
             if (!unit) actual_x[j] = temp * a[*k + j * *lda];
           }
         }
       } else {
-        for (int j = *n - 1; j >= 0; --j) {
+        for (EIGEN_BLAS_INT j = *n - 1; j >= 0; --j) {
           if (actual_x[j] != Scalar(0)) {
             Scalar temp = actual_x[j];
-            for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i) actual_x[i] += temp * a[(i - j) + j * *lda];
+            for (EIGEN_BLAS_INT i = j + 1; i <= std::min(*n - 1, j + *k); ++i)
+              actual_x[i] += temp * a[(i - j) + j * *lda];
             if (!unit) actual_x[j] = temp * a[j * *lda];
           }
         }
@@ -436,17 +458,18 @@ EIGEN_BLAS_FUNC(tbmv)
       // Transpose or conjugate transpose.
       auto maybe_conj = [op](Scalar val) -> Scalar { return op == ADJ ? Eigen::numext::conj(val) : val; };
       if (upper) {
-        for (int j = *n - 1; j >= 0; --j) {
+        for (EIGEN_BLAS_INT j = *n - 1; j >= 0; --j) {
           Scalar temp = actual_x[j];
           if (!unit) temp *= maybe_conj(a[*k + j * *lda]);
-          for (int i = std::max(0, j - *k); i < j; ++i) temp += maybe_conj(a[(*k + i - j) + j * *lda]) * actual_x[i];
+          for (EIGEN_BLAS_INT i = std::max<EIGEN_BLAS_INT>(0, j - *k); i < j; ++i)
+            temp += maybe_conj(a[(*k + i - j) + j * *lda]) * actual_x[i];
           actual_x[j] = temp;
         }
       } else {
-        for (int j = 0; j < *n; ++j) {
+        for (EIGEN_BLAS_INT j = 0; j < *n; ++j) {
           Scalar temp = actual_x[j];
           if (!unit) temp *= maybe_conj(a[j * *lda]);
-          for (int i = j + 1; i <= std::min(*n - 1, j + *k); ++i)
+          for (EIGEN_BLAS_INT i = j + 1; i <= std::min(*n - 1, j + *k); ++i)
             temp += maybe_conj(a[(i - j) + j * *lda]) * actual_x[i];
           actual_x[j] = temp;
         }
@@ -469,8 +492,9 @@ EIGEN_BLAS_FUNC(tbmv)
  *  routine. Such tests must be performed before calling this routine.
  */
 EIGEN_BLAS_FUNC(tbsv)
-(char *uplo, char *op, char *diag, int *n, int *k, RealScalar *pa, int *lda, RealScalar *px, int *incx) {
-  typedef void (*functype)(int, int, const Scalar *, int, Scalar *);
+(char *uplo, char *op, char *diag, EIGEN_BLAS_INT *n, EIGEN_BLAS_INT *k, RealScalar *pa, EIGEN_BLAS_INT *lda,
+ RealScalar *px, EIGEN_BLAS_INT *incx) {
+  typedef void (*functype)(EIGEN_BLAS_INT, EIGEN_BLAS_INT, const Scalar *, EIGEN_BLAS_INT, Scalar *);
   using Eigen::ColMajor;
   using Eigen::Lower;
   using Eigen::OnTheLeft;
@@ -479,40 +503,50 @@ EIGEN_BLAS_FUNC(tbsv)
   using Eigen::Upper;
   static const functype func[16] = {
       // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | 0, Scalar, false, Scalar, ColMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar,
+                                                       ColMajor>::run),
       // array index: TR    | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | 0, Scalar, false, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar,
+                                                       RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | 0, Scalar, Conj, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | 0, Scalar, Conj, Scalar, RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | 0, Scalar, false, Scalar, ColMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar,
+                                                       ColMajor>::run),
       // array index: TR    | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | 0, Scalar, false, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar,
+                                                       RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | 0, Scalar, Conj, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | 0, Scalar, Conj, Scalar, RowMajor>::run),
       0,
       // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | UnitDiag, Scalar, false, Scalar, ColMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar,
+                                                       ColMajor>::run),
       // array index: TR    | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | UnitDiag, Scalar, false, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar,
+                                                       RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | UnitDiag, Scalar, Conj, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, Conj, Scalar,
+                                                       RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Lower | UnitDiag, Scalar, false, Scalar, ColMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar,
+                                                       ColMajor>::run),
       // array index: TR    | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | UnitDiag, Scalar, false, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar,
+                                                       RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::band_solve_triangular_selector<int, Upper | UnitDiag, Scalar, Conj, Scalar, RowMajor>::run),
+      (Eigen::internal::band_solve_triangular_selector<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, Conj, Scalar,
+                                                       RowMajor>::run),
       0,
   };
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar *x = reinterpret_cast<Scalar *>(px);
-  int coeff_rows = *k + 1;
+  EIGEN_BLAS_INT coeff_rows = *k + 1;
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*op) == INVALID)
@@ -531,7 +565,7 @@ EIGEN_BLAS_FUNC(tbsv)
 
   if (*n == 0 || (*k == 0 && DIAG(*diag) == UNIT)) return;
 
-  int actual_n = *n;
+  EIGEN_BLAS_INT actual_n = *n;
 
   Scalar *actual_x = get_compact_vector(x, actual_n, *incx);
 
@@ -550,8 +584,9 @@ EIGEN_BLAS_FUNC(tbsv)
  *  where x is an n element vector and  A is an n by n unit, or non-unit,
  *  upper or lower triangular matrix, supplied in packed form.
  */
-EIGEN_BLAS_FUNC(tpmv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap, RealScalar *px, int *incx) {
-  typedef void (*functype)(int, const Scalar *, const Scalar *, Scalar *, Scalar);
+EIGEN_BLAS_FUNC(tpmv)
+(char *uplo, char *opa, char *diag, EIGEN_BLAS_INT *n, RealScalar *pap, RealScalar *px, EIGEN_BLAS_INT *incx) {
+  typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, const Scalar *, Scalar *, Scalar);
   using Eigen::ColMajor;
   using Eigen::Lower;
   using Eigen::OnTheLeft;
@@ -560,50 +595,50 @@ EIGEN_BLAS_FUNC(tpmv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap
   using Eigen::Upper;
   static const functype func[16] = {
       // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | 0, Scalar, false, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar, false,
                                                                 ColMajor>::run),
       // array index: TR    | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | 0, Scalar, false, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar, false,
                                                                 RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | 0, Scalar, Conj, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, Conj, Scalar, false,
                                                                 RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | 0, Scalar, false, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | 0, Scalar, false, Scalar, false,
                                                                 ColMajor>::run),
       // array index: TR    | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | 0, Scalar, false, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, false, Scalar, false,
                                                                 RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | 0, Scalar, Conj, Scalar, false,
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | 0, Scalar, Conj, Scalar, false,
                                                                 RowMajor>::run),
       0,
       // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, false, Scalar, false,
-                                                                ColMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar,
+                                                                false, ColMajor>::run),
       // array index: TR    | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, false, Scalar, false,
-                                                                RowMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar,
+                                                                false, RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, Conj, Scalar, false,
-                                                                RowMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, Conj, Scalar,
+                                                                false, RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Lower | UnitDiag, Scalar, false, Scalar, false,
-                                                                ColMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Lower | UnitDiag, Scalar, false, Scalar,
+                                                                false, ColMajor>::run),
       // array index: TR    | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, false, Scalar, false,
-                                                                RowMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, false, Scalar,
+                                                                false, RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_matrix_vector_product<int, Upper | UnitDiag, Scalar, Conj, Scalar, false,
-                                                                RowMajor>::run),
+      (Eigen::internal::packed_triangular_matrix_vector_product<EIGEN_BLAS_INT, Upper | UnitDiag, Scalar, Conj, Scalar,
+                                                                false, RowMajor>::run),
       0};
 
   Scalar *ap = reinterpret_cast<Scalar *>(pap);
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*opa) == INVALID)
@@ -641,8 +676,9 @@ EIGEN_BLAS_FUNC(tpmv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap
  *  No test for singularity or near-singularity is included in this
  *  routine. Such tests must be performed before calling this routine.
  */
-EIGEN_BLAS_FUNC(tpsv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap, RealScalar *px, int *incx) {
-  typedef void (*functype)(int, const Scalar *, Scalar *);
+EIGEN_BLAS_FUNC(tpsv)
+(char *uplo, char *opa, char *diag, EIGEN_BLAS_INT *n, RealScalar *pap, RealScalar *px, EIGEN_BLAS_INT *incx) {
+  typedef void (*functype)(EIGEN_BLAS_INT, const Scalar *, Scalar *);
   using Eigen::ColMajor;
   using Eigen::Lower;
   using Eigen::OnTheLeft;
@@ -651,48 +687,50 @@ EIGEN_BLAS_FUNC(tpsv)(char *uplo, char *opa, char *diag, int *n, RealScalar *pap
   using Eigen::Upper;
   static const functype func[16] = {
       // array index: NOTR  | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, false,
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | 0, false,
                                                        ColMajor>::run),
       // array index: TR    | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, false,
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | 0, false,
                                                        RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, Conj, RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | 0, Conj,
+                                                       RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | 0, false,
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | 0, false,
                                                        ColMajor>::run),
       // array index: TR    | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, false,
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | 0, false,
                                                        RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (NUNIT << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | 0, Conj, RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | 0, Conj,
+                                                       RowMajor>::run),
       0,
       // array index: NOTR  | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, false,
-                                                       ColMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | UnitDiag,
+                                                       false, ColMajor>::run),
       // array index: TR    | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, false,
-                                                       RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | UnitDiag,
+                                                       false, RowMajor>::run),
       // array index: ADJ   | (UP << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, Conj,
-                                                       RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | UnitDiag,
+                                                       Conj, RowMajor>::run),
       0,
       // array index: NOTR  | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Lower | UnitDiag, false,
-                                                       ColMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Lower | UnitDiag,
+                                                       false, ColMajor>::run),
       // array index: TR    | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, false,
-                                                       RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | UnitDiag,
+                                                       false, RowMajor>::run),
       // array index: ADJ   | (LO << 2) | (UNIT  << 3)
-      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, int, OnTheLeft, Upper | UnitDiag, Conj,
-                                                       RowMajor>::run),
+      (Eigen::internal::packed_triangular_solve_vector<Scalar, Scalar, EIGEN_BLAS_INT, OnTheLeft, Upper | UnitDiag,
+                                                       Conj, RowMajor>::run),
       0};
 
   Scalar *ap = reinterpret_cast<Scalar *>(pap);
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  int info = 0;
+  EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
     info = 1;
   else if (OP(*opa) == INVALID)

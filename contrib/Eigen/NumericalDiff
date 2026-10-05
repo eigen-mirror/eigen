@@ -28,13 +28,15 @@ namespace Eigen {
  * is a different method and has its own module in Eigen : \ref
  * AutoDiff_Module.
  *
- * Currently only "Forward" and "Central" schemes are implemented. Those
- * are basic methods, and there exist some more elaborated way of
- * computing such approximates. They are implemented using both
- * proprietary and free software, and usually requires linking to an
- * external library. It is very easy for you to write a functor
- * using such software, and the purpose is quite orthogonal to what we
- * want to achieve with Eigen.
+ * NumericalDiff implements the "Forward" and "Central" schemes. Stencil
+ * computes finite-difference weights for arbitrary fixed-size grids and
+ * derivative orders; the caller supplies the points and chooses the
+ * step size. The "Forward" and "Central" schemes are basic methods, and
+ * there exist some more elaborated way of computing such approximates.
+ * They are implemented using both proprietary and free software, and
+ * usually requires linking to an external library. It is very easy for
+ * you to write a functor using such software, and the purpose is quite
+ * orthogonal to what we want to achieve with Eigen.
  *
  * This is why we will not provide wrappers for every great numerical
  * differentiation software that exist, but should rather stick with those
@@ -53,6 +55,7 @@ namespace Eigen {
 
 // IWYU pragma: begin_exports
 #include "src/NumericalDiff/NumericalDiff.h"
+#include "src/NumericalDiff/Stencil.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"

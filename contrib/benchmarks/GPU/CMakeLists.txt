@@ -54,7 +54,7 @@ eigen_add_gpu_benchmark(bench_gemm bench_gemm.cpp LIBRARIES CUDA::cublasLt)
 eigen_add_gpu_benchmark(bench_gemm_float bench_gemm.cpp LIBRARIES CUDA::cublasLt DEFINITIONS SCALAR=float)
 
 # Overhead micro-benchmarks: per-call allocation, hidden syncs, host-side copies.
-eigen_add_gpu_benchmark(bench_overhead bench_overhead.cpp LIBRARIES CUDA::cublasLt CUDA::cusparse)
+eigen_add_gpu_benchmark(bench_overhead bench_overhead.cpp LIBRARIES CUDA::cublasLt CUDA::cusparse CUDA::npps CUDA::nppc)
 
 # Unified/zero-copy memory: storage strategies for integrated GPUs (Jetson).
 eigen_add_gpu_benchmark(bench_unified_memory bench_unified_memory.cpp)

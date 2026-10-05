@@ -317,6 +317,7 @@ void bunchkaufman_determinant_empty() {
 // det(D) can be representable while the block determinants it is built from are not. The blocks below are
 // [[s/2, s], [s, s/2]] with det = -3s^2/4 at s = 2^600 and s = 2^-600, one overflowing and one
 // underflowing, whose product is exactly 9/16. Multiplying the blocks directly gives inf * 0 = NaN.
+template <typename = void>
 void bunchkaufman_determinant_mixed_scale() {
   MatrixXd a = MatrixXd::Zero(4, 4);
   for (int b = 0; b < 2; ++b) {
@@ -392,6 +393,7 @@ void bunchkaufman_determinant_subnormal_block() {
 // row, which can dwarf |d21|. So d22/d21 can overflow, and the scaled determinant comes out +-inf, or 0*inf
 // = NaN where d11 is zero; +inf and NaN count the block as definite with the sign of its trace, which is
 // positive here. The criterion puts the true magnitude below 1, which is what rejects all three.
+template <typename = void>
 void bunchkaufman_inertia_wide_2x2_block() {
   // The 2x2 block is (d11, d21, d22) = (a00, 1e-10, 1e299), determinant a00*1e299 - 1e-20 < 0 for every
   // a00 below, so it contributes one eigenvalue of each sign. The block's inverse has entries of order
@@ -414,6 +416,7 @@ void bunchkaufman_inertia_wide_2x2_block() {
 // The scaling above divides by numext::abs(d21), so it relies on that magnitude not underflowing: for
 // |3u + 4iu| Eigen's hypot scales by the larger component instead of summing squares, giving 5u exactly
 // where u^2 would be zero. Not template code, because building the off-diagonal needs a complex literal.
+template <typename = void>
 void bunchkaufman_determinant_subnormal_block_complex() {
   typedef std::complex<double> Scalar;
 
@@ -738,12 +741,12 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   // Subnormal 2x2 block: the determinant underflows, its log and sign do not.
   CALL_SUBTEST_5(bunchkaufman_determinant_subnormal_block<MatrixXd>());
   CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block<MatrixXcd>());
-  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex());
+  CALL_SUBTEST_6(bunchkaufman_determinant_subnormal_block_complex<>());
   CALL_SUBTEST_8(bunchkaufman_determinant_subnormal_block<MatrixXf>());
-  CALL_SUBTEST_5(bunchkaufman_inertia_wide_2x2_block());
+  CALL_SUBTEST_5(bunchkaufman_inertia_wide_2x2_block<>());
 
   // Mixed-scale 2x2 blocks: the block determinants leave the representable range, their product does not.
-  CALL_SUBTEST_5(bunchkaufman_determinant_mixed_scale());
+  CALL_SUBTEST_5(bunchkaufman_determinant_mixed_scale<>());
 
   // Problem-size constructors.
   CALL_SUBTEST_8(BunchKaufman<MatrixXf>(10));

@@ -153,6 +153,11 @@ Scalar alpha = dot_val / norm_sq;      // sync here (implicit conversion)
 d_x += alpha * d_p;                    // host scalar * DeviceMatrix (axpy)
 ```
 
+Every reduction also has an overload that writes into an existing
+`DeviceScalar` on a given Context, `d_x.dot(ctx, d_y, s)`, where `s` lives on
+`ctx.stream()`: it reuses the scalar's storage, so a loop, or a captured CUDA
+graph, repeats the reduction without allocating.
+
 Division between `DeviceScalar` values (real types only) is performed on
 device via NPP, avoiding extra synchronizations. Small device allocations
 (including `DeviceScalar`) go through the stream-ordered allocator like every
@@ -221,6 +226,7 @@ to link the others:
 | Dense solvers (LLT, LU, QR, SVD, EVD)   | `-lcusolver -lcublas`     |
 | FFT (`gpu::FFT`)                        | `-lcufft -lcublas`        |
 | SpMV / SpMM (`gpu::SparseContext`)      | `-lcusparse -lcublas`     |
+| `norm()`, `DeviceScalar` arithmetic, `/=`, `cwiseProduct` | `-lnpps -lnppc` |
 | Sparse direct solvers (cuDSS)           | `-lcudss -lcublas`        |
 
 cuBLAS is required by `DeviceMatrix` itself (every `Context` creates a cuBLAS
@@ -270,7 +276,7 @@ device-side scalar arithmetic, which uses the signal-processing functions of
 ```cpp
 // Dot product and norms (return DeviceScalar -- no sync until read)
 auto dot_val = d_x.dot(d_y);          // cublasDdot / cublasCdotc
-auto norm_val = d_r.norm();            // cublasDnrm2
+auto norm_val = d_r.norm();            // sqrt(dot): cublasDdot, then NPP sqrt on device
 double n = norm_val;                   // implicit conversion triggers sync
 
 // Vector arithmetic (cuBLAS axpy / geam)
@@ -279,7 +285,7 @@ d_x -= alpha * d_p;                    // axpy: x = x - alpha * p
 d_x *= alpha;                          // scal: x = alpha * x
 d_x /= alpha;                          // NPP divide-by-constant: x = x / alpha (true division for real Scalar)
 d_r.setZero();                         // cudaMemsetAsync
-auto s = d_r.stableNorm();             // same as norm(): cuBLAS nrm2 is already overflow-safe
+auto s = d_r.stableNorm();             // cublasDnrm2: scaled, overflow-safe
 
 // Copies are device-to-device (cuBLAS copy) on the thread-local Context; no host round trip.
 // They exist so that existing Eigen algorithm code runs on the GPU unchanged; code written for
@@ -326,6 +332,11 @@ factorization status (one stream synchronization); release builds
 (`EIGEN_NO_DEBUG`/`NDEBUG`) skip the check *and* the sync, making the
 expression fully asynchronous — use the cached `gpu::LLT` / `gpu::LU` classes
 and `info()` when numerical failure must be detected.
+
+cuSOLVER 11.4.1 and 11.4.2 (CUDA 11.8 and 12.0) have a defect here:
+`cusolverDnXpotrf` reports success on a matrix that is not positive definite
+and returns a factor full of NaN, so `gpu::LLT::info()` cannot detect that
+failure on those versions. cuSOLVER 11.4.4 (CUDA 12.1) and later report it.
 
 **Cached factorization** -- Factor once, solve many times:
 
@@ -381,7 +392,8 @@ auto d_V = es.d_eigenvectors();           // DeviceMatrix view of eigenvectors
 The cached API keeps the factored matrix on device, avoiding redundant
 host-device transfers and re-factorizations. All five solvers accept
 `compute(DeviceMatrix&&)` to adopt the input and factor it in place with no
-copy (for QR/SVD with m < n the internal transpose still copies), and all five
+copy (for QR/SVD with m < n the internal transpose still copies, and a view is
+always copied because its storage belongs to another object), and all five
 can bind to a `gpu::Context` to share its stream and handles. All solvers also
 accept host dense expressions directly as a convenience (e.g.,
 `gpu::LLT<double> llt(A)` or `qr.solve(B)`), which handles upload/download
@@ -740,6 +752,44 @@ legacy stream the allocator uses for ordering). Consequences:
 - `DeviceMatrix::resize()` is capacity-aware: shrinking or same-size reshapes
   reuse the existing allocation (contents are still discarded).
 
+### Error handling {#eigen_gpu_errors}
+
+Every CUDA runtime and library call the module makes is checked, in release
+builds as in debug builds. A failed call prints `file:line: call: error` to
+`stderr` and stops the program:
+
+- `std::abort()` when `EIGEN_NO_DEBUG` (or `NDEBUG`) is defined;
+- a failed `eigen_assert` otherwise.
+
+`error` is the status name where the library provides one
+(`cudaErrorInvalidValue`, `CUBLAS_STATUS_INVALID_VALUE`, ...) and
+`<library> status <code>` for cuFFT, cuDSS, NPP and cuBLAS before 11.6.1.
+There is no mode that ignores a failure: the failed call has not done its work,
+and a sticky error (say, an illegal address in a kernel) makes every later call
+on the device fail as well.
+
+To handle failures yourself, define
+`EIGEN_GPU_CHECK_FAILED(error, expression, file, line)` before including the
+module. `error`, `expression` and `file` are C strings; `line` is an `int`. For
+example, to turn failures into exceptions:
+
+```cpp
+#define EIGEN_GPU_CHECK_FAILED(error, expression, file, line) \
+  throw std::runtime_error(std::string(file) + ": " + (expression) + ": " + (error))
+#include <contrib/Eigen/GPU>
+```
+
+Destructors release their resources without the checks, so a throwing handler
+never runs inside one. A throw also restores the library-handle state an
+operation changes temporarily (the cuBLAS pointer mode), so the context stays
+usable; only the interrupted operation's output is unspecified. A handler that
+returns lets execution continue past the failed call, which is only useful in
+tests.
+
+Numerical failures (a matrix that is not positive definite, a singular
+factorization) are not call failures: they are reported by `info()` as
+described above.
+
 ## Reference
 
 ### Supported scalar types
@@ -777,8 +827,9 @@ noted otherwise).
 | `x -= alpha * y` | `cublasXaxpy` | alpha negated |
 | `x *= alpha` | `cublasXscal` | alpha (host or DeviceScalar) |
 | `x.dot(y)` | `cublasXdot` / `cublasXdotc` | returns `DeviceScalar` |
-| `x.norm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
-| `x.squaredNorm()` | `cublasXdot(x, x)` | returns `DeviceScalar<RealScalar>` |
+| `x.norm()` | `cublasXdot(x, x)`, then `nppsSqrt` | as `squaredNorm()`, then its square root on device |
+| `x.stableNorm()` | `cublasXnrm2` | returns `DeviceScalar<RealScalar>` |
+| `x.squaredNorm()` | `cublasXdot(x, x)` | real dot over the `2n` real and imaginary parts for complex `x`; returns `DeviceScalar<RealScalar>` |
 | `d_y = view * d_x` | `cusparseSpMV` | device-resident SpMV |
 | `d_Y = view * d_X` | `cusparseSpMM` | device-resident SpMM (RHS with >1 column) |
 | same, `view` of a `BlockSparseMatrix` | `cusparseSpMV` / `cusparseSpMM` on a BSR descriptor | opA=N, row-major blocks; op(A) formed on the host |
@@ -812,6 +863,7 @@ Index   rows()
 Index   cols()
 size_t  sizeInBytes()
 bool    empty()
+bool    isView()                                         // Holds storage borrowed through view()
 Scalar* data()                                           // Raw device pointer
 void    resize(Index rows, Index cols)                   // Discard contents; keeps the allocation
                                                          // when it is already large enough
@@ -828,8 +880,11 @@ DeviceMatrix&      noalias()                             // No-op (all ops are i
 
 // BLAS Level-1 (all have overloads with explicit gpu::Context& parameter)
 DeviceScalar<Scalar>     dot(const DeviceMatrix& other)  // cuBLAS dot/dotc -> DeviceScalar
-DeviceScalar<RealScalar> norm()                          // cuBLAS nrm2 -> DeviceScalar
+DeviceScalar<RealScalar> norm()                          // sqrt(squaredNorm()) -> DeviceScalar, unscaled like MatrixBase::norm()
+DeviceScalar<RealScalar> stableNorm()                    // cuBLAS nrm2 (scaled, overflow-safe) -> DeviceScalar
 DeviceScalar<RealScalar>  squaredNorm()                    // dot(self, self) -> DeviceScalar (no sync)
+void dot(ctx, other, DeviceScalar<Scalar>& result)       // Each reduction into an existing DeviceScalar
+void squaredNorm / norm / stableNorm(ctx, result)        // on ctx's stream, reusing its storage: no allocation
 void                     setZero()                       // cudaMemsetAsync
 void                     addScaled(gpu::Context&, Scalar alpha, const DeviceMatrix& x)  // this += alpha * x (axpy)
 void                     scale(gpu::Context&, Scalar alpha)                              // this *= alpha (scal)
@@ -889,6 +944,7 @@ cublasHandle_t     cublasHandle()
 cusolverDnHandle_t cusolverHandle()                        // Lazy: creates the handle on first call
 cublasLtHandle_t   cublasLtHandle()                        // Lazy-initialized
 cusparseHandle_t   cusparseHandle()                        // Lazy-initialized
+const NppStreamContext& nppStreamContext()                // NPP context for stream(), filled in at construction
 
 internal::DeviceBuffer&          gemmWorkspace()            // cublasLtMatmul scratch (lazy-grown per context)
 internal::CublasLtPlanCache&     gemmPlanCache()            // shape-keyed plan cache (per context, ~8-entry LRU)
@@ -913,11 +969,11 @@ gpu::LLT(Context& ctx, ...)                               // Bind + factorize in
 
 gpu::LLT&            compute(const DenseBase<D>& A)       // Upload + factorize
 gpu::LLT&            compute(const DeviceMatrix& d_A)     // D2D copy + factorize
-gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (no copy)
+gpu::LLT&            compute(DeviceMatrix&& d_A)          // Adopt + factorize (a view is copied)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async, stays on device)
-DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc
+DeviceMatrix       solve(DeviceMatrix&& d_B)             // In-place: consumes RHS, no copy/alloc (a view is copied)
 
 ComputationInfo    info()                                // Lazy sync on first call: Success or NumericalIssue
 Index              rows() / cols()
@@ -942,10 +998,15 @@ QR factorization via `cusolverDnXgeqrf`. Solve uses ORMQR (apply Q^H) + TRSM
 
 ```cpp
 gpu::QR()                                                  // Default construct
+gpu::QR(Context& ctx)                                      // Bind to ctx's stream + handles
 gpu::QR(const DenseBase<D>& A)                             // Convenience: upload + factorize
+gpu::QR(const DeviceMatrix& d_A)                           // Convenience: D2D copy + factorize
+gpu::QR(DeviceMatrix&& d_A)                                // Convenience: adopt (m >= n) + factorize
+gpu::QR(Context& ctx, ...)                                 // Bind + factorize in one step
 
 gpu::QR&             compute(const DenseBase<D>& A)        // Upload + factorize
 gpu::QR&             compute(const DeviceMatrix& d_A)      // D2D copy + factorize
+gpu::QR&             compute(DeviceMatrix&& d_A)           // Adopt + factorize (copies when m < n or for a view)
 
 PlainMatrix        solve(const MatrixBase<D>& B)         // -> host Matrix (syncs)
 DeviceMatrix       solve(const DeviceMatrix& d_B)        // -> DeviceMatrix (async)
@@ -964,10 +1025,15 @@ handled by internal transpose.
 
 ```cpp
 gpu::SVD()                                                 // Default construct, then call compute()
+gpu::SVD(Context& ctx)                                     // Bind to ctx's stream + handles
 gpu::SVD(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)  // Convenience
+gpu::SVD(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)  // D2D copy
+gpu::SVD(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)  // Adopt (m >= n)
+gpu::SVD(Context& ctx, ...)                                // Bind + decompose in one step
 
 gpu::SVD&            compute(const DenseBase<D>& A, unsigned options = ComputeThinU | ComputeThinV)
 gpu::SVD&            compute(const DeviceMatrix& d_A, unsigned options = ComputeThinU | ComputeThinV)
+gpu::SVD&            compute(DeviceMatrix&& d_A, unsigned options = ComputeThinU | ComputeThinV)
 
 RealVector         singularValues()                      // -> host vector (syncs, downloads)
 PlainMatrix        matrixU()                             // -> host Matrix (syncs, downloads)
@@ -1000,14 +1066,19 @@ views are owning (one `cublasXgeam` adjoint pass).
 ### `gpu::SelfAdjointEigenSolver<Scalar>` -- Eigendecomposition (cuSOLVER)
 
 Symmetric/Hermitian eigenvalue decomposition via `cusolverDnXsyevd`.
-`ComputeMode` enum: `EigenvaluesOnly`, `ComputeEigenvectors`.
+`options`: `ComputeEigenvectors` (the default) or `EigenvaluesOnly`.
 
 ```cpp
 gpu::SelfAdjointEigenSolver()                              // Default construct, then call compute()
-gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(Context& ctx)                  // Bind to ctx's stream + handles
+gpu::SelfAdjointEigenSolver(const DenseBase<D>& A, int options = ComputeEigenvectors)  // Convenience
+gpu::SelfAdjointEigenSolver(const DeviceMatrix& d_A, int options = ComputeEigenvectors)  // D2D copy
+gpu::SelfAdjointEigenSolver(DeviceMatrix&& d_A, int options = ComputeEigenvectors)  // Adopt (a view is copied)
+gpu::SelfAdjointEigenSolver(Context& ctx, ...)             // Bind + decompose in one step
 
-gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, ComputeMode mode = ComputeEigenvectors)
-gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, ComputeMode mode = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DenseBase<D>& A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(const DeviceMatrix& d_A, int options = ComputeEigenvectors)
+gpu::SelfAdjointEigenSolver& compute(DeviceMatrix&& d_A, int options = ComputeEigenvectors)
 
 RealVector         eigenvalues()                         // -> host vector (syncs, downloads, ascending order)
 PlainMatrix        eigenvectors()                        // -> host Matrix (syncs, downloads, columns)
@@ -1213,15 +1284,15 @@ template compatibility.
 
 | File | Depends on | Contents |
 |------|-----------|----------|
-| `GpuSupport.h` | `<cuda_runtime.h>` | Error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
+| `GpuSupport.h` | `<cuda_runtime.h>` | `EIGEN_GPU_CHECK_FAILED`, runtime error macro, `DeviceBuffer`, `DeviceBufferPool`, `cuda_data_type<>` |
 | `DeviceMatrix.h` | `GpuSupport.h` | `gpu::DeviceMatrix<>`, `gpu::HostTransfer<>` |
 | `DeviceExpr.h` | `DeviceMatrix.h` | GEMM, geam, and device-scalar expression wrappers |
 | `DeviceBlasExpr.h` | `DeviceMatrix.h` | TRSM, SYMM, SYRK expression wrappers |
 | `DeviceSolverExpr.h` | `DeviceMatrix.h` | Solver expression wrappers (LLT, LU) |
 | `DeviceScalar.h` | `GpuSupport.h`, `DeviceScalarOps.h` | `gpu::DeviceScalar<>` (device-resident scalar) |
-| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/cwiseProduct via NPP |
+| `DeviceScalarOps.h` | `<npps_*.h>` | Scalar div/neg/sqrt/cwiseProduct via NPP, NPP error macro |
 | `DeviceDispatch.h` | all above | All dispatch functions, BLAS-1 out-of-line defs, `gpu::Assignment` |
-| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h` | `gpu::Context` |
+| `GpuContext.h` | `CuBlasSupport.h`, `CuSolverSupport.h`, `CuSparseSupport.h` | `gpu::Context` |
 | `CuBlasSupport.h` | `GpuSupport.h`, `<cublas_v2.h>`, `<cublasLt.h>` | cuBLAS error macro, type-specific wrappers |
 | `CuSolverSupport.h` | `GpuSupport.h`, `<cusolverDn.h>` | cuSOLVER params, fill-mode mapping |
 | `GpuSolverContext.h` | `CuSolverSupport.h`, `CuBlasSupport.h` | Shared solver context (stream, handles, scratch) |
@@ -1245,9 +1316,7 @@ template compatibility.
 ```bash
 cmake -G Ninja -B build -S . \
   -DEIGEN_TEST_CUDA=ON \
-  -DEIGEN_CUDA_COMPUTE_ARCH="70" \
-  -DEIGEN_TEST_CUBLAS=ON \
-  -DEIGEN_TEST_CUSOLVER=ON
+  -DEIGEN_CUDA_COMPUTE_ARCH="70"
 
 cmake --build build --target cublas cusolver_llt cusolver_lu \
   cusolver_qr cusolver_svd cusolver_eigen \

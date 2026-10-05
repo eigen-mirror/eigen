@@ -474,6 +474,7 @@ void verify_complex_nan_head() {
   VERIFY((numext::isnan)(beta));
 }
 
+template <typename = void>
 void verify_custom_complex_small_tail() {
   typedef reordered_complex::Complex<float> Scalar;
   const float coefficient = 2e-16f;
@@ -492,6 +493,7 @@ void verify_custom_complex_small_tail() {
   VERIFY_IS_EQUAL(numext::imag(essential[0]), 0.0f);
 }
 
+template <typename = void>
 EIGEN_DONT_INLINE void verify_householder_flushed_tail() {
   volatile float normal_min_input = (std::numeric_limits<float>::min)();
   const float normal_min = normal_min_input;
@@ -510,6 +512,7 @@ EIGEN_DONT_INLINE void verify_householder_flushed_tail() {
   verify_real_householder_result(vector, essential, tau, beta);
 }
 
+template <typename = void>
 EIGEN_DONT_INLINE void verify_householder_dimension_scaled_tail() {
   // The dominant square is just above the length-independent threshold, while the many minor squares are normal
   // inputs whose individually subnormal products become significant in aggregate.
@@ -533,6 +536,7 @@ EIGEN_DONT_INLINE void verify_householder_dimension_scaled_tail() {
   VERIFY(std::abs(double(beta) + expected_norm) <= 8 * epsilon * expected_norm);
 }
 
+template <typename = void>
 void householder_small_tail_layouts() {
   const float coefficient = 1e-20f;
   Vector4f column;
@@ -574,6 +578,7 @@ void householder_small_tail_layouts() {
   VERIFY_IS_EQUAL(essential_storage[5], 23.0f);
 }
 
+template <typename = void>
 void householder_small_tail() {
   {
     const float coefficient = 1e-20f;
@@ -680,7 +685,7 @@ void householder_small_tail() {
   verify_low_precision_complex_zero_tail<bfloat16>();
   verify_complex_nan_head<float>();
   verify_complex_nan_head<double>();
-  verify_custom_complex_small_tail();
+  verify_custom_complex_small_tail<>();
 
   {
     const float coefficient = 1e-20f;
@@ -694,17 +699,17 @@ void householder_small_tail() {
     VERIFY(relative_residual <= 16 * double(NumTraits<float>::epsilon()));
   }
 
-  verify_householder_flushed_tail();
-  verify_householder_dimension_scaled_tail();
+  verify_householder_flushed_tail<>();
+  verify_householder_dimension_scaled_tail<>();
   {
     Eigen::ScopedFlushToZero flush_to_zero;
     if (flush_to_zero.isSupported()) {
-      verify_householder_flushed_tail();
-      verify_householder_dimension_scaled_tail();
+      verify_householder_flushed_tail<>();
+      verify_householder_dimension_scaled_tail<>();
     }
   }
 
-  householder_small_tail_layouts();
+  householder_small_tail_layouts<>();
 
   constexpr Index size = 65;
   const float coefficient = 1e-22f;
@@ -734,6 +739,7 @@ void verify_large_householder_result(const VectorType& vector, const EssentialTy
   verify_real_householder_result((vector / scale).eval(), essential, tau, RealScalar(beta / scale));
 }
 
+template <typename = void>
 void householder_large_components() {
   {
     // The head coefficient squares out of the float range; the tail coefficient does not. The direct
@@ -1104,6 +1110,7 @@ void householder_structured_products(Index size) {
 
 // D * H scales the rows of H from the left, D(i,i) * H(i,j), which only a noncommutative scalar tells apart from
 // scaling them on the right. Integer components keep every operation exact.
+template <typename = void>
 void householder_structured_products_noncommutative() {
   using Scalar = noncommutative_scalar::Quaternion;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
@@ -1164,8 +1171,8 @@ EIGEN_DECLARE_TEST(householder) {
 
   CALL_SUBTEST_10(householder_blocked_right_regression<double>());
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
-  CALL_SUBTEST_12(householder_small_tail());
-  CALL_SUBTEST_13(householder_large_components());
+  CALL_SUBTEST_12(householder_small_tail<>());
+  CALL_SUBTEST_13(householder_large_components<>());
   CALL_SUBTEST_14((householder_short_strided<float, 2, ColMajor>()));
   CALL_SUBTEST_14((householder_short_strided<float, 3, ColMajor>()));
   CALL_SUBTEST_15((householder_short_strided<double, 2, ColMajor>()));
@@ -1188,7 +1195,7 @@ EIGEN_DECLARE_TEST(householder) {
     CALL_SUBTEST_23(householder_structured_products<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE)));
     CALL_SUBTEST_23(
         householder_structured_products<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 2)));
-    CALL_SUBTEST_23(householder_structured_products_noncommutative());
+    CALL_SUBTEST_23(householder_structured_products_noncommutative<>());
   }
   CALL_SUBTEST_23(householder_structured_products<double>(1));
 }

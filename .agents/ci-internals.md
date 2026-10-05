@@ -57,8 +57,8 @@ though nothing distinguished two hosts within one tag pool before this either.
 `affected-tests` and `all-tests` each suppress the smoke jobs (`.rules:libeigen:smoketest`), because both go deeper
 than the fixed list on the same native runners and the smoke jobs would only pay for it twice. The suppression is
 scoped to the `libeigen` namespace, since neither wider tier has any job in a fork. The NVHPC pair sits behind
-`.rules:libeigen:scheduled-or-web`: its frontend accounted for roughly a quarter of the project's hosted-runner
-minutes while it was in the `all-tests` matrix.
+`.rules:libeigen:nvhpc`, which admits a merge request only through its own `nvhpc-tests` label: its frontend accounted
+for roughly a quarter of the project's hosted-runner minutes while it was in the `all-tests` matrix.
 
 Under `affected-tests`, platforms beyond the four unconditional jobs are added on two independent triggers,
 `rules:changes:` on the backend directory and `$CI_MERGE_REQUEST_LABELS`, as two entries per rule set because GitLab
@@ -132,10 +132,11 @@ the nested consumers when build-system files change.
 ## Clang-Tidy Compilation Database
 
 For a source in the compilation database the driver narrows that database first, through
-[`tidy_compile_db.py`](../scripts/tidy_compile_db.py). A split test contributes one entry per `EIGEN_TEST_PART`, and
-clang-tidy parses the file once per entry naming it — 41 times for `test/array_cwise.cpp` — which alone exhausts the
-job's timeout. The reduction keeps one entry per distinct compiler configuration and, within a configuration split
-into parts, the parts that actually compile the added lines: a line inside a `CALL_SUBTEST_<n>(...)` or an
+[`tidy_compile_db.py`](../scripts/tidy_compile_db.py). A split test contributes one entry per `EIGEN_TEST_PART`, or
+per range of parts that `cmake/EigenTestPartGroups.cmake` compiles together, and clang-tidy parses the file once per
+entry naming it — 14 times for `test/array_cwise.cpp` — which alone exhausts the job's timeout. The reduction keeps one
+entry per distinct compiler configuration and, within a configuration split into parts, the entries whose parts
+actually compile the added lines: a line inside a `CALL_SUBTEST_<n>(...)` or an
 `#if defined(EIGEN_TEST_PART_<n>)` guard needs part `<n>`, anything else needs no particular part. What that leaves
 out is printed beside the file name, so a capped run names the parts it did not check rather than reporting the file
 clean.
