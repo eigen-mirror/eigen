@@ -14,6 +14,11 @@ heading per paragraph and sections that re-explain the diff line by line. State 
 is left undone without hedging; open the request as a Draft when validation is incomplete, naming what was not run
 and why.
 
+Long accounts of approaches tried and dropped are discouraged but not banned: a rejected alternative a reviewer would
+otherwise propose, or a measurement that rules out an obvious design, saves a review round, so state its conclusion
+and the evidence for it rather than the chronology. Headline comparisons are against the target branch; numbers for a
+superseded variant belong only where they make that case.
+
 Prefer notation to prose: a bound, a recurrence, an identity, or two lines of pseudo-code stated exactly beats the
 paragraph that spells it out, and a named theorem comes with its statement. GitLab renders KaTeX in descriptions and
 comments — inline math takes dollar-backtick delimiters (``$`\|AX - B\|_F \le c\,n\,\varepsilon\,\|A\|_F\,\|X\|_F`$``;
@@ -51,5 +56,7 @@ Disclose a virtualized host such as WSL2, where those commands report whatever t
 
 Credit reporters and contributors by name or handle, and link the issue with `Closes #NNNN`. GitLab's closing pattern
 is blind to negation, so "does not fix #NNNN" still closes the issue on merge; reference without closing as
-"Related to #NNNN". After a review round, append an `Update:` paragraph crediting the reviewer instead of silently
-rewriting the body, and keep the description and the commit messages describing the current head.
+"Related to #NNNN". The body and its numbers always describe the current head: after a review round, rewrite them
+when the code or its performance changed materially rather than layering corrections on the old text, and keep the
+commit messages current too. A short `Update:` paragraph or changelog at the end credits the reviewers and gives a
+brief history of what changed.
