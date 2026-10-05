@@ -118,7 +118,7 @@ EIGEN_DEVICE_FUNC const Replicate<Derived, RowFactor, ColFactor> DenseBase<Deriv
  * Example: \include DirectionWise_replicate_int.cpp
  * Output: \verbinclude DirectionWise_replicate_int.out
  *
- * \sa VectorwiseOp::replicate(), DenseBase::replicate(), class Replicate
+ * \sa VectorwiseOp::replicate(), VectorwiseOp::replicate(NFactorType) const, DenseBase::replicate(), class Replicate
  */
 template <typename ExpressionType, int Direction>
 EIGEN_DEVICE_FUNC const typename VectorwiseOp<ExpressionType, Direction>::ReplicateReturnType

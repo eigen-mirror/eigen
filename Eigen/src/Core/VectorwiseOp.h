@@ -576,7 +576,8 @@ class VectorwiseOp {
    * Example: \include DirectionWise_replicate.cpp
    * Output: \verbinclude DirectionWise_replicate.out
    *
-   * \sa VectorwiseOp::replicate(Index), DenseBase::replicate(), class Replicate
+   * \sa VectorwiseOp::replicate(Index), VectorwiseOp::replicate(NFactorType) const, DenseBase::replicate(),
+   * class Replicate
    */
   // NOTE implemented here because of sunstudio's compilation errors
   // isVertical*Factor+isHorizontal instead of (isVertical?Factor:1) to handle CUDA bug with ternary operator
@@ -586,6 +587,23 @@ class VectorwiseOp {
   replicate(Index factor = Factor) const {
     return Replicate<ExpressionType, (isVertical ? Factor : 1), (isHorizontal ? Factor : 1)>(
         _expression(), isVertical ? factor : 1, isHorizontal ? factor : 1);
+  }
+
+  /**
+   * \return an expression of the replication of each column (or row) of \c *this
+   *
+   * \param nFactor the number of repetitions, specified at run time or at compile time using Eigen::fix<N>.
+   * Eigen::fix<N>(n) uses \c n as a runtime fallback when \c N equals Eigen::Dynamic, and \c n must equal \c N
+   * otherwise.
+   *
+   * \sa VectorwiseOp::replicate(Index), DenseBase::replicate(), class Replicate, fix, fix<N>(int)
+   */
+  template <typename NFactorType>
+  EIGEN_DEVICE_FUNC const
+      Replicate<ExpressionType, isVertical * internal::get_fixed_value<NFactorType>::value + isHorizontal,
+                isHorizontal * internal::get_fixed_value<NFactorType>::value + isVertical>
+      replicate(NFactorType nFactor) const {
+    return replicate<internal::get_fixed_value<NFactorType>::value>(internal::get_runtime_value(nFactor));
   }
 
   /////////// Arithmetic operators ///////////

@@ -62,6 +62,65 @@ void replicate(const MatrixType& m) {
   VERIFY_IS_APPROX(vx1, v1.colwise().replicate(f2));
 }
 
+template <typename ExpressionType>
+void vectorwise_replicate_indexers(ExpressionType& m) {
+  using Scalar = typename ExpressionType::Scalar;
+  Matrix<Scalar, Dynamic, Dynamic> vertical(3 * m.rows(), m.cols());
+  Matrix<Scalar, Dynamic, Dynamic> horizontal(m.rows(), 3 * m.cols());
+  for (Index j = 0; j < vertical.cols(); ++j)
+    for (Index i = 0; i < vertical.rows(); ++i) vertical(i, j) = m(i % m.rows(), j);
+  for (Index j = 0; j < horizontal.cols(); ++j)
+    for (Index i = 0; i < horizontal.rows(); ++i) horizontal(i, j) = m(i, j % m.cols());
+
+  VERIFY_IS_EQUAL(m.colwise().replicate(fix<3>).matrix(), vertical);
+  VERIFY_IS_EQUAL(m.colwise().replicate(fix<3>(3)).matrix(), vertical);
+  VERIFY_IS_EQUAL(m.colwise().replicate(fix<Dynamic>(2)).matrix(), vertical.topRows(2 * m.rows()));
+  VERIFY_IS_EQUAL(m.colwise().replicate(3).matrix(), vertical);
+  VERIFY_IS_EQUAL(m.colwise().replicate(Index(3)).matrix(), vertical);
+  VERIFY_IS_EQUAL(m.colwise().replicate(fix<1>).matrix(), m.matrix());
+  VERIFY_IS_EQUAL(m.colwise().replicate(fix<0>).rows(), 0);
+  VERIFY_IS_EQUAL(m.rowwise().replicate(fix<3>).matrix(), horizontal);
+  VERIFY_IS_EQUAL(m.rowwise().replicate(fix<3>(3)).matrix(), horizontal);
+  VERIFY_IS_EQUAL(m.rowwise().replicate(fix<Dynamic>(2)).matrix(), horizontal.leftCols(2 * m.cols()));
+  VERIFY_IS_EQUAL(m.rowwise().replicate(3).matrix(), horizontal);
+  VERIFY_IS_EQUAL(m.rowwise().replicate(Index(3)).matrix(), horizontal);
+  VERIFY_IS_EQUAL(m.rowwise().replicate(fix<1>).matrix(), m.matrix());
+  VERIFY_IS_EQUAL(m.rowwise().replicate(fix<0>).cols(), 0);
+
+  STATIC_CHECK((std::is_same<decltype(m.colwise().replicate(fix<3>)), const Replicate<ExpressionType, 3, 1>>::value));
+  STATIC_CHECK(
+      (std::is_same<decltype(m.colwise().replicate(fix<3>(3))), const Replicate<ExpressionType, 3, 1>>::value));
+  STATIC_CHECK((std::is_same<decltype(m.colwise().replicate(fix<Dynamic>(2))),
+                             const Replicate<ExpressionType, Dynamic, 1>>::value));
+  STATIC_CHECK((std::is_same<decltype(m.colwise().replicate(3)), const Replicate<ExpressionType, Dynamic, 1>>::value));
+  STATIC_CHECK(
+      (std::is_same<decltype(m.colwise().replicate(Index(3))), const Replicate<ExpressionType, Dynamic, 1>>::value));
+  STATIC_CHECK((std::is_same<decltype(m.rowwise().replicate(fix<3>)), const Replicate<ExpressionType, 1, 3>>::value));
+  STATIC_CHECK(
+      (std::is_same<decltype(m.rowwise().replicate(fix<3>(3))), const Replicate<ExpressionType, 1, 3>>::value));
+  STATIC_CHECK((std::is_same<decltype(m.rowwise().replicate(fix<Dynamic>(2))),
+                             const Replicate<ExpressionType, 1, Dynamic>>::value));
+  STATIC_CHECK((std::is_same<decltype(m.rowwise().replicate(3)), const Replicate<ExpressionType, 1, Dynamic>>::value));
+  STATIC_CHECK(
+      (std::is_same<decltype(m.rowwise().replicate(Index(3))), const Replicate<ExpressionType, 1, Dynamic>>::value));
+}
+
+void vectorwise_replicate_flexible_indexers() {
+  Matrix<int, 2, 3, ColMajor> m;
+  m << 1, 2, 3, 4, 5, 6;
+  vectorwise_replicate_indexers(m);
+  const auto& const_m = m;
+  vectorwise_replicate_indexers(const_m);
+  Matrix<double, Dynamic, Dynamic, RowMajor> d = m.cast<double>();
+  vectorwise_replicate_indexers(d);
+  Array<float, 2, 3, RowMajor> a = m.cast<float>().array();
+  vectorwise_replicate_indexers(a);
+  auto block = m.block<2, 2>(0, 1);
+  vectorwise_replicate_indexers(block);
+  const auto sum = m + m;
+  vectorwise_replicate_indexers(sum);
+}
+
 void replicate_flexible_indexers() {
   using Mat = Matrix<int, 2, 2>;
   Mat m;
@@ -147,6 +206,7 @@ void replicate_broadcasts(Index rows, Index cols) {
 
 EIGEN_DECLARE_TEST(array_replicate) {
   CALL_SUBTEST_1(replicate_flexible_indexers());
+  CALL_SUBTEST_1(vectorwise_replicate_flexible_indexers());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(replicate(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(replicate(Vector2f()));
