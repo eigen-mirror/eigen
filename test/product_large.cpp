@@ -68,9 +68,11 @@ void gebp_guard_page_tail() {
     }
     ~GuardedArena() { VERIFY_IS_EQUAL(munmap(raw, map_bytes), 0); }
 
-    Scalar* place_at_end(std::size_t n_elems) {
-      VERIFY(n_elems * sizeof(Scalar) <= data_pages * page_size);
-      return reinterpret_cast<Scalar*>(raw + data_pages * page_size) - n_elems;
+    // The last start aligned to `alignment` bytes from which n_elems fit before the guard page.
+    Scalar* place_at_end(std::size_t n_elems, std::size_t alignment = alignof(Scalar)) {
+      const std::size_t end = data_pages * page_size;
+      VERIFY(n_elems * sizeof(Scalar) <= end);
+      return reinterpret_cast<Scalar*>(raw + numext::round_down(end - n_elems * sizeof(Scalar), alignment));
     }
   };
 
@@ -95,8 +97,10 @@ void gebp_guard_page_tail() {
         Matrix<Scalar, Dynamic, Dynamic, ColMajor> B = Matrix<Scalar, Dynamic, Dynamic, ColMajor>::Random(k, n);
         Matrix<Scalar, Dynamic, Dynamic, ColMajor> C0 = Matrix<Scalar, Dynamic, Dynamic, ColMajor>::Random(m, n);
 
-        Scalar* blockA = arenaA.place_at_end(m * k);
-        Scalar* blockB = arenaB.place_at_end(k * n);
+        // GEMM allocates packed blocks EIGEN_DEFAULT_ALIGN_BYTES-aligned, and GEBP may load them with aligned
+        // packets. The resulting gap before the guard page is the smallest a real block can leave before a page end.
+        Scalar* blockA = arenaA.place_at_end(m * k, EIGEN_DEFAULT_ALIGN_BYTES);
+        Scalar* blockB = arenaB.place_at_end(k * n, EIGEN_DEFAULT_ALIGN_BYTES);
         if (m > 0 && k > 0) {
           Matrix<Scalar, Dynamic, 1> packedA(m * k);
           pack_lhs(packedA.data(), LhsMapper(A.data(), A.outerStride()), k, m);
