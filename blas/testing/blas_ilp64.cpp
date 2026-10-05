@@ -30,6 +30,14 @@ namespace {
 constexpr EIGEN_BLAS_INT kNegativeWithPositiveLowWord =
     static_cast<EIGEN_BLAS_INT>(std::uint64_t(1) | (std::uint64_t(0xFFFFFFFF) << 32));
 
+// A Windows DLL binds its own xerbla_ at link time, so the definition above never sees the
+// library's calls there; c == -999 still shows that the argument was rejected.
+#if defined(_WIN32) || defined(__CYGWIN__)
+constexpr bool kXerblaOverridable = false;
+#else
+constexpr bool kXerblaOverridable = true;
+#endif
+
 void test_ilp64_upper_word_sensitivity() {
   EIGEN_BLAS_INT one = 1;
   EIGEN_BLAS_INT bad = kNegativeWithPositiveLowWord;
@@ -41,23 +49,23 @@ void test_ilp64_upper_word_sensitivity() {
 
   g_last_xerbla_info = 0;
   BLASFUNC(dgemm)("N", "N", &bad, &one, &one, &alpha, &a, &one, &b, &one, &beta, &c, &one);
-  VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(3));
+  if (kXerblaOverridable) VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(3));
   VERIFY_IS_EQUAL(c, -999.0);
 
   g_last_xerbla_info = 0;
   BLASFUNC(dgemv)("N", &bad, &one, &alpha, &a, &one, &b, &one, &beta, &c, &one);
-  VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(2));
+  if (kXerblaOverridable) VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(2));
   VERIFY_IS_EQUAL(c, -999.0);
 
   g_last_xerbla_info = 0;
   char uplo = 'U';
   BLASFUNC(dsymv)(&uplo, &bad, &alpha, &a, &one, &b, &one, &beta, &c, &one);
-  VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(2));
+  if (kXerblaOverridable) VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(2));
   VERIFY_IS_EQUAL(c, -999.0);
 
   g_last_xerbla_info = 0;
   BLASFUNC(dsyrk)(&uplo, "N", &bad, &one, &alpha, &a, &one, &beta, &c, &one);
-  VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(3));
+  if (kXerblaOverridable) VERIFY_IS_EQUAL(g_last_xerbla_info, EIGEN_BLAS_INT(3));
   VERIFY_IS_EQUAL(c, -999.0);
 }
 

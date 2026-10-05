@@ -1,6 +1,7 @@
-; Definition file for eigen_blas.dll.
+; Definition file for eigen_blas.dll and eigen_blas_ilp64.dll.
+; No LIBRARY statement: the linker names each DLL after its /OUT file, so the
+; ILP64 import library does not resolve to eigen_blas.dll.
 
-LIBRARY eigen_blas
 EXPORTS
     ; Utilities
     lsame_
@@ -13,10 +14,10 @@ EXPORTS
     zaxpy_
     ; caxpyc_
     ; zaxpyc_
-    saxpby_,
-    daxpby_,
-    caxpby_,
-    zaxpby_,
+    saxpby_
+    daxpby_
+    caxpby_
+    zaxpby_
     scopy_
     dcopy_
     ccopy_

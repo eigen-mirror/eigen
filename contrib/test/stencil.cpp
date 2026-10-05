@@ -11,17 +11,23 @@
 #include <contrib/Eigen/NumericalDiff>
 
 using Eigen::Array;
+using Eigen::ArrayBase;
 using Eigen::Index;
 using Eigen::makeStencil;
 using Eigen::Stencil;
+
+// The verify_* helpers take ArrayBase rather than Array<Scalar, Size, 1>: MSVC 14.29 cannot
+// deduce Size through Array's defaulted Options argument, which depends on it.
 
 // Independent oracle: for order-Derivative weights at x0 = 0 over points p_0..p_{Size-1},
 // sum_i weights[i] * p_i^k == (k == Derivative ? Derivative! : 0) for every k = 0..Size-1. This
 // holds for any polynomial reproduced exactly by an (Size-1)-degree interpolant, independently of
 // how Stencil's recursion is implemented.
-template <int Derivative, typename Scalar, int Size>
-void verify_polynomial_exactness(const Array<Scalar, Size, 1> &points) {
+template <int Derivative, typename Derived>
+void verify_polynomial_exactness(const ArrayBase<Derived>& points) {
+  using Scalar = typename Derived::Scalar;
   using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  constexpr int Size = Derived::SizeAtCompileTime;
 
   const Stencil<Derivative, Scalar, Size> s(points);
   const Array<Scalar, Size, 1> w = s.weights();
@@ -120,8 +126,10 @@ void test_polynomial_exactness_float() {
   verify_polynomial_exactness<3>(points);
 }
 
-template <int Derivative, typename Scalar, int Size>
-void verify_power_of_two_scaling(const Array<Scalar, Size, 1>& points) {
+template <int Derivative, typename Derived>
+void verify_power_of_two_scaling(const ArrayBase<Derived>& points) {
+  using Scalar = typename Derived::Scalar;
+  constexpr int Size = Derived::SizeAtCompileTime;
   const Stencil<Derivative, Scalar, Size> reference(points);
   // Power-of-two scaling is exact while the recurrence stays in the normal range.
   for (const int exponent : {-27, -20, -40, 0, 20, 27, 40}) {

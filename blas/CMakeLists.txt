@@ -38,7 +38,9 @@ if(EIGEN_BUILD_BLAS_ILP64)
 
   if(EIGEN_BUILD_SHARED_LIBS)
     add_library(eigen_blas_ilp64 SHARED ${EigenBlas_SRCS} "eigen_blas.def")
-    target_compile_definitions(eigen_blas_ilp64 PUBLIC "EIGEN_BLAS_BUILD_DLL" "EIGEN_64BIT_BLAS")
+    # EIGEN_BLAS_BUILD_DLL stays private: a consumer that sees it declares the routines dllexport,
+    # which MSVC rejects against the plain declarations EIGEN_USE_BLAS brings in (C2375).
+    target_compile_definitions(eigen_blas_ilp64 PRIVATE "EIGEN_BLAS_BUILD_DLL" PUBLIC "EIGEN_64BIT_BLAS")
     set_target_properties(eigen_blas_ilp64 PROPERTIES CXX_VISIBILITY_PRESET hidden
       VERSION ${EIGEN_VERSION_NUMBER}
       SOVERSION ${EIGEN_MAJOR_VERSION})
