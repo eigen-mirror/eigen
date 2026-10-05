@@ -42,7 +42,7 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
       : Base(dst, src, func, dstExpr) {}
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacket(Index row, Index col) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index row, Index col) {
     PacketType tmp = m_src.template packet<LoadMode, PacketType>(row, col);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacket<LoadMode>(
         row, col, m_dst.template packet<StoreMode, PacketType>(row, col));
@@ -50,7 +50,7 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacket(Index index) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacket(Index index) {
     PacketType tmp = m_src.template packet<LoadMode, PacketType>(index);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacket<LoadMode>(
         index, m_dst.template packet<StoreMode, PacketType>(index));
@@ -58,14 +58,14 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketByOuterInner(Index outer, Index inner) {
     Index row = Base::rowIndexByOuterInner(outer, inner);
     Index col = Base::colIndexByOuterInner(outer, inner);
     assignPacket<StoreMode, LoadMode, PacketType>(row, col);
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacketSegment(Index row, Index col, Index begin, Index count) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketSegment(Index row, Index col, Index begin, Index count) {
     PacketType tmp = m_src.template packetSegment<LoadMode, PacketType>(row, col, begin, count);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacketSegment<LoadMode>(
         row, col, m_dst.template packetSegment<StoreMode, PacketType>(row, col, begin, count), begin, count);
@@ -73,7 +73,7 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacketSegment(Index index, Index begin, Index count) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketSegment(Index index, Index begin, Index count) {
     PacketType tmp = m_src.template packetSegment<LoadMode, PacketType>(index, begin, count);
     const_cast<SrcEvaluatorTypeT &>(m_src).template writePacketSegment<LoadMode>(
         index, m_dst.template packetSegment<StoreMode, PacketType>(index, begin, count), begin, count);
@@ -81,7 +81,8 @@ class generic_dense_assignment_kernel<DstEvaluatorTypeT, SrcEvaluatorTypeT,
   }
 
   template <int StoreMode, int LoadMode, typename PacketType>
-  EIGEN_STRONG_INLINE void assignPacketSegmentByOuterInner(Index outer, Index inner, Index begin, Index count) {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void assignPacketSegmentByOuterInner(Index outer, Index inner, Index begin,
+                                                                             Index count) {
     Index row = Base::rowIndexByOuterInner(outer, inner);
     Index col = Base::colIndexByOuterInner(outer, inner);
     assignPacketSegment<StoreMode, LoadMode, PacketType>(row, col, begin, count);

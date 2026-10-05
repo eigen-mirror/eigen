@@ -576,18 +576,20 @@ struct largest_exact_divisor_size<Packet, Size, /*Terminal=*/true> {  // narrowe
 // Packet2cd/Packet4cf tail is a sizeable win there too.
 //
 // The destination must also store the vectorized axis contiguously
-// (InnerStrideAtCompileTime == 1): the cascade writes whole packets with a
-// single contiguous store, so a strided destination such as `m.row(i)` of a
-// column-major matrix would clobber neighbouring coefficients. The generic
-// assignment path makes this same packet-access check on the destination; here
-// we must replicate it since we bypass that path.
-template <typename ProdEval, typename Dst>
+// (DirectAccessBit and InnerStrideAtCompileTime == 1): the cascade writes whole
+// packets with a single unaligned store, so a strided destination such as
+// `m.row(i)` of a column-major matrix would clobber neighbouring coefficients.
+// The generic assignment path makes this check along with MightVectorize and
+// EIGEN_UNALIGNED_VECTORIZE; here we must replicate them since we bypass that path.
+template <typename ProdEval, typename Dst, typename Func>
 struct product_packet_cascade_traits {
   using Scalar = typename ProdEval::Scalar;
+  using DstEval = evaluator<Dst>;
   static constexpr int Rows = ProdEval::RowsAtCompileTime;
   static constexpr int Cols = ProdEval::ColsAtCompileTime;
   static constexpr bool DstRowMajor = bool(Dst::IsRowMajor);
-  static constexpr bool DstContiguous = int(Dst::InnerStrideAtCompileTime) == 1;
+  static constexpr bool DstContiguous =
+      (int(DstEval::Flags) & DirectAccessBit) != 0 && int(Dst::InnerStrideAtCompileTime) == 1;
   // Orientation of the packets the product evaluator natively produces. When a
   // product can vectorize *both* the lhs (columns) and the rhs (rows), its
   // packet() returns column packets (EvalToRowMajor == 0). The cascade axis must
@@ -602,11 +604,15 @@ struct product_packet_cascade_traits {
   using Packet = typename find_largest_packet<Scalar, Extent>::type;
   static constexpr int LargestSize = unpacket_traits<Packet>::size;
   static constexpr int GenericSize = largest_exact_divisor_size<typename packet_traits<Scalar>::type, Extent>::value;
+  static constexpr bool MightVectorize =
+      bool(EIGEN_UNALIGNED_VECTORIZE) &&
+      (int(DstEval::Flags) & int(ProdEval::Flags) & int(ActualPacketAccessBit)) != 0 &&
+      bool(functor_traits<Func>::PacketAccess);
   // SameType mirrors the product's own PacketAccessBit (SameType && (CanVectorizeLhs ||
   // CanVectorizeRhs)): CanVectorizeLhs/Rhs alone test only the operand's packet access, so a
   // mixed-scalar product (e.g. double * complex) would otherwise enable the cascade and try to
   // read the wrong-width packet out of an operand. Mixed types keep the generic (scalar) path.
-  static constexpr bool Enable = bool(ProdEval::SameType) && (VecLhs || VecRhs) && DstContiguous &&
+  static constexpr bool Enable = bool(ProdEval::SameType) && (VecLhs || VecRhs) && DstContiguous && MightVectorize &&
                                  (LargestSize <= Extent) && (LargestSize > GenericSize);
 };
 
@@ -633,7 +639,7 @@ template <typename Func, typename Dst, typename Lhs, typename Rhs>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void product_packet_assign(std::true_type, const Func& func, Dst& dst,
                                                                  const Lhs& lhs, const Rhs& rhs) {
   using ProdEval = product_evaluator<Product<Lhs, Rhs, LazyProduct>, CoeffBasedProductMode, DenseShape, DenseShape>;
-  using Traits = product_packet_cascade_traits<ProdEval, Dst>;
+  using Traits = product_packet_cascade_traits<ProdEval, Dst, Func>;
   const ProdEval prodEval(lhs, rhs);
   product_run_packet_cascade<Traits>(func, dst, prodEval);
 }
@@ -664,18 +670,18 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, CoeffBasedProductM
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void addTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     // dst.noalias() += lhs.lazyProduct(rhs);
     using ProdEval = product_evaluator<Product<Lhs, Rhs, LazyProduct>, CoeffBasedProductMode, DenseShape, DenseShape>;
-    using Traits = product_packet_cascade_traits<ProdEval, Dst>;
-    product_packet_assign(bool_constant<Traits::Enable>(), internal::add_assign_op<typename Dst::Scalar, Scalar>(), dst,
-                          lhs, rhs);
+    using Func = internal::add_assign_op<typename Dst::Scalar, Scalar>;
+    using Traits = product_packet_cascade_traits<ProdEval, Dst, Func>;
+    product_packet_assign(bool_constant<Traits::Enable>(), Func(), dst, lhs, rhs);
   }
 
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void subTo(Dst& dst, const Lhs& lhs, const Rhs& rhs) {
     // dst.noalias() -= lhs.lazyProduct(rhs);
     using ProdEval = product_evaluator<Product<Lhs, Rhs, LazyProduct>, CoeffBasedProductMode, DenseShape, DenseShape>;
-    using Traits = product_packet_cascade_traits<ProdEval, Dst>;
-    product_packet_assign(bool_constant<Traits::Enable>(), internal::sub_assign_op<typename Dst::Scalar, Scalar>(), dst,
-                          lhs, rhs);
+    using Func = internal::sub_assign_op<typename Dst::Scalar, Scalar>;
+    using Traits = product_packet_cascade_traits<ProdEval, Dst, Func>;
+    product_packet_assign(bool_constant<Traits::Enable>(), Func(), dst, lhs, rhs);
   }
 
   // This is a special evaluation path called from generic_product_impl<...,GemmProduct> in file GeneralMatrixMatrix.h

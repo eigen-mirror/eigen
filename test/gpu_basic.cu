@@ -411,6 +411,47 @@ struct prod_test {
   }
 };
 
+template <typename T>
+struct compound_product {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
+    using Scalar = typename T::Scalar;
+    using ProdEval =
+        Eigen::internal::product_evaluator<Eigen::Product<T, T, Eigen::LazyProduct>, Eigen::CoeffBasedProductMode,
+                                           Eigen::DenseShape, Eigen::DenseShape>;
+    using AddOp = Eigen::internal::add_assign_op<Scalar, Scalar>;
+    static_assert(!Eigen::internal::product_packet_cascade_traits<ProdEval, T, AddOp>::Enable,
+                  "product packet cascade must stay disabled when ActualPacketAccessBit == 0");
+    constexpr int size = T::SizeAtCompileTime;
+    const T lhs(in + i);
+    const T rhs(in + i + 1);
+    const T addend(in + i + 2);
+    T accum = T::Zero();
+    accum.noalias() += lhs * rhs;
+    accum.noalias() -= lhs * rhs;
+    accum += addend + lhs * rhs;
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+    using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
+    if (size >= Eigen::internal::unpacket_traits<Packet>::size) {
+      const Packet zero = Eigen::internal::pzero(Packet());
+      AddOp().template assignPacket<Eigen::Unaligned, Packet>(accum.data(), zero);
+    }
+#endif
+    Eigen::Map<T>(out + i * size) = accum;
+  }
+};
+
+template <typename Scalar, int Options>
+void test_compound_product() {
+  constexpr int n = 4;
+  Eigen::Array<Scalar, Eigen::Dynamic, 1> in(n * 512), out(n * 512);
+  in.setRandom();
+  out.setZero();
+
+  run_and_compare_to_gpu(compound_product<Eigen::Matrix<Scalar, 3, 3, Options>>(), n, in, out);
+  run_and_compare_to_gpu(compound_product<Eigen::Matrix<Scalar, 5, 5, Options>>(), n, in, out);
+  run_and_compare_to_gpu(compound_product<Eigen::Matrix<Scalar, 9, 9, Options>>(), n, in, out);
+}
+
 template <typename T1, typename T2>
 struct diagonal {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T1::Scalar* in, typename T1::Scalar* out) const {
@@ -761,6 +802,12 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix3f, Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(prod_test<Matrix4f, Vector4f>(), nthreads, in, out));
+  CALL_SUBTEST((test_compound_product<float, ColMajor>()));
+  CALL_SUBTEST((test_compound_product<float, RowMajor>()));
+  CALL_SUBTEST((test_compound_product<double, ColMajor>()));
+  CALL_SUBTEST((test_compound_product<double, RowMajor>()));
+  CALL_SUBTEST((test_compound_product<Eigen::half, ColMajor>()));
+  CALL_SUBTEST((test_compound_product<Eigen::half, RowMajor>()));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<RowMajor>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_structured_product<ColMajor>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(scaled_outer_product<RowMajor>(), nthreads, in, out));
