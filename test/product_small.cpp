@@ -342,6 +342,25 @@ void product_small_regressions() {
 
     fixed_size_product_assignments<MatrixBelow>();
     fixed_size_product_assignments<MatrixAt>();
+
+    using Prod3d = internal::product_evaluator<Product<Matrix3d, Matrix3d, LazyProduct>, CoeffBasedProductMode,
+                                               DenseShape, DenseShape>;
+    using Prod4d = internal::product_evaluator<Product<Matrix4d, Matrix4d, LazyProduct>, CoeffBasedProductMode,
+                                               DenseShape, DenseShape>;
+    using Add3d = internal::add_assign_op<double, double>;
+    using RowBlock3d = Block<Matrix3d, 1, 3>;
+    static_assert(!internal::product_packet_cascade_traits<Prod4d, Matrix4d, Add3d>::Enable,
+                  "exact packet multiple keeps the generic path");
+    static_assert(!internal::product_packet_cascade_traits<Prod3d, RowBlock3d, Add3d>::Enable,
+                  "non-unit inner stride must not use the contiguous packet cascade");
+#if defined(EIGEN_VECTORIZE) && EIGEN_UNALIGNED_VECTORIZE
+    if (internal::unpacket_traits<internal::find_largest_packet<double, 3>::type>::size == 2) {
+      VERIFY((internal::product_packet_cascade_traits<Prod3d, Matrix3d, Add3d>::Enable));
+    }
+#else
+    static_assert(!internal::product_packet_cascade_traits<Prod3d, Matrix3d, Add3d>::Enable,
+                  "cascade requires ActualPacketAccessBit and EIGEN_UNALIGNED_VECTORIZE");
+#endif
   }
 }
 
