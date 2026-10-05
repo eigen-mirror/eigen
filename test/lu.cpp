@@ -437,6 +437,95 @@ void lu_strided_pivots() {
   }
 }
 
+// Fixed sizes up to 12 take the compile-time unrolled elimination; 13-16 take the runtime loop at a fixed size, and a
+// dynamic matrix of the same size takes the runtime loop at a runtime size. Both must choose the same pivots and report
+// the same first exactly-zero pivot.
+template <typename Scalar, int N, int Options>
+void lu_partial_piv_fixed() {
+  using Fixed = Matrix<Scalar, N, N, Options>;
+  using Dyn = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  using Vector = Matrix<Scalar, N, 1>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Pivots = Matrix<int, Dynamic, 1>;
+  constexpr int Order = (Options & RowMajor) ? RowMajor : ColMajor;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+
+  // Returns the index of the first exactly-zero pivot, which PartialPivLU discards, after checking that the fixed and
+  // the dynamic kernel agree on it, on the pivots, and on the parity of the transpositions.
+  auto first_zero_pivot = [](const Fixed& a) {
+    Fixed fixed_lu = a;
+    Dyn dyn_lu = a;
+    Matrix<int, N, 1> fixed_tr;
+    Pivots dyn_tr(N);
+    int fixed_nb = -1, dyn_nb = -1;
+    const Index fixed_zero = internal::partial_lu_impl<Scalar, Order, int, N>::blocked_lu(
+        N, N, fixed_lu.data(), fixed_lu.outerStride(), fixed_tr.data(), fixed_nb);
+    const Index dyn_zero = internal::partial_lu_impl<Scalar, Order, int, Dynamic>::blocked_lu(
+        N, N, dyn_lu.data(), dyn_lu.outerStride(), dyn_tr.data(), dyn_nb);
+    VERIFY_IS_EQUAL(fixed_zero, dyn_zero);
+    VERIFY_IS_EQUAL(Pivots(fixed_tr), dyn_tr);
+    VERIFY_IS_EQUAL(fixed_nb, dyn_nb);
+    return fixed_zero;
+  };
+
+  // P A = L U holds to the backward error bound |P A - L U| <= gamma_n |L| |U|, gamma_n ~ n u = n eps / 2; the factor
+  // 4 n eps leaves headroom for the Frobenius norm. The same bound holds for the residual of solve() relative to |x|.
+  auto check = [&](const Fixed& a) {
+    PartialPivLU<Fixed> lu(a);
+    PartialPivLU<Dyn> dyn(a);
+    VERIFY_IS_EQUAL(Pivots(lu.permutationP().indices()), Pivots(dyn.permutationP().indices()));
+    const Fixed lower = lu.matrixLU().template triangularView<UnitLower>();
+    const Fixed upper = lu.matrixLU().template triangularView<Upper>();
+    const RealScalar bound = RealScalar(4 * N) * eps * (lower.cwiseAbs() * upper.cwiseAbs()).norm();
+    VERIFY((numext::isfinite)(bound));
+    VERIFY((lu.permutationP() * a - lower * upper).norm() <= bound);
+    VERIFY((lu.matrixLU() - dyn.matrixLU()).norm() <= bound);
+    return bound;
+  };
+
+  // Nonsingular random matrices: most steps swap rows, and every step runs a full rank-1 update.
+  for (int repeat = 0; repeat < 4; ++repeat) {
+    const Fixed a = Fixed::Random();
+    const RealScalar bound = check(a);
+    VERIFY_IS_EQUAL(first_zero_pivot(a), Index(-1));
+    const PartialPivLU<Fixed> lu(a);
+    VERIFY_IS_APPROX(lu.determinant(), PartialPivLU<Dyn>(a).determinant());
+    const Vector b = Vector::Random();
+    const Vector x = lu.solve(b);
+    VERIFY((a * x - b).norm() <= bound * x.norm());
+  }
+
+  // A row-permuted upper triangular matrix with diagonal 1, ..., N: partial pivoting recovers U exactly with L = I, so
+  // the determinant is exactly sign(perm) N!, which checks the transposition count. N! is exact in float up to N = 13.
+  {
+    PermutationMatrix<N, N, int> perm;
+    perm.setIdentity();
+    for (int i = N - 1; i > 0; --i) std::swap(perm.indices()[i], perm.indices()[internal::random<int>(0, i)]);
+    Fixed upper = Fixed::Random().template triangularView<Upper>();
+    RealScalar factorial(1);
+    for (int i = 0; i < N; ++i) {
+      upper(i, i) = Scalar(RealScalar(i + 1));
+      factorial *= RealScalar(i + 1);
+    }
+    const Fixed a = perm * upper;
+    PartialPivLU<Fixed> lu(a);
+    VERIFY_IS_EQUAL(lu.matrixLU(), upper);
+    VERIFY_IS_EQUAL(lu.determinant(), Scalar(RealScalar(perm.determinant()) * factorial));
+    check(a);
+  }
+
+  // Singular: an exactly zero column j stays exactly zero through elimination, so pivot j is exactly zero and every
+  // earlier one is not. j = 0 and interior j take the zero branch of the pivot search; j = N - 1 takes the last-row
+  // check. The factorization still satisfies P A = L U, and the determinant is exactly zero.
+  for (int j : {0, internal::random<int>(0, N - 1), N - 1}) {
+    Fixed a = Fixed::Random();
+    a.col(j).setZero();
+    check(a);
+    VERIFY_IS_EQUAL(first_zero_pivot(a), Index(j));
+    VERIFY_IS_EQUAL(PartialPivLU<Fixed>(a).determinant(), Scalar(0));
+  }
+}
+
 template <typename Scalar, int Options>
 void lu_subspace_expressions() {
   using Mat = Matrix<Scalar, 4, 4, Options>;
@@ -570,4 +659,20 @@ EIGEN_DECLARE_TEST(lu) {
   CALL_SUBTEST_6(lu_blocking_boundary<std::complex<double> >());
   CALL_SUBTEST_4(lu_rowmajor_boundary<double>());
   CALL_SUBTEST_5(lu_rowmajor_boundary<std::complex<float> >());
+
+  CALL_SUBTEST_17((lu_partial_piv_fixed<float, 1, ColMajor>()));
+  CALL_SUBTEST_17((lu_partial_piv_fixed<float, 5, ColMajor>()));
+  CALL_SUBTEST_17((lu_partial_piv_fixed<float, 12, RowMajor>()));
+  CALL_SUBTEST_17((lu_partial_piv_fixed<float, 13, RowMajor>()));
+  CALL_SUBTEST_17((lu_partial_piv_fixed<double, 5, ColMajor>()));
+  CALL_SUBTEST_17((lu_partial_piv_fixed<double, 7, ColMajor>()));
+  CALL_SUBTEST_18((lu_partial_piv_fixed<double, 8, ColMajor>()));
+  CALL_SUBTEST_18((lu_partial_piv_fixed<double, 12, ColMajor>()));
+  CALL_SUBTEST_18((lu_partial_piv_fixed<double, 13, ColMajor>()));
+  CALL_SUBTEST_18((lu_partial_piv_fixed<double, 10, RowMajor>()));
+  CALL_SUBTEST_18((lu_partial_piv_fixed<double, 11, RowMajor>()));
+  CALL_SUBTEST_19((lu_partial_piv_fixed<std::complex<double>, 7, ColMajor>()));
+  CALL_SUBTEST_19((lu_partial_piv_fixed<std::complex<float>, 9, RowMajor>()));
+  CALL_SUBTEST_19((lu_partial_piv_fixed<std::complex<double>, 12, RowMajor>()));
+  CALL_SUBTEST_19((lu_partial_piv_fixed<std::complex<float>, 11, ColMajor>()));
 }
