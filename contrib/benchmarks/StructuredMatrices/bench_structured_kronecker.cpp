@@ -228,7 +228,7 @@ static void BM_KroneckerProductIdentityLeftSparse(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
 }
-BENCHMARK(BM_KroneckerProductIdentityLeftSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+BENCHMARK(BM_KroneckerProductIdentityLeftSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
 
 static void BM_KroneckerProductIdentityLeftSparseMaterialized(benchmark::State& state) {
   const Index n = state.range(0);
@@ -241,7 +241,7 @@ static void BM_KroneckerProductIdentityLeftSparseMaterialized(benchmark::State& 
     benchmark::DoNotOptimize(y.data());
   }
 }
-BENCHMARK(BM_KroneckerProductIdentityLeftSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+BENCHMARK(BM_KroneckerProductIdentityLeftSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
 
 static void BM_KroneckerProductIdentityRightSparse(benchmark::State& state) {
   const Index n = state.range(0);
@@ -253,7 +253,7 @@ static void BM_KroneckerProductIdentityRightSparse(benchmark::State& state) {
     benchmark::DoNotOptimize(y.data());
   }
 }
-BENCHMARK(BM_KroneckerProductIdentityRightSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+BENCHMARK(BM_KroneckerProductIdentityRightSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
 
 static void BM_KroneckerProductIdentityRightSparseMaterialized(benchmark::State& state) {
   const Index n = state.range(0);
@@ -266,7 +266,7 @@ static void BM_KroneckerProductIdentityRightSparseMaterialized(benchmark::State&
     benchmark::DoNotOptimize(y.data());
   }
 }
-BENCHMARK(BM_KroneckerProductIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512);
+BENCHMARK(BM_KroneckerProductIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
 
 static void BM_KroneckerMaterializeSparse(benchmark::State& state) {
   const Index n = state.range(0);
@@ -331,3 +331,86 @@ static void BM_KroneckerSolveIdentityRightSparseMaterialized(benchmark::State& s
   }
 }
 BENCHMARK(BM_KroneckerSolveIdentityRightSparseMaterialized)->Arg(64)->Arg(128)->Arg(256);
+
+// I_n (x) A and A (x) I_n with the identity passed as Identity(): its side of
+// the product is skipped, so a single right-hand side costs one sparse-dense
+// product over x reshaped in place -- the work of the materialized product
+// without storing it. The unit-diagonal cases above pay one diagonal scaling
+// and one temporary on top.
+static void BM_KroneckerProductIdentityFactorLeftSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(Mat::Identity(n, n), A);
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityFactorLeftSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
+
+static void BM_KroneckerProductIdentityFactorRightSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(A, Mat::Identity(n, n));
+  Vec x = Vec::Random(n * n), y(n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductIdentityFactorRightSparse)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024);
+
+// The middle term I_n (x) A (x) I_n of a 3-D finite-difference operator on an
+// n^3 grid: nested Kronecker factors against the materialized sparse product.
+static void BM_KroneckerProductNestedSandwichSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(Mat::Identity(n, n), A, Mat::Identity(n, n));
+  Vec x = Vec::Random(n * n * n), y(n * n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductNestedSandwichSparse)->Arg(16)->Arg(32)->Arg(64)->Arg(128);
+
+static void BM_KroneckerProductNestedSandwichSparseMaterialized(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  SpMat K;
+  K = makeKroneckerOperator(Mat::Identity(n, n), A, Mat::Identity(n, n));
+  Vec x = Vec::Random(n * n * n), y(n * n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductNestedSandwichSparseMaterialized)->Arg(16)->Arg(32)->Arg(64)->Arg(128);
+
+// The same operator nested to the left, (I_n (x) A) (x) I_n, which applies the
+// nested factor from the right.
+static void BM_KroneckerProductLeftNestedSandwichSparse(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(makeKroneckerOperator(Mat::Identity(n, n), A), Mat::Identity(n, n));
+  Vec x = Vec::Random(n * n * n), y(n * n * n);
+  for (auto _ : state) {
+    y.noalias() = K * x;
+    benchmark::DoNotOptimize(y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductLeftNestedSandwichSparse)->Arg(16)->Arg(32)->Arg(64)->Arg(128);
+
+// (A (x) A) (x) A on r right-hand sides, no identity factor.
+static void BM_KroneckerProductLeftNestedSparse(benchmark::State& state) {
+  const Index n = state.range(0), r = state.range(1);
+  SpMat A = tridiagonal(n);
+  auto K = makeKroneckerOperator(makeKroneckerOperator(A, A), A);
+  Mat X = Mat::Random(n * n * n, r), Y(n * n * n, r);
+  for (auto _ : state) {
+    Y.noalias() = K * X;
+    benchmark::DoNotOptimize(Y.data());
+  }
+}
+BENCHMARK(BM_KroneckerProductLeftNestedSparse)->ArgsProduct({{16, 32, 64}, {1, 8}});

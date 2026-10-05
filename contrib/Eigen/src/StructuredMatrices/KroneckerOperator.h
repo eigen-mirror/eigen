@@ -65,11 +65,41 @@ struct evaluator_traits<KroneckerOperator<LhsMatrix, RhsMatrix>> {
   using Shape = StructuredShape;
 };
 
-// Three factor kinds -- dense, diagonal, sparse -- with every kind-specific
-// operation in the kron_factor_* helpers below, so the operator has a single
-// implementation. Diagonal: stored as its diagonal, applied as a scaling, solved
-// entrywise, closed under transposition, inverse and determinant. Sparse: stored
-// compressed, applied by sparse-dense products, solved via SparseLU; inverse dense.
+// Factor kinds, each with its operations in the kron_factor_* helpers below:
+// dense; diagonal (stored as its diagonal); sparse (compressed, solved by
+// SparseLU); identity (a kron_identity_factor, dimensions only, skipped in
+// products); Kronecker (a nested KroneckerOperator, for three or more factors).
+
+template <typename Scalar_, int Rows_, int Cols_>
+class kron_identity_factor;
+
+template <typename Scalar_, int Rows_, int Cols_>
+struct traits<kron_identity_factor<Scalar_, Rows_, Cols_>> : traits<Matrix<Scalar_, Rows_, Cols_>> {};
+
+/** \internal The identity factor: the m x n matrix with ones on the main
+ * diagonal, stored as its dimensions. makeKroneckerOperator() stores an
+ * Identity() expression as one, since the expression is not assignable and
+ * would make every operator holding it unassignable too. */
+template <typename Scalar_, int Rows_, int Cols_>
+class kron_identity_factor : public EigenBase<kron_identity_factor<Scalar_, Rows_, Cols_>> {
+ public:
+  using Scalar = Scalar_;
+  using PlainObject = Matrix<Scalar, Rows_, Cols_>;
+  static constexpr int RowsAtCompileTime = Rows_;
+  static constexpr int ColsAtCompileTime = Cols_;
+
+  kron_identity_factor(Index rows, Index cols) : m_rows(rows), m_cols(cols) {}
+  template <typename PlainObjectType>
+  explicit kron_identity_factor(const CwiseNullaryOp<scalar_identity_op<Scalar>, PlainObjectType>& identity)
+      : m_rows(identity.rows()), m_cols(identity.cols()) {}
+
+  EIGEN_DEVICE_FUNC constexpr Index rows() const { return m_rows.value(); }
+  EIGEN_DEVICE_FUNC constexpr Index cols() const { return m_cols.value(); }
+
+ private:
+  variable_if_dynamic<Index, Rows_> m_rows;
+  variable_if_dynamic<Index, Cols_> m_cols;
+};
 
 template <typename Factor>
 struct kron_factor_is_diagonal : std::false_type {};
@@ -86,17 +116,49 @@ struct kron_factor_is_sparse_matrix : std::false_type {};
 template <typename Scalar, int Options, typename StorageIndex>
 struct kron_factor_is_sparse_matrix<SparseMatrix<Scalar, Options, StorageIndex>> : std::true_type {};
 
+template <typename Factor>
+struct kron_factor_is_identity : std::false_type {};
+template <typename Scalar, int Rows, int Cols>
+struct kron_factor_is_identity<kron_identity_factor<Scalar, Rows, Cols>> : std::true_type {};
+
+template <typename Factor>
+struct kron_factor_is_kronecker : std::false_type {};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_is_kronecker<KroneckerOperator<LhsMatrix, RhsMatrix>> : std::true_type {};
+
 // The factor kind, the dispatch key of kron_factor_ops and kron_factor_solver.
 constexpr int kKronDenseFactor = 0;
 constexpr int kKronDiagonalFactor = 1;
 constexpr int kKronSparseFactor = 2;
+constexpr int kKronIdentityFactor = 3;
+constexpr int kKronKroneckerFactor = 4;
 
 template <typename Factor>
 constexpr int kron_factor_kind() {
   return kron_factor_is_diagonal<Factor>::value        ? kKronDiagonalFactor
          : kron_factor_is_sparse_matrix<Factor>::value ? kKronSparseFactor
+         : kron_factor_is_identity<Factor>::value      ? kKronIdentityFactor
+         : kron_factor_is_kronecker<Factor>::value     ? kKronKroneckerFactor
                                                        : kKronDenseFactor;
 }
+
+/** \internal The type makeKroneckerOperator() stores an argument as: its plain
+ * object, except an Identity() expression, stored as its kron_identity_factor,
+ * and an identity factor or a KroneckerOperator, which own everything they need
+ * already. */
+template <typename Derived,
+          bool StoredAsIs = kron_factor_is_identity<Derived>::value || kron_factor_is_kronecker<Derived>::value>
+struct kron_factor_storage {
+  using type = typename Derived::PlainObject;
+};
+template <typename Derived>
+struct kron_factor_storage<Derived, true> {
+  using type = Derived;
+};
+template <typename Scalar, typename PlainObjectType>
+struct kron_factor_storage<CwiseNullaryOp<scalar_identity_op<Scalar>, PlainObjectType>, false> {
+  using type = kron_identity_factor<Scalar, PlainObjectType::RowsAtCompileTime, PlainObjectType::ColsAtCompileTime>;
+};
 
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_ops {
@@ -130,9 +192,19 @@ struct kron_factor_ops {
   static auto inversed(const Factor& f) { return f.inverse(); }
   // The factor as a dense expression, for the decomposition family.
   static const Factor& denseFactor(const Factor& f) { return f; }
-  // The right operand op(F) of the vec-trick product Y = B X op(A): the
-  // transpose for a dense factor, the factor itself for a diagonal one.
-  static auto transposedOperand(const Factor& f) { return f.transpose(); }
+  // The factor as the operand of a dense block assignment dst = a * f.
+  static const Factor& blockOperand(const Factor& f) { return f; }
+  static bool isSquareIdentity(const Factor&) { return false; }
+  // dst += alpha F X and dst += alpha X F^T: the two sides of the vec-trick product B X A^T.
+  // work: scratch for a nested factor's right product, owned by the caller's loop.
+  template <typename Dst, typename Alpha, typename Xpr>
+  static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
+    dst.noalias() += alpha * (f * X);
+  }
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
+    dst.noalias() += alpha * (X * f.transpose());
+  }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f); }
   /** \internal \returns the mantissa of \c det(M) in the balanced form
    * \c m * 2^e, adding \c e into \a exponent: the determinant is accumulated
@@ -182,7 +254,16 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
   static auto adjointed(const Factor& f) { return f.diagonal().conjugate().asDiagonal(); }
   static auto inversed(const Factor& f) { return f.inverse(); }
   static typename Factor::DenseMatrixType denseFactor(const Factor& f) { return f.toDenseMatrix(); }
-  static const Factor& transposedOperand(const Factor& f) { return f; }
+  static const Factor& blockOperand(const Factor& f) { return f; }
+  static bool isSquareIdentity(const Factor&) { return false; }
+  template <typename Dst, typename Alpha, typename Xpr>
+  static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
+    dst.noalias() += alpha * (f * X);
+  }
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
+    dst.noalias() += alpha * (X * f);
+  }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f.diagonal()); }
   static Scalar balancedDet(const Factor& D, Index& exponent) {
     // Scale a small diagonal up first: the balancing below compares and scales
@@ -274,7 +355,16 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
     return InverseFactor::Constant(rows, cols, Scalar(NumTraits<RealScalar>::quiet_NaN()));
   }
   static InverseFactor denseFactor(const Factor& f) { return InverseFactor(f); }
-  static auto transposedOperand(const Factor& f) { return f.transpose(); }
+  static const Factor& blockOperand(const Factor& f) { return f; }
+  static bool isSquareIdentity(const Factor&) { return false; }
+  template <typename Dst, typename Alpha, typename Xpr>
+  static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
+    dst.noalias() += alpha * (f * X);
+  }
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
+    dst.noalias() += alpha * (X * f.transpose());
+  }
   static int exponentBound(const Factor& f) { return structured_exponent_bound(f.coeffs()); }
   static Scalar balancedDet(const Factor& M, Index& exponent) {
     // Scale small factors up, exactly, so that the elimination runs on normal
@@ -299,9 +389,134 @@ struct kron_factor_ops<Factor, kKronSparseFactor> {
   }
 };
 
+template <typename Factor>
+struct kron_factor_ops<Factor, kKronIdentityFactor> {
+  // Identity factor, possibly rectangular: the m x n matrix I with I(i,i) = 1
+  // for i < min(m, n). I X keeps the leading min(m, n) rows of X, X I^T its
+  // leading min(m, n) columns.
+  using Scalar = typename Factor::Scalar;
+  using TransposedFactor = kron_identity_factor<Scalar, Factor::ColsAtCompileTime, Factor::RowsAtCompileTime>;
+  using InverseFactor = Factor;
+  static constexpr bool StoresAllEntries = false;
+
+  static void prepare(Factor&) {}
+  static bool coeffIfStored(const Factor&, Index row, Index col, Scalar& value) {
+    if (row != col) return false;
+    value = Scalar(1);
+    return true;
+  }
+  template <typename Visitor>
+  static void forEachNonZero(const Factor& f, Visitor&& visit) {
+    for (Index k = 0; k < numext::mini(f.rows(), f.cols()); ++k) visit(k, k, Scalar(1));
+  }
+  static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool rowMajor) {
+    Matrix<Index, Dynamic, 1> counts = Matrix<Index, Dynamic, 1>::Zero(rowMajor ? f.rows() : f.cols());
+    counts.head(numext::mini(f.rows(), f.cols())).setOnes();
+    return counts;
+  }
+  static TransposedFactor transposed(const Factor& f) { return TransposedFactor(f.cols(), f.rows()); }
+  static const Factor& conjugated(const Factor& f) { return f; }
+  static TransposedFactor adjointed(const Factor& f) { return transposed(f); }
+  static const Factor& inversed(const Factor& f) { return f; }
+  static typename Factor::PlainObject denseFactor(const Factor& f) { return blockOperand(f); }
+  static typename Factor::PlainObject::IdentityReturnType blockOperand(const Factor& f) {
+    return Factor::PlainObject::Identity(f.rows(), f.cols());
+  }
+  static bool isSquareIdentity(const Factor& f) { return f.rows() == f.cols(); }
+  template <typename Dst, typename Alpha, typename Xpr>
+  static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
+    const Index k = numext::mini(f.rows(), f.cols());
+    dst.topRows(k) += alpha * X.topRows(k);
+  }
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work&) {
+    const Index k = numext::mini(f.rows(), f.cols());
+    dst.leftCols(k) += alpha * X.leftCols(k);
+  }
+  static Scalar balancedDet(const Factor&, Index&) { return Scalar(1); }
+};
+
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_ops<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFactor> {
+  // Nested Kronecker factor K = L (x) R: every operation recurses into L and R.
+  using Factor = KroneckerOperator<LhsMatrix, RhsMatrix>;
+  using Scalar = typename Factor::Scalar;
+  using LhsOps = kron_factor_ops<LhsMatrix>;
+  using RhsOps = kron_factor_ops<RhsMatrix>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using TransposedFactor = KroneckerOperator<typename LhsOps::TransposedFactor, typename RhsOps::TransposedFactor>;
+  using InverseFactor = KroneckerOperator<typename LhsOps::InverseFactor, typename RhsOps::InverseFactor>;
+  static constexpr bool StoresAllEntries = LhsOps::StoresAllEntries && RhsOps::StoresAllEntries;
+
+  static void prepare(Factor&) {}
+  static bool coeffIfStored(const Factor& f, Index row, Index col, Scalar& value) {
+    const Index m2 = f.rhs().rows(), n2 = f.rhs().cols();
+    Scalar a, b;
+    if (!LhsOps::coeffIfStored(f.lhs(), row / m2, col / n2, a) ||
+        !RhsOps::coeffIfStored(f.rhs(), row % m2, col % n2, b))
+      return false;
+    value = a * b;
+    return true;
+  }
+  // Visits (iA m2 + iB, jA n2 + jB) with the loop over L outermost, so a fixed
+  // column is visited in increasing row and a fixed row in increasing column,
+  // the order the sparse materialization inserts in.
+  template <typename Visitor>
+  static void forEachNonZero(const Factor& f, Visitor&& visit) {
+    const Index m2 = f.rhs().rows(), n2 = f.rhs().cols();
+    LhsOps::forEachNonZero(f.lhs(), [&f, &visit, m2, n2](Index iA, Index jA, const Scalar& a) {
+      RhsOps::forEachNonZero(f.rhs(), [&visit, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
+        visit(iA * m2 + iB, jA * n2 + jB, a * b);
+      });
+    });
+  }
+  static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool rowMajor) {
+    const Matrix<Index, Dynamic, Dynamic, ColMajor> counts =
+        RhsOps::innerNonZeros(f.rhs(), rowMajor) * LhsOps::innerNonZeros(f.lhs(), rowMajor).transpose();
+    return counts.reshaped();
+  }
+  static TransposedFactor transposed(const Factor& f) { return f.transpose(); }
+  static Factor conjugated(const Factor& f) { return f.conjugate(); }
+  static TransposedFactor adjointed(const Factor& f) { return f.adjoint(); }
+  static InverseFactor inversed(const Factor& f) { return f.inverse(); }
+  static DenseMatrix denseFactor(const Factor& f) { return DenseMatrix(f); }
+  static DenseMatrix blockOperand(const Factor& f) { return denseFactor(f); }
+  static bool isSquareIdentity(const Factor&) { return false; }
+  template <typename Dst, typename Alpha, typename Xpr>
+  static void addLeftProduct(Dst& dst, const Alpha& alpha, const Factor& f, const Xpr& X) {
+    f.addProduct(dst, X, alpha);
+  }
+  // X K^T without forming X^T: with X_j = X(:, j nR : (j+1) nR - 1), j < nL,
+  //   X (L (x) R)^T = W L^T,  W(:, j) = vec(X_j R^T),  W (p mR) x nL in work,
+  // and W = X_{[p nR x nL]} when R is a square identity.
+  template <typename Dst, typename Alpha, typename Xpr, typename Work>
+  static void addRightProduct(Dst& dst, const Alpha& alpha, const Xpr& X, const Factor& f, Work& work) {
+    const Index p = X.rows(), mL = f.lhs().rows(), nL = f.lhs().cols(), mR = f.rhs().rows(), nR = f.rhs().cols();
+    auto dstL = dst.reshaped(p * mR, mL);
+    if (RhsOps::isSquareIdentity(f.rhs())) {
+      LhsOps::addRightProduct(dstL, alpha, X.reshaped(p * nR, nL), f.lhs(), work);
+    } else if (LhsOps::isSquareIdentity(f.lhs())) {
+      for (Index j = 0; j < nL; ++j) {
+        auto dstj = dst.middleCols(j * mR, mR);
+        RhsOps::addRightProduct(dstj, alpha, X.middleCols(j * nR, nR), f.rhs(), work);
+      }
+    } else {
+      Work inner;  // scratch for L and R while work holds W; allocated only if one is nested
+      work.setZero(p * mR, nL);
+      for (Index j = 0; j < nL; ++j) {
+        auto Wj = work.col(j).reshaped(p, mR);
+        RhsOps::addRightProduct(Wj, Alpha(1), X.middleCols(j * nR, nR), f.rhs(), inner);
+      }
+      LhsOps::addRightProduct(dstL, alpha, work, f.lhs(), inner);
+    }
+  }
+  static Scalar balancedDet(const Factor& f, Index& exponent) { return f.balancedDeterminant(exponent); }
+};
+
 /** \internal Per-factor solve adapter for KroneckerOperator::solve(): a dense
- * factor is LU-factorized once, a sparse factor once by SparseLU, and a
- * diagonal factor is solved by entrywise division. */
+ * factor is LU-factorized once, a sparse factor once by SparseLU, a diagonal
+ * factor is solved by entrywise division, an identity not at all, and a nested
+ * Kronecker factor through the adapters of its own factors. */
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 class kron_factor_solver {
  public:
@@ -374,6 +589,118 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
   SparseLU<ColMajorFactor> m_lu;
 };
 
+template <typename Factor>
+class kron_factor_solver<Factor, kKronIdentityFactor> {
+ public:
+  using Scalar = typename Factor::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+
+  explicit kron_factor_solver(const Factor&) {}
+  template <typename Xpr>
+  DenseMatrix solveLeft(const Xpr& M) const {
+    return M;
+  }
+  template <typename Xpr>
+  DenseMatrix solveTransposedRight(const Xpr& M) const {
+    return M;
+  }
+};
+
+/** \internal A nested factor K = L (x) R is solved through the solvers of L and
+ * R, each factorized once. */
+template <typename LhsMatrix, typename RhsMatrix>
+class kron_factor_solver<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFactor> {
+ public:
+  using Factor = KroneckerOperator<LhsMatrix, RhsMatrix>;
+  using Scalar = typename Factor::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+
+  explicit kron_factor_solver(const Factor& f)
+      : m_solverA(squareFactor(f.lhs())),
+        m_solverB(squareFactor(f.rhs())),
+        m_n1(f.lhs().cols()),
+        m_n2(f.rhs().cols()) {}
+  template <typename Xpr>
+  DenseMatrix solveLeft(const Xpr& M) const {
+    DenseMatrix x(M.rows(), M.cols());
+    Factor::solveWith(m_solverA, m_solverB, m_n1, m_n2, M, x);
+    return x;
+  }
+  // M K^{-T} = (K^{-1} M^T)^T.
+  template <typename Xpr>
+  DenseMatrix solveTransposedRight(const Xpr& M) const {
+    return solveLeft(M.transpose()).transpose();
+  }
+
+ private:
+  template <typename F>
+  static const F& squareFactor(const F& f) {
+    eigen_assert(f.rows() == f.cols() && "KroneckerOperator::solve requires square factors");
+    return f;
+  }
+
+  kron_factor_solver<LhsMatrix> m_solverA;
+  kron_factor_solver<RhsMatrix> m_solverB;
+  Index m_n1, m_n2;
+};
+
+/** \internal Per-factor eigen- and singular-value decompositions behind
+ * KroneckerOperator::eigenvalues(), eigenvectors(), singularValues(), matrixU()
+ * and matrixV(): a dense decomposition of the materialized factor, except for a
+ * nested Kronecker factor, which recurses into its own factors -- O(n_L^3 +
+ * n_R^3) instead of O((n_L n_R)^3), and the eigenvalues of defective factors
+ * keep the sensitivity of the factors' Jordan blocks instead of the longer
+ * blocks of their product. */
+template <typename Factor, int Kind = kron_factor_kind<Factor>()>
+struct kron_factor_spectrum {
+  using Ops = kron_factor_ops<Factor>;
+  using Scalar = typename Factor::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ComplexScalar = std::complex<RealScalar>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RealVector = Matrix<RealScalar, Dynamic, 1>;
+  using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, ColMajor>;
+  using ComplexVector = Matrix<ComplexScalar, Dynamic, 1>;
+  using Eigenvectors = ComplexMatrix;
+  using SingularVectors = DenseMatrix;
+
+  static ComplexMatrix complexFactor(const Factor& f) { return Ops::denseFactor(f).template cast<ComplexScalar>(); }
+  static ComplexVector eigenvalues(const Factor& f) {
+    ComplexEigenSolver<ComplexMatrix> es(complexFactor(f), /*computeEigenvectors=*/false);
+    eigen_assert(es.info() == Success);
+    return es.eigenvalues();
+  }
+  static Eigenvectors eigenvectors(const Factor& f) {
+    ComplexEigenSolver<ComplexMatrix> es(complexFactor(f));
+    eigen_assert(es.info() == Success);
+    return es.eigenvectors();
+  }
+  static RealVector singularValues(const Factor& f) {
+    return BDCSVD<DenseMatrix>(Ops::denseFactor(f)).singularValues();
+  }
+  static SingularVectors matrixU(const Factor& f) {
+    return BDCSVD<DenseMatrix, ComputeThinU>(Ops::denseFactor(f)).matrixU();
+  }
+  static SingularVectors matrixV(const Factor& f) {
+    return BDCSVD<DenseMatrix, ComputeThinV>(Ops::denseFactor(f)).matrixV();
+  }
+};
+
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_spectrum<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFactor> {
+  using Factor = KroneckerOperator<LhsMatrix, RhsMatrix>;
+  using Eigenvectors = KroneckerOperator<typename kron_factor_spectrum<LhsMatrix>::Eigenvectors,
+                                         typename kron_factor_spectrum<RhsMatrix>::Eigenvectors>;
+  using SingularVectors = KroneckerOperator<typename kron_factor_spectrum<LhsMatrix>::SingularVectors,
+                                            typename kron_factor_spectrum<RhsMatrix>::SingularVectors>;
+
+  static typename Factor::ComplexVector eigenvalues(const Factor& f) { return f.eigenvalues(); }
+  static Eigenvectors eigenvectors(const Factor& f) { return f.eigenvectors(); }
+  static typename Factor::RealVector singularValues(const Factor& f) { return f.singularValues(); }
+  static SingularVectors matrixU(const Factor& f) { return f.matrixU(); }
+  static SingularVectors matrixV(const Factor& f) { return f.matrixV(); }
+};
+
 }  // namespace internal
 
 /** \ingroup StructuredMatrices_Module
@@ -430,21 +757,30 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
  * an operator meant to be applied and solved with, without ever forming the
  * product.
  *
- * Either factor may be a \c DiagonalMatrix, with the identity as the
- * unit-diagonal special case. A diagonal factor is stored as its diagonal --
- * O(n) instead of O(n^2) -- its side of every product is a diagonal scaling
- * instead of a GEMM, \ref solve divides entrywise instead of factorizing, and
- * \ref transpose, \ref conjugate, \ref adjoint, \ref inverse and
- * \ref determinant never leave diagonal form. This covers the
- * identity-Kronecker operators \f$ I \otimes A \f$ and \f$ A \otimes I \f$
- * ubiquitous in finite-difference and Sylvester/Lyapunov settings, e.g.
+ * Either factor may be a \c DiagonalMatrix. A diagonal factor is stored as its
+ * diagonal -- O(n) instead of O(n^2) -- its side of every product is a diagonal
+ * scaling instead of a GEMM, \ref solve divides entrywise instead of
+ * factorizing, and \ref transpose, \ref conjugate, \ref adjoint, \ref inverse
+ * and \ref determinant never leave diagonal form.
+ *
+ * Either factor may also be an identity, passed as an \c Identity() expression
+ * (\c MatrixXd::Identity(p, p)): makeKroneckerOperator() stores it as an
+ * internal identity factor holding only its dimensions (assignable, unlike the
+ * expression), its side of a product is skipped, and its solves are the
+ * identity map. This covers the identity-Kronecker operators
+ * \f$ I \otimes A \f$ and \f$ A \otimes I \f$ ubiquitous in finite-difference
+ * and Sylvester/Lyapunov settings, e.g.
  * \code
- * auto K = makeKroneckerOperator(VectorXd::Ones(p).asDiagonal(), A);  // I_p (x) A, applied in O(p m n)
+ * auto K = makeKroneckerOperator(MatrixXd::Identity(p, p), A);  // I_p (x) A, y = K * x is one product with A
  * \endcode
+ * A rectangular \c Identity(m, n) is the \c m x \c n matrix with ones on the
+ * main diagonal. The unit \c DiagonalMatrix \c VectorXd::Ones(p).asDiagonal()
+ * describes the same operator but is applied as a scaling.
+ *
  * The decomposition family (\ref eigenvalues, \ref eigenvectors,
  * \ref singularValues, \ref matrixU, \ref matrixV, \ref leastSquaresSolve,
- * \ref rank) currently materializes a diagonal factor densely for the factor
- * decomposition.
+ * \ref rank) currently materializes a diagonal or identity factor densely for
+ * the factor decomposition.
  *
  * Either factor may also be a \c SparseMatrix, stored compressed. Its side of
  * a product is a sparse-dense product -- O(nnz) instead of O(m n) per column of
@@ -463,17 +799,33 @@ class kron_factor_solver<Factor, kKronSparseFactor> {
  * product sparsely, every inner vector reserved to its exact size. For a sparse
  * \c A of size \c n with \c nnz(A) stored entries:
  * \code
- * auto K = makeKroneckerOperator(VectorXd::Ones(p).asDiagonal(), A);  // I_p (x) A
+ * auto K = makeKroneckerOperator(MatrixXd::Identity(p, p), A);  // I_p (x) A
  * VectorXd y = K * x;             // O(p nnz(A)), no p n x p n matrix
  * VectorXd z = K.solve(b);        // one SparseLU of A, then p column solves
  * SparseMatrix<double> M;
  * M = K;                          // p nnz(A) stored entries, when the matrix itself is needed
  * \endcode
  *
- * \tparam LhsMatrix the plain type of the left factor \c A: a dense \c Matrix,
- *         a \c DiagonalMatrix to exploit diagonal structure, or a
- *         \c SparseMatrix to exploit sparsity.
- * \tparam RhsMatrix the plain type of the right factor \c B, under the same
+ * Finally, either factor may be a \c KroneckerOperator itself, so products of
+ * three or more factors stay implicit: \f$ A \otimes (B \otimes C) \f$ applies
+ * \f$ B \otimes C \f$ through its own vec identity, and solves, the
+ * determinant, the transposition family, materialization, \ref eigenvalues,
+ * \ref eigenvectors and the SVD (\ref singularValues, \ref matrixU,
+ * \ref matrixV, whose vector matrices nest the same way) recurse into the
+ * nested factors; \ref rank and \ref leastSquaresSolve materialize a nested
+ * factor. \c makeKroneckerOperator(a, b, c, ...) builds this right-nested
+ * form; e.g. the middle term \f$ I_p \otimes A \otimes I_q \f$ of a 3-D
+ * finite-difference operator is
+ * \code
+ * auto K = makeKroneckerOperator(MatrixXd::Identity(p, p), A, MatrixXd::Identity(q, q));
+ * VectorXd y = K * x;             // O(p q nnz(A)), A (x) I_q is never formed either
+ * \endcode
+ *
+ * \tparam LhsMatrix the type of the left factor \c A: a dense \c Matrix, a
+ *         \c DiagonalMatrix to exploit diagonal structure, a \c SparseMatrix to
+ *         exploit sparsity, an identity factor (what makeKroneckerOperator()
+ *         stores an \c Identity() expression as), or a \c KroneckerOperator.
+ * \tparam RhsMatrix the type of the right factor \c B, under the same
  *         convention; its scalar type must match that of \c LhsMatrix.
  *
  * \sa makeKroneckerOperator(), class Circulant, class Toeplitz
@@ -488,18 +840,23 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   static_assert(std::is_same<Scalar, typename RhsMatrix::Scalar>::value,
                 "KroneckerOperator requires both factors to have the same scalar type");
   static_assert((internal::kron_factor_is_dense_matrix<LhsMatrix>::value ||
-                 internal::kron_factor_is_diagonal<LhsMatrix>::value ||
-                 internal::kron_factor_is_sparse_matrix<LhsMatrix>::value) &&
+                 internal::kron_factor_kind<LhsMatrix>() != internal::kKronDenseFactor) &&
                     (internal::kron_factor_is_dense_matrix<RhsMatrix>::value ||
-                     internal::kron_factor_is_diagonal<RhsMatrix>::value ||
-                     internal::kron_factor_is_sparse_matrix<RhsMatrix>::value),
-                "KroneckerOperator factors must be plain Matrix, DiagonalMatrix or SparseMatrix types (owning their "
-                "storage: views and expressions would dangle)");
+                     internal::kron_factor_kind<RhsMatrix>() != internal::kKronDenseFactor),
+                "KroneckerOperator factors must be plain Matrix, DiagonalMatrix or SparseMatrix types, identity "
+                "factors (makeKroneckerOperator stores an Identity() expression as one) or KroneckerOperators (owning "
+                "their storage: views and other expressions would dangle)");
 
  private:
-  // Factor-kind dispatch (dense, diagonal or sparse), see kron_factor_ops.
+  // Factor-kind dispatch, see kron_factor_ops.
   using LhsOps = internal::kron_factor_ops<LhsMatrix>;
   using RhsOps = internal::kron_factor_ops<RhsMatrix>;
+  using LhsSpectrum = internal::kron_factor_spectrum<LhsMatrix>;
+  using RhsSpectrum = internal::kron_factor_spectrum<RhsMatrix>;
+  template <typename, int>
+  friend struct internal::kron_factor_ops;
+  template <typename, int>
+  friend class internal::kron_factor_solver;
 
  public:
   using ComplexScalar = std::complex<RealScalar>;
@@ -528,7 +885,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   /** Builds the operator \c A (x) \c B from the two factors, evaluated into the
    * operator's factor types: a dense expression into a \c Matrix, a diagonal
    * one into a \c DiagonalMatrix (stored as its diagonal), a sparse one into a
-   * compressed \c SparseMatrix. */
+   * compressed \c SparseMatrix, an \c Identity() expression into an identity
+   * factor holding its dimensions; a \c KroneckerOperator is copied as it is. */
   template <typename LhsDerived, typename RhsDerived>
   KroneckerOperator(const EigenBase<LhsDerived>& a, const EigenBase<RhsDerived>& b)
       : m_A(a.derived()), m_B(b.derived()) {
@@ -591,22 +949,13 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
                             int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
                         YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    const Index n1 = m_A.cols(), n2 = m_B.cols(), r = b.cols();
+    const Index n1 = m_A.cols(), n2 = m_B.cols();
     eigen_assert(m_A.rows() == n1 && m_B.rows() == n2 && "KroneckerOperator::solve requires square factors");
     eigen_assert(b.rows() == n1 * n2 && "right-hand side has the wrong number of rows");
     const internal::kron_factor_solver<LhsMatrix> solverA(m_A);
     const internal::kron_factor_solver<RhsMatrix> solverB(m_B);
-    typename internal::nested_eval<Rhs, 1>::type actualRhs(b.derived());
-    Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, r);
-    DenseMatrix S, Z, X;
-    const Index chunk = rhsChunk<Scalar>(3 * n1 * n2);
-    for (Index k0 = 0; k0 < r; k0 += chunk) {
-      const Index c = numext::mini(chunk, r - k0);
-      stackColumns(S, actualRhs.middleCols(k0, c), n2, n1);
-      Z = solverB.solveLeft(S.reshaped(n2, c * n1));
-      X = solverA.solveTransposedRight(Z.reshaped(n2 * c, n1));
-      for (Index k = 0; k < c; ++k) x.col(k0 + k).reshaped(n2, n1) = X.middleRows(k * n2, n2);
-    }
+    Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
+    solveWith(solverA, solverB, n1, n2, b.derived(), x);
     return x;
   }
 
@@ -712,8 +1061,9 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   /** \returns the determinant \f$ \det(A)^{n_2} \det(B)^{n_1} \f$ for square
    * factors \c A of size \c n1 and \c B of size \c n2. The product is
    * accumulated from the factor LU diagonals (the \c SparseLU pivots for a
-   * sparse factor, the diagonal itself for a diagonal factor, skipping the LU)
-   * in the balanced form \c m * 2^e --
+   * sparse factor, the diagonal itself for a diagonal factor, skipping the LU;
+   * 1 for an identity; recursively for a nested Kronecker factor, whose own
+   * factors must then be square) in the balanced form \c m * 2^e --
    * every factor and the running product are renormalized to unit magnitude
    * with the power of two tracked separately -- so the partial products (in
    * particular \c det(A) and \c det(B) themselves, which can overflow or
@@ -723,8 +1073,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::determinant requires square factors");
     Index exponent = 0;
-    Scalar mant = balancedDetPow(m_A, m_B.cols(), exponent);
-    mant = internal::structured_balance(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
+    const Scalar mant = balancedDeterminant(exponent);
     return internal::structured_ldexp_clamped(mant, exponent);
   }
 
@@ -736,27 +1085,19 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   ComplexVector eigenvalues() const {
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::eigenvalues requires square factors");
-    ComplexEigenSolver<ComplexMatrix> esA(LhsOps::denseFactor(m_A).template cast<ComplexScalar>(),
-                                          /*computeEigenvectors=*/false);
-    ComplexEigenSolver<ComplexMatrix> esB(RhsOps::denseFactor(m_B).template cast<ComplexScalar>(),
-                                          /*computeEigenvectors=*/false);
-    eigen_assert(esA.info() == Success && esB.info() == Success);
     // Column-major stacking of the nB x nA outer product puts mu_j(B) lambda_i(A)
     // at index i*nB + j, the Kronecker order.
-    return (esB.eigenvalues() * esA.eigenvalues().transpose()).reshaped();
+    return (RhsSpectrum::eigenvalues(m_B) * LhsSpectrum::eigenvalues(m_A).transpose()).reshaped();
   }
 
   /** \returns the matrix of eigenvectors \f$ V_A \otimes V_B \f$ for square
    * factors -- itself a Kronecker operator, never materialized. Column
    * \c i*n2 + j is \f$ v_i(A) \otimes v_j(B) \f$ and matches
    * \c eigenvalues()[i*n2 + j]. Assign it to a dense matrix to materialize. */
-  KroneckerOperator<ComplexMatrix, ComplexMatrix> eigenvectors() const {
+  KroneckerOperator<typename LhsSpectrum::Eigenvectors, typename RhsSpectrum::Eigenvectors> eigenvectors() const {
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::eigenvectors requires square factors");
-    ComplexEigenSolver<ComplexMatrix> esA(LhsOps::denseFactor(m_A).template cast<ComplexScalar>());
-    ComplexEigenSolver<ComplexMatrix> esB(RhsOps::denseFactor(m_B).template cast<ComplexScalar>());
-    eigen_assert(esA.info() == Success && esB.info() == Success);
-    return {esA.eigenvectors(), esB.eigenvectors()};
+    return {LhsSpectrum::eigenvectors(m_A), RhsSpectrum::eigenvectors(m_B)};
   }
 
   /** \returns the singular values of the thin SVD
@@ -767,26 +1108,23 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c U and \c V); for rectangular shapes the full SVD pads this set with
    * \c min(rows(),cols()) - k_A*k_B structural zeros. */
   RealVector singularValues() const {
-    BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
     // Column-major stacking of the kB x kA outer product puts sigma_j(B) sigma_i(A)
     // at index i*kB + j, the Kronecker order.
-    return (svdB.singularValues() * svdA.singularValues().transpose()).reshaped();
+    return (RhsSpectrum::singularValues(m_B) * LhsSpectrum::singularValues(m_A).transpose()).reshaped();
   }
 
   /** \returns the left singular vectors \f$ U_A \otimes U_B \f$ of the thin SVD,
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
-  KroneckerOperator<DenseMatrix, DenseMatrix> matrixU() const {
-    BDCSVD<DenseMatrix, ComputeThinU> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
-    return {svdA.matrixU(), svdB.matrixU()};
+  KroneckerOperator<typename LhsSpectrum::SingularVectors, typename RhsSpectrum::SingularVectors> matrixU() const {
+    return {LhsSpectrum::matrixU(m_A), RhsSpectrum::matrixU(m_B)};
   }
 
   /** \returns the right singular vectors \f$ V_A \otimes V_B \f$ of the thin SVD,
    * itself a Kronecker operator with orthonormal columns; column \c i*k_B + j
    * matches \c singularValues()[i*k_B + j]. */
-  KroneckerOperator<DenseMatrix, DenseMatrix> matrixV() const {
-    BDCSVD<DenseMatrix, ComputeThinV> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
-    return {svdA.matrixV(), svdB.matrixV()};
+  KroneckerOperator<typename LhsSpectrum::SingularVectors, typename RhsSpectrum::SingularVectors> matrixV() const {
+    return {LhsSpectrum::matrixV(m_A), RhsSpectrum::matrixV(m_B)};
   }
 
   /** \internal Writes the representation into \a dst, dense or sparse according
@@ -822,22 +1160,25 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   void evalToImpl(Dest& dst, std::false_type) const {
     const Index m2 = m_B.rows(), n2 = m_B.cols();
     if (!LhsOps::StoresAllEntries) dst.setZero();
+    const auto& B = RhsOps::blockOperand(m_B);
     LhsOps::forEachNonZero(
-        m_A, [&dst, m2, n2, this](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) = a * m_B; });
+        m_A, [&dst, &B, m2, n2](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) = a * B; });
   }
 
   template <typename Dest>
   void addToImpl(Dest& dst, std::false_type) const {
     const Index m2 = m_B.rows(), n2 = m_B.cols();
+    const auto& B = RhsOps::blockOperand(m_B);
     LhsOps::forEachNonZero(
-        m_A, [&dst, m2, n2, this](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) += a * m_B; });
+        m_A, [&dst, &B, m2, n2](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) += a * B; });
   }
 
   template <typename Dest>
   void subToImpl(Dest& dst, std::false_type) const {
     const Index m2 = m_B.rows(), n2 = m_B.cols();
+    const auto& B = RhsOps::blockOperand(m_B);
     LhsOps::forEachNonZero(
-        m_A, [&dst, m2, n2, this](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) -= a * m_B; });
+        m_A, [&dst, &B, m2, n2](Index i, Index j, const Scalar& a) { dst.block(i * m2, j * n2, m2, n2) -= a * B; });
   }
 
   /** \internal The sparse representation. Every stored entry of \c A (all
@@ -898,14 +1239,17 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   }
 
   /** \internal Computes \c dst += alpha * (*this) * rhs through the vec identity
-   * \f$ (A \otimes B)\,\mathrm{vec}(X) = \mathrm{vec}(B X A^T) \f$ of [1], for
-   * \c c right-hand-side columns at a time, see rhsChunk(). With
-   * \f$ X_k = \mathrm{mat}(x_k) \f$ stacked as block rows of \f$ \hat X \f$
-   * (\c n2*c x \c n1), see stackColumns(),
+   * \f$ (A \otimes B)\,\mathrm{vec}(X) = \mathrm{vec}(B X A^T) \f$ of [1], one
+   * product per factor -- a GEMM, an SpMM for a sparse factor, a scaling for a
+   * diagonal one, nothing for a square identity. A single right-hand side is
+   * reshaped in place, \f$ \mathrm{mat}(y) \mathrel{+}= \alpha B X A^T \f$ with
+   * \f$ X = \mathrm{mat}(x) \f$, so with a square identity factor the product is
+   * one pass of the other factor over \a x. Several right-hand sides are applied
+   * \c c at a time, see rhsChunk(): with \f$ X_k = \mathrm{mat}(x_k) \f$ stacked
+   * as block rows of \f$ \hat X \f$ (\c n2*c x \c n1), see stackColumns(),
    * \f[ \hat Y = \big(B\,\hat X_{[n_2 \times c n_1]}\big)_{[m_2 c \times n_1]}\,A^T,
    *     \qquad \hat Y_k = B X_k A^T = \mathrm{mat}(y_k), \f]
-   * where \f$ M_{[p \times q]} \f$ is the column-major reshape: one product per
-   * factor -- a GEMM, an SpMM for a sparse factor, a scaling for a diagonal one.
+   * where \f$ M_{[p \times q]} \f$ is the column-major reshape.
    * \c ProductScalar is the promoted scalar of the product (complex when a real
    * operator is applied to a complex right-hand side); the workspaces and the
    * accumulation run in the promoted type. As in any product chain, \f$ B X \f$
@@ -918,14 +1262,42 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const Index m1 = m_A.rows(), n1 = m_A.cols(), m2 = m_B.rows(), n2 = m_B.cols(), r = rhs.cols();
     eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
     typename internal::nested_eval<Rhs, 1>::type actualRhs(rhs);
-    ProductMatrix X, BX, Y;
+    const bool skipA = LhsOps::isSquareIdentity(m_A), skipB = RhsOps::isSquareIdentity(m_B);
+    ProductMatrix X, BX, Y, work;
     const Index chunk = rhsChunk<ProductScalar>(n1 * n2 + m2 * n1 + m2 * m1);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
+      if (c == 1) {
+        const auto Xk = actualRhs.col(k0).reshaped(n2, n1);
+        auto Yk = dst.col(k0).reshaped(m2, m1);
+        if (skipA) {
+          RhsOps::addLeftProduct(Yk, alpha, m_B, Xk);
+        } else if (skipB) {
+          LhsOps::addRightProduct(Yk, alpha, Xk, m_A, work);
+        } else {
+          BX.setZero(m2, n1);
+          RhsOps::addLeftProduct(BX, ProductScalar(1), m_B, Xk);
+          LhsOps::addRightProduct(Yk, alpha, BX, m_A, work);
+        }
+        continue;
+      }
       stackColumns(X, actualRhs.middleCols(k0, c), n2, n1);
-      BX.noalias() = m_B * X.reshaped(n2, c * n1);
-      Y.noalias() = BX.reshaped(m2 * c, n1) * LhsOps::transposedOperand(m_A);
-      for (Index k = 0; k < c; ++k) dst.col(k0 + k).reshaped(m2, m1) += alpha * Y.middleRows(k * m2, m2);
+      if (!skipB) {
+        BX.setZero(m2, c * n1);
+        RhsOps::addLeftProduct(BX, ProductScalar(1), m_B, X.reshaped(n2, c * n1));
+      }
+      const auto BXhat = (skipB ? X : BX).reshaped(m2 * c, n1);
+      if (!skipA) {
+        Y.setZero(m2 * c, m1);
+        LhsOps::addRightProduct(Y, ProductScalar(1), BXhat, m_A, work);
+      }
+      for (Index k = 0; k < c; ++k) {
+        auto Yk = dst.col(k0 + k).reshaped(m2, m1);
+        if (skipA)
+          Yk += alpha * BXhat.middleRows(k * m2, m2);
+        else
+          Yk += alpha * Y.middleRows(k * m2, m2);
+      }
     }
   }
 
@@ -996,6 +1368,34 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     Matrix<int, Dynamic, 1> exponents;
   };
 
+  /** \internal \returns the mantissa of \c det(*this) in the balanced form
+   * \c m * 2^e, adding \c e into \a exponent; see determinant(). */
+  Scalar balancedDeterminant(Index& exponent) const {
+    eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
+                 "KroneckerOperator::determinant requires square factors");
+    const Scalar mant = balancedDetPow(m_A, m_B.cols(), exponent);
+    return internal::structured_balance(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
+  }
+
+  /** \internal Writes \f$ (A \otimes B)^{-1} b \f$ into \a x through the factor
+   * solvers \a solverA and \a solverB of the square factors of sizes \a n1 and
+   * \a n2: \f$ X = B^{-1} \mathrm{mat}(b) A^{-T} \f$, the right-hand sides
+   * stacked as in addProduct(). */
+  template <typename SolverA, typename SolverB, typename Rhs, typename Dest>
+  static void solveWith(const SolverA& solverA, const SolverB& solverB, Index n1, Index n2, const Rhs& b, Dest& x) {
+    typename internal::nested_eval<Rhs, 1>::type actualRhs(b);
+    DenseMatrix S, Z, X;
+    const Index r = b.cols();
+    const Index chunk = rhsChunk<Scalar>(3 * n1 * n2);
+    for (Index k0 = 0; k0 < r; k0 += chunk) {
+      const Index c = numext::mini(chunk, r - k0);
+      stackColumns(S, actualRhs.middleCols(k0, c), n2, n1);
+      Z = solverB.solveLeft(S.reshaped(n2, c * n1));
+      X = solverA.solveTransposedRight(Z.reshaped(n2 * c, n1));
+      for (Index k = 0; k < c; ++k) x.col(k0 + k).reshaped(n2, n1) = X.middleRows(k * n2, n2);
+    }
+  }
+
   /** \internal \returns the mantissa of \c det(M)^power in the balanced form
    * \c m * 2^e, adding \c e into \a exponent. The determinant is accumulated
    * directly from the LU diagonal, times the permutation sign (from the
@@ -1022,15 +1422,26 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
 
 /** \ingroup StructuredMatrices_Module
  * \returns a \ref KroneckerOperator \c a (x) \c b holding evaluated copies of the
- * factors. The operator type is deduced from the plain types of \a a and \a b:
- * a dense argument becomes a \c Matrix factor, a diagonal one (e.g.
- * \c VectorXd::Ones(n).asDiagonal() for an identity factor) an owning
- * \c DiagonalMatrix, a sparse one a compressed \c SparseMatrix, each exploited
- * structurally, see \ref KroneckerOperator. */
+ * factors. The operator type is deduced from the types of \a a and \a b: a
+ * dense argument becomes a \c Matrix factor, a diagonal one an owning
+ * \c DiagonalMatrix, a sparse one a compressed \c SparseMatrix, an
+ * \c Identity() expression an identity factor holding its dimensions, and a
+ * \c KroneckerOperator is stored as it is, each exploited structurally, see
+ * \ref KroneckerOperator. */
 template <typename LhsDerived, typename RhsDerived>
-KroneckerOperator<typename LhsDerived::PlainObject, typename RhsDerived::PlainObject> makeKroneckerOperator(
-    const EigenBase<LhsDerived>& a, const EigenBase<RhsDerived>& b) {
+KroneckerOperator<typename internal::kron_factor_storage<LhsDerived>::type,
+                  typename internal::kron_factor_storage<RhsDerived>::type>
+makeKroneckerOperator(const EigenBase<LhsDerived>& a, const EigenBase<RhsDerived>& b) {
   return {a.derived(), b.derived()};
+}
+
+/** \ingroup StructuredMatrices_Module
+ * \returns the \ref KroneckerOperator \c a (x) \c b (x) \c c (x) ..., nested to
+ * the right: \c makeKroneckerOperator(a, makeKroneckerOperator(b, c, ...)). */
+template <typename D1, typename D2, typename D3, typename... Rest>
+auto makeKroneckerOperator(const EigenBase<D1>& a, const EigenBase<D2>& b, const EigenBase<D3>& c,
+                           const Rest&... rest) {
+  return makeKroneckerOperator(a, makeKroneckerOperator(b, c, rest...));
 }
 
 namespace internal {
