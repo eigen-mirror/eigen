@@ -590,30 +590,71 @@ inline void RealSchur<MatrixType>::performFrancisQRStep(TMatrix& matT, Index il,
 
   const Index size = matT.cols();
 
-  for (Index k = im; k <= iu - 2; ++k) {
-    bool firstIteration = (k == im);
+  // Reflectors are chased in windows k0 <= k < k1 of at most WindowSize. Reflector k reads column k - 1 and its
+  // right-hand update reaches column k + 2, so only columns < k1 + 2 feed later reflectors of the window. The left
+  // updates of the columns beyond are deferred to the window's end and applied column by column in the original
+  // order: the same arithmetic, on contiguous segments instead of one strided three-row pass per reflector.
+  constexpr Index WindowSize = 32;
+  constexpr bool deferLeft = !TMatrix::IsRowMajor && int(TMatrix::InnerStrideAtCompileTime) == 1;
+  Index windowK[WindowSize];
+  Scalar windowTau[WindowSize];
+  Matrix<Scalar, 2, 1> windowEss[WindowSize];
 
-    Vector3s v;
-    if (firstIteration)
-      v = firstHouseholderVector;
-    else
-      v = matT.template block<3, 1>(k, k - 1);
+  for (Index k0 = im; k0 <= iu - 2; k0 += WindowSize) {
+    const Index k1 = (std::min)(k0 + WindowSize, iu - 1);
+    const Index nearEnd = deferLeft ? (std::min)(size, k1 + 2) : size;
+    Index numDeferred = 0;
+    for (Index k = k0; k < k1; ++k) {
+      bool firstIteration = (k == im);
 
-    Scalar tau, beta;
-    Matrix<Scalar, 2, 1> ess;
-    v.makeHouseholder(ess, tau, beta);
+      Vector3s v;
+      if (firstIteration)
+        v = firstHouseholderVector;
+      else
+        v = matT.template block<3, 1>(k, k - 1);
 
-    if (!numext::is_exactly_zero(beta))  // if v is not zero
-    {
-      if (firstIteration && k > il)
-        matT.coeffRef(k, k - 1) = -matT.coeff(k, k - 1);
-      else if (!firstIteration)
-        matT.coeffRef(k, k - 1) = beta;
+      Scalar tau, beta;
+      Matrix<Scalar, 2, 1> ess;
+      v.makeHouseholder(ess, tau, beta);
 
-      // These Householder transformations form the O(n^3) part of the algorithm
-      matT.block(k, k, 3, size - k).applyHouseholderOnTheLeft(ess, tau, workspace);
-      matT.block(0, k, (std::min)(iu, k + 3) + 1, 3).applyHouseholderOnTheRight(ess, tau, workspace);
-      if (computeU) m_matU.block(0, k, size, 3).applyHouseholderOnTheRight(ess, tau, workspace);
+      if (!numext::is_exactly_zero(beta))  // if v is not zero
+      {
+        if (firstIteration && k > il)
+          matT.coeffRef(k, k - 1) = -matT.coeff(k, k - 1);
+        else if (!firstIteration)
+          matT.coeffRef(k, k - 1) = beta;
+
+        // These Householder transformations form the O(n^3) part of the algorithm
+        matT.block(k, k, 3, nearEnd - k).applyHouseholderOnTheLeft(ess, tau, workspace);
+        matT.block(0, k, (std::min)(iu, k + 3) + 1, 3).applyHouseholderOnTheRight(ess, tau, workspace);
+        if (computeU) m_matU.block(0, k, size, 3).applyHouseholderOnTheRight(ess, tau, workspace);
+        // A zero tau is the identity, which the immediate path skips; applying it would turn -0 into +0 and Inf
+        // into NaN.
+        if (nearEnd < size && !numext::is_exactly_zero(tau)) {
+          windowK[numDeferred] = k;
+          windowTau[numDeferred] = tau;
+          windowEss[numDeferred] = ess;
+          ++numDeferred;
+        }
+      }
+    }
+    // Groups of columns give independent dependency chains: within one column, each update reads two entries the
+    // previous one wrote.
+    constexpr Index ColumnGroup = 16;
+    for (Index j0 = nearEnd; j0 < size && numDeferred > 0; j0 += ColumnGroup) {
+      const Index j1 = (std::min)(j0 + ColumnGroup, size);
+      for (Index r = 0; r < numDeferred; ++r) {
+        const Index k = windowK[r];
+        const Scalar e0 = windowEss[r].coeff(0), e1 = windowEss[r].coeff(1), tau = windowTau[r];
+        for (Index j = j0; j < j1; ++j) {
+          // Column-major with unit inner stride: rows k, k + 1, k + 2 of column j are consecutive.
+          Scalar* x = &matT.coeffRef(k, j);
+          const Scalar tmp = tau * ((e0 * x[1] + e1 * x[2]) + x[0]);
+          x[0] -= tmp;
+          x[1] -= e0 * tmp;
+          x[2] -= e1 * tmp;
+        }
+      }
     }
   }
 
