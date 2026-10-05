@@ -430,6 +430,27 @@ void quaternion_from_non_orthogonal_matrix() {
     VERIFY(!(numext::isnan)(q.y()));
     VERIFY(!(numext::isnan)(q.z()));
   }
+
+  // Pivot component must be rounded as 0.5 * sqrt(t) (single rounding, <= 0.5 ULP)
+  // rather than t * (0.5 / sqrt(t)) (which loses 1 ULP for t = 2 and 2 ULP for
+  // t = 3 in double, degrading downstream extraction on 90-deg and 60-deg rotations).
+  {
+    Matrix3 r90;
+    r90 << Scalar(0), Scalar(0), Scalar(1), Scalar(0), Scalar(1), Scalar(0), Scalar(-1), Scalar(0), Scalar(0);
+    Quaternionx q90(r90);
+    VERIFY_IS_EQUAL(q90.w(), Scalar(0.5) * numext::sqrt(Scalar(2)));
+
+    Matrix3 r180_xy;
+    r180_xy << Scalar(0), Scalar(1), Scalar(0), Scalar(1), Scalar(0), Scalar(0), Scalar(0), Scalar(0), Scalar(-1);
+    Quaternionx q180(r180_xy);
+    VERIFY_IS_EQUAL(q180.x(), Scalar(0.5) * numext::sqrt(Scalar(2)));
+
+    const Scalar s60 = numext::sqrt(Scalar(3)) * Scalar(0.5);
+    Matrix3 r60;
+    r60 << Scalar(0.5), -s60, Scalar(0), s60, Scalar(0.5), Scalar(0), Scalar(0), Scalar(0), Scalar(1);
+    Quaternionx q60(r60);
+    VERIFY_IS_EQUAL(q60.w(), Scalar(0.5) * numext::sqrt(Scalar(3)));
+  }
 }
 
 template <typename Scalar>
