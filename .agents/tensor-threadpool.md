@@ -34,10 +34,10 @@ This macro selects Eigen's custom thread-pool backend for general dense matrix-m
 exclusive with OpenMP. Define it before including Eigen, create an `Eigen::ThreadPool`, and register that pool with
 `Eigen::setGemmThreadPool(&pool)` before concurrent GEMM work begins.
 
-The registered pointer is process-global state and the pool remains caller-owned. It must outlive all GEMM using it;
-do not replace it while a product is running. `Eigen::setNbThreads` controls the active thread limit, while registering
-a pool resets that limit to the pool's thread count. Passing `nullptr` currently queries the registered pool; it does
-not clear the registration. Treat `doc/TopicMultithreading.dox` and
+Eigen stores the registered pointer in a process-wide global, and the caller still owns the pool. The pool must outlive
+every GEMM that uses it; do not replace it while a product is running. `Eigen::setNbThreads` controls the active thread
+limit, but registering a pool resets that limit to the pool's thread count. Passing `nullptr` currently returns the
+registered pool; it does not clear the registration. Treat `doc/TopicMultithreading.dox` and
 `Eigen/src/Core/products/Parallelizer.h` as the current API and implementation references.
 
 ### `CoreThreadPoolDevice`
@@ -52,8 +52,8 @@ Eigen::CoreThreadPoolDevice device(pool);
 destination.device(device) = expression;
 ```
 
-It is distinct from implicit GEMM parallelization. Changes belong with the device/evaluator tests represented by
-`test/assignment_threaded.cpp`, not only the GEMM tests.
+It is separate from implicit GEMM parallelization. Its tests belong with the device and evaluator tests, such as
+`test/assignment_threaded.cpp`, not only with the GEMM tests.
 
 ### Tensor `ThreadPoolDevice`
 
@@ -67,22 +67,24 @@ output.device(device) = expression;
 ```
 
 The device does not own the pool. The pool, allocator, input storage, output storage, and callback state must remain
-alive until synchronous evaluation returns or asynchronous completion is signaled. Tensor's executor, contraction,
-reduction, and device code have `ThreadPoolDevice`-specific paths; a serial `DefaultDevice` test alone is insufficient.
+alive until a synchronous evaluation returns or an asynchronous one signals completion. Tensor's executor,
+contraction, reduction, and device code have code paths specific to `ThreadPoolDevice`, so a serial `DefaultDevice`
+test alone is insufficient.
 See `contrib/Eigen/src/Tensor/README.md` and `TensorDeviceThreadPool.h`.
 
 ## Evaluator capability flags and cost
 
-Evaluator capabilities are independent claims the executor combines: vectorization follows `PacketAccess`, tiling
-follows `BlockAccess && PreferBlockAccess`. Widening a flag widens a contract, and the execution paths treat evaluator
-state differently — threaded coefficient evaluation copies the evaluator per worker range, while tiled evaluation
-shares one evaluator across concurrent block tasks, so a functor with mutable state races there even though its
-coefficient and packet paths are correct. A capability may legitimately depend on the `Device`; prefer the
-conservative answer for stateful or unannotated user functors (see rule 6 in the root `AGENTS.md`).
+Each evaluator capability flag is a separate promise, and the executor combines them: it vectorizes when `PacketAccess`
+is set and tiles when `BlockAccess && PreferBlockAccess` holds. Setting a flag in more cases makes a broader promise.
+The execution paths also treat evaluator state differently. Threaded coefficient evaluation copies the evaluator for
+each worker range, while tiled evaluation shares one evaluator across concurrent block tasks. A functor with mutable
+state therefore races under tiling even when its coefficient and packet paths are correct. A capability may
+legitimately depend on the `Device`; prefer the conservative answer for stateful or unannotated user functors (see
+rule 6 in the root `AGENTS.md`).
 
-`costPerCoeff()` drives thread-count selection and must describe the path actually taken: when a packet path is
-conditional, mirror that condition in the cost and charge nested work as scalar where the packet path gathers lane by
-lane (`TensorStriding.h` is the reference).
+Eigen chooses the thread count from `costPerCoeff()`, so the cost must describe the code path actually taken. When
+the packet path is taken only under a condition, apply the same condition in the cost. Where the packet path gathers
+lane by lane, charge the nested evaluator's work as scalar. `TensorStriding.h` is the reference.
 
 ## Scheduling changes
 
@@ -104,8 +106,8 @@ lane (`TensorStriding.h` is the reference).
 - Thread-pool internals: run the affected `threads_*` target, especially event-count, run-queue, non-blocking-pool, or
   fork-join tests.
 - Custom GEMM pool: run `product_threaded` and the ordinary product tests affected by the change.
-- Core explicit device: build and run the assignment-threaded test represented by `test/assignment_threaded.cpp` if
-  it is registered in the current test configuration.
+- Core explicit device: build and run the test built from `test/assignment_threaded.cpp` if it is registered in the
+  current test configuration.
 - Tensor pool/device changes: run `tensor_thread_pool`, `tensor_executor`, and the focused operation tests such as
   contraction or reduction.
 - Tensor behavior shared with accelerators: also follow `simd-gpu.md` and run the locally available device tests.

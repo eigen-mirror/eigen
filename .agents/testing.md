@@ -89,27 +89,27 @@ intended, so keep the construct narrow.
   compiled with `EIGEN_TEST_PART_ALL=1`.
 - An explicit `EIGEN_TEST_PART_N` marker forces splitting even when the option is off. If any such marker is present,
   all suffixes discovered in that source are emitted.
-- [`cmake/EigenTestPartGroups.cmake`](../cmake/EigenTestPartGroups.cmake) lists part ranges that compile as one
-  executable named after the range's first part, e.g. `array_cwise_1` for `1-4`; `ctest -R '<name>'` still selects
-  them. A range may only hold parts that differ by `CALL_SUBTEST_N` alone and that are not individually smoke-listed,
-  and its compile must stay under the 4 GiB peak RSS the file header records. Adding or renumbering subtests inside a
-  listed range grows that compile, so re-measure it.
+- [`cmake/EigenTestPartGroups.cmake`](../cmake/EigenTestPartGroups.cmake) lists ranges of parts that compile together as
+  one executable, named after the range's first part, e.g. `array_cwise_1` for `1-4`; `ctest -R '<name>'` still selects
+  them. A range may only hold parts that differ in nothing but their `CALL_SUBTEST_N` calls and that are not listed
+  individually in the smoke list. Its compile must stay under the 4 GiB peak RSS recorded in the file header. Adding or
+  renumbering subtests inside a listed range makes that compile bigger, so re-measure it.
 
 `ctest -R '^<name>$'` does not match split parts. Use `ctest -R '<name>'` for every part or anchor one generated name.
 
-After changing subtest registration, reconfigure and read back the generated target list. Two failure modes are
-silent: a subtest function whose `CALL_SUBTEST` call was dropped still compiles and looks like coverage, and a part
-reached only through a dispatch macro is not built under `EIGEN_SPLIT_LARGE_TESTS=ON` unless an `EIGEN_SUFFIXES`
+After changing subtest registration, reconfigure and read back the generated target list. Two failure modes are silent.
+A subtest function whose `CALL_SUBTEST` call was dropped still compiles and looks like coverage. And under
+`EIGEN_SPLIT_LARGE_TESTS=ON`, a part invoked only through a dispatch macro is not built unless an `EIGEN_SUFFIXES`
 marker lists it.
 
 ## Coverage That Can Fail
 
-A test that passes when the change is reverted is not coverage. Establish that it fails at the parent commit, or when
-that is impractical, that it reaches the new code by construction.
+A test that passes when the change is reverted is not coverage. Establish that it fails at the parent commit, or, when
+that is impractical, that by construction it runs the new code.
 
-- Reach a new fast path through the public entry that selects it, with inputs that actually take it — not only through
-  a direct call to the new method. Pin the selection with a `STATIC_CHECK` on the flag or trait where one exists, in
-  both directions: a type that must opt in and one that must stay out.
+- Test a new fast path through the public entry point that selects it, with inputs that actually take it, not only
+  through a direct call to the new method. Where a flag or trait selects the fast path, pin the selection with a
+  `STATIC_CHECK` on it in both directions: for a type that must opt in and for one that must stay out.
 - Cover the branches the change adds, not just one convenient shape: sizes that are not a multiple of the packet or
   block dimension, complex scalars where conjugation is otherwise a no-op, both storage orders, and the uncompressed
   or strided variants of an input type.
@@ -127,29 +127,29 @@ opts out of Eigen's install rules. They exist because those are claims
 [`doc/TopicCMakeGuide.dox`](../doc/TopicCMakeGuide.dox) makes to users and nothing else checks; the blocking
 documentation job only builds the docs, it does not run what they describe.
 
-Not every scenario answers to the documentation. A find module that has to survive a second configure of the same
-build tree, or the wiring that routes a compiler launcher into a test's compile command, is CMake behavior nothing
-else exercises either.
+Not every scenario checks a documented claim. Some cover CMake behavior that nothing else exercises either: a find
+module that has to survive a second configure of the same build tree, or the wiring that routes a compiler launcher into
+a test's compile command.
 
 ```bash
 cmake -G Ninja -S . -B build -DEIGEN_BUILD_TESTING=ON
 cmake -E chdir build ctest -L buildsystem --output-on-failure --no-tests=error
 ```
 
-`--no-tests=error` belongs on every `ctest` invocation in this guide because CTest otherwise exits 0 when nothing
-matched: an anchored `-R '^name$'` against a split test, a mistyped name, or `--test-dir` under CMake 3.17 to 3.19,
-which predate that option, ignore it, and inspect the source directory instead. `cmake -E chdir` is the spelling that
-also works there.
+`--no-tests=error` belongs on every `ctest` invocation in this guide, because CTest otherwise exits 0 when nothing
+matched. Nothing matches with an anchored `-R '^name$'` against a split test, with a mistyped name, or with `--test-dir`
+under CMake 3.17 to 3.19: those versions predate `--test-dir`, ignore it, and inspect the source directory instead.
+`cmake -E chdir` is the spelling that also works there.
 
 No target needs building first: each scenario runs its own nested configure, build, and install into the CTest
 binary directory. Add a claim by dropping a scenario in `scenarios/` and naming it in the list in
 `test/buildsystem/CMakeLists.txt`; the driver `run_scenario.cmake` supplies the assertion helpers.
 
-Two hazards specific to these tests. Eigen calls `export(PACKAGE Eigen3)`, so CMake's user package registry names
-every Eigen build tree on the machine — a `find_package` scenario must disable both registries and assert the package
-came from the prefix it installed, or it passes without reading that prefix at all. And because CMake registers the
-tests, a guard that stops matching yields an empty selection rather than a failure, so the CI job runs `ctest` with
-`--no-tests=error`.
+Two hazards are specific to these tests. First, Eigen calls `export(PACKAGE Eigen3)`, so CMake's user package registry
+names every Eigen build tree on the machine. A `find_package` scenario must therefore disable both the user and the
+system package registries and assert that the package came from the prefix it installed; otherwise it passes without
+reading that prefix at all. Second, CMake code registers these tests, so if a guard stops matching, CTest finds no tests
+rather than reporting a failure. That is why the CI job runs `ctest` with `--no-tests=error`.
 
 ## Configurations The Test Suite Cannot See
 
@@ -164,8 +164,8 @@ tests, a guard that stops matching yields an empty selection rather than a failu
 - Cover `EIGEN_TEST_NO_EXPLICIT_VECTORIZATION`, `EIGEN_UNALIGNED_VECTORIZE=0`, or a narrower
   `EIGEN_DEFAULT_DENSE_INDEX_TYPE` when the change reasons about packets, alignment, or index width.
 - Tests build optimized (`CMAKE_BUILD_TYPE` defaults to Release) and no CI job builds Debug, so a `static constexpr`
-  class-template member that is odr-used without its C++14 namespace-scope definition links everywhere CI looks and
-  fails only at -O0; see [`conventions.md`](conventions.md). Build one Debug tree when adding such constants.
+  class-template member that is odr-used without its C++14 namespace-scope definition links in every CI build and fails
+  only at -O0; see [`conventions.md`](conventions.md). Build one Debug tree when adding such constants.
 - Compiler fast-math coverage is limited to targets registered with those flags in `test/CMakeLists.txt`.
   The smoke list includes `packetmath_fastmath`, `packetmath_fastmath_generic_16` where vector extensions are
   available, `bfloat16_classification_fastmath`, and parts of `fastmath`, `bdcsvd_fastmath`, and
@@ -184,32 +184,32 @@ For numerical kernels, add explicit named bounds based on epsilon, dimension, co
 model as appropriate. Check NaN, infinity, and signed zero explicitly when their distinction matters. Follow
 [`numerics.md`](numerics.md) for solver, packet, and scalar-math coverage.
 
-Write such a bound as `factor * NumTraits<RealScalar>::epsilon()` at the site, and explain `factor` by its error
-model. Do not introduce tolerance wrapper helpers: the raw form is the established idiom across `test/` and
-`contrib/test/`, and it *is* the computation, so a bound like `10 * n * eps * A.norm()` stays readable as one.
-A bare decimal literal is worse than opaque — `1e-9` demands impossible accuracy from a `float` instantiation.
+Write such a bound as `factor * NumTraits<RealScalar>::epsilon()` at the site, and explain `factor` by its error model.
+Do not introduce tolerance wrapper helpers: the raw form is the established idiom across `test/` and `contrib/test/`,
+and it shows the computation itself, so a bound like `10 * n * eps * A.norm()` reads as the formula it is. A bare
+decimal literal is worse than opaque: `1e-9` demands impossible accuracy from a `float` instantiation.
 
-Two ways a comparison silently accepts everything, both of which have shipped here: a tolerance computed by the
-operation under test (a bound formed as `(A.cwiseAbs() * B.cwiseAbs())` goes through the product code being tested —
-accumulate it independently instead), and a comparison that admits non-finite values (`error <= tolerance` holds for
-two infinities, and `if (error > bound)` never fires for a NaN error — assert the negation and reject a non-finite
-tolerance).
+Two kinds of comparison silently accept everything, and both have shipped here. The first is a tolerance computed by the
+operation under test: a bound formed as `(A.cwiseAbs() * B.cwiseAbs())` goes through the product code being tested, so
+accumulate it independently instead. The second is a comparison that admits non-finite values: `error <= tolerance`
+holds for two infinities, and `if (error > bound)` never fires for a NaN error. Test for failure as the negation of the
+passing condition, `!(error <= bound)`, and reject a non-finite tolerance.
 
 When a numerical check fails for some seeds, find out whether the computation or the check is at fault before changing
-the tolerance. Measure the results against a reference computed in higher precision (quad or MPFR), as backward error
-and as forward error over the first-order condition bound, across enough seeds to see the tail:
+the tolerance. Compare the results with a reference computed in higher precision (quad or MPFR). Measure the backward
+error, and the forward error relative to the first-order condition bound, across enough seeds to see the tail:
 
 - A result worse than its conditioning allows is an accuracy defect. Fix the algorithm; a wider tolerance would hide
   it.
 - A result within that accuracy that still fails means the check asks for more than the working precision can
   deliver. Derive the tolerance from the conditioning rather than a flat factor.
-- Solving the same inputs in the next wider type proves neither: it resolves what the working precision cannot, such
-  as a tight cluster of roots that the narrower type only locates to within a wider set.
+- Solving the same inputs in the next wider type proves neither. The wider type resolves what the working precision
+  cannot, such as a tight cluster of roots that the narrower type can only locate to within a wider set.
 
-Both can hold at once. The `polynomialsolver` flake had companion eigenvalues with backward errors of 1.8e4 eps, yet
-its flat 3.16% check kept failing at the same rate once every root was below one eps. Land such a computation fix and
-test fix as independent merge requests, and state in the first, with seed sweeps against the parent, whether it
-removes the failure.
+An accuracy defect and an over-strict check can both be present. In the `polynomialsolver` flake, the companion
+eigenvalues had backward errors of 1.8e4 eps, yet once every root was below one eps, the flat 3.16% check kept failing
+at the same rate. Land such a computation fix and test fix as independent merge requests. In the first, state whether it
+removes the failure, backed by seed sweeps against the parent commit.
 
 Run reproducible failures directly with a fixed seed and repeat count:
 

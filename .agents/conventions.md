@@ -1,23 +1,24 @@
 # Local Conventions For New Code
 
-Use this guide when writing new declarations anywhere in the tree. It records the forms review asks for. It does not
+Use this guide when writing new declarations anywhere in the tree. It records the forms reviewers ask for. It does not
 authorize rewriting code the task is not otherwise changing; rule 5 in the repository-root `AGENTS.md` governs
-untouched lines. Eigen predates most of these forms, so a tree-wide count is not the convention: new code uses the
-current form, and a file being edited heavily should come out uniform rather than half converted.
+untouched lines. Eigen predates most of these forms, so the most common form in the tree is not the convention. New
+code uses the current form, and a file that is being heavily edited should end up uniform rather than half converted.
 
 ## Declarations
 
 - Trait and evaluator constants are `static constexpr` members, not `enum` blocks; `enum` constants are being phased
   out. Give each the type it is used as: `Flags` is `unsigned int` by convention, predicates are `bool`. In C++14 the
-  in-class declaration is not a definition: odr-using such a member of a class template — binding it to a `const T&`
-  parameter such as `numext::mini`'s, or taking its address — links at -O2 and fails at -O0 unless a namespace-scope
-  `template <...> constexpr T Cls<...>::kName;` definition exists (`arch/Default/Half.h` has the form). Pass a prvalue
-  (`+kName`, `Index(kName)`) or add the definition; the test suite builds optimized and will not catch the omission.
+  in-class declaration is not a definition. Code that odr-uses such a member of a class template, for example by
+  binding it to a `const T&` parameter such as `numext::mini`'s or by taking its address, links at -O2 but fails to
+  link at -O0 unless a namespace-scope `template <...> constexpr T Cls<...>::kName;` definition exists
+  (`arch/Default/Half.h` has the form). Pass a prvalue (`+kName`, `Index(kName)`) or add the definition. The test
+  suite builds optimized, so it will not catch the omission.
 - Prefer `using` to `typedef`, `nullptr` to `NULL`, `= default` and default member initializers to empty constructor
-  bodies that assign each member. `using` binds in every tree, `test/` and `contrib/` included: those were left
-  out of the sweep that converted `Eigen/src`, so the aliases surrounding new code there are mostly still `typedef`
-  and matching the neighbours reproduces the form the sweep removed. Do not rely on CI to catch it — the
-  `modernize-use-using` gap recorded at [`scripts/check_style.py`](../scripts/check_style.py) leaves function-local
+  bodies that assign each member. The `using` rule applies everywhere, `test/` and `contrib/` included. Those
+  directories were left out of the sweep that converted `Eigen/src`, so most aliases near new code there are still
+  `typedef`, and copying the neighbors reproduces the form the sweep removed. Do not rely on CI to catch it: the
+  `modernize-use-using` gap recorded in [`scripts/check_style.py`](../scripts/check_style.py) leaves function-local
   typedefs unreported.
 - `kCamelCase` is an accepted spelling for `static constexpr` and static constants, alongside the older `snake_case`
   and `SCREAMING_CASE` forms. It is not a review finding.
@@ -34,7 +35,7 @@ current form, and a file being edited heavily should come out uniform rather tha
 - Compile-time API preconditions use the `EIGEN_STATIC_ASSERT_*` helper that names them (`_VECTOR_ONLY`,
   `_SAME_MATRIX_SIZE`, ...) or `EIGEN_STATIC_ASSERT(cond, TOKEN)`. These honor `EIGEN_NO_STATIC_ASSERT` and a
   user-provided `EIGEN_STATIC_ASSERT` override. Write unconditional implementation invariants as
-  `static_assert(cond, "what must hold")`; bare assertions bypass those configuration mechanisms.
+  `static_assert(cond, "what must hold")`; a plain `static_assert` bypasses those configuration mechanisms.
 - Deprecate, do not remove: mark the old declaration `EIGEN_DEPRECATED` or `EIGEN_DEPRECATED_WITH_REASON("use ...")`,
   keep it working by forwarding to the replacement, and name the replacement in its Doxygen block.
 - Spell names out (`scratch`, not `scr`) and name traits for the property they assert.
@@ -60,10 +61,10 @@ recover it.
 
 ## Comments
 
-The comment rules in the repository-root `AGENTS.md` are enforced in review and are the most repeated style finding
-here. Before publishing a diff, reread each added comment and delete the ones that narrate code or restate an
+Reviewers enforce the comment rules in the repository-root `AGENTS.md`, and breaking them is the most common style
+finding here. Before publishing a diff, reread each added comment and delete the ones that narrate code or restate an
 identifier. Keep the ones recording mathematics, invariants, compatibility constraints, provenance, or the reason a
-slower or unusual form is deliberate — stated at the construct, not in the merge request.
+slower or unusual form is deliberate. Put them at the code they explain, not in the merge request.
 
 Prefer the most precise notation that fits. A recurrence, an error bound, an invariant written as an expression, or
 two lines of pseudo-code usually carry more than a paragraph and are read faster by this audience:
@@ -76,11 +77,12 @@ two lines of pseudo-code usually carry more than a paragraph and are read faster
 // Good: tree summation, relative error <= ~2*eps*(log2(n/B) + B) for leaf size B.
 ```
 
-A bound, invariant, or identity stated exactly beats prose that half-carries it (`m` kept in `[1, 2)` says more than
-"balanced form"), and a named theorem comes with its statement. Reuse the symbols of the surrounding file and the
-cited reference rather than inventing one for a sentence; notation that restates what the code shows is the same
-defect as prose that does. Prose remains the tool for a *reason*: why this form and not the obvious one. Comments are
-plain text, so write expressions the way the rest of the tree does, not in a markup language that does not render.
+An exact bound, invariant, or identity beats prose that conveys it only in part (`m` kept in `[1, 2)` says more than
+"balanced form"). A comment that names a theorem also states it. Reuse the symbols of the surrounding file and the
+cited reference rather than inventing new ones for a single sentence. Notation that restates what the code shows is
+the same defect as prose that does. Prose remains the tool for a *reason*: why this form and not the obvious one.
+Comments are plain text, so write expressions the way the rest of the tree does, not in a markup language that does
+not render.
 
 ## REUSE metadata for new files
 
@@ -93,5 +95,6 @@ form when an agent cannot truthfully attribute an individual author:
 ```
 
 Use the language's comment syntax. Documentation or assets that should not carry inline tags must be covered precisely
-in [`REUSE.toml`](../REUSE.toml); do not add a broad annotation that hides unrelated files. Compatible adapted material
-may require a different license expression and attribution, which must be preserved rather than relabeled as MPL-2.0.
+in [`REUSE.toml`](../REUSE.toml); do not add a broad annotation that hides unrelated files. Material adapted from a
+compatibly licensed source may require a different license expression and attribution. Preserve them rather than
+relabeling the material as MPL-2.0.
