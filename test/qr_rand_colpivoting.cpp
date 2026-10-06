@@ -13,10 +13,11 @@
 #include "solverbase.h"
 
 // Use a small fixed block size in the tests so the blocked path actually
-// triggers on the modest matrix sizes the unit tests exercise.
+// triggers on the modest matrix sizes the unit tests exercise. The sketch seed
+// comes from the test's RNG, so EIGEN_SEED reproduces a failing run.
 template <typename QRType>
 void configure_small(QRType& qr) {
-  qr.setBlockSize(4).setOversampling(2);
+  qr.setBlockSize(4).setOversampling(2).setSeed(internal::random<std::uint64_t>());
 }
 
 template <typename MatrixType>
@@ -446,7 +447,10 @@ void rqr_rank_gap_test() {
       RealScalar t = (rank > 1) ? RealScalar(i) / RealScalar(rank - 1) : RealScalar(0);
       svs(i) = std::pow(sigma_rank, t);
     }
-    for (Index i = rank; i < min_dim; ++i) svs(i) = eps_level * RealScalar(min_dim - i);
+    // Noise at eps, not qr_rank_gap_test's eps * (min_dim - i): randomized pivoting may leave |R(rank, rank)|
+    // several times sigma_{rank+1} (4.6x at 100x100), and the default threshold 4 * min_dim * eps * |maxPivot| sits
+    // only 2.6x above 50 eps, so about 4% of sketches reported rank + 1.
+    for (Index i = rank; i < min_dim; ++i) svs(i) = eps_level;
     MatrixType m1;
     generateRandomMatrixSvs(svs, rows, cols, m1);
     RandColPivHouseholderQR<MatrixType> qr;
