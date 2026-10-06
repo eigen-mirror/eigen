@@ -595,6 +595,7 @@ ei_add_test(eigensolver_selfadjoint_fastmath "${EIGEN_FASTMATH_FLAGS}")
 ei_add_test(stable_norm_fastmath "${EIGEN_FASTMATH_FLAGS}")
 ei_add_test(householder_fastmath "${EIGEN_FASTMATH_FLAGS}")
 ei_add_test(trsm_packet_cancellation_fastmath "${EIGEN_FASTMATH_FLAGS}")
+ei_add_test(trig_sign_fastmath "${EIGEN_FASTMATH_FLAGS}")
 
 if(QT4_FOUND)
   ei_add_test(qtvector "" "${QT_QTCORE_LIBRARY}")

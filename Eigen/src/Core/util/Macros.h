@@ -1218,8 +1218,10 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
 #elif EIGEN_ARCH_i386_OR_x86_64
 // General, SSE.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+g,x"(X));
+#elif !defined(SYCL_DEVICE_ONLY)
+// Other architectures: a memory operand needs no target-specific register class.
+#define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+m"(X));
 #else
-// Not implemented for other architectures.
 #define EIGEN_OPTIMIZATION_BARRIER(X)
 #endif
 #else

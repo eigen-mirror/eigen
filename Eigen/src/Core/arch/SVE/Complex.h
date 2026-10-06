@@ -56,16 +56,7 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 
     HasSqrt = 1,
     HasLog = 1,
-    // pexp_complex evaluates exp(a+bi) as e^a * (cos b + i sin b), and psin for
-    // PacketXf returns |sin| under -ffast-math with GCC (13 through 15): the
-    // magnitude is right but the sign is dropped, so exp of any value with a
-    // negative imaginary part comes out conjugated. clang is unaffected, as is
-    // NEON under either compiler, and every primitive psincos_float uses checks
-    // out in isolation -- a verbatim copy of its body in another translation
-    // unit gives the right answer with the same flags. Until that is resolved,
-    // leave exp to the scalar path. See
-    // https://gitlab.com/libeigen/eigen/-/issues/3132.
-    HasExp = 0
+    HasExp = 1
   };
 };
 
@@ -93,10 +84,7 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
 
     HasSqrt = 1,
     HasLog = 1,
-    // As for complex<float>: pexp_complex reaches psin, which drops the sign
-    // under -ffast-math with GCC. See
-    // https://gitlab.com/libeigen/eigen/-/issues/3132.
-    HasExp = 0
+    HasExp = 1
   };
 };
 
@@ -463,8 +451,8 @@ EIGEN_SVE_COMPLEX_DELEGATE(PacketXcf)
 EIGEN_SVE_COMPLEX_DELEGATE(PacketXcd)
 #undef EIGEN_SVE_COMPLEX_DELEGATE
 
-EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(PacketXcf)
-EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS_NO_EXP(PacketXcd)
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(PacketXcf)
+EIGEN_INSTANTIATE_COMPLEX_MATH_FUNCS(PacketXcd)
 
 // A complex value is exactly one 64-bit lane, so transposing complex packets is
 // a zip network run on 64-bit elements.

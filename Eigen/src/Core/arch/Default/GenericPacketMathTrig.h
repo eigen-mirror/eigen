@@ -85,12 +85,7 @@ inline float trig_reduce_huge(float xf, Eigen::numext::int32_t* quadrant) {
 }
 
 template <TrigFunction Func, typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-#if EIGEN_COMP_GNUC_STRICT
-    __attribute__((optimize("-fno-unsafe-math-optimizations")))
-#endif
-    Packet
-    psincos_float(const Packet& _x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psincos_float(const Packet& _x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const Packet cst_2oPI = pset1<Packet>(0.636619746685028076171875f);  // 2/PI
@@ -130,7 +125,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
   EIGEN_OPTIMIZATION_BARRIER(x)
   x = pmadd(y, pset1<Packet>(-0.000483989715576171875), x);  // = 0xb9fdc000
   EIGEN_OPTIMIZATION_BARRIER(x)
-  x = pmadd(y, pset1<Packet>(1.62865035235881805419921875e-07), x);                      // = 0x342ee000
+  x = pmadd(y, pset1<Packet>(1.62865035235881805419921875e-07), x);  // = 0x342ee000
+  EIGEN_OPTIMIZATION_BARRIER(x)
   x = pmadd(y, pset1<Packet>(5.5644315544167710640977020375430583953857421875e-11), x);  // = 0x2e74b9ee
 
 // For the record, the following set of coefficients maintain 2ULP up
@@ -285,12 +281,7 @@ Packet trig_reduce_small_double(const Packet& x, const Packet& q) {
 }
 
 template <TrigFunction Func, typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS
-#if EIGEN_COMP_GNUC_STRICT
-    __attribute__((optimize("-fno-unsafe-math-optimizations")))
-#endif
-    Packet
-    psincos_double(const Packet& x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psincos_double(const Packet& x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
   using ScalarI = typename unpacket_traits<PacketI>::type;
 

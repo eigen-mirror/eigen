@@ -1035,13 +1035,9 @@ struct packet_traits<double> : default_packet_traits {
     HasRsqrt = 1,
     // asin and acos are absent from EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_DOUBLE,
     // so they stay scalar.
-    //
-    // sin, cos and tan stay off despite being available: psin, pcos and ptan
-    // return the magnitude with the sign dropped under -ffast-math with GCC.
-    // Turning them on here would extend that to double, where the scalar path
-    // is correct today. tanh, exp, log, atan and cbrt are unaffected -- checked
-    // against the scalar reference under -ffast-math -- so they are on. See
-    // https://gitlab.com/libeigen/eigen/-/issues/3132.
+    HasSin = EIGEN_FAST_MATH,
+    HasCos = EIGEN_FAST_MATH,
+    HasTan = EIGEN_FAST_MATH,
     HasATan = 1,
     HasATanh = 1,
     HasLog = 1,
