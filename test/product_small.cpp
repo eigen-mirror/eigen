@@ -338,7 +338,10 @@ void product_small_regressions() {
     typedef Eigen::Matrix<double, kGemm - 1, kGemm - 1> MatrixBelow;
     typedef Eigen::Matrix<double, kGemm, kGemm> MatrixAt;
     VERIFY((internal::product_type<MatrixBelow, MatrixBelow>::value == CoeffBasedProductMode));
-    VERIFY((internal::product_type<MatrixAt, MatrixAt>::value == GemmProduct));
+    // A dimension below EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD (16 on ZVector) keeps the product coefficient-based
+    // whatever the fixed-size threshold.
+    VERIFY((internal::product_type<MatrixAt, MatrixAt>::value ==
+            (kGemm >= EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD ? GemmProduct : CoeffBasedProductMode)));
 
     fixed_size_product_assignments<MatrixBelow>();
     fixed_size_product_assignments<MatrixAt>();

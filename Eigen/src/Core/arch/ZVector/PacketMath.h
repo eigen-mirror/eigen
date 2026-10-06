@@ -40,13 +40,7 @@ typedef __vector unsigned long long Packet2ul;
 typedef __vector long long Packet2l;
 
 // Z14 has builtin support for float vectors
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
 typedef __vector float Packet4f;
-#else
-typedef struct {
-  Packet2d v4f[2];
-} Packet4f;
-#endif
 
 typedef union {
   numext::int32_t i[4];
@@ -60,9 +54,7 @@ typedef union {
   Packet2l v2l;
   Packet2ul v2ul;
   Packet2d v2d;
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
   Packet4f v4f;
-#endif
 } Packet;
 
 // We don't want to write the same code all the time, but we need to reuse the constants
@@ -92,7 +84,6 @@ static Packet2d p2d_ONE = {1.0, 1.0};
 static Packet2d p2d_ZERO_ = {numext::bit_cast<double>(0x8000000000000000ull),
                              numext::bit_cast<double>(0x8000000000000000ull)};
 
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
 #define EIGEN_DECLARE_CONST_FAST_Packet4f(NAME, X) Packet4f p4f_##NAME = reinterpret_cast<Packet4f>(vec_splat_s32(X))
 
 #define EIGEN_DECLARE_CONST_Packet4f(NAME, X) Packet4f p4f_##NAME = pset1<Packet4f>(X)
@@ -103,7 +94,6 @@ static Packet2d p2d_ZERO_ = {numext::bit_cast<double>(0x8000000000000000ull),
 static EIGEN_DECLARE_CONST_FAST_Packet4f(ZERO, 0);     //{ 0.0, 0.0, 0.0, 0.0}
 static EIGEN_DECLARE_CONST_FAST_Packet4i(MINUS1, -1);  //{ -1, -1, -1, -1}
 static Packet4f p4f_MZERO = {0x80000000, 0x80000000, 0x80000000, 0x80000000};
-#endif
 
 static Packet4i p4i_COUNTDOWN = {0, 1, 2, 3};
 static Packet4f p4f_COUNTDOWN = {0.0, 1.0, 2.0, 3.0};
@@ -256,6 +246,17 @@ struct unpacket_traits<Packet2d> {
   typedef Packet2d half;
   typedef Packet2l integer_packet;
 };
+// The integer_packet of Packet2d, for the generic bit-manipulation paths; int64 is not vectorized.
+template <>
+struct unpacket_traits<Packet2l> {
+  using type = numext::int64_t;
+  using half = Packet2l;
+  static constexpr int size = 2;
+  static constexpr int alignment = Aligned16;
+  static constexpr bool vectorizable = false;
+  static constexpr bool masked_load_available = false;
+  static constexpr bool masked_store_available = false;
+};
 
 /* Forward declaration */
 EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel);
@@ -295,14 +296,12 @@ inline std::ostream& operator<<(std::ostream& s, const Packet2d& v) {
   return s;
 }
 
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
 inline std::ostream& operator<<(std::ostream& s, const Packet4f& v) {
   Packet vt;
   vt.v4f = v;
   s << vt.f[0] << ", " << vt.f[1] << ", " << vt.f[2] << ", " << vt.f[3];
   return s;
 }
-#endif
 
 template <>
 EIGEN_STRONG_INLINE Packet4i pload<Packet4i>(const int* from) {
@@ -345,6 +344,10 @@ EIGEN_STRONG_INLINE Packet4i pset1<Packet4i>(const int& from) {
 template <>
 EIGEN_STRONG_INLINE Packet2d pset1<Packet2d>(const double& from) {
   return vec_splats(from);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pset1<Packet2l>(const numext::int64_t& from) {
+  return vec_splats(static_cast<long long>(from));
 }
 
 template <>
@@ -470,9 +473,11 @@ template <>
 EIGEN_STRONG_INLINE Packet4i pmin<Packet4i>(const Packet4i& a, const Packet4i& b) {
   return vec_min(a, b);
 }
+// pmin/pmax follow std::min/std::max: they return a whenever either operand is NaN, so a NaN in a propagates through
+// clamps such as pmax(pmin(x, hi), lo). vec_min/vec_max (VFMIN/VFMAX mode 0 on z14) drop it.
 template <>
 EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return vec_min(a, b);
+  return __builtin_s390_vfmindb(a, b, 3);  // mode 3: std::min
 }
 
 template <>
@@ -481,7 +486,7 @@ EIGEN_STRONG_INLINE Packet4i pmax<Packet4i>(const Packet4i& a, const Packet4i& b
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pmax<Packet2d>(const Packet2d& a, const Packet2d& b) {
-  return vec_max(a, b);
+  return __builtin_s390_vfmaxdb(a, b, 3);  // mode 3: std::max
 }
 
 template <>
@@ -521,6 +526,59 @@ EIGEN_STRONG_INLINE Packet2d pandnot<Packet2d>(const Packet2d& a, const Packet2d
 }
 
 template <>
+EIGEN_STRONG_INLINE Packet2l padd<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return (a + b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l psub<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return (a - b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pand<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vec_and(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l por<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vec_or(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pxor<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vec_xor(a, b);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pandnot<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return vec_and(a, vec_nor(b, b));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_eq<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmpeq(a, b));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_lt<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmplt(a, b));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pcmp_le<Packet2l>(const Packet2l& a, const Packet2l& b) {
+  return reinterpret_cast<Packet2l>(vec_cmple(a, b));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2l pselect<Packet2l>(const Packet2l& mask, const Packet2l& a, const Packet2l& b) {
+  return vec_sel(b, a, reinterpret_cast<Packet2ul>(mask));
+}
+
+template <>
+struct cast_impl<Packet2l, Packet2d> {
+  EIGEN_DEVICE_FUNC static inline Packet2d run(const Packet2l& a) { return vec_double(a); }
+};
+
+template <>
+struct cast_impl<Packet2d, Packet2l> {
+  EIGEN_DEVICE_FUNC static inline Packet2l run(const Packet2d& a) {
+    return vec_signed(vec_sel(p2d_ZERO, a, vec_cmpeq(a, a)));  // A NaN lane converts to 0.
+  }
+};
+
+template <>
 EIGEN_STRONG_INLINE Packet2d pround<Packet2d>(const Packet2d& a) {
   /* Uses non-default rounding for vec_round */
   return __builtin_s390_vfidb(a, 0, 1);
@@ -535,11 +593,13 @@ EIGEN_STRONG_INLINE Packet2d pfloor<Packet2d>(const Packet2d& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d print<Packet2d>(const Packet2d& a) {
-  return __builtin_s390_vfidb(a, 4, 5);
+  // M5 = 4: round to nearest, ties to even.
+  return __builtin_s390_vfidb(a, 4, 4);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d ptrunc<Packet2d>(const Packet2d& a) {
-  return __builtin_s390_vfidb(a, 4, 4);
+  // M5 = 5: round toward zero.
+  return __builtin_s390_vfidb(a, 4, 5);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pcmp_lt_or_nan<Packet2d>(const Packet2d& a, const Packet2d& b) {
@@ -737,362 +797,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet2d, 2>& kernel) {
   kernel.packet[1] = t1;
 }
 
-/* z13 has no vector float support so we emulate that with double
-   z14 has proper vector float support.
-*/
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ < 12)
-/* Helper function to simulate a vec_splat_packet4f
- */
-template <int element>
-EIGEN_STRONG_INLINE Packet4f vec_splat_packet4f(const Packet4f& from) {
-  Packet4f splat;
-  switch (element) {
-    case 0:
-      splat.v4f[0] = vec_splat(from.v4f[0], 0);
-      splat.v4f[1] = splat.v4f[0];
-      break;
-    case 1:
-      splat.v4f[0] = vec_splat(from.v4f[0], 1);
-      splat.v4f[1] = splat.v4f[0];
-      break;
-    case 2:
-      splat.v4f[0] = vec_splat(from.v4f[1], 0);
-      splat.v4f[1] = splat.v4f[0];
-      break;
-    case 3:
-      splat.v4f[0] = vec_splat(from.v4f[1], 1);
-      splat.v4f[1] = splat.v4f[0];
-      break;
-  }
-  return splat;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pload<Packet4f>(const float* from) {
-  // FIXME: No intrinsic yet
-  EIGEN_DEBUG_ALIGNED_LOAD
-  Packet4f vfrom;
-  vfrom.v4f[0] = vec_ld2f(&from[0]);
-  vfrom.v4f[1] = vec_ld2f(&from[2]);
-  return vfrom;
-}
-
-template <>
-EIGEN_STRONG_INLINE void pstore<float>(float* to, const Packet4f& from) {
-  // FIXME: No intrinsic yet
-  EIGEN_DEBUG_ALIGNED_STORE
-  vec_st2f(from.v4f[0], &to[0]);
-  vec_st2f(from.v4f[1], &to[2]);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pset1<Packet4f>(const float& from) {
-  Packet4f to;
-  to.v4f[0] = pset1<Packet2d>(static_cast<const double&>(from));
-  to.v4f[1] = to.v4f[0];
-  return to;
-}
-
-template <>
-EIGEN_STRONG_INLINE void pbroadcast4<Packet4f>(const float* a, Packet4f& a0, Packet4f& a1, Packet4f& a2, Packet4f& a3) {
-  a3 = pload<Packet4f>(a);
-  a0 = vec_splat_packet4f<0>(a3);
-  a1 = vec_splat_packet4f<1>(a3);
-  a2 = vec_splat_packet4f<2>(a3);
-  a3 = vec_splat_packet4f<3>(a3);
-}
-
-template <>
-EIGEN_DEVICE_FUNC inline Packet4f pgather<float, Packet4f>(const float* from, Index stride) {
-  EIGEN_ALIGN16 float ai[4];
-  ai[0] = from[0 * stride];
-  ai[1] = from[1 * stride];
-  ai[2] = from[2 * stride];
-  ai[3] = from[3 * stride];
-  return pload<Packet4f>(ai);
-}
-
-template <>
-EIGEN_DEVICE_FUNC inline void pscatter<float, Packet4f>(float* to, const Packet4f& from, Index stride) {
-  EIGEN_ALIGN16 float ai[4];
-  pstore<float>((float*)ai, from);
-  to[0 * stride] = ai[0];
-  to[1 * stride] = ai[1];
-  to[2 * stride] = ai[2];
-  to[3 * stride] = ai[3];
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f padd<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f c;
-  c.v4f[0] = a.v4f[0] + b.v4f[0];
-  c.v4f[1] = a.v4f[1] + b.v4f[1];
-  return c;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f psub<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f c;
-  c.v4f[0] = a.v4f[0] - b.v4f[0];
-  c.v4f[1] = a.v4f[1] - b.v4f[1];
-  return c;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmul<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f c;
-  c.v4f[0] = a.v4f[0] * b.v4f[0];
-  c.v4f[1] = a.v4f[1] * b.v4f[1];
-  return c;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pdiv<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f c;
-  c.v4f[0] = a.v4f[0] / b.v4f[0];
-  c.v4f[1] = a.v4f[1] / b.v4f[1];
-  return c;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pnegate(const Packet4f& a) {
-  Packet4f c;
-  c.v4f[0] = -a.v4f[0];
-  c.v4f[1] = -a.v4f[1];
-  return c;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  Packet4f res;
-  res.v4f[0] = vec_madd(a.v4f[0], b.v4f[0], c.v4f[0]);
-  res.v4f[1] = vec_madd(a.v4f[1], b.v4f[1], c.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pmin(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pmin(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pmax(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pmax(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pand<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pand(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pand(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f por<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = por(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = por(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pxor<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pxor(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pxor(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pandnot<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pandnot(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pandnot(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pround<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = generic_round(a.v4f[0]);
-  res.v4f[1] = generic_round(a.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pceil<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = vec_ceil(a.v4f[0]);
-  res.v4f[1] = vec_ceil(a.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = vec_floor(a.v4f[0]);
-  res.v4f[1] = vec_floor(a.v4f[1]);
-  return res;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = print(a.v4f[0]);
-  res.v4f[1] = print(a.v4f[1]);
-  return res;
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = ptrunc(a.v4f[0]);
-  res.v4f[1] = ptrunc(a.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
-  Packet4f p = pload<Packet4f>(from);
-  p.v4f[1] = vec_splat(p.v4f[0], 1);
-  p.v4f[0] = vec_splat(p.v4f[0], 0);
-  return p;
-}
-
-template <>
-EIGEN_STRONG_INLINE float pfirst<Packet4f>(const Packet4f& a) {
-  EIGEN_ALIGN16 float x[2];
-  vec_st2f(a.v4f[0], &x[0]);
-  return x[0];
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f preverse(const Packet4f& a) {
-  Packet4f rev;
-  rev.v4f[0] = preverse<Packet2d>(a.v4f[1]);
-  rev.v4f[1] = preverse<Packet2d>(a.v4f[0]);
-  return rev;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pabs<Packet4f>(const Packet4f& a) {
-  Packet4f res;
-  res.v4f[0] = pabs(a.v4f[0]);
-  res.v4f[1] = pabs(a.v4f[1]);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux<Packet4f>(const Packet4f& a) {
-  Packet2d sum;
-  sum = padd<Packet2d>(a.v4f[0], a.v4f[1]);
-  double first = predux<Packet2d>(sum);
-  return static_cast<float>(first);
-}
-
-template <>
-EIGEN_STRONG_INLINE bool predux_any(const Packet4f& a) {
-  return predux_any(a.v4f[0]) | predux_any(a.v4f[1]);
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_mul<Packet4f>(const Packet4f& a) {
-  // Return predux_mul<Packet2d> of the subvectors product
-  return static_cast<float>(pfirst(predux_mul(pmul(a.v4f[0], a.v4f[1]))));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_min<Packet4f>(const Packet4f& a) {
-  Packet2d b, res;
-  b = pmin<Packet2d>(a.v4f[0], a.v4f[1]);
-  res = pmin<Packet2d>(
-      b, reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4i>(b), reinterpret_cast<Packet4i>(b), 8)));
-  return static_cast<float>(pfirst(res));
-}
-
-template <>
-EIGEN_STRONG_INLINE float predux_max<Packet4f>(const Packet4f& a) {
-  Packet2d b, res;
-  b = pmax<Packet2d>(a.v4f[0], a.v4f[1]);
-  res = pmax<Packet2d>(
-      b, reinterpret_cast<Packet2d>(vec_sld(reinterpret_cast<Packet4i>(b), reinterpret_cast<Packet4i>(b), 8)));
-  return static_cast<float>(pfirst(res));
-}
-
-/* Split the Packet4f PacketBlock into 4 Packet2d PacketBlocks and transpose each one
- */
-EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
-  PacketBlock<Packet2d, 2> t0, t1, t2, t3;
-  // copy top-left 2x2 Packet2d block
-  t0.packet[0] = kernel.packet[0].v4f[0];
-  t0.packet[1] = kernel.packet[1].v4f[0];
-
-  // copy top-right 2x2 Packet2d block
-  t1.packet[0] = kernel.packet[0].v4f[1];
-  t1.packet[1] = kernel.packet[1].v4f[1];
-
-  // copy bottom-left 2x2 Packet2d block
-  t2.packet[0] = kernel.packet[2].v4f[0];
-  t2.packet[1] = kernel.packet[3].v4f[0];
-
-  // copy bottom-right 2x2 Packet2d block
-  t3.packet[0] = kernel.packet[2].v4f[1];
-  t3.packet[1] = kernel.packet[3].v4f[1];
-
-  // Transpose all 2x2 blocks
-  ptranspose(t0);
-  ptranspose(t1);
-  ptranspose(t2);
-  ptranspose(t3);
-
-  // Copy back transposed blocks, but exchange t1 and t2 due to transposition
-  kernel.packet[0].v4f[0] = t0.packet[0];
-  kernel.packet[0].v4f[1] = t2.packet[0];
-  kernel.packet[1].v4f[0] = t0.packet[1];
-  kernel.packet[1].v4f[1] = t2.packet[1];
-  kernel.packet[2].v4f[0] = t1.packet[0];
-  kernel.packet[2].v4f[1] = t3.packet[0];
-  kernel.packet[3].v4f[0] = t1.packet[1];
-  kernel.packet[3].v4f[1] = t3.packet[1];
-}
-
-template <>
-Packet4f EIGEN_STRONG_INLINE pcmp_le<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pcmp_le(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pcmp_le(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-Packet4f EIGEN_STRONG_INLINE pcmp_lt<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pcmp_lt(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pcmp_lt(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-template <>
-Packet4f EIGEN_STRONG_INLINE pcmp_eq<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pcmp_eq(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pcmp_eq(a.v4f[1], b.v4f[1]);
-  return res;
-}
-template <>
-Packet4f EIGEN_STRONG_INLINE pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  Packet4f res;
-  res.v4f[0] = pcmp_lt_or_nan(a.v4f[0], b.v4f[0]);
-  res.v4f[1] = pcmp_lt_or_nan(a.v4f[1], b.v4f[1]);
-  return res;
-}
-
-#else
 template <>
 EIGEN_STRONG_INLINE Packet4f pload<Packet4f>(const float* from) {
   EIGEN_DEBUG_ALIGNED_LOAD
@@ -1165,11 +869,11 @@ EIGEN_STRONG_INLINE Packet4f pmadd<Packet4f>(const Packet4f& a, const Packet4f& 
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vec_min(a, b);
+  return __builtin_s390_vfminsb(a, b, 3);  // mode 3: std::min
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pmax<Packet4f>(const Packet4f& a, const Packet4f& b) {
-  return vec_max(a, b);
+  return __builtin_s390_vfmaxsb(a, b, 3);  // mode 3: std::max
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pand<Packet4f>(const Packet4f& a, const Packet4f& b) {
@@ -1202,11 +906,13 @@ EIGEN_STRONG_INLINE Packet4f pfloor<Packet4f>(const Packet4f& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f print<Packet4f>(const Packet4f& a) {
-  return __builtin_s390_vfisb(a, 4, 5);
+  // M5 = 4: round to nearest, ties to even.
+  return __builtin_s390_vfisb(a, 4, 4);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f ptrunc<Packet4f>(const Packet4f& a) {
-  return __builtin_s390_vfisb(a, 4, 4);
+  // M5 = 5: round toward zero.
+  return __builtin_s390_vfisb(a, 4, 5);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const Packet4f& b) {
@@ -1289,8 +995,6 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4f, 4>& kernel) {
   kernel.packet[3] = vec_mergel(t1, t3);
 }
 
-#endif
-
 template <>
 EIGEN_STRONG_INLINE Packet4f pldexp<Packet4f>(const Packet4f& a, const Packet4f& exponent) {
   return pldexp_generic(a, exponent);
@@ -1339,21 +1043,11 @@ struct cast_impl<Packet4i, Packet4f> {
 
 template <>
 struct cast_impl<Packet4f, Packet4i> {
+  // A NaN lane converts to 0: the scalar conversion would be undefined, and pexp's clamp lets NaN through.
   EIGEN_DEVICE_FUNC static inline Packet4i run(const Packet4f& a) {
-    return Packet4i{int(a[0]), int(a[1]), int(a[2]), int(a[3])};
+    return Packet4i{to_int(a[0]), to_int(a[1]), to_int(a[2]), to_int(a[3])};
   }
-};
-
-template <>
-struct cast_impl<Packet2l, Packet2d> {
-  EIGEN_DEVICE_FUNC static inline Packet2d run(const Packet2l& a) { return Packet2d{double(a[0]), double(a[1])}; }
-};
-
-template <>
-struct cast_impl<Packet2d, Packet2l> {
-  EIGEN_DEVICE_FUNC static inline Packet2l run(const Packet2d& a) {
-    return Packet2l{(long long)(a[0]), (long long)(a[1])};
-  }
+  EIGEN_DEVICE_FUNC static inline int to_int(float x) { return x == x ? int(x) : 0; }
 };
 #else
 template <>
@@ -1363,17 +1057,9 @@ struct cast_impl<Packet4i, Packet4f> {
 
 template <>
 struct cast_impl<Packet4f, Packet4i> {
-  EIGEN_DEVICE_FUNC static inline Packet4i run(const Packet4f& a) { return vec_signed(a); }
-};
-
-template <>
-struct cast_impl<Packet2l, Packet2d> {
-  EIGEN_DEVICE_FUNC static inline Packet2d run(const Packet2l& a) { return vec_double(a); }
-};
-
-template <>
-struct cast_impl<Packet2d, Packet2l> {
-  EIGEN_DEVICE_FUNC static inline Packet2l run(const Packet2d& a) { return vec_signed(a); }
+  EIGEN_DEVICE_FUNC static inline Packet4i run(const Packet4f& a) {
+    return vec_signed(vec_sel(p4f_ZERO, a, vec_cmpeq(a, a)));  // A NaN lane converts to 0.
+  }
 };
 #endif
 

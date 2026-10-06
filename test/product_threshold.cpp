@@ -23,13 +23,16 @@ void fixed_size_threshold_is_independent() {
   using At = Matrix<Scalar, kGemmSide, kGemmSide>;
   STATIC_CHECK((internal::product_type<At, At>::FixedSizeThreshold == kThreshold));
   STATIC_CHECK((internal::product_type<Below, Below>::value == CoeffBasedProductMode));
-  STATIC_CHECK((internal::product_type<At, At>::value == GemmProduct));
+  // A dimension below EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD (16 on ZVector) keeps the product coefficient-based
+  // whatever the fixed-size threshold.
+  STATIC_CHECK((internal::product_type<At, At>::value ==
+                (kGemmSide >= EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD ? GemmProduct : CoeffBasedProductMode)));
 
   const Below a = Below::Random(), b = Below::Random();
   Below c;
   c.noalias() = a * b;
   VERIFY_IS_APPROX(c, a.lazyProduct(b));
-  // 3 * kGemmSide >= 30: the run-time bound keeps it on the GEMM path.
+  // 3 * kGemmSide >= 30: the run-time bound does not move it to the coeff-based path.
   const At d = At::Random(), e = At::Random();
   At f;
   f.noalias() = d * e;

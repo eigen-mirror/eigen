@@ -21,12 +21,10 @@ namespace internal {
 
 EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_PUSH
 
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ >= 12)
 inline Packet4ui p4ui_CONJ_XOR() {
   return Packet4ui{0x00000000, 0x80000000, 0x00000000,
                    0x80000000};  // vec_mergeh((Packet4ui)p4i_ZERO, (Packet4ui)p4f_MZERO);
 }
-#endif
 
 inline Packet2ul p2ul_CONJ_XOR1() {
   return (Packet2ul)vec_sld((Packet4ui)p2d_ZERO_, (Packet4ui)p2l_ZERO,
@@ -46,14 +44,7 @@ struct Packet1cd {
 struct Packet2cf {
   EIGEN_STRONG_INLINE Packet2cf() {}
   EIGEN_STRONG_INLINE explicit Packet2cf(const Packet4f& a) : v(a) {}
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ < 12)
-  union {
-    Packet4f v;
-    Packet1cd cd[2];
-  };
-#else
   Packet4f v;
-#endif
 };
 
 template <>
@@ -282,15 +273,6 @@ EIGEN_STRONG_INLINE std::complex<float> pfirst<Packet2cf>(const Packet2cf& a) {
   return res[0];
 }
 
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ < 12)
-template <>
-EIGEN_STRONG_INLINE Packet2cf pset1<Packet2cf>(const std::complex<float>& from) {
-  Packet2cf res;
-  res.cd[0] = Packet1cd(vec_ld2f((const float*)&from));
-  res.cd[1] = res.cd[0];
-  return res;
-}
-#else
 template <>
 EIGEN_STRONG_INLINE Packet2cf pset1<Packet2cf>(const std::complex<float>& from) {
   Packet2cf res;
@@ -301,7 +283,6 @@ EIGEN_STRONG_INLINE Packet2cf pset1<Packet2cf>(const std::complex<float>& from) 
   res.v = vec_perm(res.v, res.v, p16uc_PSET64_HI);
   return res;
 }
-#endif
 
 template <>
 EIGEN_DEVICE_FUNC inline Packet2cf pgather<std::complex<float>, Packet2cf>(const std::complex<float>* from,
@@ -360,82 +341,6 @@ EIGEN_STRONG_INLINE void prefetch<std::complex<float> >(const std::complex<float
   EIGEN_ZVECTOR_PREFETCH(addr);
 }
 
-#if !defined(__ARCH__) || (defined(__ARCH__) && __ARCH__ < 12)
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pcmp_eq(const Packet2cf& a, const Packet2cf& b) {
-  Packet4f eq = pcmp_eq<Packet4f>(a.v, b.v);
-  Packet2cf res;
-  Packet2d tmp1 = {eq.v4f[0][1], eq.v4f[0][0]};
-  Packet2d tmp2 = {eq.v4f[1][1], eq.v4f[1][0]};
-  res.v.v4f[0] = pand<Packet2d>(eq.v4f[0], tmp1);
-  res.v.v4f[1] = pand<Packet2d>(eq.v4f[1], tmp2);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pconj(const Packet2cf& a) {
-  Packet2cf res;
-  res.v.v4f[0] = pconj(Packet1cd(reinterpret_cast<Packet2d>(a.v.v4f[0]))).v;
-  res.v.v4f[1] = pconj(Packet1cd(reinterpret_cast<Packet2d>(a.v.v4f[1]))).v;
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pmul<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
-  Packet2cf res;
-  res.v.v4f[0] =
-      pmul(Packet1cd(reinterpret_cast<Packet2d>(a.v.v4f[0])), Packet1cd(reinterpret_cast<Packet2d>(b.v.v4f[0]))).v;
-  res.v.v4f[1] =
-      pmul(Packet1cd(reinterpret_cast<Packet2d>(a.v.v4f[1])), Packet1cd(reinterpret_cast<Packet2d>(b.v.v4f[1]))).v;
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf preverse(const Packet2cf& a) {
-  Packet2cf res;
-  res.cd[0] = a.cd[1];
-  res.cd[1] = a.cd[0];
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux<Packet2cf>(const Packet2cf& a) {
-  std::complex<float> res;
-  Packet1cd b = padd<Packet1cd>(a.cd[0], a.cd[1]);
-  vec_st2f(b.v, (float*)&res);
-  return res;
-}
-
-template <>
-EIGEN_STRONG_INLINE std::complex<float> predux_mul<Packet2cf>(const Packet2cf& a) {
-  std::complex<float> res;
-  Packet1cd b = pmul<Packet1cd>(a.cd[0], a.cd[1]);
-  vec_st2f(b.v, (float*)&res);
-  return res;
-}
-
-EIGEN_MAKE_CONJ_HELPER_CPLX_REAL(Packet2cf, Packet4f)
-
-template <>
-EIGEN_STRONG_INLINE Packet2cf pdiv<Packet2cf>(const Packet2cf& a, const Packet2cf& b) {
-  return pdiv_complex(a, b);
-}
-
-EIGEN_STRONG_INLINE Packet2cf pcplxflip /*<Packet2cf>*/ (const Packet2cf& x) {
-  Packet2cf res;
-  res.cd[0] = pcplxflip(x.cd[0]);
-  res.cd[1] = pcplxflip(x.cd[1]);
-  return res;
-}
-
-EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet2cf, 2>& kernel) {
-  Packet1cd tmp = kernel.packet[0].cd[1];
-  kernel.packet[0].cd[1] = kernel.packet[1].cd[0];
-  kernel.packet[1].cd[0] = tmp;
-}
-
-#else
 template <>
 EIGEN_STRONG_INLINE Packet2cf pcmp_eq(const Packet2cf& a, const Packet2cf& b) {
   Packet4f eq = vec_cmpeq(a.v, b.v);
@@ -510,8 +415,6 @@ EIGEN_STRONG_INLINE void ptranspose(PacketBlock<Packet2cf, 2>& kernel) {
   kernel.packet[1].v = vec_perm(kernel.packet[0].v, kernel.packet[1].v, p16uc_TRANSPOSE64_LO);
   kernel.packet[0].v = tmp;
 }
-
-#endif
 
 EIGEN_GCC_FAST_MATH_COMPLEX_VECTORIZE_WORKAROUND_POP
 

@@ -255,8 +255,7 @@ struct selfadjoint_l1norm_impl {
 template <typename Scalar>
 struct selfadjoint_l1norm_impl<Scalar, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
     : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<typename stable_norm_accumulator<Scalar>::type>> {};
-// The real view must lay the components out one per lane: Z13 stores four floats in two double
-// packets, which the lane masks do not describe.
+// The real view must lay the components out one per lane, which the lane masks assume.
 template <typename Packet, typename Enable = void>
 struct selfadjoint_l1norm_plain_real_view : std::false_type {};
 template <typename Packet>

@@ -576,7 +576,8 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #endif  // defined(EIGEN_ARCH_RISCV)
 
-#elif (defined __s390x__ && defined __VEC__)
+// ZVector needs the vector float instructions of z14 (__ARCH__ 12); below that, s390x stays scalar.
+#elif (defined __s390x__ && defined __VEC__ && (!defined(__ARCH__) || __ARCH__ >= 12))
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_ZVECTOR

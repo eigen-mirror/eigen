@@ -52,11 +52,16 @@ void eigensolver(const MatrixType& m) {
   EigenSolver<MatrixType> ei1(a);
   CALL_SUBTEST(check_eigensolver_for_given_mat(ei1, a));
 
+  // Both solves run in one object through compute(): without static alignment (s390x), packet-loop peeling depends
+  // on the operands' addresses, and with a fused pmadd so does the rounding.
   EigenSolver<MatrixType> ei2;
+  ei2.compute(a);
+  const typename EigenSolver<MatrixType>::EigenvectorsType eivecs = ei2.eigenvectors();
+  const typename EigenSolver<MatrixType>::EigenvalueType eivals = ei2.eigenvalues();
   ei2.setMaxIterations(RealSchur<MatrixType>::m_maxIterationsPerRow * rows).compute(a);
   VERIFY_IS_EQUAL(ei2.info(), Success);
-  VERIFY_IS_EQUAL(ei2.eigenvectors(), ei1.eigenvectors());
-  VERIFY_IS_EQUAL(ei2.eigenvalues(), ei1.eigenvalues());
+  VERIFY_IS_EQUAL(ei2.eigenvectors(), eivecs);
+  VERIFY_IS_EQUAL(ei2.eigenvalues(), eivals);
   if (rows > 2) {
     ei2.setMaxIterations(1).compute(a);
     VERIFY_IS_EQUAL(ei2.info(), NoConvergence);
