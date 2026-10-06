@@ -137,8 +137,9 @@ static void BM_HouseholderQR_Solve(benchmark::State& state) {
 // clang-format off
 // Square sizes + tall-thin sizes.
 #define QR_SIZES \
-    ->Args({32, 32})->Args({64, 64})->Args({128, 128})->Args({256, 256})->Args({512, 512})->Args({1024, 1024}) \
-    ->Args({1000, 32})->Args({1000, 100})->Args({10000, 32})->Args({10000, 100})
+    ->Args({32, 32})->Args({64, 64})->Args({80, 80})->Args({128, 128})->Args({256, 256})->Args({512, 512}) \
+    ->Args({1024, 1024}) \
+    ->Args({1000, 32})->Args({1000, 100})->Args({10000, 32})->Args({10000, 100})->Args({4000, 200})
 
 // Register: float
 BENCHMARK(BM_HouseholderQR<float>) QR_SIZES ->Name("HouseholderQR_float");
