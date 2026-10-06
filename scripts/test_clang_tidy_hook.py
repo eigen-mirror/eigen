@@ -22,7 +22,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import clang_tidy_hook
-from clang_tidy_hook import (compile_args, cuda_include_dir, module_of, run_clang_tidy,
+from clang_tidy_hook import (compile_args, cuda_include_dir, gate_macros, module_of, run_clang_tidy,
                              tidy_target, umbrella_for)
 from style_common import REPO_ROOT, as_ranges, line_filter_json
 
@@ -96,6 +96,46 @@ def test_tidy_target():
         assert tidy_target("test/main.h", tmp) is None
         # An unresolvable module is skipped.
         assert tidy_target("Eigen/src/CholmodSupport/CholmodSupport.h", tmp) is None
+        # A backend header gets the macro its umbrella includes it under.
+        driver = tidy_target("Eigen/src/LU/PartialPivLU_LAPACKE.h", tmp)
+        assert open(driver).read() == ("#define EIGEN_USE_LAPACKE\n"
+                                       "#include <Eigen/LU>\n"
+                                       "#include <Eigen/src/LU/PartialPivLU_LAPACKE.h>\n")
+        # An ISA backend's gate is not read.
+        driver = tidy_target("Eigen/src/Core/arch/SYCL/PacketMath.h", tmp)
+        assert open(driver).read() == ("#include <Eigen/Core>\n"
+                                       "#include <Eigen/src/Core/arch/SYCL/PacketMath.h>\n")
+
+
+def test_gate_macros():
+    assert gate_macros("Eigen/LU", "Eigen/src/LU/PartialPivLU_LAPACKE.h") == ["EIGEN_USE_LAPACKE"]
+    assert gate_macros("Eigen/Core", "Eigen/src/Core/products/GeneralMatrixMatrix_BLAS.h") == ["EIGEN_USE_BLAS"]
+    # Inside `#ifndef EIGEN_USE_LAPACKE_STRICT`, which must not be defined.
+    assert gate_macros("Eigen/SVD", "Eigen/src/SVD/JacobiSVD_LAPACKE.h") == ["EIGEN_USE_LAPACKE"]
+    # In the #else branch of `#ifdef EIGEN_USE_MKL`.
+    assert gate_macros("Eigen/Core", "Eigen/src/LAPACKESupport/lapacke.h") == ["EIGEN_USE_LAPACKE"]
+    assert gate_macros("Eigen/LU", "Eigen/src/LU/PartialPivLU.h") == []
+    assert gate_macros("Eigen/NoSuchModule", "Eigen/src/NoSuchModule/X.h") == []
+    with tempfile.TemporaryDirectory(prefix="gate_macros_test_") as tmp:
+        os.makedirs(os.path.join(tmp, "Eigen"))
+        with open(os.path.join(tmp, "Eigen", "M"), "w") as handle:
+            handle.write("#ifndef EIGEN_M_MODULE_H\n"
+                         "#if defined(EIGEN_USE_A)  // comment\n"
+                         "#include \"src/M/A.h\"\n"
+                         "#ifdef EIGEN_USE_B /* comment */\n"
+                         "#include \"src/M/AB.h\"\n"
+                         "#endif\n"
+                         "#else\n"
+                         "#include \"src/M/NotA.h\"\n"
+                         "#endif\n"
+                         "#if defined(EIGEN_USE_C) && defined(EIGEN_USE_D)\n"
+                         "#include \"src/M/CD.h\"\n"
+                         "#endif\n"
+                         "#endif\n")
+        assert gate_macros("Eigen/M", "Eigen/src/M/A.h", tmp) == ["EIGEN_USE_A"]
+        assert gate_macros("Eigen/M", "Eigen/src/M/AB.h", tmp) == ["EIGEN_USE_A", "EIGEN_USE_B"]
+        assert gate_macros("Eigen/M", "Eigen/src/M/NotA.h", tmp) == []
+        assert gate_macros("Eigen/M", "Eigen/src/M/CD.h", tmp) == []
 
 
 def test_compile_args():
@@ -226,6 +266,15 @@ def test_new_src_header_is_checked():
         diagnostics, skipped = run_clang_tidy({"Eigen/src/Core/Added.h": {2}}, root=tmp)
         assert not skipped, skipped
         assert len(diagnostics) == 1 and "modernize-use-using" in diagnostics[0], diagnostics
+
+
+def test_backend_header_is_checked():
+    """A header the umbrella gates on EIGEN_USE_LAPACKE must compile in its driver."""
+    if shutil.which("clang-tidy") is None:
+        print("SKIP test_backend_header_is_checked (clang-tidy not installed)")
+        return
+    _, skipped = run_clang_tidy({"Eigen/src/LU/PartialPivLU_LAPACKE.h": {1}})
+    assert not skipped, skipped
 
 
 def test_contrib_test_source_is_checked():

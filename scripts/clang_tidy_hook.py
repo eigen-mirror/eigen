@@ -16,7 +16,9 @@ umbrella first and then the edited header.  The umbrella name is read from the
 ``#error "Please include <X>"`` directive.  This mirrors what
 ``ci/scripts/run-clang-tidy.sh`` does for merge requests.  Including the edited
 header explicitly also covers a new header that the umbrella does not export
-yet.
+yet.  If the umbrella includes the header only when an ``EIGEN_USE_*`` macro is
+defined, as ``Eigen/LU`` does ``PartialPivLU_LAPACKE.h``, the driver defines it
+first; ``--gate-macros`` prints those macros for the CI script.
 
 LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
 headers directly, which trips Eigen's internal-header guard, and a PostToolUse
@@ -59,6 +61,8 @@ EXTERNAL_DEP_MODULES = ("AccelerateSupport", "CholmodSupport", "KLUSupport", "Me
                         "PaStiXSupport", "PardisoSupport", "SPQRSupport", "SuperLUSupport",
                         "UmfPackSupport")
 PLEASE_INCLUDE = re.compile(r'"Please include ([^ "]+)')
+ISA_BACKEND = re.compile(r"/arch/(?!Default/)[^/]+/")
+GATE_CONDITION = re.compile(r"#\s*(?:ifdef\s+(EIGEN_USE_\w+)|if\s+defined\s*\(\s*(EIGEN_USE_\w+)\s*\))$")
 TIMEOUT_SECONDS = 30
 
 
@@ -89,6 +93,39 @@ def umbrella_for(rel_path, root=REPO_ROOT):
             return hit.group(1)
     fallback = ("contrib/Eigen/" if rel_path.startswith("contrib/") else "Eigen/") + module
     return fallback if os.path.isfile(os.path.join(root, fallback)) else None
+
+
+def gate_macros(umbrella, rel_path, root=REPO_ROOT):
+    """Return the ``EIGEN_USE_*`` macros ``umbrella`` needs to include ``rel_path``.
+
+    ``Eigen/LU`` includes ``PartialPivLU_LAPACKE.h``, and the
+    ``lapacke_helpers.h`` that declares its ``lapack_int``, only inside
+    ``#ifdef EIGEN_USE_LAPACKE``; without the macro the header does not
+    compile.  Only the plain forms ``#ifdef EIGEN_USE_X`` and ``#if
+    defined(EIGEN_USE_X)`` count, and only when the include is in the ``#if``
+    branch, not an ``#elif`` or ``#else``.
+    """
+    target = os.path.relpath(rel_path, os.path.dirname(umbrella))
+    try:
+        with open(os.path.join(root, umbrella), encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return []
+    stack = []
+    for line in lines:
+        directive = re.sub(r"/\*.*?\*/|//.*", "", line).strip()
+        if re.match(r"#\s*if", directive):
+            gate = GATE_CONDITION.match(directive)
+            stack.append(gate and (gate.group(1) or gate.group(2)))
+        elif re.match(r"#\s*(elif|else)", directive) and stack:
+            stack[-1] = None
+        elif re.match(r"#\s*endif", directive) and stack:
+            stack.pop()
+        else:
+            include = re.match(r'#\s*include\s*"([^"]+)"', directive)
+            if include and os.path.normpath(include.group(1)) == target:
+                return [macro for macro in stack if macro]
+    return []
 
 
 def cuda_include_dir(default_root="/usr/local/cuda"):
@@ -142,6 +179,11 @@ def tidy_target(rel_path, tmpdir, root=REPO_ROOT):
             return None
         driver = os.path.join(tmpdir, "tidy_driver_" + rel_path.replace("/", "_") + ".cpp")
         with open(driver, "w", encoding="utf-8") as handle:
+            # Skip arch/<ISA>/ headers, as run-clang-tidy.sh does: their macro
+            # (EIGEN_USE_SYCL) needs a toolchain this host does not have.
+            if rel_path.startswith(SRC_TREES) and not ISA_BACKEND.search(rel_path):
+                for macro in gate_macros(include, rel_path, root):
+                    handle.write("#define %s\n" % macro)
             handle.write("#include <%s>\n" % include)
             if rel_path.startswith(SRC_TREES):
                 handle.write("#include <%s>\n" % rel_path)
@@ -255,11 +297,17 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--diff", metavar="BASE", help="lint lines added since merge-base(BASE, HEAD)")
     mode.add_argument("--claude-hook", action="store_true", help="run as a Claude Code PostToolUse hook")
+    mode.add_argument("--gate-macros", nargs=2, metavar=("UMBRELLA", "HEADER"),
+                      help="print the EIGEN_USE_* macros UMBRELLA needs defined to include HEADER, one per line")
     parser.add_argument("-b", "--binary", metavar="CLANG_TIDY",
                         help="clang-tidy executable to use, as a PATH name or a full path "
                              "(e.g. clang-tidy-19 from LLVM's version-suffixed packages); "
                              "default: clang-tidy")
     args = parser.parse_args()
+    if args.gate_macros:
+        for macro in gate_macros(*args.gate_macros):
+            print(macro)
+        return 0
     if args.claude_hook:
         try:
             return run_hook_mode(tidy=args.binary)

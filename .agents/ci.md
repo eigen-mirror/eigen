@@ -244,6 +244,15 @@ linted only when the host target already selects the backend, as the x86-64 runn
 says which backend went unchecked. Validate a change to such a header with a build that enables the ISA rather than
 relying on this job.
 
+Some headers are compiled only when the user turns on an optional backend. For example, `Eigen/LU` includes
+`PartialPivLU_LAPACKE.h` only if `EIGEN_USE_LAPACKE` is defined, and the header does not compile without it. For such
+a header the driver defines the macro before including the module, and the log heading shows it:
+`=== Eigen/src/LU/PartialPivLU_LAPACKE.h (via Eigen/LU) [with EIGEN_USE_LAPACKE] ===`. The same applies to the other
+`*_LAPACKE.h` headers, the `*_BLAS.h` headers, `Assign_MKL.h`, `ThreadedSparseProduct.h` and the GPU module. Eigen
+ships its own `lapacke.h` and `blas.h`, so the LAPACKE and BLAS headers are checked in full; `Assign_MKL.h` needs
+`<mkl.h>`, which the CI image does not have, so it is checked partially. To see which macros a header gets, run
+`python3 scripts/clang_tidy_hook.py --gate-macros Eigen/LU Eigen/src/LU/PartialPivLU_LAPACKE.h`.
+
 For a split test the driver checks only the parts that compile the added lines and prints beside the file name the
 parts it left out. When a cap on the number of parts leaves some out, the run names them rather than reporting the
 file clean. [`ci-internals.md`](ci-internals.md) explains how the parts are chosen.
