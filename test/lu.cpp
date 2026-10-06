@@ -447,7 +447,10 @@ void lu_partial_piv_fixed() {
   using Vector = Matrix<Scalar, N, 1>;
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Pivots = Matrix<int, Dynamic, 1>;
-  constexpr int Order = (Options & RowMajor) ? RowMajor : ColMajor;
+  // Aliases rather than a constexpr local for the storage order: MSVC rejects a local constant used as a template
+  // argument inside a capture-less lambda (C3493).
+  using FixedImpl = internal::partial_lu_impl<Scalar, (Options & RowMajor) ? RowMajor : ColMajor, int, N>;
+  using DynImpl = internal::partial_lu_impl<Scalar, (Options & RowMajor) ? RowMajor : ColMajor, int, Dynamic>;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
 
   // Returns the index of the first exactly-zero pivot, which PartialPivLU discards, after checking that the fixed and
@@ -458,10 +461,9 @@ void lu_partial_piv_fixed() {
     Matrix<int, N, 1> fixed_tr;
     Pivots dyn_tr(N);
     int fixed_nb = -1, dyn_nb = -1;
-    const Index fixed_zero = internal::partial_lu_impl<Scalar, Order, int, N>::blocked_lu(
-        N, N, fixed_lu.data(), fixed_lu.outerStride(), fixed_tr.data(), fixed_nb);
-    const Index dyn_zero = internal::partial_lu_impl<Scalar, Order, int, Dynamic>::blocked_lu(
-        N, N, dyn_lu.data(), dyn_lu.outerStride(), dyn_tr.data(), dyn_nb);
+    const Index fixed_zero =
+        FixedImpl::blocked_lu(N, N, fixed_lu.data(), fixed_lu.outerStride(), fixed_tr.data(), fixed_nb);
+    const Index dyn_zero = DynImpl::blocked_lu(N, N, dyn_lu.data(), dyn_lu.outerStride(), dyn_tr.data(), dyn_nb);
     VERIFY_IS_EQUAL(fixed_zero, dyn_zero);
     VERIFY_IS_EQUAL(Pivots(fixed_tr), dyn_tr);
     VERIFY_IS_EQUAL(fixed_nb, dyn_nb);
