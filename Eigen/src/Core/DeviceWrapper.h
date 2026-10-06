@@ -88,7 +88,8 @@ template <typename Kernel, typename Device, int Traversal = Kernel::AssignmentTr
           int Unrolling = Kernel::AssignmentTraits::Unrolling>
 struct dense_assignment_loop_with_device {
   using Base = dense_assignment_loop<Kernel, Traversal, Unrolling>;
-  static EIGEN_DEVICE_FUNC constexpr void run(Kernel& kernel, Device&) { Base::run(kernel); }
+  // Always inlined so the loop lands in call_dense_assignment_loop(), which owns the evaluators.
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void run(Kernel& kernel, Device&) { Base::run(kernel); }
 };
 
 // entry point for a generic expression with device

@@ -350,7 +350,8 @@ struct dense_assignment_loop_impl;
 template <typename Kernel, int Traversal = Kernel::AssignmentTraits::Traversal,
           int Unrolling = Kernel::AssignmentTraits::Unrolling>
 struct dense_assignment_loop {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
+  // Always inlined so the loop lands in the caller that owns the evaluators (see the slice traversal).
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void run(Kernel& kernel) {
 #ifdef __cpp_lib_is_constant_evaluated
     if (internal::is_constant_evaluated())
       dense_assignment_loop_impl<Kernel, Traversal == AllAtOnceTraversal ? AllAtOnceTraversal : DefaultTraversal,
@@ -652,7 +653,7 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   // All inner slices share one alignment offset: the loop bounds are outer-invariant and stay
   // hoisted out of the outer loop. Keeping that loop free of per-slice bookkeeping is what makes
   // slice vectorization competitive with compiler-vectorized scalar code when slices are short.
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void runInvariant(Kernel& kernel, Index alignedStart,
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void runInvariant(Kernel& kernel, Index alignedStart,
                                                                            Index innerSize, Index outerSize) {
     const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
     for (Index outer = 0; outer < outerSize; ++outer) {
@@ -668,11 +669,11 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 
 #if EIGEN_UNALIGNED_VECTORIZE
   // Unaligned stores with outer-invariant bounds avoid chasing each slice's alignment offset.
-  // Also used for statically aligned destinations to keep run() small enough to inline.
+  // Also used for statically aligned destinations, so run() inlines one loop nest instead of two.
   using unaligned_tail_loop =
       unaligned_dense_assignment_loop<PacketType, Unaligned, Unaligned, UsePacketSegment, false>;
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void runUnaligned(Kernel& kernel, Index innerSize,
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void runUnaligned(Kernel& kernel, Index innerSize,
                                                                            Index outerSize) {
     const Index packetEnd = numext::round_down(innerSize, PacketSize);
     for (Index outer = 0; outer < outerSize; ++outer) {
@@ -684,13 +685,14 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
   }
 #endif
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel) {
+  // run(), runInvariant() and runUnaligned() must inline into the function that owns the evaluators.
+  // Out of line, `kernel` is a reference the packet stores may alias, so the evaluators' pointers
+  // and strides are reloaded after every store. Neither GCC nor Clang inlines them reliably unforced.
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE constexpr void run(Kernel& kernel) {
     const Index innerSize = kernel.innerSize();
     const Index outerSize = kernel.outerSize();
 #if EIGEN_UNALIGNED_VECTORIZE
     EIGEN_IF_CONSTEXPR (DstIsAligned) {
-      // One loop instead of two keeps run() small enough for Clang to inline. Out of line, the
-      // evaluators' pointers and strides are reloaded after every packet store, which may alias them.
       runUnaligned(kernel, innerSize, outerSize);
       return;
     }
@@ -1040,7 +1042,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment_no_alias(Ds
 }
 
 template <typename Dst, typename Src, typename Func>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_restricted_packet_assignment_no_alias(Dst& dst, const Src& src,
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void call_restricted_packet_assignment_no_alias(Dst& dst, const Src& src,
                                                                                       const Func& func) {
   using DstEvaluatorType = evaluator<Dst>;
   using SrcEvaluatorType = evaluator<Src>;

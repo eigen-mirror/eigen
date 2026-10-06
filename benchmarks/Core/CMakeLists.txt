@@ -79,6 +79,7 @@ eigen_add_benchmark(bench_fixed_size_gemm_complex bench_fixed_size.cpp
 eigen_add_benchmark(bench_fixed_size_gemm_complex_double bench_fixed_size.cpp
     DEFINITIONS EIGEN_BENCH_FORCE_GEMM "SCALAR=std::complex<double>")
 eigen_add_benchmark(bench_small_matrix bench_small_matrix.cpp)
+eigen_add_benchmark(bench_small_dynamic_product bench_small_dynamic_product.cpp)
 eigen_add_benchmark(bench_scaled_product bench_scaled_product.cpp)
 eigen_add_benchmark(bench_outer_product bench_outer_product.cpp)
 eigen_add_benchmark(bench_selfadjoint_diagonal bench_selfadjoint_diagonal.cpp)
