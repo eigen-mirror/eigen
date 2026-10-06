@@ -1857,6 +1857,12 @@ void packetmath_notcomplex() {
     for (int k = 0; k < PacketSize; ++k) {
       for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x00;
     }
+    // Each lane alone: a reduction must not lose any lane, including lanes that share a wider register lane.
+    for (int k = 0; k < PacketSize; ++k) {
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0xff;
+      VERIFY(internal::predux_any(internal::pload<Packet>(data1)) && "internal::predux_any(0010)");
+      for (unsigned int i = 0; i < sizeof(Scalar); ++i) data1_bits[k * sizeof(Scalar) + i] = 0x00;
+    }
     data1[0] = Scalar(-0.0);
     VERIFY_IS_EQUAL(internal::predux_count(internal::pload<Packet>(data1)), 0);
 

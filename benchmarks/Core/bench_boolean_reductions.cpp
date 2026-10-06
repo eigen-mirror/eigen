@@ -136,6 +136,21 @@ EIGEN_BENCH_PACKET16B(PacketAnd);
 #undef EIGEN_BENCH_PACKET16B
 #endif
 
+#ifdef EIGEN_VECTORIZE_NEON
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet16c, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet16c, PacketAny, LastTrue);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet8c, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet8s, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet8s, PacketAny, LastTrue);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet4i, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet4i, PacketAny, LastTrue);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet2i, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet2l, PacketAny, AllFalse);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet2l, PacketAny, LastTrue);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet4i, PacketAll, AllTrue);
+BENCHMARK_TEMPLATE(BM_PacketReduction, internal::Packet4i, PacketAll, LastFalse);
+#endif
+
 #ifdef EIGEN_VECTORIZE_AVX512
 #define EIGEN_BENCH_AVX512_PACKET(PACKET)                               \
   BENCHMARK_TEMPLATE(BM_PacketReduction, PACKET, PacketAny, Random);    \

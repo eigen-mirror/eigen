@@ -3972,6 +3972,85 @@ EIGEN_STRONG_INLINE bool predux_any(const Packet4f& x) {
 #endif
 }
 
+namespace detail {
+// Whether any bit of a 128-bit register is set. Integer masks reduce through these bits rather than through the
+// generic horizontal sum. On ARMv7, the 32-bit lane move after vpmax keeps predux_all's dependency chain as short as
+// the sum's; a two-register vmov lengthens it.
+EIGEN_STRONG_INLINE bool neon_any_bit(uint32x4_t u) {
+#if EIGEN_ARCH_ARM64
+  return vmaxvq_u32(u) != 0;
+#else
+  uint32x2_t tmp = vorr_u32(vget_low_u32(u), vget_high_u32(u));
+  return vget_lane_u32(vpmax_u32(tmp, tmp), 0) != 0;
+#endif
+}
+}  // namespace detail
+
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4c& x) {
+  return static_cast<int32_t>(x) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4uc& x) {
+  return static_cast<uint32_t>(x) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8c& x) {
+  return vget_lane_u64(vreinterpret_u64_s8(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8uc& x) {
+  return vget_lane_u64(vreinterpret_u64_u8(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16c& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_s8(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet16uc& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_u8(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4s& x) {
+  return vget_lane_u64(vreinterpret_u64_s16(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4us& x) {
+  return vget_lane_u64(vreinterpret_u64_u16(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8s& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_s16(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet8us& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_u16(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2i& x) {
+  return vget_lane_u64(vreinterpret_u64_s32(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2ui& x) {
+  return vget_lane_u64(vreinterpret_u64_u32(x), 0) != 0;
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4i& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_s32(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet4ui& x) {
+  return detail::neon_any_bit(x);
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2l& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_s64(x));
+}
+template <>
+EIGEN_STRONG_INLINE bool predux_any(const Packet2ul& x) {
+  return detail::neon_any_bit(vreinterpretq_u32_u64(x));
+}
+
 // Helpers for ptranspose.
 namespace detail {
 
