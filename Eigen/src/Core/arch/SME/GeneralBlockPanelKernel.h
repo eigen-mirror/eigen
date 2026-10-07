@@ -124,7 +124,8 @@ static constexpr int kSmeNrCD = sme_block<std::complex<double>>::nr;
 // transposed regions (a contiguous depth sub-range at a depth offset).
 template <bool Conjugate, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
-                                                     Index src_stride, Index k0, Index k1, int width) __arm_streaming {
+                                                     Index src_stride, Index k0, Index k1,
+                                                     int width) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   using Traits = sme_packet_traits<Scalar>;
   const int svl = Traits::size();
   if (width == 2 * svl) {
@@ -157,7 +158,7 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst,
 template <typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_quad(Scalar* EIGEN_RESTRICT dst, Index panel_stride,
                                                     const Scalar* EIGEN_RESTRICT src, Index src_stride,
-                                                    Index depth) __arm_streaming {
+                                                    Index depth) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   using Traits = sme_packet_traits<Scalar>;
   const int w = 2 * Traits::size();
   const svcount_t pn = Traits::ptrue_c();
@@ -180,7 +181,8 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_quad(Scalar* EIGEN_RESTRICT dst, 
 template <bool PanelMode, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE Index sme_pack_quad_panels(Scalar* dst_base, const Scalar* EIGEN_RESTRICT src,
                                                       Index src_stride, Index depth, Index rows, Index mr,
-                                                      Index dst_stride, Index dst_offset) __arm_streaming {
+                                                      Index dst_stride,
+                                                      Index dst_offset) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   if (mr != 2 * sme_packet_traits<Scalar>::size()) return 0;
   const Index panel_stride = PanelMode ? mr * dst_stride : mr * depth;
   Index i = 0;
@@ -192,7 +194,8 @@ static EIGEN_ALWAYS_INLINE Index sme_pack_quad_panels(Scalar* dst_base, const Sc
 }
 template <bool PanelMode, typename RealScalar, typename Index>
 static EIGEN_ALWAYS_INLINE Index sme_pack_quad_panels(std::complex<RealScalar>*, const std::complex<RealScalar>*, Index,
-                                                      Index, Index, Index, Index, Index) __arm_streaming {
+                                                      Index, Index, Index, Index,
+                                                      Index) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return 0;
 }
 
@@ -203,7 +206,8 @@ static EIGEN_ALWAYS_INLINE Index sme_pack_quad_panels(std::complex<RealScalar>*,
 template <bool Conjugate, typename RealScalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(std::complex<RealScalar>* EIGEN_RESTRICT dst,
                                                      const std::complex<RealScalar>* EIGEN_RESTRICT src,
-                                                     Index src_stride, Index k0, Index k1, int width) __arm_streaming {
+                                                     Index src_stride, Index k0, Index k1,
+                                                     int width) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   using Traits = sme_packet_traits<RealScalar>;
   using Vec = typename Traits::type;
   RealScalar* EIGEN_RESTRICT rdst = reinterpret_cast<RealScalar*>(dst);
@@ -237,7 +241,8 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(std::complex<RealScalar>* E
 // packers, which always pack a whole panel.
 template <bool Conjugate, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
-                                               Index src_stride, Index depth, int width) __arm_streaming {
+                                               Index src_stride, Index depth,
+                                               int width) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   sve_copy_panel_range<Conjugate>(dst, src, src_stride, Index(0), depth, width);
 }
 
@@ -293,7 +298,8 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTR
 // A row of a partial panel, or zeros past its last row (those slices are never stored).
 template <typename RealScalar>
 static EIGEN_ALWAYS_INLINE typename sme_packet_traits<RealScalar>::type_x2 sme_row_or_zero(
-    const RealScalar* p, bool valid, svcount_t pn, typename sme_packet_traits<RealScalar>::type zero) __arm_streaming {
+    const RealScalar* p, bool valid, svcount_t pn,
+    typename sme_packet_traits<RealScalar>::type zero) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return valid ? ploadu_x2(pn, p) : pcreate(zero, zero);
 }
 
@@ -2092,12 +2098,12 @@ EIGEN_ALWAYS_INLINE void sme_process_block(std::complex<RealScalar>* C, Index rs
 // Whether the vector length gives the tile shapes the block kernels assume: the depth-split kernel covers one 2 x 2
 // grid of blocks up to MR x NR with four-slice tile folds, and the narrow kernel stacks two LHS panels of 2*svl rows.
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE bool sme_split_ok() __arm_streaming {
+EIGEN_ALWAYS_INLINE bool sme_split_ok() __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   const int svl = sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
   return svl >= 4 && sme_block<Scalar>::mr <= 2 * svl && sme_block<Scalar>::nr <= 2 * svl;
 }
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE bool sme_narrow_ok() __arm_streaming {
+EIGEN_ALWAYS_INLINE bool sme_narrow_ok() __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return sme_block<Scalar>::mr == 2 * sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
 }
 
@@ -2121,7 +2127,7 @@ EIGEN_ALWAYS_INLINE void sme_process_narrow_dispatch(std::complex<RealScalar>*, 
 template <typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sme_prefetch_next_c(const Scalar* C, Index C_stride_row, Index C_stride_col, Index i,
                                                     Index j, Index rows, Index cols, int mr,
-                                                    int nr) __arm_streaming_compatible {
+                                                    int nr) __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
   if (C_stride_row != 1 || j >= cols) return;
   const Index h = sme_min(rows - i, Index(mr)), w = sme_min(cols - j, Index(nr));
   const Index bytes = h * Index(sizeof(Scalar));
@@ -2784,7 +2790,7 @@ static_assert(!sme_has_gebp_kernel<std::complex<double>, std::complex<double>>::
 // straddle band [t_end, s_end) and a direct tail [s_end, depth).
 template <typename Index>
 static EIGEN_ALWAYS_INLINE void sme_symm_panel_regions(Index j, int w, Index depth, Index k2, Index& t_end,
-                                                       Index& s_end) __arm_streaming_compatible {
+                                                       Index& s_end) __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
   const Index raw_t = j - k2, raw_s = j + Index(w) - k2;
   t_end = raw_t <= 0 ? Index(0) : sme_min(raw_t, depth);
   s_end = raw_s <= 0 ? Index(0) : sme_min(raw_s, depth);

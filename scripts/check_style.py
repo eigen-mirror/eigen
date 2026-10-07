@@ -7,8 +7,9 @@
 Flags the problems that recur in this repository's code reviews and that no
 clang-tidy check states: narration-comment verbosity (see the comment rules in
 ``AGENTS.md``), ``enum`` constant blocks, ``std::integral_constant<bool,...>``,
-C++17-and-later constructs in the C++14 trees, and ``std::`` math in library
-headers where ``numext::`` is required.  Conventions clang-tidy *can* state
+C++17-and-later constructs in the C++14 trees, ``std::`` math in library
+headers where ``numext::`` is required, and SME streaming helpers without a
+ZA attribute.  Conventions clang-tidy *can* state
 live in ``.clang-tidy`` and are checked by ``clang_tidy_hook.py`` against the
 same added lines.  Only lines a change ADDS are reported, but each file's
 complete post-image is lexed so surrounding context — an enclosing block
@@ -62,6 +63,15 @@ CXX17_FILES = {
 }
 # Library implementation headers, where numext:: is required over std:: math.
 LIBRARY_SRC_TREES = ("Eigen/src/", "contrib/Eigen/src/")
+# Clang 23+ will not inline a private-ZA function into a caller with ZA state, and the compilers CI
+# builds SME with inline it regardless, so only this check sees a helper that lacks a ZA attribute.
+# clang-format keeps the attribute list on the declarator's last line, so one line carries them all.
+SME_ARCH_TREE = "Eigen/src/Core/arch/SME/"
+SME_ZA_CHECK = (
+    r"^(?!.*(?:\b__arm_(?:in(?:out)?|out|preserves|new|agnostic)\s*\(|\bEIGEN_SME_ZA_AGNOSTIC\b))"
+    r".*\b__arm_streaming(?:_compatible)?\b",
+    "SME streaming function without a ZA attribute: Clang 23+ will not inline it into a caller with ZA "
+    "state; add EIGEN_SME_ZA_AGNOSTIC (arch/SME/PacketMath.h) or a shared-ZA attribute")
 
 DOXYGEN = re.compile(r"^\s*(/\*\*|/\*!|///|//!)")
 LICENSE = re.compile(r"SPDX|Copyright|License|Mozilla Public", re.I)
@@ -318,6 +328,8 @@ def check_conventions(rel_path, code_lines, added, findings):
         checks.append((r"(?:\(\s*)?\bstd::frexp\s*(?:\)\s*)?\(",
                        "std::frexp call in a library header: use EIGEN_USING_STD(frexp) and an unqualified call "
                        "for ADL and device/custom-scalar support"))
+    if rel_path.startswith(SME_ARCH_TREE):
+        checks.append(SME_ZA_CHECK)
     added_sorted = sorted(added)
     for pattern, message in checks:
         rx = re.compile(pattern)

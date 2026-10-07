@@ -55,6 +55,21 @@ struct sme_tile_count<double> {
   static constexpr int value = 8;
 };
 
+// Clang 23 and later never inline a private-ZA function (one with neither a shared-ZA attribute nor
+// __arm_agnostic("sme_za_state")) into a caller with ZA state, always_inline or not: the call stays
+// out of line behind a TPIDR2 lazy-save setup. So every function reachable from __arm_inout("za") or
+// __arm_new("za") code needs a shared-ZA attribute or EIGEN_SME_ZA_AGNOSTIC, whether or not it uses
+// intrinsics; agnostic rather than shared because private-ZA streaming entry points such as
+// pack_direct call the same helpers. GCC and Clang before 20 lack the keyword and inline these anyway.
+#if EIGEN_COMP_CLANG
+#if !__is_identifier(__arm_agnostic)
+#define EIGEN_SME_ZA_AGNOSTIC __arm_agnostic("sme_za_state")
+#endif
+#endif
+#ifndef EIGEN_SME_ZA_AGNOSTIC
+#define EIGEN_SME_ZA_AGNOSTIC
+#endif
+
 // Scalar -> streaming vector, its two- and four-vector tuples, and the predicates of its element
 // width; size() is the lane count of one streaming vector, a runtime value. whilelt takes int64_t:
 // svwhilelt_b* is overloaded on the four fixed-width types only, so Index -- `long` where int64_t
@@ -68,13 +83,15 @@ struct sme_packet_traits<float> {
   using type = svfloat32_t;
   using type_x2 = svfloat32x2_t;
   using type_x4 = svfloat32x4_t;
-  static EIGEN_ALWAYS_INLINE int size() __arm_streaming_compatible { return static_cast<int>(svcntsw()); }
-  static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b32(); }
-  static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c32(); }
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE int size() __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
+    return static_cast<int>(svcntsw());
+  }
+  static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return svptrue_b32(); }
+  static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return svptrue_c32(); }
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_b32(begin, end);
   }
-  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_c32_s64(begin, end, 4);
   }
 };
@@ -85,13 +102,15 @@ struct sme_packet_traits<double> {
   using type = svfloat64_t;
   using type_x2 = svfloat64x2_t;
   using type_x4 = svfloat64x4_t;
-  static EIGEN_ALWAYS_INLINE int size() __arm_streaming_compatible { return static_cast<int>(svcntsd()); }
-  static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming { return svptrue_b64(); }
-  static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming { return svptrue_c64(); }
-  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE int size() __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
+    return static_cast<int>(svcntsd());
+  }
+  static EIGEN_ALWAYS_INLINE svbool_t ptrue() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return svptrue_b64(); }
+  static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return svptrue_c64(); }
+  static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_b64(begin, end);
   }
-  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming {
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_c64_s64(begin, end, 4);
   }
 };
@@ -104,13 +123,17 @@ struct sme_unpacket_traits {};
 template <>
 struct sme_unpacket_traits<svfloat32_t> {
   using type = float;
-  static EIGEN_ALWAYS_INLINE svfloat32_t dup(float from) __arm_streaming { return svdup_f32(from); }
+  static EIGEN_ALWAYS_INLINE svfloat32_t dup(float from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
+    return svdup_f32(from);
+  }
 };
 #ifdef EIGEN_VECTORIZE_SME_F64F64
 template <>
 struct sme_unpacket_traits<svfloat64_t> {
   using type = double;
-  static EIGEN_ALWAYS_INLINE svfloat64_t dup(double from) __arm_streaming { return svdup_f64(from); }
+  static EIGEN_ALWAYS_INLINE svfloat64_t dup(double from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
+    return svdup_f64(from);
+  }
 };
 #endif
 
@@ -129,7 +152,8 @@ struct unpacket_traits<svfloat64_t> {};
 // An overload of Eigen's pset1 rather than a specialization (see the file comment); the two never
 // compete, since each fails substitution on the other's vector types.
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pset1(typename sme_unpacket_traits<Packet>::type from) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet
+pset1(typename sme_unpacket_traits<Packet>::type from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return sme_unpacket_traits<Packet>::dup(from);
 }
 
@@ -141,43 +165,45 @@ EIGEN_ALWAYS_INLINE Packet pset1(typename sme_unpacket_traits<Packet>::type from
 // type-generic ACLE overloads. SVE loads have no alignment requirement, hence only the unaligned
 // spellings; _x2/_x4 move two and four consecutive vectors under one SME2 predicate-as-counter.
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type ploadu(svbool_t pg, const Scalar* from) __arm_streaming {
+EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type ploadu(
+    svbool_t pg, const Scalar* from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svld1(pg, from);
 }
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x2 ploadu_x2(svcount_t pn,
-                                                                          const Scalar* from) __arm_streaming {
+EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x2 ploadu_x2(
+    svcount_t pn, const Scalar* from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svld1_x2(pn, from);
 }
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x4 ploadu_x4(svcount_t pn,
-                                                                          const Scalar* from) __arm_streaming {
+EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x4 ploadu_x4(
+    svcount_t pn, const Scalar* from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svld1_x4(pn, from);
 }
 template <typename Scalar>
 EIGEN_ALWAYS_INLINE void pstoreu(svbool_t pg, Scalar* to,
-                                 typename sme_packet_traits<Scalar>::type from) __arm_streaming {
+                                 typename sme_packet_traits<Scalar>::type from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   svst1(pg, to, from);
 }
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE void pstoreu_x2(svcount_t pn, Scalar* to,
-                                    typename sme_packet_traits<Scalar>::type_x2 from) __arm_streaming {
+EIGEN_ALWAYS_INLINE void pstoreu_x2(
+    svcount_t pn, Scalar* to, typename sme_packet_traits<Scalar>::type_x2 from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   svst1(pn, to, from);
 }
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE void pstoreu_x4(svcount_t pn, Scalar* to,
-                                    typename sme_packet_traits<Scalar>::type_x4 from) __arm_streaming {
+EIGEN_ALWAYS_INLINE void pstoreu_x4(
+    svcount_t pn, Scalar* to, typename sme_packet_traits<Scalar>::type_x4 from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   svst1(pn, to, from);
 }
 // Two-element structure load and store (LD2/ST2): pld2 splits interleaved pairs into the even and odd
 // lanes, the real and imaginary parts of a complex array, and pst2 interleaves them back.
 template <typename Scalar>
-EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x2 pld2(svbool_t pg, const Scalar* from) __arm_streaming {
+EIGEN_ALWAYS_INLINE typename sme_packet_traits<Scalar>::type_x2 pld2(
+    svbool_t pg, const Scalar* from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svld2(pg, from);
 }
 template <typename Scalar>
 EIGEN_ALWAYS_INLINE void pst2(svbool_t pg, Scalar* to,
-                              typename sme_packet_traits<Scalar>::type_x2 from) __arm_streaming {
+                              typename sme_packet_traits<Scalar>::type_x2 from) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   svst2(pg, to, from);
 }
 
@@ -185,61 +211,63 @@ EIGEN_ALWAYS_INLINE void pst2(svbool_t pg, Scalar* to,
 // pnmadd(pg, a, b, c) = c - a * b, each one fused operation. Inactive lanes are unspecified (the
 // _x forms); every consumer stores through a predicate of its own.
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet padd(svbool_t pg, Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet padd(svbool_t pg, Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svadd_x(pg, a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pmul(svbool_t pg, Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pmul(svbool_t pg, Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svmul_x(pg, a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pnegate(svbool_t pg, Packet a) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pnegate(svbool_t pg, Packet a) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svneg_x(pg, a);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pmadd(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pmadd(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svmla_x(pg, c, a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pnmadd(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pnmadd(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svmls_x(pg, c, a, b);
 }
 // Merging form: inactive lanes keep c, in the one FMLA that a select after the _x form does not fold to.
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pmadd_m(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pmadd_m(svbool_t pg, Packet a, Packet b, Packet c) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svmla_m(pg, c, a, b);
 }
 // Sum of the active lanes.
 template <typename Packet>
-EIGEN_ALWAYS_INLINE typename sme_unpacket_traits<Packet>::type predux(svbool_t pg, Packet a) __arm_streaming {
+EIGEN_ALWAYS_INLINE typename sme_unpacket_traits<Packet>::type predux(svbool_t pg,
+                                                                      Packet a) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svaddv(pg, a);
 }
 
 // Vector tuples: the lane of a tuple is an instruction immediate, hence a template parameter.
 template <int Lane>
-EIGEN_ALWAYS_INLINE svfloat32_t pget(svfloat32x2_t v) __arm_streaming {
+EIGEN_ALWAYS_INLINE svfloat32_t pget(svfloat32x2_t v) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svget2_f32(v, Lane);
 }
 template <int Lane>
-EIGEN_ALWAYS_INLINE svfloat32_t pget(svfloat32x4_t v) __arm_streaming {
+EIGEN_ALWAYS_INLINE svfloat32_t pget(svfloat32x4_t v) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svget4_f32(v, Lane);
 }
 #ifdef EIGEN_VECTORIZE_SME_F64F64
 template <int Lane>
-EIGEN_ALWAYS_INLINE svfloat64_t pget(svfloat64x2_t v) __arm_streaming {
+EIGEN_ALWAYS_INLINE svfloat64_t pget(svfloat64x2_t v) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svget2_f64(v, Lane);
 }
 template <int Lane>
-EIGEN_ALWAYS_INLINE svfloat64_t pget(svfloat64x4_t v) __arm_streaming {
+EIGEN_ALWAYS_INLINE svfloat64_t pget(svfloat64x4_t v) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svget4_f64(v, Lane);
 }
 #endif
 template <typename Packet>
-EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b) __arm_streaming -> decltype(svcreate2(a, b)) {
+EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b) EIGEN_SME_ZA_AGNOSTIC __arm_streaming
+    -> decltype(svcreate2(a, b)) {
   return svcreate2(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b, Packet c, Packet d) __arm_streaming
+EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b, Packet c, Packet d) EIGEN_SME_ZA_AGNOSTIC __arm_streaming
     -> decltype(svcreate4(a, b, c, d)) {
   return svcreate4(a, b, c, d);
 }
@@ -248,23 +276,23 @@ EIGEN_ALWAYS_INLINE auto pcreate(Packet a, Packet b, Packet c, Packet d) __arm_s
 // interleave its low/high halves, psplice(pg, a, b) is the active lanes of a followed by the leading
 // lanes of b.
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet puzp1(Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet puzp1(Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svuzp1(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet puzp2(Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet puzp2(Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svuzp2(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pzip1(Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pzip1(Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svzip1(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet pzip2(Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet pzip2(Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svzip2(a, b);
 }
 template <typename Packet>
-EIGEN_ALWAYS_INLINE Packet psplice(svbool_t pg, Packet a, Packet b) __arm_streaming {
+EIGEN_ALWAYS_INLINE Packet psplice(svbool_t pg, Packet a, Packet b) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
   return svsplice(pg, a, b);
 }
 
@@ -283,7 +311,7 @@ struct sme_fpsr_guard {
 
 // min() usable from streaming functions (numext::mini lacks the __arm_streaming_compatible attribute).
 template <typename T>
-EIGEN_ALWAYS_INLINE T sme_min(T a, T b) __arm_streaming_compatible {
+EIGEN_ALWAYS_INLINE T sme_min(T a, T b) __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
   return a < b ? a : b;
 }
 
@@ -292,7 +320,7 @@ EIGEN_ALWAYS_INLINE T sme_min(T a, T b) __arm_streaming_compatible {
 // object is undefined regardless, so the second-vector accesses of the kernels reach their address
 // through uintptr_t.
 template <typename T>
-EIGEN_ALWAYS_INLINE T* sme_offset(T* p, Index n) __arm_streaming_compatible {
+EIGEN_ALWAYS_INLINE T* sme_offset(T* p, Index n) __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {
   return reinterpret_cast<T*>(uintptr_t(p) + ptrdiff_t(n) * sizeof(T));
 }
 

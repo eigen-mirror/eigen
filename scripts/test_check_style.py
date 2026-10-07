@@ -62,6 +62,10 @@ def test_conventions_flagged():
     assert_flags("Eigen/src/Core/Foo.h", "double x = std::acosh(2.0);\n", "numext::")
     assert_flags("Eigen/src/Core/Foo.h", "auto x = std::conj(value);\n", "numext::")
     assert_flags("Eigen/src/Core/Foo.h", "double x = std::frexp(value, &exponent);\n", "EIGEN_USING_STD")
+    assert_flags("Eigen/src/Core/arch/SME/PacketMath.h", "inline int f() __arm_streaming { return 0; }\n",
+                 "EIGEN_SME_ZA_AGNOSTIC")
+    assert_flags("Eigen/src/Core/arch/SME/GeneralBlockPanelKernel.h",
+                 "inline int f(int a,\n             int b) __arm_streaming_compatible {\n", "EIGEN_SME_ZA_AGNOSTIC")
 
 
 def test_scoping():
@@ -70,6 +74,8 @@ def test_scoping():
     assert_flags("unsupported/Eigen/FFT", "if constexpr (kSize > 4) {}\n", "EIGEN_IF_CONSTEXPR")
     # std:: math is only flagged in library implementation headers.
     assert_clean("test/foo.cpp", "double x = std::sqrt(2.0);\n")
+    # The ZA-attribute rule covers only the SME kernel headers.
+    assert_clean("test/product_sme.cpp", "inline int f() __arm_streaming { return 0; }\n")
     # C++14 checks do not apply outside the C++14 trees.
     assert_clean("benchmarks/Core/foo.cpp", "if constexpr (kSize > 4) {}\n")
     # Non-C++ files are ignored entirely.
@@ -102,6 +108,17 @@ def test_false_positive_probes():
     assert_clean("Eigen/src/Core/Foo.h", "const char c = 'N';\n")                      # character literal
     assert_clean("Eigen/src/Core/Foo.h", "const wchar_t c = L'N';\n")                  # prefixed character literal
     assert_clean("Eigen/src/Core/Foo.h", "// if constexpr discussed in a comment\nint x = 1;\n")
+    # Streaming functions that state their ZA interface, entry points that switch mode themselves, and comments.
+    assert_clean("Eigen/src/Core/arch/SME/PacketMath.h",
+                 "inline int f() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return 0; }\n"
+                 "inline auto g(P a) EIGEN_SME_ZA_AGNOSTIC __arm_streaming\n    -> decltype(a) {\n"
+                 "inline T* h(T* p) __arm_streaming_compatible EIGEN_SME_ZA_AGNOSTIC {\n"
+                 'inline void k(int s) __arm_streaming __arm_inout("za") {\n'
+                 'inline void m() __arm_streaming __arm_preserves("za") {\n'
+                 'inline void q() __arm_streaming_compatible __arm_agnostic("sme_za_state") {\n'
+                 '__arm_locally_streaming __arm_new("za") void e() {\n'
+                 "__arm_locally_streaming EIGEN_DONT_INLINE static void pack_direct() {\n"
+                 "// helpers called from streaming code carry __arm_streaming\n")
     # A C++14 digit separator is not the start of a character literal; code
     # later on the same line must remain visible to convention checks.
     assert_flags("Eigen/src/Core/Foo.h", "auto n = 1'000; std::integral_constant<bool, true> b;\n",
