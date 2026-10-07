@@ -442,6 +442,25 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
   return pselect(one_mask, x, pselect(neg_one_mask, neg_one, expm1));
 }
 
+// exp(r) for r in [-ln(2)/2, ln(2)/2], by a 6th order minimax polynomial.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_float_reduced(const Packet& r) {
+  const Packet cst_one = pset1<Packet>(1.0f);
+  const Packet cst_p2 = pset1<Packet>(0.49999988079071044921875f);
+  const Packet cst_p3 = pset1<Packet>(0.16666518151760101318359375f);
+  const Packet cst_p4 = pset1<Packet>(4.166965186595916748046875e-2f);
+  const Packet cst_p5 = pset1<Packet>(8.36894474923610687255859375e-3f);
+  const Packet cst_p6 = pset1<Packet>(1.37449637986719608306884765625e-3f);
+
+  const Packet r2 = pmul(r, r);
+  Packet p_even = pmadd(r2, cst_p6, cst_p4);
+  const Packet p_odd = pmadd(r2, cst_p5, cst_p3);
+  p_even = pmadd(r2, p_even, cst_p2);
+  const Packet p_low = padd(r, cst_one);
+  const Packet y = pmadd(r, p_odd, p_even);
+  return pmadd(r2, y, p_low);
+}
+
 // Exponential function. Works by writing "x = m*log(2) + r" where
 // "m = rint(x/log(2))" and "r" is the remainder. The result is then
 // "exp(x) = 2^m*exp(r)" where exp(r) is in the range [-1,1).
@@ -450,16 +469,10 @@ template <typename Packet, bool IsFinite>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Packet _x) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
-  const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_exp_hi = pset1<Packet>(88.723f);
   const Packet cst_exp_lo = pset1<Packet>(-104.f);
 
   const Packet cst_cephes_LOG2EF = pset1<Packet>(1.44269504088896341f);
-  const Packet cst_p2 = pset1<Packet>(0.49999988079071044921875f);
-  const Packet cst_p3 = pset1<Packet>(0.16666518151760101318359375f);
-  const Packet cst_p4 = pset1<Packet>(4.166965186595916748046875e-2f);
-  const Packet cst_p5 = pset1<Packet>(8.36894474923610687255859375e-3f);
-  const Packet cst_p6 = pset1<Packet>(1.37449637986719608306884765625e-3f);
 
   // Clamp x to prevent overflow/underflow.
   Packet x = pmin(pmax(_x, cst_exp_lo), cst_exp_hi);
@@ -475,15 +488,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   Packet r = pmadd(m, cst_cephes_exp_C1, x);
   r = pmadd(m, cst_cephes_exp_C2, r);
 
-  // Evaluate the 6th order polynomial approximation to exp(r)
-  // with r in the interval [-ln(2)/2;ln(2)/2].
-  const Packet r2 = pmul(r, r);
-  Packet p_even = pmadd(r2, cst_p6, cst_p4);
-  const Packet p_odd = pmadd(r2, cst_p5, cst_p3);
-  p_even = pmadd(r2, p_even, cst_p2);
-  const Packet p_low = padd(r, cst_one);
-  Packet y = pmadd(r, p_odd, p_even);
-  y = pmadd(r2, y, p_low);
+  Packet y = pexp_float_reduced(r);
 
   // Construct the result y * 2^m via a 2-way exponent split. Writing
   //   2^m = 2^floor(m/2) * 2^(m - floor(m/2))
@@ -514,16 +519,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   return y;
 }
 
+// exp(g) for g in [-ln(2)/2, ln(2)/2], by the rational interpolant exp(g) = 1 + 2 g P(g^2) / (Q(g^2) - g P(g^2)).
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet _x) {
-  const Packet cst_zero = pset1<Packet>(0.0);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_double_reduced(const Packet& g) {
   const Packet cst_1 = pset1<Packet>(1.0);
   const Packet cst_2 = pset1<Packet>(2.0);
-
-  const Packet cst_exp_hi = pset1<Packet>(709.784);
-  const Packet cst_exp_lo = pset1<Packet>(-745.519);
-  const Packet cst_pldexp_threshold = pset1<Packet>(708.0);
-  const Packet cst_cephes_LOG2EF = pset1<Packet>(1.4426950408889634073599);
   const Packet cst_cephes_exp_p0 = pset1<Packet>(1.26177193074810590878e-4);
   const Packet cst_cephes_exp_p1 = pset1<Packet>(3.02994407707441961300e-2);
   const Packet cst_cephes_exp_p2 = pset1<Packet>(9.99999999999999999910e-1);
@@ -531,6 +531,31 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   const Packet cst_cephes_exp_q1 = pset1<Packet>(2.52448340349684104192e-3);
   const Packet cst_cephes_exp_q2 = pset1<Packet>(2.27265548208155028766e-1);
   const Packet cst_cephes_exp_q3 = pset1<Packet>(2.00000000000000000009e0);
+
+  const Packet x2 = pmul(g, g);
+
+  // Evaluate the numerator polynomial of the rational interpolant.
+  Packet px = cst_cephes_exp_p0;
+  px = pmadd(px, x2, cst_cephes_exp_p1);
+  px = pmadd(px, x2, cst_cephes_exp_p2);
+  px = pmul(px, g);
+
+  // Evaluate the denominator polynomial of the rational interpolant.
+  Packet qx = cst_cephes_exp_q0;
+  qx = pmadd(qx, x2, cst_cephes_exp_q1);
+  qx = pmadd(qx, x2, cst_cephes_exp_q2);
+  qx = pmadd(qx, x2, cst_cephes_exp_q3);
+
+  // exp(g) = 1 + 2*px/(qx - px).
+  return pmadd(cst_2, pdiv(px, psub(qx, px)), cst_1);
+}
+
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet _x) {
+  const Packet cst_exp_hi = pset1<Packet>(709.784);
+  const Packet cst_exp_lo = pset1<Packet>(-745.519);
+  const Packet cst_pldexp_threshold = pset1<Packet>(708.0);
+  const Packet cst_cephes_LOG2EF = pset1<Packet>(1.4426950408889634073599);
   const Packet cst_cephes_exp_C1 = pset1<Packet>(0.693145751953125);
   const Packet cst_cephes_exp_C2 = pset1<Packet>(1.42860682030941723212e-6);
 
@@ -548,23 +573,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   x = pnmadd(fx, cst_cephes_exp_C1, x);
   x = pnmadd(fx, cst_cephes_exp_C2, x);
 
-  Packet x2 = pmul(x, x);
-
-  // Evaluate the numerator polynomial of the rational interpolant.
-  Packet px = cst_cephes_exp_p0;
-  px = pmadd(px, x2, cst_cephes_exp_p1);
-  px = pmadd(px, x2, cst_cephes_exp_p2);
-  px = pmul(px, x);
-
-  // Evaluate the denominator polynomial of the rational interpolant.
-  Packet qx = cst_cephes_exp_q0;
-  qx = pmadd(qx, x2, cst_cephes_exp_q1);
-  qx = pmadd(qx, x2, cst_cephes_exp_q2);
-  qx = pmadd(qx, x2, cst_cephes_exp_q3);
-
-  // exp(g) = 1 + 2*px/(qx - px).
-  x = pdiv(px, psub(qx, px));
-  x = pmadd(cst_2, x, cst_1);
+  x = pexp_double_reduced(x);
 
   // Construct the result 2^n * exp(g) = e * x. The max is used to catch
   // non-finite values in the input.
@@ -574,33 +583,56 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
     // the fast version of pldexp.
     return pmax(pldexp_fast(x, fx), _x);
   }
-  return pselect(zero_mask, cst_zero, pmax(pldexp(x, fx), _x));
+  return pandnot(pmax(pldexp(x, fx), _x), zero_mask);
 }
 
-// This function computes exp2(x) = exp(ln(2) * x).
-// To improve accuracy, the product ln(2)*x is computed using the twoprod
-// algorithm, such that ln(2) * x = p_hi + p_lo holds exactly. Then exp2(x) is
-// computed as exp2(x) = exp(p_hi) * exp(p_lo) ~= exp(p_hi) * (1 + p_lo). This
-// correction step reduces the maximum absolute error as follows:
-//
-// type   | max error (simple product) | max error (twoprod) |
-// -----------------------------------------------------------
-// float  |       35 ulps              |       4 ulps        |
-// double |      363 ulps              |     110 ulps        |
-//
+template <typename Packet, typename Scalar = typename unpacket_traits<Packet>::type>
+struct pexp_reduced_impl;
+template <typename Packet>
+struct pexp_reduced_impl<Packet, float> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& r) { return pexp_float_reduced(r); }
+};
+template <typename Packet>
+struct pexp_reduced_impl<Packet, double> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& r) { return pexp_double_reduced(r); }
+};
+
+// 2^f for |f| <= 1/2: f ln(2) = r_hi + r_lo with ln(2) = ln2_hi + ln2_lo, and exp(r) = exp(r_hi) (1 + r_lo) +
+// O(r_lo^2).
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2_reduced(const Packet& f) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  // ln(2) - ln2_hi, from (double(ln(2)) - ln2_hi) exact in double plus ln(2) - double(ln(2)).
+  const Scalar ln2_hi = Scalar(EIGEN_LN2);
+  const Scalar ln2_lo = Scalar((static_cast<double>(EIGEN_LN2) - double(ln2_hi)) + 2.3190468138462996e-17);
+  Packet r_hi, r_lo;
+  twoprod(pset1<Packet>(ln2_hi), f, r_hi, r_lo);
+  r_lo = pmadd(pset1<Packet>(ln2_lo), f, r_lo);
+  const Packet e = pexp_reduced_impl<Packet>::run(r_hi);
+  return pmadd(e, r_lo, e);
+}
+
+// exp2(x) = 2^n 2^f with n = rint(x) and f = x - n, which is exact with |f| <= 1/2. So exp2(n) = 2^n exactly, and
+// neither the reduction nor the scaling adds an error that grows with |x|.
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Packet& _x) {
   using Scalar = typename unpacket_traits<Packet>::type;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
   constexpr int digits = std::numeric_limits<Scalar>::digits;
+  // Beyond these, the result is inf or rounds to 0; within them, n / 2 and n - n / 2 are normal exponents.
   constexpr Scalar max_cap = Scalar(max_exponent + 1);
   constexpr Scalar min_cap = -Scalar(max_exponent + digits - 1);
-  Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
-  Packet p_hi, p_lo;
-  twoprod(pset1<Packet>(Scalar(EIGEN_LN2)), x, p_hi, p_lo);
-  Packet exp2_hi = pexp(p_hi);
-  Packet exp2_lo = padd(pset1<Packet>(Scalar(1)), p_lo);
-  return pmul(exp2_hi, exp2_lo);
+  const Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
+  const Packet n = print(x);
+  const Packet y = generic_exp2_reduced(psub(x, n));
+  // One pldexp_fast while 2^n is normal. Near the ends of the range, y 2^n = (y 2^h) 2^(n - h) with h = rint(n / 2):
+  // both powers are normal and the first product is exact, so only the last one rounds, also into the subnormal range.
+  // The barrier keeps -ffast-math from forming 2^h 2^(n - h), which overflows for n = max_exponent.
+  if (!predux_any(pcmp_lt(pset1<Packet>(Scalar(max_exponent - 2)), pabs(n)))) return pldexp_fast(y, n);
+  const Packet h = print(pmul(n, pset1<Packet>(Scalar(0.5))));
+  Packet out = pldexp_fast(y, h);
+  EIGEN_OPTIMIZATION_BARRIER(out)
+  return pldexp_fast(out, psub(n, h));
 }
 
 /** \internal \returns log10(x) for single precision float.

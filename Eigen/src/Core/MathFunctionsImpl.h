@@ -31,7 +31,8 @@ namespace internal {
 
    If the preconditions are satisfied, which they are for the _*_rcp_ps
    instructions on x86, the result has a maximum relative error of 2 ulps,
-   and correctly handles reciprocals of zero, infinity, and NaN.
+   and correctly handles reciprocals of zero, infinity, and NaN. Lanes where the
+   approximation flushed a denormal input or result to zero take a division.
 */
 template <typename Packet, int Steps>
 struct generic_reciprocal_newton_step {
@@ -43,11 +44,12 @@ struct generic_reciprocal_newton_step {
     //   x_{i} = x_{i-1} * (2 - a * x_{i-1})
     const Packet x = generic_reciprocal_newton_step<Packet, Steps - 1>::run(a, approx_a_recip);
     const Packet tmp = pnmadd(a, x, one);
-    // If tmp is NaN, it means that a is either +/-0 or +/-Inf.
-    // In this case return the approximation directly.
-    const Packet is_not_nan = pcmp_eq(tmp, tmp);
     // Use two FMAs instead of FMA+FMUL to improve precision.
-    return pselect(is_not_nan, pmadd(x, tmp, x), x);
+    const Packet refined = pmadd(x, tmp, x);
+    // The step yields NaN when a is +/-0, +/-Inf or NaN, and NaN or 0 where the approximation flushed a denormal a or
+    // 1 / a to zero (x = +/-inf, or x = 0 for |a| > 1 / min). Divide in those lanes.
+    const Packet redo = pcmp_lt_or_nan(pabs(refined), pset1<Packet>((std::numeric_limits<Scalar>::denorm_min)()));
+    return predux_any(redo) ? pselect(redo, pdiv(one, a), refined) : refined;
   }
 };
 

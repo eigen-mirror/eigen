@@ -1400,12 +1400,30 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10(const Packet&
   return log10(a);
 }
 
+template <typename Packet, bool IsComplexPacket = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&
+                                                  !is_scalar<Packet>::value>
+struct plog2_impl {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
+    using Scalar = typename internal::unpacket_traits<Packet>::type;
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    return pmul(pset1<Packet>(Scalar(RealScalar(EIGEN_LOG2E))), plog(a));
+  }
+};
+
+// Scale both parts by the real factor: the complex product with (log2(e), 0) is NaN where log(a) is infinite.
+template <typename Packet>
+struct plog2_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
+    using RealPacket = typename unpacket_traits<Packet>::as_real;
+    using RealScalar = typename unpacket_traits<RealPacket>::type;
+    return Packet(pmul(pset1<RealPacket>(RealScalar(EIGEN_LOG2E)), plog(a).v));
+  }
+};
+
 /** \internal \returns the log2 of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog2(const Packet& a) {
-  using Scalar = typename internal::unpacket_traits<Packet>::type;
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  return pmul(pset1<Packet>(Scalar(RealScalar(EIGEN_LOG2E))), plog(a));
+  return plog2_impl<Packet>::run(a);
 }
 
 /** \internal \returns the square-root of \a a (coeff-wise) */

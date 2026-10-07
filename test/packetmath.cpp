@@ -1044,6 +1044,63 @@ Scalar log2(Scalar x) {
   return Scalar(EIGEN_LOG2E) * std::log(x);
 }
 
+// pexp2 is exact at integers, also for subnormal results, and within 2 ulps elsewhere: the budget leaves std::exp2
+// one ulp of its own.
+template <typename Scalar, typename Packet>
+std::enable_if_t<std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value> packetmath_exp2() {
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize] = {};
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize] = {};
+  test::packet_helper<internal::packet_traits<Scalar>::HasExp, Packet> h;
+  const int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+#if EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  const int min_exponent = std::numeric_limits<Scalar>::min_exponent - 1;
+#else
+  const int min_exponent = std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits;
+#endif
+  for (int k = min_exponent; k < max_exponent; k += PacketSize) {
+    for (int i = 0; i < PacketSize; ++i) {
+      const int n = numext::mini(k + i, max_exponent - 1);
+      data1[i] = Scalar(n);
+      ref[i] = std::ldexp(Scalar(1), n);
+    }
+    h.store(data2, internal::pexp2(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, 0));
+  }
+  // Just below 2^max_exponent the result is finite, though 2^max_exponent is not; just below 2^min_exponent it rounds
+  // to the smallest subnormal or to zero.
+  const Scalar edges[] = {
+    Scalar(max_exponent) - Scalar(0.25),
+    Scalar(max_exponent) - Scalar(0.5),
+    Scalar(max_exponent) - Scalar(0.75),
+#if !EIGEN_ARCH_ARM
+    Scalar(min_exponent) - Scalar(0.25),
+    Scalar(min_exponent) - Scalar(0.75),
+    Scalar(min_exponent) - Scalar(1.25)
+#endif
+  };
+  for (const Scalar edge : edges) {
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = edge;
+      ref[i] = std::exp2(edge);
+    }
+    h.store(data2, internal::pexp2(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, 3));
+  }
+  for (int j = 0; j < 1000; ++j) {
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = internal::random<Scalar>(Scalar(min_exponent), Scalar(max_exponent - 1));
+      ref[i] = std::exp2(data1[i]);
+    }
+    h.store(data2, internal::pexp2(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, 3));
+  }
+}
+
+template <typename Scalar, typename Packet>
+std::enable_if_t<!(std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value)> packetmath_exp2() {}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   typedef internal::packet_traits<Scalar> PacketTraits;
@@ -1151,6 +1208,7 @@ void packetmath_real() {
   }
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp, internal::pexp);
   CHECK_CWISE1_IF(PacketTraits::HasExp, std::exp2, internal::pexp2);
+  if (PacketTraits::HasExp) packetmath_exp2<Scalar, Packet>();
 
   CHECK_CWISE1_BYREF1_IF(PacketTraits::HasExp, REF_FREXP, internal::pfrexp);
   if (PacketTraits::HasExp) {
@@ -1473,6 +1531,26 @@ void packetmath_real() {
     VERIFY_IS_EQUAL(data2[0], zero);
     VERIFY_IS_EQUAL(data2[1], -zero);
   }
+  // inverse() takes preciprocal wherever division vectorizes, including NEON's estimate-based one. Approximations that
+  // flush denormals must not lose a finite or nonzero reciprocal, nor the sign of an infinite one.
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  if (PacketTraits::HasDiv && PacketSize >= 2) {
+    test::packet_helper<PacketTraits::HasDiv, Packet> h;
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    const Scalar tiny = (std::numeric_limits<Scalar>::min)() / Scalar(2);
+    const Scalar huge = Scalar(1) / tiny;
+    data1[0] = tiny;
+    data1[1] = -huge;
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], huge);
+    VERIFY_IS_EQUAL(data2[1], -tiny);
+    data1[0] = (std::numeric_limits<Scalar>::denorm_min)();
+    data1[1] = -(std::numeric_limits<Scalar>::denorm_min)();
+    h.store(data2, internal::preciprocal(h.load(data1)));
+    VERIFY_IS_EQUAL(data2[0], inf);
+    VERIFY_IS_EQUAL(data2[1], -inf);
+  }
+#endif
 }
 
 template <typename Scalar>

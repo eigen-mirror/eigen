@@ -359,7 +359,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_pow_impl(const Packet& x, c
   //   x^y = 2**{n_z + r_z) = exp2(r_z) * 2**{n_z}.
   // Multiplication by the second factor can be done exactly using pldexp(), since
   // it is an integer power of 2.
-  const Packet e_r = generic_exp2(r_z);
+  const Packet e_r = generic_exp2_reduced(r_z);
 
   // Since we know that e_r is in [1/sqrt(2); sqrt(2)], we can use the fast version
   // of pldexp to multiply by 2**{n_z} when |n_z| is sufficiently small.

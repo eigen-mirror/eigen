@@ -187,6 +187,100 @@ void check_complex_exp() {
 #pragma float_control(pop)
 #endif
 
+// numext::exp2(a + ib) against 2^a (cos(b ln 2) + i sin(b ln 2)) evaluated in the wider type W: each part within
+// 4 ulps of the modulus (the implementation is within about 2.1), or of the smallest subnormal.
+template <typename T, typename W>
+void check_complex_exp2_accuracy(T a, T b) {
+  const std::complex<T> w = numext::exp2(std::complex<T>(a, b));
+  const W m = std::exp2(W(a));
+  const W t = W(b) * W(EIGEN_LN2);
+  const W ref[2] = {m * std::cos(t), m * std::sin(t)};
+  const T got[2] = {w.real(), w.imag()};
+  const W tol = numext::maxi(W(4) * W(NumTraits<T>::epsilon()) * m, W((std::numeric_limits<T>::denorm_min)()));
+  for (int k = 0; k < 2; ++k) {
+    if (numext::abs(ref[k]) > W((std::numeric_limits<T>::max)())) {
+      VERIFY((numext::isinf)(got[k]) && (got[k] > T(0)) == (ref[k] > W(0)));
+    } else {
+      VERIFY(numext::abs(W(got[k]) - ref[k]) <= tol);
+    }
+  }
+}
+
+template <typename T, typename W>
+void check_complex_exp2_accuracy() {
+  const T emax = T(std::numeric_limits<T>::max_exponent);
+  check_complex_exp2_accuracy<T, W>(T(1), T(2));
+  check_complex_exp2_accuracy<T, W>(T(-3.5), T(0.75));
+  check_complex_exp2_accuracy<T, W>(T(10.25), T(-7));
+  check_complex_exp2_accuracy<T, W>(T(0.5), T(100.3));
+  check_complex_exp2_accuracy<T, W>(T(-20), T(-1000.7));
+  // 2^a overflows, 2^a cos(b ln 2) does not.
+  check_complex_exp2_accuracy<T, W>(emax + T(0.5), T(1.5));
+  check_complex_exp2_accuracy<T, W>(emax - T(0.25), T(-2));
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  const T emin = T(std::numeric_limits<T>::min_exponent);
+  check_complex_exp2_accuracy<T, W>(emin - T(std::numeric_limits<T>::digits) / T(2) + T(0.3), T(1));
+#endif
+  for (int i = 0; i < 200; ++i) {
+    check_complex_exp2_accuracy<T, W>(internal::random<T>(T(-30), T(30)), internal::random<T>(T(-1000), T(1000)));
+  }
+#if !EIGEN_ARCH_ARM
+  // A denormal phase that 2^a scales back into range, also past 2^(2 emax): the imaginary part to a few of its own
+  // ulps, where the normwise check above is blind.
+  const T b = (std::numeric_limits<T>::min)() / T(64);
+  for (const T a : {T(100), T(2) * (emax - T(1)) + T(4)}) {
+    const W ref = std::exp2(W(a)) * std::sin(W(b) * W(EIGEN_LN2));
+    const T got = numext::exp2(std::complex<T>(a, b)).imag();
+    VERIFY(numext::abs(W(got) - ref) <= W(4) * W(NumTraits<T>::epsilon()) * numext::abs(ref));
+  }
+#endif
+}
+
+template <typename T>
+void check_complex_exp2() {
+  using Complex = std::complex<T>;
+  const T inf = std::numeric_limits<T>::infinity();
+  const T nan = std::numeric_limits<T>::quiet_NaN();
+
+  // Exact on the real axis, keeping the sign of a zero imaginary part.
+  for (int n = -10; n <= 10; ++n) {
+    VERIFY_IS_EQUAL(numext::exp2(Complex(T(n), T(0))), Complex(std::ldexp(T(1), n), T(0)));
+    VERIFY((std::signbit)(numext::exp2(Complex(T(n), -T(0))).imag()));
+  }
+
+  // The special values of exp in C99 Annex G.
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(inf, T(0))), Complex(inf, T(0))));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(-inf, T(0))), Complex(T(0), T(0))));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(nan, T(0))), Complex(nan, T(0))));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(inf, T(1))), Complex(inf, inf)));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(inf, T(-2))), Complex(inf, -inf)));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(-inf, T(1))), Complex(T(0), T(0))));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(T(1), inf)), Complex(nan, nan)));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(T(1), nan)), Complex(nan, nan)));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(nan, T(1))), Complex(nan, nan)));
+  VERIFY(check_if_equal_or_nans(numext::exp2(Complex(nan, nan)), Complex(nan, nan)));
+  VERIFY((std::signbit)(numext::exp2(Complex(inf, -T(0))).imag()));
+  const Complex at_minus_inf = numext::exp2(Complex(-inf, T(-1)));
+  VERIFY(!(std::signbit)(at_minus_inf.real()) && (std::signbit)(at_minus_inf.imag()));
+  for (const T b : {inf, -inf, nan}) {
+    const Complex at_inf = numext::exp2(Complex(inf, b));
+    VERIFY((numext::isinf)(at_inf.real()) && (numext::isnan)(at_inf.imag()));
+    const Complex at_minus_inf = numext::exp2(Complex(-inf, b));
+    VERIFY(numext::is_exactly_zero(at_minus_inf.real()) && numext::is_exactly_zero(at_minus_inf.imag()));
+  }
+
+  // exp2(conj(z)) = conj(exp2(z)).
+  for (int i = 0; i < 20; ++i) {
+    const Complex z(internal::random<T>(T(-30), T(30)), internal::random<T>(T(-1000), T(1000)));
+    VERIFY_IS_EQUAL(numext::exp2(numext::conj(z)), numext::conj(numext::exp2(z)));
+  }
+
+  // The array expression, on a size with packet and tail coefficients.
+  const Array<Complex, Dynamic, 1> z = Array<Complex, Dynamic, 1>::Random(17) * T(10);
+  const Array<Complex, Dynamic, 1> w = z.exp2();
+  for (Index i = 0; i < z.size(); ++i) VERIFY_IS_EQUAL(w(i), numext::exp2(z(i)));
+}
+
 template <typename T>
 std::enable_if_t<NumTraits<T>::IsInteger && NumTraits<T>::IsSigned, T> random_abs2_input() {
   const T safeAbs2Input = static_cast<T>(std::sqrt(static_cast<long double>(NumTraits<T>::highest())));
@@ -773,6 +867,14 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST(check_complex_exp<float>());
     CALL_SUBTEST(check_complex_exp<double>());
+
+    CALL_SUBTEST(check_complex_exp2<float>());
+    CALL_SUBTEST(check_complex_exp2<double>());
+    CALL_SUBTEST(check_complex_exp2<long double>());
+    CALL_SUBTEST((check_complex_exp2_accuracy<float, double>()));
+    if (std::numeric_limits<long double>::digits > std::numeric_limits<double>::digits) {
+      CALL_SUBTEST((check_complex_exp2_accuracy<double, long double>()));
+    }
 
     CALL_SUBTEST(check_abs<bool>());
     CALL_SUBTEST(check_abs<signed char>());

@@ -206,6 +206,7 @@ static void BM_Pow(benchmark::State& state) {
 
 // Complex unary (SIMD implementations in GenericPacketMathFunctions.h)
 BENCH_CWISE_UNARY_COMPLEX(Exp, a.exp(), -5, 5)
+BENCH_CWISE_UNARY_COMPLEX(Exp2, a.exp2(), -5, 5)
 BENCH_CWISE_UNARY_COMPLEX(Log, a.log(), 0.01, 100)
 BENCH_CWISE_UNARY_COMPLEX(Sqrt, a.sqrt(), -100, 100)
 BENCH_CWISE_UNARY_COMPLEX(Square, a.square(), -10, 10)
@@ -299,6 +300,7 @@ BENCHMARK(BM_Max<double>) CWISE_SIZES ->Name("Max_double");
 
 // --- Register complex<float> ---
 BENCHMARK(BM_Exp_complex<float>) CWISE_SIZES ->Name("Exp_complexf");
+BENCHMARK(BM_Exp2_complex<float>) CWISE_SIZES ->Name("Exp2_complexf");
 BENCHMARK(BM_Log_complex<float>) CWISE_SIZES ->Name("Log_complexf");
 BENCHMARK(BM_Sqrt_complex<float>) CWISE_SIZES ->Name("Sqrt_complexf");
 BENCHMARK(BM_Square_complex<float>) CWISE_SIZES ->Name("Square_complexf");
@@ -307,6 +309,7 @@ BENCHMARK(BM_Div_complex<float>) CWISE_SIZES ->Name("Div_complexf");
 
 // --- Register complex<double> ---
 BENCHMARK(BM_Exp_complex<double>) CWISE_SIZES ->Name("Exp_complexd");
+BENCHMARK(BM_Exp2_complex<double>) CWISE_SIZES ->Name("Exp2_complexd");
 BENCHMARK(BM_Log_complex<double>) CWISE_SIZES ->Name("Log_complexd");
 BENCHMARK(BM_Sqrt_complex<double>) CWISE_SIZES ->Name("Sqrt_complexd");
 BENCHMARK(BM_Square_complex<double>) CWISE_SIZES ->Name("Square_complexd");

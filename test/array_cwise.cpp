@@ -954,6 +954,10 @@ void array_real(const ArrayType& m) {
   VERIFY((abs(m1) == m1 || abs(m1) == -m1).all());
   VERIFY_IS_APPROX(m3, sqrt(abs2(m3)));
   VERIFY_IS_APPROX(m1.absolute_difference(m2), (m1 > m2).select(m1 - m2, m2 - m1));
+  // |(+0) - (-0)| is +0, as on the vectorized path.
+  VERIFY(!(std::signbit)(static_cast<double>(numext::absdiff(Scalar(0), -Scalar(0)))));
+  // and NaN for (inf, inf), as inf - inf is.
+  VERIFY((numext::isnan)(numext::absdiff(NumTraits<Scalar>::infinity(), NumTraits<Scalar>::infinity())));
   VERIFY_IS_APPROX(m1.sign(), -(-m1).sign());
   VERIFY_IS_APPROX(m1 * m1.sign(), m1.abs());
   VERIFY_IS_APPROX(m1.sign() * m1.abs(), m1);
@@ -1080,6 +1084,42 @@ void array_complex(const ArrayType& m) {
     m1(0, 0) = std::complex<RealScalar>(1000.0, 1000.0);
     VERIFY_IS_APPROX(logistic(m1), (1.0 / (1.0 + exp(-m1))));
     m1(0, 0) = old_m1_val;  // Restore value for future tests.
+  }
+  {
+    // expm1 where exp(real) overflows: exp(z) - 1 is (inf, 0) and (-inf, -inf), not NaN.
+    const RealScalar inf = NumTraits<RealScalar>::infinity();
+    const Scalar e0 = numext::expm1(Scalar(inf, RealScalar(0)));
+    const Scalar e1 = numext::expm1(Scalar(RealScalar(1000), RealScalar(-2)));
+    // Where exp(x) overflows and exp(x) cos(y) does not, and where exp(x) is negligible: exactly -1.
+    const RealScalar x_big = numext::log((std::numeric_limits<RealScalar>::max)()) + RealScalar(0.5);
+    const RealScalar y_third = RealScalar(EIGEN_PI / 3);
+    const Scalar e2 = numext::expm1(Scalar(x_big, y_third));
+    VERIFY_IS_APPROX(e2.real(), numext::exp(x_big - RealScalar(EIGEN_LN2)) * (RealScalar(2) * numext::cos(y_third)));
+    VERIFY(e2.imag() == inf);
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(-inf, RealScalar(EIGEN_PI / 2))), Scalar(RealScalar(-1), RealScalar(0)));
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(RealScalar(-200), RealScalar(2))).real(), RealScalar(-1));
+    const Scalar e3 = numext::expm1(Scalar(inf, inf));
+    VERIFY(e3.real() == inf && (numext::isnan)(e3.imag()));
+    VERIFY_IS_EQUAL(numext::expm1(Scalar(-inf, inf)), Scalar(RealScalar(-1), RealScalar(0)));
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    // Where exp(x / 2) overflows too, exp(x) sin(y) is still finite for denormal y.
+    const RealScalar x_huge = RealScalar(2) * numext::log((std::numeric_limits<RealScalar>::max)()) + RealScalar(1);
+    const RealScalar y_tiny = (std::numeric_limits<RealScalar>::min)() / RealScalar(64);
+    const Scalar e4 = numext::expm1(Scalar(x_huge, y_tiny));
+    const RealScalar q = numext::exp(x_huge / RealScalar(4));
+    VERIFY(e4.real() == inf);
+    VERIFY_IS_APPROX(e4.imag(), (((q * y_tiny) * q) * q) * q);
+#endif
+    VERIFY(e0.real() == inf && e0.imag() == RealScalar(0));
+    VERIFY(e1.real() == -inf && e1.imag() == -inf);
+    // log1p where log(1 + z) is not finite: (inf, 0) and (-inf, 0), not NaN.
+    const Scalar l0 = numext::log1p(Scalar(inf, RealScalar(1)));
+    const Scalar l1 = numext::log1p(Scalar(RealScalar(-1), RealScalar(0)));
+    VERIFY(l0.real() == inf && l0.imag() == RealScalar(0));
+    VERIFY(l1.real() == -inf && l1.imag() == RealScalar(0));
+    // log2(0) is (-inf, 0) on both the vectorized and the scalar path.
+    const Array<Scalar, Dynamic, 1> log2_zero = Array<Scalar, Dynamic, 1>::Zero(17).log2();
+    VERIFY((log2_zero.real() == -inf).all() && (log2_zero.imag() == RealScalar(0)).all());
   }
 
   for (Index i = 0; i < m.rows(); ++i)

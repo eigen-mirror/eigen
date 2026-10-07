@@ -416,7 +416,8 @@ struct scalar_exp2_op {
 template <typename Scalar>
 struct functor_traits<scalar_exp2_op<Scalar>> {
   enum {
-    PacketAccess = packet_traits<Scalar>::HasExp,
+    // There is no complex pexp2; complex arguments take numext::exp2.
+    PacketAccess = packet_traits<Scalar>::HasExp && !NumTraits<Scalar>::IsComplex,
     Cost = functor_traits<scalar_exp_op<Scalar>>::Cost  // TODO: measure cost of exp2
   };
 };
@@ -560,7 +561,7 @@ template <typename Scalar>
 struct scalar_log2_op {
   using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const {
-    return Scalar(RealScalar(EIGEN_LOG2E)) * numext::log(a);
+    return internal::mul(RealScalar(EIGEN_LOG2E), numext::log(a));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {

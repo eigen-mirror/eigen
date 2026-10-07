@@ -4581,19 +4581,21 @@ EIGEN_STRONG_INLINE Packet2f prsqrt(const Packet2f& a) {
 template <>
 EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& a) {
   // Compute approximate reciprocal.
-  float32x4_t result = vrecpeq_f32(a);
+  const float32x4_t estimate = vrecpeq_f32(a);
+  float32x4_t result = vmulq_f32(vrecpsq_f32(a, estimate), estimate);
   result = vmulq_f32(vrecpsq_f32(a, result), result);
-  result = vmulq_f32(vrecpsq_f32(a, result), result);
-  return result;
+  // 1 / a has the sign of a. The estimate is +-inf for |a| < 2^-128, which the steps turn into -+inf.
+  return vbslq_f32(vdupq_n_u32(0x80000000u), a, result);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2f preciprocal<Packet2f>(const Packet2f& a) {
   // Compute approximate reciprocal.
-  float32x2_t result = vrecpe_f32(a);
+  const float32x2_t estimate = vrecpe_f32(a);
+  float32x2_t result = vmul_f32(vrecps_f32(a, estimate), estimate);
   result = vmul_f32(vrecps_f32(a, result), result);
-  result = vmul_f32(vrecps_f32(a, result), result);
-  return result;
+  // 1 / a has the sign of a. The estimate is +-inf for |a| < 2^-128, which the steps turn into -+inf.
+  return vbsl_f32(vdup_n_u32(0x80000000u), a, result);
 }
 
 // Unfortunately vsqrt_f32 is only available for A64.
