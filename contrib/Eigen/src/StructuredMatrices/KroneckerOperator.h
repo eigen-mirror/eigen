@@ -33,6 +33,8 @@ namespace Eigen {
 
 template <typename LhsMatrix, typename RhsMatrix>
 class KroneckerOperator;
+template <typename LhsMatrix, typename RhsMatrix>
+class KroneckerSum;
 
 namespace internal {
 
@@ -68,7 +70,8 @@ struct evaluator_traits<KroneckerOperator<LhsMatrix, RhsMatrix>> {
 // Factor kinds, each with its operations in the kron_factor_* helpers below:
 // dense; diagonal (stored as its diagonal); sparse (compressed, solved by
 // SparseLU); identity (a kron_identity_factor, dimensions only, skipped in
-// products); Kronecker (a nested KroneckerOperator, for three or more factors).
+// products); Kronecker (a nested KroneckerOperator, for three or more factors);
+// Kronecker sum (a KroneckerSum, see KroneckerSum.h).
 
 template <typename Scalar_, int Rows_, int Cols_>
 class kron_identity_factor;
@@ -126,12 +129,18 @@ struct kron_factor_is_kronecker : std::false_type {};
 template <typename LhsMatrix, typename RhsMatrix>
 struct kron_factor_is_kronecker<KroneckerOperator<LhsMatrix, RhsMatrix>> : std::true_type {};
 
+template <typename Factor>
+struct kron_factor_is_kronecker_sum : std::false_type {};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_is_kronecker_sum<KroneckerSum<LhsMatrix, RhsMatrix>> : std::true_type {};
+
 // The factor kind, the dispatch key of kron_factor_ops and kron_factor_solver.
 constexpr int kKronDenseFactor = 0;
 constexpr int kKronDiagonalFactor = 1;
 constexpr int kKronSparseFactor = 2;
 constexpr int kKronIdentityFactor = 3;
 constexpr int kKronKroneckerFactor = 4;
+constexpr int kKronSumFactor = 5;
 
 template <typename Factor>
 constexpr int kron_factor_kind() {
@@ -139,15 +148,17 @@ constexpr int kron_factor_kind() {
          : kron_factor_is_sparse_matrix<Factor>::value ? kKronSparseFactor
          : kron_factor_is_identity<Factor>::value      ? kKronIdentityFactor
          : kron_factor_is_kronecker<Factor>::value     ? kKronKroneckerFactor
+         : kron_factor_is_kronecker_sum<Factor>::value ? kKronSumFactor
                                                        : kKronDenseFactor;
 }
 
 /** \internal The type makeKroneckerOperator() stores an argument as: its plain
  * object, except an Identity() expression, stored as its kron_identity_factor,
- * and an identity factor or a KroneckerOperator, which own everything they need
- * already. */
-template <typename Derived,
-          bool StoredAsIs = kron_factor_is_identity<Derived>::value || kron_factor_is_kronecker<Derived>::value>
+ * and an identity factor, a KroneckerOperator or a KroneckerSum, which own
+ * everything they need already. */
+template <typename Derived, bool StoredAsIs = kron_factor_is_identity<Derived>::value ||
+                                              kron_factor_is_kronecker<Derived>::value ||
+                                              kron_factor_is_kronecker_sum<Derived>::value>
 struct kron_factor_storage {
   using type = typename Derived::PlainObject;
 };
@@ -159,6 +170,40 @@ template <typename Scalar, typename PlainObjectType>
 struct kron_factor_storage<CwiseNullaryOp<scalar_identity_op<Scalar>, PlainObjectType>, false> {
   using type = kron_identity_factor<Scalar, PlainObjectType::RowsAtCompileTime, PlainObjectType::ColsAtCompileTime>;
 };
+
+/** \internal The form in which a sparse materialization visits a factor: the
+ * factor itself, except for a kind whose visit has to materialize it first (a
+ * KroneckerSum, see KroneckerSum.h), which is materialized once up front
+ * instead of on every visit from inside the loop over the other factor. */
+template <typename Factor, int Kind = kron_factor_kind<Factor>()>
+struct kron_factor_visitable {
+  using type = Factor;
+  static const Factor& get(const Factor& f) { return f; }
+};
+
+/** \internal Writes the columns of \a x, each reshaped to \a rows x \a cols,
+ * as the block rows of \a stacked, (\a rows * \c x.cols()) x \a cols. In this
+ * layout a factor applies to all columns with a single product: from the left
+ * to the \a rows x (\c x.cols() * \a cols) reshape, from the right to the
+ * matrix itself. Callers pass \a x through \c nested_eval first: a nested
+ * product would otherwise be evaluated anew for every column taken from it. */
+template <typename Stacked, typename Xpr>
+void kron_stack_columns(Stacked& stacked, const Xpr& x, Index rows, Index cols) {
+  stacked.resize(rows * x.cols(), cols);
+  for (Index k = 0; k < x.cols(); ++k)
+    stacked.middleRows(k * rows, rows) = x.col(k).reshaped(rows, cols).template cast<typename Stacked::Scalar>();
+}
+
+/** \internal \returns how many right-hand sides to stack at once, given the
+ * \a perColumn workspace entries each one needs: as many as fit in an eighth
+ * of the L2 cache, at least one. Stacking widens the factor products, which
+ * pays for small factors; larger workspaces cost more in allocation and cache
+ * misses than they gain (measured in bench_structured_kronecker_batched). */
+template <typename WorkScalar>
+Index kron_rhs_chunk(Index perColumn) {
+  const Index budget = Index(l2CacheSize() / 8) / Index(sizeof(WorkScalar));
+  return numext::maxi(Index(1), budget / numext::maxi(perColumn, Index(1)));
+}
 
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_ops {
@@ -463,11 +508,14 @@ struct kron_factor_ops<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFa
   // the order the sparse materialization inserts in.
   template <typename Visitor>
   static void forEachNonZero(const Factor& f, Visitor&& visit) {
+    using RhsVisitable = kron_factor_visitable<RhsMatrix>;
     const Index m2 = f.rhs().rows(), n2 = f.rhs().cols();
-    LhsOps::forEachNonZero(f.lhs(), [&f, &visit, m2, n2](Index iA, Index jA, const Scalar& a) {
-      RhsOps::forEachNonZero(f.rhs(), [&visit, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
-        visit(iA * m2 + iB, jA * n2 + jB, a * b);
-      });
+    const auto& R = RhsVisitable::get(f.rhs());
+    LhsOps::forEachNonZero(f.lhs(), [&R, &visit, m2, n2](Index iA, Index jA, const Scalar& a) {
+      kron_factor_ops<typename RhsVisitable::type>::forEachNonZero(
+          R, [&visit, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
+            visit(iA * m2 + iB, jA * n2 + jB, a * b);
+          });
     });
   }
   static Matrix<Index, Dynamic, 1> innerNonZeros(const Factor& f, bool rowMajor) {
@@ -650,7 +698,8 @@ class kron_factor_solver<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKronecker
  * nested Kronecker factor, which recurses into its own factors -- O(n_L^3 +
  * n_R^3) instead of O((n_L n_R)^3), and the eigenvalues of defective factors
  * keep the sensitivity of the factors' Jordan blocks instead of the longer
- * blocks of their product. */
+ * blocks of their product. A Kronecker-sum factor recurses the same way for
+ * its eigenpairs, see KroneckerSum.h. */
 template <typename Factor, int Kind = kron_factor_kind<Factor>()>
 struct kron_factor_spectrum {
   using Ops = kron_factor_ops<Factor>;
@@ -824,7 +873,8 @@ struct kron_factor_spectrum<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKronec
  * \tparam LhsMatrix the type of the left factor \c A: a dense \c Matrix, a
  *         \c DiagonalMatrix to exploit diagonal structure, a \c SparseMatrix to
  *         exploit sparsity, an identity factor (what makeKroneckerOperator()
- *         stores an \c Identity() expression as), or a \c KroneckerOperator.
+ *         stores an \c Identity() expression as), a \c KroneckerOperator, or a
+ *         \ref KroneckerSum.
  * \tparam RhsMatrix the type of the right factor \c B, under the same
  *         convention; its scalar type must match that of \c LhsMatrix.
  *
@@ -844,8 +894,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
                     (internal::kron_factor_is_dense_matrix<RhsMatrix>::value ||
                      internal::kron_factor_kind<RhsMatrix>() != internal::kKronDenseFactor),
                 "KroneckerOperator factors must be plain Matrix, DiagonalMatrix or SparseMatrix types, identity "
-                "factors (makeKroneckerOperator stores an Identity() expression as one) or KroneckerOperators (owning "
-                "their storage: views and other expressions would dangle)");
+                "factors (makeKroneckerOperator stores an Identity() expression as one), KroneckerOperators or "
+                "KroneckerSums (owning their storage: views and other expressions would dangle)");
 
  private:
   // Factor-kind dispatch, see kron_factor_ops.
@@ -1004,10 +1054,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const CompleteOrthogonalDecomposition<DenseMatrix> codA(An), codB(Bn);
     typename internal::nested_eval<Rhs, 1>::type actualRhs(b.derived());
     DenseMatrix S, Z, X;
-    const Index chunk = rhsChunk<Scalar>(m1 * m2 + n2 * m1 + n1 * n2);
+    const Index chunk = internal::kron_rhs_chunk<Scalar>(m1 * m2 + n2 * m1 + n1 * n2);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
-      stackColumns(S, actualRhs.middleCols(k0, c), m2, m1);
+      internal::kron_stack_columns(S, actualRhs.middleCols(k0, c), m2, m1);
       Z = codB.solve(S.reshaped(m2, c * m1));
       X = codA.solve(Z.reshaped(n2 * c, m1).transpose()).transpose();
       internal::structured_ldexp_entries(X, -(eA + eB));
@@ -1063,7 +1113,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * accumulated from the factor LU diagonals (the \c SparseLU pivots for a
    * sparse factor, the diagonal itself for a diagonal factor, skipping the LU;
    * 1 for an identity; recursively for a nested Kronecker factor, whose own
-   * factors must then be square) in the balanced form \c m * 2^e --
+   * factors must then be square; the LU of the materialized matrix for a
+   * \ref KroneckerSum factor) in the balanced form \c m * 2^e --
    * every factor and the running product are renormalized to unit magnitude
    * with the power of two tracked separately -- so the partial products (in
    * particular \c det(A) and \c det(B) themselves, which can overflow or
@@ -1081,7 +1132,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c i*n2 + j is \f$ \lambda_i(A)\,\mu_j(B) \f$, matching column \c i*n2 + j of
    * \ref eigenvectors. The set is not sorted -- there is no canonical eigenvalue
    * order, and sorting would break the Kronecker structure of the eigenvector
-   * matrix. */
+   * matrix. A nested Kronecker or \ref KroneckerSum factor contributes the
+   * eigenvalues of its own factors -- the factors of every nested Kronecker
+   * product must then be square -- with the accuracy
+   * KroneckerSum::eigenvalues() describes for a sum. */
   ComplexVector eigenvalues() const {
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::eigenvalues requires square factors");
@@ -1192,17 +1246,23 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * in <tt>(iA, iB)</tt>, and those to a fixed row in <tt>(jA, jB)</tt>. */
   template <typename Dest>
   void evalToImpl(Dest& S, std::true_type) const {
+    using LhsVisitable = internal::kron_factor_visitable<LhsMatrix>;
+    using RhsVisitable = internal::kron_factor_visitable<RhsMatrix>;
+    using VisitedLhsOps = internal::kron_factor_ops<typename LhsVisitable::type>;
+    using VisitedRhsOps = internal::kron_factor_ops<typename RhsVisitable::type>;
     const Index m2 = m_B.rows(), n2 = m_B.cols();
+    const auto& A = LhsVisitable::get(m_A);
+    const auto& B = RhsVisitable::get(m_B);
     S.resize(rows(), cols());
     using IndexVector = Matrix<Index, Dynamic, 1>;
-    const IndexVector nnzA = LhsOps::innerNonZeros(m_A, Dest::IsRowMajor);
-    const IndexVector nnzB = RhsOps::innerNonZeros(m_B, Dest::IsRowMajor);
+    const IndexVector nnzA = VisitedLhsOps::innerNonZeros(A, Dest::IsRowMajor);
+    const IndexVector nnzB = VisitedRhsOps::innerNonZeros(B, Dest::IsRowMajor);
     // Inner vectors kA of A and kB of B meet in inner vector kA * nnzB.size() + kB
     // of the product: the column-major stacking of the count outer product.
     const Matrix<Index, Dynamic, Dynamic, ColMajor> counts = nnzB * nnzA.transpose();
     S.reserve(counts.reshaped());
-    LhsOps::forEachNonZero(m_A, [&S, m2, n2, this](Index iA, Index jA, const Scalar& a) {
-      RhsOps::forEachNonZero(m_B, [&S, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
+    VisitedLhsOps::forEachNonZero(A, [&S, &B, m2, n2](Index iA, Index jA, const Scalar& a) {
+      VisitedRhsOps::forEachNonZero(B, [&S, m2, n2, iA, jA, &a](Index iB, Index jB, const Scalar& b) {
         S.insert(iA * m2 + iB, jA * n2 + jB) = a * b;
       });
     });
@@ -1245,8 +1305,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * reshaped in place, \f$ \mathrm{mat}(y) \mathrel{+}= \alpha B X A^T \f$ with
    * \f$ X = \mathrm{mat}(x) \f$, so with a square identity factor the product is
    * one pass of the other factor over \a x. Several right-hand sides are applied
-   * \c c at a time, see rhsChunk(): with \f$ X_k = \mathrm{mat}(x_k) \f$ stacked
-   * as block rows of \f$ \hat X \f$ (\c n2*c x \c n1), see stackColumns(),
+   * \c c at a time, see kron_rhs_chunk(): with \f$ X_k = \mathrm{mat}(x_k) \f$ stacked
+   * as block rows of \f$ \hat X \f$ (\c n2*c x \c n1), see kron_stack_columns(),
    * \f[ \hat Y = \big(B\,\hat X_{[n_2 \times c n_1]}\big)_{[m_2 c \times n_1]}\,A^T,
    *     \qquad \hat Y_k = B X_k A^T = \mathrm{mat}(y_k), \f]
    * where \f$ M_{[p \times q]} \f$ is the column-major reshape.
@@ -1264,7 +1324,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     typename internal::nested_eval<Rhs, 1>::type actualRhs(rhs);
     const bool skipA = LhsOps::isSquareIdentity(m_A), skipB = RhsOps::isSquareIdentity(m_B);
     ProductMatrix X, BX, Y, work;
-    const Index chunk = rhsChunk<ProductScalar>(n1 * n2 + m2 * n1 + m2 * m1);
+    const Index chunk = internal::kron_rhs_chunk<ProductScalar>(n1 * n2 + m2 * n1 + m2 * m1);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
       if (c == 1) {
@@ -1281,7 +1341,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
         }
         continue;
       }
-      stackColumns(X, actualRhs.middleCols(k0, c), n2, n1);
+      internal::kron_stack_columns(X, actualRhs.middleCols(k0, c), n2, n1);
       if (!skipB) {
         BX.setZero(m2, c * n1);
         RhsOps::addLeftProduct(BX, ProductScalar(1), m_B, X.reshaped(n2, c * n1));
@@ -1302,30 +1362,6 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   }
 
  private:
-  /** \internal Writes the columns of \a x, each reshaped to \a rows x \a cols,
-   * as the block rows of \a stacked, (\a rows * \c x.cols()) x \a cols. In this
-   * layout a factor applies to all columns with a single product: from the left
-   * to the \a rows x (\c x.cols() * \a cols) reshape, from the right to the
-   * matrix itself. Callers pass \a x through \c nested_eval first: a nested
-   * product would otherwise be evaluated anew for every column taken from it. */
-  template <typename Stacked, typename Xpr>
-  static void stackColumns(Stacked& stacked, const Xpr& x, Index rows, Index cols) {
-    stacked.resize(rows * x.cols(), cols);
-    for (Index k = 0; k < x.cols(); ++k)
-      stacked.middleRows(k * rows, rows) = x.col(k).reshaped(rows, cols).template cast<typename Stacked::Scalar>();
-  }
-
-  /** \internal \returns how many right-hand sides to stack at once, given the
-   * \a perColumn workspace entries each one needs: as many as fit in an eighth
-   * of the L2 cache, at least one. Stacking widens the factor products, which
-   * pays for small factors; larger workspaces cost more in allocation and cache
-   * misses than they gain (measured in bench_structured_kronecker_batched). */
-  template <typename WorkScalar>
-  static Index rhsChunk(Index perColumn) {
-    const Index budget = Index(l2CacheSize() / 8) / Index(sizeof(WorkScalar));
-    return numext::maxi(Index(1), budget / numext::maxi(perColumn, Index(1)));
-  }
-
   /** \internal \returns the relative rank threshold for the
    * pairwise singular-value products, in the spirit of the SVD-based
    * pseudo-inverse: a mode \c (i,j) is kept when
@@ -1386,10 +1422,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     typename internal::nested_eval<Rhs, 1>::type actualRhs(b);
     DenseMatrix S, Z, X;
     const Index r = b.cols();
-    const Index chunk = rhsChunk<Scalar>(3 * n1 * n2);
+    const Index chunk = internal::kron_rhs_chunk<Scalar>(3 * n1 * n2);
     for (Index k0 = 0; k0 < r; k0 += chunk) {
       const Index c = numext::mini(chunk, r - k0);
-      stackColumns(S, actualRhs.middleCols(k0, c), n2, n1);
+      internal::kron_stack_columns(S, actualRhs.middleCols(k0, c), n2, n1);
       Z = solverB.solveLeft(S.reshaped(n2, c * n1));
       X = solverA.solveTransposedRight(Z.reshaped(n2 * c, n1));
       for (Index k = 0; k < c; ++k) x.col(k0 + k).reshaped(n2, n1) = X.middleRows(k * n2, n2);

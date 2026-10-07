@@ -40,6 +40,12 @@ namespace Eigen {
  *     sparse-dense products and \c SparseLU, \c Identity() factors not at all,
  *     and the product materializes into a dense or a sparse matrix on
  *     assignment;
+ *   - \c KroneckerSum : the Kronecker sum \f$ A \oplus B = A \otimes I + I \otimes B \f$
+ *     of square factors of the same kinds, nestable for three or more factors
+ *     -- the separable operators of finite-difference discretizations on
+ *     tensor-product grids -- with products through
+ *     \f$ B X + X A^T \f$, materialization, and direct solves
+ *     (\c BartelsStewart) through the Schur forms of the factors;
  *   - \c DiagonalPlusLowRank : a diagonal matrix plus a rank-k correction, with
  *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion;
  *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner
@@ -98,6 +104,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/LookAheadLevinson.h"
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
+#include "src/StructuredMatrices/KroneckerSum.h"
 #include "src/StructuredMatrices/DiagonalPlusLowRank.h"
 #include "src/StructuredMatrices/Vandermonde.h"
 #include "src/StructuredMatrices/Cauchy.h"
