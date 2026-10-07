@@ -513,8 +513,9 @@ auto makeKroneckerSum(const EigenBase<D1>& a, const EigenBase<D2>& b, const Eige
  * \f$ N = \prod_k n_k \f$; sparse factors are densified for the decomposition.
  * \c transpose().solve() and \c adjoint().solve() reuse the decompositions:
  * \f[ (A_1 \oplus \cdots \oplus A_d)^H = Q\,(T_1^H \oplus \cdots \oplus T_d^H)\,Q^H \f]
- * is solved with the same transforms around a forward substitution, and
- * \f$ M^T x = b \f$ as \f$ M^H \bar x = \bar b \f$.
+ * is solved with the same transforms around a forward substitution on copies of
+ * the \f$ T_k^H \f$ that \ref compute keeps, and \f$ M^T x = b \f$ as
+ * \f$ M^H \bar x = \bar b \f$.
  *
  * The system is singular exactly when some sum
  * \f$ \lambda_{i_1}(A_1) + \cdots + \lambda_{i_d}(A_d) \f$ vanishes. As with
@@ -566,6 +567,7 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     m_inner.resize(d);
     m_unitary.clear();
     m_triangular.clear();
+    m_triangularAdjoint.clear();
     m_basis.clear();
     m_info = Success;
     m_hermitian = true;
@@ -601,6 +603,7 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
         if (schur.info() != Success) m_info = NoConvergence;
         m_unitary.push_back(schur.matrixU());
         m_triangular.push_back(schur.matrixT());
+        m_triangularAdjoint.emplace_back(m_triangular.back().adjoint());
       }
     }
     return *this;
@@ -746,26 +749,21 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
   }
 
   /** \internal The adjoint of triangularSolve: solves
-   * (sigma I + T_k^H (+) ... (+) T_d^H) y = y in place by forward substitution,
-   * row i of T_k^H being the conjugated column i of T_k. */
+   * (sigma I + L_k (+) ... (+) L_d) y = y in place by forward substitution on the
+   * lower triangular L_k = T_k^H, read by rows as triangularSolve reads T_k. */
   void adjointTriangularSolve(std::size_t k, const ComplexScalar& sigma, ComplexScalar* y) const {
     const Index n = m_sizes[k], s = m_inner[k];
-    const TriangularMatrix& T = m_triangular[k];
+    const TriangularMatrix& L = m_triangularAdjoint[k];
     if (k + 1 == m_sizes.size()) {
-      // Last factor, s = 1: by columns of T_d^H, which are the rows of T_d,
-      // contiguous and conjugated.
+      // Last factor, s = 1: forward substitution on the shifted L_d, by rows.
       Map<Matrix<ComplexScalar, 1, Dynamic>> Y(y, n);
-      for (Index i = 0; i < n; ++i) {
-        Y(i) /= sigma + numext::conj(T(i, i));
-        const Index tail = n - 1 - i;
-        Y.tail(tail) -= Y(i) * T.row(i).tail(tail).conjugate();
-      }
+      for (Index i = 0; i < n; ++i) Y(i) = (Y(i) - Y.head(i).cwiseProduct(L.row(i).head(i)).sum()) / (sigma + L(i, i));
       return;
     }
     Map<ComplexMatrix> Y(y, s, n);
     for (Index i = 0; i < n; ++i) {
-      if (i > 0) Y.col(i).noalias() -= Y.leftCols(i) * T.col(i).head(i).conjugate();
-      adjointTriangularSolve(k + 1, sigma + numext::conj(T(i, i)), Y.col(i).data());
+      if (i > 0) Y.col(i).noalias() -= Y.leftCols(i) * L.row(i).head(i).transpose();
+      adjointTriangularSolve(k + 1, sigma + L(i, i), Y.col(i).data());
     }
   }
 
@@ -773,10 +771,12 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
   Index m_size = 0;
   std::vector<DenseMatrix> m_basis;
   RealVector m_spectrum;
-  // Row-major: the back substitution reads T_k by rows.
+  // Row-major: the back substitution reads T_k by rows, and the forward
+  // substitution of the adjoint solve reads T_k^H, kept as its own copy, the
+  // same way.
   using TriangularMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, RowMajor>;
   std::vector<ComplexMatrix> m_unitary;
-  std::vector<TriangularMatrix> m_triangular;
+  std::vector<TriangularMatrix> m_triangular, m_triangularAdjoint;
   bool m_hermitian = false;
   bool m_isInitialized = false;
   ComputationInfo m_info = InvalidInput;
