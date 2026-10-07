@@ -118,6 +118,27 @@ static void BM_Erf(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
 }
 
+// mode: 0 = inputs in [0.5, 2), 1 = subnormal inputs, 2 = one subnormal per 64 coefficients. The subnormal is
+// min / 3, whose reciprocal is finite. The SSE and AVX rcp estimates flush it, so packets holding one take the
+// division fallback of preciprocal; the AVX-512 rcp14 estimate does not.
+template <typename Scalar>
+static void BM_Inverse(benchmark::State& state) {
+  const Index n = state.range(0);
+  const int mode = int(state.range(1));
+  Array<Scalar, Dynamic, 1> a(n), b(n);
+  for (Index i = 0; i < n; ++i) {
+    a(i) = Scalar(0.5 + double(i % 256) / 171.0);
+    if (mode == 1 || (mode == 2 && i % 64 == 0)) a(i) = (std::numeric_limits<Scalar>::min)() / Scalar(3);
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    b = a.inverse();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
+}
+
 // Simple operations (should be very fast / memory-bound)
 BENCH_CWISE_UNARY(Abs, a.abs(), -100, 100)
 BENCH_CWISE_UNARY(Square, a.square(), -100, 100)
@@ -245,6 +266,8 @@ BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 104857
     ->ArgNames({"size", "mode"})->Name("Erf_float");
 BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
+BENCHMARK(BM_Inverse<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Inverse_float");
 BENCHMARK_TEMPLATE(BM_Sign, float)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_float");
 BENCHMARK_TEMPLATE(BM_Sign, double)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_double");
 BENCHMARK(BM_Abs<float>) CWISE_SIZES ->Name("Abs_float");
@@ -285,6 +308,8 @@ BENCHMARK(BM_Atanh<double>) CWISE_SIZES ->Name("Atanh_double");
 BENCHMARK(BM_Log10<double>) CWISE_SIZES ->Name("Log10_double");
 BENCHMARK(BM_Erf<double>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Erf_double");
+BENCHMARK(BM_Inverse<double>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
+    ->ArgNames({"size", "mode"})->Name("Inverse_double");
 BENCHMARK(BM_Abs<double>) CWISE_SIZES ->Name("Abs_double");
 BENCHMARK(BM_Square<double>) CWISE_SIZES ->Name("Square_double");
 BENCHMARK(BM_Cube<double>) CWISE_SIZES ->Name("Cube_double");

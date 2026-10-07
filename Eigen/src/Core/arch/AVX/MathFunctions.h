@@ -99,7 +99,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet8f prsqrt<Packet8f>(co
 
 template <>
 EIGEN_STRONG_INLINE Packet8f preciprocal<Packet8f>(const Packet8f& a) {
-  return generic_reciprocal_newton_step<Packet8f, /*Steps=*/1>::run(a, _mm256_rcp_ps(a));
+  // generic_reciprocal_newton_step, with its NaN-or-zero test as a single compare: r == 0 or unordered.
+  const Packet8f one = pset1<Packet8f>(1.0f);
+  const Packet8f x = _mm256_rcp_ps(a);
+  const Packet8f refined = pmadd(x, pnmadd(a, x, one), x);
+  const Packet8f redo = _mm256_cmp_ps(refined, _mm256_setzero_ps(), _CMP_EQ_UQ);
+  return predux_any(redo) ? pselect(redo, pdiv(one, a), refined) : refined;
 }
 
 #endif

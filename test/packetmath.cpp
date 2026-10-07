@@ -1101,6 +1101,12 @@ std::enable_if_t<std::is_same<Scalar, float>::value || std::is_same<Scalar, doub
 template <typename Scalar, typename Packet>
 std::enable_if_t<!(std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value)> packetmath_exp2() {}
 
+// Out of line, so that the compiler cannot move the arithmetic across the MXCSR writes of ScopedFlushToZero.
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void preciprocal_out_of_line(const Scalar* in, Scalar* out) {
+  internal::pstoreu(out, internal::preciprocal(internal::ploadu<Packet>(in)));
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   typedef internal::packet_traits<Scalar> PacketTraits;
@@ -1549,6 +1555,29 @@ void packetmath_real() {
     h.store(data2, internal::preciprocal(h.load(data1)));
     VERIFY_IS_EQUAL(data2[0], inf);
     VERIFY_IS_EQUAL(data2[1], -inf);
+#if EIGEN_ARCH_i386_OR_x86_64
+    // The x86 rcp estimates flush the reciprocal of |a| >= 2^126 to 0, which DAZ also makes the redo test's
+    // comparisons read; 1 / min is 2^126 for float. Compare bits: DAZ reads subnormal operands of == as 0.
+    const Scalar smallest = (std::numeric_limits<Scalar>::min)();
+    const Scalar minus_tiny = -tiny;
+    data1[0] = Scalar(1) / smallest;
+    data1[1] = -huge;
+    {
+      ScopedFlushToZero daz(FlushToZeroMode::Inputs);
+      if (daz.mode() == FlushToZeroMode::Inputs) {
+        preciprocal_out_of_line<Scalar, Packet>(data1, data2);
+        VERIFY(test::biteq(data2[0], smallest));
+        VERIFY(test::biteq(data2[1], minus_tiny));
+      }
+    }
+    {
+      ScopedFlushToZero both(FlushToZeroMode::Both);
+      if (both.mode() == FlushToZeroMode::Both) {
+        preciprocal_out_of_line<Scalar, Packet>(data1, data2);
+        VERIFY(test::biteq(data2[0], smallest));
+      }
+    }
+#endif
   }
 #endif
 }

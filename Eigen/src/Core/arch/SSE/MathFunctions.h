@@ -56,7 +56,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED Packet4f prsqrt
 // 30% faster.
 template <>
 EIGEN_STRONG_INLINE Packet4f preciprocal<Packet4f>(const Packet4f& x) {
+#ifdef EIGEN_VECTORIZE_AVX
+  // generic_reciprocal_newton_step, with its NaN-or-zero test as a single compare: r == 0 or unordered.
+  const Packet4f one = pset1<Packet4f>(1.0f);
+  const Packet4f r0 = _mm_rcp_ps(x);
+  const Packet4f refined = pmadd(r0, pnmadd(x, r0, one), r0);
+  const Packet4f redo = _mm_cmp_ps(refined, _mm_setzero_ps(), _CMP_EQ_UQ);
+  return predux_any(redo) ? pselect(redo, pdiv(one, x), refined) : refined;
+#else
   return generic_reciprocal_newton_step<Packet4f, /*Steps=*/1>::run(x, _mm_rcp_ps(x));
+#endif
 }
 #endif
 

@@ -104,7 +104,14 @@ EIGEN_STRONG_INLINE Packet16f preciprocal<Packet16f>(const Packet16f& a) {
 #ifdef EIGEN_VECTORIZE_AVX512ER
   return _mm512_rcp28_ps(a);
 #else
-  return generic_reciprocal_newton_step<Packet16f, /*Steps=*/1>::run(a, _mm512_rcp14_ps(a));
+  // generic_reciprocal_newton_step, with its NaN-or-zero test as one compare into a mask register (r == 0 or
+  // unordered), as for AVX: GCC compiles the generic predux_any(pcmp_lt_or_nan(...)) to a compare mask converted to a
+  // vector and back.
+  const Packet16f one = pset1<Packet16f>(1.0f);
+  const Packet16f x = _mm512_rcp14_ps(a);
+  const Packet16f refined = pmadd(x, pnmadd(a, x, one), x);
+  const __mmask16 redo = _mm512_cmp_ps_mask(refined, _mm512_setzero_ps(), _CMP_EQ_UQ);
+  return redo == 0 ? refined : _mm512_mask_div_ps(refined, redo, one, a);
 #endif
 }
 #endif
