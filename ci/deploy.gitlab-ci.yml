@@ -14,11 +14,13 @@ deploy:tag:weekly:
     - saas-linux-small-amd64
   rules: !reference [.rules:libeigen:scheduled-or-web:default-branch, rules]
 
-# Upload docs if pipeline succeeded.
+# Upload docs once the docs build succeeds. `needs:` rather than stage order,
+# which would also wait on every test job: the full matrix rarely passes
+# outright, so the scheduled docs never deployed.
 deploy:docs:
   stage: deploy
   image: busybox
-  dependencies: [ build:linux:docs ]
+  needs: [ build:linux:docs ]
   variables:
     PAGES_PREFIX: docs-weekly
   script:
