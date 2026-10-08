@@ -125,6 +125,18 @@ void complex_qz_exceptional_shift() {
   }
 }
 
+// The 2x2 deflation compared the diagonal of T with an absolute epsilon, so a pencil with ||B|| << 1 failed.
+template <typename MatrixType>
+void complex_qz_small_b() {
+  using RealScalar = typename MatrixType::RealScalar;
+  for (Index dim : {2, 3, 5}) {
+    const MatrixType a = MatrixType::Random(dim, dim),
+                     b = MatrixType::Random(dim, dim) * (NumTraits<RealScalar>::epsilon() / 1024);
+    ComplexQZ<MatrixType> qz(a, b);
+    verify_complex_qz_convergence(a, b, qz);
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void complex_qz_no_malloc() {
@@ -167,6 +179,8 @@ EIGEN_DECLARE_TEST(complex_qz) {
   CALL_SUBTEST_6((complex_qz_no_malloc<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_7((complex_qz_exceptional_shift<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_exceptional_shift<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_small_b<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_small_b<MatrixXcd>()));
   CALL_SUBTEST_9((complex_qz_exceptional_shift<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_10((complex_qz_exceptional_shift<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
 

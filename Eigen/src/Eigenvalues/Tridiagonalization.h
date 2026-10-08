@@ -417,6 +417,7 @@ void tridiagonalization_inplace_blocked(MatrixType& matA, CoeffVectorType& hCoef
   using BlockingType = gemm_blocking_space<StorageOrder, Scalar, Scalar, Dynamic, Dynamic, Dynamic>;
   const Index maxTrailingSize = n - nb;
   BlockingType blocking(maxTrailingSize, maxTrailingSize, nb, 1, false);
+  blocking.allocateAll();
 
   Index j0 = 0;
   for (; j0 + nb < n - 1; j0 += nb) {

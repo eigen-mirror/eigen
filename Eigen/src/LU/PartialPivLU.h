@@ -552,7 +552,7 @@ struct generic_partial_lu_impl {
     for (Index k = 0; k < size; k += blockSize) {
       Index bs = (std::min)(size - k, blockSize);  // actual size of the block
       Index trows = rows - k - bs;                 // trailing rows
-      Index tsize = size - k - bs;                 // trailing size
+      Index tsize = cols - k - bs;                 // trailing columns
 
       // partition the matrix:
       //                          A00 | A01 | A02
@@ -579,7 +579,7 @@ struct generic_partial_lu_impl {
         apply_row_transpositions(A_0, k, bs, row_transpositions);
       }
 
-      if (trows) {
+      if (tsize) {
         // apply permutations to A_2
         apply_row_transpositions(A_2, k, bs, row_transpositions);
 

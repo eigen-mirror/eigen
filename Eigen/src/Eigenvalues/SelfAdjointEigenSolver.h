@@ -494,10 +494,10 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   Index n = m_eivec.cols();
   m_eivalues.resize(n, 1);
 
-  if (n == 1) {
-    m_eivalues.coeffRef(0, 0) = numext::real(m_eivec.coeff(0, 0));
+  if (n <= 1) {
+    if (n == 1) m_eivalues.coeffRef(0, 0) = numext::real(m_eivec.coeff(0, 0));
     if (computeEigenvectors) m_eivec.setOnes();
-    m_info = (numext::isfinite)(m_eivalues.coeffRef(0, 0)) ? Success : NoConvergence;
+    m_info = m_eivalues.allFinite() ? Success : NoConvergence;
     m_isInitialized = true;
     m_eigenvectorsOk = computeEigenvectors;
     return *this;

@@ -351,9 +351,9 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
   m_matUisUptodate = false;
   eigen_assert(matrix.cols() == matrix.rows());
 
-  if (matrix.cols() == 1) {
+  if (matrix.cols() <= 1) {
     m_matT = matrix.derived().template cast<ComplexScalar>();
-    if (computeU) m_matU = ComplexMatrixType::Identity(1, 1);
+    if (computeU) m_matU = ComplexMatrixType::Identity(matrix.rows(), matrix.cols());
     m_info = Success;
     m_isInitialized = true;
     m_matUisUptodate = computeU;
@@ -383,8 +383,8 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU
   m_matUisUptodate = false;
   eigen_assert(m_matT.cols() == m_matT.rows());
 
-  if (m_matT.cols() == 1) {
-    if (computeU) m_matU = ComplexMatrixType::Identity(1, 1);
+  if (m_matT.cols() <= 1) {
+    if (computeU) m_matU = ComplexMatrixType::Identity(m_matT.rows(), m_matT.cols());
     m_info = Success;
     m_isInitialized = true;
     m_matUisUptodate = computeU;

@@ -845,8 +845,10 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
 
   // Scaling factor to reduce over/under-flows. A SIMD unit that flushes subnormal inputs reads an all-subnormal matrix
   // as zero; recover its maximum from the representation so that the scaling still brings it into the normal range.
-  const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
-      matrix.derived(), matrix.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const RealScalar maxCoeff = matrix.size() == 0
+                                  ? RealScalar(0)
+                                  : internal::safe_scaling<RealScalar>::recover_flushed_max_coeff(
+                                        matrix.derived(), matrix.cwiseAbs().template maxCoeff<PropagateNaN>());
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
@@ -875,7 +877,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
   }
 
   /*** step 2. The main Jacobi SVD iteration. ***/
-  RealScalar maxDiagEntry = m_workMatrix.cwiseAbs().diagonal().maxCoeff();
+  RealScalar maxDiagEntry = diagSize() == 0 ? RealScalar(0) : m_workMatrix.cwiseAbs().diagonal().maxCoeff();
 
   bool finished = false;
   while (!finished) {

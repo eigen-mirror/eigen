@@ -344,7 +344,7 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(TMatrix& matT, bool
   const Index n = matT.rows();
   eigen_assert(matT.cols() == n);
 
-  const Scalar maxCoeff = matT.cwiseAbs().template maxCoeff<PropagateNaN>();
+  const Scalar maxCoeff = n == 0 ? Scalar(0) : matT.cwiseAbs().template maxCoeff<PropagateNaN>();
   if (!(numext::isfinite)(maxCoeff)) {
     if (!internal::is_same_dense(m_matT, matT)) m_matT = matT;
     m_info = NoConvergence;

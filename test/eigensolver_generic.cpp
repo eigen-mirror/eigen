@@ -236,6 +236,15 @@ EIGEN_DECLARE_TEST(eigensolver_generic) {
     VERIFY_IS_EQUAL(solver.info(), NumericalIssue);
   });
 
+  // RealSchur took the maximum of no coefficients for an empty matrix.
+  CALL_SUBTEST_2({
+    MatrixXd A(0, 0);
+    Eigen::EigenSolver<MatrixXd> solver(A);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.eigenvectors().size(), 0);
+    VERIFY_IS_EQUAL(A.eigenvalues().size(), 0);
+  });
+
   CALL_SUBTEST_2(eigensolver_generic_extra<0>());
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);

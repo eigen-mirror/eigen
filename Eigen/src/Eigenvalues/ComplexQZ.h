@@ -579,7 +579,8 @@ template <typename MatrixType_>
 void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
   // We have found a non-zero on the subdiagonal and want to eliminate it
   Mat2 Si = m_S.template block<2, 2>(i, i), Ti = m_T.template block<2, 2>(i, i);
-  if (is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
+  const RealScalar tolT = m_normOfT * NumTraits<RealScalar>::epsilon();
+  if (is_negligible(Ti(0, 0), tolT)) {
     Eigen::JacobiRotation<Scalar> G;
     G.makeGivens(m_S(i, i), m_S(i + 1, i));
     m_S.applyOnTheLeft(i, i + 1, G.adjoint());
@@ -587,13 +588,13 @@ void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
 
     if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
 
-  } else if (!is_negligible(Ti(0, 0)) && is_negligible(Ti(1, 1))) {
+  } else if (is_negligible(Ti(1, 1), tolT)) {
     Eigen::JacobiRotation<Scalar> G;
     G.makeGivens(m_S(i + 1, i + 1), m_S(i + 1, i));
     m_S.applyOnTheRight(i, i + 1, G.adjoint());
     m_T.applyOnTheRight(i, i + 1, G.adjoint());
     if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
-  } else if (!is_negligible(Ti(0, 0)) && !is_negligible(Ti(1, 1))) {
+  } else {
     Scalar mu = Si(0, 0) / Ti(0, 0);
     Scalar a12_bar = Si(0, 1) - mu * Ti(0, 1);
     Scalar a22_bar = Si(1, 1) - mu * Ti(1, 1);

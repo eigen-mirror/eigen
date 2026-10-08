@@ -406,13 +406,14 @@ template <typename Derived>
 bool SVDBase<Derived>::allocate(Index rows, Index cols, unsigned int computationOptions) {
   eigen_assert(rows >= 0 && cols >= 0);
 
+  // Reset the status on every call: a recompute of the same shape must not keep the InvalidInput of a previous one.
+  m_info = Success;
   if (m_isAllocated && rows == m_rows.value() && cols == m_cols.value() && computationOptions == m_computationOptions) {
     return true;
   }
 
   m_rows.setValue(rows);
   m_cols.setValue(cols);
-  m_info = Success;
   m_isInitialized = false;
   m_isAllocated = true;
   m_computationOptions = computationOptions;

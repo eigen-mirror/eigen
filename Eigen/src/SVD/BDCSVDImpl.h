@@ -677,7 +677,7 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
       }
       // This product is non-negative in exact arithmetic. As in LAPACK's
       // xLASD8, take abs before sqrt to tolerate a negative rounding residue.
-      RealScalar tmp = numext::sqrt(abs(prod));
+      RealScalar tmp = numext::sqrt(numext::abs(prod));
       zhat(k) = col0(k) > Literal(0) ? RealScalar(tmp) : RealScalar(-tmp);
     }
   }

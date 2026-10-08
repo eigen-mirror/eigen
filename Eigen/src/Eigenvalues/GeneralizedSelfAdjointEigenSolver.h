@@ -272,6 +272,9 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
     }
   }
 
+  // The reduction above is only valid for a positive definite B.
+  if (m_cholB.info() != Success) Base::m_info = NumericalIssue;
+
   return *this;
 }
 

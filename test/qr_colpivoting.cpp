@@ -59,6 +59,13 @@ void cod() {
   MatrixType pinv = cod.pseudoInverse();
   VERIFY_IS_APPROX(cod_solution, pinv * rhs);
 
+  // Z is the identity at full column rank, also when reusing a rank-deficient decomposition of the same shape.
+  MatrixType deficient;
+  createRandomPIMatrixOfRank(cols - 1, cols, cols, deficient);
+  CompleteOrthogonalDecomposition<MatrixType> cod3(deficient);
+  cod3.compute(MatrixType::Identity(cols, cols));
+  VERIFY_IS_APPROX(MatrixType(cod3.matrixZ()), MatrixType::Identity(cols, cols));
+
   // now construct a (square) matrix with prescribed determinant
   Index size = internal::random<Index>(2, 20);
   matrix.setZero(size, size);
@@ -89,6 +96,9 @@ void cod_fixedsize() {
   VERIFY(cod.isInjective() == (rank == Rows));
   VERIFY(cod.isSurjective() == (rank == Cols));
   VERIFY(cod.isInvertible() == (cod.isInjective() && cod.isSurjective()));
+
+  Matrix<Scalar, Cols, Cols> z = cod.matrixZ();
+  VERIFY_IS_UNITARY(z);
 
   check_solverbase<Matrix<Scalar, Cols, Cols2>, Matrix<Scalar, Rows, Cols2> >(matrix, cod, Rows, Cols, Cols2);
 
@@ -422,6 +432,17 @@ void qr_rank_gap_test() {
   }
 }
 
+// Regression: a matrix without columns has no column norm to take the maximum of.
+template <typename MatrixType>
+void qr_empty() {
+  ColPivHouseholderQR<MatrixType> qr{MatrixType(3, 0)};
+  VERIFY_IS_EQUAL(qr.rank(), Index(0));
+  qr.compute(MatrixType(0, 0));
+  VERIFY_IS_EQUAL(qr.rank(), Index(0));
+  CompleteOrthogonalDecomposition<MatrixType> cod{MatrixType(3, 0)};
+  VERIFY_IS_EQUAL(cod.rank(), Index(0));
+}
+
 EIGEN_DECLARE_TEST(qr_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(qr<MatrixXf>());
@@ -466,6 +487,7 @@ EIGEN_DECLARE_TEST(qr_colpivoting) {
 
   // Test problem size constructors
   CALL_SUBTEST_9(ColPivHouseholderQR<MatrixXf>(10, 20));
+  CALL_SUBTEST_2(qr_empty<MatrixXd>());
 
   CALL_SUBTEST_1(qr_kahan_matrix<MatrixXf>());
   CALL_SUBTEST_2(qr_kahan_matrix<MatrixXd>());

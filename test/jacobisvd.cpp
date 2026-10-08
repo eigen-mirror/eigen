@@ -412,6 +412,9 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_56((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_56((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
   CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
+  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(0, 0)));
+  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(0, 3)));
+  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(3, 0)));
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));

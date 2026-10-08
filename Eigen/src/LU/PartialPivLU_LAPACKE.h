@@ -69,7 +69,8 @@ struct lapacke_partial_lu {
     }
     eigen_assert(info >= 0);
 
-    for (int i = 0; i < m; i++) {
+    // getrf returns min(m, n) pivots.
+    for (int i = 0; i < numext::mini(m, n); i++) {
       ipiv[i]--;
       if (ipiv[i] != i) nb_transpositions++;
     }

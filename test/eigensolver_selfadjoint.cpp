@@ -968,6 +968,12 @@ void generalizedselfadjointeigensolver_no_malloc() {
   GeneralizedSelfAdjointEigenSolver<MatrixType> fresh(symmA, symmB);
   VERIFY_IS_APPROX(reused.eigenvalues(), fresh.eigenvalues());
   VERIFY_IS_APPROX(symmA * reused.eigenvectors(), symmB * reused.eigenvectors() * reused.eigenvalues().asDiagonal());
+
+  // A B that is not positive definite must not be reported as a successful decomposition.
+  for (int type : types) {
+    GeneralizedSelfAdjointEigenSolver<MatrixType> indefinite(symmA, -symmB, ComputeEigenvectors | type);
+    VERIFY_IS_EQUAL(indefinite.info(), NumericalIssue);
+  }
 }
 
 #if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_ALL)
@@ -1360,6 +1366,14 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<bfloat16, 3>()));
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
+  // An empty matrix took the maximum of no coefficients.
+  CALL_SUBTEST_4({
+    MatrixXd A(0, 0);
+    SelfAdjointEigenSolver<MatrixXd> solver(A);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.eigenvectors().size(), 0);
+    VERIFY_IS_EQUAL(A.selfadjointView<Lower>().eigenvalues().size(), 0);
+  });
   CALL_SUBTEST_5(generalizedselfadjointeigensolver_no_malloc<MatrixXcd>());
   CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<float>());
   CALL_SUBTEST_5(selfadjointeigensolver_dense_deflation_scale_invariance<double>());

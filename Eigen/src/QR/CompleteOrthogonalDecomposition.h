@@ -111,9 +111,12 @@ class CompleteOrthogonalDecompositionImpl
   HouseholderSequenceType householderQ() const;
   HouseholderSequenceType matrixQ() const { return m_cpqr.householderQ(); }
 
-  MatrixType matrixZ() const {
-    MatrixType Z = MatrixType::Identity(m_cpqr.cols(), m_cpqr.cols());
-    applyZOnTheLeftInPlace<false>(Z);
+  using MatrixZType = Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime, plain_object_options<MatrixType>::value,
+                             MaxColsAtCompileTime, MaxColsAtCompileTime>;
+
+  MatrixZType matrixZ() const {
+    MatrixZType Z = MatrixZType::Identity(m_cpqr.cols(), m_cpqr.cols());
+    if (rank() < cols()) applyZOnTheLeftInPlace<false>(Z);
     return Z;
   }
 

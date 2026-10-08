@@ -24,6 +24,17 @@
 #include "svd_fill.h"
 #include "solverbase.h"
 
+// 2^k x, exactly: through the representation where the library scales that way (float, double), else by a power of
+// two, which is exact for the scalars that do not flush subnormals.
+template <typename Plain, typename Derived>
+Plain svd_scale_by_exponent(const MatrixBase<Derived>& x, int k, internal::true_type) {
+  return x.unaryExpr(internal::scale_by_exponent_op<typename Derived::RealScalar>(k));
+}
+template <typename Plain, typename Derived>
+Plain svd_scale_by_exponent(const MatrixBase<Derived>& x, int k, internal::false_type) {
+  return x * numext::ldexp(typename Derived::RealScalar(1), k);
+}
+
 // U S V^H reconstructs m to the working precision plus the quantization of singular values stored in the subnormal
 // range, checked 2^k above m so that FTZ/DAZ cannot flush the check itself:
 //   |U (2^k S) V^H - 2^k m|_max <= 64 n eps |2^k m|_max + n 2^k denorm_min,
@@ -38,8 +49,9 @@ void svd_check_scaled_residual(const MatrixType& m, const SvdType& svd, int k) {
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
   const Index diagSize = (std::min)(m.rows(), m.cols());
   const RealScalar n = RealScalar((std::max)(m.rows(), m.cols()));
-  const DenseMatrix scaledInput = m.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
-  const RealVector scaledSigma = svd.singularValues().unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
+  using ByBits = internal::bool_constant<internal::use_subnormal_preserving_scaling<RealScalar, RealScalar>::value>;
+  const DenseMatrix scaledInput = svd_scale_by_exponent<DenseMatrix>(m, k, ByBits());
+  const RealVector scaledSigma = svd_scale_by_exponent<RealVector>(svd.singularValues(), k, ByBits());
   const RealScalar granularity = numext::ldexp(
       RealScalar(1), std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits + k);
   const DenseMatrix reconstruction =
@@ -382,6 +394,12 @@ void svd_inf_nan() {
   m << 1, 0, 0, 0, 0, 3, 1, min, 1, 0, 1, nan, 0, nan, nan, 0;
   svd.compute(m);
   VERIFY(svd.info() == InvalidInput);
+
+  // A valid recompute of the same shape must not keep reporting the previous failure.
+  m.setIdentity();
+  svd.compute(m);
+  VERIFY(svd.info() == Success);
+  VERIFY_IS_APPROX(svd.singularValues(), MatrixType::Ones(4, 1));
 }
 
 template <typename Scalar>

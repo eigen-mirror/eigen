@@ -395,7 +395,9 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   m_colNormsUpdated = m_colNormsDirect;
 
   RealScalar threshold_helper =
-      numext::abs2<RealScalar>(m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon()) / RealScalar(rows);
+      cols == 0 ? RealScalar(0)
+                : numext::abs2<RealScalar>(m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon()) /
+                      RealScalar(rows);
   RealScalar norm_downdate_threshold = numext::sqrt(NumTraits<RealScalar>::epsilon());
 
   this->m_nonzero_pivots = size;  // the generic case is that in which all pivots are nonzero (invertible case)

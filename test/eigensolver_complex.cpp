@@ -184,6 +184,15 @@ EIGEN_DECLARE_TEST(eigensolver_complex) {
   // Test problem size constructors
   CALL_SUBTEST_5(ComplexEigenSolver<MatrixXf> tmp(s));
 
+  // ComplexSchur took the maximum of no coefficients for an empty matrix.
+  CALL_SUBTEST_2({
+    MatrixXcd A(0, 0);
+    ComplexEigenSolver<MatrixXcd> solver(A);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_IS_EQUAL(solver.eigenvectors().size(), 0);
+    VERIFY_IS_EQUAL(A.eigenvalues().size(), 0);
+  });
+
   // Test custom complex scalar type.
   CALL_SUBTEST_6(eigensolver(Matrix<CustomComplex<double>, 5, 5>()));
   CALL_SUBTEST_6(custom_complex_stable_normalization());
