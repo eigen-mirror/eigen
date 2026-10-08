@@ -2345,13 +2345,18 @@ struct complex_exp2_impl {
       return a > RealScalar(0) ? Complex(a, b * RealScalar(0)) : Complex(RealScalar(0), RealScalar(0));
     }
     // ln2_lo = (double(ln(2)) - ln2_hi) + (ln(2) - double(ln(2))), the first difference exact in Wide.
-    using Wide =
-        std::conditional_t<(NumTraits<RealScalar>::digits() > NumTraits<double>::digits()), RealScalar, double>;
+    // nvcc 11.8 drops parentheses around a `>` in a template argument when it regenerates host code.
+    constexpr bool kWiderThanDouble = NumTraits<RealScalar>::digits() > NumTraits<double>::digits();
+    using Wide = std::conditional_t<kWiderThanDouble, RealScalar, double>;
     const RealScalar ln2_hi = RealScalar(EIGEN_LN2);
     const RealScalar ln2_lo = RealScalar((Wide(static_cast<double>(EIGEN_LN2)) - Wide(ln2_hi)) +
                                          Wide(2.3190468138462996154948554638754786504e-17L));
-    const RealScalar t_hi = b * ln2_hi;
-    const RealScalar t_lo = numext::fma(b, ln2_hi, -t_hi) + b * ln2_lo;
+    // The phase is computed for |b|: a libm sin need not be exactly odd (IBM double-double's is not), and
+    // exp2(conj(z)) = conj(exp2(z)) should hold exactly.
+    const bool negative = b < RealScalar(0);
+    const RealScalar abs_b = numext::abs(b);
+    const RealScalar t_hi = abs_b * ln2_hi;
+    const RealScalar t_lo = numext::fma(abs_b, ln2_hi, -t_hi) + abs_b * ln2_lo;
     // |t_lo| <= ulp(t_hi) / 2, so the Taylor terms below are exact to rounding unless |t| exceeds about 2 / sqrt(eps).
     // The phase is within an ulp of b ln(2) while |t| < 1 / eps.
     RealScalar sin_lo = t_lo;
@@ -2374,11 +2379,13 @@ struct complex_exp2_impl {
     if (numext::abs(t_hi) < (numext::numeric_limits<RealScalar>::min)()) {
       // A denormal t has lost bits that 2^a can bring back. There cos(t) = 1 and sin(t) = t, taken from b 2^digits.
       const int p = NumTraits<RealScalar>::digits();
-      const RealScalar b_p = numext::ldexp(b, p);
-      return Complex(numext::ldexp(m, e), numext::ldexp(m * numext::fma(b_p, ln2_hi, b_p * ln2_lo), e - p));
+      const RealScalar b_p = numext::ldexp(abs_b, p);
+      const RealScalar im = numext::ldexp(m * numext::fma(b_p, ln2_hi, b_p * ln2_lo), e - p);
+      return Complex(numext::ldexp(m, e), negative ? -im : im);
     }
-    if (e == 0) return Complex(m * c, m * s);
-    return Complex(numext::ldexp(m * c, e), numext::ldexp(m * s, e));
+    const RealScalar re = e == 0 ? m * c : numext::ldexp(m * c, e);
+    const RealScalar im = e == 0 ? m * s : numext::ldexp(m * s, e);
+    return Complex(re, negative ? -im : im);
   }
 };
 

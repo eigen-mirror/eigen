@@ -214,17 +214,20 @@ void check_complex_exp2_accuracy() {
   check_complex_exp2_accuracy<T, W>(T(10.25), T(-7));
   check_complex_exp2_accuracy<T, W>(T(0.5), T(100.3));
   check_complex_exp2_accuracy<T, W>(T(-20), T(-1000.7));
+  for (int i = 0; i < 200; ++i) {
+    check_complex_exp2_accuracy<T, W>(internal::random<T>(T(-30), T(30)), internal::random<T>(T(-1000), T(1000)));
+  }
+  // The cases below need W's exponent range, which IBM double-double long double shares with double.
+  if (std::numeric_limits<W>::max_exponent <= std::numeric_limits<T>::max_exponent ||
+      std::numeric_limits<W>::min_exponent >= std::numeric_limits<T>::min_exponent) {
+    return;
+  }
   // 2^a overflows, 2^a cos(b ln 2) does not.
   check_complex_exp2_accuracy<T, W>(emax + T(0.5), T(1.5));
   check_complex_exp2_accuracy<T, W>(emax - T(0.25), T(-2));
 #if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
   const T emin = T(std::numeric_limits<T>::min_exponent);
   check_complex_exp2_accuracy<T, W>(emin - T(std::numeric_limits<T>::digits) / T(2) + T(0.3), T(1));
-#endif
-  for (int i = 0; i < 200; ++i) {
-    check_complex_exp2_accuracy<T, W>(internal::random<T>(T(-30), T(30)), internal::random<T>(T(-1000), T(1000)));
-  }
-#if !EIGEN_ARCH_ARM
   // A denormal phase that 2^a scales back into range, also past 2^(2 emax): the imaginary part to a few of its own
   // ulps, where the normwise check above is blind.
   const T b = (std::numeric_limits<T>::min)() / T(64);
@@ -265,8 +268,8 @@ void check_complex_exp2() {
   for (const T b : {inf, -inf, nan}) {
     const Complex at_inf = numext::exp2(Complex(inf, b));
     VERIFY((numext::isinf)(at_inf.real()) && (numext::isnan)(at_inf.imag()));
-    const Complex at_minus_inf = numext::exp2(Complex(-inf, b));
-    VERIFY(numext::is_exactly_zero(at_minus_inf.real()) && numext::is_exactly_zero(at_minus_inf.imag()));
+    const Complex at_minus_inf_b = numext::exp2(Complex(-inf, b));
+    VERIFY(numext::is_exactly_zero(at_minus_inf_b.real()) && numext::is_exactly_zero(at_minus_inf_b.imag()));
   }
 
   // exp2(conj(z)) = conj(exp2(z)).
@@ -274,6 +277,21 @@ void check_complex_exp2() {
     const Complex z(internal::random<T>(T(-30), T(30)), internal::random<T>(T(-1000), T(1000)));
     VERIFY_IS_EQUAL(numext::exp2(numext::conj(z)), numext::conj(numext::exp2(z)));
   }
+  // Also where 2^a overflows, underflows or is infinite, and for a denormal phase, down to the sign of zero.
+  const T emax = T(std::numeric_limits<T>::max_exponent), emin = T(std::numeric_limits<T>::min_exponent);
+  const T digits = T(std::numeric_limits<T>::digits);
+  for (const T a :
+       {emax + T(0.5), T(2) * emax + T(4), emin - digits / T(2) + T(0.3), emin - T(2) * digits, inf, -inf}) {
+    for (const T b : {T(1.5), T(5), (std::numeric_limits<T>::min)() / T(64)}) {
+      const Complex w_conj = numext::exp2(Complex(a, -b)), conj_w = numext::conj(numext::exp2(Complex(a, b)));
+      VERIFY_IS_EQUAL(w_conj, conj_w);
+      VERIFY_IS_EQUAL((std::signbit)(w_conj.real()), (std::signbit)(conj_w.real()));
+      VERIFY_IS_EQUAL((std::signbit)(w_conj.imag()), (std::signbit)(conj_w.imag()));
+    }
+  }
+  // An imaginary part that underflows keeps the sign of sin(b ln(2)): sin(-ln(2)) < 0 < sin(-5 ln(2)).
+  VERIFY((std::signbit)(numext::exp2(Complex(emin - T(2) * digits, T(-1))).imag()));
+  VERIFY(!(std::signbit)(numext::exp2(Complex(emin - T(2) * digits, T(-5))).imag()));
 
   // The array expression, on a size with packet and tail coefficients.
   const Array<Complex, Dynamic, 1> z = Array<Complex, Dynamic, 1>::Random(17) * T(10);
