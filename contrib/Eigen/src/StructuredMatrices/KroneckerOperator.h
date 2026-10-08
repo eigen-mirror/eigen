@@ -181,6 +181,30 @@ struct kron_factor_visitable {
   static const Factor& get(const Factor& f) { return f; }
 };
 
+/** \internal A nested KroneckerOperator is visited through its own factors'
+ * visitable forms, so a KroneckerSum at any depth is materialized once; the
+ * operator is rebuilt only when one of them differs. */
+template <typename LhsMatrix, typename RhsMatrix,
+          bool Unchanged = std::is_same<typename kron_factor_visitable<LhsMatrix>::type, LhsMatrix>::value &&
+                           std::is_same<typename kron_factor_visitable<RhsMatrix>::type, RhsMatrix>::value>
+struct kron_operator_visitable {
+  using Factor = KroneckerOperator<LhsMatrix, RhsMatrix>;
+  using type = Factor;
+  static const Factor& get(const Factor& f) { return f; }
+};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_operator_visitable<LhsMatrix, RhsMatrix, false> {
+  using LhsVisitable = kron_factor_visitable<LhsMatrix>;
+  using RhsVisitable = kron_factor_visitable<RhsMatrix>;
+  using type = KroneckerOperator<typename LhsVisitable::type, typename RhsVisitable::type>;
+  static type get(const KroneckerOperator<LhsMatrix, RhsMatrix>& f) {
+    return type(LhsVisitable::get(f.lhs()), RhsVisitable::get(f.rhs()));
+  }
+};
+template <typename LhsMatrix, typename RhsMatrix>
+struct kron_factor_visitable<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKroneckerFactor>
+    : kron_operator_visitable<LhsMatrix, RhsMatrix> {};
+
 /** \internal Writes the columns of \a x, each reshaped to \a rows x \a cols,
  * as the block rows of \a stacked, (\a rows * \c x.cols()) x \a cols. In this
  * layout a factor applies to all columns with a single product: from the left

@@ -162,7 +162,7 @@ static void BM_KroneckerSumSolveHeat3DSparseLU(benchmark::State& state) {
 }
 BENCHMARK(BM_KroneckerSumSolveHeat3DSparseLU)->Arg(16)->Arg(32)->Arg(48);
 
-// --- Nonsymmetric factors: the complex Schur path ---
+// --- Nonsymmetric factors with real eigenvalues (|c| < 1): the real Schur path ---
 static void BM_KroneckerSumSolveConvection2D(benchmark::State& state) {
   const Index n = state.range(0);
   auto M = makeKroneckerSum(tridiagonal(n, 0.5), tridiagonal(n, 0.3));
@@ -252,3 +252,52 @@ static void BM_KroneckerSumFactorEigenvaluesMaterialized(benchmark::State& state
   }
 }
 BENCHMARK(BM_KroneckerSumFactorEigenvaluesMaterialized)->Arg(16)->Arg(24);
+
+// Convection-dominated factors, |c| > 1: tridiag(-1 - c, 2, -1 + c) then has
+// complex conjugate eigenvalue pairs, the 2x2 blocks of the real Schur form.
+static void BM_KroneckerSumSolveAdvection2D(benchmark::State& state) {
+  const Index n = state.range(0);
+  auto M = makeKroneckerSum(tridiagonal(n, 1.5), tridiagonal(n, 1.2));
+  BartelsStewart<decltype(M)> solver(M);
+  Vec b = Vec::Random(n * n), u(n * n);
+  for (auto _ : state) {
+    u = solver.solve(b);
+    benchmark::DoNotOptimize(u.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumSolveAdvection2D)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerSumSolveAdvection2DSparseLU(benchmark::State& state) {
+  const Index n = state.range(0);
+  SpMat M;
+  M = makeKroneckerSum(tridiagonal(n, 1.5), tridiagonal(n, 1.2));
+  SparseLU<SpMat> lu(M);
+  Vec b = Vec::Random(n * n), u(n * n);
+  for (auto _ : state) {
+    u = lu.solve(b);
+    benchmark::DoNotOptimize(u.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumSolveAdvection2DSparseLU)->Arg(64)->Arg(128)->Arg(256);
+
+static void BM_KroneckerSumSolveAdvection3D(benchmark::State& state) {
+  const Index n = state.range(0);
+  auto M = makeKroneckerSum(tridiagonal(n, 1.5), tridiagonal(n, 1.2), tridiagonal(n, 0.5));
+  BartelsStewart<decltype(M)> solver(M);
+  Vec b = Vec::Random(n * n * n), u(n * n * n);
+  for (auto _ : state) {
+    u = solver.solve(b);
+    benchmark::DoNotOptimize(u.data());
+  }
+}
+BENCHMARK(BM_KroneckerSumSolveAdvection3D)->Arg(16)->Arg(32);
+
+static void BM_KroneckerSumSetupConvection2D(benchmark::State& state) {
+  const Index n = state.range(0);
+  auto M = makeKroneckerSum(tridiagonal(n, 0.5), tridiagonal(n, 0.3));
+  for (auto _ : state) {
+    BartelsStewart<decltype(M)> solver(M);
+    benchmark::DoNotOptimize(&solver);
+  }
+}
+BENCHMARK(BM_KroneckerSumSetupConvection2D)->Arg(64)->Arg(128)->Arg(256);

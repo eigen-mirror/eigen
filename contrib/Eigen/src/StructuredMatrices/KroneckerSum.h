@@ -508,14 +508,26 @@ auto makeKroneckerSum(const EigenBase<D1>& a, const EigenBase<D2>& b, const Eige
  * exactly Hermitian, the Schur forms are the eigendecompositions, \f$ T_k \f$
  * is real diagonal, and the triangular solve is a division by the eigenvalue
  * sums -- the fast diagonalization method [2], in real arithmetic for real
- * factors. Either way the setup costs one \f$ O(n_k^3) \f$ decomposition per
- * factor, each solve \f$ O(N \sum_k n_k) \f$ per right-hand side,
- * \f$ N = \prod_k n_k \f$; sparse factors are densified for the decomposition.
+ * factors. Real factors that are not all symmetric take real Schur forms
+ * instead, for up to four factors: \f$ Q_k \f$ is orthogonal and \f$ T_k \f$
+ * quasi-upper-triangular, with a 2x2 diagonal block per complex conjugate
+ * eigenvalue pair. The block rows of the recurrence are then solved jointly:
+ * with \f$ \Sigma \f$ the Kronecker sum of the diagonal blocks chosen at the
+ * outer factors (at most \f$ 2^{d-1} \f$ wide) in place of \f$ \sigma \f$,
+ * \f[ \big((\Sigma \oplus T_1(I,I)) \oplus T_2 \oplus \cdots \oplus T_d\big)\,Y_I
+ *     = C_I - \textstyle\sum_{J > I} Y_J\,T_1(I,J)^T \f]
+ * for each diagonal block \f$ I \f$ of \f$ T_1 \f$, ending in dense solves at
+ * most \f$ 2^d \f$ wide, as in LAPACK's xTRSYL for two factors. More real
+ * factors, and complex ones, take the complex Schur form. Either way the setup
+ * costs one \f$ O(n_k^3) \f$ decomposition per factor, each solve
+ * \f$ O(N \sum_k n_k) \f$ per right-hand side, \f$ N = \prod_k n_k \f$, plus
+ * up to \f$ O(4^d N) \f$ for the coupled solves of the real path; sparse
+ * factors are densified for the decomposition.
  * \c transpose().solve() and \c adjoint().solve() reuse the decompositions:
  * \f[ (A_1 \oplus \cdots \oplus A_d)^H = Q\,(T_1^H \oplus \cdots \oplus T_d^H)\,Q^H \f]
- * is solved with the same transforms around a forward substitution on copies of
- * the \f$ T_k^H \f$ that \ref compute keeps, and \f$ M^T x = b \f$ as
- * \f$ M^H \bar x = \bar b \f$.
+ * is solved with the same transforms around a forward substitution (on the
+ * complex path, on copies of the \f$ T_k^H \f$ that \ref compute keeps), and
+ * \f$ M^T x = b \f$ as \f$ M^H \bar x = \bar b \f$.
  *
  * The system is singular exactly when some sum
  * \f$ \lambda_{i_1}(A_1) + \cdots + \lambda_{i_d}(A_d) \f$ vanishes. As with
@@ -569,13 +581,20 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     m_triangular.clear();
     m_triangularAdjoint.clear();
     m_basis.clear();
+    m_quasiTriangular.clear();
     m_info = Success;
-    m_hermitian = true;
+    bool hermitian = true;
     for (std::size_t k = 0; k < d; ++k) {
       m_sizes[k] = leaves[k].rows();
       if (!leaves[k].allFinite()) m_info = InvalidInput;
-      m_hermitian = m_hermitian && leaves[k] == leaves[k].adjoint();
+      hermitian = hermitian && leaves[k] == leaves[k].adjoint();
     }
+    if (hermitian)
+      m_path = Path::Diagonal;
+    else if (!NumTraits<Scalar>::IsComplex && d <= std::size_t(kMaxRealFactors))
+      m_path = Path::RealSchur;
+    else
+      m_path = Path::ComplexSchur;
     m_size = 1;
     for (std::size_t k = d; k-- > 0;) {
       m_inner[k] = m_size;
@@ -583,27 +602,36 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     }
     m_isInitialized = true;
     if (m_info != Success) return *this;
-    if (m_hermitian) {
-      m_spectrum = RealVector::Zero(1);
-      SelfAdjointEigenSolver<DenseMatrix> es;
-      for (std::size_t k = 0; k < d; ++k) {
-        es.compute(leaves[k]);
-        if (es.info() != Success) m_info = NoConvergence;
-        m_basis.push_back(es.eigenvectors());
-        // Kronecker order: the new factor's index runs fastest.
-        const RealVector& lambda = es.eigenvalues();
-        const RealVector previous = m_spectrum;
-        m_spectrum = (lambda.replicate(fix<1>, previous.size()) + previous.transpose().replicate(lambda.size(), fix<1>))
-                         .reshaped();
+    switch (m_path) {
+      case Path::Diagonal: {
+        m_spectrum = RealVector::Zero(1);
+        SelfAdjointEigenSolver<DenseMatrix> es;
+        for (std::size_t k = 0; k < d; ++k) {
+          es.compute(leaves[k]);
+          if (es.info() != Success) m_info = NoConvergence;
+          m_basis.push_back(es.eigenvectors());
+          // Kronecker order: the new factor's index runs fastest.
+          const RealVector& lambda = es.eigenvalues();
+          const RealVector previous = m_spectrum;
+          m_spectrum =
+              (lambda.replicate(fix<1>, previous.size()) + previous.transpose().replicate(lambda.size(), fix<1>))
+                  .reshaped();
+        }
+        break;
       }
-    } else {
-      ComplexSchur<ComplexMatrix> schur;
-      for (std::size_t k = 0; k < d; ++k) {
-        schur.compute(leaves[k].template cast<ComplexScalar>());
-        if (schur.info() != Success) m_info = NoConvergence;
-        m_unitary.push_back(schur.matrixU());
-        m_triangular.push_back(schur.matrixT());
-        m_triangularAdjoint.emplace_back(m_triangular.back().adjoint());
+      case Path::RealSchur:
+        computeRealSchur(leaves, internal::bool_constant<!NumTraits<Scalar>::IsComplex>());
+        break;
+      case Path::ComplexSchur: {
+        ComplexSchur<ComplexMatrix> schur;
+        for (std::size_t k = 0; k < d; ++k) {
+          schur.compute(leaves[k].template cast<ComplexScalar>());
+          if (schur.info() != Success) m_info = NoConvergence;
+          m_unitary.push_back(schur.matrixU());
+          m_triangular.push_back(schur.matrixT());
+          m_triangularAdjoint.emplace_back(m_triangular.back().adjoint());
+        }
+        break;
       }
     }
     return *this;
@@ -623,7 +651,7 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
    * the fast diagonalization method. */
   bool isHermitian() const {
     eigen_assert(m_isInitialized && "BartelsStewart is not initialized.");
-    return m_hermitian;
+    return m_path == Path::Diagonal;
   }
 
 #ifdef EIGEN_PARSED_BY_DOXYGEN
@@ -659,23 +687,34 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
       dst.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
       return;
     }
-    if (m_hermitian) {
-      DenseMatrix W = rhs;
-      applyBasis(W, m_basis, /*adjoint=*/true);
-      W.array().colwise() /= m_spectrum.array();
-      applyBasis(W, m_basis, /*adjoint=*/false);
-      dst = W;
-    } else {
-      ComplexMatrix W = rhs.template cast<ComplexScalar>();
-      applyBasis(W, m_unitary, /*adjoint=*/true);
-      for (Index j = 0; j < W.cols(); ++j) {
-        if (adjoint)
-          adjointTriangularSolve(0, ComplexScalar(0), W.col(j).data());
-        else
-          triangularSolve(0, ComplexScalar(0), W.col(j).data());
+    switch (m_path) {
+      case Path::Diagonal: {
+        DenseMatrix W = rhs;
+        applyBasis(W, m_basis, /*adjoint=*/true);
+        W.array().colwise() /= m_spectrum.array();
+        applyBasis(W, m_basis, /*adjoint=*/false);
+        dst = W;
+        break;
       }
-      applyBasis(W, m_unitary, /*adjoint=*/false);
-      dst = internal::structured_scalar_part_impl<Scalar>::run(W);
+      case Path::RealSchur: {
+        DenseMatrix W = rhs;
+        solveRealSchur(W, adjoint, internal::bool_constant<!NumTraits<Scalar>::IsComplex>());
+        dst = W;
+        break;
+      }
+      case Path::ComplexSchur: {
+        ComplexMatrix W = rhs.template cast<ComplexScalar>();
+        applyBasis(W, m_unitary, /*adjoint=*/true);
+        for (Index j = 0; j < W.cols(); ++j) {
+          if (adjoint)
+            adjointTriangularSolve(0, ComplexScalar(0), W.col(j).data());
+          else
+            triangularSolve(0, ComplexScalar(0), W.col(j).data());
+        }
+        applyBasis(W, m_unitary, /*adjoint=*/false);
+        dst = internal::structured_scalar_part_impl<Scalar>::run(W);
+        break;
+      }
     }
   }
 
@@ -767,6 +806,121 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
     }
   }
 
+  // The real path's coupled systems are at most 2^d wide, see the class documentation.
+  static constexpr int kMaxRealFactors = 4;
+  static constexpr int kMaxCoupling = 1 << kMaxRealFactors;
+  using CouplingMatrix = Matrix<RealScalar, Dynamic, Dynamic, ColMajor, kMaxCoupling, kMaxCoupling>;
+  using CouplingVector = Matrix<RealScalar, Dynamic, 1, ColMajor, kMaxCoupling, 1>;
+  using RealMatrix = Matrix<RealScalar, Dynamic, Dynamic, ColMajor>;
+
+  void computeRealSchur(const std::vector<DenseMatrix>& leaves, std::true_type) {
+    RealSchur<DenseMatrix> schur;
+    for (const DenseMatrix& leaf : leaves) {
+      schur.compute(leaf);
+      if (schur.info() != Success) m_info = NoConvergence;
+      m_basis.push_back(schur.matrixU());
+      m_quasiTriangular.push_back(schur.matrixT());
+    }
+  }
+  void computeRealSchur(const std::vector<DenseMatrix>&, std::false_type) {}
+
+  void solveRealSchur(DenseMatrix& W, bool adjoint, std::true_type) const {
+    applyBasis(W, m_basis, /*adjoint=*/true);
+    std::vector<RealMatrix> work(m_sizes.size());
+    const CouplingMatrix outer = CouplingMatrix::Zero(1, 1);
+    for (Index j = 0; j < W.cols(); ++j)
+      quasiTriangularSolve(0, outer, Map<RealMatrix>(W.col(j).data(), W.rows(), 1), work, adjoint);
+    applyBasis(W, m_basis, /*adjoint=*/false);
+  }
+  void solveRealSchur(DenseMatrix&, bool, std::false_type) const {}
+
+  /** \internal Solves (Sigma (+) T_k (+) ... (+) T_d) vec(X) = vec(X) in place,
+   * X of size n_k s_k x m with column t belonging to index t of the m x m
+   * coupling Sigma (the slowest index). Diagonal block I of T_k couples
+   * Sigma (+) T_k(I,I) for the next factor; \a work holds one gather buffer per
+   * factor. When \a adjoint, T_j is replaced by T_j^T for every j, and the block
+   * rows are solved forward, block I coupling Sigma (+) T_k(I,I)^T. */
+  void quasiTriangularSolve(std::size_t k, const CouplingMatrix& Sigma, Map<RealMatrix> X,
+                            std::vector<RealMatrix>& work, bool adjoint) const {
+    const Index n = m_sizes[k], s = m_inner[k], m = Sigma.rows();
+    const QuasiTriangularMatrix& T = m_quasiTriangular[k];
+    const bool last = k + 1 == m_sizes.size();
+    for (Index done = 0; done < n;) {
+      // Block I = [i, i + p): the next one up from the bottom, or down from the top when adjoint.
+      Index i, p;
+      if (adjoint) {
+        i = done;
+        p = i + 1 < n && T(i + 1, i) != RealScalar(0) ? 2 : 1;
+      } else {
+        const Index end = n - done;
+        p = end > 1 && T(end - 1, end - 2) != RealScalar(0) ? 2 : 1;
+        i = end - p;
+      }
+      const Index tail = n - i - p;
+      // T(I,I), T(J,I) for J < I, and T(I,J) for J > I.
+      const auto TII = T.block(i, i, p, p);
+      const auto colHead = T.block(0, i, i, p);
+      const auto rowTail = T.block(i, i + p, p, tail);
+      const CouplingMatrix coupled = adjoint ? kroneckerSum(Sigma, TII.transpose()) : kroneckerSum(Sigma, TII);
+      if (last) {
+        // s = 1: row i of X belongs to index i of the last factor.
+        auto XI = X.middleRows(i, p);
+        if (adjoint) {
+          if (i > 0) XI.noalias() -= colHead.transpose().lazyProduct(X.topRows(i));
+        } else if (tail > 0) {
+          XI.noalias() -= rowTail.lazyProduct(X.bottomRows(tail));
+        }
+        solveCoupled(coupled, XI);
+      } else {
+        for (Index t = 0; t < m; ++t) {
+          auto Xt = X.col(t).reshaped(s, n);
+          auto XtI = Xt.middleCols(i, p);
+          if (adjoint) {
+            if (i > 0) XtI.noalias() -= Xt.leftCols(i) * colHead;
+          } else if (tail > 0) {
+            XtI.noalias() -= Xt.rightCols(tail) * rowTail.transpose();
+          }
+        }
+        if (m == 1) {
+          quasiTriangularSolve(k + 1, coupled, Map<RealMatrix>(X.col(0).data() + i * s, s, p), work, adjoint);
+        } else {
+          // Columns (t, a) of Z, a fastest: column a of block I for coupling index t.
+          RealMatrix& Z = work[k];
+          Z.resize(s, m * p);
+          Z.reshaped(p * s, m) = X.middleRows(i * s, p * s);
+          quasiTriangularSolve(k + 1, coupled, Map<RealMatrix>(Z.data(), s, m * p), work, adjoint);
+          X.middleRows(i * s, p * s) = Z.reshaped(p * s, m);
+        }
+      }
+      done += p;
+    }
+  }
+
+  /** \internal Sigma (+) S = Sigma (x) I_p + I_m (x) S. */
+  template <typename Block>
+  static CouplingMatrix kroneckerSum(const CouplingMatrix& Sigma, const Block& S) {
+    const Index m = Sigma.rows(), p = S.rows();
+    eigen_internal_assert(m * p <= kMaxCoupling);
+    CouplingMatrix R = CouplingMatrix::Zero(m * p, m * p);
+    for (Index t = 0; t < m; ++t) {
+      for (Index u = 0; u < m; ++u) R.block(t * p, u * p, p, p).diagonal().setConstant(Sigma(t, u));
+      R.block(t * p, t * p, p, p) += S;
+    }
+    return R;
+  }
+
+  /** \internal Solves coupled * vec(XI) = vec(XI), XI of size p x m. */
+  template <typename Block>
+  static void solveCoupled(const CouplingMatrix& coupled, Block& XI) {
+    if (coupled.rows() == 1) {
+      XI(0, 0) /= coupled(0, 0);
+      return;
+    }
+    CouplingVector z = XI.reshaped();
+    z = coupled.partialPivLu().solve(z);
+    XI.reshaped() = z;
+  }
+
   std::vector<Index> m_sizes, m_inner;
   Index m_size = 0;
   std::vector<DenseMatrix> m_basis;
@@ -775,9 +929,12 @@ class BartelsStewart : public SolverBase<BartelsStewart<KroneckerSumType>> {
   // substitution of the adjoint solve reads T_k^H, kept as its own copy, the
   // same way.
   using TriangularMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, RowMajor>;
+  using QuasiTriangularMatrix = Matrix<RealScalar, Dynamic, Dynamic, RowMajor>;
   std::vector<ComplexMatrix> m_unitary;
   std::vector<TriangularMatrix> m_triangular, m_triangularAdjoint;
-  bool m_hermitian = false;
+  std::vector<QuasiTriangularMatrix> m_quasiTriangular;
+  enum class Path { Diagonal, RealSchur, ComplexSchur };
+  Path m_path = Path::Diagonal;
   bool m_isInitialized = false;
   ComputationInfo m_info = InvalidInput;
 };
