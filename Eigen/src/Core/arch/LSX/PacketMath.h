@@ -270,6 +270,7 @@ struct packet_traits<float> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 4,
 
+    HasCmp = 1,
     HasSetLinear = 0,
     HasSign = 0,
     HasDiv = 1,
@@ -289,6 +290,7 @@ struct packet_traits<double> : default_packet_traits {
     AlignedOnScalar = 1,
     size = 2,
 
+    HasCmp = 1,
     HasSetLinear = 0,
     HasSign = 0,
     HasDiv = 1,
