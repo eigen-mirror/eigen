@@ -27,8 +27,9 @@ namespace Eigen {
  * rotations whose dropped coupling is below a backward-stability threshold --
  * the surviving eigenvalues are the roots of the secular equation
  * \f[ f(\lambda) = 1 + \rho \sum_i \frac{z_i^2}{d_i - \lambda} = 0, \f]
- * one in each interval between consecutive poles. Each root is bracketed and
- * bisected in coordinates \em shifted to its nearest pole, so every distance
+ * one in each interval between consecutive poles and, for \f$ \rho > 0 \f$,
+ * one beyond the largest pole. Each root is bracketed and bisected in
+ * coordinates \em shifted to its nearest pole, so every distance
  * \f$ \lambda - d_i \f$ is retained as an exact data difference plus a small
  * offset instead of a cancellation-prone subtraction of close numbers.
  * Eigenvectors are then built not from the original \c z but from the

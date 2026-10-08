@@ -68,10 +68,10 @@ struct evaluator_traits<Circulant<Scalar_, Size_>> {
  * \brief An \c n x \c n circulant matrix represented by its first column.
  *
  * For first column \f$c\f$ and unitary DFT matrix \f$F\f$,
- * \f[ C_{ij}=c_{(i-j)\bmod n}, \qquad C=F^*\operatorname{diag}(Fc)F. \f]
- * Thus its eigenvalues -- the operator's \em symbol -- are \f$Fc\f$, computed
- * once at construction and reused by every product. This yields an O(n log n)
- * matrix-vector product (\c operator*), an
+ * \f[ C_{ij}=c_{(i-j)\bmod n}, \qquad C=F^*\operatorname{diag}(\sqrt{n}\,Fc)F. \f]
+ * Thus its eigenvalues -- the operator's \em symbol -- are \f$\sqrt{n}\,Fc\f$,
+ * the DFT of \f$c\f$, computed once at construction and reused by every
+ * product. This yields an O(n log n) matrix-vector product (\c operator*), an
  * O(n log n) direct (pseudo-inverse) solve (\ref solve), and closed-form
  * factorizations: the eigendecomposition (\ref eigenvalues, \ref eigenvectors)
  * and the SVD (\ref singularValues, \ref matrixU, \ref matrixV) in the Fourier

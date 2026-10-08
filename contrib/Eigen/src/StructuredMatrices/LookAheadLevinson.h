@@ -153,8 +153,9 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
   }
 #endif
 
-  /** \returns \c Success if the algorithm could skip all ill-conditioned leading
-   * submatrices within the look-ahead range, \c NumericalIssue otherwise. */
+  /** \returns \c Success, or \c NumericalIssue when conditionEstimate() reaches
+   * \f$ 1/\varepsilon \f$; a run of ill-conditioned leading submatrices longer
+   * than the look-ahead is reported only through that estimate. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "LookAheadLevinson is not initialized.");
     return m_info;

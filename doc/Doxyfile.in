@@ -58,13 +58,16 @@ WARN_IF_UNDOCUMENTED   = NO
 INPUT                  = ${EIGEN_DOXY_INPUT}
 FILE_PATTERNS          = *
 RECURSIVE              = YES
+# The StructuredMatrices README is written for GitLab, whose math markup and
+# in-page links Doxygen does not render; the classes carry the Doxygen reference.
 EXCLUDE                = ${Eigen_SOURCE_DIR}/Eigen/Eigen2Support \
                          ${Eigen_SOURCE_DIR}/Eigen/src/Eigen2Support \
                          ${Eigen_SOURCE_DIR}/doc/examples \
                          ${Eigen_SOURCE_DIR}/doc/special_examples \
                          ${Eigen_SOURCE_DIR}/doc/snippets \
                          ${Eigen_SOURCE_DIR}/contrib/doc/examples \
-                         ${Eigen_SOURCE_DIR}/contrib/doc/snippets
+                         ${Eigen_SOURCE_DIR}/contrib/doc/snippets \
+                         ${Eigen_SOURCE_DIR}/contrib/Eigen/src/StructuredMatrices/README.md
 
 #                        ${Eigen_SOURCE_DIR}/Eigen/src/Core/products \
 #                        ${Eigen_SOURCE_DIR}/Eigen/src/Core/util/ForwardDeclarations.h \

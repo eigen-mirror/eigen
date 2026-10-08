@@ -23,7 +23,7 @@
 //      accumulation relies on.
 //  [5] E. L. Yip, "A Note on the Stability of Solving a Rank-p Modification of
 //      a Linear System by the Sherman-Morrison-Woodbury Formula", SIAM Journal
-//      on Scientific and Statistical Computing, 7(3), pp. 507-513, 1986. The
+//      on Scientific and Statistical Computing, 7(2), pp. 507-513, 1986. The
 //      accuracy limitation of the Woodbury solve noted on solve().
 
 #ifndef EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H

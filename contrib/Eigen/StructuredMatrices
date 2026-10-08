@@ -28,7 +28,8 @@ namespace Eigen {
  * matrices together with fast matrix-vector products and direct solvers:
  *   - \c Circulant : a circulant matrix, diagonalized by the DFT;
  *   - \c Toeplitz  : a (possibly rectangular) Toeplitz matrix, multiplied in
- *     O(n log n) via circulant embedding;
+ *     O(n log n) via circulant embedding, with O(n^2) square solves by the
+ *     look-ahead Levinson algorithm (\c LookAheadLevinson);
  *   - \c Hankel    : a (possibly rectangular) Hankel matrix -- a column-reversed
  *     Toeplitz matrix -- with the same O(n log n) products, and square solves
  *     through the Toeplitz equivalent;
@@ -73,16 +74,12 @@ namespace Eigen {
  * preconditioners could read, so the iterative solvers must be instantiated
  * with \c IdentityPreconditioner.
  *
- * All operator types are closed under transposition (\c transpose(),
- * \c conjugate(), \c adjoint() return operators of the same kind, the FFT-based
- * ones reusing the cached symbol), which in particular feeds the least-squares
- * solvers \c LSMR and \c LeastSquaresConjugateGradient (again with
+ * Every operator type except \c Vandermonde, whose transpose has no fast
+ * product, is closed under transposition (\c transpose(), \c conjugate(),
+ * \c adjoint() return operators of the same kind, the FFT-based ones reusing
+ * the cached symbol), which in particular feeds the least-squares solvers
+ * \c LSMR and \c LeastSquaresConjugateGradient (again with
  * \c IdentityPreconditioner).
- * The \c Circulant, \c Toeplitz and \c Hankel operators are closed under
- * transposition (\c transpose(),
- * \c conjugate(), \c adjoint() return operators of the same kind, reusing the
- * cached symbol), which in particular feeds the least-squares solvers \c LSMR
- * and \c LeastSquaresConjugateGradient (again with \c IdentityPreconditioner).
  * \c Circulant and \c Bccb additionally expose their closed-form
  * eigendecomposition and SVD in the Fourier basis, a pseudo-inverse
  * (minimum-norm least-squares) solve, \c rank(), \c inverse() and

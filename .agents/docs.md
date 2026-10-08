@@ -37,6 +37,15 @@ the build far from the edit. For example, commit 8f8d4ed4c placed helper structs
 which exposed a stale `\param` in `GMRES.h`. After inserting code near a doc block, confirm the block still directly
 precedes its declaration. If the Doxygen log prints `Generating docs for namespace Eigen::internal`, it does not.
 
+Markdown can break the job too. Doxygen reads every `.md` file under its inputs, module READMEs included, in its own
+dialect, so GitLab Markdown that renders on the web can fail it. Three constructs do. An in-page link
+`[text](#heading)` becomes an unresolved `\ref`. A single-backtick code span ends at an apostrophe followed by a
+non-identifier character (Doxygen's `` `quoted' `` rule), so GitLab math such as `` $`\bar U' V`$ `` loses its code
+span and its backslash commands reach Doxygen's parser. Inline math that opens with a parenthesized identifier, such as
+`` $`(f_k)_j`$ ``, raises a `</tt>` error. Doxygen does not render GitLab math either; it prints the source. A README
+written for GitLab readers belongs in `EXCLUDE` in [`doc/Doxyfile.in`](../doc/Doxyfile.in), as
+`contrib/Eigen/src/StructuredMatrices/README.md` is.
+
 The `doc` target also compiles and runs the configured examples and snippets, by way of the `all_snippets` and
 `all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks
 the documentation build even when every comment is well formed, so search those directories before changing one.
