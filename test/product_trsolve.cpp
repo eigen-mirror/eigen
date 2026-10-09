@@ -435,17 +435,11 @@ void trsolve_panels(int size, int cols, bool allCases) {
   VERIFY_TRSM_ONTHERIGHT(rmLhs.template triangularView<Upper>(), fewRows);
 }
 
-template <int>
-void trsolve_panels_all() {
+template <typename Scalar>
+void trsolve_panels_restoring_caches(int size, int cols, bool allCases) {
   std::ptrdiff_t l1, l2, l3, l3_per_cpu;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3, &l3_per_cpu);
-  // 193 raises the depth of every x86 build except SSE2 float and double, which 391 raises; both leave a
-  // partial last k-block at every depth they reach.
-  trsolve_panels<float>(193, 1100, true);
-  trsolve_panels<double>(193, 1100, true);
-  trsolve_panels<std::complex<double> >(193, 1100, true);
-  trsolve_panels<float>(391, 1100, false);
-  trsolve_panels<double>(391, 1100, false);
+  trsolve_panels<Scalar>(size, cols, allCases);
   internal::manage_caching_sizes(SetAction, &l1, &l2, &l3, &l3_per_cpu);
 }
 
@@ -480,5 +474,12 @@ EIGEN_DECLARE_TEST(product_trsolve) {
   CALL_SUBTEST_15(trsolve_strided_boundary<0>());
   CALL_SUBTEST_16(trsolve_indexed_view());
   CALL_SUBTEST_17(trsolve_no_malloc_all<0>());
-  CALL_SUBTEST_18(trsolve_panels_all<0>());
+  // 193 raises the depth of every x86 build except SSE2 float and double, which 391 raises; both leave a
+  // partial last k-block at every depth they reach. Three parts, because under QEMU's SVE emulation the five
+  // calls together reach CI's 3000 s per-test timeout.
+  CALL_SUBTEST_18(trsolve_panels_restoring_caches<float>(193, 1100, true));
+  CALL_SUBTEST_18(trsolve_panels_restoring_caches<double>(193, 1100, true));
+  CALL_SUBTEST_19(trsolve_panels_restoring_caches<std::complex<double> >(193, 1100, true));
+  CALL_SUBTEST_20(trsolve_panels_restoring_caches<float>(391, 1100, false));
+  CALL_SUBTEST_20(trsolve_panels_restoring_caches<double>(391, 1100, false));
 }
