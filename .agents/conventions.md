@@ -1,28 +1,28 @@
 # Local Conventions For New Code
 
 Use this guide when writing new declarations anywhere in the tree. It records the forms reviewers ask for. It does not
-authorize rewriting code the task is not otherwise changing; rule 5 in the repository-root `AGENTS.md` governs
-untouched lines. Eigen predates most of these forms, so the most common form in the tree is not the convention. New
-code uses the current form, and a file that is being heavily edited should end up uniform rather than half converted.
+authorize rewriting lines your task leaves alone; rule 5 in the repository-root `AGENTS.md` covers those. Eigen
+predates most of these forms, so the most common form in the tree is not the convention. Write new code in the current
+form. A file that you edit heavily should end up uniform rather than half converted.
 
 ## Declarations
 
-- Trait and evaluator constants are `static constexpr` members, not `enum` blocks; `enum` constants are being phased
-  out. Give each the type it is used as: `Flags` is `unsigned int` by convention, predicates are `bool`. In C++14 the
-  in-class declaration is not a definition. Code that odr-uses such a member of a class template, for example by
-  binding it to a `const T&` parameter such as `numext::mini`'s or by taking its address, links at -O2 but fails to
-  link at -O0 unless a namespace-scope `template <...> constexpr T Cls<...>::kName;` definition exists
-  (`arch/Default/Half.h` has the form). Pass a prvalue (`+kName`, `Index(kName)`) or add the definition. The test
-  suite builds optimized, so it will not catch the omission.
+- Declare trait and evaluator constants as `static constexpr` members, not `enum` blocks; `enum` constants are being
+  phased out. Give each the type it is used as: `Flags` is `unsigned int` by convention, predicates are `bool`. In C++14
+  the in-class declaration is not a definition. If code odr-uses such a member of a class template, the member also
+  needs a namespace-scope definition, `template <...> constexpr T Cls<...>::kName;` (`arch/Default/Half.h` has the
+  form). Without it, the code links at -O2 but fails to link at -O0. Binding the member to a `const T&` parameter, such
+  as `numext::mini`'s, odr-uses it, and so does taking its address. Pass a prvalue (`+kName`, `Index(kName)`) or add the
+  definition. The test suite builds optimized, so it will not catch the omission.
 - Prefer `using` to `typedef`, `nullptr` to `NULL`, `= default` and default member initializers to empty constructor
-  bodies that assign each member. The `using` rule applies everywhere, `test/` and `contrib/` included. Those
-  directories were left out of the sweep that converted `Eigen/src`, so most aliases near new code there are still
-  `typedef`, and copying the neighbors reproduces the form the sweep removed. Do not rely on CI to catch it: the
-  `modernize-use-using` gap recorded in [`scripts/check_style.py`](../scripts/check_style.py) leaves function-local
-  typedefs unreported.
+  bodies that assign each member. The `using` rule applies everywhere, `test/` and `contrib/` included. The sweep that
+  converted `Eigen/src` skipped those directories, so most aliases near new code there are still `typedef`. Copying the
+  neighbors reproduces the form the sweep removed. Do not rely on CI to catch it: clang-tidy's `modernize-use-using`
+  check does not report function-local typedefs, a gap recorded in
+  [`scripts/check_style.py`](../scripts/check_style.py).
 - `kCamelCase` is an accepted spelling for `static constexpr` and static constants, alongside the older `snake_case`
   and `SCREAMING_CASE` forms. It is not a review finding.
-- Use `numext::` math functions rather than `std::` in library code, and Eigen's metaprogramming aliases
+- Use `numext::` math functions rather than `std::` in library code. Use Eigen's metaprogramming aliases
   (`bool_constant`, `void_t`, `remove_all_t`; see `Eigen/src/Core/util/Meta.h`) rather than spelling out the standard
   forms. `internal::is_arithmetic` is not a spelling of `std::is_arithmetic`: it is deliberately specialized for
   packet and Eigen scalar types and differs on `long double` during GPU compilation, so use it only when Eigen's
@@ -32,8 +32,8 @@ code uses the current form, and a file that is being heavily edited should end u
   temporary and return a dangling reference.
 - An in-class definition is already implicitly `inline`; a bare `inline` there is noise. Use `EIGEN_STRONG_INLINE` or
   `EIGEN_ALWAYS_INLINE` when inlining matters, and nothing otherwise.
-- Compile-time API preconditions use the `EIGEN_STATIC_ASSERT_*` helper that names them (`_VECTOR_ONLY`,
-  `_SAME_MATRIX_SIZE`, ...) or `EIGEN_STATIC_ASSERT(cond, TOKEN)`. These honor `EIGEN_NO_STATIC_ASSERT` and a
+- Check compile-time API preconditions with the `EIGEN_STATIC_ASSERT_*` helper that names them (`_VECTOR_ONLY`,
+  `_SAME_MATRIX_SIZE`, ...) or with `EIGEN_STATIC_ASSERT(cond, TOKEN)`. These honor `EIGEN_NO_STATIC_ASSERT` and a
   user-provided `EIGEN_STATIC_ASSERT` override. Write unconditional implementation invariants as
   `static_assert(cond, "what must hold")`; a plain `static_assert` bypasses those configuration mechanisms.
 - Deprecate, do not remove: mark the old declaration `EIGEN_DEPRECATED` or `EIGEN_DEPRECATED_WITH_REASON("use ...")`,
@@ -44,20 +44,20 @@ code uses the current form, and a file that is being heavily edited should end u
 
 Supported headers compile as C++14, which rules out forms that review suggestions often reach for:
 
-- `if constexpr` is C++17: use `EIGEN_IF_CONSTEXPR(...)` wherever the condition is compile-time constant. Note the
-  condition must still be valid C++14 either way — the macro lowers to a plain `if` there.
-- Designated initializers are C++20: use aggregate assignment with `/*name=*/` comments. Fields derived from other
-  fields of the same object must be computed from locals first; the braced temporary cannot read fields it is about
-  to set.
+- `if constexpr` is C++17: use `EIGEN_IF_CONSTEXPR(...)` wherever the condition is compile-time constant. Under C++14
+  the macro expands to a plain `if`, so the code must still be valid C++14.
+- Designated initializers are C++20: use aggregate assignment with `/*name=*/` comments. When a field is derived from
+  other fields of the same object, compute it from locals first: the braced temporary cannot read fields it is about to
+  set.
 - `std::span`, CTAD, fold expressions, `constinit`, and later library additions are unavailable outside guarded
   backends with a documented newer requirement (the SYCL configurations force C++17, for example).
 
 ## Hot paths
 
-Code added to a hot inner loop grows the enclosing function and can displace it from the instruction cache even when
-an `EIGEN_PREDICT_FALSE` guard keeps it from executing. Watch for that when adding a check or a fallback to such a
-loop; where a benchmark shows the cost, moving the cold path into an `EIGEN_DONT_INLINE` helper is one way to
-recover it.
+Code added to a hot inner loop makes the enclosing function bigger. The bigger function can fall out of the instruction
+cache even when an `EIGEN_PREDICT_FALSE` guard keeps the new code from running. Watch for this when you add a check or
+a fallback to such a loop. If a benchmark shows the cost, one way to recover it is to move the cold path into an
+`EIGEN_DONT_INLINE` helper.
 
 ## Comments
 
@@ -96,5 +96,5 @@ form when an agent cannot truthfully attribute an individual author:
 
 Use the language's comment syntax. Documentation or assets that should not carry inline tags must be covered precisely
 in [`REUSE.toml`](../REUSE.toml); do not add a broad annotation that hides unrelated files. Material adapted from a
-compatibly licensed source may require a different license expression and attribution. Preserve them rather than
+compatibly licensed source can require a different license expression and attribution. Preserve them rather than
 relabeling the material as MPL-2.0.

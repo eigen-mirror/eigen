@@ -7,8 +7,8 @@ this file and contain only tool-specific additions.
 ## Scope and precedence
 
 Follow the user's task, then the nearest applicable `AGENTS.md`, then repository documentation and established local
-patterns. For how things currently work, the checked-out source, tests, CMake files, and CI configuration are the
-authority. If this guide disagrees with the tree, follow the tree, report the discrepancy, and update the guidance when
+patterns. The checked-out source, tests, CMake files, and CI configuration are the authority on how things currently
+work. If this guide disagrees with the tree, follow the tree, report the discrepancy, and update the guidance when
 that is in scope.
 
 Read this file for every task. Then read the guides in every row below that matches the work. Do not load unrelated
@@ -29,7 +29,16 @@ guides by default.
 | Changes under `ci/`, `.gitlab-ci.yml`, or the test-selection and cache scripts | [`.agents/ci-internals.md`](.agents/ci-internals.md) |
 | Writing or updating a merge request description | [`.agents/merge-requests.md`](.agents/merge-requests.md) |
 | Answering merge request review comments | [`.agents/review-response.md`](.agents/review-response.md) |
+| Editing `AGENTS.md` or a guide under `.agents/` | [`.agents/writing-guidance.md`](.agents/writing-guidance.md) |
 | Expression templates or evaluator internals | [`doc/TopicLazyEvaluation.dox`](doc/TopicLazyEvaluation.dox), [`doc/NewExpressionType.dox`](doc/NewExpressionType.dox), and [`doc/ClassHierarchy.dox`](doc/ClassHierarchy.dox) |
+
+The wording of a rule sets its strength:
+
+- *Must*, *must not*, *never*, and a plain imperative state a requirement. Depart from one only when the user tells you
+  to, and report any requirement you could not meet.
+- *Prefer*, *avoid*, *should*, and *usually* state a default. Depart from one when the task gives a concrete reason, and
+  give that reason in your report.
+- *May* grants permission. For possibility, the guides write *can* or *might*.
 
 ## Non-negotiable rules
 
@@ -39,16 +48,15 @@ guides by default.
 2. **Keep provenance clean.** Code must be original or derived from source material whose license is compatible with
    Eigen's MPL-2.0 distribution. Do not copy, paraphrase, or translate code from proprietary, NDA-covered, internal, or
    incompatibly licensed sources. Published papers, standards, textbooks, and algorithm descriptions may inform an
-   independent implementation; cite them inline when they materially inform it. A citation does not make copied code
-   permissible. The rule covers information as well as code. Treat proprietary software as a black box. It is used
-   through its documented interface and measured as shipped; never disassemble, dump, debug into, or alter it. See
-   [`.agents/provenance.md`](.agents/provenance.md). Never invent an attribution for AI-generated code. A
-   `Co-Authored-By` trailer that names the model that actually produced the change is accurate attribution, not an
-   invented one, and is permitted.
+   independent implementation. Cite each one inline where it materially informs the implementation. A citation does
+   not make copied code permissible. The rule covers information as well as code. Treat proprietary software as a black
+   box: use it only through its documented interface and measure it as shipped. Never disassemble, dump, debug into, or
+   alter it; see [`.agents/provenance.md`](.agents/provenance.md). Never invent an attribution for AI-generated code. A
+   `Co-Authored-By` trailer for the model that actually produced the change is accurate attribution, and is permitted.
 3. **Respect the header-only and C++14 contracts.** Supported headers must compile as C++14, unless a backend behind a
-   preprocessor guard has a documented newer requirement. User code, examples, and public-behavior tests include
-   umbrella headers such as `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `contrib/Eigen/src/`. A focused
-   test of a private utility may include the utility's header directly, following an established direct-include pattern.
+   preprocessor guard has a documented newer requirement. In user code, examples, and public-behavior tests, include
+   umbrella headers such as `Eigen/Core` or `Eigen/SVD`, not files below `Eigen/src/` or `contrib/Eigen/src/`. Where
+   nearby tests establish the pattern, a focused test of a private utility may include the utility's header directly.
    Those paths remain private even where the header has no `InternalHeaderCheck.h` guard. Definitions in public headers
    must have linkage that is valid in a header and must not cause one-definition-rule (ODR) violations.
 4. **Protect compatibility.** Treat supported public names, signatures, header paths, semantics, and ABI-affecting
@@ -58,23 +66,24 @@ guides by default.
 5. **Preserve Eigen annotations and style.** Do not drop `EIGEN_DEVICE_FUNC` from coefficient-level or device-callable
    functions. Do not replace `EIGEN_STRONG_INLINE` with `inline`, reorder includes, normalize Eigen macro layout, or
    apply broad `modernize-*` or `cppcoreguidelines-*` rewrites. The repository's conventions and `.clang-format` take
-   precedence over generic C++ advice. This rule protects code your task does not otherwise change. It is not a license
-   to write new code in a superseded form: write new declarations in the form that
-   [`.agents/conventions.md`](.agents/conventions.md) describes.
+   precedence over generic C++ advice. This rule covers code your task does not otherwise change. Write new
+   declarations in the current form that [`.agents/conventions.md`](.agents/conventions.md) describes, not in the
+   superseded form around them.
 6. **Enable a fast path only when the property it needs holds.** For a new specialization, capability flag, or enable
    condition, state the exact precondition it depends on and check for that. Do not check for an adjacent capability,
-   for the existence of an overload, or for a property the built-in types merely happen to share. New opt-in traits
-   default to the conservative answer. Extension points that users can specialize must stay correct when users leave
-   them unannotated.
-7. **Ship verification with behavior.** New functionality includes focused tests. Bug fixes include a regression test
-   that fails without the fix when practical. Performance-sensitive changes include an appropriate benchmark. Scale
+   for the existence of an overload, or for a property the built-in types merely happen to share. Give a new opt-in
+   trait the conservative default. Extension points that users can specialize must stay correct when users leave them
+   unannotated.
+7. **Ship verification with behavior.** Add focused tests with new functionality. With a bug fix, add a regression test
+   that fails without the fix when practical. With a performance-sensitive change, add an appropriate benchmark. Scale
    broader coverage to the affected scalar types, storage orders, backends, and public contracts. Confirm the new test
    fails at the parent commit when practical; otherwise show that the test runs the changed code by construction. See
    [`.agents/testing.md`](.agents/testing.md).
-8. **Treat external writes as deliberate actions.** Unless the user already asked for them, pause after the local commit
-   before pushing, opening or updating a merge request, commenting on an issue, or writing to any other external system.
-   Recommend the `affected-tests` label with the relevant platform labels, or with `all-platforms` for broader coverage;
-   see [`.agents/ci.md`](.agents/ci.md). Do not add `all-tests` without the user's explicit permission for that label.
+8. **Treat external writes as deliberate actions.** Push, open or update a merge request, comment on an issue, or write
+   to any other external system only when the user has asked for that action. Otherwise, stop after the local commit and
+   ask. Recommend the `affected-tests` label with the relevant platform labels, or with `all-platforms` for broader
+   coverage; see [`.agents/ci.md`](.agents/ci.md). Do not add `all-tests` without the user's explicit permission for
+   that label.
 
 ## Standard workflow
 
@@ -89,11 +98,11 @@ guides by default.
 4. Add or update applicable tests and benchmarks in the same patch. Test public behavior through its umbrella header, so
    the test catches anything the umbrella fails to export. Follow nearby patterns for focused tests of private
    internals.
-5. Format the task's changed lines with `git clang-format --binary clang-format-17 --force <base-sha> -- <files>`. First
-   inspect the diffs of the files you name, so that you do not format unrelated changes; `--force` lets the command
-   format files that have unstaged edits. Untracked files are absent from the diff, so format task-created files with
-   `clang-format-17 -i <files>`. Formatting a whole existing file, or running `scripts/format.sh`, also rewrites older
-   lines that are not clang-format-17 clean. Use them only when you intend that churn. See
+5. Inspect the diffs of the files you are about to format, so that you do not format unrelated changes. Then format the
+   task's changed lines with `git clang-format --binary clang-format-17 --force <base-sha> -- <files>`; `--force` lets
+   the command format files that have unstaged edits. Format task-created files with `clang-format-17 -i <files>`,
+   because untracked files are absent from the diff. Formatting a whole existing file, or running `scripts/format.sh`,
+   also rewrites older lines that are not clang-format-17 clean. Use them only when you intend that churn. See
    [`.agents/ci.md`](.agents/ci.md) for the matching check.
 6. Build and run the narrowest relevant test first, then widen validation according to the change's risk. Use separate
    build directories for materially different CMake configurations.
@@ -116,8 +125,8 @@ alongside them. "Contrib" does not imply low impact: Tensor is a foundational Te
 umbrella header is the source of truth for which internals the module exports.
 
 The `lapack/*.f` files are vendored copies of the netlib LAPACK reference sources and are read-only here. Do not edit
-them ad hoc. Flag a merge request that changes one, unless the change is an explicit refresh from a named netlib
-release; in that case, check the diff against that release. `.git-blame-ignore-revs` lists the commits that ran
+them ad hoc. Flag a merge request that changes one. The exception is an explicit refresh from a named netlib release;
+check that diff against the release. `.git-blame-ignore-revs` lists the commits that ran
 clang-format or added SPDX tags across the whole tree. To see the history beneath them, pass that file to `git blame`
 with `--ignore-revs-file`.
 
@@ -131,63 +140,70 @@ required header form and the `REUSE.toml` rules for files that cannot carry an i
 Eigen expressions are lazy and frequently retain references. Assignment, construction, coefficient access, reductions,
 and `.eval()` can all consume an expression.
 
-- `auto x = A + B;` stores a lazy expression whose references may dangle. When ownership is required, materialize it
+- `auto x = A + B;` stores a lazy expression whose references can dangle. When ownership is required, materialize it
   with `(A + B).eval()` or use an appropriate plain-object type such as `Matrix` or `Array`.
 - `.noalias()` is a promise, not a runtime check. Use it only when the destination cannot appear in the right-hand side.
-  `mat = mat * mat` is protected by product evaluation; `mat.noalias() = mat * mat` is wrong.
+  Product evaluation makes `mat = mat * mat` safe; `mat.noalias() = mat * mat` is wrong.
 - Prefer Eigen expressions when they express the operation clearly and avoid repeated evaluation. Keep a scalar loop
   when it represents control flow better, avoids an unnecessary temporary, or has measured performance benefits.
 - Prefer block and view expressions when a uniform operation or existing Eigen method applies to a submatrix; for
   example, scale a 2-by-2 block or call its `determinant()` instead of spelling out its coefficients. When a block's
   size is known at compile time, preserve that compile-time size with a fixed-size accessor such as `block<Rows,
-  Cols>(i, j)`; in dependent template code, write `m.template block<Rows, Cols>(i, j)`. Use runtime sizes only when they
-  are genuinely dynamic, and use individual coefficient access when entries require different operations. Blocks remain
+  Cols>(i, j)`. In dependent template code, write `m.template block<Rows, Cols>(i, j)`. Use runtime sizes only when they
+  are genuinely dynamic. Use individual coefficient access when entries require different operations. Blocks remain
   lazy, non-owning views, so the lifetime and overlap rules above still apply.
 - The two arms of `?:` must have a common C++ type; distinct Eigen expression types often do not. Use `if`/`else` when
   necessary.
 - Declare dynamically sized matrix and vector workspaces outside the loop that fills them. A plain object declared
-  inside the loop body allocates on every iteration, as does every subexpression that materializes a temporary into it.
+  inside the loop body allocates on every iteration. So does every subexpression in the loop body that materializes a
+  temporary.
 
 ### Scalar, index, and storage genericity
 
 Use `Eigen::Index` for dimensions and counts, but remember that its underlying type is configurable. Use `NumTraits` for
-scalar properties, and Eigen's `numext` helpers when the code must support custom scalars or device code. Do not store
-sizes or loop counts in `Scalar`, hard-code `float`/`double` without an API reason, or narrow a value to the `int` a
-vendor API takes without checking the range. Test the real, complex, integer, and narrow or custom scalar types that the
-operation's documented domain covers. An algebraic property that holds for the built-in types, such as commutativity,
-exactness, or the tie behavior of `min`/`max`, need not hold for every `Scalar`. Establish it for each scalar category,
-and leave custom scalars on the conservative path.
+scalar properties, and Eigen's `numext` helpers when the code must support custom scalars or device code. Do not:
+
+- store sizes or loop counts in `Scalar`;
+- hard-code `float`/`double` without an API reason;
+- narrow a value to the `int` a vendor API takes without checking the range.
+
+Test the real, complex, integer, and narrow or custom scalar types that the operation's documented domain covers.
+Commutativity, exactness, the tie behavior of `min`/`max`, and other algebraic properties of the built-in types need
+not hold for every `Scalar`. Establish such a property for each scalar category, and leave custom scalars on the
+conservative path.
 
 Propagate storage-order and expression flags deliberately. `RowMajorBit`, fixed versus dynamic dimensions, alignment,
 and vectorization eligibility affect evaluators and fast paths. Eigen alignment depends on configuration and
-architecture; do not hard-code an assumed byte value. Include configuration-sensitive behavior in tests when it changes
-semantics or ABI.
+architecture; do not hard-code an assumed byte value. When configuration-sensitive behavior changes semantics or ABI,
+cover it in tests.
 
 ### Public APIs and diagnostics
 
 For generic APIs, accept the least restrictive established Eigen base (`EigenBase`, `DenseBase`, `MatrixBase`,
-`ArrayBase`, or a suitable `Ref`) that preserves the intended semantics. For expression arguments the function writes
-to, follow established patterns nearby; do not cast away constness from genuinely const storage. When you add a
-non-template definition or object to a public header and an ODR regression is plausible, the addition deserves a link
-test that includes the header from multiple translation units.
+`ArrayBase`, or a suitable `Ref`) that preserves the intended semantics. When the function writes to an expression
+argument, follow the established patterns nearby. Do not cast away constness from genuinely const storage. When you add
+a non-template definition or object to a public header and an ODR regression is plausible, add a link test that
+includes the header from multiple translation units.
 
-The supported C++14 configurations cannot rely on C++17's safe passing of over-aligned objects by value. Pass fixed-size
-vectorizable Eigen objects by reference rather than by value; see [`doc/PassingByValue.dox`](doc/PassingByValue.dox).
+Pass fixed-size vectorizable Eigen objects by reference rather than by value. C++17 passes over-aligned objects by value
+safely, but the supported C++14 configurations cannot rely on that. See
+[`doc/PassingByValue.dox`](doc/PassingByValue.dox).
 
 Use `eigen_assert` for runtime preconditions that are part of Eigen's public debug behavior, and `eigen_internal_assert`
 for internal invariants, which are checked only when `EIGEN_INTERNAL_DEBUGGING` is defined. Use the local compile-time
-assertion style that gives the clearest diagnostic. Comments should explain non-obvious mathematics, invariants,
-compatibility constraints, or provenance rather than narrating the code. Keep comments concise and proportional to the
-code's complexity. Avoid tutorial-style prose, section-by-section narration, and comments that restate identifiers or
-control flow. Longer comments are justified only when that rationale cannot be expressed clearly in code. Reviewers here
-read mathematics and code faster than English: where a formula, a recurrence, an error bound, or two lines of
-pseudo-code state the point more precisely than a paragraph, write that instead. The same preference applies to merge
-request descriptions and review comments; [`.agents/merge-requests.md`](.agents/merge-requests.md) records the KaTeX
-syntax GitLab renders.
+assertion style that gives the clearest diagnostic.
+
+Comments should explain non-obvious mathematics, invariants, compatibility constraints, or provenance rather than
+narrating the code. Keep comments concise and proportional to the code's complexity. Avoid tutorial-style prose,
+section-by-section narration, and comments that restate identifiers or control flow. Longer comments are justified only
+when their rationale cannot be expressed clearly in code. Reviewers here read mathematics and code faster than English:
+where a formula, a recurrence, an error bound, or two lines of pseudo-code state the point more precisely than a
+paragraph, write that instead. The same preference applies to merge request descriptions and review comments;
+[`.agents/merge-requests.md`](.agents/merge-requests.md) records the KaTeX syntax GitLab renders.
 
 ## Quick build and test
 
-By default, tests are not part of the `all` target, although that target may build configured auxiliary libraries. A
+By default, tests are not part of the `all` target, although that target can build configured auxiliary libraries. A
 typical focused workflow is:
 
 ```bash
@@ -219,5 +235,5 @@ Before declaring the task complete:
   relevant.
 - The final report names validation performed, residual risk, and anything that could not be tested locally.
 
-Commit subjects normally use `Category: Short description`, for example
+Prefer commit subjects of the form `Category: Short description`, for example
 `Core: Fix alias handling in product assignment`.

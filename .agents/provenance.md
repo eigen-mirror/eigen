@@ -1,7 +1,7 @@
 # Provenance Of Information
 
-Use this guide when comparing Eigen against, benchmarking against, or integrating with software Eigen does not own,
-and whenever a task would involve looking at how such software works. [`AGENTS.md`](../AGENTS.md) rule 2 is the
+Use this guide whenever a task involves software that Eigen does not own: comparing Eigen with it, benchmarking
+against it, integrating with it, or looking at how it works. [`AGENTS.md`](../AGENTS.md) rule 2 is the
 contract; [`numerics.md`](numerics.md#provenance) covers citing the literature an implementation is built on.
 
 Eigen aims to be the best library it can be, in speed, accuracy and everything else. It pursues that aim by legal and
@@ -20,8 +20,8 @@ employer, has agreed.
 
 ## Proprietary Software Is A Black Box
 
-Proprietary libraries, such as Intel oneMKL, NVIDIA's cuBLAS, Arm Performance Libraries, and Apple Accelerate, are
-used through their documented interface and measured as shipped. Eigen holds to this black-box rule regardless of
+Use proprietary libraries, such as Intel oneMKL, NVIDIA's cuBLAS, Arm Performance Libraries, and Apple Accelerate,
+only through their documented interface, and measure them as shipped. Eigen holds to this black-box rule regardless of
 what a particular license or jurisdiction permits. The rule also does not change when someone else has already published
 what is inside: the vendor's documentation defines the supported interface, not a forum post. If a comparison cannot be
 configured through documented means, report the limitation.
@@ -60,9 +60,9 @@ disassembled. Two cautions:
 A merge request description should link the publicly available documentation that supports the change: the ISA or
 architecture manual, the vendor's optimization guide or intrinsics reference, the paper or standard an algorithm
 follows, the documented API a backend relies on. Where the change rests on original research, include the evidence
-instead: the reproducer, the method and results of a measurement, or the derivation. This helps most with
-hardware-specific optimizations and new features, where it lets a reviewer check the change against its sources and
-see that everything it relies on is public or published with it.
+instead: the reproducer, the method and results of a measurement, or the derivation. These links matter most for
+hardware-specific optimizations and new features. They let a reviewer check the change against its sources and confirm
+that everything the change relies on is public or published with it.
 
 ## If You Are Exposed Anyway
 

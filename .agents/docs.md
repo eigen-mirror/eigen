@@ -14,15 +14,16 @@ The documentation job is blocking and easy to miss. Unlike the clang-format, cod
 [`doc/Doxyfile.in`](../doc/Doxyfile.in) sets `WARN_AS_ERROR = FAIL_ON_WARNINGS_PRINT`, so one Doxygen warning fails it.
 The job does not run in the default merge-request pipeline. It runs on schedules, web pipelines, a merge request
 labeled `docs-build` or `all-tests`, and a push to the default branch. A malformed `\ref` can therefore pass review
-with green CI and then break the pipeline on `master` after the merge. For changes to Doxygen markup, a
-cross-reference target, a documented name, a module `README`, or a snippet, apply `docs-build`. That label runs only
-this job and leaves the test tier unchanged, so it can be combined with `affected-tests`. A local `doc` build is weaker
-evidence, because local Doxygen versions resolve some references that CI's pinned version rejects. If you build
-locally instead, use that pinned version and report the result.
+with green CI and then break the pipeline on `master` after the merge.
+
+For changes to Doxygen markup, a cross-reference target, a documented name, a module `README`, or a snippet, apply
+`docs-build`. That label runs only this job and leaves the test tier unchanged, so it can be combined with
+`affected-tests`. A local `doc` build is weaker evidence, because local Doxygen versions resolve some references that
+CI's pinned version rejects. If you build locally instead, use that pinned version and report the result.
 
 Recommend `affected-tests` with the relevant platform labels, or `affected-tests` with `all-platforms`, for test
 coverage as described in [`ci.md`](ci.md). Of the test labels, only `all-tests` also runs `build:linux:docs`. Do not
-add it for that purpose, and do not add it at all without the user's explicit permission for that label.
+add it for that purpose. Add it only with the user's explicit permission for that label.
 
 The recurring authoring mistake is trailing punctuation that Doxygen reads as part of a cross-reference. A colon
 directly after `\ref name` becomes part of the symbol Doxygen tries to resolve, so `\ref adjoint: the ...` fails while
@@ -35,7 +36,8 @@ declaration follows it. When that declaration is `namespace internal {`, the who
 documented. Every internal doc block then enters the output, and any `\param` mismatch hidden in those blocks fails
 the build far from the edit. For example, commit 8f8d4ed4c placed helper structs under the `Transform::rotate` block,
 which exposed a stale `\param` in `GMRES.h`. After inserting code near a doc block, confirm the block still directly
-precedes its declaration. If the Doxygen log prints `Generating docs for namespace Eigen::internal`, it does not.
+precedes its declaration. If the Doxygen log prints `Generating docs for namespace Eigen::internal`, some block now
+documents that namespace instead of its own declaration.
 
 Markdown can break the job too. Doxygen reads every `.md` file under its inputs, module READMEs included, in its own
 dialect, so GitLab Markdown that renders on the web can fail it. Three constructs do. An in-page link
@@ -47,12 +49,12 @@ written for GitLab readers belongs in `EXCLUDE` in [`doc/Doxyfile.in`](../doc/Do
 `contrib/Eigen/src/StructuredMatrices/README.md` is.
 
 The `doc` target also compiles and runs the configured examples and snippets, by way of the `all_snippets` and
-`all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). A renamed or removed public name breaks
-the documentation build even when every comment is well formed, so search those directories before changing one.
-Only the *configured* programs are built. For example, `contrib/doc/examples/CMakeLists.txt` adds its `SYCL`
-subdirectory only when `EIGEN_TEST_SYCL` is set, and `build:linux:docs` does not set it, so a broken contrib SYCL
-example leaves this target green. Treat the target as coverage for the sets the configuration actually enables, and
-check the CMake condition before citing it as coverage.
+`all_examples` prerequisites in [`doc/CMakeLists.txt`](../doc/CMakeLists.txt). Before renaming or removing a public
+name, search those directories: a renamed or removed name breaks the documentation build even when every comment is
+well formed. Only the *configured* programs are built. For example, `contrib/doc/examples/CMakeLists.txt` adds its
+`SYCL` subdirectory only when `EIGEN_TEST_SYCL` is set. `build:linux:docs` does not set it, so the job stays green when
+a contrib SYCL example is broken. The target covers only the sets the configuration enables; check the CMake condition
+before citing it as coverage.
 
 ## Building Locally
 
@@ -65,4 +67,4 @@ cmake --build build --target doc
 
 Doxygen and graphviz must be installed. CI builds a pinned Doxygen from source
 ([`ci/scripts/build_and_install_doxygen.sh`](../ci/scripts/build_and_install_doxygen.sh)), so another local version can
-diagnose a different set of warnings; report the version that produced a local result.
+diagnose a different set of warnings. Report the version that produced a local result.

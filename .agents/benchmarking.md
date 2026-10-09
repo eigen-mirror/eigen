@@ -1,6 +1,6 @@
 # Benchmarking
 
-Use this guidance for performance-sensitive changes and benchmark reviews. Performance claims need a benchmark that
+Use this guide for performance-sensitive changes and benchmark reviews. Back a performance claim with a benchmark that
 ships in the same merge request. Correctness tests still ship separately from the benchmark. Run them before timing.
 
 ## Performance Hypothesis
@@ -42,13 +42,14 @@ Consult [`benchmarks/CMakeLists.txt`](../benchmarks/CMakeLists.txt) and
 settings. CUDA benchmarks also have a standalone project and instructions in
 [`contrib/benchmarks/GPU/CMakeLists.txt`](../contrib/benchmarks/GPU/CMakeLists.txt). No CI job builds or runs
 benchmarks, so CI checks neither that a benchmark compiles nor that a performance claim holds. Build and run the
-benchmark locally, and report the measurement conditions this guide requires.
+benchmark locally. Report the measurement conditions this guide requires.
 
 ### GPU kernel benchmarks
 
 `benchmarks/GPU/` times the kernels Eigen generates for `GpuDevice` (elementwise expressions, launch overhead,
 reductions, contractions and allocation) against hand-written kernels and vendor baselines. It is part of the supported
-benchmark project, but only builds when the `EIGEN_BENCH_CUDA` option is on, so the CPU benchmarks build as before:
+benchmark project but builds only when the `EIGEN_BENCH_CUDA` option is on, so a default configuration builds only the
+CPU benchmarks:
 
 ```bash
 cmake -G Ninja -S benchmarks -B build-bench-gpu -DCMAKE_BUILD_TYPE=Release -DEIGEN_BENCH_CUDA=ON \
@@ -61,13 +62,16 @@ The subtree holds `bench_gpu_elementwise`, `bench_gpu_launch`, `bench_gpu_reduct
 `bench_gpu_contraction` (against cuBLAS) and `bench_gpu_alloc`.
 
 `CMAKE_CUDA_ARCHITECTURES=native` needs CMake 3.24. With older CMake, name the architecture instead, for example
-`89`. The benchmarks measure device time with CUDA events around a batch of launches (`eigen_bench::timeLaunches`)
+`89`.
+
+The benchmarks measure device time with CUDA events around a batch of launches (`eigen_bench::timeLaunches`)
 and report the time per launch through `UseManualTime()`. Allocation benchmarks use `UseRealTime()` to measure the
 cost of the host API. The `host_us_per_launch` counter is the host-side cost of enqueueing a launch. The
 `bytes_per_second` counter counts every operand as read once and the result as written once. The benchmarks check
-their results against a reference outside the timed loop. With every number you report, quote the `GPU:` line the
-binary prints (it is also in the JSON context), and say whether the clocks were locked. A laptop under WSL2 cannot
-lock them.
+their results against a reference outside the timed loop.
+
+With every number you report, quote the `GPU:` line the binary prints (it is also in the JSON context). Say whether
+the clocks were locked; a laptop under WSL2 cannot lock them.
 
 ## Adding A Benchmark
 
@@ -75,10 +79,11 @@ Put each benchmark family in its own translation unit, `bench_<topic>.cpp` in th
 (`benchmarks/LU/bench_lu.cpp`). Register it in the `CMakeLists.txt` beside it with
 `eigen_add_benchmark(<target> <source> [LIBRARIES ...] [DEFINITIONS ...])`, which links `benchmark_main`, compiles at
 `-O3` with `NDEBUG`, and takes the include path from the tree. Do not merge families into one file: combining them
-changes the code layout, and that alone has shifted timings of unchanged kernels by tens of percent. Multi-threaded
-benchmarks call `UseRealTime()` on the registration to measure elapsed time. The default CPU timer measures only the
-main thread and misses the worker threads. When total CPU consumption is also needed,
-`MeasureProcessCPUTime()` includes those workers. See Google Benchmark's
+changes the code layout, and that alone has shifted timings of unchanged kernels by tens of percent.
+
+For a multi-threaded benchmark, call `UseRealTime()` on the registration to measure elapsed time. The default CPU
+timer measures only the main thread and misses the worker threads. When total CPU consumption is also needed, add
+`MeasureProcessCPUTime()`, which includes those workers. See Google Benchmark's
 [CPU timers](https://google.github.io/benchmark/user_guide.html#cpu-timers).
 
 ## Benchmark Design
@@ -115,21 +120,21 @@ sources must not reference. A grid that seems to need `Apply()` can be written b
    time; concurrent benchmarks invalidate both measurements.
 2. Keep the machine, CPU affinity, power/governor policy, thermal state, compiler, flags, ISA, and dependencies as
    constant as practical. Disclose anything that could not be controlled.
-3. Use multiple repetitions, for example `--benchmark_repetitions=10`, and retain raw results. Compare medians plus a
+3. Use multiple repetitions, for example `--benchmark_repetitions=10`. Retain the raw results. Compare medians plus a
    dispersion measure such as MAD, IQR, or standard deviation; do not select the best run.
 4. For before/after binaries, alternate separate invocations (`A, B, A, B`) to expose thermal or background-load
    drift. Use the same benchmark filter and arguments for each pair.
 5. Re-run suspicious or noisy cases. Treat changes smaller than the observed run-to-run variation as inconclusive,
    not as wins or regressions.
 
-When the machine cannot be made quiet enough to resolve the effect, deterministic counters are the honest measurement:
-Callgrind instruction counts, allocation counts (e.g. `-Wl,--wrap=malloc`), with identical result checksums for both
-variants. Report them as counter measurements that name the tool, not as timings. Such a counter measurement, plus a
-statement that wall-clock timing was inconclusive, makes a complete performance claim. An unqualified ratio from a
-loaded host does not.
+When you cannot make the machine quiet enough to resolve the effect, use deterministic counters, which stay honest on a
+noisy machine: Callgrind instruction counts or allocation counts (e.g. `-Wl,--wrap=malloc`). Confirm that both
+variants produce identical result checksums. Report the counts as counter measurements that name the tool, not as
+timings. A counter measurement together with a statement that wall-clock timing was inconclusive is a complete
+performance claim; an unqualified ratio from a loaded host is not.
 
-Never infer a general speedup from one convenient size or one warm run. State the tested domain, include regressions
-as well as improvements, and keep numerical accuracy results separate from performance measurements.
+Never infer a general speedup from one convenient size or one warm run. State the tested domain. Include regressions
+as well as improvements. Keep numerical accuracy results separate from performance measurements.
 
 ## Supporting Performance Evidence
 
@@ -142,22 +147,23 @@ assembly analysis is mandatory for every contribution.
 - **Callgrind:** Compare before/after instruction counts (`Ir`) for the affected operation using identical inputs,
   compiler flags, ISA, and a fixed number of iterations. Isolate the operation from startup, unrelated allocation, input
   generation, and benchmark calibration. Pausing the benchmark timer does not pause Callgrind collection. Report
-  counts per operation and the measured region, instead of comparing whole-process totals from runs that did
-  different amounts of work. Use optimized builds with debug information, so counts can be attributed to source, and
-  retain the commands, tool version, and relevant `callgrind_annotate` output. See the
+  counts per operation, and name the region you measured. Do not compare whole-process totals from runs that did
+  different amounts of work. Use optimized builds with debug information, so counts can be attributed to source.
+  Retain the commands, tool version, and relevant `callgrind_annotate` output. See the
   [Callgrind manual](https://valgrind.org/docs/manual/cl-manual.html) for collection controls. Label optional cache
   and branch simulation results as simulated events.
 - **Assembly:** Compare the generated code for the same representative instantiation before and after the change, using
   the benchmark's compiler, optimization flags, and target ISA. Inspect the hot loop in the benchmark binary or a small
   reproducer that evaluates the same Eigen expression and keeps its result observable. Include a short annotated excerpt
   or diff showing the relevant change, such as removed loads, stores, shuffles, branches, spills or calls, a change in
-  vectorization, or changed loop dependencies. Record the build and disassembly commands and explain how the inspected
-  code relates to the benchmark case. Inspect only Eigen's code. A proprietary library that the benchmark links is
-  measured from outside, never disassembled; see [`provenance.md`](provenance.md).
+  vectorization, or changed loop dependencies. Record the build and disassembly commands. Explain how the inspected
+  code relates to the benchmark case. Inspect only Eigen's code. Measure a proprietary library that the benchmark links
+  from outside, and never disassemble it; see [`provenance.md`](provenance.md).
 
 Connect this evidence to the measured results in the contribution's performance summary. Instruction counts and
 assembly explain mechanisms. Fewer instructions alone do not establish a speedup on a particular CPU. Investigate
-results that contradict the hypothesis or disagree with timings, and report unresolved uncertainty. State the
-workloads and configurations over which the evidence supports the claim. If the tools cannot analyze the relevant ISA
-or backend, say so and use the evidence that does apply. Do not silently switch to a different target and present
-its results as if they came from the original configuration.
+results that contradict the hypothesis or disagree with timings. Report unresolved uncertainty. State the
+workloads and configurations over which the evidence supports the claim.
+
+If the tools cannot analyze the relevant ISA or backend, say so and use the evidence that does apply. Do not silently
+switch to a different target and present its results as if they came from the original configuration.

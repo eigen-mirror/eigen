@@ -22,23 +22,23 @@ that silently assumes one of the two. The matrix is compressed when `m_innerNonZ
 inner vector `j` occupies `[outerIndexPtr()[j], outerIndexPtr()[j] + innerNonZeroPtr()[j])` rather than running to
 `outerIndexPtr()[j + 1]`.
 
-- `insert()` and `coeffRef()` turn a compressed matrix into uncompressed mode when they add an entry. A function that
-  takes a `SparseMatrix&` and inserts is therefore free to change the caller's storage mode; `makeCompressed()`
-  restores it.
+- `insert()` and `coeffRef()` turn a compressed matrix into uncompressed mode when they add an entry. So a function
+  that takes a `SparseMatrix&` and inserts can leave the caller's matrix uncompressed; `makeCompressed()` restores
+  compressed mode.
 - Do not derive an entry count or an iteration bound from consecutive `outerIndexPtr()` differences. Use `nonZeros()`,
-  `innerNonZeroPtr()`, or the uniform loop that `SparsityPatternRef.h` documents, which is correct in both modes.
+  `innerNonZeroPtr()`, or the uniform loop that `SparsityPatternRef.h` documents. That loop is correct in both modes.
 - `resize()` zeroes the matrix, drops to compressed mode, and keeps the allocation; `conservativeResize()` preserves
   contents. Neither is a way to change storage mode deliberately.
 - `Ref<SparseMatrix>` accepts an uncompressed argument unless it is declared with `StandardCompressedFormat`. With that
   option a writable `Ref` asserts `isCompressed()`, while a `Ref<const SparseMatrix, StandardCompressedFormat>`
   silently makes a compressed copy instead of failing. So a `Ref` parameter does not prove that no copy was made. For a
   new API, state which form it takes and why.
-- `InnerIterator` and every raw pointer obtained from the matrix are invalidated by an insertion. Finish iterating, or
-  collect the coordinates first and mutate afterwards.
-- Some consumers require compressed input instead of handling both modes. `SparseQR::analyzePattern` starts with
+- An insertion invalidates `InnerIterator` and every raw pointer obtained from the matrix. Finish iterating, or collect
+  the coordinates first and mutate afterwards.
+- Before passing an assembled matrix to a direct solver, call `makeCompressed()` rather than relying on an assertion.
+  Some consumers require compressed input instead of handling both modes. `SparseQR::analyzePattern` starts with
   `eigen_assert(mat.isCompressed())`, while `SparseLU` branches on `isCompressed()` and falls back to copying the outer
   index array. Because the `SparseQR` check is an `eigen_assert`, a release build does not report the violation at all.
-  Call `makeCompressed()` before passing an assembled matrix to a direct solver rather than relying on the assertion.
 
 ## Sorted Inner Indices
 
@@ -52,28 +52,28 @@ to a stored factor built with `insertBackByOuterInnerUnordered`, so it is compre
 rank-deficient path keeps it unsorted: it right-multiplies a column-major matrix by the pivot permutation, and that
 product takes the outer-permutation branch, which moves whole inner vectors without reordering the entries inside them.
 A compressed matrix is not necessarily sorted, and a factor returned by reference has not been through an assignment
-that would compress or sort it.
+that would compress or sort it. Check a decomposition's output factor with `innerIndicesAreSorted()` rather than
+assuming it is sorted.
 
 To sort such a matrix, assign it to a matrix of the other storage order and back (a storage-order round-trip). This
 works because an assignment between storage orders is a counting transpose: it walks the source in outer order, so
 each destination inner vector receives its entries in ascending order however the source was ordered. Eigen relies on
 this internally. `SparseQR::_sort_matrix_Q()` sorts the stored reflectors this way before `matrixQ()` is materialized
-into a sparse destination, which is why `Q` is not a hazard in the way `R` is. Check a decomposition's output factor
-with `innerIndicesAreSorted()` rather than assuming it is sorted.
+into a sparse destination. So `Q`, unlike `R`, comes out sorted.
 
 - `setFromTriplets()` accepts unsorted input with duplicates and produces a sorted, compressed matrix with duplicates
-  summed. It destroys the previous contents and does not resize — construct or `resize()` the matrix first, since the
-  dimensions are not inferred from the triplets.
+  summed. It destroys the previous contents and does not resize. Construct or `resize()` the matrix first, since
+  `setFromTriplets()` does not infer the dimensions from the triplets.
 - `setFromSortedTriplets()`, `insertFromTriplets()`, and `insertFromSortedTriplets()` complete the set. The `Sorted`
   variants assume the input is already sorted, and the `insertFrom` variants merge into existing entries rather than
   replacing them. All four take an optional functor for combining duplicates; the default sums them.
-- `insert()` requires that the entry not already exist. Use `coeffRef()` when it may exist. Before inserting in random
+- `insert()` requires that the entry not already exist. Use `coeffRef()` when it might exist. Before inserting in random
   order, call `reserve(const SizesType&)`: the sequential fast path applies only when outer indices increase.
 - The sparse-sparse product selectors keep the result sorted on purpose. They choose between inserting in sorted order
   and an unsorted pass followed by a transpose round-trip, which sorts as a side effect
   ([`ConservativeSparseSparseProduct.h`](../Eigen/src/SparseCore/ConservativeSparseSparseProduct.h)). A new product,
   permutation, or assembly path must also leave the indices sorted. `sortInnerIndices()` and `innerIndicesAreSorted()`
-  on `SparseCompressedBase` are the tools for this; check `innerIndicesAreSorted()` in a test, not only in reasoning.
+  on `SparseCompressedBase` are the tools for this. Check `innerIndicesAreSorted()` in a test, not only in reasoning.
 
 ## Products
 
@@ -82,8 +82,10 @@ with `innerIndicesAreSorted()` rather than assuming it is sorted.
 differ in results, not only in speed. The conservative product stores every entry that the operands' sparsity patterns
 generate, even one whose sum cancels to exactly zero. The pruning product drops finished values at or below its
 tolerance. So the two produce different patterns from the same operands, and a test or benchmark written against one
-does not transfer to the other. Neither reserves the exact result size in advance. The conservative product starts
-from the heuristic `nonZerosEstimate()` sum, documented at its definition, and grows or over-allocates from there.
+does not transfer to the other.
+
+Neither product reserves the exact result size in advance. The conservative product starts from the heuristic
+`nonZerosEstimate()` sum, documented at its definition, and grows or over-allocates from there.
 
 Threaded SpMV is opt-in: [`Eigen/SparseCore`](../Eigen/SparseCore) includes `ThreadedSparseProduct.h` and
 `Eigen/ThreadPool` only when `EIGEN_USE_THREADS` is defined. Its tests are in `test/sparse_threaded_product.cpp`, and
@@ -99,20 +101,21 @@ re-analysis is a performance regression even when results match.
   `IterativeSolverBase`, not of `SparseSolverBase`. Check it after `compute()`/`factorize()` and again after `solve()`
   where the solver documents doing so. A test that ignores `info()` can pass on a matrix the solver rejected.
 - `solve()` asserts that the solver was initialized, so a missing `compute()` surfaces only in a debug build.
-- Reordering is part of the result: a solver's permutation affects fill-in and the achievable accuracy, so an ordering
-  change needs the fill-in or timing evidence [`benchmarking.md`](benchmarking.md) asks for, not only a residual check.
+- Reordering is part of the result: a solver's permutation affects fill-in and the achievable accuracy. For an ordering
+  change, provide the fill-in or timing evidence [`benchmarking.md`](benchmarking.md) asks for, not only a residual
+  check.
 
 ## Testing Sparse Changes
 
 `initSparse()` in `test/sparse.h` fills a dense reference and a sparse matrix together, with `ForceNonZeroDiag`,
 `MakeLowerTriangular`, `MakeUpperTriangular`, and `ForceRealDiag` for the shapes solvers require. `test/sparse_solver.h`
 provides the `check_sparse_solving`, `check_sparse_spd_solving`, `check_sparse_nonhermitian_solving`, and determinant
-harnesses; prefer them to a hand-rolled solve so a new solver inherits the established coverage.
+harnesses. Prefer them to a hand-rolled solve, so that a new solver inherits the established coverage.
 
 Scale coverage to the axes this module actually branches on: both storage orders, **both storage modes**, a
 non-default `StorageIndex` width, complex scalars where conjugation is not a no-op, and a matrix with an empty inner
-vector. Comparing against a dense reference computed by Eigen is the standard technique; keep the tolerance a named
-epsilon multiple scaled by dimension or conditioning as [`testing.md`](testing.md) requires.
+vector. Comparing against a dense reference computed by Eigen is the standard technique. Keep the tolerance a named
+epsilon multiple, scaled by dimension or conditioning, as [`testing.md`](testing.md) requires.
 
 [`test/CMakeLists.txt`](../test/CMakeLists.txt) registers the external backend tests conditionally, so a green local
 run says nothing about any of them. The full set is `cholmod_support`, `umfpack_support`, `klu_support`,
@@ -124,5 +127,6 @@ requested.
 
 `pardiso_support` is the exception to know about. The tree contains no `find_package(PARDISO)` and no
 `EIGEN_MISSING_BACKENDS` entry for it. So it is registered only when `PARDISO_FOUND` is set from outside the project,
-and nothing reports its absence, not even the missing-backend summary. Report which sparse backends were unavailable
-rather than implying full coverage.
+and nothing reports its absence, not even the missing-backend summary.
+
+Report which sparse backends were unavailable rather than implying full coverage.
