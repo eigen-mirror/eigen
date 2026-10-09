@@ -420,7 +420,10 @@ EIGEN_DEVICE_FUNC inline Packet ptrue(const Packet& a) {
   }
   Packet b;
   memset(static_cast<void*>(&b), 0xff, sizeof(Packet));
-  EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  // Every backend stores integer packets in integer vector types, which the poison folding does not affect.
+  EIGEN_IF_CONSTEXPR (!NumTraits<typename unpacket_traits<Packet>::type>::IsInteger) {
+    EIGEN_FAST_MATH_CONSTANT_BARRIER(b);
+  }
   return b;
 }
 
@@ -561,10 +564,22 @@ EIGEN_DEVICE_FUNC inline Packet pxor(const Packet& a, const Packet& b) {
   return bitwise_helper<Packet>::bitwise_xor(a, b);
 }
 
+// Packets use the backend's pxor and ptrue: compilers do not reliably vectorize the bytewise fallback (GCC 10 at -O2,
+// GCC and Clang at -O1). For boolean packets ptrue is true, so this is the logical not.
+template <typename Packet, bool IsScalar = is_scalar<Packet>::value>
+struct pnot_impl {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return pxor(a, ptrue(a)); }
+};
+
+template <typename Packet>
+struct pnot_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return bitwise_helper<Packet>::bitwise_not(a); }
+};
+
 /** \internal \returns the bitwise not of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnot(const Packet& a) {
-  return bitwise_helper<Packet>::bitwise_not(a);
+  return pnot_impl<Packet>::run(a);
 }
 
 /** \internal \returns the bitwise and of \a a and not \a b */

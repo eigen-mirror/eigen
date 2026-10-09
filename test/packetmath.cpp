@@ -784,6 +784,32 @@ void nmsub_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
   negate_test_impl<Scalar, Packet>::run_nmsub(data1, data2, ref, size);
 }
 
+// Compared bitwise, since pnot of a float lane can be a NaN whose payload must survive. A packet ptrue is all-ones
+// bits, or true for boolean packets; the runner also instantiates Packet = Scalar, where ptrue is Scalar(1).
+template <typename Scalar, typename Packet>
+void packetmath_pnot_ptrue() {
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar res[PacketSize];
+  for (int i = 0; i < PacketSize; ++i) data[i] = internal::random<Scalar>();
+  data[0] = Scalar(0);
+
+  for (int i = 0; i < PacketSize; ++i) ref[i] = internal::pnot(data[i]);
+  internal::pstore(res, internal::pnot(internal::pload<Packet>(data)));
+  VERIFY(test::areEqualBits(ref, res, PacketSize, false) && "pnot");
+
+  for (int i = 0; i < PacketSize; ++i) {
+    if (internal::is_scalar<Packet>::value || std::is_same<Scalar, bool>::value) {
+      ref[i] = internal::ptrue(Scalar(0));
+    } else {
+      memset(static_cast<void*>(ref + i), 0xff, sizeof(Scalar));
+    }
+  }
+  internal::pstore(res, internal::ptrue(internal::pload<Packet>(data)));
+  VERIFY(test::areEqualBits(ref, res, PacketSize, false) && "ptrue");
+}
+
 template <typename Scalar, typename Packet>
 void packetmath() {
   typedef internal::packet_traits<Scalar> PacketTraits;
@@ -1008,6 +1034,7 @@ void packetmath() {
   CHECK_CWISE2_IF(true, internal::pand, internal::pand);
 
   packetmath_boolean_mask_ops<Scalar, Packet>();
+  packetmath_pnot_ptrue<Scalar, Packet>();
   packetmath_pcast_ops_runner<Scalar, Packet>::run();
   packetmath_minus_zero_add_test<Scalar, Packet>::run();
   packetmath_integer_predicates_test<Scalar, Packet>::run();
@@ -1625,16 +1652,22 @@ template <typename Scalar, typename Packet>
 struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsInteger>> {
   using PacketTraits = internal::packet_traits<Scalar>;
 
-  // NaN payloads are not pinned down across backends, so a NaN result only has to stay a NaN.
+  // NaN payloads are not pinned down across backends, so a NaN result only has to stay a NaN. AArch32 Advanced SIMD
+  // always flushes subnormals to zero, so vminnm/vmaxnm return a subnormal number as a zero of the same sign; only
+  // packet results with float lanes (bfloat16 goes through Packet4f) may do so.
   static void verify_semantics(const Scalar& a, const Scalar& b, const Scalar& plain, const Scalar& fast,
-                               const Scalar& nan, const Scalar& numbers) {
+                               const Scalar& nan, const Scalar& numbers, bool may_flush = false) {
     const bool a_is_nan = (numext::isnan)(a), b_is_nan = (numext::isnan)(b);
     if (a_is_nan || b_is_nan) {
       VERIFY((numext::isnan)(nan));
       if (a_is_nan && b_is_nan) {
         VERIFY((numext::isnan)(numbers));
       } else {
-        VERIFY(test::biteq(numbers, a_is_nan ? b : a));
+        const Scalar& number = a_is_nan ? b : a;
+        const bool flushed = may_flush && number != Scalar(0) &&
+                             numext::abs(number) < (std::numeric_limits<Scalar>::min)() &&
+                             test::biteq(numbers, number < Scalar(0) ? Scalar(-0.0) : Scalar(0));
+        VERIFY(flushed || test::biteq(numbers, number));
       }
     } else {
       VERIFY(test::biteq(nan, plain));
@@ -1657,6 +1690,8 @@ struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumT
     // Without HasMin/HasMax the helper degrades to the scalar op and writes only one element.
     constexpr int kMinLanes = PacketTraits::HasMin ? PacketSize : 1;
     constexpr int kMaxLanes = PacketTraits::HasMax ? PacketSize : 1;
+    constexpr bool kMayFlush = EIGEN_ARCH_ARM && !internal::is_scalar<Packet>::value &&
+                               (std::is_same<Scalar, float>::value || std::is_same<Scalar, Eigen::bfloat16>::value);
 
     test::packet_helper<PacketTraits::HasMin, Packet> hmin;
     test::packet_helper<PacketTraits::HasMax, Packet> hmax;
@@ -1677,13 +1712,13 @@ struct packetmath_minmax_propagation_test<Scalar, Packet, std::enable_if_t<!NumT
         hmin.store(fast, internal::pmin<PropagateFast>(hmin.load(lhs), hmin.load(rhs)));
         hmin.store(nan, internal::pmin<PropagateNaN>(hmin.load(lhs), hmin.load(rhs)));
         hmin.store(numbers, internal::pmin<PropagateNumbers>(hmin.load(lhs), hmin.load(rhs)));
-        for (int k = 0; k < kMinLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k]);
+        for (int k = 0; k < kMinLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k], kMayFlush);
 
         hmax.store(plain, internal::pmax(hmax.load(lhs), hmax.load(rhs)));
         hmax.store(fast, internal::pmax<PropagateFast>(hmax.load(lhs), hmax.load(rhs)));
         hmax.store(nan, internal::pmax<PropagateNaN>(hmax.load(lhs), hmax.load(rhs)));
         hmax.store(numbers, internal::pmax<PropagateNumbers>(hmax.load(lhs), hmax.load(rhs)));
-        for (int k = 0; k < kMaxLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k]);
+        for (int k = 0; k < kMaxLanes; ++k) verify_semantics(a, b, plain[k], fast[k], nan[k], numbers[k], kMayFlush);
       }
     }
   }
