@@ -1787,6 +1787,40 @@ std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_va
   run_ieee_cases<PacketTraits::HasATanh, Scalar, Packet>(atanh_fun());
 }
 
+// log, log2 and log1p handle special inputs only in packets that contain one, so place each special input alone
+// among ordinary lanes, in every lane.
+template <typename Scalar, typename Packet>
+std::enable_if_t<NumTraits<Scalar>::IsComplex || NumTraits<Scalar>::IsInteger, void> packetmath_special_value_lanes() {}
+
+template <typename Scalar, typename Packet>
+std::enable_if_t<!NumTraits<Scalar>::IsComplex && !NumTraits<Scalar>::IsInteger, void>
+packetmath_special_value_lanes() {
+  using PacketTraits = internal::packet_traits<Scalar>;
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  const Scalar norm_min = (std::numeric_limits<Scalar>::min)();
+  const Scalar inf = NumTraits<Scalar>::infinity();
+  const Scalar nan = NumTraits<Scalar>::quiet_NaN();
+  std::vector<Scalar> specials{Scalar(0), -Scalar(0), Scalar(-1), Scalar(-2), -norm_min, inf, -inf, nan};
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  if (std::numeric_limits<Scalar>::has_denorm == std::denorm_present) {
+    specials.push_back(std::numeric_limits<Scalar>::denorm_min());
+    specials.push_back(norm_min / Scalar(2));
+  }
+#endif
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  for (Scalar special : specials) {
+    for (int k = 0; k < PacketSize; ++k) {
+      for (int i = 0; i < PacketSize; ++i) data1[i] = Scalar(2);
+      data1[k] = special;
+      CHECK_CWISE1_IF(PacketTraits::HasLog, std::log, internal::plog);
+      CHECK_CWISE1_IF(PacketTraits::HasLog, log2, internal::plog2);
+      CHECK_CWISE1_IF(PacketTraits::HasLog1p, std::log1p, internal::plog1p);
+    }
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_redux_infinities() {
   const Scalar infinity = NumTraits<Scalar>::infinity();
@@ -1902,6 +1936,7 @@ void packetmath_abs_bits() {
 template <typename Scalar, typename Packet>
 void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
+  packetmath_special_value_lanes<Scalar, Packet>();
 
   typedef internal::packet_traits<Scalar> PacketTraits;
   const int PacketSize = internal::unpacket_traits<Packet>::size;

@@ -101,27 +101,32 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   RealPacket cisy = psincos_selector<RealPacket>(y);
   cisy = pcplxflip(Packet(cisy)).v;  // cos(y) + i * sin(y)
 
-  const RealPacket cst_pos_inf = pinf<RealPacket>();
-  const RealPacket cst_neg_inf = por(psignmask<RealPacket>(), pinf<RealPacket>());
+  // The fixups below need x = +-inf or an overflowing exp(x). Such inputs are rare, so packets without
+  // |x| >= (max_exponent - 1) ln(2), just below the overflow threshold, skip them.
+  const RealScalar large_x = RealScalar(NumTraits<RealScalar>::max_exponent() - 1) * RealScalar(EIGEN_LN2);
+  if (predux_any(pcmp_le(pset1<RealPacket>(large_x), pabs(x)))) {
+    const RealPacket cst_pos_inf = pinf<RealPacket>();
+    const RealPacket cst_neg_inf = por(psignmask<RealPacket>(), pinf<RealPacket>());
 
-  // If x is -inf, we know that cossin(y) is bounded,
-  //   so the result is (0, +/-0), where the sign of the imaginary part comes
-  //   from the sign of cossin(y).
-  RealPacket cisy_sign = por(pandnot(cisy, pabs(cisy)), pset1<RealPacket>(RealScalar(1)));
-  cisy = pselect(pcmp_eq(x, cst_neg_inf), cisy_sign, cisy);
+    // If x is -inf, we know that cossin(y) is bounded,
+    //   so the result is (0, +/-0), where the sign of the imaginary part comes
+    //   from the sign of cossin(y).
+    RealPacket cisy_sign = por(pandnot(cisy, pabs(cisy)), pset1<RealPacket>(RealScalar(1)));
+    cisy = pselect(pcmp_eq(x, cst_neg_inf), cisy_sign, cisy);
 
-  // If x is inf, and cos(y) has unknown sign (y is inf or NaN), the result
-  // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
-  RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
-  cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
+    // If x is inf, and cos(y) has unknown sign (y is inf or NaN), the result
+    // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
+    RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
+    cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
 
-  // If exp(x) is +inf and y is finite, replace cisy with copysign(1, cisy) to
-  // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
-  // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
-  // The y=0 case is handled separately below.
-  RealPacket cisy_sign_one = por(pand(cisy, psignmask<RealPacket>()), pset1<RealPacket>(RealScalar(1)));
-  RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
-  cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
+    // If exp(x) is +inf and y is finite, replace cisy with copysign(1, cisy) to
+    // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
+    // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
+    // The y=0 case is handled separately below.
+    RealPacket cisy_sign_one = por(pand(cisy, psignmask<RealPacket>()), pset1<RealPacket>(RealScalar(1)));
+    RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
+    cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
+  }
 
   Packet result = Packet(pmul(expx, cisy));
 

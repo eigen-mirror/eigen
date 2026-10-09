@@ -45,8 +45,11 @@ namespace internal {
 // Range reduction uses integer bit manipulation (musl-inspired) instead of the
 // heavier pfrexp_generic, saving ~12 ops. The minimax polynomial was found via
 // Sollya's fpminimax, giving faithfully-rounded results (max 1 ULP for log).
+//
+// Returns whether any lane of v is not a positive, normal, finite value. Such inputs are rare, so packets without
+// them skip the normalization of subnormals here and the special-value handling of the caller.
 template <typename Packet>
-EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
+EIGEN_STRONG_INLINE bool plog_core_float(const Packet v, Packet& log_mantissa, Packet& e) {
   using PacketI = typename unpacket_traits<Packet>::integer_packet;
 
   const PacketI cst_min_normal = pset1<PacketI>(0x00800000);
@@ -59,19 +62,22 @@ EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, P
   const PacketI cst_exp_bias = pset1<PacketI>(0x7f);         // 127
   const PacketI cst_half_mant = pset1<PacketI>(0x3f3504f3);  // sqrt(0.5)
 
-  // Normalize denormals by multiplying by 2^23.
+  // The signed comparisons also catch zero and negative values (below the smallest normal), and inf and NaN.
   PacketI vi = preinterpret<PacketI>(v);
-  PacketI is_denormal = pcmp_lt(vi, cst_min_normal);
-  Packet v_normalized = pmul(v, pset1<Packet>(8388608.0f));  // 2^23
-  vi = pselect(is_denormal, preinterpret<PacketI>(v_normalized), vi);
-  // Denormal exponent adjustment: subtract 23 from exponent.
-  PacketI denorm_adj = pand(is_denormal, pset1<PacketI>(23));
+  const PacketI is_denormal = pcmp_lt(vi, cst_min_normal);
+  const bool any_special = predux_any(preinterpret<Packet>(por(is_denormal, pcmp_lt(pset1<PacketI>(0x7f7fffff), vi))));
+  // Normalize denormals by multiplying by 2^23.
+  if (any_special) {
+    Packet v_normalized = pmul(v, pset1<Packet>(8388608.0f));  // 2^23
+    vi = pselect(is_denormal, preinterpret<PacketI>(v_normalized), vi);
+  }
 
   // Combined range reduction: bias integer representation so that exponent
   // extraction automatically shifts mantissa to [sqrt(0.5), sqrt(2)).
   PacketI vi_biased = padd(vi, cst_sqrt_half_offset);
-  // Extract exponent as integer, subtract bias and denormal adjustment.
-  PacketI e_int = psub(psub(plogical_shift_right<23>(vi_biased), cst_exp_bias), denorm_adj);
+  // Extract exponent as integer, subtract bias and denormal adjustment (23).
+  PacketI e_int = psub(plogical_shift_right<23>(vi_biased), cst_exp_bias);
+  if (any_special) e_int = psub(e_int, pand(is_denormal, pset1<PacketI>(23)));
   e = pcast<PacketI, Packet>(e_int);
   // Reconstruct mantissa in [sqrt(0.5), sqrt(2)). The integer addition of the
   // masked mantissa with 0x3f3504f3 (sqrt(0.5)) naturally produces carry into
@@ -99,6 +105,7 @@ EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, P
   Packet f2 = pmul(f, f);
   Packet p = ppolevl<Packet, 7>::run(f, coeffs);
   log_mantissa = pmadd(p, f2, f);
+  return any_special;
 }
 
 // Natural or base-2 logarithm for float packets.
@@ -108,7 +115,7 @@ EIGEN_STRONG_INLINE void plog_core_float(const Packet v, Packet& log_mantissa, P
 template <typename Packet, bool base2>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const Packet _x) {
   Packet log_mantissa, e;
-  plog_core_float(_x, log_mantissa, e);
+  const bool any_special = plog_core_float(_x, log_mantissa, e);
 
   // Add the logarithm of the exponent back to the result.
   Packet x;
@@ -119,6 +126,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_float(const
     const Packet cst_ln2 = pset1<Packet>(static_cast<float>(EIGEN_LN2));
     x = pmadd(e, cst_ln2, log_mantissa);
   }
+  if (!any_special) return x;
 
   // Filter out invalid inputs:
   //  - negative arg → NAN
@@ -194,11 +202,12 @@ struct packet_has_integer_packet : std::false_type {};
 template <typename Packet>
 struct packet_has_integer_packet<Packet, void_t<typename unpacket_traits<Packet>::integer_packet>> : std::true_type {};
 
-// Dispatch struct for double-precision range reduction.
+// Dispatch struct for double-precision range reduction. run() returns whether any lane of v may not be a positive,
+// normal, finite value, as plog_core_float does.
 // Primary template: pfrexp-based fallback (used when integer_packet is absent).
 template <typename Packet, bool UseIntegerPacket>
 struct plog_range_reduce_double {
-  EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
+  EIGEN_STRONG_INLINE static bool run(const Packet v, Packet& f, Packet& e) {
     const Packet one = pset1<Packet>(1.0);
     const Packet cst_cephes_SQRTHF = pset1<Packet>(0.70710678118654752440E0);
     // pfrexp: f in [0.5, 1), e = unbiased exponent as double.
@@ -211,6 +220,7 @@ struct plog_range_reduce_double {
     f = psub(f, one);
     e = psub(e, pand(one, mask));
     f = padd(f, tmp);
+    return true;
   }
 };
 
@@ -218,7 +228,7 @@ struct plog_range_reduce_double {
 // Requires unpacket_traits<Packet>::integer_packet to be a 64-bit integer packet.
 template <typename Packet>
 struct plog_range_reduce_double<Packet, true> {
-  EIGEN_STRONG_INLINE static void run(const Packet v, Packet& f, Packet& e) {
+  EIGEN_STRONG_INLINE static bool run(const Packet v, Packet& f, Packet& e) {
     using PacketI = typename unpacket_traits<Packet>::integer_packet;
     // 2^-1022: smallest positive normal double.
     const PacketI cst_min_normal = pset1<PacketI>(static_cast<int64_t>(0x0010000000000000LL));
@@ -239,19 +249,24 @@ struct plog_range_reduce_double<Packet, true> {
     // Reinterpret v as a 64-bit integer vector.
     PacketI vi = preinterpret<PacketI>(v);
 
+    // The signed comparisons also catch zero and negative values (below the smallest normal), and inf and NaN.
+    const PacketI is_denormal = pcmp_lt(vi, cst_min_normal);
+    const bool any_special = predux_any(preinterpret<Packet>(
+        por(is_denormal, pcmp_lt(pset1<PacketI>(static_cast<int64_t>(0x7FEFFFFFFFFFFFFFLL)), vi))));
     // Normalise denormals: multiply by 2^52 and correct the exponent by -52.
-    PacketI is_denormal = pcmp_lt(vi, cst_min_normal);
-    // 2^52 via bit pattern: biased exponent = 52 + 1023 = 0x433, mantissa = 0.
-    Packet v_norm = pmul(v, pset1frombits<Packet>(static_cast<uint64_t>(int64_t(52 + 0x3ff) << 52)));
-    vi = pselect(is_denormal, preinterpret<PacketI>(v_norm), vi);
-    PacketI denorm_adj = pand(is_denormal, pset1<PacketI>(static_cast<int64_t>(52)));
+    if (any_special) {
+      // 2^52 via bit pattern: biased exponent = 52 + 1023 = 0x433, mantissa = 0.
+      Packet v_norm = pmul(v, pset1frombits<Packet>(static_cast<uint64_t>(int64_t(52 + 0x3ff) << 52)));
+      vi = pselect(is_denormal, preinterpret<PacketI>(v_norm), vi);
+    }
 
     // Bias the integer representation so the exponent field directly encodes
     // the half-octave index.
     PacketI vi_biased = padd(vi, cst_sqrt_half_offset);
     // Extract unbiased exponent: shift out mantissa bits, subtract IEEE bias
     // and denormal adjustment.
-    PacketI e_int = psub(psub(plogical_shift_right<52>(vi_biased), cst_exp_bias), denorm_adj);
+    PacketI e_int = psub(plogical_shift_right<52>(vi_biased), cst_exp_bias);
+    if (any_special) e_int = psub(e_int, pand(is_denormal, pset1<PacketI>(static_cast<int64_t>(52))));
     // Convert integer exponent to floating-point.
     e = pcast<PacketI, Packet>(e_int);
 
@@ -260,6 +275,7 @@ struct plog_range_reduce_double<Packet, true> {
     // pattern carries into the exponent field, yielding a value in that range.
     // Then subtract 1 to centre on 0: f in [sqrt(0.5)-1, sqrt(2)-1].
     f = psub(preinterpret<Packet>(padd(pand(vi_biased, cst_mant_mask), cst_half_mant)), pset1<Packet>(1.0));
+    return any_special;
   }
 };
 
@@ -267,13 +283,15 @@ struct plog_range_reduce_double<Packet, true> {
 // Input:  v > 0 (zero / negative / inf / nan are handled by the caller).
 // Output: log_mantissa ≈ log(mantissa of v in [sqrt(0.5), sqrt(2))),
 //         e            = unbiased exponent of v as a double.
+// Returns whether the caller must handle special values (see plog_core_float).
 // Selects the fast integer path when integer_packet is available, otherwise
 // falls back to pfrexp.
 template <typename Packet>
-EIGEN_STRONG_INLINE void plog_core_double(const Packet v, Packet& log_mantissa, Packet& e) {
+EIGEN_STRONG_INLINE bool plog_core_double(const Packet v, Packet& log_mantissa, Packet& e) {
   Packet f;
-  plog_range_reduce_double<Packet, packet_has_integer_packet<Packet>::value>::run(v, f, e);
+  const bool any_special = plog_range_reduce_double<Packet, packet_has_integer_packet<Packet>::value>::run(v, f, e);
   log_mantissa = plog_mantissa_double(f);
+  return any_special;
 }
 
 /* Returns the base e (2.718...) or base 2 logarithm of x.
@@ -291,7 +309,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(cons
   const Packet cst_pos_inf = pinf<Packet>();
 
   Packet log_mantissa, e;
-  plog_core_double(_x, log_mantissa, e);
+  const bool any_special = plog_core_double(_x, log_mantissa, e);
 
   // Combine: log(x) = e * ln2 + log(mantissa), or log2(x) = log(mantissa)*log2e + e.
   Packet x;
@@ -302,6 +320,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_impl_double(cons
     const Packet cst_ln2 = pset1<Packet>(static_cast<double>(EIGEN_LN2));
     x = pmadd(e, cst_ln2, log_mantissa);
   }
+  if (!any_special) return x;
 
   Packet invalid_mask = pcmp_lt_or_nan(_x, pzero(_x));
   Packet iszero_mask = pcmp_eq(_x, pzero(_x));
@@ -341,22 +360,24 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(c
 
   // For |x| tiny enough that u rounds to 1, return x directly.
   Packet small_mask = pcmp_eq(u, one);
-  // For u = +inf (x very large), return +inf.
-  Packet inf_mask = pcmp_eq(u, cst_pos_inf);
 
   // Core range reduction and polynomial on u.
   Packet log_u, e;
-  plog_core_float(u, log_u, e);
+  const bool any_special = plog_core_float(u, log_u, e);
 
   // result = e * ln2 + log(u) + dx/u.
   // The dx/u term corrects for the rounding error in u = fl(1+x).
   const Packet cst_ln2 = pset1<Packet>(static_cast<float>(EIGEN_LN2));
   Packet result = pmadd(e, cst_ln2, padd(log_u, pdiv(dx, u)));
+  result = pselect(small_mask, x, result);
+  // The remaining cases have u <= 0, u = +inf or u = NaN.
+  if (!any_special) return result;
 
   // Handle special cases.
+  // For u = +inf (x very large), return +inf.
+  Packet inf_mask = pcmp_eq(u, cst_pos_inf);
   Packet neg_mask = pcmp_lt(u, pzero(u));
   Packet zero_mask = pcmp_eq(x, pset1<Packet>(-1.0f));
-  result = pselect(small_mask, x, result);
   result = pselect(inf_mask, cst_pos_inf, result);
   result = pselect(zero_mask, cst_minus_inf, result);
   result = por(neg_mask, result);  // NaN for x < -1
@@ -381,22 +402,24 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(
 
   // For |x| tiny enough that u rounds to 1, return x directly.
   Packet small_mask = pcmp_eq(u, one);
-  // For u = +inf (x very large), return +inf.
-  Packet inf_mask = pcmp_eq(u, cst_pos_inf);
 
   // Core range reduction and polynomial on u.
   Packet log_u, e;
-  plog_core_double(u, log_u, e);
+  const bool any_special = plog_core_double(u, log_u, e);
 
   // result = e * ln2 + log(u) + dx/u.
   // The dx/u term corrects for the rounding error in u = fl(1+x).
   const Packet cst_ln2 = pset1<Packet>(static_cast<double>(EIGEN_LN2));
   Packet result = pmadd(e, cst_ln2, padd(log_u, pdiv(dx, u)));
+  result = pselect(small_mask, x, result);
+  // The remaining cases have u <= 0, u = +inf or u = NaN.
+  if (!any_special) return result;
 
   // Handle special cases.
+  // For u = +inf (x very large), return +inf.
+  Packet inf_mask = pcmp_eq(u, cst_pos_inf);
   Packet neg_mask = pcmp_lt(u, pzero(u));
   Packet zero_mask = pcmp_eq(x, pset1<Packet>(-1.0));
-  result = pselect(small_mask, x, result);
   result = pselect(inf_mask, cst_pos_inf, result);
   result = pselect(zero_mask, cst_minus_inf, result);
   result = por(neg_mask, result);  // NaN for x < -1
