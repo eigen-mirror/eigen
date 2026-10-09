@@ -140,15 +140,15 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     {
       int i = 0;
       for (; i < m_axis; ++i) {
-        eigen_assert(lhs_dims[i] > 0);
+        eigen_assert(lhs_dims[i] >= 0);
         eigen_assert(lhs_dims[i] == rhs_dims[i]);
         m_dimensions[i] = lhs_dims[i];
       }
-      eigen_assert(lhs_dims[i] > 0);  // Now i == m_axis.
-      eigen_assert(rhs_dims[i] > 0);
+      eigen_assert(lhs_dims[i] >= 0);  // Now i == m_axis.
+      eigen_assert(rhs_dims[i] >= 0);
       m_dimensions[i] = lhs_dims[i] + rhs_dims[i];
       for (++i; i < NumDims; ++i) {
-        eigen_assert(lhs_dims[i] > 0);
+        eigen_assert(lhs_dims[i] >= 0);
         eigen_assert(lhs_dims[i] == rhs_dims[i]);
         m_dimensions[i] = lhs_dims[i];
       }

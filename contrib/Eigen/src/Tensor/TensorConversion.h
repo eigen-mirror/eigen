@@ -117,7 +117,7 @@ struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 8, 1> {
 template <typename TensorEvaluator, typename SrcPacket, typename TgtPacket, int TgtCoeffRatio>
 struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 1, TgtCoeffRatio> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketConverter(const TensorEvaluator& impl)
-      : m_impl(impl), m_maxIndex(impl.dimensions().TotalSize()) {}
+      : m_impl(impl), m_maxIndex(internal::array_prod(impl.dimensions())) {}
 
   template <int LoadMode, typename Index>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TgtPacket packet(Index index) const {

@@ -28,6 +28,17 @@ static void test_1D() {
   }
 }
 
+struct Generator0D {
+  float operator()(const array<Eigen::DenseIndex, 0>&) const { return 42.0f; }
+};
+
+template <int DataLayout>
+static void test_0D() {
+  Tensor<float, 0, DataLayout> scalar;
+  Tensor<float, 0, DataLayout> result = scalar.generate(Generator0D());
+  VERIFY_IS_EQUAL(result(), 42.0f);
+}
+
 struct Generator2D {
   Generator2D() {}
 
@@ -74,6 +85,8 @@ static void test_gaussian() {
 }
 
 EIGEN_DECLARE_TEST(tensor_generator) {
+  CALL_SUBTEST(test_0D<ColMajor>());
+  CALL_SUBTEST(test_0D<RowMajor>());
   CALL_SUBTEST(test_1D<ColMajor>());
   CALL_SUBTEST(test_1D<RowMajor>());
   CALL_SUBTEST(test_2D<ColMajor>());

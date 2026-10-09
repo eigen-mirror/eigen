@@ -26,6 +26,14 @@ static void test_dimension_failures() {
   // Okay; other dimensions are equal.
   Tensor<int, 3, DataLayout> concatenation = left.concatenate(right, 0);
 
+  // Okay; an operand may be empty along the axis.
+  Tensor<int, 3, DataLayout> empty(0, 3, 1);
+  concatenation = left.concatenate(empty, 0);
+  VERIFY_IS_EQUAL(concatenation.dimension(0), 2);
+  VERIFY_IS_EQUAL(concatenation(1, 2, 0), left(1, 2, 0));
+  concatenation = empty.concatenate(right, 0);
+  VERIFY_IS_EQUAL(concatenation(2, 1, 0), right(2, 1, 0));
+
   // Dimension mismatches.
   VERIFY_RAISES_ASSERT(concatenation = left.concatenate(right, 1));
   VERIFY_RAISES_ASSERT(concatenation = left.concatenate(right, 2));

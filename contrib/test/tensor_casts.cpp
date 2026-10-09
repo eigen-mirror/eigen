@@ -69,7 +69,17 @@ struct test_cast_runner<Scalar, std::enable_if_t<NumTraits<Scalar>::IsComplex>> 
   }
 };
 
+// A widening cast reads its argument's size, here a slice whose dimensions are a plain array.
+static void test_widening_cast_of_slice() {
+  Tensor<float, 2> a(20, 10);
+  a.setConstant(1.0f);
+  array<Index, 2> offsets{{1, 2}}, sizes{{17, 6}};
+  Tensor<double, 0> sum = a.slice(offsets, sizes).cast<double>().sum();
+  VERIFY_IS_EQUAL(sum(), 102.0);
+}
+
 EIGEN_DECLARE_TEST(tensor_casts) {
+  CALL_SUBTEST(test_widening_cast_of_slice());
   CALL_SUBTEST(test_cast_runner<bool>::run());
   CALL_SUBTEST(test_cast_runner<int8_t>::run());
   CALL_SUBTEST(test_cast_runner<int16_t>::run());

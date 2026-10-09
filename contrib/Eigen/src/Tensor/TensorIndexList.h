@@ -189,7 +189,7 @@ struct tuple_coeff {
   template <typename... T>
   EIGEN_DEVICE_FUNC static constexpr bool values_up_to_statically_known_to_increase(const IndexTuple<T...>& t) {
     return is_compile_time_constant<typename IndexTupleExtractor<Idx, T...>::ValType>::value &&
-           is_compile_time_constant<typename IndexTupleExtractor<Idx, T...>::ValType>::value &&
+           is_compile_time_constant<typename IndexTupleExtractor<Idx - 1, T...>::ValType>::value &&
            array_get<Idx>(t) > array_get<Idx - 1>(t) &&
            tuple_coeff<Idx - 1, ValueT>::values_up_to_statically_known_to_increase(t);
   }

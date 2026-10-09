@@ -78,7 +78,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
   enum {
     IsAligned = false,
     PacketAccess = (PacketType<CoeffReturnType, Device>::size > 1),
-    BlockAccess = true,
+    BlockAccess = NumDims > 0,
     PreferBlockAccess = true,
     CoordAccess = false,  // to be implemented
     RawAccess = false
@@ -97,6 +97,8 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
       : m_device(device), m_generator(op.generator()) {
     TensorEvaluator<ArgType, Device> argImpl(op.expression(), device);
     m_dimensions = argImpl.dimensions();
+    // A rank-0 generator has no strides or coordinates.
+    EIGEN_IF_CONSTEXPR (NumDims == 0) return;
 
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       m_strides[0] = 1;
@@ -235,6 +237,7 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
 
  protected:
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void extract_coordinates(Index index, array<Index, NumDims>& coords) const {
+    EIGEN_IF_CONSTEXPR (NumDims == 0) return;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       for (int i = NumDims - 1; i > 0; --i) {
         const Index idx = index / m_fast_strides[i];

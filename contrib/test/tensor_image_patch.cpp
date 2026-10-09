@@ -1202,6 +1202,16 @@ void test_patch_contiguous_packet_span() {
   }
 }
 
+// The number of patches must be exact for sizes that float cannot represent (2^24 + 1).
+void test_patch_count_beyond_float_precision() {
+  const Index cols = (Index(1) << 24) + 1;
+  float dummy = 0.0f;  // Only the dimensions are queried, nothing is read.
+  TensorMap<Tensor<float, 4>> tensor(&dummy, 1, 1, cols, 1);
+  const auto patches = tensor.extract_image_patches(1, 1, 1, 1, 1, 1, PADDING_VALID);
+  using Evaluator = TensorEvaluator<const decltype(patches), DefaultDevice>;
+  VERIFY_IS_EQUAL(Evaluator(patches, DefaultDevice()).dimensions()[3], cols);
+}
+
 EIGEN_DECLARE_TEST(tensor_image_patch) {
   CALL_SUBTEST_1(test_simple_patch());
   CALL_SUBTEST_2(test_patch_no_extra_dim());
@@ -1210,6 +1220,7 @@ EIGEN_DECLARE_TEST(tensor_image_patch) {
   CALL_SUBTEST_5(test_patch_padding_same());
   CALL_SUBTEST_6(test_imagenet_patches());
   CALL_SUBTEST_7(test_patch_padding_same_negative_padding_clip_to_zero());
+  CALL_SUBTEST_7(test_patch_count_beyond_float_precision());
   CALL_SUBTEST_8(test_patch_inflate_strides());
   CALL_SUBTEST_9(test_patch_dilation());
   CALL_SUBTEST_10(test_patch_explicit_padding());

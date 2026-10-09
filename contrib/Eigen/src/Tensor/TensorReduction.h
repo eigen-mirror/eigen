@@ -204,7 +204,7 @@ struct InnerMostDimReducer<Self, Op, true, false> {
     constexpr Index packetSize = internal::unpacket_traits<typename Self::PacketReturnType>::size;
     Index start = 0;
     typename Self::PacketReturnType paccum0 = reducer0.template initializePacket<typename Self::PacketReturnType>();
-    EIGEN_IF_CONSTEXPR (!Self::ReducerTraits::IsStateful) {
+    EIGEN_IF_CONSTEXPR (reducer_can_reorder_accumulators<Op>::value) {
       if (numValuesToReduce >= 4 * packetSize) {
         const Index VectorizedSize4 = (numValuesToReduce / (4 * packetSize)) * (4 * packetSize);
         typename Self::PacketReturnType paccum1 = reducer0.template initializePacket<typename Self::PacketReturnType>();
@@ -330,7 +330,7 @@ struct InnerMostDimPreserver<0, Self, Op, true> {
     using Index = typename Self::Index;
     const Index stride = self.m_reducedStrides[0];
     const Index size = self.m_reducedDims[0];
-    EIGEN_IF_CONSTEXPR (!Self::ReducerTraits::IsStateful) {
+    EIGEN_IF_CONSTEXPR (reducer_can_reorder_accumulators<Op>::value) {
       if (size >= 16) {
         const Index unrolled_size4 = (size / 4) * 4;
         typename Self::PacketReturnType accum1 = reducer0.template initializePacket<typename Self::PacketReturnType>();
@@ -387,7 +387,9 @@ struct FullReducer {
 // Multithreaded full reducer
 template <typename Self, typename Op, bool Vectorizable>
 struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
-  static constexpr bool HasOptimizedImplementation = !Self::ReducerTraits::IsStateful;
+  // Shards are merged by feeding them back through reduce(), which needs a pure, reorderable combine.
+  static constexpr bool HasOptimizedImplementation =
+      !Self::ReducerTraits::IsStateful && reducer_can_reorder_accumulators<Op>::value;
   static constexpr Index PacketSize = unpacket_traits<typename Self::PacketReturnType>::size;
 
   // launch one reducer per thread and accumulate the result.
@@ -673,13 +675,13 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
         m_outputStrides[0] = 1;
         for (int i = 1; i < NumOutputDims; ++i) {
           m_outputStrides[i] = m_outputStrides[i - 1] * m_dimensions[i - 1];
-          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
+          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i] > 0 ? m_outputStrides[i] : 1);
         }
       } else {
         m_outputStrides[static_cast<size_t>(NumOutputDims - 1)] = 1;
         for (int i = NumOutputDims - 2; i >= 0; --i) {
           m_outputStrides[i] = m_outputStrides[i + 1] * m_dimensions[i + 1];
-          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i]);
+          m_fastOutputStrides[i] = internal::TensorIntDivisor<Index>(m_outputStrides[i] > 0 ? m_outputStrides[i] : 1);
         }
       }
     }

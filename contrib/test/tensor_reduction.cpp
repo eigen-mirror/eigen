@@ -52,6 +52,15 @@ static void test_trivial_reductions() {
       }
     }
   }
+
+  {
+    // A zero-size preserved dimension yields an empty result.
+    Tensor<float, 3, DataLayout> tensor(4, 0, 5);
+    array<ptrdiff_t, 1> reduction_axis{{0}};
+    Tensor<float, 2, DataLayout> result = tensor.sum(reduction_axis);
+    VERIFY_IS_EQUAL(result.dimension(0), 0);
+    VERIFY_IS_EQUAL(result.dimension(1), 5);
+  }
 }
 
 template <typename Scalar, int DataLayout>
@@ -457,6 +466,67 @@ static void test_value_transforming_reducer() {
   VERIFY_IS_EQUAL(result(), expected);  // 1^2 + ... + 12^2 = 650, exact in long double
 }
 
+// The packet counterpart: reducePacket() squares each packet, so the unrolled packet paths of
+// InnerMostDimReducer and InnerMostDimPreserver must not merge their accumulators through it.
+struct PacketSquaredSumReducer {
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reduce(const float t, float* accum) const { *accum += t * t; }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void reducePacket(const Packet& p, Packet* accum) const {
+    *accum = internal::padd(*accum, internal::pmul(p, p));
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float initialize() const { return 0; }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet initializePacket() const {
+    return internal::pset1<Packet>(0);
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float finalize(const float accum) const { return accum; }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet finalizePacket(const Packet& vaccum) const {
+    return vaccum;
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float finalizeBoth(const float saccum, const Packet& vaccum) const {
+    return saccum + internal::predux(vaccum);
+  }
+};
+
+namespace Eigen {
+namespace internal {
+template <typename Device>
+struct reducer_traits<PacketSquaredSumReducer, Device> {
+  static constexpr int Cost = 1;
+  static constexpr bool PacketAccess = true;
+  static constexpr bool IsStateful = false;
+  static constexpr bool IsExactlyAssociative = true;
+};
+}  // namespace internal
+}  // namespace Eigen
+
+template <int DataLayout>
+static void test_value_transforming_packet_reducer() {
+  STATIC_CHECK((!internal::reducer_can_reorder_accumulators<PacketSquaredSumReducer>::value));
+  PacketSquaredSumReducer reducer;
+
+  // Full reduction: InnerMostDimReducer's 4-packet unrolling engages from 4 packets.
+  Tensor<float, 1, DataLayout> t(64);
+  t.setConstant(1.0f);
+  array<ptrdiff_t, 1> reduction_axis;
+  reduction_axis[0] = 0;
+  Tensor<float, 0, DataLayout> full = t.reduce(reduction_axis, reducer);
+  VERIFY_IS_EQUAL(full(), 64.0f);
+
+  // Reducing the outer dimension of a 2-D tensor statically preserves the inner one, which
+  // InnerMostDimPreserver unrolls by 4 once the reduced extent reaches 16.
+  constexpr int kPreserved = 32, kReduced = 16;
+  Tensor<float, 2, DataLayout> m = (DataLayout == ColMajor) ? Tensor<float, 2, DataLayout>(kPreserved, kReduced)
+                                                            : Tensor<float, 2, DataLayout>(kReduced, kPreserved);
+  m.setConstant(1.0f);
+  Eigen::IndexList<Eigen::type2index<(DataLayout == ColMajor) ? 1 : 0>> outer_axis;
+  Tensor<float, 1, DataLayout> partial = m.reduce(outer_axis, reducer);
+  VERIFY_IS_EQUAL(partial.size(), Index(kPreserved));
+  for (Index i = 0; i < kPreserved; ++i) VERIFY_IS_EQUAL(partial(i), static_cast<float>(kReduced));
+}
+
 template <int DataLayout>
 static void test_user_defined_reductions() {
   Tensor<float, 2, DataLayout> tensor(5, 7);
@@ -767,6 +837,8 @@ EIGEN_DECLARE_TEST(tensor_reduction) {
   CALL_SUBTEST(test_user_defined_reductions<RowMajor>());
   CALL_SUBTEST(test_value_transforming_reducer<ColMajor>());
   CALL_SUBTEST(test_value_transforming_reducer<RowMajor>());
+  CALL_SUBTEST(test_value_transforming_packet_reducer<ColMajor>());
+  CALL_SUBTEST(test_value_transforming_packet_reducer<RowMajor>());
   CALL_SUBTEST(test_tensor_maps<ColMajor>());
   CALL_SUBTEST(test_tensor_maps<RowMajor>());
   CALL_SUBTEST(test_static_dims<ColMajor>());

@@ -287,7 +287,20 @@ static void test_narrowing_indices() {
   VERIFY_RAISES_ASSERT(ref.coeffRef(0, 0, std::size_t(-1)) = 1.0f);
 }
 
+static void test_copy_of_empty_ref() {
+  // Copying a default-constructed (empty) ref must not dereference its null evaluator.
+  TensorRef<Tensor<float, 2>> empty;
+  TensorRef<Tensor<float, 2>> copy(empty);
+  Tensor<float, 2> input(2, 3);
+  input.setRandom();
+  TensorRef<Tensor<float, 2>> assigned(input);
+  assigned = empty;
+  copy = TensorRef<Tensor<float, 2>>(input);
+  VERIFY_IS_EQUAL(copy(1, 2), input(1, 2));
+}
+
 EIGEN_DECLARE_TEST(tensor_ref) {
+  CALL_SUBTEST(test_copy_of_empty_ref());
   CALL_SUBTEST(test_simple_lvalue_ref());
   CALL_SUBTEST(test_simple_rvalue_ref());
   CALL_SUBTEST(test_multiple_dims());

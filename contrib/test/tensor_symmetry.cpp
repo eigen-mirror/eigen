@@ -102,6 +102,16 @@ static void test_symgroups_dynamic() {
 
   group.apply<checkIdx, int>(identity, 0, found, expected);
   VERIFY_IS_EQUAL(found.size(), 6u);
+
+  // The same group, with each generator's larger index given first.
+  DynamicSGroup reversed;
+  reversed.add(1, 0, NegationFlag);
+  reversed.add(2, 0, ConjugationFlag);
+  VERIFY_IS_EQUAL(reversed.size(), 6u);
+  VERIFY_IS_EQUAL(reversed.globalFlags(), GlobalImagFlag);
+  found.clear();
+  reversed.apply<checkIdx, int>(identity, 0, found, expected);
+  VERIFY_IS_EQUAL(found.size(), 6u);
 }
 
 static void test_symgroups_selection() {
@@ -125,6 +135,11 @@ static void test_symgroups_selection() {
     VERIFY_IS_EQUAL(group.size(), 6u);
     VERIFY_IS_EQUAL(group.globalFlags(), GlobalImagFlag);
     group.apply<checkIdx, int>(identity7, 0, found, expected);
+    VERIFY_IS_EQUAL(found.size(), 6u);
+
+    // Extra trailing indices are passed through for a std::vector as for a std::array.
+    found.clear();
+    group.apply<checkIdx, int>(std::vector<int>(identity7.begin(), identity7.end()), 0, found, expected);
     VERIFY_IS_EQUAL(found.size(), 6u);
   }
 
@@ -760,6 +775,18 @@ static void test_tensor_randacc() {
   }
 }
 
+// A transform that maps an index tuple onto itself constrains that coefficient's value:
+// conj(x) = x (real), -x = x (zero), -conj(x) = x (imaginary).
+static void test_symmetry_diagonal_flags() {
+  using Flags = Eigen::internal::tensor_symmetry_calculate_flags<Tensor<std::complex<double>, 2>>;
+  const std::array<Eigen::Index, 2> diag{{1, 1}}, offdiag{{1, 0}};
+  VERIFY_IS_EQUAL(Flags::run(diag, ConjugationFlag, 0, diag), int(GlobalRealFlag));
+  VERIFY_IS_EQUAL(Flags::run(diag, NegationFlag, 0, diag), int(GlobalZeroFlag));
+  VERIFY_IS_EQUAL(Flags::run(diag, ConjugationFlag | NegationFlag, 0, diag), int(GlobalImagFlag));
+  VERIFY_IS_EQUAL(Flags::run(diag, 0, 0, diag), 0);
+  VERIFY_IS_EQUAL(Flags::run(offdiag, ConjugationFlag, 0, diag), 0);
+}
+
 EIGEN_DECLARE_TEST(tensor_symmetry) {
   CALL_SUBTEST(test_symgroups_dynamic());
   CALL_SUBTEST(test_symgroups_selection());
@@ -768,6 +795,7 @@ EIGEN_DECLARE_TEST(tensor_symmetry) {
   CALL_SUBTEST(test_tensor_asym());
   CALL_SUBTEST(test_tensor_dynsym());
   CALL_SUBTEST(test_tensor_randacc());
+  CALL_SUBTEST(test_symmetry_diagonal_flags());
 }
 
 /*

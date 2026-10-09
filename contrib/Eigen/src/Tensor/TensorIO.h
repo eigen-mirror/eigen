@@ -231,6 +231,7 @@ struct TensorPrinter {
                                                       std::is_same<Scalar, std::complex<numext::uint8_t>>::value,
                                                   std::complex<int>, const Scalar&>>
         PrintType;
+    using PrintScalar = std::remove_const_t<std::remove_reference_t<PrintType>>;
 
     const IndexType total_size = array_prod(tensor.dimensions());
 
@@ -257,7 +258,7 @@ struct TensorPrinter {
       for (IndexType i = 0; i < total_size; i++) {
         std::stringstream sstr;
         sstr.copyfmt(s);
-        ScalarPrinter<Scalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
+        ScalarPrinter<PrintScalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
         width = std::max<IndexType>(width, IndexType(sstr.str().length()));
       }
     }
@@ -336,7 +337,7 @@ struct TensorPrinter {
       // So we don't mess around with formatting, output scalar to a string stream, and adjust the width/fill manually.
       std::stringstream sstr;
       sstr.copyfmt(s);
-      ScalarPrinter<Scalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
+      ScalarPrinter<PrintScalar, Format>::run(sstr, static_cast<PrintType>(tensor.data()[i]), fmt);
       std::string scalar_str = sstr.str();
       IndexType scalar_width = scalar_str.length();
       if (width && scalar_width < width) {

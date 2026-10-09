@@ -130,7 +130,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     const InputDimensions& input_dims = m_impl.dimensions();
     isCopy = true;
     for (int i = 0; i < NumDims; ++i) {
-      eigen_assert(input_dims[i] > 0);
+      eigen_assert(input_dims[i] >= 0);
       m_dimensions[i] = input_dims[i] * m_broadcast[i];
       if (m_broadcast[i] != 1) {
         isCopy = false;

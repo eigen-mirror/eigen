@@ -209,7 +209,7 @@ inline void DynamicSGroup::add(int one, int two, int flags) {
   eigen_assert(one != two);
 
   if ((std::size_t)one >= m_numIndices || (std::size_t)two >= m_numIndices) {
-    std::size_t newNumIndices = (one > two) ? one : two + 1;
+    std::size_t newNumIndices = ((one > two) ? one : two) + 1;
     for (auto& gelem : m_elements) {
       gelem.representation.reserve(newNumIndices);
       for (std::size_t i = m_numIndices; i < newNumIndices; i++) gelem.representation.push_back(static_cast<int>(i));

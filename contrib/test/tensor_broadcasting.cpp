@@ -312,7 +312,19 @@ static void test_broadcasting_through_cast() {
   }
 }
 
+template <int DataLayout>
+static void test_empty_broadcasting() {
+  // Broadcasting an empty tensor yields an empty tensor.
+  Tensor<float, 2, DataLayout> tensor(0, 3);
+  array<ptrdiff_t, 2> broadcasts{{2, 3}};
+  Tensor<float, 2, DataLayout> broadcast = tensor.broadcast(broadcasts);
+  VERIFY_IS_EQUAL(broadcast.dimension(0), 0);
+  VERIFY_IS_EQUAL(broadcast.dimension(1), 9);
+}
+
 EIGEN_DECLARE_TEST(tensor_broadcasting) {
+  CALL_SUBTEST(test_empty_broadcasting<ColMajor>());
+  CALL_SUBTEST(test_empty_broadcasting<RowMajor>());
   CALL_SUBTEST(test_simple_broadcasting<ColMajor>());
   CALL_SUBTEST(test_simple_broadcasting<RowMajor>());
   CALL_SUBTEST(test_vectorized_broadcasting<ColMajor>());

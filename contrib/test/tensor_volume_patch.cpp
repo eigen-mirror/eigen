@@ -104,7 +104,30 @@ static void test_entire_volume_patch() {
   }
 }
 
+// SAME padding computed as negative (here (2 - 1) * 4 + 1 - 7 = -2) is clipped to zero.
+static void test_patch_padding_same_negative_padding_clip_to_zero() {
+  Tensor<float, 5> tensor(1, 7, 7, 7, 1);
+  for (int i = 0; i < tensor.size(); ++i) tensor.data()[i] = static_cast<float>(i);
+  Tensor<float, 6> result = tensor.extract_volume_patches(1, 1, 1, 4, 4, 4, PADDING_SAME);
+  VERIFY_IS_EQUAL(result.dimension(4), 8);
+  VERIFY_IS_EQUAL(result(0, 0, 0, 0, 0, 0), tensor(0, 0, 0, 0, 0));
+  VERIFY_IS_EQUAL(result(0, 0, 0, 0, 1, 0), tensor(0, 4, 0, 0, 0));
+  VERIFY_IS_EQUAL(result(0, 0, 0, 0, 7, 0), tensor(0, 4, 4, 4, 0));
+}
+
+// The number of patches must be exact for sizes that float cannot represent (2^24 + 1).
+static void test_patch_count_beyond_float_precision() {
+  const Index cols = (Index(1) << 24) + 1;
+  float dummy = 0.0f;  // Only the dimensions are queried, nothing is read.
+  TensorMap<Tensor<float, 5>> tensor(&dummy, 1, 1, 1, cols, 1);
+  const auto patches = tensor.extract_volume_patches(1, 1, 1, 1, 1, 1, PADDING_VALID);
+  using Evaluator = TensorEvaluator<const decltype(patches), DefaultDevice>;
+  VERIFY_IS_EQUAL(Evaluator(patches, DefaultDevice()).dimensions()[4], cols);
+}
+
 EIGEN_DECLARE_TEST(tensor_volume_patch) {
   CALL_SUBTEST(test_single_voxel_patch());
   CALL_SUBTEST(test_entire_volume_patch());
+  CALL_SUBTEST(test_patch_padding_same_negative_padding_clip_to_zero());
+  CALL_SUBTEST(test_patch_count_beyond_float_precision());
 }

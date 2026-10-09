@@ -281,7 +281,7 @@ struct tensor_symmetry_calculate_flags {
   static inline int run(const std::array<Index, NumIndices>& transformed_indices, int transform_flags,
                         int current_flags, const std::array<Index, NumIndices>& orig_indices) {
     if (transformed_indices == orig_indices) {
-      if (transform_flags & (ConjugationFlag | NegationFlag))
+      if ((transform_flags & (ConjugationFlag | NegationFlag)) == (ConjugationFlag | NegationFlag))
         return current_flags | GlobalImagFlag;  // anti-hermitian diagonal
       else if (transform_flags & ConjugationFlag)
         return current_flags | GlobalRealFlag;  // hermitian diagonal

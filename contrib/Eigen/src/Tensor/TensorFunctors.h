@@ -390,6 +390,14 @@ struct reducer_traits<ArgMinPairReducer<T>, Device> {
   enum { Cost = NumTraits<T>::AddCost, PacketAccess = false, IsStateful = false, IsExactlyAssociative = true };
 };
 
+// Both select the extremum of the lexicographic order on (value, -index), which is a total order for
+// arithmetic values once NaNs are excluded; a scan never admits a NaN, since the index tie-break
+// favors the accumulator, whose index is never larger. Custom scalars stay conservative.
+template <typename T>
+struct reducer_can_reorder_accumulators<ArgMaxPairReducer<T>> : internal::is_arithmetic<typename T::second_type> {};
+template <typename T>
+struct reducer_can_reorder_accumulators<ArgMinPairReducer<T>> : internal::is_arithmetic<typename T::second_type> {};
+
 template <typename T, typename Index, size_t NumDims>
 class GaussianGenerator {
  public:

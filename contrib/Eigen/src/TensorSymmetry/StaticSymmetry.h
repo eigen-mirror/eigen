@@ -185,7 +185,7 @@ class StaticSGroup {
 
   template <typename Op, typename RV, typename Index, typename... Args>
   static inline RV apply(const std::vector<Index>& idx, RV initial, Args&&... args) {
-    eigen_assert(idx.size() == NumIndices);
+    eigen_assert(idx.size() >= NumIndices);
     return internal::tensor_static_symgroup_do_apply<ge>::template run<Op, RV, NumIndices>(idx, initial, args...);
   }
 

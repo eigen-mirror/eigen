@@ -410,6 +410,9 @@ static void test_mixed_index_list() {
   EIGEN_STATIC_ASSERT((internal::all_indices_known_statically<ReductionIndices>() == false), YOU_MADE_A_PROGRAMMING_MISTAKE);
   EIGEN_STATIC_ASSERT((internal::indices_statically_known_to_increase<ReductionIndices>() == false), YOU_MADE_A_PROGRAMMING_MISTAKE);
 #endif
+  // A runtime entry below a static one does not make the list statically increasing.
+  EIGEN_STATIC_ASSERT((internal::indices_statically_known_to_increase<IndexList<int, type2index<1>>>() == false),
+                      YOU_MADE_A_PROGRAMMING_MISTAKE);
 
   typedef IndexList<type2index<0>, type2index<1>, type2index<2>, type2index<3>> ReductionList;
   ReductionList reduction_list;

@@ -244,12 +244,12 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
 
     if (op.padding_explicit()) {
       m_outputPlanes =
-          numext::ceil((m_input_planes_eff + op.padding_top_z() + op.padding_bottom_z() - m_patch_planes_eff + 1.f) /
-                       static_cast<float>(m_plane_strides));
-      m_outputRows = numext::ceil((m_input_rows_eff + op.padding_top() + op.padding_bottom() - m_patch_rows_eff + 1.f) /
-                                  static_cast<float>(m_row_strides));
-      m_outputCols = numext::ceil((m_input_cols_eff + op.padding_left() + op.padding_right() - m_patch_cols_eff + 1.f) /
-                                  static_cast<float>(m_col_strides));
+          numext::ceil((m_input_planes_eff + op.padding_top_z() + op.padding_bottom_z() - m_patch_planes_eff + 1.0) /
+                       static_cast<double>(m_plane_strides));
+      m_outputRows = numext::ceil((m_input_rows_eff + op.padding_top() + op.padding_bottom() - m_patch_rows_eff + 1.0) /
+                                  static_cast<double>(m_row_strides));
+      m_outputCols = numext::ceil((m_input_cols_eff + op.padding_left() + op.padding_right() - m_patch_cols_eff + 1.0) /
+                                  static_cast<double>(m_col_strides));
       m_planePaddingTop = op.padding_top_z();
       m_rowPaddingTop = op.padding_top();
       m_colPaddingLeft = op.padding_left();
@@ -258,23 +258,24 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       switch (op.padding_type()) {
         case PADDING_VALID:
           m_outputPlanes =
-              numext::ceil((m_input_planes_eff - m_patch_planes_eff + 1.f) / static_cast<float>(m_plane_strides));
-          m_outputRows = numext::ceil((m_input_rows_eff - m_patch_rows_eff + 1.f) / static_cast<float>(m_row_strides));
-          m_outputCols = numext::ceil((m_input_cols_eff - m_patch_cols_eff + 1.f) / static_cast<float>(m_col_strides));
+              numext::ceil((m_input_planes_eff - m_patch_planes_eff + 1.0) / static_cast<double>(m_plane_strides));
+          m_outputRows = numext::ceil((m_input_rows_eff - m_patch_rows_eff + 1.0) / static_cast<double>(m_row_strides));
+          m_outputCols = numext::ceil((m_input_cols_eff - m_patch_cols_eff + 1.0) / static_cast<double>(m_col_strides));
           m_planePaddingTop = 0;
           m_rowPaddingTop = 0;
           m_colPaddingLeft = 0;
           break;
         case PADDING_SAME: {
-          m_outputPlanes = numext::ceil(m_input_planes_eff / static_cast<float>(m_plane_strides));
-          m_outputRows = numext::ceil(m_input_rows_eff / static_cast<float>(m_row_strides));
-          m_outputCols = numext::ceil(m_input_cols_eff / static_cast<float>(m_col_strides));
+          m_outputPlanes = numext::ceil(m_input_planes_eff / static_cast<double>(m_plane_strides));
+          m_outputRows = numext::ceil(m_input_rows_eff / static_cast<double>(m_row_strides));
+          m_outputCols = numext::ceil(m_input_cols_eff / static_cast<double>(m_col_strides));
           const Index dz = (m_outputPlanes - 1) * m_plane_strides + m_patch_planes_eff - m_input_planes_eff;
           const Index dy = (m_outputRows - 1) * m_row_strides + m_patch_rows_eff - m_input_rows_eff;
           const Index dx = (m_outputCols - 1) * m_col_strides + m_patch_cols_eff - m_input_cols_eff;
-          m_planePaddingTop = dz / 2;
-          m_rowPaddingTop = dy / 2;
-          m_colPaddingLeft = dx / 2;
+          // Clip negative padding to zero, as TensorFlow and the image-patch op do.
+          m_planePaddingTop = numext::maxi<Index>(0, dz) / 2;
+          m_rowPaddingTop = numext::maxi<Index>(0, dy) / 2;
+          m_colPaddingLeft = numext::maxi<Index>(0, dx) / 2;
           break;
         }
         default: {

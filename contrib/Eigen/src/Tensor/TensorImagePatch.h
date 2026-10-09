@@ -228,18 +228,18 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
     m_patch_cols_eff = op.patch_cols() + (op.patch_cols() - 1) * (m_in_col_strides - 1);
 
     if (op.padding_explicit()) {
-      m_outputRows = numext::ceil((m_input_rows_eff + op.padding_top() + op.padding_bottom() - m_patch_rows_eff + 1.f) /
-                                  static_cast<float>(m_row_strides));
-      m_outputCols = numext::ceil((m_input_cols_eff + op.padding_left() + op.padding_right() - m_patch_cols_eff + 1.f) /
-                                  static_cast<float>(m_col_strides));
+      m_outputRows = numext::ceil((m_input_rows_eff + op.padding_top() + op.padding_bottom() - m_patch_rows_eff + 1.0) /
+                                  static_cast<double>(m_row_strides));
+      m_outputCols = numext::ceil((m_input_cols_eff + op.padding_left() + op.padding_right() - m_patch_cols_eff + 1.0) /
+                                  static_cast<double>(m_col_strides));
       m_rowPaddingTop = op.padding_top();
       m_colPaddingLeft = op.padding_left();
     } else {
       // Computing padding from the type
       switch (op.padding_type()) {
         case PADDING_VALID:
-          m_outputRows = numext::ceil((m_input_rows_eff - m_patch_rows_eff + 1.f) / static_cast<float>(m_row_strides));
-          m_outputCols = numext::ceil((m_input_cols_eff - m_patch_cols_eff + 1.f) / static_cast<float>(m_col_strides));
+          m_outputRows = numext::ceil((m_input_rows_eff - m_patch_rows_eff + 1.0) / static_cast<double>(m_row_strides));
+          m_outputCols = numext::ceil((m_input_cols_eff - m_patch_cols_eff + 1.0) / static_cast<double>(m_col_strides));
           // Calculate the padding
           m_rowPaddingTop =
               numext::maxi<Index>(0, ((m_outputRows - 1) * m_row_strides + m_patch_rows_eff - m_input_rows_eff) / 2);
@@ -247,8 +247,8 @@ struct TensorEvaluator<const TensorImagePatchOp<Rows, Cols, ArgType>, Device> {
               numext::maxi<Index>(0, ((m_outputCols - 1) * m_col_strides + m_patch_cols_eff - m_input_cols_eff) / 2);
           break;
         case PADDING_SAME:
-          m_outputRows = numext::ceil(m_input_rows_eff / static_cast<float>(m_row_strides));
-          m_outputCols = numext::ceil(m_input_cols_eff / static_cast<float>(m_col_strides));
+          m_outputRows = numext::ceil(m_input_rows_eff / static_cast<double>(m_row_strides));
+          m_outputCols = numext::ceil(m_input_cols_eff / static_cast<double>(m_col_strides));
           // Calculate the padding
           m_rowPaddingTop = ((m_outputRows - 1) * m_row_strides + m_patch_rows_eff - m_input_rows_eff) / 2;
           m_colPaddingLeft = ((m_outputCols - 1) * m_col_strides + m_patch_cols_eff - m_input_cols_eff) / 2;

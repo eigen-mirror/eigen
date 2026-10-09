@@ -142,6 +142,10 @@ EIGEN_DECLARE_TEST(tensor_io) {
   CALL_SUBTEST((test_tensor_ostream<int, 2, Eigen::RowMajor>()));
   CALL_SUBTEST((test_tensor_ostream<int, 3, Eigen::RowMajor>()));
 
+  // 8-bit integers print as numbers, not as characters.
+  CALL_SUBTEST((test_tensor_ostream<Eigen::numext::int8_t, 2, Eigen::ColMajor>()));
+  CALL_SUBTEST((test_tensor_ostream<Eigen::numext::uint8_t, 3, Eigen::RowMajor>()));
+
   CALL_SUBTEST((test_tensor_ostream<bool, 2, Eigen::ColMajor>()));
   CALL_SUBTEST((test_tensor_ostream<bool, 2, Eigen::RowMajor>()));
 

@@ -143,16 +143,20 @@ class TensorRefBase : public TensorBase<Derived> {
   EIGEN_STRONG_INLINE TensorRefBase() = default;
 
   TensorRefBase(const TensorRefBase& other) : TensorBase<Derived>(other), m_evaluator(other.m_evaluator) {
-    eigen_assert(m_evaluator->refCount() > 0);
-    m_evaluator->incrRefCount();
+    if (m_evaluator) {
+      eigen_assert(m_evaluator->refCount() > 0);
+      m_evaluator->incrRefCount();
+    }
   }
 
   TensorRefBase& operator=(const TensorRefBase& other) {
     if (this != &other) {
       unrefEvaluator();
       m_evaluator = other.m_evaluator;
-      eigen_assert(m_evaluator->refCount() > 0);
-      m_evaluator->incrRefCount();
+      if (m_evaluator) {
+        eigen_assert(m_evaluator->refCount() > 0);
+        m_evaluator->incrRefCount();
+      }
     }
     return *this;
   }

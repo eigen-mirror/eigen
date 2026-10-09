@@ -171,7 +171,33 @@ static void test_inflation_thread_pool() {
   }
 }
 
+template <int DataLayout>
+static void test_inflation_of_empty() {
+  // A zero extent must stay zero rather than become 1 - stride.
+  Tensor<float, 2, DataLayout> tensor(0, 3);
+  array<ptrdiff_t, 2> strides{{3, 2}};
+  Tensor<float, 2, DataLayout> inflated = tensor.inflate(strides);
+  VERIFY_IS_EQUAL(inflated.dimension(0), 0);
+  VERIFY_IS_EQUAL(inflated.dimension(1), 5);
+}
+
+template <int DataLayout>
+static void test_inflation_of_slice() {
+  // A slice's dimensions are a plain array, which has no TotalSize().
+  Tensor<float, 2, DataLayout> tensor(5, 4);
+  tensor.setRandom();
+  array<Index, 2> offsets{{1, 1}}, sizes{{3, 2}};
+  array<ptrdiff_t, 2> strides{{2, 3}};
+  Tensor<float, 2, DataLayout> inflated = tensor.slice(offsets, sizes).inflate(strides);
+  VERIFY_IS_EQUAL(inflated(4, 3), tensor(3, 2));
+  VERIFY_IS_EQUAL(inflated(1, 3), 0.0f);
+}
+
 EIGEN_DECLARE_TEST(tensor_inflation) {
+  CALL_SUBTEST(test_inflation_of_slice<ColMajor>());
+  CALL_SUBTEST(test_inflation_of_slice<RowMajor>());
+  CALL_SUBTEST(test_inflation_of_empty<ColMajor>());
+  CALL_SUBTEST(test_inflation_of_empty<RowMajor>());
   CALL_SUBTEST(test_simple_inflation<ColMajor>());
   CALL_SUBTEST(test_simple_inflation<RowMajor>());
   CALL_SUBTEST(test_inflation_of_expression<ColMajor>());

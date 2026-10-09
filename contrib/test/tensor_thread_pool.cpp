@@ -772,6 +772,41 @@ void test_multithreaded_reductions() {
   VERIFY_IS_APPROX(full_redux(), full_redux_tp());
 }
 
+// reduce() squares each value, so partial results cannot be merged through it.
+struct SquaredSumReducer {
+  void reduce(const double t, double* accum) const { *accum += t * t; }
+  double initialize() const { return 0; }
+  double finalize(const double accum) const { return accum; }
+};
+
+template <typename = void>
+void test_multithreaded_value_transforming_full_reduction() {
+  ThreadPool thread_pool(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&thread_pool, 4);
+  Tensor<double, 1> t(1 << 20);
+  t.setConstant(1.0);
+  Tensor<double, 0> result;
+  result.device(thread_pool_device) = t.reduce(array<Index, 1>{{0}}, SquaredSumReducer());
+  VERIFY_IS_EQUAL(result(), static_cast<double>(t.size()));
+}
+
+// argmax()/argmin() take the sharded full reduction; each extremum recurs in every shard, so the
+// merge must keep the first occurrence.
+template <typename = void>
+void test_multithreaded_argmax() {
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::ArgMaxPairReducer<Pair<Index, float>>>::value));
+  STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::ArgMinPairReducer<Pair<Index, float>>>::value));
+  ThreadPool thread_pool(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&thread_pool, 4);
+  Tensor<float, 1> t(1 << 20);
+  for (Index i = 0; i < t.size(); ++i) t(i) = static_cast<float>((i + 500) % 1000);
+  Tensor<Index, 0> result;
+  result.device(thread_pool_device) = t.argmax();
+  VERIFY_IS_EQUAL(result(), Index(499));
+  result.device(thread_pool_device) = t.argmin();
+  VERIFY_IS_EQUAL(result(), Index(500));
+}
+
 template <typename = void>
 void test_multithreaded_complex_reduction() {
   using Scalar = std::complex<float>;
@@ -1193,6 +1228,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_11(test_multithreaded_reductions<ColMajor>());
   CALL_SUBTEST_11(test_multithreaded_reductions<RowMajor>());
   CALL_SUBTEST_11(test_multithreaded_complex_reduction<>());
+  CALL_SUBTEST_11(test_multithreaded_value_transforming_full_reduction<>());
+  CALL_SUBTEST_11(test_multithreaded_argmax<>());
   CALL_SUBTEST_11(test_multithreaded_complex_partial_reductions<>());
 
   CALL_SUBTEST_12(test_memcpy<>());
