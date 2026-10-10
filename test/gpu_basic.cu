@@ -229,6 +229,69 @@ struct complex_sqrt {
   }
 };
 
+namespace complex_scalar_operators_test {
+#if defined(EIGEN_GPUCC) && defined(EIGEN_GPU_COMPILE_PHASE)
+// Shadow the global `using namespace Eigen;` from main.h so that unqualified
+// lookup in this namespace only finds the device std::complex operators via
+// EIGEN_USING_STD_COMPLEX_OPERATORS.
+struct shadow_tag {};
+EIGEN_DEVICE_FUNC void operator+(shadow_tag);
+EIGEN_DEVICE_FUNC void operator-(shadow_tag);
+EIGEN_DEVICE_FUNC void operator*(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator/(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator+=(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator-=(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator*=(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator/=(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator==(shadow_tag, shadow_tag);
+EIGEN_DEVICE_FUNC void operator!=(shadow_tag, shadow_tag);
+EIGEN_USING_STD_COMPLEX_OPERATORS
+#endif
+
+template <typename ComplexType>
+EIGEN_DEVICE_FUNC void run(const ComplexType& a, const ComplexType& b, ComplexType* out, int& out_idx) {
+  typedef typename ComplexType::value_type ValueType;
+  const ValueType real_a = Eigen::numext::real(a);
+  const ValueType real_b = Eigen::numext::real(b);
+
+  out[out_idx++] = +a;
+  out[out_idx++] = -a;
+
+  out[out_idx++] = a + b;
+  out[out_idx++] = a + real_b;
+  out[out_idx++] = real_a + b;
+  out[out_idx++] = a - b;
+  out[out_idx++] = a - real_b;
+  out[out_idx++] = real_a - b;
+  out[out_idx++] = a * b;
+  out[out_idx++] = a * real_b;
+  out[out_idx++] = real_a * b;
+  out[out_idx++] = a / b;
+  out[out_idx++] = a / real_b;
+  out[out_idx++] = real_a / b;
+
+#if !EIGEN_COMP_MSVC
+  out[out_idx] = a;
+  out[out_idx++] += b;
+  out[out_idx] = a;
+  out[out_idx++] -= b;
+  out[out_idx] = a;
+  out[out_idx++] *= b;
+  out[out_idx] = a;
+  out[out_idx++] /= b;
+#endif
+
+  const ComplexType true_value = ComplexType(ValueType(1), ValueType(0));
+  const ComplexType false_value = ComplexType(ValueType(0), ValueType(0));
+  out[out_idx++] = (a == b ? true_value : false_value);
+  out[out_idx++] = (a == real_b ? true_value : false_value);
+  out[out_idx++] = (real_a == b ? true_value : false_value);
+  out[out_idx++] = (a != b ? true_value : false_value);
+  out[out_idx++] = (a != real_b ? true_value : false_value);
+  out[out_idx++] = (real_a != b ? true_value : false_value);
+}
+}  // namespace complex_scalar_operators_test
+
 template <typename T>
 struct complex_operators {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -242,42 +305,10 @@ struct complex_operators {
     // Scalar operators.
     const ComplexType a = in[i];
     const ComplexType b = in[i + 1];
-
-    out[out_idx++] = +a;
-    out[out_idx++] = -a;
-
-    out[out_idx++] = a + b;
-    out[out_idx++] = a + numext::real(b);
-    out[out_idx++] = numext::real(a) + b;
-    out[out_idx++] = a - b;
-    out[out_idx++] = a - numext::real(b);
-    out[out_idx++] = numext::real(a) - b;
-    out[out_idx++] = a * b;
-    out[out_idx++] = a * numext::real(b);
-    out[out_idx++] = numext::real(a) * b;
-    out[out_idx++] = a / b;
-    out[out_idx++] = a / numext::real(b);
-    out[out_idx++] = numext::real(a) / b;
-
-#if !EIGEN_COMP_MSVC
-    out[out_idx] = a;
-    out[out_idx++] += b;
-    out[out_idx] = a;
-    out[out_idx++] -= b;
-    out[out_idx] = a;
-    out[out_idx++] *= b;
-    out[out_idx] = a;
-    out[out_idx++] /= b;
-#endif
+    complex_scalar_operators_test::run(a, b, out, out_idx);
 
     const ComplexType true_value = ComplexType(ValueType(1), ValueType(0));
     const ComplexType false_value = ComplexType(ValueType(0), ValueType(0));
-    out[out_idx++] = (a == b ? true_value : false_value);
-    out[out_idx++] = (a == numext::real(b) ? true_value : false_value);
-    out[out_idx++] = (numext::real(a) == b ? true_value : false_value);
-    out[out_idx++] = (a != b ? true_value : false_value);
-    out[out_idx++] = (a != numext::real(b) ? true_value : false_value);
-    out[out_idx++] = (numext::real(a) != b ? true_value : false_value);
 
     // Vector versions.
     T x1(in + i);

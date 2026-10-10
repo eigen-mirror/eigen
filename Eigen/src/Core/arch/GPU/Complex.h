@@ -54,7 +54,9 @@
 // its own specializations, so our custom ones below can be used instead.
 #if !(EIGEN_COMP_ICC && defined(_USE_COMPLEX_SPECIALIZATION_))
 
-// Import Eigen's internal operator specializations.
+// Import Eigen's internal operator specializations. Downstream GPU code (e.g.,
+// TensorFlow) relies on this macro remaining defined after including Eigen
+// headers to bring the device std::complex operators into non-Eigen namespaces.
 #define EIGEN_USING_STD_COMPLEX_OPERATORS           \
   using Eigen::complex_operator_detail::operator+;  \
   using Eigen::complex_operator_detail::operator-;  \
