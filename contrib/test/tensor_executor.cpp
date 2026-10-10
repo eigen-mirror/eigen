@@ -818,6 +818,24 @@ void test_async_execute_binary_expr(Device d) {
   }
 }
 
+template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>
+void test_async_execute_select(Device d) {
+  auto dims = RandomDims<NumDims>(50 / NumDims, 100 / NumDims);
+  Tensor<T, NumDims, Layout, Index> lhs(dims), rhs(dims), dst(dims);
+  lhs.setRandom();
+  rhs.setRandom();
+  const auto expr = (lhs > rhs).select(lhs, rhs);
+
+  Eigen::Barrier done(1);
+  auto on_done = [&done]() { done.Notify(); };
+  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  using Executor = internal::TensorAsyncExecutor<const Assign, Device, decltype(on_done), Vectorizable, Tiling>;
+  Executor::runAsync(Assign(dst, expr), d, on_done);
+  done.Wait();
+
+  for (Index i = 0; i < dst.size(); ++i) VERIFY_IS_EQUAL(dst.coeff(i), numext::maxi(lhs.coeff(i), rhs.coeff(i)));
+}
+
 #ifndef EIGEN_DONT_VECTORIZE
 #define EIGEN_DONT_VECTORIZE 0
 #endif
@@ -959,6 +977,11 @@ EIGEN_DECLARE_TEST(tensor_executor) {
   CALL_ASYNC_SUBTEST_COMBINATIONS(16, test_async_execute_binary_expr, float, 4);
   CALL_ASYNC_SUBTEST_COMBINATIONS(16, test_async_execute_binary_expr, float, 5);
 
+  // Not in part 16: GCC 13 with -O3 -march=armv8.2-a+sve -msve-vector-bits=128 ICEs (unrecognizable
+  // load-pair insn in cprop_hardreg) on a translation unit that tiles both a 3-D float sum and a 3-D float
+  // select. GCC 14 compiles it.
+  CALL_ASYNC_SUBTEST_COMBINATIONS(17, test_async_execute_select, float, 3);
+
   // Force CMake to split this test.
-  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16
+  // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17
 }

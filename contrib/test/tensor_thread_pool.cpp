@@ -876,6 +876,70 @@ void test_memcpy() {
   }
 }
 
+// The executors copy the evaluator per task; a copy must not destroy the forced-eval buffer's elements.
+template <typename = void>
+void test_multithread_forced_eval_non_pod() {
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  Tensor<std::string, 1> in(64), out(64);
+  for (int i = 0; i < 64; ++i) in(i) = std::string(40, static_cast<char>('a' + i % 26));
+  out.device(thread_pool_device) = in.eval();
+  for (int i = 0; i < 64; ++i) VERIFY_IS_EQUAL(out(i), in(i));
+}
+
+template <typename = void>
+void test_enqueue_with_args() {
+  Eigen::ThreadPool tp(2);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 2);
+  Eigen::Barrier barrier(2);
+  std::atomic<int> sum(0);
+  thread_pool_device.enqueue([&sum](Eigen::Barrier* b, int x) { sum += x, b->Notify(); }, &barrier, 3);
+  thread_pool_device.enqueueNoNotification([&sum](Eigen::Barrier* b) { sum += 4, b->Notify(); }, &barrier);
+  barrier.Wait();
+  VERIFY_IS_EQUAL(sum.load(), 7);
+}
+
+// The async path constructs the forced-eval buffer's non-POD elements before evaluating into them.
+template <typename = void>
+void test_async_forced_eval_non_pod() {
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  Tensor<std::string, 1> in(64), out(64);
+  for (int i = 0; i < 64; ++i) in(i) = std::string(40, static_cast<char>('a' + i % 26));
+  Eigen::Barrier done(1);
+  out.device(thread_pool_device, [&done]() { done.Notify(); }) = in.eval();
+  done.Wait();
+  for (int i = 0; i < 64; ++i) VERIFY_IS_EQUAL(out(i), in(i));
+}
+
+// The single-block async path frees its scratch before the done callback, after which the device may be destroyed.
+template <typename = void>
+void test_async_single_block_scratch_freed_before_done() {
+  TestAllocator allocator;
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4, &allocator);
+  Tensor<float, 3> src(4, 5, 6), other(6, 5, 4), dst(6, 5, 4);
+  src.setRandom();
+  other.setRandom();
+  Eigen::array<Index, 3> perm{{2, 1, 0}};
+  // The binary op does not hand the destination buffer to the shuffle, so its block is materialized in scratch.
+  const auto expr = src.shuffle(perm) + other;
+  int deallocs_at_done = -1;
+  Eigen::Barrier done(1);
+  auto on_done = [&]() {
+    deallocs_at_done = allocator.dealloc_count();
+    done.Notify();
+  };
+  using Assign = TensorAssignOp<decltype(dst), const decltype(expr)>;
+  using Executor = internal::TensorAsyncExecutor<const Assign, ThreadPoolDevice, decltype(on_done),
+                                                 /*Vectorizable=*/true, internal::TiledEvaluation::On>;
+  // With no async subexpressions and a single block, runAsync evaluates and signals on this thread.
+  Executor::runAsync(Assign(dst, expr), thread_pool_device, on_done);
+  done.Wait();
+  VERIFY(allocator.alloc_count() > 0);
+  VERIFY_IS_EQUAL(allocator.dealloc_count(), deallocs_at_done);
+}
+
 template <typename = void>
 void test_multithread_random() {
   Eigen::ThreadPool tp(2);
@@ -1234,6 +1298,10 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_12(test_memcpy<>());
   CALL_SUBTEST_12(test_multithread_random<>());
+  CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<>());
+  CALL_SUBTEST_12(test_enqueue_with_args<>());
+  CALL_SUBTEST_12(test_async_forced_eval_non_pod<>());
+  CALL_SUBTEST_12(test_async_single_block_scratch_freed_before_done<>());
 
   TestAllocator test_allocator;
   CALL_SUBTEST_13(test_multithread_shuffle<ColMajor>(nullptr));

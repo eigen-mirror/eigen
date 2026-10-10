@@ -210,6 +210,31 @@ static void test_pool_partitions() {
   }
 }
 
+// A worker of another pool gets no work from this pool's queues.
+static void test_maybe_get_task_from_other_pool() {
+  std::atomic<int> taken(0);
+  Barrier busy(1), release(1), done(4);
+  // Declared last, so both pools are joined before the barriers their tasks use are destroyed.
+  ThreadPool a(4), b(1);
+  b.Schedule([&]() {
+    busy.Notify();
+    release.Wait();
+  });
+  busy.Wait();
+  b.Schedule([]() {});
+  for (int i = 0; i < 4; ++i) {
+    a.Schedule([&]() {
+      ThreadPool::Task t;
+      b.MaybeGetTask(&t);
+      if (t.f) ++taken;
+      done.Notify();
+    });
+  }
+  done.Wait();
+  release.Notify();
+  VERIFY_IS_EQUAL(taken.load(), 0);
+}
+
 EIGEN_DECLARE_TEST(threads_non_blocking_thread_pool) {
   CALL_SUBTEST(test_parallelism<DelayingThreadEnvironment>(true, 4));
   CALL_SUBTEST(test_create_destroy_empty_pool());
@@ -217,4 +242,5 @@ EIGEN_DECLARE_TEST(threads_non_blocking_thread_pool) {
   CALL_SUBTEST(test_parallelism(false));
   CALL_SUBTEST(test_cancel());
   CALL_SUBTEST(test_pool_partitions());
+  CALL_SUBTEST(test_maybe_get_task_from_other_pool());
 }

@@ -414,9 +414,12 @@ class TensorAsyncExecutor<Expression, ThreadPoolDevice, DoneCallback, Vectorizab
 
       // Evaluate small expressions directly as a single block.
       if (ctx->tiling.block_mapper.blockCount() == 1) {
-        TensorBlockScratch scratch(ctx->device);
-        TensorBlockDesc desc(0, ctx->tiling.block_mapper.blockDimensions());
-        ctx->evaluator.evalBlock(desc, scratch);
+        {
+          // Release the scratch buffers before `delete ctx` signals completion and the device may go away.
+          TensorBlockScratch scratch(ctx->device);
+          TensorBlockDesc desc(0, ctx->tiling.block_mapper.blockDimensions());
+          ctx->evaluator.evalBlock(desc, scratch);
+        }
         delete ctx;
       } else {
         ctx->device.parallelForAsync(ctx->tiling.block_mapper.blockCount(), ctx->tiling.cost, eval_block,

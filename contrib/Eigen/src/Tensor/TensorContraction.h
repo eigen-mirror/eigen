@@ -698,7 +698,9 @@ struct TensorContractionEvaluatorBase {
         return;
       }
       EIGEN_IF_CONSTEXPR (types_match) {
-        if (m_lhs_contracted_dims_leading && m_leftImpl.data() != nullptr && m_rightImpl.data() != nullptr) {
+        // The vector is read with unit stride, which needs the RHS contracted dims in LHS order.
+        if (m_lhs_contracted_dims_leading && !rhs_inner_dim_reordered && m_leftImpl.data() != nullptr &&
+            m_rightImpl.data() != nullptr) {
           if (internal::GemvDirectDispatcher<types_match, RowMajor, false>::run(this, buffer)) {
             return;
           }

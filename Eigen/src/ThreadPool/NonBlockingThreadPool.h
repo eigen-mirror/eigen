@@ -158,7 +158,7 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     PerThread* pt = GetPerThread();
     const int thread_id = pt->thread_id;
     // If we are not a worker thread of this pool, we can't get any work.
-    if (thread_id < 0) return;
+    if (pt->pool != this) return;
     Queue& q = thread_data_[thread_id].queue;
     *t = q.PopFront();
     if (t->f) return;

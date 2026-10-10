@@ -442,6 +442,23 @@ static void test_tensor_vector() {
   }
 }
 
+// Matrix-vector shape whose vector operand has its contracted dims in the opposite order.
+template <int DataLayout>
+static void test_tensor_vector_reordered() {
+  Tensor<float, 3, DataLayout> t_left(2, 3, 4);
+  Tensor<float, 2, DataLayout> t_right(3, 2);
+  t_left.setRandom();
+  t_right.setRandom();
+  Eigen::array<DimPair, 2> dims{{DimPair(0, 1), DimPair(1, 0)}};
+  Tensor<float, 1, DataLayout> t_result = t_left.contract(t_right, dims);
+  for (int l = 0; l < 4; ++l) {
+    float expected = 0.0f;
+    for (int i = 0; i < 2; ++i)
+      for (int j = 0; j < 3; ++j) expected += t_left(i, j, l) * t_right(j, i);
+    VERIFY_IS_APPROX(t_result(l), expected);
+  }
+}
+
 template <int DataLayout>
 static void test_small_blocking_factors() {
   Tensor<float, 4, DataLayout> t_left(30, 5, 3, 31);
@@ -948,6 +965,8 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_6(test_matrix_transpose_vector<RowMajor>());
   CALL_SUBTEST_6(test_tensor_vector<ColMajor>());
   CALL_SUBTEST_6(test_tensor_vector<RowMajor>());
+  CALL_SUBTEST_6(test_tensor_vector_reordered<ColMajor>());
+  CALL_SUBTEST_6(test_tensor_vector_reordered<RowMajor>());
   CALL_SUBTEST_7(test_small_blocking_factors<ColMajor>());
   CALL_SUBTEST_7(test_small_blocking_factors<RowMajor>());
   CALL_SUBTEST_7(test_tensor_product<ColMajor>());
