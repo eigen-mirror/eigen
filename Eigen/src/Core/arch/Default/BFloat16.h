@@ -332,15 +332,6 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator-(const bfloat16& a) {
   numext::uint16_t x = numext::bit_cast<uint16_t>(a) ^ 0x8000;
   return numext::bit_cast<bfloat16>(x);
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t bfloat16_map_to_signed(numext::uint16_t bits) {
-  constexpr numext::uint16_t kAbsMask = 0x7fff;
-  return (bits >> 15) ? -(bits & kAbsMask) : bits;
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_is_ordered(numext::uint16_t a, numext::uint16_t b) {
-  constexpr numext::uint16_t kAbsMask = 0x7fff;
-  constexpr numext::uint16_t kInf = 0x7f80;
-  return numext::maxi(a & kAbsMask, b & kAbsMask) <= kInf;
-}
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16& operator+=(bfloat16& a, const bfloat16& b) {
   a = bfloat16(float(a) + float(b));
   return a;
@@ -375,6 +366,41 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 operator--(bfloat16& a, int) {
   --a;
   return original_value;
 }
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+// On GPU, widening bfloat16 to float is a shift left by 16 and the comparison is
+// a native float compare, which is much cheaper than the 16-bit integer path. It
+// also avoids an LLVM 18 NVPTX bug on sm_90 that lowers SLP-vectorized i16
+// negation to the non-existent 'sub.s16x2' PTX instruction. Unlike the host
+// path, these follow float FTZ and fast-math semantics: under flush-to-zero,
+// subnormal operands compare equal to zero.
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const bfloat16& a, const bfloat16& b) {
+  return numext::equal_strict(float(a), float(b));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator!=(const bfloat16& a, const bfloat16& b) {
+  return numext::not_equal_strict(float(a), float(b));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<(const bfloat16& a, const bfloat16& b) {
+  return float(a) < float(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator<=(const bfloat16& a, const bfloat16& b) {
+  return float(a) <= float(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>(const bfloat16& a, const bfloat16& b) {
+  return float(a) > float(b);
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const bfloat16& a, const bfloat16& b) {
+  return float(a) >= float(b);
+}
+#else
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC int16_t bfloat16_map_to_signed(numext::uint16_t bits) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  return (bits >> 15) ? -(bits & kAbsMask) : bits;
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool bfloat16_is_ordered(numext::uint16_t a, numext::uint16_t b) {
+  constexpr numext::uint16_t kAbsMask = 0x7fff;
+  constexpr numext::uint16_t kInf = 0x7f80;
+  return numext::maxi(a & kAbsMask, b & kAbsMask) <= kInf;
+}
 // Evaluate both predicates to keep comparison loops branch-free. Integer operands avoid Clang's
 // -Wbitwise-instead-of-logical warning.
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator==(const bfloat16& a, const bfloat16& b) {
@@ -408,6 +434,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool operator>=(const bfloat16& a, const b
   return static_cast<unsigned int>(bfloat16_map_to_signed(a_bits) >= bfloat16_map_to_signed(b_bits)) &
          static_cast<unsigned int>(bfloat16_is_ordered(a_bits, b_bits));
 }
+#endif
 
 #if EIGEN_COMP_CLANG && defined(EIGEN_CUDACC)
 #pragma pop_macro("EIGEN_DEVICE_FUNC")

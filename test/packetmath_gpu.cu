@@ -157,6 +157,9 @@ EIGEN_GPU_TEST_BINARY_OP(op_pcmp_eq, Eigen::internal::pcmp_eq(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_lt, Eigen::internal::pcmp_lt(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_le, Eigen::internal::pcmp_le(a, b))
 EIGEN_GPU_TEST_BINARY_OP(op_pcmp_lt_or_nan, Eigen::internal::pcmp_lt_or_nan(a, b))
+EIGEN_GPU_TEST_BINARY_OP(op_cmp_ne, a != b ? Eigen::internal::ptrue(a) : Eigen::internal::pzero(a))
+EIGEN_GPU_TEST_BINARY_OP(op_cmp_gt, a > b ? Eigen::internal::ptrue(a) : Eigen::internal::pzero(a))
+EIGEN_GPU_TEST_BINARY_OP(op_cmp_ge, a >= b ? Eigen::internal::ptrue(a) : Eigen::internal::pzero(a))
 EIGEN_GPU_TEST_BINARY_OP(op_pabsdiff, Eigen::internal::pabsdiff(a, b))
 
 EIGEN_GPU_TEST_TERNARY_OP(op_pmadd, Eigen::internal::pmadd(a, b, c))
@@ -1260,10 +1263,16 @@ void packetmath_gpu_bool_fallback() {
 void packetmath_gpu_bfloat16_fallback() {
   using Scalar = Eigen::bfloat16;
   const compare_bits<Scalar> bits{true};
-  const std::vector<float> specials = special_values<float>();
+  std::vector<Scalar> specials;
+  for (float x : special_values<float>()) specials.push_back(Scalar(x));
+  // float denorm_min rounds to 0x0000 and float min - denorm_min rounds to 0x0080, so add raw bfloat16 subnormals.
+  for (uint16_t raw :
+       {uint16_t(0x0001), uint16_t(0x0002), uint16_t(0x007f), uint16_t(0x8001), uint16_t(0x8002), uint16_t(0x807f)}) {
+    specials.push_back(bit_cast<Scalar>(raw));
+  }
   binary_inputs<Scalar> pairs;
-  for (float x : specials) {
-    for (float y : specials) pairs.push(Scalar(x), Scalar(y));
+  for (Scalar x : specials) {
+    for (Scalar y : specials) pairs.push(x, y);
   }
   for (int k = 0; k < 1 << 12; ++k) {
     pairs.push(Scalar(Eigen::internal::random<float>(-4.0f, 4.0f)),
@@ -1271,6 +1280,12 @@ void packetmath_gpu_bfloat16_fallback() {
   }
   const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(pairs.a.data(), pairs.size());
   check_scalar_fallback_common<Scalar>(pairs, in);
+  check_binary<Scalar, op_cmp_ne>(
+      pairs, [](Scalar x, Scalar y) { return x != y ? Eigen::internal::ptrue(x) : Eigen::internal::pzero(x); }, bits);
+  check_binary<Scalar, op_cmp_gt>(
+      pairs, [](Scalar x, Scalar y) { return x > y ? Eigen::internal::ptrue(x) : Eigen::internal::pzero(x); }, bits);
+  check_binary<Scalar, op_cmp_ge>(
+      pairs, [](Scalar x, Scalar y) { return x >= y ? Eigen::internal::ptrue(x) : Eigen::internal::pzero(x); }, bits);
   check_unary<Scalar, op_pnegate>(in, test::negate<Scalar>, bits);
   check_unary<Scalar, op_pabs>(
       in, [](Scalar x) { return Eigen::internal::pabs(x); }, bits);
