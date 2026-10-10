@@ -35,6 +35,8 @@ template <typename LhsMatrix, typename RhsMatrix>
 class KroneckerOperator;
 template <typename LhsMatrix, typename RhsMatrix>
 class KroneckerSum;
+template <typename OperatorType, int Options>
+class KroneckerSparseView;
 
 namespace internal {
 
@@ -823,7 +825,9 @@ struct kron_factor_spectrum<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKronec
  * solvers must be instantiated with \c IdentityPreconditioner (e.g.
  * \c ConjugateGradient<KroneckerOperator<MatrixXd,MatrixXd>,Lower|Upper,IdentityPreconditioner>):
  * the default preconditioners read individual coefficients through \c col() or
- * \c InnerIterator, which the structured operators do not expose.
+ * \c InnerIterator, which the structured operators do not expose. To take part
+ * in sparse expressions without being materialized, the operator offers a lazy
+ * sparse view, \ref sparseView.
  *
  * In contrast to \c kroneckerProduct() (the KroneckerProduct module), which
  * builds an expression meant to be evaluated into a dense matrix, this class is
@@ -971,6 +975,14 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_A.rows() * m_B.rows(); }
   EIGEN_DEVICE_FUNC Index cols() const { return m_A.cols() * m_B.cols(); }
+
+  /** \returns a lazy sparse expression of the operator, its inner vectors
+   * iterated straight from the factors, in the storage order \a Options
+   * (\c ColMajor or \c RowMajor); see \ref KroneckerSparseView. */
+  template <int Options = ColMajor>
+  KroneckerSparseView<KroneckerOperator, Options> sparseView() const {
+    return KroneckerSparseView<KroneckerOperator, Options>(*this);
+  }
 
   /** \returns the left factor \c A. */
   const LhsMatrix& lhs() const { return m_A; }

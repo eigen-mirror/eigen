@@ -46,7 +46,9 @@ namespace Eigen {
  *     -- the separable operators of finite-difference discretizations on
  *     tensor-product grids -- with products through
  *     \f$ B X + X A^T \f$, materialization, and direct solves
- *     (\c BartelsStewart) through the Schur forms of the factors;
+ *     (\c BartelsStewart) through the Schur forms of the factors; either
+ *     operator's \c sparseView() is a lazy \c SparseMatrixBase expression
+ *     (\c KroneckerSparseView) iterating the stored entries from the factors;
  *   - \c DiagonalPlusLowRank : a diagonal matrix plus a rank-k correction, with
  *     O(nk) products and O(nk^2) Woodbury solves, closed under inversion;
  *   - \c Vandermonde : a Vandermonde matrix stored as its nodes, with Horner
@@ -102,6 +104,7 @@ namespace Eigen {
 #include "src/StructuredMatrices/Hankel.h"
 #include "src/StructuredMatrices/KroneckerOperator.h"
 #include "src/StructuredMatrices/KroneckerSum.h"
+#include "src/StructuredMatrices/KroneckerSparseView.h"
 #include "src/StructuredMatrices/DiagonalPlusLowRank.h"
 #include "src/StructuredMatrices/Vandermonde.h"
 #include "src/StructuredMatrices/Cauchy.h"

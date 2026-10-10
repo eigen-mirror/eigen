@@ -209,8 +209,9 @@ class kron_factor_solver<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  *
  * The operator is closed under \ref transpose, \ref conjugate and \ref adjoint
  * (\f$ (A \oplus B)^T = A^T \oplus B^T \f$), materializes into a dense or a
- * sparse matrix on assignment, and plugs into the matrix-free iterative solvers
- * (with \c IdentityPreconditioner). \ref solve and the reusable
+ * sparse matrix on assignment or appears lazily in sparse expressions through
+ * \ref sparseView, and plugs into the matrix-free iterative solvers (with
+ * \c IdentityPreconditioner). \ref solve and the reusable
  * \ref BartelsStewart solver use the Schur forms of the factors;
  * \ref eigenvalues are the pairwise sums \f$ \lambda_i(A) + \mu_j(B) \f$, with
  * \ref eigenvectors \f$ V_A \otimes V_B \f$, also as a \ref KroneckerOperator
@@ -279,6 +280,13 @@ class KroneckerSum : public EigenBase<KroneckerSum<LhsMatrix, RhsMatrix>> {
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_A.rows() * m_B.rows(); }
   EIGEN_DEVICE_FUNC Index cols() const { return rows(); }
+
+  /** \returns a lazy sparse expression of the operator in the storage order
+   * \a Options (\c ColMajor or \c RowMajor); see \ref KroneckerSparseView. */
+  template <int Options = ColMajor>
+  KroneckerSparseView<KroneckerSum, Options> sparseView() const {
+    return KroneckerSparseView<KroneckerSum, Options>(*this);
+  }
 
   /** \returns the left factor \c A. */
   const LhsMatrix& lhs() const { return m_A; }
