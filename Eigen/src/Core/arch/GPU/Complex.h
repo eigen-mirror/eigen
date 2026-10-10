@@ -39,9 +39,9 @@
 //  - Compiling with ICC requires defining _USE_COMPLEX_SPECIALIZATION_ prior
 //    to the first inclusion of <complex>.
 //  - Device code outside namespace Eigen that applies these operators to a
-//    dependent Scalar reaches them only through `using namespace Eigen;` or
-//    using-declarations in scope (see test/gpu_basic.cu); ADL alone finds the
-//    host-only std:: operators.
+//    dependent Scalar reaches them only through `EIGEN_USING_STD_COMPLEX_OPERATORS`,
+//    `using namespace Eigen;`, or using-declarations in scope (see
+//    test/gpu_basic.cu); ADL alone finds the host-only std:: operators.
 
 #if defined(EIGEN_GPUCC) && defined(EIGEN_GPU_COMPILE_PHASE)
 
@@ -214,7 +214,9 @@ EIGEN_USING_STD_COMPLEX_OPERATORS
 }  // namespace internal
 }  // namespace Eigen
 
-#undef EIGEN_USING_STD_COMPLEX_OPERATORS
+// NOTE: Do not #undef EIGEN_USING_STD_COMPLEX_OPERATORS. It is intentionally
+// kept defined so downstream GPU code outside namespace Eigen can import these
+// device operator specializations into their own namespaces.
 
 #endif  // !(EIGEN_COMP_ICC && _USE_COMPLEX_SPECIALIZATION_)
 
