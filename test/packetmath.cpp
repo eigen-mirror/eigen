@@ -2395,6 +2395,77 @@ void packetmath_complex() {
     data1[2] = Scalar(inf, -inf);
     data1[3] = Scalar(-inf, -inf);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    // The sign of a zero is part of these results, and CHECK_CWISE1_N compares +0 equal to -0.
+    const auto check_sqrt_bits = [&]() {
+      for (int i = 0; i < 4; ++i) ref[i] = numext::sqrt(data1[i]);
+      for (int j = 0; j < 4; j += PacketSize)
+        internal::pstore(data2 + j, internal::psqrt(internal::pload<Packet>(data1 + j)));
+      VERIFY(test::areEqualBits(ref, data2, 4) && "internal::psqrt");
+    };
+    data1[0] = Scalar(-inf, -zero);
+    data1[1] = Scalar(-inf, -one);
+    data1[2] = Scalar(inf, -zero);
+    data1[3] = Scalar(inf, -one);
+    check_sqrt_bits();
+    data1[0] = Scalar(zero, -zero);
+    data1[1] = Scalar(-zero, -zero);
+    data1[2] = Scalar(RealScalar(4), -zero);
+    data1[3] = Scalar(RealScalar(-4), -zero);
+    check_sqrt_bits();
+    // |x| + |z| overflows, or |z| / 2 underflows to zero.
+    const RealScalar big = NumTraits<RealScalar>::highest();
+#if !EIGEN_ARCH_ARM
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::denorm_min)();
+#else
+    // 32-bit ARM flushes denormal inputs to zero.
+    const RealScalar denorm = (std::numeric_limits<RealScalar>::min)();
+#endif
+    data1[0] = Scalar(big, zero);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(denorm, zero);
+    data1[3] = Scalar(zero, -denorm);
+    CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    // The scaled paths with |y| << |x| or |x| << |y|, and both sides of their thresholds highest / 4 and 2 * min. The
+    // comparison above is relative to |z| and cannot see the smaller component, so compare components.
+    const auto check_sqrt_components = [&]() {
+      for (int j = 0; j < 4; j += PacketSize)
+        internal::pstore(data2 + j, internal::psqrt(internal::pload<Packet>(data1 + j)));
+      for (int i = 0; i < 4; ++i) {
+        const Scalar r = numext::sqrt(data1[i]);
+        VERIFY_IS_APPROX(numext::real(data2[i]), numext::real(r));
+        VERIFY_IS_APPROX(numext::imag(data2[i]), numext::imag(r));
+      }
+    };
+    const RealScalar eps = NumTraits<RealScalar>::epsilon();
+    const RealScalar tiny = eps * eps;
+    data1[0] = Scalar(big, tiny);
+    data1[1] = Scalar(big, -tiny);
+    data1[2] = Scalar(-big, tiny);
+    data1[3] = Scalar(-big, -tiny);
+    check_sqrt_components();
+    const RealScalar quarter = big / RealScalar(4);
+    const RealScalar above_quarter = numext::nextafter(quarter, inf);
+    data1[0] = Scalar(quarter, one);
+    data1[1] = Scalar(-above_quarter, one);
+    data1[2] = Scalar(one, quarter);
+    data1[3] = Scalar(one, -above_quarter);
+    check_sqrt_components();
+    const RealScalar two_min = RealScalar(2) * (std::numeric_limits<RealScalar>::min)();
+    const RealScalar below_two_min = numext::nextafter(two_min, zero);
+    data1[0] = Scalar(two_min, denorm);
+    data1[1] = Scalar(-below_two_min, denorm);
+    data1[2] = Scalar(-(std::numeric_limits<RealScalar>::min)(), -denorm);
+    data1[3] = Scalar(denorm, -below_two_min);
+    check_sqrt_components();
+#if !EIGEN_ARCH_ARM
+    // A subnormal minor component is rounded once: 0.5 * (y / rho) rounded (2/3) * denorm_min to 0.
+    const RealScalar nine_sixteenths = RealScalar(0.5625);
+    data1[0] = Scalar(nine_sixteenths, denorm);
+    data1[1] = Scalar(-nine_sixteenths, denorm);
+    data1[2] = Scalar(nine_sixteenths, -denorm);
+    data1[3] = Scalar(-nine_sixteenths, -denorm);
+    check_sqrt_components();
+#endif
     data1[0] = Scalar(nan, zero);
     data1[1] = Scalar(zero, nan);
     data1[2] = Scalar(nan, one);
@@ -2405,6 +2476,15 @@ void packetmath_complex() {
     data1[2] = Scalar(nan, inf);
     data1[3] = Scalar(-inf, nan);
     CHECK_CWISE1_N(numext::sqrt, internal::psqrt, 4);
+    // One infinite lane among ordinary ones still selects the handling of extreme inputs, also when pmax drops the
+    // inf of (NaN, inf).
+    for (const Scalar& special : {Scalar(nan, inf), Scalar(nan, -inf), Scalar(-inf, -one), Scalar(one, -inf)}) {
+      for (int k = 0; k < 4; ++k) {
+        for (int i = 0; i < 4; ++i) data1[i] = Scalar(i % 2 ? RealScalar(-4) : RealScalar(4), zero);
+        data1[k] = special;
+        check_sqrt_bits();
+      }
+    }
   }
   if (PacketTraits::HasLog) {
     for (int i = 0; i < size; ++i) {
