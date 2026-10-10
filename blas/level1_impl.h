@@ -21,11 +21,11 @@ EIGEN_BLAS_FUNC(axpy)
 
   if (*incx == 1 && *incy == 1)
     make_vector(y, *n) += alpha * make_vector(x, *n);
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     make_vector(y, *n, *incy) += alpha * make_vector(x, *n, *incx);
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, *incx).reverse();
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     make_vector(y, *n, *incy) += alpha * make_vector(x, *n, -*incx).reverse();
   else if (*incx < 0 && *incy < 0)
     make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, -*incx);
@@ -107,14 +107,14 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
     r = 0;
     z = 0;
   } else {
-    r = sqrt(a * a + b * b);
+    r = Eigen::numext::hypot(a, b);
     Scalar amax = aa > ab ? a : b;
     r = amax > 0 ? r : -r;
     *c = a / r;
     *s = b / r;
     z = 1;
     if (aa > ab) z = *s;
-    if (ab > aa && *c != RealScalar(0)) z = Scalar(1) / *c;
+    if (ab >= aa && *c != RealScalar(0)) z = Scalar(1) / *c;
   }
   *pa = r;
   *pb = z;
@@ -142,7 +142,7 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
 }
 
 EIGEN_BLAS_FUNC(scal)(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return;
+  if (*n <= 0 || *incx <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);

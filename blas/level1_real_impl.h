@@ -17,7 +17,7 @@ extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT *n, Scalar *px, 
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
 
   if (*incx == 1)
     return make_vector(x, *n).cwiseAbs().sum();
@@ -27,7 +27,7 @@ extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT *n, Scalar *px, 
 
 extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, Scalar *px,
                                                                    EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
   Eigen::DenseIndex ret;
@@ -63,11 +63,11 @@ extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN
 
   if (*incx == 1 && *incy == 1)
     return make_vector(x, *n).dot(make_vector(y, *n));
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     return make_vector(x, *n, *incx).dot(make_vector(y, *n, *incy));
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, *incy));
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     return make_vector(x, *n, *incx).dot(make_vector(y, *n, -*incy).reverse());
   else if (*incx < 0 && *incy < 0)
     return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, -*incy).reverse());

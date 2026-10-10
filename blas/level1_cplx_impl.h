@@ -24,7 +24,8 @@ struct functor_traits<scalar_norm1_op> {
 }  // namespace Eigen
 
 // computes |Re(z)| + |Im(z)| of a complex number z.
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_CAT(cabs1, EIGEN_BLAS_FUNC_SUFFIX))(Complex *z) {
+extern "C" EIGEN_BLAS_API RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX,
+                                               EIGEN_CAT(cabs1, EIGEN_BLAS_FUNC_SUFFIX))(Complex *z) {
   return Eigen::numext::norm1(*z);
 }
 
@@ -32,7 +33,7 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_CAT(cabs1, EIGEN_BLAS_
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
 extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT *n, RealScalar *px,
                                                                                 EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
 
   // std::complex<T> is layout-compatible with T[2], so we can reinterpret
   // a complex vector of length n as a real vector of length 2*n and use
@@ -49,7 +50,7 @@ extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(
 
 extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, RealScalar *px,
                                                                    EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+  if (*n <= 0 || *incx <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
   Eigen::DenseIndex ret;
@@ -89,11 +90,11 @@ EIGEN_BLAS_FUNC(dotcw)
 
   if (*incx == 1 && *incy == 1)
     *res = (make_vector(x, *n).dot(make_vector(y, *n)));
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     *res = (make_vector(x, *n, *incx).dot(make_vector(y, *n, *incy)));
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     *res = (make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, *incy)));
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     *res = (make_vector(x, *n, *incx).dot(make_vector(y, *n, -*incy).reverse()));
   else if (*incx < 0 && *incy < 0)
     *res = (make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, -*incy).reverse()));
@@ -114,11 +115,11 @@ EIGEN_BLAS_FUNC(dotuw)
 
   if (*incx == 1 && *incy == 1)
     *res = (make_vector(x, *n).cwiseProduct(make_vector(y, *n))).sum();
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     *res = (make_vector(x, *n, *incx).cwiseProduct(make_vector(y, *n, *incy))).sum();
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     *res = (make_vector(x, *n, -*incx).reverse().cwiseProduct(make_vector(y, *n, *incy))).sum();
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     *res = (make_vector(x, *n, *incx).cwiseProduct(make_vector(y, *n, -*incy).reverse())).sum();
   else if (*incx < 0 && *incy < 0)
     *res = (make_vector(x, *n, -*incx).reverse().cwiseProduct(make_vector(y, *n, -*incy).reverse())).sum();
@@ -163,7 +164,7 @@ EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
 
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, scal))
 (EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return;
+  if (*n <= 0 || *incx <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   RealScalar alpha = *palpha;

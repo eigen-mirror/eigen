@@ -20,10 +20,12 @@
 // computes the singular values/vectors a general M-by-N matrix A using divide-and-conquer
 EIGEN_LAPACK_FUNC(gesdd)
 (const char *jobz, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu, RealScalar *rvt,
- int *ldvt, RealScalar * /*work*/, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/,
+ int *ldvt, RealScalar *work, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/,
  int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
+  const char jobz_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobz)));
+  jobz = &jobz_upper;
   int diag_size = (std::min)(*m, *n);
 
   *info = 0;
@@ -37,7 +39,7 @@ EIGEN_LAPACK_FUNC(gesdd)
     *info = -5;
   else if (*lda < std::max(1, *m))
     *info = -8;
-  else if (*ldu < 1 || (*jobz == 'A' && *ldu < *m) || (*jobz == 'O' && *m < *n && *ldu < *m))
+  else if (*ldu < 1 || ((*jobz == 'A' || *jobz == 'S') && *ldu < *m) || (*jobz == 'O' && *m < *n && *ldu < *m))
     *info = -8;
   else if (*ldvt < 1 || (*jobz == 'A' && *ldvt < *n) || (*jobz == 'S' && *ldvt < diag_size) ||
            (*jobz == 'O' && *m >= *n && *ldvt < *n))
@@ -49,7 +51,7 @@ EIGEN_LAPACK_FUNC(gesdd)
   }
 
   if (query_size) {
-    *lwork = 0;
+    work[0] = RealScalar(1);
     return;
   }
 
@@ -91,10 +93,14 @@ EIGEN_LAPACK_FUNC(gesdd)
 // computes the singular values/vectors a general M-by-N matrix A using two sided jacobi algorithm
 EIGEN_LAPACK_FUNC(gesvd)
 (const char *jobu, const char *jobv, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu,
- RealScalar *rvt, int *ldvt, RealScalar * /*work*/, int *lwork,
+ RealScalar *rvt, int *ldvt, RealScalar *work, int *lwork,
  EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
+  const char jobu_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobu)));
+  jobu = &jobu_upper;
+  const char jobv_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobv)));
+  jobv = &jobv_upper;
   int diag_size = (std::min)(*m, *n);
 
   *info = 0;
@@ -119,7 +125,7 @@ EIGEN_LAPACK_FUNC(gesvd)
   }
 
   if (query_size) {
-    *lwork = 0;
+    work[0] = RealScalar(1);
     return;
   }
 

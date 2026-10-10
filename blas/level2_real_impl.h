@@ -61,7 +61,7 @@ EIGEN_BLAS_FUNC(symv)
   int code = UPLO(*uplo);
   if (code >= 2 || func[code] == 0) return;
 
-  func[code](*n, a, *lda, actual_x, actual_y, alpha);
+  if (alpha != Scalar(0)) func[code](*n, a, *lda, actual_x, actual_y, alpha);
 
   if (actual_x != x) delete[] actual_x;
   if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);

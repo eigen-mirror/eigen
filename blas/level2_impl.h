@@ -303,7 +303,7 @@ EIGEN_BLAS_FUNC(gbmv)
 
   ConstMatrixType mat_coeffs(a, coeff_rows, *n, *lda);
 
-  EIGEN_BLAS_INT nb = std::min(*n, (*m) + (*ku));
+  EIGEN_BLAS_INT nb = alpha == Scalar(0) ? 0 : std::min(*n, (*m) + (*ku));
   for (EIGEN_BLAS_INT j = 0; j < nb; ++j) {
     EIGEN_BLAS_INT start = std::max<EIGEN_BLAS_INT>(0, j - *ku);
     EIGEN_BLAS_INT end = std::min((*m) - 1, j + *kl);

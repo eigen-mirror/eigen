@@ -40,7 +40,7 @@ T xlapy3(const T x, const T y, const T z) {
   const T zabs = numext::abs(z);
   const T w = numext::maxi(numext::maxi(xabs, yabs), zabs);
 
-  if (numext::is_exactly_zero(w)) {
+  if (numext::is_exactly_zero(w) || w > (numext::numeric_limits<T>::max)()) {
     return (xabs + yabs + zabs);
   }
 

@@ -26,12 +26,12 @@ extern "C" double EIGEN_BLAS_FUNC_NAME(sdot)(EIGEN_BLAS_INT* n, float* x, EIGEN_
 
   if (*incx == 1 && *incy == 1)
     return (make_vector(x, *n).cast<double>().cwiseProduct(make_vector(y, *n).cast<double>())).sum();
-  else if (*incx > 0 && *incy > 0)
+  else if (*incx >= 0 && *incy >= 0)
     return (make_vector(x, *n, *incx).cast<double>().cwiseProduct(make_vector(y, *n, *incy).cast<double>())).sum();
-  else if (*incx < 0 && *incy > 0)
+  else if (*incx < 0 && *incy >= 0)
     return (make_vector(x, *n, -*incx).reverse().cast<double>().cwiseProduct(make_vector(y, *n, *incy).cast<double>()))
         .sum();
-  else if (*incx > 0 && *incy < 0)
+  else if (*incx >= 0 && *incy < 0)
     return (make_vector(x, *n, *incx).cast<double>().cwiseProduct(make_vector(y, *n, -*incy).reverse().cast<double>()))
         .sum();
   else if (*incx < 0 && *incy < 0)

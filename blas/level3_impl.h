@@ -348,6 +348,11 @@ EIGEN_BLAS_FUNC(trsm)
   if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSM ", &info, kBlasNameLength);
 
   if (*m == 0 || *n == 0) return;
+  // When alpha is zero, A is not referenced and B need not be set on entry.
+  if (alpha == Scalar(0)) {
+    matrix(b, *m, *n, *ldb).setZero();
+    return;
+  }
 
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
@@ -488,6 +493,11 @@ EIGEN_BLAS_FUNC(trmm)
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
   if (*m == 0 || *n == 0) return;
+  // When alpha is zero, A is not referenced and B need not be set on entry.
+  if (alpha == Scalar(0)) {
+    matrix(b, *m, *n, *ldb).setZero();
+    return;
+  }
 
   // FIXME: find a way to avoid this copy
   Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor> tmp = matrix(b, *m, *n, *ldb);
@@ -540,7 +550,7 @@ EIGEN_BLAS_FUNC(symm)
       matrix(c, *m, *n, *ldc) *= beta;
   }
 
-  if (*m == 0 || *n == 0) return;
+  if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
   EIGEN_BLAS_INT size = (SIDE(*side) == LEFT) ? (*m) : (*n);
   using Eigen::ColMajor;
@@ -663,7 +673,7 @@ EIGEN_BLAS_FUNC(syrk)
       matrix(c, *n, *n, *ldc).triangularView<Lower>() *= beta;
   }
 
-  if (*n == 0 || *k == 0) return;
+  if (*n == 0 || *k == 0 || alpha == Scalar(0)) return;
 
 #if ISCOMPLEX
   // FIXME add support for symmetric complex matrix
@@ -793,7 +803,7 @@ EIGEN_BLAS_FUNC(hemm)
   else if (beta != Scalar(1))
     matrix(c, *m, *n, *ldc) *= beta;
 
-  if (*m == 0 || *n == 0) return;
+  if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
   using Eigen::ColMajor;
   using Eigen::DenseIndex;
@@ -987,6 +997,8 @@ EIGEN_BLAS_FUNC(her2k)
           alpha * matrix(a, *k, *n, *lda).adjoint() * matrix(b, *k, *n, *ldb) +
           Eigen::numext::conj(alpha) * matrix(b, *k, *n, *ldb).adjoint() * matrix(a, *k, *n, *lda);
   }
+  // The two products round differently, so force the documented real diagonal on exit.
+  if (alpha != Scalar(0)) matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
 }
 
 #endif

@@ -65,19 +65,20 @@ EIGEN_LAPACK_FUNC(getrs)
 
   using Eigen::UnitLower;
   using Eigen::Upper;
-  for (int i = 0; i < *n; ++i) ipiv[i]--;
+  // IPIV is input-only (and may be shared by concurrent solves): convert to 0-based indices in a copy.
+  Eigen::Transpositions<Eigen::Dynamic, Eigen::Dynamic, int> pivots(*n);
+  for (int i = 0; i < *n; ++i) pivots.indices()(i) = ipiv[i] - 1;
   if (OP(*trans) == NOTR) {
-    B = PivotsType(ipiv, *n) * B;
+    B = pivots * B;
     lu.triangularView<UnitLower>().solveInPlace(B);
     lu.triangularView<Upper>().solveInPlace(B);
   } else if (OP(*trans) == TR) {
     lu.triangularView<Upper>().transpose().solveInPlace(B);
     lu.triangularView<UnitLower>().transpose().solveInPlace(B);
-    B = PivotsType(ipiv, *n).transpose() * B;
+    B = pivots.transpose() * B;
   } else if (OP(*trans) == ADJ) {
     lu.triangularView<Upper>().adjoint().solveInPlace(B);
     lu.triangularView<UnitLower>().adjoint().solveInPlace(B);
-    B = PivotsType(ipiv, *n).transpose() * B;
+    B = pivots.transpose() * B;
   }
-  for (int i = 0; i < *n; ++i) ipiv[i]++;
 }
