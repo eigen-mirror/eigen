@@ -123,6 +123,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   using Base = SparseCompressedBase<SparseMatrix>;
   using Base::convert_index;
   friend class SparseVector<Scalar_, 0, StorageIndex_>;
+  friend class SparseVector<Scalar_, RowMajor, StorageIndex_>;
   template <typename, typename, typename, typename, typename>
   friend struct internal::Assignment;
 
@@ -494,7 +495,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
       internal::smart_memmove(m_innerNonZeros + begin, m_innerNonZeros + end, m_innerNonZeros + target);
 
     // if m_outerIndex[0] > 0, shift the data within the first vector while it is easy to do so
-    if (m_outerIndex[0] > StorageIndex(0)) {
+    if (num < m_outerSize && m_outerIndex[0] > StorageIndex(0)) {
       uncompress();
       const Index from = internal::convert_index<Index>(m_outerIndex[0]);
       const Index to = Index(0);

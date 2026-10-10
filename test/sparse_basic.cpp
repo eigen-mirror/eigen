@@ -191,6 +191,11 @@ void sparse_basic(const SparseMatrixType& ref) {
         m4.removeOuterVectors(start, num);
 
         VERIFY_IS_CWISE_EQUAL(m3, m4.toDense());
+
+        SparseMatrixType m5 = m2;
+        m5.removeOuterVectors(0, outer);
+        VERIFY_IS_EQUAL(m5.outerSize(), 0);
+        VERIFY_IS_EQUAL(m5.nonZeros(), 0);
       } else {
         Index num = internal::random<Index>(0, outer - 1);
         Index start = internal::random<Index>(0, outer - 1);

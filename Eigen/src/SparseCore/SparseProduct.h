@@ -34,6 +34,13 @@ inline const Product<Derived, OtherDerived, AliasFreeProduct> SparseMatrixBase<D
   return Product<Derived, OtherDerived, AliasFreeProduct>(derived(), other.derived());
 }
 
+/** Replaces \c *this by the sparse product \c *this * \a other. */
+template <typename Derived>
+template <typename OtherDerived>
+Derived& SparseMatrixBase<Derived>::operator*=(const SparseMatrixBase<OtherDerived>& other) {
+  return derived() = derived() * other.derived();
+}
+
 namespace internal {
 
 // sparse * sparse

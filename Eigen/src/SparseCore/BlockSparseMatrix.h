@@ -529,7 +529,10 @@ class BlockSparseMatrix
   BlockSparseMatrix operator/(const Scalar& s) const {
     return withValues_([&s](const auto& v) { return v / s; });
   }
-  BlockSparseMatrix& operator/=(const Scalar& s) { return *this *= (Scalar(1) / s); }
+  BlockSparseMatrix& operator/=(const Scalar& s) {
+    m_values.head(nonZeros()) /= s;
+    return *this;
+  }
 
   /** Scalar-on-left multiplication. */
   friend BlockSparseMatrix operator*(const Scalar& s, const BlockSparseMatrix& m) { return m * s; }
@@ -1440,6 +1443,10 @@ class BlockSparseTriangularView {
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      // A general stored matrix also holds blocks of the opposite triangle; skip them.
+      if (diagFirst) beg = std::lower_bound(beg, end, StorageIndex(k));
+      if (!diagFirst) end = std::upper_bound(beg, end, StorageIndex(k));
+      eigen_assert(beg != end && "solveInPlace: missing diagonal block");
       if (beg == end) continue;
       const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
       const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;
@@ -1486,6 +1493,10 @@ class BlockSparseTriangularView {
     for (Index k = outerStart; k != outerEnd; k += kStep) {
       const StorageIndex* beg = innerPtr + outerPtr[k];
       const StorageIndex* end = innerPtr + outerPtr[k + 1];
+      // A general stored matrix also holds blocks of the opposite triangle; skip them.
+      if (diagFirst) beg = std::lower_bound(beg, end, StorageIndex(k));
+      if (!diagFirst) end = std::upper_bound(beg, end, StorageIndex(k));
+      eigen_assert(beg != end && "solveInPlace: missing diagonal block");
       if (beg == end) continue;
       const StorageIndex* diag_ptr = diagFirst ? beg : end - 1;
       const StorageIndex* off_beg = diagFirst ? beg + 1 : beg;

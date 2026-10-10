@@ -570,6 +570,34 @@ void test_block_sparse_triangular_solve(int bN) {
     }
     VERIFY_IS_APPROX(x1, x2);
   }
+
+  // A general stored matrix seen through a triangular view.
+  {
+    DenseMat dU = makeDenseUpper();
+    DenseMat dG = makeDenseLower() + DenseMat(dU.template triangularView<StrictlyUpper>());
+    BSM G = denseToBlock<B, B, Scalar, Options, StorageIndex>(dG);
+    DenseMat b = DenseMat::Random(N, 2), x = b, y = b;
+    G.template triangularView<Lower>().solveInPlace(x);
+    VERIFY_IS_APPROX(DenseMat(dG.template triangularView<Lower>()) * x, b);
+    G.template triangularView<Upper>().transpose().solveInPlace(y);
+    VERIFY_IS_APPROX(DenseMat(dG.template triangularView<Upper>()).transpose() * y, b);
+  }
+
+  // An outer vector whose only blocks lie in the opposite triangle has no diagonal block to solve with.
+  {
+    DenseMat dL = makeDenseLower(), dU = makeDenseUpper();
+    dL.topRows(B).setZero();
+    dL.leftCols(B).setZero();
+    dL.block(0, B, B, B) = DenseMat::Random(B, B);
+    dU.topRows(B).setZero();
+    dU.leftCols(B).setZero();
+    dU.block(B, 0, B, B) = DenseMat::Random(B, B);
+    BSM L = denseToBlock<B, B, Scalar, Options, StorageIndex>(dL);
+    BSM U = denseToBlock<B, B, Scalar, Options, StorageIndex>(dU);
+    DenseMat x = DenseMat::Random(N, 2);
+    VERIFY_RAISES_ASSERT(L.template triangularView<Lower>().solveInPlace(x));
+    VERIFY_RAISES_ASSERT(U.template triangularView<Upper>().transpose().solveInPlace(x));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -642,6 +670,20 @@ void test_block_sparse_selfadjoint(int bN) {
 // ---------------------------------------------------------------------------
 // BlockTriplet type-trait checks
 // ---------------------------------------------------------------------------
+
+// In-place division of an integer matrix must divide, not multiply by the integer 1/s.
+void test_block_sparse_integer_division() {
+  using BSM = BlockSparseMatrix<int, ColMajor, 2, 2>;
+  std::vector<BSM::TripletType> trips;
+  Matrix2i b;
+  b << 4, 6, 8, 10;
+  trips.emplace_back(0, 1, b);
+  BSM A(2, 2);
+  A.setFromTriplets(trips.begin(), trips.end());
+  A /= 2;
+  VERIFY_IS_EQUAL(A.coeff(0, 2), 2);
+  VERIFY_IS_EQUAL(A.coeff(1, 3), 5);
+}
 
 void test_block_triplet_traits() {
   // Flat scalar array means BlockTriplet should be trivially copyable and
@@ -728,6 +770,7 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
   CALL_SUBTEST_18((test_block_sparse<2, 2, ColMajor, std::complex<double>>(4, 6)));
   CALL_SUBTEST_18((test_block_sparse<3, 3, ColMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse<2, 2, RowMajor, std::complex<double>>(4, 6)));
+  CALL_SUBTEST_18(test_block_sparse_integer_division());
   CALL_SUBTEST_18((test_block_sparse_dense_product<2, 2, ColMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse_dense_product<2, 2, RowMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse_transpose<2, 2, ColMajor, std::complex<double>>(4, 5)));

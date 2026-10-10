@@ -295,6 +295,33 @@ void check_noncompressed_ref_inner_vectors() {
       [](auto &xpr, auto &matrix, int variant) { verify_noncompressed_inner_vector_binding(xpr, matrix, variant); });
 }
 
+// A copied vector Ref must not keep pointing into the outer index of its source.
+void check_vector_ref_copy() {
+  using RefType = Ref<const SparseVector<double>>;
+  SparseVector<double> v(5);
+  v.insert(1) = 1;
+  v.insert(3) = 2;
+  internal::aligned_storage<sizeof(RefType), EIGEN_ALIGNOF(RefType)>::type buffer;
+  RefType *source = ::new (static_cast<void *>(&buffer)) RefType(v);
+  RefType copy(*source);
+  source->~RefType();
+  std::memset(static_cast<void *>(&buffer), 0xff, sizeof(buffer));
+  VERIFY_IS_EQUAL(copy.sum(), 3.0);
+
+  // The same holds for a copy assignment, which rebinds the target.
+  using MutRefType = Ref<SparseVector<double>>;
+  SparseVector<double> w(5);
+  w.insert(0) = 4;
+  internal::aligned_storage<sizeof(MutRefType), EIGEN_ALIGNOF(MutRefType)>::type mutBuffer;
+  MutRefType *mutSource = ::new (static_cast<void *>(&mutBuffer)) MutRefType(v);
+  MutRefType target(w);
+  target = *mutSource;
+  mutSource->~MutRefType();
+  std::memset(static_cast<void *>(&mutBuffer), 0xff, sizeof(mutBuffer));
+  VERIFY_IS_EQUAL(target.nonZeros(), 2);
+  VERIFY_IS_EQUAL(target.sum(), 3.0);
+}
+
 void call_ref() {
   SparseMatrix<float> A = MatrixXf::Random(10, 10).sparseView(0.5, 1);
   SparseMatrix<float, RowMajor> B = MatrixXf::Random(10, 10).sparseView(0.5, 1);
@@ -389,6 +416,7 @@ EIGEN_DECLARE_TEST(sparse_ref) {
     CALL_SUBTEST_4(check_noncompressed_ref_inner_vectors());
 
     CALL_SUBTEST_3(check_const_correctness(SparseVector<float>()));
+    CALL_SUBTEST_3(check_vector_ref_copy());
     CALL_SUBTEST_3(check_const_correctness(SparseVector<double, RowMajor>()));
   }
 }

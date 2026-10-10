@@ -288,8 +288,10 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   template <int OtherOptions>
   inline void swap(SparseMatrix<Scalar, OtherOptions, StorageIndex>& other) {
     eigen_assert(other.outerSize() == 1);
+    other.makeCompressed();
     std::swap(m_size, other.m_innerSize);
     m_data.swap(other.m_data);
+    other.m_outerIndex[1] = convert_index(other.m_data.size());
   }
   template <int OtherOptions>
   friend EIGEN_DEVICE_FUNC void swap(SparseVector& a, SparseMatrix<Scalar, OtherOptions, StorageIndex>& b) {

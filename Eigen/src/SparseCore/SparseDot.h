@@ -28,7 +28,7 @@ inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   eigen_assert(size() == other.size());
-  eigen_assert(other.size() > 0 && "you are using a non initialized vector");
+  if (size() == 0) return Scalar(0);
 
   internal::evaluator<Derived> thisEval(derived());
   typename internal::evaluator<Derived>::InnerIterator i(thisEval, 0);
@@ -58,6 +58,7 @@ inline typename internal::traits<Derived>::Scalar SparseMatrixBase<Derived>::dot
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
 
   eigen_assert(size() == other.size());
+  if (size() == 0) return Scalar(0);
 
   internal::evaluator<Derived> thisEval(derived());
   typename internal::evaluator<Derived>::InnerIterator i(thisEval, 0);
@@ -94,7 +95,8 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Spar
 template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real SparseMatrixBase<Derived>::blueNorm()
     const {
-  return internal::blueNorm_impl(*this);
+  // blueNorm_impl walks Derived::InnerIterator, which only storage types provide.
+  return internal::blueNorm_impl(Ref<const PlainObject>(derived()));
 }
 }  // end namespace Eigen
 

@@ -229,6 +229,18 @@ void sparse_solvers(int rows, int cols) {
       }
     }
 
+    // general row-major matrix without stored diagonal through a unit-lower view, dense rhs
+    {
+      SparseMatrix<Scalar, RowMajor> mr(rows, rows);
+      DenseMatrix refMatR = DenseMatrix::Zero(rows, rows);
+      initSparse<Scalar>(density, refMatR, mr);
+      mr.coeffRef(0, rows - 1) += Scalar(1);
+      refMatR(0, rows - 1) += Scalar(1);
+      mr.prune([](Index r, Index c, const Scalar&) { return r != c; });
+      VERIFY_IS_APPROX(refMatR.template triangularView<UnitLower>().solve(vec2),
+                       mr.template triangularView<UnitLower>().solve(vec3));
+    }
+
     // test empty triangular matrix
     {
       m2.resize(0, 0);

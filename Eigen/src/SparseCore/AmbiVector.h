@@ -249,6 +249,10 @@ Scalar_& AmbiVector<Scalar_, StorageIndex_>::coeffRef(Index i) {
       return el.value;
     } else if (i < llElements[m_llStart].index) {
       // this is going to be the new first element of the list
+      if (m_llSize >= m_allocatedElements) {
+        reallocateSparse();
+        llElements = listElements();
+      }
       ListEl& el = *constructListEl(llElements + m_llSize, convert_index(i), m_llStart);
       m_llStart = m_llSize;
       m_llCurrent = m_llStart;

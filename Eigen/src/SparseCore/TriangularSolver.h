@@ -41,7 +41,7 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Lower, RowMajor> {
         for (LhsIterator it(lhsEval, i); it; ++it) {
           lastVal = it.value();
           lastIndex = it.index();
-          if (lastIndex == i) break;
+          if (lastIndex >= i) break;
           tmp = numext::madd<Scalar>(-lastVal, other.coeff(lastIndex, col), tmp);
         }
         EIGEN_IF_CONSTEXPR (Mode & UnitDiag)
