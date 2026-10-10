@@ -254,6 +254,12 @@ void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
                                                    1.1880960220216759245467951592883642e-1L);  // quadruple precision
 
   while (true) {
+    // A nonfinite entry is likewise a fixed point, and the square roots can create one: R(i,j) divides by
+    // R(i,i) + R(j,j), which can be tiny, or zero for the roots i and -i of -1+0i and -1-0i.
+    if (!T.allFinite()) {
+      result.setConstant(T.rows(), T.rows(), NumTraits<RealScalar>::quiet_NaN());
+      return;
+    }
     RealScalar normTminusI = (T - MatrixType::Identity(T.rows(), T.rows())).cwiseAbs().colwise().sum().maxCoeff();
     if (normTminusI < maxNormForPade) {
       degree = matrix_log_get_pade_degree(normTminusI);

@@ -194,7 +194,9 @@ Use ArrayBase::log() if you want to do the latter.
 In the real case, the matrix \f$ M \f$ should be invertible and
 it should have no eigenvalues which are real and negative (pairs of
 complex conjugate eigenvalues are allowed). In the complex case, it
-only needs to be invertible.
+only needs to be invertible. In both cases its entries should be
+finite. For a singular \p M or one with an infinite or NaN entry, the
+result is not a logarithm and may have infinite or NaN entries.
 
 This function computes the matrix logarithm using the Schur-Parlett
 algorithm as implemented by MatrixBase::matrixFunction(). The
@@ -259,6 +261,10 @@ algorithm as implemented by class MatrixPower. The exponent is split
 into integral part and fractional part, where the fractional part is
 in the interval \f$ (-1, 1) \f$. The main diagonal and the first
 super-diagonal is directly computed.
+
+If \p p is infinite or NaN, the result is a matrix of NaNs, except
+for a 1-by-1 \p M, where the scalar \c pow applies. As for
+\ref matrixbase_log "log()", the entries of \p M should be finite.
 
 If \p M is singular with a semisimple zero eigenvalue and \p p is
 positive, the Schur factor \f$ T \f$ is reordered with Givens

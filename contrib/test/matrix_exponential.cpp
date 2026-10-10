@@ -139,6 +139,12 @@ void testCustomComplexScalingPath() {
   }
 }
 
+// The 1-norm of an empty matrix was the maxCoeff() of no column sums.
+void testEmptyMatrix() {
+  VERIFY_IS_EQUAL(MatrixXd(MatrixXd(0, 0).exp()).size(), 0);
+  VERIFY_IS_EQUAL(MatrixXcd(MatrixXcd(0, 0).exp()).size(), 0);
+}
+
 template <typename Scalar>
 void testAtomicTaylorConvergence() {
   using MatrixType = Matrix<Scalar, 2, 2>;
@@ -178,6 +184,7 @@ EIGEN_DECLARE_TEST(matrix_exponential) {
   CALL_SUBTEST_3((testComplexScalingPath<RowMajor>()));
   CALL_SUBTEST_3(testCustomComplexScalingPath());
   CALL_SUBTEST_4(randomTest(MatrixXd(8, 8), 384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_4(testEmptyMatrix());
   CALL_SUBTEST_1(randomTest(Matrix2f(), 384 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_5(randomTest(Matrix3cf(), 384 * NumTraits<std::complex<float>>::epsilon()));
   CALL_SUBTEST_1(randomTest(Matrix4f(), 384 * NumTraits<float>::epsilon()));

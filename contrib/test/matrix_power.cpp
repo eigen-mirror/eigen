@@ -136,6 +136,97 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   }
 }
 
+// Zero eigenvalues found below the leading 2x2 block of the Schur factor were not all split off.
+void testSingularTrailingZero() {
+  Matrix3d A;
+  A << 1, 1, 1, 0, 4, 1, 0, 0, 0;
+  Matrix3d R = A.pow(0.5);
+  VERIFY_IS_APPROX(R * R, A);
+  A << 0, 1, 1, 0, 1, 1, 0, 0, 0;  // idempotent
+  VERIFY_IS_APPROX(A.pow(0.5), A);
+}
+
+// A 2x2 base kept its zero eigenvalues in the atomic block, where a double one gave p * 0^(p-1) * 0 = NaN.
+void testSingularTwoByTwo() {
+  VERIFY(Matrix2d(Matrix2d::Zero().pow(0.5)).isZero());
+  VERIFY(Matrix2d(Matrix2d::Zero().pow(1.5)).isZero());
+  Matrix2d A;
+  A << 0, 0, 3, 2;
+  Matrix2d R = A.pow(0.5);
+  VERIFY_IS_APPROX(R * R, A);
+}
+
+// The coupling T11^(p-1) T12 of the nonsingular block T11 to the zero eigenvalues must not overflow or underflow when
+// the result does not. Forming T11^p T12 first failed for s = 1e300 and s = 1e-300, and forming T11^(p-1) first
+// failed for the tiny nonnormal T11 below.
+void testSingularExtremeScale() {
+  // The complex pow(t, p) = exp(p log t) of a diagonal entry t near 1e+-300 can lose |p log t| ~ 345 ulp.
+  const double tol = 512 * NumTraits<double>::epsilon();
+  Matrix2d A2, R2;
+  A2 << 1, 1, 0, 0;  // idempotent
+  Matrix3d A3, R3, expected;
+  A3 << 1, 1, 1, 0, 2, 1, 0, 0, 0;
+  const double r2 = std::sqrt(2.0);
+  expected << 1, 1 / (1 + r2), 1 / r2, 0, r2, 1 / r2, 0, 0, 0;  // A3^(1/2)
+  for (double s : {1e300, 1e-300}) {
+    R2 = (s * A2).pow(0.5);
+    VERIFY((R2 / std::sqrt(s)).isApprox(A2, tol));
+    R3 = (s * A3).pow(0.5);
+    VERIFY((R3 / std::sqrt(s)).isApprox(expected, tol));
+  }
+
+  // (s [[1, c, 1], [0, 1, 1], [0, 0, 0]])^p = s^p [[1, c p, 1 + c (p - 1)], [0, 1, 1], [0, 0, 0]], while
+  // T11^(p-1) has the entry s^(p-1) c (p - 1) ~ -5e308, which overflows.
+  const double s = 1e-305, c = 1e4, p = 0.001;
+  A3 << 1, c, 1, 0, 1, 1, 0, 0, 0;
+  expected << 1, c * p, 1 + c * (p - 1), 0, 1, 1, 0, 0, 0;
+  R3 = (s * A3).pow(p);
+  VERIFY((R3 / std::pow(s, p)).isApprox(expected, tol));
+}
+
+// MatrixPowerAtomic left the (1, 0) entry of a 2x2 result unset, and MatrixPower read it when it coupled a 2x2 block
+// to a zero eigenvalue, as for the first matrix of testSingularTrailingZero().
+void testAtomicTwoByTwoLowerPart() {
+  Matrix2d T, expected, res = Matrix2d::Constant(std::numeric_limits<double>::quiet_NaN());
+  T << 4, 1, 0, 9;
+  expected << 2, 0.2, 0, 3;
+  Block<Matrix2d, Dynamic, Dynamic> block(res, 0, 0, 2, 2);
+  MatrixPowerAtomic<Matrix2d>(T, 0.5).compute(block);
+  VERIFY_IS_APPROX(res, expected);
+}
+
+// MatrixPower::compute() did not size the result for 0x0 and 1x1 bases.
+void testComputeResultSize() {
+  MatrixXd a = MatrixXd::Constant(1, 1, 4), r;
+  MatrixPower<MatrixXd>(a).compute(r, 0.5);
+  VERIFY_IS_APPROX(r, MatrixXd::Constant(1, 1, 2));
+  MatrixXd empty(0, 0);
+  r.setOnes(2, 2);
+  MatrixPower<MatrixXd>(empty).compute(r, 0.5);
+  VERIFY_IS_EQUAL(r.size(), 0);
+}
+
+// An infinite entry used to hang the square-rooting loop for atomic blocks larger than 2x2.
+void testInfiniteEntry() {
+  Matrix3d a = Matrix3d::Identity();
+  a(0, 2) = std::numeric_limits<double>::infinity();
+  VERIFY(a.pow(0.5).array().isNaN().all());
+
+  // So did an infinite entry created by the loop: the first square root divides b(0, 1) by 2 sqrt(b(0, 0)) = 2e-10,
+  // which overflows, as the (0, 1) entry of the result does.
+  Matrix3d b;
+  b << 1e-20, 1e300, 0, 0, 1e-20, 1, 0, 0, 1e-20;
+  VERIFY(b.pow(0.5).array().isNaN().all());
+}
+
+// A nonfinite exponent used to hang the binary powering of the integral part.
+void testNonFiniteExponent() {
+  Matrix3d a;
+  a << 1, 2, 3, 4, 5, 6, 7, 8, 10;
+  VERIFY(a.pow(std::numeric_limits<double>::quiet_NaN()).array().isNaN().all());
+  VERIFY(a.pow(std::numeric_limits<double>::infinity()).array().isNaN().all());
+}
+
 template <typename MatrixType>
 void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealScalar& tol) {
   // we need to pass by reference in order to prevent errors with
@@ -196,12 +287,19 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
   CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 128 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_4(testComputeResultSize());
   CALL_SUBTEST_1(testSingular(Matrix2f(), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_5(testSingular(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
   CALL_SUBTEST_8(testSingular(Matrix4f(), 256 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_10(testSingularTrailingZero());
+  CALL_SUBTEST_10(testSingularTwoByTwo());
+  CALL_SUBTEST_10(testSingularExtremeScale());
+  CALL_SUBTEST_10(testAtomicTwoByTwoLowerPart());
+  CALL_SUBTEST_10(testInfiniteEntry());
+  CALL_SUBTEST_10(testNonFiniteExponent());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 

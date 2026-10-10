@@ -172,7 +172,7 @@ void matrix_function_compute_cluster_size(const ListOfClusters& clusters, Matrix
 template <typename VectorType>
 void matrix_function_compute_block_start(const VectorType& clusterSize, VectorType& blockStart) {
   blockStart.resize(clusterSize.rows());
-  blockStart(0) = 0;
+  if (clusterSize.rows() > 0) blockStart(0) = 0;
   for (Index i = 1; i < clusterSize.rows(); i++) {
     blockStart(i) = blockStart(i - 1) + clusterSize(i - 1);
   }

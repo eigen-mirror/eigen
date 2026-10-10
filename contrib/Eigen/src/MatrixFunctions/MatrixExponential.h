@@ -219,7 +219,7 @@ struct matrix_exp_computeUV<MatrixType, float> {
   static void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
     using std::frexp;
     using std::pow;
-    const float l1norm = arg.cwiseAbs().colwise().sum().maxCoeff();
+    const float l1norm = arg.cwiseAbs().colwise().sum().template lpNorm<Infinity>();
     squarings = 0;
     if (l1norm < 4.258730016922831e-001f) {
       matrix_exp_pade3(arg, U, V);
@@ -241,7 +241,7 @@ struct matrix_exp_computeUV<MatrixType, double> {
   static void run(const ArgType& arg, MatrixType& U, MatrixType& V, int& squarings) {
     using std::frexp;
     using std::pow;
-    const double l1norm = arg.cwiseAbs().colwise().sum().maxCoeff();
+    const double l1norm = arg.cwiseAbs().colwise().sum().template lpNorm<Infinity>();
     squarings = 0;
     if (l1norm < 1.495585217958292e-002) {
       matrix_exp_pade3(arg, U, V);
@@ -272,7 +272,7 @@ struct matrix_exp_computeUV<MatrixType, long double> {
 
     using std::frexp;
     using std::pow;
-    const long double l1norm = arg.cwiseAbs().colwise().sum().maxCoeff();
+    const long double l1norm = arg.cwiseAbs().colwise().sum().template lpNorm<Infinity>();
     squarings = 0;
 
 #if LDBL_MANT_DIG <= 64  // extended precision

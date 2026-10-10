@@ -150,6 +150,7 @@ void MatrixPowerAtomic<MatrixType>::compute(ResultType& res) const {
       break;
     case 2:
       compute2x2(res, m_p);
+      res.coeffRef(1, 0) = Scalar(0);
       break;
     default:
       computeBig(res);
@@ -215,6 +216,12 @@ void MatrixPowerAtomic<MatrixType>::computeBig(ResultType& res) const {
   for (Index i = 0; i < m_A.cols(); ++i) eigen_assert(m_A(i, i) != RealScalar(0));
 
   while (true) {
+    // A nonfinite entry is a fixed point of the square roots, which can also create one: R(i,j) divides by
+    // R(i,i) + R(j,j), which can be tiny, or zero for the roots i and -i of -1+0i and -1-0i.
+    if (!T.allFinite()) {
+      res.setConstant(Scalar(NumTraits<RealScalar>::quiet_NaN()));
+      return;
+    }
     IminusT = MatrixType::Identity(m_A.rows(), m_A.cols()) - T;
     normIminusT = IminusT.cwiseAbs().colwise().sum().maxCoeff();
     if (normIminusT < maxNormForPade) {
@@ -455,11 +462,18 @@ void MatrixPower<MatrixType>::compute(ResultType& res, RealScalar p) {
   using std::pow;
   switch (cols()) {
     case 0:
+      res.resize(0, 0);
       break;
     case 1:
+      res.resize(1, 1);
       res(0, 0) = pow(m_A.coeff(0, 0), p);
       break;
     default:
+      // The binary powering in computeIntPower() never terminates for a nonfinite exponent.
+      if (!(numext::isfinite)(p)) {
+        res = MatrixType::Constant(rows(), cols(), Scalar(NumTraits<RealScalar>::quiet_NaN()));
+        break;
+      }
       RealScalar intpart;
       split(p, intpart);
 
@@ -501,7 +515,6 @@ void MatrixPower<MatrixType>::initialize() {
 
   // Move zero eigenvalues to the bottom right corner.
   for (Index i = cols() - 1; i >= 0; --i) {
-    if (m_rank <= 2) return;
     if (m_T.coeff(i, i) == RealScalar(0)) {
       for (Index j = i + 1; j < m_rank; ++j) {
         eigenvalue = m_T.coeff(j, j);
@@ -552,10 +565,16 @@ void MatrixPower<MatrixType>::computeFracPower(ResultType& res, RealScalar p) {
   eigen_assert(m_rank + m_nulls == rows());
 
   MatrixPowerAtomic<ComplexMatrix>(m_T.topLeftCorner(m_rank, m_rank), p).compute(blockTp);
-  if (m_nulls) {
-    m_fT.topRightCorner(m_rank, m_nulls) = m_T.topLeftCorner(m_rank, m_rank)
-                                               .template triangularView<Upper>()
-                                               .solve(blockTp * m_T.topRightCorner(m_rank, m_nulls));
+  if (m_nulls && m_rank) {
+    // T^p = [T11^p, T11^(p-1) T12; 0, 0]. With s = min |diag(T11)|, form (s^(1-p) T11^p) T11^(-1) = (T11 / s)^(p-1),
+    // which does not depend on the scale of T, multiply by T12, and divide by s^(1-p) last: T11^p T12 or T11^(p-1)
+    // itself can overflow or underflow when the result does not.
+    using std::pow;
+    const RealScalar scale = pow(m_T.diagonal().head(m_rank).cwiseAbs().minCoeff(), 1 - p);
+    m_fT.topRightCorner(m_rank, m_nulls).noalias() =
+        m_T.topLeftCorner(m_rank, m_rank).template triangularView<Upper>().template solve<OnTheRight>(scale * blockTp) *
+        m_T.topRightCorner(m_rank, m_nulls);
+    m_fT.topRightCorner(m_rank, m_nulls) /= scale;
   }
   revertSchur(m_tmp, m_fT, m_U);
   res = m_tmp * res;

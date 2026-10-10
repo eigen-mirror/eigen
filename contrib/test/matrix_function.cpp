@@ -205,6 +205,26 @@ void testMatrixLogarithmSingular() {
   // in matrix_log_compute_big(). The implementation now returns NaN.
   MatrixType A = MatrixType::Zero(5, 5);
   VERIFY(A.log().array().isNaN().all());
+  // An infinite entry of an atomic block also used to hang that loop.
+  A.setIdentity();
+  A(0, 4) = std::numeric_limits<typename MatrixType::RealScalar>::infinity();
+  VERIFY(A.log().array().isNaN().all());
+}
+
+// The loop could also create an infinite entry: the first square root divides A(0, 1) by 2 sqrt(A(0, 0)) = 2e-10,
+// which overflows, as log(A)(0, 1) = A(0, 1) / A(0, 0) does. The three eigenvalues form one atomic block.
+void testMatrixLogarithmSquareRootOverflow() {
+  MatrixXd A(3, 3);
+  A << 1e-20, 1e300, 0, 0, 1e-20, 1, 0, 0, 1e-20;
+  VERIFY(MatrixXd(A.log()).array().isNaN().all());
+}
+
+// An empty matrix has no eigenvalue clusters, but the start of the first block was written anyway.
+template <typename MatrixType>
+void testEmptyMatrix() {
+  const MatrixType A(0, 0);
+  VERIFY_IS_EQUAL(MatrixType(A.sin()).size(), 0);
+  VERIFY_IS_EQUAL(MatrixType(A.log()).size(), 0);
 }
 
 EIGEN_DECLARE_TEST(matrix_function) {
@@ -223,4 +243,7 @@ EIGEN_DECLARE_TEST(matrix_function) {
 
   CALL_SUBTEST_3(testMatrixLogarithmSingular<MatrixXf>());
   CALL_SUBTEST_7(testMatrixLogarithmSingular<MatrixXd>());
+  CALL_SUBTEST_7(testMatrixLogarithmSquareRootOverflow());
+  CALL_SUBTEST_3(testEmptyMatrix<MatrixXf>());
+  CALL_SUBTEST_7(testEmptyMatrix<MatrixXcd>());
 }
