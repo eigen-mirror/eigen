@@ -528,7 +528,7 @@ EIGEN_STRONG_INLINE Packet16c pcast<Packet4ui, Packet16c>(const Packet4ui& a, co
 
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2l, Packet4f>(const Packet2l& a, const Packet2l& b) {
-  return __lsx_vfcvt_s_d(__lsx_vffint_d_l(b), __lsx_vffint_d_l(a));
+  return __lsx_vffint_s_l(b, a);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i pcast<Packet2l, Packet4i>(const Packet2l& a, const Packet2l& b) {
@@ -569,9 +569,18 @@ EIGEN_STRONG_INLINE Packet16uc pcast<Packet2l, Packet16uc>(const Packet2l& a, co
   return __lsx_vpickev_b((__m128i)efgh, (__m128i)abcd);
 }
 
+// There is no unsigned vffint.s.lu, and uint64 -> double -> float rounds twice, which can differ from rounding once.
+// Rounding u to odd on the multiples of 2^11 where u >= 2^53 makes the conversion to double exact and leaves the
+// rounding to float unchanged.
+EIGEN_STRONG_INLINE Packet2d uint64_to_double_round_to_odd(const Packet2ul& a) {
+  const Packet2ul low = pset1<Packet2ul>(0x7ff);
+  const Packet2ul sticky = pandnot(pset1<Packet2ul>(0x800), pcmp_eq(pand(a, low), pzero(a)));
+  const Packet2ul odd = por(pandnot(a, low), sticky);
+  return __lsx_vffint_d_lu(pselect(pcmp_le(pset1<Packet2ul>(uint64_t(1) << 53), a), odd, a));
+}
 template <>
 EIGEN_STRONG_INLINE Packet4f pcast<Packet2ul, Packet4f>(const Packet2ul& a, const Packet2ul& b) {
-  return __lsx_vfcvt_s_d(__lsx_vffint_d_lu(b), __lsx_vffint_d_lu(a));
+  return __lsx_vfcvt_s_d(uint64_to_double_round_to_odd(b), uint64_to_double_round_to_odd(a));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui pcast<Packet2ul, Packet4ui>(const Packet2ul& a, const Packet2ul& b) {

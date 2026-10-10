@@ -2012,6 +2012,12 @@ void packetmath_notcomplex() {
   for (int i = 0; i < PacketSize; ++i) ref[i] = data1[0] + Scalar(i);
   internal::pstore(data2, internal::plset<Packet>(data1[0]));
   VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset");
+  if (NumTraits<Scalar>::IsInteger && NumTraits<Scalar>::IsSigned) {
+    // The carry out of the low 32 bits must reach the high bits of 64-bit lanes.
+    for (int i = 0; i < PacketSize; ++i) ref[i] = Scalar(-1) + Scalar(i);
+    internal::pstore(data2, internal::plset<Packet>(Scalar(-1)));
+    VERIFY(test::areApprox(ref, data2, PacketSize) && "internal::plset(-1)");
+  }
 
   {
     unsigned char* data1_bits = reinterpret_cast<unsigned char*>(data1);
@@ -2416,6 +2422,35 @@ void packetmath_complex() {
         CHECK_CWISE1_IM1ULP_N(std::log, internal::plog, 4);
       }
     }
+    // |z|^2 overflows or underflows while log|z| is finite.
+    const RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(4);
+    const RealScalar tiny = numext::sqrt((std::numeric_limits<RealScalar>::min)()) / RealScalar(4);
+    data1[0] = Scalar(big, one);
+    data1[1] = Scalar(-big, big);
+    data1[2] = Scalar(tiny, zero);
+    data1[3] = Scalar(tiny, -tiny);
+    CHECK_CWISE1_N(std::log, internal::plog, 4);
+    // |z| itself overflows, or rounds to a subnormal and loses its factor sqrt(2). libc++'s std::log takes
+    // log(abs(z)) and fails the same way, so the reference is log|(r, r)| = log(r) + log(2) / 2.
+    const RealScalar highest = NumTraits<RealScalar>::highest();
+#if EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    const RealScalar smallest = highest;
+#else
+    const RealScalar smallest = std::numeric_limits<RealScalar>::denorm_min();
+#endif
+    const RealScalar half_ln2 = RealScalar(EIGEN_LN2) / RealScalar(2);
+    const RealScalar quarter_pi = RealScalar(EIGEN_PI) / RealScalar(4);
+    data1[0] = Scalar(highest, highest);
+    data1[1] = Scalar(-highest, -highest);
+    data1[2] = Scalar(smallest, smallest);
+    data1[3] = Scalar(-smallest, smallest);
+    ref[0] = Scalar(numext::log(highest) + half_ln2, quarter_pi);
+    ref[1] = Scalar(numext::log(highest) + half_ln2, RealScalar(-3) * quarter_pi);
+    ref[2] = Scalar(numext::log(smallest) + half_ln2, quarter_pi);
+    ref[3] = Scalar(numext::log(smallest) + half_ln2, RealScalar(3) * quarter_pi);
+    for (int j = 0; j < 4; j += PacketSize)
+      internal::pstore(data2 + j, internal::plog(internal::pload<Packet>(data1 + j)));
+    VERIFY(test::areApprox(ref, data2, 4) && "internal::plog");
     // Set reference results to nan.
     // Some architectures don't handle IEEE edge cases correctly
     ref[0] = Scalar(nan, nan);

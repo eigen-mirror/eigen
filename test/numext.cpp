@@ -375,6 +375,27 @@ void check_complex_sign() {
   }
 }
 
+// numext::log(z) where |z| overflows or rounds to a subnormal although log|z| is finite.
+template <typename T>
+void check_complex_log() {
+  using Complex = std::complex<T>;
+  const T highest = (std::numeric_limits<T>::max)();
+  const T denorm_min = std::numeric_limits<T>::denorm_min();
+  const T half_ln2 = T(EIGEN_LN2) / T(2);
+  const T tol = T(4) * NumTraits<T>::epsilon();
+
+  for (const T r : {highest, denorm_min}) {
+    const T ref = numext::log(r) + half_ln2;
+    const Complex z = numext::log(Complex(r, -r));
+    VERIFY(numext::abs(z.real() - ref) <= tol * numext::abs(ref));
+    VERIFY_IS_APPROX(z.imag(), -T(EIGEN_PI) / T(4));
+  }
+  VERIFY_IS_EQUAL(numext::log(Complex(denorm_min, T(0))).real(), numext::log(denorm_min));
+  VERIFY_IS_EQUAL(numext::log(Complex(T(0), T(0))).real(), -std::numeric_limits<T>::infinity());
+  VERIFY_IS_EQUAL(numext::log(Complex(std::numeric_limits<T>::infinity(), highest)).real(),
+                  std::numeric_limits<T>::infinity());
+}
+
 // The FMA implementation must retain the product's rounding error even when scalar madd is unfused.
 template <typename T>
 void check_twoprod_pair(const T& x, const T& y) {
@@ -913,6 +934,9 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST(check_complex_sign<std::complex<float>>());
     CALL_SUBTEST(check_complex_sign<std::complex<double>>());
+
+    CALL_SUBTEST(check_complex_log<float>());
+    CALL_SUBTEST(check_complex_log<double>());
 
     CALL_SUBTEST(check_twoprod<float>());
     CALL_SUBTEST(check_twoprod<double>());

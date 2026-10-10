@@ -69,6 +69,13 @@ void test_conversion() {
   VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(0.5f * (val1 + val2)), 0x3c00);
   VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(0.5f * (val2 + val3)), 0x3c02);
 
+  // A double rounds once: just above the midpoint 1 + 2^-8 it rounds up, although its float rounding is the midpoint.
+  VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(1.0 + std::ldexp(1.0, -8) + std::ldexp(1.0, -40)), 0x3f81);
+  VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(-(1.0 + std::ldexp(1.0, -7) + std::ldexp(1.0, -8) - std::ldexp(1.0, -40))),
+                             0xbf81);
+  VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(std::complex<double>(1.0 + std::ldexp(1.0, -8) + std::ldexp(1.0, -40), 0.0)),
+                             0x3f81);
+
   // Conversion from int.
   VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(-1), 0xbf80);
   VERIFY_BFLOAT16_BITS_EQUAL(bfloat16(0), 0x0000);

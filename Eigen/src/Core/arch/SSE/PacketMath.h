@@ -479,7 +479,7 @@ EIGEN_STRONG_INLINE Packet2d plset<Packet2d>(const double& a) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet2l plset<Packet2l>(const int64_t& a) {
-  return _mm_add_epi32(pset1<Packet2l>(a), _mm_set_epi64x(1, 0));
+  return _mm_add_epi64(pset1<Packet2l>(a), _mm_set_epi64x(1, 0));
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i plset<Packet4i>(const int& a) {

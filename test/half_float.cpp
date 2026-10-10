@@ -105,6 +105,17 @@ void test_conversion() {
   VERIFY(static_cast<bool>(half(1.0)));
   VERIFY(static_cast<bool>(half(-1.0)));
   VERIFY(static_cast<bool>(half(-5.96046e-08f)));
+
+  // A double rounds to half once: just above the midpoint 1 + 2^-11 it rounds up, although its float rounding is
+  // the midpoint itself, which ties down. The same holds below the midpoint and for tiny values.
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(1.0 + std::ldexp(1.0, -11) + std::ldexp(1.0, -40))), 0x3c01);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(
+                      half(-(1.0 + std::ldexp(1.0, -10) + std::ldexp(1.0, -11) - std::ldexp(1.0, -40)))),
+                  0xbc01);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(std::ldexp(1.0, -25) + std::ldexp(1.0, -60))), 0x0001);
+  VERIFY_IS_EQUAL(
+      numext::bit_cast<numext::uint16_t>(half(std::complex<double>(std::ldexp(1.0, -25) + std::ldexp(1.0, -60)))),
+      0x0001);
 }
 
 void test_numtraits() {

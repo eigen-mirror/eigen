@@ -60,17 +60,34 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Pa
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x) {
   using RealPacket = typename unpacket_traits<Packet>::as_real;
+  using RealScalar = typename unpacket_traits<RealPacket>::type;
 
-  // Real part
+  // Real part. phypot_complex squares the components, which neither overflows nor loses accuracy to underflow for
+  // M = max(|a|, |b|) in [lo, hi] = [sqrt(min / eps), sqrt(highest) / 2]. Elements with M > hi are scaled by 2^-k with
+  // k = max_exponent / 2 + 2, and those with M < lo by 2^-k with k = -(3 digits - min_exponent - 1) / 2; both are exact
+  // and land M in [lo, hi]. Then log|x| = log|x * 2^-k| + k log(2).
   RealPacket x_flip = pcplxflip(x).v;  // b, a
-  Packet x_norm = phypot_complex(x);   // sqrt(a^2 + b^2), sqrt(a^2 + b^2)
-  RealPacket xlogr = plog(x_norm.v);   // log(sqrt(a^2 + b^2)), log(sqrt(a^2 + b^2))
+  RealPacket x_abs = pabs(x.v);
+  const RealPacket x_max = pmax(x_abs, pcplxflip(Packet(x_abs)).v);
+  const RealScalar lo = numext::sqrt((numext::numeric_limits<RealScalar>::min)() / NumTraits<RealScalar>::epsilon());
+  const RealScalar hi = numext::sqrt(NumTraits<RealScalar>::highest()) / RealScalar(2);
+  const RealPacket is_large = pcmp_lt(pset1<RealPacket>(hi), x_max);
+  const RealPacket is_small = pcmp_lt(x_max, pset1<RealPacket>(lo));
+  const RealPacket k_large = pset1<RealPacket>(RealScalar(NumTraits<RealScalar>::max_exponent() / 2 + 2));
+  const RealPacket k_small = pset1<RealPacket>(
+      RealScalar(-((3 * NumTraits<RealScalar>::digits() - NumTraits<RealScalar>::min_exponent() - 1) / 2)));
+  const RealPacket cst_one = pset1<RealPacket>(RealScalar(1));
+  const RealPacket k = pselect(is_large, k_large, pand(is_small, k_small));
+  const RealPacket scale = pselect(is_large, pldexp_fast(cst_one, pnegate(k_large)),
+                                   pselect(is_small, pldexp_fast(cst_one, pnegate(k_small)), cst_one));
+  // log(sqrt(a^2 + b^2)), log(sqrt(a^2 + b^2))
+  const RealPacket xlogr =
+      pmadd(k, pset1<RealPacket>(RealScalar(EIGEN_LN2)), plog(phypot_complex(Packet(pmul(x.v, scale))).v));
 
   // Imag part
   RealPacket ximg = patan2(x.v, x_flip);  // atan2(a, b), atan2(b, a)
 
   const RealPacket cst_pos_inf = pinf<RealPacket>();
-  RealPacket x_abs = pabs(x.v);
   RealPacket is_x_pos_inf = pcmp_eq(x_abs, cst_pos_inf);
   RealPacket is_y_pos_inf = pcplxflip(Packet(is_x_pos_inf)).v;
   RealPacket is_any_inf = por(is_x_pos_inf, is_y_pos_inf);

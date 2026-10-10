@@ -169,6 +169,23 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff);
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h);
 
+// Narrowing a wider floating-point value through float rounds twice. Rounding to odd in the first step keeps the
+// second rounding, to a format at least two bits narrower than float, correct.
+template <typename T>
+EIGEN_DEVICE_FUNC inline std::enable_if_t<std::is_floating_point<T>::value && (sizeof(T) > sizeof(float)), float>
+narrow_to_float(const T& val) {
+  const float f = static_cast<float>(val);
+  if (static_cast<T>(f) == val || (numext::isnan)(val)) return f;
+  // Inexact: truncate toward zero, then set the last bit.
+  const bool away = numext::abs(static_cast<T>(f)) > numext::abs(val);
+  return numext::bit_cast<float>((numext::bit_cast<numext::uint32_t>(f) - (away ? 1u : 0u)) | 1u);
+}
+template <typename T>
+EIGEN_DEVICE_FUNC inline std::enable_if_t<!(std::is_floating_point<T>::value && (sizeof(T) > sizeof(float))), float>
+narrow_to_float(const T& val) {
+  return static_cast<float>(val);
+}
+
 struct half_base : public __half_raw {
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR half_base() {}
   EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR half_base(const __half_raw& h) : __half_raw(h) {}
@@ -232,14 +249,14 @@ struct half : public half_impl::half_base {
       : half_impl::half_base(half_impl::raw_uint16_to_half(b ? 0x3c00 : 0)) {}
   template <class T>
   explicit EIGEN_DEVICE_FUNC half(T val)
-      : half_impl::half_base(half_impl::float_to_half_rtne(static_cast<float>(val))) {}
+      : half_impl::half_base(half_impl::float_to_half_rtne(half_impl::narrow_to_float(val))) {}
   explicit EIGEN_DEVICE_FUNC half(float f) : half_impl::half_base(half_impl::float_to_half_rtne(f)) {}
 
   // Following the convention of numpy, converting between complex and
   // float will lead to loss of imag value.
   template <typename RealScalar>
   explicit EIGEN_DEVICE_FUNC half(std::complex<RealScalar> c)
-      : half_impl::half_base(half_impl::float_to_half_rtne(static_cast<float>(c.real()))) {}
+      : half_impl::half_base(half_impl::float_to_half_rtne(half_impl::narrow_to_float(c.real()))) {}
 
   EIGEN_DEVICE_FUNC operator float() const {  // NOLINT: Allow implicit conversion to float, because it is lossless.
     return half_impl::half_to_float(*this);

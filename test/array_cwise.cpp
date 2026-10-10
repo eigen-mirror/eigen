@@ -1460,6 +1460,59 @@ void cast_test() {
                   uint32_t, uint64_t, float, double, /*long double, */ half, bfloat16>::run();
 }
 
+// Floating-point to integer casts truncate toward zero at every packet width.
+template <typename SrcType, int Size>
+void cast_truncation_test() {
+  const Array<SrcType, Size, 1> src = Array<SrcType, Size, 1>::LinSpaced(SrcType(-3.75), SrcType(3.75));
+  const Array<int, Size, 1> dst = src.template cast<int>();
+  for (Index k = 0; k < Size; ++k) VERIFY_IS_EQUAL(dst(k), static_cast<int>(src(k)));
+}
+
+// cast_test compares approximately. A 64-bit integer must round to float once: 2^60 + 2^36 + 1 rounds up, but
+// rounding through double first lands on the midpoint 2^60 + 2^36, which ties down to 2^60.
+template <typename = void>
+void int64_to_float_cast_test() {
+  const int64_t big = (int64_t(1) << 60) + (int64_t(1) << 36) + 1;
+  const ArrayX<int64_t> a =
+      ArrayX<int64_t>::LinSpaced(17, 0, 16).unaryExpr([&](int64_t i) { return i % 2 ? big : -big; });
+  const ArrayXf f = a.cast<float>(), g = a.abs().cast<uint64_t>().cast<float>();
+  // 2^60 + 2^37, spelled exactly: MSVC folds a constant int64-to-float conversion through double.
+  const float rounded = std::ldexp(1.f + std::ldexp(1.f, -23), 60);
+  for (Index i = 0; i < a.size(); ++i) {
+    VERIFY_IS_EQUAL(f(i), i % 2 ? rounded : -rounded);
+    VERIFY_IS_EQUAL(g(i), rounded);
+  }
+}
+
+// Float midpoints 2^e + (k + 1/2) ulp, offset in the low 12 bits, on both sides of 2^53. The reference converts behind
+// a barrier, which keeps the compiler from vectorizing it: Clang before 21 does that through double on AArch64.
+template <typename T>
+void int64_to_float_midpoint_cast_test() {
+  using U = std::make_unsigned_t<T>;
+  std::vector<T> values = {T((U(1) << 53) - 1), T(U(1) << 53), T((U(1) << 53) + 1), NumTraits<T>::highest()};
+  for (int e = 24; e < (std::is_signed<T>::value ? 63 : 64); ++e) {
+    for (U k = 0; k < 2; ++k) {
+      const U mid = (U(1) << e) + (k << (e - 23)) + (U(1) << (e - 24));
+      for (U s : {U(0), U(1), U(0x7ff), U(0x800), U(0x801)}) {
+        values.push_back(T(mid + s));
+        values.push_back(T(mid - s));
+      }
+    }
+  }
+  const size_t count = values.size();
+  if (std::is_signed<T>::value) {
+    for (size_t i = 0; i < count; ++i) values.push_back(T(-values[i]));
+    values.push_back(NumTraits<T>::lowest());
+  }
+  const ArrayX<T> a = Map<const ArrayX<T>>(values.data(), Index(values.size()));
+  const ArrayXf f = a.template cast<float>();
+  for (Index i = 0; i < a.size(); ++i) {
+    T x = a(i);
+    EIGEN_OPTIMIZATION_BARRIER(x);
+    VERIFY_IS_EQUAL(f(i), static_cast<float>(x));
+  }
+}
+
 template <typename = void>
 void bool_logical_ops() {
   const Index size = 67;
@@ -1631,6 +1684,13 @@ EIGEN_DECLARE_TEST(array_cwise) {
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_28((cast_test<1, 1>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 4>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 8>()));
+    CALL_SUBTEST_28((cast_truncation_test<double, 16>()));
+    CALL_SUBTEST_28((cast_truncation_test<float, 16>()));
+    CALL_SUBTEST_28(int64_to_float_cast_test<>());
+    CALL_SUBTEST_28(int64_to_float_midpoint_cast_test<int64_t>());
+    CALL_SUBTEST_28(int64_to_float_midpoint_cast_test<uint64_t>());
     CALL_SUBTEST_29((cast_test<3, 1>()));
     CALL_SUBTEST_30((cast_test<5, 1>()));
     CALL_SUBTEST_31((cast_test<9, 1>()));

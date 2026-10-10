@@ -82,9 +82,7 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet8h, Packet4f>(const Packet8h& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet32h pcast<Packet16f, Packet32h>(const Packet16f& a, const Packet16f& b) {
-  __m512 result = _mm512_castsi512_ps(_mm512_castsi256_si512(_mm256_castph_si256(_mm512_cvtxps_ph(a))));
-  result = _mm512_insertf32x8(result, _mm256_castph_ps(_mm512_cvtxps_ph(b)), 1);
-  return _mm512_castps_ph(result);
+  return _mm512_castps_ph(cat256(_mm256_castph_ps(_mm512_cvtxps_ph(a)), _mm256_castph_ps(_mm512_cvtxps_ph(b))));
 }
 template <>
 EIGEN_STRONG_INLINE Packet16h pcast<Packet8f, Packet16h>(const Packet8f& a, const Packet8f& b) {

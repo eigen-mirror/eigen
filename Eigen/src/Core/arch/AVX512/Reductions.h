@@ -118,15 +118,15 @@ EIGEN_STRONG_INLINE float predux_min(const Packet16f& a) {
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNumbers>(const Packet16f& a) {
-  Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
-  Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
+  Packet8f lane0 = extract256<0>(a);
+  Packet8f lane1 = extract256<1>(a);
   return predux_min<PropagateNumbers>(pmin<PropagateNumbers>(lane0, lane1));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_min<PropagateNaN>(const Packet16f& a) {
-  Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
-  Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
+  Packet8f lane0 = extract256<0>(a);
+  Packet8f lane1 = extract256<1>(a);
   return predux_min<PropagateNaN>(pmin<PropagateNaN>(lane0, lane1));
 }
 
@@ -137,15 +137,15 @@ EIGEN_STRONG_INLINE float predux_max(const Packet16f& a) {
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNumbers>(const Packet16f& a) {
-  Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
-  Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
+  Packet8f lane0 = extract256<0>(a);
+  Packet8f lane1 = extract256<1>(a);
   return predux_max<PropagateNumbers>(pmax<PropagateNumbers>(lane0, lane1));
 }
 
 template <>
 EIGEN_STRONG_INLINE float predux_max<PropagateNaN>(const Packet16f& a) {
-  Packet8f lane0 = _mm512_extractf32x8_ps(a, 0);
-  Packet8f lane1 = _mm512_extractf32x8_ps(a, 1);
+  Packet8f lane0 = extract256<0>(a);
+  Packet8f lane1 = extract256<1>(a);
   return predux_max<PropagateNaN>(pmax<PropagateNaN>(lane0, lane1));
 }
 
