@@ -725,11 +725,12 @@ typename SuperLU<MatrixType>::Scalar SuperLU<MatrixType>::determinant() const {
 
   Scalar det = Scalar(1);
   for (int j = 0; j < m_u.cols(); ++j) {
-    if (m_u.outerIndexPtr()[j + 1] - m_u.outerIndexPtr()[j] > 0) {
-      int lastId = m_u.outerIndexPtr()[j + 1] - 1;
-      eigen_assert(m_u.innerIndexPtr()[lastId] <= j);
-      if (m_u.innerIndexPtr()[lastId] == j) det *= m_u.valuePtr()[lastId];
-    }
+    // extractData() drops exact zeros, so a missing diagonal entry is a zero pivot.
+    if (m_u.outerIndexPtr()[j + 1] - m_u.outerIndexPtr()[j] == 0) return Scalar(0);
+    int lastId = m_u.outerIndexPtr()[j + 1] - 1;
+    eigen_assert(m_u.innerIndexPtr()[lastId] <= j);
+    if (m_u.innerIndexPtr()[lastId] != j) return Scalar(0);
+    det *= m_u.valuePtr()[lastId];
   }
   if (PermutationMap(m_p.data(), m_p.size()).determinant() * PermutationMap(m_q.data(), m_q.size()).determinant() < 0)
     det = -det;

@@ -33,8 +33,20 @@ void test_bicgstabl_solve_with_guess_restart() {
   test_bicgstabl_T<double>();
 }
 
+// A zero right-hand side is solved by x = 0 without iterating; iterations() used to report the cap.
+void test_zero_rhs() {
+  SparseMatrix<double> A(4, 4);
+  for (Index i = 0; i < 4; ++i) A.insert(i, i) = 2.0;
+  BiCGSTABL<SparseMatrix<double> > solver(A);
+  VectorXd x = solver.solve(VectorXd::Zero(4));
+  VERIFY(x.isZero());
+  VERIFY_IS_EQUAL(solver.iterations(), Index(0));
+  VERIFY_IS_EQUAL(solver.error(), 0.0);
+}
+
 EIGEN_DECLARE_TEST(bicgstabl) {
   CALL_SUBTEST_1(test_bicgstabl_T<double>());
   CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
   CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart<>());
+  CALL_SUBTEST_3(test_zero_rhs());
 }

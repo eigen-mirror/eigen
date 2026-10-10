@@ -92,6 +92,7 @@ bool bicgstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Preconditio
   if (normb == RealScalar(0)) {
     x.setZero();
     iters = 0;
+    tol_error = 0;
     return true;
   }
   RealScalar normr = rHat.col(0).stableNorm();

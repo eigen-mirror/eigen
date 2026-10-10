@@ -172,7 +172,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       if (smoothing) {
         t = r_s - r;
         // gamma is a Scalar, but the conversion is not allowed
-        Scalar gamma = t.dot(r_s) / t.stableNorm();
+        Scalar gamma = t.dot(r_s) / t.squaredNorm();
         r_s = r_s - gamma * t;
         x_s = x_s - gamma * (x_s - x);
         normr = r_s.stableNorm();
@@ -225,7 +225,7 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
     // Smoothing:
     if (smoothing) {
       t = r_s - r;
-      Scalar gamma = t.dot(r_s) / t.stableNorm();
+      Scalar gamma = t.dot(r_s) / t.squaredNorm();
       r_s = r_s - gamma * t;
       x_s = x_s - gamma * (x_s - x);
       normr = r_s.stableNorm();

@@ -46,6 +46,8 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
   RealScalar rhs_norm = rhs.stableNorm();
   if (rhs_norm == 0) {
     x.setZero();
+    iters = 0;
+    tol_error = 0;
     return true;
   }
 

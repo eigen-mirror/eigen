@@ -455,7 +455,7 @@ void IncompleteLUT<Scalar, StorageIndex>::factorize(const MatrixType_& amat) {
   u.fill(0);
 
   // number of largest elements to keep in each row:
-  Index fill_in = (amat.nonZeros() * m_fillfactor) / n + 1;
+  Index fill_in = (amat.nonZeros() * m_fillfactor) / numext::maxi(n, Index(1)) + 1;
   if (fill_in > n) fill_in = n;
 
   // number of largest nonzero elements to keep in the L and the U part of the current row:

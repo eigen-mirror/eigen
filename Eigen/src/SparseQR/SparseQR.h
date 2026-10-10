@@ -481,7 +481,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
   m_pivotperm.setIdentity(n);
 
   StorageIndex nonzeroCol = 0;  // Record the number of valid pivots
-  m_Q.startVec(0);
+  if (diagSize > 0) m_Q.startVec(0);
 
   // Left looking rank-revealing QR factorization: compute a column of R and Q at a time
   for (StorageIndex col = 0; col < n; ++col) {

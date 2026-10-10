@@ -249,9 +249,11 @@ bool KLU<MatrixType>::_solve_impl(const MatrixBase<BDerived> &b, MatrixBase<XDer
                "The decomposition is not in a valid state for solving, you must first call either compute() or "
                "analyzePattern()/factorize()");
 
-  x = b;
-  int info = klu_solve(m_symbolic, m_numeric, b.rows(), rhsCols, x.const_cast_derived().data(),
-                       const_cast<klu_common *>(&m_common), Scalar());
+  // klu_solve() works in place on a contiguous column-major array, which x need not be.
+  Matrix<Scalar, Dynamic, Dynamic, ColMajor> x_tmp = b;
+  int info =
+      klu_solve(m_symbolic, m_numeric, b.rows(), rhsCols, x_tmp.data(), const_cast<klu_common *>(&m_common), Scalar());
+  x = x_tmp;
 
   m_info = info != 0 ? Success : NumericalIssue;
   return true;

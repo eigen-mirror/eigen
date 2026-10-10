@@ -308,12 +308,27 @@ void test_sparseqr_16bit_default_threshold(int n, float tol) {
   VERIFY(residual.norm() <= tol * b.template cast<float>().norm());
 }
 
+// Without columns there is no Householder vector, but factorize() still opened the first column of Q.
+template <typename T = double>
+void test_sparseqr_empty() {
+  for (Index rows : {0, 3}) {
+    SparseMatrix<T> A(rows, 0);
+    A.makeCompressed();
+    SparseQR<SparseMatrix<T>, COLAMDOrdering<int> > qr(A);
+    VERIFY_IS_EQUAL(qr.info(), Success);
+    VERIFY_IS_EQUAL(qr.rank(), 0);
+    Matrix<T, Dynamic, 1> x = qr.solve(Matrix<T, Dynamic, 1>::Ones(rows));
+    VERIFY_IS_EQUAL(x.size(), 0);
+  }
+}
+
 EIGEN_DECLARE_TEST(sparseqr) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
     CALL_SUBTEST_2(test_sparseqr_scalar<std::complex<double> >());
   }
   CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input<>());
+  CALL_SUBTEST_3(test_sparseqr_empty<>());
   CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot<>());
   CALL_SUBTEST_5(test_sparseqr_tiny_independent_column<>());
   CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead<>());

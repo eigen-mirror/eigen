@@ -72,6 +72,7 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
 
   if (rhs.norm() <= considerAsZero) {
     x.setZero();
+    iters = 0;
     tol_error = 0;
     return true;
   }

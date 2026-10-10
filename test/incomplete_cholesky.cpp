@@ -72,6 +72,14 @@ void test_non_spd() {
   VERIFY_IS_APPROX(A.toDense(), M);
 }
 
+// A 0x0 matrix sized a work vector to n - 1 = -1.
+void test_empty() {
+  IncompleteCholesky<double> ic(SparseMatrix<double>(0, 0));
+  VERIFY_IS_EQUAL(ic.info(), Success);
+  VectorXd x = ic.solve(VectorXd());
+  VERIFY_IS_EQUAL(x.size(), 0);
+}
+
 EIGEN_DECLARE_TEST(incomplete_cholesky) {
   CALL_SUBTEST_1((test_incomplete_cholesky_T<double, int>()));
   CALL_SUBTEST_2((test_incomplete_cholesky_T<std::complex<double>, int>()));
@@ -79,4 +87,5 @@ EIGEN_DECLARE_TEST(incomplete_cholesky) {
 
   CALL_SUBTEST_4((bug1150<0>()));
   CALL_SUBTEST_4(test_non_spd());
+  CALL_SUBTEST_4(test_empty());
 }

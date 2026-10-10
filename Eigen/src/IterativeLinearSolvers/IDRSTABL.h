@@ -72,6 +72,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
       rhs_norm is needed for other calculations anyways, this exit is a freebie.
     */
     x.setZero();
+    iters = 0;
     tol_error = 0.0;
     return true;
   }
@@ -85,6 +86,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
     */
     lu_solver.compute(DenseMatrixType(mat));
     x = lu_solver.solve(rhs);
+    iters = 0;
     tol_error = (rhs - mat * x).stableNorm() / rhs_norm;
     return true;
   }

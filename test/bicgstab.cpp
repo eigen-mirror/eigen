@@ -100,6 +100,17 @@ void test_solve_with_guess_in_place() {
   VERIFY((A * x2 - b).norm() <= 10 * solver.tolerance() * b.norm());
 }
 
+// A zero right-hand side is solved by x = 0 without iterating; iterations() used to report the cap.
+void test_zero_rhs() {
+  SparseMatrix<double> A(4, 4);
+  for (Index i = 0; i < 4; ++i) A.insert(i, i) = 2.0;
+  BiCGSTAB<SparseMatrix<double> > solver(A);
+  VectorXd x = solver.solve(VectorXd::Zero(4));
+  VERIFY(x.isZero());
+  VERIFY_IS_EQUAL(solver.iterations(), Index(0));
+  VERIFY_IS_EQUAL(solver.error(), 0.0);
+}
+
 EIGEN_DECLARE_TEST(bicgstab) {
   CALL_SUBTEST_1((test_bicgstab_T<double, int>()));
   CALL_SUBTEST_2((test_bicgstab_T<std::complex<double>, int>()));
@@ -107,4 +118,5 @@ EIGEN_DECLARE_TEST(bicgstab) {
   CALL_SUBTEST_4(test_2856());
   CALL_SUBTEST_5(test_2899());
   CALL_SUBTEST_6(test_solve_with_guess_in_place());
+  CALL_SUBTEST_6(test_zero_rhs());
 }

@@ -21,7 +21,28 @@ void test_idrs_T() {
   CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_ilut));
 }
 
+// Residual smoothing used to scale its line search by |t| instead of |t|^2 and diverged.
+template <typename T>
+void test_idrs_smoothing() {
+  using RealScalar = typename NumTraits<T>::Real;
+  const Index n = 100;
+  SparseMatrix<T> A(n, n);
+  for (Index i = 0; i < n; ++i) {
+    A.insert(i, i) = T(4);
+    if (i > 0) A.insert(i, i - 1) = T(-1);
+  }
+  Matrix<T, Dynamic, 1> b = Matrix<T, Dynamic, 1>::Random(n);
+  IDRS<SparseMatrix<T> > solver(A);
+  solver.setSmoothing(true);
+  solver.setTolerance(RealScalar(1e-10));
+  Matrix<T, Dynamic, 1> x = solver.solve(b);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY_IS_APPROX(A * x, b);
+}
+
 EIGEN_DECLARE_TEST(idrs) {
   CALL_SUBTEST_1(test_idrs_T<double>());
   CALL_SUBTEST_2(test_idrs_T<std::complex<double> >());
+  CALL_SUBTEST_1(test_idrs_smoothing<double>());
+  CALL_SUBTEST_2(test_idrs_smoothing<std::complex<double> >());
 }
