@@ -92,6 +92,8 @@ ei_add_failtest("vandermonde_int")
 ei_add_failtest("vandermonde_rectangular_square")
 ei_add_failtest("bjorckpereyra_rectangular")
 
+ei_add_failtest("array_modulus_float")
+
 ei_add_failtest("structured_bindings_dynamic_matrix")
 ei_add_failtest("structured_bindings_dynamic_array")
 ei_add_failtest("structured_bindings_rowmajor")

@@ -1590,6 +1590,69 @@ void complex_classification() {
   }
 }
 
+// Coefficient-wise modulus. Integer scalars only.
+// Original coverage by @arvsrao in !1705; extended here to the array-array form,
+// the scalar-on-the-left form, negative operands, and the 2D and compound-expression cases.
+template <typename Scalar>
+void modulus_test_impl() {
+  // Array % Array, 1D.
+  Array<Scalar, 3, 1> a(Scalar(7), Scalar(8), Scalar(9));
+  Array<Scalar, 3, 1> b(Scalar(2), Scalar(3), Scalar(4));
+  Array<Scalar, 3, 1> expected(Scalar(1), Scalar(2), Scalar(1));
+  VERIFY_IS_CWISE_EQUAL(a % b, expected);
+
+  // Array % scalar.
+  Array<Scalar, 3, 1> a_mod_2(Scalar(1), Scalar(0), Scalar(1));
+  VERIFY_IS_CWISE_EQUAL(a % Scalar(2), a_mod_2);
+
+  // Scalar % Array.
+  Array<Scalar, 3, 1> ten_mod_b(Scalar(0), Scalar(1), Scalar(2));
+  VERIFY_IS_CWISE_EQUAL(Scalar(10) % b, ten_mod_b);
+
+  // Modulus of a compound expression.
+  // (7,8,9) + (2,3,4) = (9,11,13); mod 4 -> (1,3,1)
+  Array<Scalar, 3, 1> compound(Scalar(1), Scalar(3), Scalar(1));
+  VERIFY_IS_CWISE_EQUAL((a + b) % Scalar(4), compound);
+
+  // Dynamic 2D.
+  ArrayXX<Scalar> m(2, 3);
+  m << Scalar(0), Scalar(1), Scalar(2), Scalar(3), Scalar(4), Scalar(5);
+  ArrayXX<Scalar> m_mod_3(2, 3);
+  m_mod_3 << Scalar(0), Scalar(1), Scalar(2), Scalar(0), Scalar(1), Scalar(2);
+  VERIFY_IS_CWISE_EQUAL(m % Scalar(3), m_mod_3);
+  VERIFY_IS_CWISE_EQUAL(m % ArrayXX<Scalar>::Constant(2, 3, Scalar(3)), m_mod_3);
+
+  // Agreement with the scalar operator, including negative dividends where the
+  // sign of the result follows the dividend (C++11 onwards).
+  if (NumTraits<Scalar>::IsSigned) {
+    Array<Scalar, 4, 1> neg(Scalar(-7), Scalar(-1), Scalar(7), Scalar(0));
+    Array<Scalar, 4, 1> div(Scalar(3), Scalar(3), Scalar(-3), Scalar(3));
+    for (Index i = 0; i < neg.size(); ++i) {
+      VERIFY_IS_EQUAL((neg % div)(i), Scalar(neg(i) % div(i)));
+    }
+  }
+
+  // Matches a hand-rolled loop over random data.
+  ArrayX<Scalar> lhs = ArrayX<Scalar>::Random(37);
+  ArrayX<Scalar> rhs = ArrayX<Scalar>::Random(37);
+  rhs = (rhs == Scalar(0) || rhs == Scalar(-1)).select(ArrayX<Scalar>::Constant(37, Scalar(1)), rhs);
+  ArrayX<Scalar> got = lhs % rhs;
+  for (Index i = 0; i < lhs.size(); ++i) {
+    VERIFY_IS_EQUAL(got(i), Scalar(lhs(i) % rhs(i)));
+  }
+}
+
+void modulus_tests() {
+  modulus_test_impl<int8_t>();
+  modulus_test_impl<int16_t>();
+  modulus_test_impl<int>();
+  modulus_test_impl<int64_t>();
+  modulus_test_impl<uint8_t>();
+  modulus_test_impl<uint16_t>();
+  modulus_test_impl<uint32_t>();
+  modulus_test_impl<uint64_t>();
+}
+
 EIGEN_DECLARE_TEST(array_cwise) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(array_generic(Array<float, 1, 1>()));
@@ -1689,6 +1752,7 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_26(typed_logicals_test(ArrayX<std::complex<float>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_42(bool_logical_ops<>());
+    CALL_SUBTEST_43(modulus_tests());
   }
 
   for (int i = 0; i < g_repeat; i++) {

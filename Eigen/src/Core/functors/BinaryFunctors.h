@@ -494,6 +494,31 @@ struct functor_traits<scalar_quotient_op<LhsScalar, RhsScalar>> {
 // rely on this invariant.
 
 /** \internal
+ * \brief Template functor to compute the modulus of two integer scalars
+ *
+ * \sa class CwiseBinaryOp, ArrayBase::operator%()
+ */
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_modulus_op : binary_op_base<LhsScalar, RhsScalar> {
+  using result_type = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_modulus_op>::ReturnType;
+  static constexpr bool Enable = std::is_same<LhsScalar, RhsScalar>::value && NumTraits<LhsScalar>::IsInteger;
+  EIGEN_STATIC_ASSERT(Enable, "LhsScalar and RhsScalar must be the same integer type")
+#ifdef EIGEN_SCALAR_BINARY_OP_PLUGIN
+  scalar_modulus_op(){EIGEN_SCALAR_BINARY_OP_PLUGIN}
+#endif
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE result_type
+  operator()(const LhsScalar& a, const RhsScalar& b) const {
+    return a % b;
+  }
+};
+template <typename LhsScalar, typename RhsScalar>
+struct functor_traits<scalar_modulus_op<LhsScalar, RhsScalar>> {
+  using result_type = typename scalar_modulus_op<LhsScalar, RhsScalar>::result_type;
+  static constexpr bool PacketAccess = false;
+  static constexpr int Cost = scalar_div_cost<result_type, false>::value;
+};
+
+/** \internal
  * \brief Template functor to compute the and of two scalars as if they were booleans
  *
  * \sa class CwiseBinaryOp, ArrayBase::operator&&
