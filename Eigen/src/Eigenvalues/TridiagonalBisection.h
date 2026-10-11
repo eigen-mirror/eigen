@@ -357,11 +357,16 @@ Index tridiagonal_sturm_count_below(const RealScalar* alpha, const RealScalar* b
  *                     max(abs_tol, eps * ||T||). Pass 0 for full precision.
  * \param[out] eivalues  filled with the selected eigenvalues in non-decreasing
  *                     order; resized to the number of selected eigenvalues.
+ * \param[out] effective_abs_tol  if not null, receives the convergence tolerance in the units of
+ *                     \a diag: max(abs_tol, eps * (Gershgorin bound of T), 2 * pivmin), the bracket
+ *                     width below which an eigenvalue counts as converged (before any rounding of
+ *                     eigenvalues that unscale into the subnormal range).
  * \returns the number of eigenvalues written to \c eivalues.
  */
 template <typename DiagType, typename SubdiagType, typename EivalType>
 Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, const EigenvalueRange& range,
-                            typename DiagType::Scalar abs_tol, EivalType& eivalues) {
+                            typename DiagType::Scalar abs_tol, EivalType& eivalues,
+                            typename DiagType::Scalar* effective_abs_tol = nullptr) {
   using RealScalar = typename DiagType::Scalar;
   using ArrayType = Array<RealScalar, Dynamic, 1>;
   EIGEN_STATIC_ASSERT(NumTraits<RealScalar>::IsInteger == 0 && NumTraits<RealScalar>::IsComplex == 0,
@@ -370,6 +375,7 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   const Index n = diag.size();
   if (n == 0) {
     eivalues.derived().resize(0);
+    if (effective_abs_tol) *effective_abs_tol = RealScalar(0);
     return 0;
   }
 
@@ -429,6 +435,7 @@ Index tridiagonal_bisection(const DiagType& diag, const SubdiagType& subdiag, co
   // bracket midpoints out of the subnormal range, where hardware with flush-to-zero packet
   // arithmetic (ARMv7 NEON) would evaluate them inconsistently between the packet and scalar paths.
   abs_tol = numext::maxi(abs_tol / scale, numext::maxi(eps * tnorm, RealScalar(2) * pivmin));
+  if (effective_abs_tol) *effective_abs_tol = abs_tol * scale;
   // Widen the Gershgorin bracket so that, despite rounding in the Sturm recurrence, count() really does
   // reach 0 at lambda_min and n at lambda_max. The n*eps*tnorm term bounds the worst-case count error
   // accumulated over the n recurrence steps; the 2*pivmin term covers the pivot floor. The 2.1 prefactor

@@ -11,6 +11,7 @@
 #include "main.h"
 #include "fp_control.h"
 #include "tridiag_test_matrices.h"
+#include <cfenv>
 #include <limits>
 #include <Eigen/Eigenvalues>
 
@@ -309,12 +310,19 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL((onecall.eigenvalues() - w).cwiseAbs().maxCoeff(), RealScalar(0));
     VERIFY_IS_EQUAL((onecall.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
 
-    // The direct API reproduces the staged result exactly (same eigenvalues -> same deterministic vectors).
+    // The direct API on the same eigenvalues reproduces the staged result exactly, unless T splits into
+    // disconnected blocks (xSTEBZ's criterion, here with a 2x margin): the staged pass knows its eigenvalues
+    // are only good to the bisection tolerance and may re-bisect a small block, while supplied eigenvalues
+    // are taken as exact.
     TridiagonalEigenSolver<RealScalar> dir;
     dir.computeEigenvectors(diag, offdiag, w);
     VERIFY_IS_EQUAL(dir.eigenvectors().rows(), n);
     VERIFY_IS_EQUAL(dir.eigenvectors().cols(), n);
-    VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
+    const bool may_split =
+        n > 1 && (offdiag.array().abs() <=
+                  RealScalar(2) * eps * (diag.head(n - 1).array().abs().sqrt() * diag.tail(n - 1).array().abs().sqrt()))
+                     .any();
+    if (!may_split) VERIFY_IS_EQUAL((dir.eigenvectors() - V).cwiseAbs().maxCoeff(), RealScalar(0));
     VERIFY_IS_EQUAL(dir.info(), Success);
     VERIFY_IS_EQUAL(dir.eigenvalues(), w);
     const MatrixType& supplied_vectors = dir.eigenvectors();
@@ -742,6 +750,89 @@ void tridiagonal_eigensolver_subnormal_staged() {
   }
 }
 
+// diag(big, tridiag(1, 2, 1)) in float: the staged eigenvalues are accurate to eps * big, which passes the small
+// block's Sturm check yet left inverse iteration with |v_i' v_j| ~ (eps * big / gap)^3, O(1) for big ~ 1e4 and
+// nb = 1000. The staged pass re-bisects the block at its own scale, so its vectors are those of the block solved alone.
+// (Double needs ||T|| / ||T_b|| ~ 1e7 before the shift error matters, past where the Sturm check already refines.)
+template <typename Scalar>
+void tridiagonal_eigensolver_staged_small_block() {
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index nb = 1000;
+  VectorType d = VectorType::Constant(nb + 1, Scalar(2)), e = VectorType::Ones(nb);
+  d(0) = Scalar(1e4);
+  e(0) = Scalar(0);
+  TridiagonalEigenSolver<Scalar> local, staged;
+  local.computeEigenvalues(d.tail(nb).eval(), e.tail(nb - 1).eval());
+  local.computeEigenvectors();
+  staged.computeEigenvalues(d, e);
+  staged.computeEigenvectors();
+  VERIFY_IS_EQUAL(local.info(), Success);
+  VERIFY_IS_EQUAL(staged.info(), Success);
+  // The block's eigenvalues all lie below big, so they are the first nb columns. Bitwise equality also relies on
+  // the Rayleigh-Ritz refinement leaving both results alone, which it does while their residuals are at eps.
+  const MatrixType block = staged.eigenvectors().bottomLeftCorner(nb, nb);
+  VERIFY_IS_EQUAL(block, local.eigenvectors());
+  VERIFY_IS_EQUAL(staged.eigenvectors().topLeftCorner(1, nb).squaredNorm(), Scalar(0));
+  // Vectors in different xSTEIN clusters are orthogonal to about eps * ||T_b|| / ortol, with ortol = 1e-3 ||T_b||.
+  const Scalar cross_cluster_bound = Scalar(1e3) * NumTraits<Scalar>::epsilon();
+  VERIFY((block.transpose() * block - MatrixType::Identity(nb, nb)).cwiseAbs().maxCoeff() <= cross_cluster_bound);
+}
+
+// Which of `excepts` f() raises, run with the floating-point environment held; -1 if it cannot be held.
+template <typename Func>
+int fp_exceptions_raised_by(int excepts, const Func& f) {
+  std::fenv_t environment;
+  if (std::feholdexcept(&environment) != 0) {
+    std::cout << "SKIP: floating-point exception check: feholdexcept failed.\n";
+    f();
+    return -1;
+  }
+  f();
+  const int raised = std::fetestexcept(excepts);
+  VERIFY_IS_EQUAL(std::fesetenv(&environment), 0);
+  return raised;
+}
+
+// The gate deciding whether to re-bisect a block's shifts compares their error bound with the block's gap without
+// forming the ratio of the two, which finite input can make overflow when cubed, or 0/0. FE_DIVBYZERO is not checked:
+// an exact shift's vanishing LU pivot has an infinite reciprocal by design.
+template <typename Scalar>
+void tridiagonal_eigensolver_block_gate_fp_exceptions() {
+#if defined(FE_OVERFLOW) && defined(FE_INVALID)
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  // diag(sqrt(highest), tridiag(1, 2, 1)_4), staged: (shift error / gap)^3 overflows. The block's vectors are still
+  // those of the block solved alone.
+  const Index nb = 4;
+  VectorType d = VectorType::Constant(nb + 1, Scalar(2)), e = VectorType::Ones(nb);
+  d(0) = numext::sqrt(NumTraits<Scalar>::highest());
+  e(0) = Scalar(0);
+  TridiagonalEigenSolver<Scalar> local, staged;
+  local.computeEigenvalues(d.tail(nb).eval(), e.tail(nb - 1).eval());
+  local.computeEigenvectors();
+  staged.computeEigenvalues(d, e);
+  int raised = fp_exceptions_raised_by(FE_OVERFLOW | FE_INVALID, [&] { staged.computeEigenvectors(); });
+  if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+  VERIFY_IS_EQUAL(staged.info(), Success);
+  VERIFY_IS_EQUAL(staged.eigenvectors().bottomLeftCorner(nb, nb), local.eigenvectors());
+
+  // diag(1, [0 a; a 0]) with a = 8 denorm_min and its exact eigenvalues supplied: the block's gap underflows to zero
+  // and supplied shifts carry a zero error bound, so the ratio was 0/0. (Hardware that flushes subnormal inputs splits
+  // the block instead.)
+  const Scalar a = Scalar(8) * std::numeric_limits<Scalar>::denorm_min();
+  VectorType ds(3), es(2), w(3);
+  ds << Scalar(1), Scalar(0), Scalar(0);
+  es << Scalar(0), a;
+  w << -a, a, Scalar(1);
+  TridiagonalEigenSolver<Scalar> supplied;
+  raised = fp_exceptions_raised_by(FE_OVERFLOW | FE_INVALID, [&] { supplied.computeEigenvectors(ds, es, w); });
+  if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+  VERIFY_IS_EQUAL(supplied.info(), Success);
+#else
+  std::cout << "SKIP: block gate exception check: FE_OVERFLOW or FE_INVALID is unavailable.\n";
+#endif
+}
+
 // d and e against their power-of-two scaled copies, computed beforehand, in every flush-to-zero mode: eigenvalues to
 // the bisection error plus the quantization of the range they are stored in, eigenvectors (invariant under the
 // scaling) against the scaled residual.
@@ -811,9 +902,89 @@ void tridiagonal_eigensolver_flushed_subnormal_coupling() {
   tridiagonal_check_scaled_pair(d, e, 40);
 }
 
+// The staged and the supplied-eigenvalue eigenvector passes, out of line so that none of their floating-point
+// operations moves across the caller's exception-flag test.
+template <typename Scalar>
+EIGEN_DONT_INLINE void tridiagonal_staged_and_supplied_eigenvectors(TridiagonalEigenSolver<Scalar>& staged,
+                                                                    TridiagonalEigenSolver<Scalar>& supplied,
+                                                                    const Matrix<Scalar, Dynamic, 1>& d,
+                                                                    const Matrix<Scalar, Dynamic, 1>& e,
+                                                                    const Matrix<Scalar, Dynamic, 1>& w) {
+  staged.computeEigenvectors();
+  supplied.computeEigenvectors(d, e, w);
+}
+
+// Assigning eigenvalues to disconnected blocks takes Sturm counts at shifts in each block's normalized units. For a
+// shift far outside a small block, or within its tolerance of the overflow threshold, the count is 0 or the block's
+// size, decided without forming the normalized shift, which overflows. FE_DIVBYZERO is not checked: an exact shift's
+// vanishing LU pivot has an infinite reciprocal by design.
+template <typename Scalar>
+void tridiagonal_eigensolver_block_assignment_overflow() {
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Scalar highest = NumTraits<Scalar>::highest(), eps = NumTraits<Scalar>::epsilon();
+  const Index nb = 3;
+  // T = A (+) s * tridiag(1, 2, 1)_3, with A first and last, through the staged and supplied-eigenvalue paths.
+  auto check = [&](const VectorType& ad, const VectorType& ae, Scalar s) {
+    const Index na = ad.size(), n = na + nb;
+    for (const bool a_first : {true, false}) {
+      const Index a0 = a_first ? 0 : nb, b0 = a_first ? na : 0;
+      VectorType d(n), e = VectorType::Zero(n - 1);
+      d.segment(a0, na) = ad;
+      e.segment(a0, na - 1) = ae;
+      d.segment(b0, nb).setConstant(Scalar(2) * s);
+      e.segment(b0, nb - 1).setConstant(s);
+      TridiagonalEigenSolver<Scalar> staged, supplied;
+      staged.computeEigenvalues(d, e);
+      VERIFY_IS_EQUAL(staged.info(), Success);
+      const VectorType w = staged.eigenvalues();
+#if defined(FE_OVERFLOW) && defined(FE_INVALID)
+      const int raised = fp_exceptions_raised_by(
+          FE_OVERFLOW | FE_INVALID, [&] { tridiagonal_staged_and_supplied_eigenvectors(staged, supplied, d, e, w); });
+      if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+#else
+      std::cout << "SKIP: block assignment overflow flag check: FE_OVERFLOW or FE_INVALID is unavailable.\n";
+      tridiagonal_staged_and_supplied_eigenvectors(staged, supplied, d, e, w);
+#endif
+      for (const TridiagonalEigenSolver<Scalar>* es : {&staged, &supplied}) {
+        VERIFY_IS_EQUAL(es->info(), Success);
+        const MatrixType& V = es->eigenvectors();
+        VERIFY((V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff() <= Scalar(128) * Scalar(n) * eps);
+        // Every vector lies in exactly one block, and A holds na of them.
+        Index in_a = 0;
+        for (Index j = 0; j < n; ++j) {
+          const bool zero_a = (V.col(j).segment(a0, na).array() == Scalar(0)).all();
+          const bool zero_b = (V.col(j).segment(b0, nb).array() == Scalar(0)).all();
+          VERIFY(zero_a != zero_b);
+          in_a += zero_b ? 1 : 0;
+        }
+        VERIFY_IS_EQUAL(in_a, na);
+      }
+    }
+  };
+  VectorType ad(1), ae(0);
+  // A's shifts in units of a block at sqrt(min) overflow.
+  ad << highest / Scalar(4);
+  check(ad, ae, numext::sqrt((std::numeric_limits<Scalar>::min)()));
+  // The largest shift plus its tolerance overflows.
+  ad << highest;
+  check(ad, ae, Scalar(1));
+  // The same in A's own refinement check, which needs na > 1: with c = highest eps, A's largest eigenvalue is about
+  // highest - 2c, within its tolerance of highest, while its row sums stay finite.
+  const Scalar c = highest * eps;
+  ad.resize(2);
+  ae.resize(1);
+  ad << highest - Scalar(2) * c, Scalar(0);
+  ae << c;
+  check(ad, ae, Scalar(1));
+}
+
 EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   CALL_SUBTEST_1(tridiagonal_eigensolver_subnormal_staged<double>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_subnormal_staged<float>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_staged_small_block<float>());
+  CALL_SUBTEST_1(tridiagonal_eigensolver_block_gate_fp_exceptions<double>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_block_gate_fp_exceptions<float>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_power_of_two_scaling<>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_scaling_units<float>());
   CALL_SUBTEST_1(tridiagonal_eigensolver_scaling_units<double>());
@@ -824,6 +995,8 @@ EIGEN_DECLARE_TEST(tridiagonal_eigensolver) {
   }
   CALL_SUBTEST_1(tridiagonal_eigensolver_flushed_subnormal_coupling<double>());
   CALL_SUBTEST_2(tridiagonal_eigensolver_flushed_subnormal_coupling<float>());
+  CALL_SUBTEST_1(tridiagonal_eigensolver_block_assignment_overflow<double>());
+  CALL_SUBTEST_2(tridiagonal_eigensolver_block_assignment_overflow<float>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(tridiagonal_eigensolver_bisection<double>());
     CALL_SUBTEST_2(tridiagonal_eigensolver_bisection<float>());

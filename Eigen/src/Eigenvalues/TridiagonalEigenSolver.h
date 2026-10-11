@@ -156,7 +156,11 @@ class TridiagonalEigenSolver {
    * Completes a staged solve: call it after computeEigenvalues() to compute the eigenvectors for
    * the eigenvalues just found, using the retained tridiagonal. See
    * computeEigenvectors(const MatrixBase<DiagType>&, const MatrixBase<SubdiagType>&, const
-   * MatrixBase<EivalsType>&) for the algorithm and its guarantees.
+   * MatrixBase<EivalsType>&) for the algorithm and its guarantees. That overload trusts supplied
+   * eigenvalues unless a Sturm count shows one misplaced; these are known to be accurate only to
+   * about \f$ eps \|T\| \f$, so the shifts of a disconnected block too small for that error to
+   * leave its eigenvectors orthogonal are re-bisected at the block's own scale first (in practice,
+   * float blocks a few dozen times smaller than \f$ \|T\| \f$). eigenvalues() is unchanged.
    *
    * \pre A successful computeEigenvalues() (or compute()) call.
    */
@@ -270,6 +274,11 @@ class TridiagonalEigenSolver {
   // shifts quantized to Scalar collapse neighbouring eigenvalues and yield near-parallel vectors.
   // Empty whenever m_eivalues did not come from this solver's own bisection.
   Matrix<ComputeScalar, Dynamic, 1> m_eivaluesc;
+  // Absolute error bound of the eigenvalues of the last computeEigenvalues(), as the staged eigenvector
+  // pass receives them: the bisection tolerance, about eps * ||T||. Zero for caller-supplied eigenvalues,
+  // which inverse iteration takes as exact. A disconnected block far below ||T|| may need its shifts
+  // re-bisected at its own scale (see internal::tridiagonal_inverse_iteration()).
+  ComputeScalar m_shiftTol = ComputeScalar(0);
   ComputationInfo m_info = InvalidInput;
   bool m_isInitialized = false;
   bool m_eigenvectorsOk = false;
@@ -297,20 +306,23 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenva
   if (!(m_diag.allFinite() && m_subdiag.allFinite())) {
     m_eivalues.resize(0);
     m_eivaluesc.resize(0);
+    m_shiftTol = ComputeScalar(0);
     m_info = NoConvergence;
     m_isInitialized = true;
     return *this;
   }
 
   if (internal::is_same<Scalar, ComputeScalar>::value) {
-    internal::tridiagonal_bisection(m_diag, m_subdiag, range, RealScalar(0), m_eivalues);
+    RealScalar shift_tol(0);
+    internal::tridiagonal_bisection(m_diag, m_subdiag, range, RealScalar(0), m_eivalues, &shift_tol);
+    m_shiftTol = ComputeScalar(shift_tol);
     m_eivaluesc.resize(0);
   } else {
     // Narrow scalar: bisect in float and round the eigenvalues back (see ComputeScalar). The
     // unrounded values are retained for the staged eigenvector pass (see m_eivaluesc).
     const Matrix<ComputeScalar, Dynamic, 1> cdiag = m_diag.template cast<ComputeScalar>();
     const Matrix<ComputeScalar, Dynamic, 1> csubdiag = m_subdiag.template cast<ComputeScalar>();
-    internal::tridiagonal_bisection(cdiag, csubdiag, range, ComputeScalar(0), m_eivaluesc);
+    internal::tridiagonal_bisection(cdiag, csubdiag, range, ComputeScalar(0), m_eivaluesc, &m_shiftTol);
     m_eivalues = m_eivaluesc.template cast<Scalar>();
   }
   m_info = Success;
@@ -336,6 +348,7 @@ TridiagonalEigenSolver<Scalar_>& TridiagonalEigenSolver<Scalar_>::computeEigenve
   m_subdiag = subdiag;
   m_eivalues = eigenvalues;
   m_eivaluesc.resize(0);  // the caller's Scalar eigenvalues are authoritative here
+  m_shiftTol = ComputeScalar(0);
 
   // Reject non-finite input up front, mirroring computeEigenvalues(): inverse iteration on NaN/Inf
   // data (or NaN shifts) would return NaN vectors with info() == Success.
@@ -359,7 +372,7 @@ void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
   m_eivec.resize(n, m);
   Index nonconv;
   if (internal::is_same<Scalar, ComputeScalar>::value) {
-    nonconv = internal::tridiagonal_inverse_iteration(m_diag, m_subdiag, m_eivalues, m_eivec);
+    nonconv = internal::tridiagonal_inverse_iteration(m_diag, m_subdiag, m_eivalues, m_eivec, RealScalar(m_shiftTol));
     // Refine the eigenvectors of any genuinely degenerate cluster (Rayleigh-Ritz). The eigenvalues
     // are left unchanged, and a non-degenerate spectrum is untouched.
     internal::tridiagonal_rayleigh_ritz_refine(m_diag, m_subdiag, m_eivalues, m_eivec);
@@ -372,7 +385,7 @@ void TridiagonalEigenSolver<Scalar_>::computeEigenvectorsImpl() {
     const Matrix<ComputeScalar, Dynamic, 1> cw =
         (m_eivaluesc.size() == m) ? m_eivaluesc : m_eivalues.template cast<ComputeScalar>();
     Matrix<ComputeScalar, Dynamic, Dynamic> cvec(n, m);
-    nonconv = internal::tridiagonal_inverse_iteration(cdiag, csubdiag, cw, cvec);
+    nonconv = internal::tridiagonal_inverse_iteration(cdiag, csubdiag, cw, cvec, m_shiftTol);
     internal::tridiagonal_rayleigh_ritz_refine(cdiag, csubdiag, cw, cvec);
     m_eivec = cvec.template cast<Scalar>();
   }
