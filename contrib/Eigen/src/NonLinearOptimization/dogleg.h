@@ -37,7 +37,7 @@ void dogleg(const Matrix<Scalar, Dynamic, Dynamic> &qrfac, const Matrix<Scalar, 
   for (j = n - 1; j >= 0; --j) {
     temp = qrfac(j, j);
     if (temp == 0.) {
-      temp = epsmch * qrfac.col(j).head(j + 1).maxCoeff();
+      temp = epsmch * qrfac.col(j).head(j + 1).cwiseAbs().maxCoeff();
       if (temp == 0.) temp = epsmch;
     }
     if (j == n - 1)

@@ -334,9 +334,8 @@ void testNistMisra1d(void) {
   misra1d_functor functor;
   LevenbergMarquardt<misra1d_functor> lm(functor);
   info = lm.minimize(x);
-  EIGEN_UNUSED_VARIABLE(info);
-  // check return value
-  // VERIFY_IS_EQUAL(info, 1);
+  // check return value: MINPACK's, which needs xnorm to carry over from the last accepted step
+  VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeErrorAndReductionTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 9);
   // VERIFY_IS_EQUAL(lm.njev(), 7);
   // check norm^2
@@ -889,6 +888,23 @@ void testNistEckerle4(void) {
   VERIFY_IS_APPROX(x[2], 4.5154121844E+02);
 }
 
+// covar() takes the rank to end at the first pivot below tol * |r(0,0)| (MINPACK) and zeroes the rest;
+// a NaN pivot is not negligible, so it reaches the result instead of reading as zero variance.
+void testCovarRankDeficient() {
+  MatrixXd r(3, 3);
+  r << 2, 1, 1, 0, 1e-20, 1, 0, 0, 3;
+  VectorXi ipvt(3);
+  ipvt << 0, 1, 2;
+  internal::covar(r, ipvt);
+  MatrixXd expected = MatrixXd::Zero(3, 3);
+  expected(0, 0) = 0.25;
+  VERIFY_IS_APPROX(r, expected);
+
+  r << 2, 1, 1, 0, NumTraits<double>::quiet_NaN(), 1, 0, 0, 3;
+  internal::covar(r, ipvt);
+  VERIFY(r.hasNaN());
+}
+
 // lmqrsolv() must minimize ||[R; D] z - [qtb; 0]|| and leave the eliminated
 // factor in the strict lower triangle of s for lmpar2(). Issue #657: the QR is
 // rank-revealing, so R carries zeros above the diagonal, and the Givens
@@ -982,6 +998,7 @@ void testSparseFunctor() {
 
 EIGEN_DECLARE_TEST(levenberg_marquardt) {
   CALL_SUBTEST(testLmqrsolv());
+  CALL_SUBTEST(testCovarRankDeficient());
   CALL_SUBTEST(testSparseFunctor());
 
   // Tests using the examples provided by (c)minpack

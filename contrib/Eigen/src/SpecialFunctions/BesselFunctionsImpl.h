@@ -194,7 +194,9 @@ struct generic_i0 {
     // so we need to tell it not to.
     EIGEN_OPTIMIZATION_BARRIER(scaled)
 #endif
-    return pmul(half_exp, scaled);
+    // i0e(inf) = 0 would turn exp(inf) * i0e(inf) into NaN; i0(+-inf) = +inf.
+    const T inf = pinf<T>();
+    return pselect(pcmp_eq(ax, inf), inf, pmul(half_exp, scaled));
   }
 };
 
@@ -353,7 +355,8 @@ struct generic_i1 {
     // Reassociating back to (exp(|x|/2) * exp(|x|/2)) * i1e(x) would reintroduce the overflow.
     EIGEN_OPTIMIZATION_BARRIER(scaled)
 #endif
-    return pmul(half_exp, scaled);
+    // i1(+-inf) = +-inf; the scaled product would be inf * 0 = NaN.
+    return pselect(pcmp_eq(ax, pinf<T>()), x, pmul(half_exp, scaled));
   }
 };
 
@@ -1440,7 +1443,7 @@ struct generic_y1<T, float> {
     T z = pmul(x, x);
     T x_le_two = pmul(psub(z, YO1), internal::ppolevl<T, 4>::run(z, YP));
     x_le_two = pmadd(x_le_two, x, pmul(TWOOPI, pmadd(generic_j1<T, float>::run(x), plog(x), pdiv(pset1<T>(-1.0f), x))));
-    x_le_two = pselect(pcmp_lt(x, pset1<T>(0.0f)), NEG_MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0f)), NEG_MAXNUM, x_le_two);
 
     T q = pdiv(pset1<T>(1.0), x);
     T w = prsqrt(x);

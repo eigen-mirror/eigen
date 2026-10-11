@@ -121,6 +121,8 @@ struct kiss_cpx_fft {
 
     // recombine the p smaller DFTs
     switch (p) {
+      case 1:  // nfft == 1: the copy above is the whole transform
+        break;
       case 2:
         bfly2(xout, fstride, m);
         break;

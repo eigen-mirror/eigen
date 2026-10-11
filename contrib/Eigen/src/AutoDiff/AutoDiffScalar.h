@@ -520,7 +520,9 @@ inline AutoDiffScalar<Matrix<typename internal::traits<internal::remove_all_t<De
   Scalar squared_hypot = a.value() * a.value() + b.value() * b.value();
 
   // if (squared_hypot==0) the derivation is undefined and the following results in a NaN:
-  ret.derivatives() = (a.derivatives() * b.value() - a.value() * b.derivatives()) / squared_hypot;
+  ret.derivatives() = internal::MakeCoherentCwiseBinaryOp<internal::scalar_difference_op<Scalar>>(
+                          a.derivatives() * b.value(), b.derivatives() * a.value()) /
+                      squared_hypot;
 
   return ret;
 }

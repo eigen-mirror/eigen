@@ -624,6 +624,8 @@ EIGEN_DECLARE_TEST(FFTW) {
   CALL_SUBTEST(test_inplace_complex<double>(256));
   CALL_SUBTEST(test_fwd_padding<float>(16));
   CALL_SUBTEST(test_fwd_padding<double>(16));
+  CALL_SUBTEST(test_complex<double>(1));
+  CALL_SUBTEST(test_scalar<double>(1));
   CALL_SUBTEST(test_complex<float>(32));
   CALL_SUBTEST(test_complex<double>(32));
   CALL_SUBTEST(test_complex<float>(256));

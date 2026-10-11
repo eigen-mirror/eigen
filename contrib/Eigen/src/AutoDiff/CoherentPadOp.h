@@ -94,11 +94,11 @@ struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
     EIGEN_IF_CONSTEXPR (XprType::IsRowMajor) {
       if (col < m_size.value()) {
-        return m_argImpl.coeff(1, col);
+        return m_argImpl.coeff(0, col);
       }
     } else {
       if (row < m_size.value()) {
-        return m_argImpl.coeff(row, 1);
+        return m_argImpl.coeff(row, 0);
       }
     }
     return CoeffReturnType(0);

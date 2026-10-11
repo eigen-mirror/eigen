@@ -417,7 +417,7 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType, Scalar>::minimiz
   sing = false;
   for (j = 0; j < n; ++j) {
     if (fjac(j, j) == 0.) sing = true;
-    wa2[j] = fjac.col(j).head(j).stableNorm();
+    wa2[j] = fjac.col(j).head(j + 1).stableNorm();
   }
   permutation.setIdentity(n);
   if (sing) {

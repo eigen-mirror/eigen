@@ -30,7 +30,8 @@ LevenbergMarquardtSpace::Status LevenbergMarquardt<FunctorType>::minimizeOneStep
   eigen_assert(x.size() == n);  // check the caller is not cheating us
 
   temp = 0.0;
-  xnorm = 0.0;
+  // MINPACK keeps xnorm from the last accepted step; x has not moved since, nor has m_diag.
+  xnorm = m_iter > 1 ? m_diag.cwiseProduct(x).stableNorm() : RealScalar(0);
   /* calculate the jacobian matrix. */
   Index df_ret = m_functor.df(x, m_fjac);
   if (df_ret < 0) return LevenbergMarquardtSpace::UserAsked;

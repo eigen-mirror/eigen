@@ -367,6 +367,26 @@ double bug_1281() {
   return (y1 + y2 + y3).value();
 }
 
+// atan2 must pad the empty derivatives of a constant, as the arithmetic operators do.
+void test_autodiff_atan2_constant() {
+  typedef AutoDiffScalar<VectorXd> AD;
+  const AD x(1.0, 2, 0), c(2.0);
+  VERIFY_IS_APPROX(atan2(x, c).derivatives(), Vector2d(0.4, 0));
+  VERIFY_IS_APPROX(atan2(c, x).derivatives(), Vector2d(-0.4, 0));
+}
+
+// The zero-padded derivatives of a sum must read column 0 of a non-plain derivative expression.
+void test_autodiff_padded_block_derivatives() {
+  using ColMajorMatrixXd = Matrix<double, Dynamic, Dynamic, ColMajor>;
+  ColMajorMatrixXd store(3, 2);
+  store << 1, 10, 2, 20, 3, 30;
+  AutoDiffScalar<Block<ColMajorMatrixXd, Dynamic, 1, true>> a(1.0, store.col(0));
+  AutoDiffScalar<VectorXd> b(2.0);
+  MatrixXd jac = MatrixXd::Zero(3, 2);
+  jac.topRows(3).leftCols(1) = (a + b).derivatives();
+  VERIFY_IS_EQUAL(jac.col(0), store.col(0));
+}
+
 // LLT stores the 1-norm of its input for rcond(); the sum of AutoDiffScalars is an expression, so
 // the norm must materialize its column totals before comparing them.
 void test_autodiff_selfadjoint_l1norm() {
@@ -493,6 +513,8 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(bug_1261());
   CALL_SUBTEST_5(bug_1281());
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
+  CALL_SUBTEST_5(test_autodiff_padded_block_derivatives());
+  CALL_SUBTEST_5(test_autodiff_atan2_constant());
   CALL_SUBTEST_6(test_autodiff_makegivens<Vector2d>());
   CALL_SUBTEST_6(test_autodiff_makegivens<VectorXd>());
   CALL_SUBTEST_7(test_autodiff_householder_qr<Vector4d>());

@@ -37,16 +37,17 @@ void covar(Matrix<Scalar, Dynamic, Dynamic>& r, const VectorXi& ipvt,
 
   /* form the inverse of r in the full upper triangle of r. */
   l = -1;
-  for (k = 0; k < n; ++k)
-    if (abs(r(k, k)) > tolr) {
-      r(k, k) = 1. / r(k, k);
-      for (j = 0; j <= k - 1; ++j) {
-        temp = r(k, k) * r(j, k);
-        r(j, k) = 0.;
-        r.col(k).head(j + 1) -= r.col(j).head(j + 1) * temp;
-      }
-      l = k;
+  for (k = 0; k < n; ++k) {
+    // MINPACK's test: the rank ends at the first negligible pivot, and a NaN pivot propagates.
+    if (abs(r(k, k)) <= tolr) break;
+    r(k, k) = 1. / r(k, k);
+    for (j = 0; j <= k - 1; ++j) {
+      temp = r(k, k) * r(j, k);
+      r(j, k) = 0.;
+      r.col(k).head(j + 1) -= r.col(j).head(j + 1) * temp;
     }
+    l = k;
+  }
 
   /* form the full upper triangle of the inverse of (r transpose)*r */
   /* in the full upper triangle of r. */

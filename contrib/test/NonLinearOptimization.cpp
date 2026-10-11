@@ -438,6 +438,38 @@ void testLmstr() {
   VERIFY_IS_APPROX(x, x_ref);
 }
 
+// The first lmstr step scales by the column norms of R, which equal those of the Jacobian (MINPACK).
+void testLmstrScaling() {
+  lmstr_functor functor;
+  VectorXd x = VectorXd::Ones(3), row(3);
+  MatrixXd jac(15, 3);
+  for (int i = 0; i < 15; ++i) {
+    functor.df(x, row, i + 2);
+    jac.row(i) = row.transpose();
+  }
+  LevenbergMarquardt<lmstr_functor> lm(functor);
+  lm.minimizeOptimumStorageInit(x);
+  lm.minimizeOptimumStorageOneStep(x);
+  VERIFY_IS_APPROX(lm.diag, VectorXd(jac.colwise().norm().transpose()));
+}
+
+// covar() takes the rank to end at the first pivot below tol * |r(0,0)| (MINPACK) and zeroes the rest;
+// a NaN pivot is not negligible, so it reaches the result instead of reading as zero variance.
+void testCovarRankDeficient() {
+  MatrixXd r(3, 3);
+  r << 2, 1, 1, 0, 1e-20, 1, 0, 0, 3;
+  VectorXi ipvt(3);
+  ipvt << 0, 1, 2;
+  internal::covar(r, ipvt);
+  MatrixXd expected = MatrixXd::Zero(3, 3);
+  expected(0, 0) = 0.25;
+  VERIFY_IS_APPROX(r, expected);
+
+  r << 2, 1, 1, 0, NumTraits<double>::quiet_NaN(), 1, 0, 0, 3;
+  internal::covar(r, ipvt);
+  VERIFY(r.hasNaN());
+}
+
 void testLmdif1() {
   const int n = 3;
   int info;
@@ -1231,8 +1263,19 @@ void testR1mpyq() {
   VERIFY_IS_APPROX(qtf.transpose(), expected.row(0));
 }
 
+// dogleg() replaces a zero pivot r(j,j) by epsmch * max_i |r(i,j)| (MINPACK), not by the signed maximum.
+void testDoglegZeroPivot() {
+  MatrixXd r(2, 2);
+  r << -4, -2, 0, 0;
+  VectorXd diag = VectorXd::Ones(2), qtb = VectorXd::Ones(2), x(2);
+  internal::dogleg<double>(r, diag, qtb, 1e300, x);
+  const double x1 = 1 / (2 * NumTraits<double>::epsilon());
+  VERIFY_IS_APPROX(x, Vector2d(-(1 + 2 * x1) / 4, x1));
+}
+
 EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_2*/ (testR1mpyq());
+  CALL_SUBTEST /*_2*/ (testDoglegZeroPivot());
 
   // Tests using the examples provided by (c)minpack
   CALL_SUBTEST /*_1*/ (testChkder());
@@ -1244,6 +1287,8 @@ EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_2*/ (testHybrd());
   CALL_SUBTEST /*_3*/ (testLmstr1());
   CALL_SUBTEST /*_3*/ (testLmstr());
+  CALL_SUBTEST /*_3*/ (testLmstrScaling());
+  CALL_SUBTEST /*_3*/ (testCovarRankDeficient());
   CALL_SUBTEST /*_3*/ (testLmdif1());
   CALL_SUBTEST /*_3*/ (testLmdif());
 
