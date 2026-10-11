@@ -93,7 +93,8 @@ class Serializer<DenseBase<Derived>, void> {
     EIGEN_USING_STD(memcpy)
     memcpy(dest, &header, header_bytes);
     dest += header_bytes;
-    memcpy(dest, value.data(), data_bytes);
+    // An empty object may have a null data(), which memcpy does not accept even for zero bytes.
+    if (data_bytes > 0) memcpy(dest, value.data(), data_bytes);
     return dest + data_bytes;
   }
 
@@ -108,7 +109,7 @@ class Serializer<DenseBase<Derived>, void> {
     const size_t data_bytes = sizeof(Scalar) * header.rows * header.cols;
     if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     value.resize(header.rows, header.cols);
-    memcpy(value.data(), src, data_bytes);
+    if (data_bytes > 0) memcpy(value.data(), src, data_bytes);
     return src + data_bytes;
   }
 };

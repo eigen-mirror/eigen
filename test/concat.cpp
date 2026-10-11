@@ -648,6 +648,14 @@ void test_concat_single_row_col() {
     VERIFY_IS_APPROX(hr(0, 0), a(0, 0));
     VERIFY_IS_APPROX(hr(0, 1), b(0, 0));
   }
+
+  // An empty operand of a compile-time vector result: linear indices span whole operands.
+  {
+    Matrix<Scalar, 1, 3> r = Matrix<Scalar, 1, 3>::Random();
+    Matrix<Scalar, 3, 1> c = Matrix<Scalar, 3, 1>::Random();
+    VERIFY_IS_EQUAL((Matrix<Scalar, 1, 3>(vcat(r, Matrix<Scalar, 0, 3>()))), r);
+    VERIFY_IS_EQUAL((Matrix<Scalar, 3, 1>(hcat(c, Matrix<Scalar, 3, 0>()))), c);
+  }
 }
 
 // ============================================================================

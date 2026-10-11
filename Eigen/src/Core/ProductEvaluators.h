@@ -1391,8 +1391,11 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, DiagonalShape, ProductTa
   using LhsBlasTraits = blas_traits<typename Lhs::MatrixType>;
   // A named constant, not bool(...): nvcc's front end re-emits that cast as a function type MSVC rejects.
   static constexpr bool ConjLhs = LhsBlasTraits::NeedToConjugate;
-  using ActualLhsMatrix =
+  // conjugateIf<false> returns a reference to its argument, which dangles when extract returns by value.
+  using ActualLhsMatrixXpr =
       decltype(LhsBlasTraits::extract(std::declval<const typename Lhs::MatrixType&>()).template conjugateIf<ConjLhs>());
+  using ActualLhsMatrix = std::conditional_t<std::is_reference<typename LhsBlasTraits::ExtractType>::value,
+                                             ActualLhsMatrixXpr, remove_all_t<ActualLhsMatrixXpr>>;
   using ActualLhsMatrixType = remove_all_t<ActualLhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Lhs::Mode, OnTheRight, ActualLhsMatrixType, typename Rhs::DiagonalVectorType>;
@@ -1430,8 +1433,11 @@ struct generic_product_impl<Lhs, Rhs, DiagonalShape, SelfAdjointShape, ProductTa
   // we extract the scalar factor with blas_traits.
   using RhsBlasTraits = blas_traits<typename Rhs::MatrixType>;
   static constexpr bool ConjRhs = RhsBlasTraits::NeedToConjugate;
-  using ActualRhsMatrix =
+  // conjugateIf<false> returns a reference to its argument, which dangles when extract returns by value.
+  using ActualRhsMatrixXpr =
       decltype(RhsBlasTraits::extract(std::declval<const typename Rhs::MatrixType&>()).template conjugateIf<ConjRhs>());
+  using ActualRhsMatrix = std::conditional_t<std::is_reference<typename RhsBlasTraits::ExtractType>::value,
+                                             ActualRhsMatrixXpr, remove_all_t<ActualRhsMatrixXpr>>;
   using ActualRhsMatrixType = remove_all_t<ActualRhsMatrix>;
   using Kernel =
       selfadjoint_diagonal_product_impl<Rhs::Mode, OnTheLeft, ActualRhsMatrixType, typename Lhs::DiagonalVectorType>;

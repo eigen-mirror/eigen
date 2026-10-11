@@ -367,6 +367,18 @@ void fixedSizeMatrixConstruction() {
   }
 }
 
+// InnerIterator of a dense expression advances by more than one coefficient.
+template <typename = void>
+void denseInnerIteratorAdvance() {
+  Matrix<float, 5, 3> m = Matrix<float, 5, 3>::Random();
+  InnerIterator<Matrix<float, 5, 3>> it(m, 1);
+  it += 2;
+  VERIFY_IS_EQUAL(it.row(), Index(2));
+  VERIFY_IS_EQUAL(it.value(), m(2, 1));
+  it += 3;
+  VERIFY(!it);
+}
+
 EIGEN_DECLARE_TEST(basicstuff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(basicStuff(Matrix<float, 1, 1>()));
@@ -394,6 +406,7 @@ EIGEN_DECLARE_TEST(basicstuff) {
         MatrixXd(internal::random<int>(1, EIGEN_TEST_MAX_SIZE), internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
   }
 
+  CALL_SUBTEST_1(denseInnerIteratorAdvance<>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<unsigned char>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<float>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<double>());

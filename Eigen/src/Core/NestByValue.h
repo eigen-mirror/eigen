@@ -53,15 +53,18 @@ class NestByValue : public internal::dense_xpr_base<NestByValue<ExpressionType> 
 
   EIGEN_DEVICE_FUNC constexpr const ExpressionType& nestedExpression() const { return m_expression; }
 
-  EIGEN_DEVICE_FUNC constexpr std::enable_if_t<HasDirectAccess, const Scalar*> data() const {
+  template <bool Enable = HasDirectAccess, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC constexpr const Scalar* data() const {
     return m_expression.data();
   }
 
-  EIGEN_DEVICE_FUNC constexpr std::enable_if_t<HasDirectAccess, Index> innerStride() const {
+  template <bool Enable = HasDirectAccess, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC constexpr Index innerStride() const {
     return m_expression.innerStride();
   }
 
-  EIGEN_DEVICE_FUNC constexpr std::enable_if_t<HasDirectAccess, Index> outerStride() const {
+  template <bool Enable = HasDirectAccess, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC constexpr Index outerStride() const {
     return m_expression.outerStride();
   }
 

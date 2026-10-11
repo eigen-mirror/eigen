@@ -243,9 +243,10 @@ struct scalar_arithmetic_shift_right_op {
     return internal::parithmetic_shift_right<N>(a);
   }
 };
+// A zero shift stays scalar: immediate right-shift intrinsics such as NEON's vshr_n reject a count of zero.
 template <typename Scalar, int N>
 struct functor_traits<scalar_arithmetic_shift_right_op<Scalar, N>> {
-  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift };
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift && N != 0 };
 };
 
 /** \internal
@@ -265,7 +266,7 @@ struct scalar_logical_shift_right_op {
 };
 template <typename Scalar, int N>
 struct functor_traits<scalar_logical_shift_right_op<Scalar, N>> {
-  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift };
+  enum { Cost = NumTraits<Scalar>::AddCost, PacketAccess = packet_traits<Scalar>::HasShift && N != 0 };
 };
 
 /** \internal

@@ -228,6 +228,11 @@ void scaled_selfadjoint_diagonal_product() {
                        expected);
   check_scaled_product(diagonal.asDiagonal() * (alpha * conjugated.conjugate().template selfadjointView<Mode>()),
                        expectedLeft);
+  const Mat transposed = matrix.transpose();
+  check_scaled_product(transposed.transpose().template selfadjointView<Mode>() * (alpha * diagonal).asDiagonal(),
+                       expected);
+  check_scaled_product((alpha * diagonal).asDiagonal() * transposed.transpose().template selfadjointView<Mode>(),
+                       expectedLeft);
   const Matrix<Scalar, 3, 1> actualDiagonal =
       ((alpha * matrix.template selfadjointView<Mode>()) * diagonal.asDiagonal()).diagonal();
   VERIFY_IS_EQUAL(actualDiagonal, expected.diagonal());

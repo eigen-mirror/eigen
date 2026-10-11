@@ -102,6 +102,13 @@ void run_vector_tests() {
     m.conservativeResizeLike(Matrix<Scalar, Dynamic, Dynamic>::Zero(1, size));
     VERIFY_IS_APPROX(m.segment(0, 50), n);
     VERIFY(size <= 50 || m.segment(50, size - 50).sum() == Scalar(0));
+
+    // A column vector of the same size: the row vector stays a row vector.
+    m = n = VectorType::Random(50);
+    m.conservativeResizeLike(Matrix<Scalar, Dynamic, 1>::Zero(size));
+    VERIFY_IS_EQUAL(m.size(), Index(size));
+    VERIFY_IS_APPROX(m.segment(0, 50), n);
+    VERIFY(size <= 50 || m.segment(50, size - 50).sum() == Scalar(0));
   }
 }
 
@@ -134,6 +141,21 @@ void noncopyable() {
   VERIFY(AnnoyingScalar::instances == 0 && "global memory leak detected in noncopyable");
 }
 
+// Growing past the compile-time maximum sizes is caught as resize() catches it.
+template <int>
+void max_size_checks() {
+  Matrix<double, Dynamic, Dynamic, ColMajor, 4, 4> m(4, 2);
+  VERIFY_RAISES_ASSERT(m.conservativeResize(4, 6));
+  Matrix<double, Dynamic, 1, ColMajor, 4, 1> v(2);
+  VERIFY_RAISES_ASSERT(v.conservativeResize(8));
+  VERIFY_RAISES_ASSERT(m.conservativeResizeLike(MatrixXd::Zero(4, 6)));
+  VERIFY_RAISES_ASSERT(v.conservativeResizeLike(VectorXd::Zero(6)));
+  VERIFY_RAISES_ASSERT(v.conservativeResizeLike(RowVectorXd::Zero(6)));
+  // Within the maximum size, a vector resized like a transposed vector is valid.
+  v.conservativeResizeLike(RowVectorXd::Zero(4));
+  VERIFY_IS_EQUAL(v.size(), 4);
+}
+
 EIGEN_DECLARE_TEST(conservative_resize) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1((run_matrix_tests<int, Eigen::RowMajor>()));
@@ -151,6 +173,7 @@ EIGEN_DECLARE_TEST(conservative_resize) {
     CALL_SUBTEST_1((run_vector_tests<int>()));
     CALL_SUBTEST_2((run_vector_tests<float>()));
     CALL_SUBTEST_3((run_vector_tests<double>()));
+    CALL_SUBTEST_3((max_size_checks<0>()));
     CALL_SUBTEST_4((run_vector_tests<std::complex<float> >()));
     CALL_SUBTEST_5((run_vector_tests<std::complex<double> >()));
 

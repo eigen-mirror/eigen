@@ -572,8 +572,10 @@ struct Assignment<DstXprType, SrcXprType, Functor, Diagonal2Dense> {
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
 
-    dst.setZero();
+    // The diagonal may be read from dst, so it is copied before the rest is zeroed.
     dst.diagonal() = src.diagonal();
+    dst.template triangularView<StrictlyLower>().setZero();
+    dst.template triangularView<StrictlyUpper>().setZero();
   }
 
   static EIGEN_DEVICE_FUNC void run(

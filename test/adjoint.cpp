@@ -437,6 +437,23 @@ void transposeInPlace_strided() {
   }
 }
 
+// An aligned start does not make every column aligned when the outer stride is not a multiple of the packet size.
+template <typename Scalar>
+void transposeInPlace_aligned_map_outer_stride() {
+  constexpr int P = internal::packet_traits<Scalar>::size;
+  Matrix<Scalar, Dynamic, 1> storage =
+      Matrix<Scalar, Dynamic, 1>::LinSpaced(2 * P * (2 * P + 1), 1, 2 * P * (2 * P + 1));
+  Map<Matrix<Scalar, Dynamic, Dynamic>, AlignedMax, OuterStride<>> dynamicMap(storage.data(), 2 * P, 2 * P,
+                                                                              OuterStride<>(2 * P + 1));
+  Matrix<Scalar, Dynamic, Dynamic> expected = dynamicMap.transpose();
+  dynamicMap.transposeInPlace();
+  VERIFY_IS_EQUAL(dynamicMap, expected);
+  Map<Matrix<Scalar, P, P>, AlignedMax, OuterStride<>> fixedMap(storage.data(), OuterStride<>(P + 1));
+  Matrix<Scalar, P, P> fixedExpected = fixedMap.transpose();
+  fixedMap.transposeInPlace();
+  VERIFY_IS_EQUAL(fixedMap, fixedExpected);
+}
+
 EIGEN_DECLARE_TEST(adjoint) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(adjoint(Matrix<float, 1, 1>()));
@@ -489,6 +506,8 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_18(transposeInPlace_boundary<float>());
   CALL_SUBTEST_18(transposeInPlace_boundary<double>());
   CALL_SUBTEST_18(transposeInPlace_boundary<std::complex<float>>());
+  CALL_SUBTEST_18(transposeInPlace_aligned_map_outer_stride<float>());
+  CALL_SUBTEST_18(transposeInPlace_aligned_map_outer_stride<double>());
 
   CALL_SUBTEST_19((transposeInPlace_strided<float, ColMajor, Dynamic>()));
   CALL_SUBTEST_19((transposeInPlace_strided<float, RowMajor, Dynamic>()));

@@ -194,7 +194,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
-    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    const Index boundary = m_lhsRows.value() * m_lhsCols.value();
     if (index < boundary)
       return m_lhsImpl.coeff(index);
     else
@@ -228,7 +228,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
     constexpr int packetSize = unpacket_traits<PacketType>::size;
-    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    const Index boundary = m_lhsRows.value() * m_lhsCols.value();
     if (index >= boundary) return m_rhsImpl.template packet<LoadMode, PacketType>(index - boundary);
     if (index + packetSize > boundary) return packetBoundaryLinear<LoadMode, PacketType>(index);
     return m_lhsImpl.template packet<LoadMode, PacketType>(index);
@@ -257,7 +257,7 @@ struct evaluator<Concat<Direction, LhsType, RhsType>> : evaluator_base<Concat<Di
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
-    const Index boundary = Direction == Vertical ? m_lhsRows.value() : m_lhsCols.value();
+    const Index boundary = m_lhsRows.value() * m_lhsCols.value();
     if (index >= boundary)
       return m_rhsImpl.template packetSegment<LoadMode, PacketType>(index - boundary, begin, count);
     if (index + begin + count > boundary) return packetSegmentBoundaryLinear<LoadMode, PacketType>(index, begin, count);

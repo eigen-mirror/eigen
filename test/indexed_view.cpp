@@ -194,6 +194,10 @@ void check_indexed_view() {
       is_same_seq_type(seq(std::integral_constant<int, 1>(), std::integral_constant<int, 5>()), seq(fix<1>, fix<5>)));
 
   VERIFY((A(seqN(2, fix<5>), 5)).RowsAtCompileTime == 5);
+  // Compile-time single indices.
+  VERIFY_IS_EQUAL(A(fix<1>, fix<2>), A(1, 2));
+  VERIFY((A(fix<1>, all) == A.row(1)).all());
+  VERIFY_IS_EQUAL(a(fix<3>), a(3));
   VERIFY((A(4, all)).ColsAtCompileTime == Dynamic);
   VERIFY((A(4, all)).RowsAtCompileTime == 1);
   VERIFY((B(1, all)).ColsAtCompileTime == 4);

@@ -235,6 +235,9 @@ void diagonalmatrices(const MatrixType& m) {
   sq_m2 = dst0;
   sq_m2 += sq_m1 - sq_m2.diagonal().asDiagonal();
   VERIFY_IS_EQUAL(sq_m2, SquareMatrixType(dst0 + (sq_m1 - dst0Diagonal)));
+  sq_m2 = dst0;
+  sq_m2 = sq_m2.diagonal().asDiagonal();
+  VERIFY_IS_EQUAL(sq_m2, dst0Diagonal);
 }
 
 // Operands for which a two-pass assignment (dense operand, then the diagonal) differs from the coefficient-wise sum.

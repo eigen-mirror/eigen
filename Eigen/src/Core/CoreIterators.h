@@ -107,6 +107,10 @@ class inner_iterator_selector<XprType, IndexBased> {
     m_inner++;
     return *this;
   }
+  EIGEN_STRONG_INLINE inner_iterator_selector &operator+=(Index i) {
+    m_inner += i;
+    return *this;
+  }
 
   EIGEN_STRONG_INLINE Index index() const { return m_inner; }
   inline Index row() const { return IsRowMajor ? m_outer : index(); }

@@ -12,6 +12,7 @@
 struct Foo {
   static Index object_count;
   static Index object_limit;
+  static Index copy_limit;
   EIGEN_ALIGN_TO_BOUNDARY(128) int dummy;
 
   Foo(int x = 0) : dummy(x) {
@@ -27,6 +28,9 @@ struct Foo {
     eigen_assert((std::uintptr_t(this) & (127)) == 0);
   }
   Foo(const Foo&) {
+#ifdef EIGEN_EXCEPTIONS
+    if (Foo::object_count > Foo::copy_limit) throw Foo::Fail();
+#endif
     std::cout << 'c';
     ++Foo::object_count;
     eigen_assert((std::uintptr_t(this) & (127)) == 0);
@@ -43,6 +47,7 @@ struct Foo {
 
 Index Foo::object_count = 0;
 Index Foo::object_limit = 0;
+Index Foo::copy_limit = NumTraits<Index>::highest();
 
 EIGEN_DECLARE_TEST(maxsizevector) {
   typedef MaxSizeVector<Foo> VectorX;
@@ -71,6 +76,36 @@ EIGEN_DECLARE_TEST(maxsizevector) {
       VERIFY_IS_EQUAL(Foo::object_count, rows);
     }
     VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+#ifdef EIGEN_EXCEPTIONS
+    // A copy throwing partway through the fill destroys exactly the copies already made.
+    exception_raised = false;
+    Foo::copy_limit = rows / 2;
+    try {
+      VectorX vect3(rows, Foo());
+    } catch (const Foo::Fail&) {
+      exception_raised = true;
+    }
+    Foo::copy_limit = NumTraits<Index>::highest();
+    VERIFY(exception_raised);
+    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+
+    // A throwing push_back leaves the vector unchanged.
+    {
+      VectorX vect4(rows);
+      vect4.push_back(Foo());
+      exception_raised = false;
+      Foo::copy_limit = 0;
+      try {
+        vect4.push_back(Foo());
+      } catch (const Foo::Fail&) {
+        exception_raised = true;
+      }
+      Foo::copy_limit = NumTraits<Index>::highest();
+      VERIFY(exception_raised);
+      VERIFY_IS_EQUAL(vect4.size(), size_t(1));
+    }
+    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+#endif
     std::cout << '\n';
   }
 }

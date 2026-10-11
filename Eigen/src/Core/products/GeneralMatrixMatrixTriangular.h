@@ -229,6 +229,12 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
 
     if (!beta) mat.template triangularView<UpLo>().setZero();
 
+    // The rank-1 kernel below addresses mat with a unit inner stride.
+    if (MatrixType::InnerStrideAtCompileTime != 1 && mat.innerStride() != 1) {
+      mat.template triangularView<UpLo>() += typename ProductType::PlainObject(alpha * prod);
+      return;
+    }
+
     enum {
       StorageOrder = (internal::traits<MatrixType>::Flags & RowMajorBit) ? RowMajor : ColMajor,
       UseLhsDirectly = ActualLhs_::InnerStrideAtCompileTime == 1,
@@ -253,11 +259,17 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, tru
       Map<typename ActualRhs_::PlainObject>(actualRhsPtr, actualRhs.size()) = actualRhs;
     }
 
-    selfadjoint_rank1_update<
-        Scalar, Index, StorageOrder, UpLo, LhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex,
-        RhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex>::run(actualLhs.size(), mat.data(),
-                                                                             mat.outerStride(), actualLhsPtr,
-                                                                             actualRhsPtr, actualAlpha);
+    // A strictly triangular part is the triangle of the trailing (size-1) block one step off the diagonal.
+    const bool skipDiag = (UpLo & ZeroDiag) != 0, isLower = (UpLo & Lower) != 0;
+    const Index size = actualLhs.size() - skipDiag;
+    if (size <= 0) return;
+    Scalar* res = mat.data() + (!skipDiag ? 0 : (int(StorageOrder) == RowMajor) != isLower ? 1 : mat.outerStride());
+    selfadjoint_rank1_update<Scalar, Index, StorageOrder, UpLo&(Lower | Upper),
+                             LhsBlasTraits::NeedToConjugate && NumTraits<Scalar>::IsComplex,
+                             RhsBlasTraits::NeedToConjugate &&
+                                 NumTraits<Scalar>::IsComplex>::run(size, res, mat.outerStride(),
+                                                                    actualLhsPtr + (skipDiag && isLower),
+                                                                    actualRhsPtr + (skipDiag && !isLower), actualAlpha);
   }
 };
 
@@ -325,6 +337,16 @@ TriangularViewImpl<MatrixType_, Mode_, Dense>::_assignProduct(
     const ProductType& prod, const typename TriangularViewImpl<MatrixType_, Mode_, Dense>::Scalar& alpha, bool beta) {
   EIGEN_STATIC_ASSERT((Mode_ & UnitDiag) == 0, WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
   eigen_assert(derived().nestedExpression().rows() == prod.rows() && derived().cols() == prod.cols());
+
+  // The rank-k and rank-1 kernels below update a square triangle.
+  if (derived().rows() != derived().cols()) {
+    typename ProductType::PlainObject tmp(alpha * prod);
+    if (beta)
+      derived() += tmp;
+    else
+      derived() = tmp;
+    return derived();
+  }
 
   general_product_to_triangular_selector<MatrixType_, ProductType, Mode_,
                                          internal::traits<ProductType>::InnerSize == 1>::run(derived()

@@ -150,6 +150,42 @@ void syrk(const MatrixType& m) {
     buffer.setZero();
     VERIFY_IS_APPROX((map1.template selfadjointView<Lower>().rankUpdate(rhs2, s1)._expression()),
                      ((s1 * rhs2 * rhs2.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+    buffer.setZero();
+    VERIFY_IS_APPROX(
+        (map1.template selfadjointView<Upper>().rankUpdate(rhs2.col(0), s1)._expression()),
+        ((s1 * rhs2.col(0) * rhs2.col(0).adjoint()).eval().template triangularView<Upper>().toDenseMatrix()));
+    buffer.setZero();
+    VERIFY_IS_APPROX(
+        (map1.template selfadjointView<Lower>().rankUpdate(rhs2.col(0).transpose(), s1)._expression()),
+        ((s1 * rhs2.col(0) * rhs2.col(0).adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+    buffer.setZero();
+    map1.template triangularView<Lower>() = s1 * rhs2.col(0) * rhs22.col(0).adjoint();
+    VERIFY_IS_APPROX(
+        map1, (s1 * rhs2.col(0) * rhs22.col(0).adjoint()).eval().template triangularView<Lower>().toDenseMatrix());
+    VERIFY(buffer.row(1).isZero());
+  }
+
+  // outer products into a strictly triangular part
+  {
+    using VectorX = Matrix<Scalar, Dynamic, 1>;
+    VectorX u = VectorX::Random(rows), v = VectorX::Random(rows);
+    m2.setZero();
+    m2.template triangularView<StrictlyLower>() = s1 * u * v.adjoint();
+    VERIFY_IS_APPROX(m2, (s1 * u * v.adjoint()).eval().template triangularView<StrictlyLower>().toDenseMatrix());
+    rm2.setZero();
+    rm2.template triangularView<StrictlyUpper>() += u * v.adjoint();
+    VERIFY_IS_APPROX(rm2, (u * v.adjoint()).eval().template triangularView<StrictlyUpper>().toDenseMatrix());
+  }
+
+  // products assigned to a triangular part of a rectangular matrix
+  {
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+    MatrixX lhs = MatrixX::Random(rows + 2, 3), rhs = MatrixX::Random(3, rows), tall = MatrixX::Zero(rows + 2, rows);
+    tall.template triangularView<Lower>() = lhs * rhs;
+    VERIFY_IS_APPROX(tall, (lhs * rhs).eval().template triangularView<Lower>().toDenseMatrix());
+    tall.setZero();
+    tall.template triangularView<Upper>() += lhs.col(0) * rhs.row(0);
+    VERIFY_IS_APPROX(tall, (lhs.col(0) * rhs.row(0)).eval().template triangularView<Upper>().toDenseMatrix());
   }
 }
 

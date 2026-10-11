@@ -272,7 +272,7 @@ struct IndexedViewHelperIndicesWrapper<
 template <int N, int NestedSizeAtCompileTime>
 struct IndexedViewHelperIndicesWrapper<FixedInt<N>, NestedSizeAtCompileTime, void> {
   using type = SingleRange<Index(N)>;
-  static type CreateIndexSequence(const FixedInt<N>& /*index*/) { return type(Index(N)); }
+  static type CreateIndexSequence(const FixedInt<N>& /*index*/, Index /*nested_size*/) { return type(Index(N)); }
 };
 
 template <Index ValueAtCompileTime>

@@ -112,24 +112,28 @@ struct linspaced_op_impl<Scalar, /*IsInteger*/ false> {
 
 template <typename Scalar>
 struct linspaced_op_impl<Scalar, /*IsInteger*/ true> {
+  // Built-in integers narrower than Index compute in Index, as num_steps, the index i and the offset from low need not
+  // fit in Scalar while the coefficient does. Other scalars, custom integers included, compute in Scalar.
+  using Wide = std::conditional_t<std::is_integral<Scalar>::value && (sizeof(Scalar) < sizeof(Index)), Index, Scalar>;
+
   EIGEN_DEVICE_FUNC constexpr linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
       : m_low(low),
-        m_multiplier((high - low) / convert_index<Scalar>(num_steps <= 1 ? 1 : num_steps - 1)),
-        m_divisor(convert_index<Scalar>((high >= low ? num_steps : -num_steps) + (high - low)) /
-                  ((numext::abs(high - low) + 1) == 0 ? 1 : (numext::abs(high - low) + 1))),
-        m_use_divisor(num_steps > 1 && (numext::abs(high - low) + 1) < num_steps) {}
+        m_multiplier((Wide(high) - Wide(low)) / convert_index<Wide>(num_steps <= 1 ? 1 : num_steps - 1)),
+        m_divisor(convert_index<Wide>((high >= low ? num_steps : -num_steps) + (Wide(high) - Wide(low))) /
+                  ((numext::abs(Wide(high) - Wide(low)) + 1) == 0 ? 1 : (numext::abs(Wide(high) - Wide(low)) + 1))),
+        m_use_divisor(num_steps > 1 && (numext::abs(Wide(high) - Wide(low)) + 1) < num_steps) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(IndexType i) const {
     if (m_use_divisor)
-      return m_low + convert_index<Scalar>(i) / m_divisor;
+      return static_cast<Scalar>(m_low + convert_index<Wide>(i) / m_divisor);
     else
-      return m_low + convert_index<Scalar>(i) * m_multiplier;
+      return static_cast<Scalar>(m_low + convert_index<Wide>(i) * m_multiplier);
   }
 
-  const Scalar m_low;
-  const Scalar m_multiplier;
-  const Scalar m_divisor;
+  const Wide m_low;
+  const Wide m_multiplier;
+  const Wide m_divisor;
   const bool m_use_divisor;
 };
 

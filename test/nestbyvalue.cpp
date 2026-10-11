@@ -34,5 +34,7 @@ EIGEN_DECLARE_TEST(nestbyvalue) {
     VERIFY_IS_APPROX(b, a.rowwise().reverse().eval() + (a + a).eval());
     // Block expressions work with dense NestByValue.
     VERIFY_IS_APPROX(b, a.nestByValue().rowwise().reverse().eval() + (a.nestByValue() + a.nestByValue()).eval());
+    // Expressions without direct access can be nested by value too.
+    VERIFY_IS_APPROX(MatrixXd((a + a).nestByValue()), (a + a).eval());
   }
 }

@@ -351,6 +351,34 @@ void linspaced_boundary() {
   }
 }
 
+// A custom integer scalar, which integer LinSpaced computes in rather than in Index.
+struct CustomInt {
+  long long v;
+  CustomInt(long long x = 0) : v(x) {}
+  friend CustomInt operator+(CustomInt a, CustomInt b) { return a.v + b.v; }
+  friend CustomInt operator-(CustomInt a, CustomInt b) { return a.v - b.v; }
+  friend CustomInt operator*(CustomInt a, CustomInt b) { return a.v * b.v; }
+  friend CustomInt operator/(CustomInt a, CustomInt b) { return a.v / b.v; }
+  friend bool operator<(CustomInt a, CustomInt b) { return a.v < b.v; }
+  friend bool operator<=(CustomInt a, CustomInt b) { return a.v <= b.v; }
+  friend bool operator>=(CustomInt a, CustomInt b) { return a.v >= b.v; }
+  friend bool operator==(CustomInt a, CustomInt b) { return a.v == b.v; }
+  friend CustomInt abs(CustomInt a) { return a.v < 0 ? -a.v : a.v; }
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<CustomInt> : GenericNumTraits<long long> {
+  using Real = CustomInt;
+  using NonInteger = double;
+  using Literal = CustomInt;
+  using Nested = CustomInt;
+  static constexpr int RequireInitialization = 1;
+  static CustomInt highest() { return GenericNumTraits<long long>::highest(); }
+  static CustomInt lowest() { return GenericNumTraits<long long>::lowest(); }
+};
+}  // namespace Eigen
+
 // Test integer LinSpaced divisor path.
 // When (abs(high - low) + 1) < num_steps, the integer LinSpaced uses
 // a divisor-based formula instead of multiplication. This path is
@@ -409,6 +437,35 @@ void linspaced_integer_divisor() {
   {
     VecI v = VecI::LinSpaced(1, 3, 7);
     VERIFY_IS_EQUAL(v(0), 7);
+  }
+
+  // More steps than a narrow Scalar can count: num_steps and the index i do not fit in uint8_t.
+  {
+    using VecU8 = Matrix<uint8_t, Dynamic, 1>;
+    VecU8 v = VecU8::LinSpaced(300, 0, 10);
+    VERIFY_IS_EQUAL(v(0), uint8_t(0));
+    VERIFY_IS_EQUAL(v(299), uint8_t(10));
+    for (Index k = 1; k < 300; ++k) VERIFY(v(k) >= v(k - 1) && v(k) <= v(k - 1) + 1);
+  }
+
+  // The offset from low need not fit in the Scalar: k / 2 reaches 149 and k reaches 255, in both the divisor and
+  // the multiplier path.
+  {
+    using VecI8 = Matrix<int8_t, Dynamic, 1>;
+    VecI8 v = VecI8::LinSpaced(300, -100, 100), w = VecI8::LinSpaced(256, -128, 127);
+    for (Index k = 0; k < 300; ++k) VERIFY_IS_EQUAL(int(v(k)), -100 + int(k / 2));
+    for (Index k = 0; k < 256; ++k) VERIFY_IS_EQUAL(int(w(k)), -128 + int(k));
+    using VecU8 = Matrix<uint8_t, Dynamic, 1>;
+    VecU8 u = VecU8::LinSpaced(256, 255, 0);
+    for (Index k = 0; k < 256; ++k) VERIFY_IS_EQUAL(int(u(k)), 255 - int(k));
+  }
+
+  // Custom integer scalars.
+  {
+    using VecC = Matrix<CustomInt, Dynamic, 1>;
+    VecC v = VecC::LinSpaced(10, CustomInt(0), CustomInt(3)), w = VecC::LinSpaced(4, CustomInt(9), CustomInt(0));
+    for (Index k = 0; k < 10; ++k) VERIFY_IS_EQUAL(v(k).v, k / 3);
+    for (Index k = 0; k < 4; ++k) VERIFY_IS_EQUAL(w(k).v, 9 - 3 * k);
   }
 }
 
