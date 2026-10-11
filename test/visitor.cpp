@@ -392,12 +392,16 @@ void checkBooleanVisitors(const DenseBase<Derived>& matrix) {
 
 template <typename Scalar, int Options>
 void checkBooleanVisitorTraversal() {
-  STATIC_CHECK((internal::visitor_has_linear_access<internal::all_visitor<Scalar>>::value));
-  STATIC_CHECK((internal::visitor_has_linear_access<internal::any_visitor<Scalar>>::value));
-  STATIC_CHECK((internal::visitor_has_linear_access<internal::count_visitor<Scalar>>::value));
   constexpr int PacketSize = internal::packet_traits<Scalar>::size;
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
-  const Index sizes[] = {0, 1, PacketSize - 1, PacketSize, PacketSize + 1, 2 * PacketSize + 1};
+  using Reduction = internal::predicate_reduction<MatrixType, internal::nonzero_predicate<Scalar>>;
+  STATIC_CHECK((Reduction::LinearAccess));
+  STATIC_CHECK((!internal::predicate_reduction<Block<MatrixType>, internal::nonzero_predicate<Scalar>>::LinearAccess));
+  STATIC_CHECK((internal::visitor_has_linear_access<internal::count_visitor<Scalar>>::value));
+  // 4 and 9 packets plus a tail reach the blocked loop, the merged remainder packets, and the scalar tail; 131 reaches
+  // two 64-coefficient blocks and a tail without packets.
+  const Index sizes[] = {
+      0, 1, PacketSize - 1, PacketSize, PacketSize + 1, 2 * PacketSize + 1, 4 * PacketSize, 9 * PacketSize + 3, 131};
   for (Index inner : sizes) {
     MatrixType matrix(Options == RowMajor ? 3 : inner, Options == RowMajor ? inner : 3);
     for (int value = 0; value <= 1; ++value) {
@@ -449,7 +453,11 @@ void checkVisitorShortCircuit() {
   const Index inner = Vectorize ? 1 : 7;
   const Index outer = 35;
   MatrixType matrix(Options == RowMajor ? outer : inner, Options == RowMajor ? inner : outer);
-  for (Index index : {Index(0), Index(1), matrix.size() - 1}) {
+  // A short-circuit stops at the end of the block holding the deciding coefficient: up to eight packets, or 64
+  // coefficients without packets.
+  const Index blockSize = Vectorize ? 8 * internal::packet_traits<float>::size : 64;
+  auto maxReads = [&](Index index) { return (std::min)(matrix.size(), index + blockSize); };
+  for (Index index : {Index(0), Index(1), matrix.size() / 2, matrix.size() - 1}) {
     Index reads = 0;
     auto counted = matrix.unaryExpr(CountVisitorReads<Vectorize>{&reads});
     for (int value = 0; value <= 1; ++value) {
@@ -457,11 +465,11 @@ void checkVisitorShortCircuit() {
       matrix(index) = float(!value);
       reads = 0;
       VERIFY_IS_EQUAL(value ? counted.all() : counted.any(), !value);
-      VERIFY_IS_EQUAL(reads, index + 1);
+      VERIFY(reads > index && reads <= maxReads(index));
       reads = 0;
       auto block = counted.block(0, 0, matrix.rows(), matrix.cols());
       VERIFY_IS_EQUAL(value ? block.all() : block.any(), !value);
-      VERIFY_IS_EQUAL(reads, index + 1);
+      VERIFY(reads > index && reads <= maxReads(index));
     }
   }
 }
@@ -665,7 +673,11 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<float, ColMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<double, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<int, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<int64_t, RowMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<Eigen::half, ColMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<int16_t, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<long double, RowMajor>()));
   CALL_SUBTEST_14(checkVisitorShortCircuit<ColMajor>());
   CALL_SUBTEST_14(checkVisitorShortCircuit<RowMajor>());
   CALL_SUBTEST_14((checkVisitorShortCircuit<ColMajor, true>()));

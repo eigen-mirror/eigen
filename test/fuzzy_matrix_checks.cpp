@@ -100,12 +100,14 @@ void check_fuzzy_loops() {
 template <typename Scalar, int Order>
 void check_fuzzy_boundaries() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
-  using Visitor = internal::fuzzy_constant_visitor<Scalar, false>;
-  STATIC_CHECK((internal::visit_impl<Mat, Visitor, true>::LinearAccess));
-  STATIC_CHECK((!internal::visit_impl<Block<Mat>, Visitor, true>::LinearAccess));
+  using Predicate = internal::fuzzy_constant_predicate<Scalar, false>;
+  STATIC_CHECK((internal::predicate_reduction<Mat, Predicate>::LinearAccess));
+  STATIC_CHECK((!internal::predicate_reduction<Block<Mat>, Predicate>::LinearAccess));
   constexpr int packetSize = internal::packet_traits<Scalar>::size;
-  for (Index size :
-       {Index(1), Index(packetSize - 1), Index(packetSize), Index(packetSize + 1), Index(2 * packetSize + 1)}) {
+  // Sizes up to 9 * packetSize + 3 run the long path's 8-packet blocks, 4-packet block and remainder for every packet
+  // size.
+  for (Index size : {Index(1), Index(packetSize - 1), Index(packetSize), Index(packetSize + 1),
+                     Index(2 * packetSize + 1), Index(4 * packetSize), Index(9 * packetSize + 3)}) {
     // Unaligned linear access, including a packet crossing a column boundary.
     std::vector<Scalar> data(3 * size + 1);
     Map<Mat, Unaligned> matrix(data.data() + 1, 3, size);
@@ -120,17 +122,20 @@ void check_fuzzy_boundaries() {
       VERIFY(!matrix.isApproxToConstant(Scalar(0.5)));
     }
   }
-  for (Index inner : {Index(1), Index(packetSize), Index(packetSize + 1), Index(2 * packetSize + 1)}) {
-    Mat storage = Mat::Zero(inner + 2, inner + 2);
-    auto block = storage.block(1, 1, inner, inner);
-    for (Index k = 0; k < inner * inner; ++k) {
+  for (Index inner : {Index(1), Index(packetSize), Index(packetSize + 1), Index(2 * packetSize + 1),
+                      Index(4 * packetSize), Index(9 * packetSize + 3)}) {
+    // Three inner vectors of the given length.
+    const Index rows = Order == RowMajor ? 3 : inner, cols = Order == RowMajor ? inner : 3;
+    Mat storage = Mat::Zero(rows + 2, cols + 2);
+    auto block = storage.block(1, 1, rows, cols);
+    for (Index k = 0; k < rows * cols; ++k) {
       block.setZero();
       VERIFY(block.isZero());
-      block(k / inner, k % inner) = Scalar(1);
+      block(k / cols, k % cols) = Scalar(1);
       VERIFY(!block.isZero());
       block.setConstant(Scalar(0.5));
       VERIFY(block.isApproxToConstant(Scalar(0.5)));
-      block(k / inner, k % inner) = Scalar(1);
+      block(k / cols, k % cols) = Scalar(1);
       VERIFY(!block.isApproxToConstant(Scalar(0.5)));
     }
   }
@@ -162,6 +167,30 @@ void check_fuzzy_boundaries() {
   VERIFY(!strided.isZero());
 }
 
+// The packet test of isApproxToConstant() holds for 0 <= prec <= 1 and a finite constant; other precisions and
+// constants fall back to scalar tests. Coefficients of either sign, signed zeros and non-finite values at every
+// position of a vector long enough for packet blocks and a scalar tail.
+template <typename Scalar>
+void check_fuzzy_constant_signs() {
+  const Scalar inf = NumTraits<Scalar>::infinity(), nan = NumTraits<Scalar>::quiet_NaN();
+  constexpr int packetSize = internal::packet_traits<Scalar>::size;
+  Matrix<Scalar, Dynamic, 1> v(9 * packetSize + 3);
+  for (Scalar value : {Scalar(0.5), Scalar(-0.5), Scalar(0), -Scalar(0), inf, -inf, NumTraits<Scalar>::highest()}) {
+    for (Scalar precision : {Scalar(0), Scalar(1e-3), Scalar(0.5), Scalar(1), Scalar(1.5), Scalar(3), inf}) {
+      for (Scalar x :
+           {-value, value * Scalar(1.25), value * Scalar(-0.25), Scalar(0), -Scalar(0), inf, -inf, nan, Scalar(1)}) {
+        for (Index k = 0; k < v.size(); ++k) {
+          v.setConstant(value);
+          v(k) = x;
+          bool expected = true;
+          for (Index i = 0; i < v.size(); ++i) expected &= internal::isApprox(v(i), value, precision);
+          VERIFY_IS_EQUAL(v.isApproxToConstant(value, precision), expected);
+        }
+      }
+    }
+  }
+}
+
 template <typename Scalar, int Order>
 void check_fuzzy_subnormals() {
   const ScopedFlushToZero gradual(FlushToZeroMode::None);
@@ -169,9 +198,9 @@ void check_fuzzy_subnormals() {
   if (subnormalInputProbe<Scalar>() == Scalar(0) || underflowProbe<Scalar>() == Scalar(0)) return;
   const Scalar subnormal = (std::numeric_limits<Scalar>::min)() / Scalar(4);
   using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
-  using Visitor = internal::fuzzy_constant_visitor<Scalar, false>;
+  using Predicate = internal::fuzzy_constant_predicate<Scalar, false>;
   STATIC_CHECK(
-      (!EIGEN_ARCH_ARM || !std::is_same<Scalar, float>::value || !internal::functor_traits<Visitor>::PacketAccess));
+      (!EIGEN_ARCH_ARM || !std::is_same<Scalar, float>::value || !internal::functor_traits<Predicate>::PacketAccess));
   for (Index size : {1, 2, 4, 8, 9, 17}) {
     Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Zero(size);
     for (Index k = 0; k < size; ++k) {
@@ -218,5 +247,7 @@ EIGEN_DECLARE_TEST(fuzzy_matrix_checks) {
     CALL_SUBTEST_4((check_fuzzy_loops<double, RowMajor>()));
     CALL_SUBTEST_4((check_fuzzy_subnormals<double, RowMajor>()));
     CALL_SUBTEST_5(check_fuzzy_custom_scalars());
+    CALL_SUBTEST_6(check_fuzzy_constant_signs<float>());
+    CALL_SUBTEST_6(check_fuzzy_constant_signs<double>());
   }
 }

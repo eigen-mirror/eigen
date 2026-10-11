@@ -35,6 +35,26 @@ eigen_add_benchmark(bench_complex_components bench_complex_components.cpp)
 eigen_add_benchmark(bench_unary_pow bench_unary_pow.cpp)
 eigen_add_benchmark(bench_pgather bench_pgather.cpp)
 eigen_add_benchmark(bench_boolean_reductions bench_boolean_reductions.cpp)
+# One binary per family: in a shared TU, inlining and alignment shift with unrelated benchmark bodies.
+foreach(family float:All float:Any float:AllFinite float:IsZero float:ApproxConstant
+               double:All double:AllFinite double:IsZero int:All int:Any
+               int16_t:All int16_t:Any bool:All bool:Any)
+  string(REPLACE ":" ";" family ${family})
+  list(GET family 0 scalar)
+  list(GET family 1 operation)
+  string(TOLOWER ${operation} operation_name)
+  eigen_add_benchmark(bench_predicate_${operation_name}_${scalar} bench_predicate_reductions.cpp
+      DEFINITIONS EIGEN_BENCH_PREDICATE_SCALAR=${scalar} EIGEN_BENCH_PREDICATE_OP=${operation})
+endforeach()
+foreach(family Array4f:Any Array16f:AllFinite Array33f:IsZero Matrix4d:IsZero Vector3f:All)
+  string(REPLACE ":" ";" family ${family})
+  list(GET family 0 xpr)
+  list(GET family 1 operation)
+  string(TOLOWER "${operation}_${xpr}" target_suffix)
+  eigen_add_benchmark(bench_predicate_${target_suffix} bench_predicate_reductions.cpp
+      DEFINITIONS EIGEN_BENCH_PREDICATE_XPR=${xpr} EIGEN_BENCH_PREDICATE_OP=${operation})
+endforeach()
+eigen_add_benchmark(bench_predicate_block_iszero bench_predicate_reductions.cpp)
 # Separate operations and storage families to avoid moving unrelated hot loops.
 foreach(operation All Any Count)
   string(TOLOWER ${operation} operation_name)

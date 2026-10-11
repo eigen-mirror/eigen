@@ -397,167 +397,6 @@ struct visit_impl {
   }
 };
 
-}  // end namespace internal
-
-/** Applies the visitor \a visitor to the whole coefficients of the matrix or vector.
- *
- * The template parameter \a Visitor is the type of the visitor and provides the following interface:
- * \code
- * struct MyVisitor {
- *   // called for the first coefficient
- *   void init(const Scalar& value, Index i, Index j);
- *   // called for all other coefficients
- *   void operator() (const Scalar& value, Index i, Index j);
- * };
- * \endcode
- *
- * \note compared to one or two \em for \em loops, visitors offer automatic
- * unrolling for small fixed size matrix.
- *
- * \note if the matrix is empty, then the visitor is left unchanged.
- *
- * \sa minCoeff(Index*,Index*), maxCoeff(Index*,Index*), DenseBase::redux()
- */
-template <typename Derived>
-template <typename Visitor>
-EIGEN_DEVICE_FUNC void DenseBase<Derived>::visit(Visitor& visitor) const {
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ false>;
-  impl::run(derived(), visitor);
-}
-
-namespace internal {
-
-template <typename Scalar, bool Approximate>
-struct fuzzy_constant_visitor {
-  Scalar value;
-  typename NumTraits<Scalar>::Real precision;
-  bool result = true;
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(const Scalar& x, Index, Index = 0) {
-    result = result && (Approximate ? internal::isApprox(x, value, precision)
-                                    : internal::isMuchSmallerThan(x, Scalar(1), precision));
-  }
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init(const Scalar& x, Index r, Index c = 0) { (*this)(x, r, c); }
-  EIGEN_DEVICE_FUNC bool done() const { return !result; }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void packet(const Packet& x, Index, Index = 0) {
-    const Packet p = pset1<Packet>(precision);
-    Packet mask;
-    EIGEN_IF_CONSTEXPR (Approximate) {
-      const Packet v = pset1<Packet>(value);
-      mask = pcmp_le(pabs(psub(x, v)), pmul(pmin(pabs(x), pabs(v)), p));
-    } else {
-      mask = pcmp_le(pabs(x), p);
-    }
-    // Reduce the comparison mask directly, without comparing its lanes to zero again.
-    result = result && !predux_any(pandnot(ptrue(mask), mask));
-  }
-  template <typename Packet>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void initpacket(const Packet& x, Index r, Index c = 0) {
-    packet(x, r, c);
-  }
-};
-
-template <typename Scalar, bool Approximate>
-struct functor_traits<fuzzy_constant_visitor<Scalar, Approximate>> {
-  static constexpr bool AlreadyInitialized = true;
-  static constexpr bool LinearAccess = true;
-  static constexpr int Cost = 4 * NumTraits<Scalar>::AddCost + NumTraits<Scalar>::MulCost;
-  // ARMv7 NEON flushes subnormal float operands and results; scalar VFP does not.
-  // Explicitly flushing would change exact-zero checks; normal operands can also have a subnormal difference.
-  static constexpr bool PacketAccess =
-      (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
-      !(EIGEN_ARCH_ARM && std::is_same<Scalar, float>::value) && packet_traits<Scalar>::HasAbs &&
-      packet_traits<Scalar>::HasCmp &&
-      (!Approximate ||
-       (packet_traits<Scalar>::HasSub && packet_traits<Scalar>::HasMin && packet_traits<Scalar>::HasMul));
-};
-
-template <typename Scalar>
-using use_fuzzy_constant_visitor =
-    bool_constant<std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value>;
-
-template <bool Approximate, typename Derived,
-          std::enable_if_t<use_fuzzy_constant_visitor<typename Derived::Scalar>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
-                                                              const typename Derived::Scalar& value,
-                                                              const typename Derived::RealScalar& precision) {
-  fuzzy_constant_visitor<typename Derived::Scalar, Approximate> visitor{value, precision};
-  visit_impl<Derived, decltype(visitor), true>::run(matrix, visitor);
-  return visitor.result;
-}
-
-// Separate overloads keep custom scalars from instantiating unused comparisons in C++14.
-template <bool Approximate, typename Derived,
-          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && Approximate, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix,
-                                                              const typename Derived::Scalar& value,
-                                                              const typename Derived::RealScalar& precision) {
-  for (Index j = 0; j < matrix.cols(); ++j)
-    for (Index i = 0; i < matrix.rows(); ++i)
-      if (!internal::isApprox(matrix.coeff(i, j), value, precision)) return false;
-  return true;
-}
-
-template <bool Approximate, typename Derived,
-          std::enable_if_t<!use_fuzzy_constant_visitor<typename Derived::Scalar>::value && !Approximate, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool fuzzy_constant_all(const Derived& matrix, const typename Derived::Scalar&,
-                                                              const typename Derived::RealScalar& precision) {
-  using Scalar = typename Derived::Scalar;
-  for (Index j = 0; j < matrix.cols(); ++j)
-    for (Index i = 0; i < matrix.rows(); ++i)
-      if (!internal::isMuchSmallerThan(matrix.coeff(i, j), Scalar(1), precision)) return false;
-  return true;
-}
-
-template <typename Scalar>
-struct all_visitor {
-  using result_type = bool;
-  using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline bool all_predux(const Packet& p) const { return predux_all(p); }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = all_predux(p); }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = all_predux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res && (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res && (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res && all_predux(p); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res && all_predux(p); }
-  EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
-  bool res = true;
-};
-template <typename Scalar>
-struct functor_traits<all_visitor<Scalar>> {
-  enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
-};
-
-template <typename Scalar>
-struct any_visitor {
-  using result_type = bool;
-  using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline bool any_predux(const Packet& p) const {
-    return predux_any(pandnot(ptrue(p), pcmp_eq(p, pzero(p))));
-  }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = any_predux(p); }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = any_predux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) { res = res || (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res || (value != Scalar(0)); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res || any_predux(p); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res || any_predux(p); }
-  EIGEN_DEVICE_FUNC inline bool done() const { return res; }
-  bool res = false;
-};
-template <>
-EIGEN_DEVICE_FUNC inline bool any_visitor<bool>::any_predux(const Packet& p) const {
-  return predux(p);
-}
-template <typename Scalar>
-struct functor_traits<any_visitor<Scalar>> {
-  enum { Cost = NumTraits<Scalar>::ReadCost, LinearAccess = true, PacketAccess = packet_traits<Scalar>::HasCmp };
-};
-
 template <typename Scalar>
 struct count_visitor {
   using result_type = Index;
@@ -587,81 +426,32 @@ struct functor_traits<count_visitor<Scalar>> {
   };
 };
 
-// Reduces pisfinite masks directly: their lanes are all-ones or zero, so the coefficients are all finite exactly when
-// no lane of the complement is set. predux_all, which all() on isFiniteTyped() uses, compares each lane against zero
-// instead, which a compiler can only fold away when it can prove the operand is a mask.
-template <typename Scalar>
-struct all_finite_visitor {
-  using result_type = bool;
-  using Packet = typename packet_traits<Scalar>::type;
-  EIGEN_DEVICE_FUNC inline bool finite_predux(const Packet& p) const { return !predux_any(pnot(pisfinite(p))); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index, Index) { res = (numext::isfinite)(value); }
-  EIGEN_DEVICE_FUNC inline void init(const Scalar& value, Index) { res = (numext::isfinite)(value); }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index, Index) { res = finite_predux(p); }
-  EIGEN_DEVICE_FUNC inline void initpacket(const Packet& p, Index) { res = finite_predux(p); }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index, Index) {
-    res = res && (numext::isfinite)(value);
-  }
-  EIGEN_DEVICE_FUNC inline void operator()(const Scalar& value, Index) { res = res && (numext::isfinite)(value); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index, Index) { res = res && finite_predux(p); }
-  EIGEN_DEVICE_FUNC inline void packet(const Packet& p, Index) { res = res && finite_predux(p); }
-  EIGEN_DEVICE_FUNC inline bool done() const { return !res; }
-  bool res = true;
-};
-template <typename Scalar>
-struct functor_traits<all_finite_visitor<Scalar>> {
-  enum {
-    Cost = NumTraits<Scalar>::ReadCost + NumTraits<Scalar>::MulCost,
-    LinearAccess = true,
-    PacketAccess = packet_traits<Scalar>::HasCmp
-  };
-};
-
-template <typename Derived, bool AlwaysTrue = NumTraits<typename traits<Derived>::Scalar>::IsInteger>
-struct all_finite_impl {
-  static EIGEN_DEVICE_FUNC inline bool run(const Derived& /*derived*/) { return true; }
-};
-#if !defined(__FINITE_MATH_ONLY__) || !(__FINITE_MATH_ONLY__)
-template <typename Derived>
-struct all_finite_impl<Derived, false> {
-  static EIGEN_DEVICE_FUNC inline bool run(const Derived& derived) {
-    using Visitor = all_finite_visitor<typename traits<Derived>::Scalar>;
-    Visitor visitor;
-    visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>::run(derived, visitor);
-    return visitor.res;
-  }
-};
-#endif
-
 }  // end namespace internal
 
-/** \returns true if all coefficients are true
+/** Applies the visitor \a visitor to the whole coefficients of the matrix or vector.
  *
- * Example: \include MatrixBase_all.cpp
- * Output: \verbinclude MatrixBase_all.out
+ * The template parameter \a Visitor is the type of the visitor and provides the following interface:
+ * \code
+ * struct MyVisitor {
+ *   // called for the first coefficient
+ *   void init(const Scalar& value, Index i, Index j);
+ *   // called for all other coefficients
+ *   void operator() (const Scalar& value, Index i, Index j);
+ * };
+ * \endcode
  *
- * \sa any(), Cwise::operator<()
+ * \note compared to one or two \em for \em loops, visitors offer automatic
+ * unrolling for small fixed size matrix.
+ *
+ * \note if the matrix is empty, then the visitor is left unchanged.
+ *
+ * \sa minCoeff(Index*,Index*), maxCoeff(Index*,Index*), DenseBase::redux()
  */
 template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::all() const {
-  using Visitor = internal::all_visitor<Scalar>;
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>;
-  Visitor visitor;
+template <typename Visitor>
+EIGEN_DEVICE_FUNC void DenseBase<Derived>::visit(Visitor& visitor) const {
+  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ false>;
   impl::run(derived(), visitor);
-  return visitor.res;
-}
-
-/** \returns true if at least one coefficient is true
- *
- * \sa all()
- */
-template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::any() const {
-  using Visitor = internal::any_visitor<Scalar>;
-  using impl = internal::visit_impl<Derived, Visitor, /*ShortCircuitEvaluation*/ true>;
-  Visitor visitor;
-  impl::run(derived(), visitor);
-  return visitor.res;
 }
 
 /** \returns the number of coefficients which evaluate to true
@@ -675,42 +465,6 @@ EIGEN_DEVICE_FUNC Index DenseBase<Derived>::count() const {
   Visitor visitor;
   impl::run(derived(), visitor);
   return visitor.res;
-}
-
-template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::hasNaN() const {
-  return derived().cwiseTypedNotEqual(derived()).any();
-}
-
-/** \returns true if \c *this contains only finite numbers, i.e., no NaN and no +/-INF values.
- *
- * \sa hasNaN()
- */
-template <typename Derived>
-EIGEN_DEVICE_FUNC inline bool DenseBase<Derived>::allFinite() const {
-  return internal::all_finite_impl<Derived>::run(derived());
-}
-
-/** \returns true if all coefficients in this matrix are approximately equal to \a val, to within precision \a prec */
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isApproxToConstant(const Scalar& val,
-                                                                                  const RealScalar& prec) const {
-  typename internal::nested_eval<Derived, 1>::type self(derived());
-  return internal::fuzzy_constant_all<true>(self, val, prec);
-}
-
-/** \returns true if *this is approximately equal to the zero matrix,
- *          within the precision given by \a prec.
- *
- * Example: \include MatrixBase_isZero.cpp
- * Output: \verbinclude MatrixBase_isZero.out
- *
- * \sa class CwiseNullaryOp, Zero()
- */
-template <typename Derived>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool DenseBase<Derived>::isZero(const RealScalar& prec) const {
-  typename internal::nested_eval<Derived, 1>::type self(derived());
-  return internal::fuzzy_constant_all<false>(self, Scalar(0), prec);
 }
 
 }  // end namespace Eigen

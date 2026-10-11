@@ -408,6 +408,7 @@ using std::size_t;
 #include "src/Core/SkewSymmetricMatrix3.h"
 #include "src/Core/Redux.h"
 #include "src/Core/Visitor.h"
+#include "src/Core/Predicator.h"
 #include "src/Core/FindCoeff.h"
 #include "src/Core/ApproxComparisons.h"
 #include "src/Core/Swap.h"
