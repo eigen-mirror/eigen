@@ -85,6 +85,27 @@ void test_spmv_alpha_beta(Index n) {
   VERIFY((y_gpu - y_cpu).norm() / (y_cpu.norm() + RealScalar(1)) < tol);
 }
 
+// ---- SpMV into a strided destination: a row of a column-major matrix ---------
+
+template <typename Scalar>
+void test_spmv_strided_dest(Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const SparseMatrix<Scalar, ColMajor, int> A = make_sparse<Scalar>(n, n);
+  const Matrix<Scalar, Dynamic, 1> x = Matrix<Scalar, Dynamic, 1>::Random(n);
+  Mat M = Mat::Zero(3, n), M_cpu = Mat::Zero(3, n);
+  auto row = M.row(1);
+  gpu::SparseContext<Scalar> ctx;
+  ctx.multiply(A, x, row);
+  M_cpu.row(1) = A * x;
+  VERIFY_IS_APPROX(M, M_cpu);
+
+  // A 1 x n block shaped at run time: innerStride() is 1, its elements are outerStride() apart.
+  M.setZero();
+  auto block_row = M.middleRows(1, 1);
+  ctx.multiply(A, x, block_row);
+  VERIFY_IS_APPROX(M, M_cpu);
+}
+
 // ---- Transpose: y = A^T * x ------------------------------------------------
 
 template <typename Scalar>
@@ -573,6 +594,7 @@ void test_scalar() {
   CALL_SUBTEST(test_spmv<Scalar>(128, 64));  // non-square
   CALL_SUBTEST(test_spmv<Scalar>(64, 128));  // wide
   CALL_SUBTEST(test_spmv_alpha_beta<Scalar>(64));
+  CALL_SUBTEST(test_spmv_strided_dest<Scalar>(64));
   CALL_SUBTEST(test_spmv_transpose<Scalar>(128, 64));
   // cuSPARSE < 12 cannot represent A^H * x for complex scalars with the
   // CSR-of-A^T trick used by SparseContext; SparseContext asserts in that

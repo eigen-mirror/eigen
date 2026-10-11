@@ -464,8 +464,10 @@ struct FullReducer<Self, Op, GpuDevice, Vectorizable> {
   static void run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output) {
     gpu_assert(HasOptimizedImplementation && "Should only be called on doubles, floats or half floats");
     const Index num_coeffs = array_prod(self.m_impl.dimensions());
-    // Don't crash when we're called with an input tensor of size 0.
+    // An empty input reduces to the reducer's identity, as on the other devices.
     if (num_coeffs == 0) {
+      const OutputType identity = reducer.finalize(reducer.initialize());
+      device.fill(output, output + 1, identity);
       return;
     }
 

@@ -437,6 +437,16 @@ void test_gpu() {
   test_device_memory<OffByOneScalar<int>>(context.device());
 }
 
+// Forcing an empty tensor allocates a zero-byte temporary, null on the GPU, and frees it.
+void test_gpu_empty_eval() {
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+  Eigen::TensorMap<Eigen::Tensor<float, 1>> in(static_cast<float*>(nullptr), 0), out(static_cast<float*>(nullptr), 0);
+  out.device(gpu_device) = in.eval() * 2.f;
+  gpu_device.deallocate(gpu_device.allocate(0));
+  gpu_device.synchronize();
+}
+
 // The attribute cache has to agree with the properties struct on every field both carry, and the accessors built
 // on it have to describe the device the stream belongs to.
 void test_device_attributes() {
@@ -500,6 +510,7 @@ void test_stream_device_attributes() {
 EIGEN_DECLARE_TEST(tensor_device) {
   CALL_SUBTEST_1(test_cpu());
   CALL_SUBTEST_2(test_gpu());
+  CALL_SUBTEST_2(test_gpu_empty_eval());
   CALL_SUBTEST_3(test_device_attributes());
   CALL_SUBTEST_3(test_stream_device_attributes());
 }

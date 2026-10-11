@@ -476,7 +476,8 @@ EIGEN_STRONG_INLINE __device__ half& operator/=(half& a, const half& b) {
   return a;
 }
 EIGEN_STRONG_INLINE __device__ bool operator==(const half& a, const half& b) { return __heq(a, b); }
-EIGEN_STRONG_INLINE __device__ bool operator!=(const half& a, const half& b) { return __hne(a, b); }
+// __hne is the ordered comparison, false for a NaN operand; != must be true there.
+EIGEN_STRONG_INLINE __device__ bool operator!=(const half& a, const half& b) { return !__heq(a, b); }
 EIGEN_STRONG_INLINE __device__ bool operator<(const half& a, const half& b) { return __hlt(a, b); }
 EIGEN_STRONG_INLINE __device__ bool operator<=(const half& a, const half& b) { return __hle(a, b); }
 EIGEN_STRONG_INLINE __device__ bool operator>(const half& a, const half& b) { return __hgt(a, b); }

@@ -670,8 +670,18 @@ class SparseContext {
 
     exec_spmv(x_size, y_size, d_x_.get(), d_y_.get(), alpha, beta, op);
 
-    EIGEN_CUDA_RUNTIME_CHECK(
-        cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
+    // The spacing of y's elements. innerStride() is not it for a vector shaped only at run time: a 1 x n block of a
+    // column-major matrix has innerStride() == 1 with its elements outerStride() apart.
+    const Index incy = y.cols() == 1 ? y.rowStride() : y.colStride();
+    if (incy == 1) {
+      EIGEN_CUDA_RUNTIME_CHECK(
+          cudaMemcpyAsync(y.data(), d_y_.get(), y_size * sizeof(Scalar), cudaMemcpyDeviceToHost, stream_));
+    } else {
+      // y is a strided block, e.g. a row of a column-major matrix.
+      EIGEN_CUDA_RUNTIME_CHECK(cudaMemcpy2DAsync(y.data(), static_cast<size_t>(incy) * sizeof(Scalar), d_y_.get(),
+                                                 sizeof(Scalar), sizeof(Scalar), static_cast<size_t>(y_size),
+                                                 cudaMemcpyDeviceToHost, stream_));
+    }
     EIGEN_CUDA_RUNTIME_CHECK(cudaStreamSynchronize(stream_));
   }
 

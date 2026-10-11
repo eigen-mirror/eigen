@@ -157,7 +157,7 @@ class FFT {
     const ComplexVector input(X.derived());
     const int n = static_cast<int>(nfft);
     const int n_complex = n / 2 + 1;
-    eigen_assert(input.size() == n_complex);
+    eigen_assert(n == 0 || input.size() == n_complex);
     if (n == 0) return RealVector(0);
 
     ensure_buffers(n_complex * sizeof(Complex), n * sizeof(Scalar));

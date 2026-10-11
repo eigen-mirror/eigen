@@ -80,6 +80,14 @@ void test_multiple_solves(Index n) {
   }
 }
 
+// An empty factorization solves a 0 x nrhs right-hand side.
+void test_empty_solve() {
+  const MatrixXd B(0, 3);
+  gpu::LU<double> solver{MatrixXd(0, 0)};
+  VERIFY_IS_EQUAL(solver.solve(B).cols(), 3);
+  VERIFY_IS_EQUAL(solver.solve(gpu::DeviceMatrix<double>::fromHost(B)).cols(), 3);
+}
+
 // ---- Singular matrix detection ----------------------------------------------
 
 void test_singular() {
@@ -244,5 +252,6 @@ EIGEN_DECLARE_TEST(gpu_cusolver_lu) {
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_singular());
+  CALL_SUBTEST_5(test_empty_solve());
   CALL_SUBTEST_5(test_singular_device_solve_asserts());
 }

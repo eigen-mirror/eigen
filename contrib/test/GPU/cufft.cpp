@@ -211,6 +211,10 @@ void test_empty() {
   VERIFY_IS_EQUAL(X.size(), 0);
   Vec y = fft.inv(X);
   VERIFY_IS_EQUAL(y.size(), 0);
+
+  // Real round trip: fwd of an empty real signal is empty, and invReal accepts it back.
+  const Matrix<Scalar, Dynamic, 1> r(0);
+  VERIFY_IS_EQUAL(fft.invReal(fft.fwd(r), 0).size(), 0);
 }
 
 // ---- Explicit-Context ctor: stream and cuBLAS plumbing ----------------------

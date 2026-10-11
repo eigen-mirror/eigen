@@ -115,6 +115,14 @@ void test_multiple_solves(Eigen::Index n) {
   }
 }
 
+// An empty factorization solves a 0 x nrhs right-hand side.
+void test_empty_solve() {
+  const MatrixXd B(0, 3);
+  gpu::LLT<double> solver{MatrixXd(0, 0)};
+  VERIFY_IS_EQUAL(solver.solve(B).cols(), 3);
+  VERIFY_IS_EQUAL(solver.solve(gpu::DeviceMatrix<double>::fromHost(B)).cols(), 3);
+}
+
 // Test that GpuLLT correctly detects a non-SPD matrix.
 void test_not_spd() {
   Eigen::MatrixXd h_A = -Eigen::MatrixXd::Identity(8, 8);  // negative definite
@@ -370,5 +378,6 @@ EIGEN_DECLARE_TEST(gpu_cusolver_llt) {
   CALL_SUBTEST_3(test_scalar<std::complex<float>>());
   CALL_SUBTEST_4(test_scalar<std::complex<double>>());
   CALL_SUBTEST_5(test_not_spd());
+  CALL_SUBTEST_5(test_empty_solve());
   CALL_SUBTEST_5(test_not_spd_device_solve_asserts());
 }

@@ -360,7 +360,7 @@ class SparseSolverBase {
     eigen_assert(info() == Success && "GpuSparseSolver::solve requires a successful factorization");
     eigen_assert(B.rows() == n_);
 
-    if (n_ == 0) return DenseMatrix(0, B.cols());
+    if (n_ == 0 || B.cols() == 0) return DenseMatrix(n_, B.cols());
 
     const Ref<const DenseMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());

@@ -163,13 +163,13 @@ class MatrixBase : public DenseBase<Derived> {
       const MatrixBase<OtherDerived>& other) const;
 
   template <typename OtherDerived>
-  Derived& operator*=(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC Derived& operator*=(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  void applyOnTheLeft(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC void applyOnTheLeft(const EigenBase<OtherDerived>& other);
 
   template <typename OtherDerived>
-  void applyOnTheRight(const EigenBase<OtherDerived>& other);
+  EIGEN_DEVICE_FUNC void applyOnTheRight(const EigenBase<OtherDerived>& other);
 
   template <typename DiagonalDerived>
   EIGEN_DEVICE_FUNC const Product<Derived, DiagonalDerived, LazyProduct> operator*(
@@ -530,7 +530,7 @@ class MatrixBase : public DenseBase<Derived> {
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
   return derived();
 }
@@ -543,7 +543,7 @@ inline Derived& MatrixBase<Derived>::operator*=(const EigenBase<OtherDerived>& o
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheRight(derived());
 }
 
@@ -554,7 +554,7 @@ inline void MatrixBase<Derived>::applyOnTheRight(const EigenBase<OtherDerived>& 
  */
 template <typename Derived>
 template <typename OtherDerived>
-inline void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
+EIGEN_DEVICE_FUNC inline void MatrixBase<Derived>::applyOnTheLeft(const EigenBase<OtherDerived>& other) {
   other.derived().applyThisOnTheLeft(derived());
 }
 

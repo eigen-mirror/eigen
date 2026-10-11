@@ -225,6 +225,10 @@ void test_empty() {
   VERIFY_IS_EQUAL(lu.info(), Success);
   VERIFY_IS_EQUAL(lu.rows(), 0);
   VERIFY_IS_EQUAL(lu.cols(), 0);
+
+  // No right-hand-side columns: an n x 0 solution, without a cuDSS solve.
+  gpu::SparseLU<Scalar> lu8(make_general<Scalar>(8));
+  VERIFY_IS_EQUAL(lu8.solve(Matrix<Scalar, Dynamic, Dynamic>(8, 0)).rows(), 8);
 }
 
 // ---- Per-scalar driver ------------------------------------------------------

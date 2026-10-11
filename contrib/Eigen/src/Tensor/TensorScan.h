@@ -330,6 +330,8 @@ template <typename Self, typename Reducer, bool Vectorize>
 struct ScanLauncher<Self, Reducer, GpuDevice, Vectorize> {
   void operator()(const Self& self, typename Self::CoeffReturnType* data) const {
     Index total_size = internal::array_prod(self.dimensions());
+    // Nothing to scan; also avoids dividing by an empty scan axis and launching an empty grid.
+    if (total_size == 0) return;
     Index num_blocks = (total_size / self.size() + 63) / 64;
     Index block_size = 64;
 

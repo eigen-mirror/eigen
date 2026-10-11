@@ -296,6 +296,19 @@ void test_qr_empty() {
   VERIFY_IS_EQUAL(qr.info(), Success);
   VERIFY_IS_EQUAL(qr.rows(), 0);
   VERIFY_IS_EQUAL(qr.cols(), 0);
+  VERIFY_IS_EQUAL(qr.solve(MatrixXd(0, 2)).cols(), 2);
+  VERIFY_IS_EQUAL(qr.solve(gpu::DeviceMatrix<double>::fromHost(MatrixXd(0, 2))).cols(), 2);
+
+  // An empty factor still solves: X is cols() x nrhs, zero for the minimum-norm case.
+  for (Index m : {5, 0}) {
+    const MatrixXd B = MatrixXd::Random(m, 2);
+    qr.compute(MatrixXd(m, 5 - m));
+    const MatrixXd X = qr.solve(B);
+    VERIFY_IS_EQUAL(X.rows(), 5 - m);
+    VERIFY_IS_EQUAL(X.cols(), 2);
+    VERIFY_IS_EQUAL(X.norm(), 0.0);
+    VERIFY_IS_EQUAL(qr.solve(gpu::DeviceMatrix<double>::fromHost(B)).toHost().rows(), 5 - m);
+  }
 }
 
 EIGEN_DECLARE_TEST(gpu_cusolver_qr) {

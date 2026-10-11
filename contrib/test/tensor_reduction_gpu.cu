@@ -52,6 +52,24 @@ static void test_full_reductions() {
   gpu_device.deallocate(gpu_out_ptr);
 }
 
+// A full reduction of an empty tensor writes the reducer's identity.
+template <typename Type>
+static void test_empty_full_reduction() {
+  Eigen::GpuStreamDevice stream;
+  Eigen::GpuDevice gpu_device(&stream);
+  Type* gpu_out_ptr = static_cast<Type*>(gpu_device.allocate(sizeof(Type)));
+  const Type sentinel(7);
+  gpu_device.memcpyHostToDevice(gpu_out_ptr, &sentinel, sizeof(Type));
+  TensorMap<Tensor<Type, 2> > in_gpu(static_cast<Type*>(nullptr), 0, 3);
+  TensorMap<Tensor<Type, 0> > out_gpu(gpu_out_ptr);
+  out_gpu.device(gpu_device) = in_gpu.sum();
+  Type result;
+  gpu_device.memcpyDeviceToHost(&result, gpu_out_ptr, sizeof(Type));
+  gpu_device.synchronize();
+  VERIFY_IS_EQUAL(result, Type(0));
+  gpu_device.deallocate(gpu_out_ptr);
+}
+
 template <typename Type, int DataLayout>
 static void test_first_dim_reductions(int dim_x = 33, int dim_y = 1, int dim_z = 128) {
   Tensor<Type, 3, DataLayout> in(dim_x, dim_y, dim_z);
@@ -127,6 +145,8 @@ static void test_last_dim_reductions(int dim_x = 128, int dim_y = 1, int dim_z =
 EIGEN_DECLARE_TEST(tensor_reduction_gpu) {
   CALL_SUBTEST_1((test_full_reductions<float, ColMajor>()));
   CALL_SUBTEST_1((test_full_reductions<double, ColMajor>()));
+  CALL_SUBTEST_1((test_empty_full_reduction<float>()));
+  CALL_SUBTEST_1((test_empty_full_reduction<double>()));
   CALL_SUBTEST_2((test_full_reductions<float, RowMajor>()));
   CALL_SUBTEST_2((test_full_reductions<double, RowMajor>()));
 

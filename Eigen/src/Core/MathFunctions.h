@@ -1745,11 +1745,13 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double exp(const double& x) {
   return ::exp(x);
 }
 
+// exp(x + 0i) = exp(x) + 0i even where exp(x) overflows, so a zero imaginary part is kept rather than computed as
+// inf * 0.
 template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<float> exp(const std::complex<float>& x) {
   float com = ::expf(x.real());
   float res_real = com * ::cosf(x.imag());
-  float res_imag = com * ::sinf(x.imag());
+  float res_imag = x.imag() == 0.f ? x.imag() : com * ::sinf(x.imag());
   return std::complex<float>(res_real, res_imag);
 }
 
@@ -1757,7 +1759,7 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::complex<double> exp(const std::complex<double>& x) {
   double com = ::exp(x.real());
   double res_real = com * ::cos(x.imag());
-  double res_imag = com * ::sin(x.imag());
+  double res_imag = x.imag() == 0.0 ? x.imag() : com * ::sin(x.imag());
   return std::complex<double>(res_real, res_imag);
 }
 #endif

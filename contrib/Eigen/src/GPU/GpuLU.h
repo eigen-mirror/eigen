@@ -160,6 +160,7 @@ class LU {
     // the sync — use info() explicitly when failure must be detected.
     eigen_assert(solver_ctx_.info() == Success && "LU::solve called on a failed or uninitialized factorization");
     eigen_assert(B.rows() == n_);
+    if (n_ == 0) return PlainMatrix(0, B.cols());
 
     const Ref<const PlainMatrix> rhs(B.derived());
     const int64_t nrhs = static_cast<int64_t>(rhs.cols());
@@ -246,9 +247,11 @@ class LU {
     constexpr cudaDataType_t dtype = internal::cusolver_data_type<Scalar>::value;
     const cublasOperation_t trans = internal::to_cublas_op(op);
 
-    EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, trans, n_, nrhs, dtype,
-                                          d_lu_.get(), lda_, static_cast<const int64_t*>(d_ipiv_.get()), dtype,
-                                          d_x.get(), ldb, solver_ctx_.scratch_info()));
+    // cuSOLVER rejects the empty problem's leading dimensions.
+    if (n_ > 0)
+      EIGEN_CUSOLVER_CHECK(cusolverDnXgetrs(solver_ctx_.cusolverHandle(), solver_ctx_.params_.p, trans, n_, nrhs, dtype,
+                                            d_lu_.get(), lda_, static_cast<const int64_t*>(d_ipiv_.get()), dtype,
+                                            d_x.get(), ldb, solver_ctx_.scratch_info()));
 
     DeviceMatrix<Scalar> result =
         DeviceMatrix<Scalar>::adopt(static_cast<Scalar*>(d_x.release()), n_, static_cast<Index>(nrhs));
