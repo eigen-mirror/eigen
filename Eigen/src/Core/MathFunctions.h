@@ -666,7 +666,49 @@ EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
   return count_bits_impl<BitsType>::popcount(bits);
 }
 
-#if EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+#if defined(EIGEN_CUDA_ARCH)
+
+// nvcc's device code has only __builtin_clz, __builtin_clzll, __builtin_popcount and __builtin_popcountll. The other
+// builtins are host functions there, and with warning 20014 silenced, a call from here compiles and returns garbage:
+// ctz at every width, and clz and popcount where long has 64 bits. __clz and __clzll return the full width for zero.
+// From CUDA 13.2, their parameter and return types are unsigned on aarch64 with GCC 11.4 or later as the host compiler
+// and signed elsewhere and in earlier toolkits; the conversions below keep the bits under either declaration.
+template <typename BitsType>
+struct count_bits_impl<
+    BitsType, std::enable_if_t<std::is_integral<BitsType>::value && sizeof(BitsType) <= sizeof(unsigned int)>> {
+  static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static constexpr int kLeadingBitsOffset = (sizeof(unsigned int) - sizeof(BitsType)) * CHAR_BIT;
+    return static_cast<int>(__clz(static_cast<unsigned int>(bits))) - kLeadingBitsOffset;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    return bits == 0 ? kNumBits : __ffs(static_cast<int>(static_cast<unsigned int>(bits))) - 1;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) { return __popc(static_cast<unsigned int>(bits)); }
+};
+
+template <typename BitsType>
+struct count_bits_impl<BitsType,
+                       std::enable_if_t<std::is_integral<BitsType>::value && sizeof(unsigned int) < sizeof(BitsType) &&
+                                        sizeof(BitsType) <= sizeof(unsigned long long)>> {
+  static constexpr int kNumBits = static_cast<int>(sizeof(BitsType) * CHAR_BIT);
+  static EIGEN_DEVICE_FUNC inline int clz(BitsType bits) {
+    static constexpr int kLeadingBitsOffset = (sizeof(unsigned long long) - sizeof(BitsType)) * CHAR_BIT;
+    return static_cast<int>(__clzll(static_cast<unsigned long long>(bits))) - kLeadingBitsOffset;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int ctz(BitsType bits) {
+    return bits == 0 ? kNumBits : __ffsll(static_cast<long long>(static_cast<unsigned long long>(bits))) - 1;
+  }
+
+  static EIGEN_DEVICE_FUNC inline int popcount(BitsType bits) {
+    return __popcll(static_cast<unsigned long long>(bits));
+  }
+};
+
+#elif EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
 
 template <typename BitsType>
 struct count_bits_impl<
@@ -795,7 +837,7 @@ struct count_bits_impl<BitsType,
 
 #endif  // _WIN64
 
-#endif  // EIGEN_COMP_GNUC || EIGEN_COMP_CLANG
+#endif  // EIGEN_CUDA_ARCH
 
 template <typename BitsType>
 struct log_2_impl {

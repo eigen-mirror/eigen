@@ -685,6 +685,46 @@ void test_float_nan_minmax() {
 #endif
 }
 
+// clz, ctz and popcount of the low 8, 16, 32 and 64 bits of each input. The clz test checks the host counts.
+struct bit_count_test {
+  template <typename T>
+  EIGEN_DEVICE_FUNC static void count(T bits, int* out) {
+    out[0] = internal::clz(bits);
+    out[1] = internal::ctz(bits);
+    out[2] = internal::popcount(bits);
+  }
+
+  EIGEN_DEVICE_FUNC void operator()(int i, const uint64_t* in, int* out) const {
+    const uint64_t bits = in[i];
+    count(static_cast<uint8_t>(bits), out + 12 * i);
+    count(static_cast<uint16_t>(bits), out + 12 * i + 3);
+    count(static_cast<uint32_t>(bits), out + 12 * i + 6);
+    count(bits, out + 12 * i + 9);
+  }
+};
+
+void test_bit_count() {
+  const int n = 3 * 64 + 2;
+  Eigen::Array<uint64_t, Eigen::Dynamic, 1> in(n);
+  Eigen::ArrayXi out_ref(12 * n), out_gpu(12 * n);
+  for (int k = 0; k < 64; ++k) {
+    in(3 * k) = uint64_t(1) << k;
+    in(3 * k + 1) = ~(uint64_t(1) << k);
+    in(3 * k + 2) = internal::random<uint64_t>();
+  }
+  in(n - 2) = 0;
+  in(n - 1) = ~uint64_t(0);
+  out_ref.setConstant(-1);
+  out_gpu.setConstant(-1);
+
+  run_on_cpu(bit_count_test(), n, in, out_ref);
+  run_on_gpu(bit_count_test(), n, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+#endif
+}
+
 template <typename Type1, typename Type2>
 bool verifyIsApproxWithInfsNans(const Type1& a, const Type2& b,
                                 typename Type1::Scalar* = 0)  // Enabled for Eigen's type only
@@ -892,6 +932,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
+  CALL_SUBTEST(test_bit_count());
 
   // `preverse` on every GPU packet type. 32 elements cover several packets of
   // each, including `Packet4h2`, the widest at 8.
