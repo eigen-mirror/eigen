@@ -151,6 +151,11 @@ void quaternion(void) {
   VERIFY_IS_APPROX(v2.normalized(), (q2.setFromTwoVectors(v1, v2) * v1).normalized());
   VERIFY_IS_APPROX(v1.normalized(), (q2.setFromTwoVectors(v1, v1) * v1).normalized());
   VERIFY_IS_APPROX(-v1.normalized(), (q2.setFromTwoVectors(v1, -v1) * v1).normalized());
+  // exactly opposite vectors rotate by pi about v1.unitOrthogonal()
+  VERIFY_IS_APPROX(q2.coeffs(), (Matrix<Scalar, 4, 1>() << v1.normalized().unitOrthogonal(), Scalar(0)).finished());
+  // nearly opposite vectors, within dummy_precision of the antipodal branch: the axis must be orthogonal to both
+  v3 = -v1 + v1.unitOrthogonal() * (v1.norm() * Scalar(std::is_same<Scalar, float>::value ? 3e-3 : 1e-6));
+  VERIFY_IS_APPROX(v3.normalized(), (q2.setFromTwoVectors(v1, v3) * v1).normalized());
   if (std::is_same<Scalar, double>::value) {
     v3 = (v1.array() + eps).matrix();
     VERIFY_IS_APPROX(v3.normalized(), (q2.setFromTwoVectors(v1, v3) * v1).normalized());
@@ -358,6 +363,9 @@ void mapQuaternion(void) {
   VERIFY_IS_APPROX(q1.coeffs(), q2.coeffs());
   VERIFY_IS_APPROX(q1.coeffs(), q3.coeffs());
   VERIFY_IS_APPROX(q4.coeffs(), q3.coeffs());
+  VERIFY_IS_EQUAL(mq3.coeffsScalarFirst(), q3.coeffsScalarFirst());
+  VERIFY_IS_EQUAL(mcq3.coeffsScalarFirst(), q3.coeffsScalarFirst());
+  VERIFY_IS_EQUAL(mcq3.coeffsScalarLast(), q3.coeffsScalarLast());
 
   VERIFY_IS_APPROX(mq1 * (mq1.inverse() * v1), v1);
   VERIFY_IS_APPROX(mq1 * (mq1.conjugate() * v1), v1);

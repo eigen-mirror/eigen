@@ -116,6 +116,21 @@ void orthomethods(int size = Size) {
   // unitOrthogonal
   VERIFY_IS_MUCH_SMALLER_THAN(v0.unitOrthogonal().dot(v0), Scalar(1));
   VERIFY_IS_APPROX(v0.unitOrthogonal().norm(), RealScalar(1));
+  // still a unit vector where squaredNorm() underflows or overflows
+  for (const RealScalar s : {numext::sqrt((std::numeric_limits<RealScalar>::min)()) * RealScalar(1e-4),
+                             numext::sqrt((std::numeric_limits<RealScalar>::max)()) * RealScalar(1e2)})
+    VERIFY_IS_APPROX((v0 * s).unitOrthogonal().norm(), RealScalar(1));
+  // and where the norm of the two coefficients it rotates is below 1 / highest or above highest
+  for (const RealScalar s :
+       {(std::numeric_limits<RealScalar>::min)() / RealScalar(16), NumTraits<RealScalar>::highest()}) {
+    // v = s * e, set coefficient-wise: ARMv7 NEON reads a subnormal s as zero, so v / s would be NaN there.
+    VectorType v = VectorType::Zero(size), e = VectorType::Zero(size);
+    v(0) = v(1) = Scalar(s);
+    e(0) = e(1) = Scalar(1);
+    const VectorType u = v.unitOrthogonal();
+    VERIFY_IS_APPROX(u.norm(), RealScalar(1));
+    VERIFY_IS_MUCH_SMALLER_THAN(u.dot(e), Scalar(1));
+  }
 
   if (size >= 3) {
     v0.template head<2>().setZero();
@@ -138,11 +153,29 @@ void orthomethods(int size = Size) {
   matN3.setRandom();
   mcrossN3 = matN3.rowwise().cross(vec3);
   VERIFY_IS_APPROX(mcrossN3.row(i), matN3.row(i).cross(vec3));
+
+  // the same with run-time sized matrices that have 3 rows (columns)
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  MatrixX matX3N(mat3N), matXN3(matN3);
+  VERIFY_IS_APPROX(MatrixX(matX3N.colwise().cross(vec3)), MatrixX(mcross3N));
+  VERIFY_IS_APPROX(MatrixX(matXN3.rowwise().cross(vec3)), MatrixX(mcrossN3));
+}
+
+// unitOrthogonal for a scalar type that does not convert implicitly from int, on each path
+void orthomethods_half() {
+  using Vector3h = Matrix<half, 3, 1>;
+  using Vector4h = Matrix<half, 4, 1>;
+  const Vector3h near_xy(half(1), half(2), half(0)), near_z(half(0), half(0), half(1));
+  const Vector4h v4(half(1), half(2), half(0), half(0));
+  VERIFY_IS_APPROX(near_xy.unitOrthogonal().cast<float>(), Vector3f(-2, 1, 0) / std::sqrt(5.0f));
+  VERIFY_IS_APPROX(near_z.unitOrthogonal().cast<float>(), Vector3f(0, -1, 0));
+  VERIFY_IS_APPROX(v4.unitOrthogonal().cast<float>(), Vector4f(2, -1, 0, 0) / std::sqrt(5.0f));
 }
 
 EIGEN_DECLARE_TEST(geo_orthomethods) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(orthomethods_2<float>());
+    CALL_SUBTEST_1(orthomethods_half());
     CALL_SUBTEST_2(orthomethods_2<double>());
     CALL_SUBTEST_4(orthomethods_2<std::complex<double> >());
     CALL_SUBTEST_1(orthomethods_3<float>());

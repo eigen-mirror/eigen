@@ -158,12 +158,12 @@ VectorwiseOp<ExpressionType, Direction>::cross(const MatrixBase<OtherDerived>& o
 
   CrossReturnType res(_expression().rows(), _expression().cols());
   EIGEN_IF_CONSTEXPR (Direction == Vertical) {
-    eigen_assert(CrossReturnType::RowsAtCompileTime == 3 && "the matrix must have exactly 3 rows");
+    eigen_assert(mat.rows() == 3 && "the matrix must have exactly 3 rows");
     res.row(0) = (mat.row(1) * vec.coeff(2) - mat.row(2) * vec.coeff(1)).conjugate();
     res.row(1) = (mat.row(2) * vec.coeff(0) - mat.row(0) * vec.coeff(2)).conjugate();
     res.row(2) = (mat.row(0) * vec.coeff(1) - mat.row(1) * vec.coeff(0)).conjugate();
   } else {
-    eigen_assert(CrossReturnType::ColsAtCompileTime == 3 && "the matrix must have exactly 3 columns");
+    eigen_assert(mat.cols() == 3 && "the matrix must have exactly 3 columns");
     res.col(0) = (mat.col(1) * vec.coeff(2) - mat.col(2) * vec.coeff(1)).conjugate();
     res.col(1) = (mat.col(2) * vec.coeff(0) - mat.col(0) * vec.coeff(2)).conjugate();
     res.col(2) = (mat.col(0) * vec.coeff(1) - mat.col(1) * vec.coeff(0)).conjugate();
@@ -177,7 +177,6 @@ template <typename Derived, int Size = Derived::SizeAtCompileTime>
 struct unitOrthogonal_selector {
   using VectorType = typename plain_matrix_type<Derived>::type;
   using Scalar = typename traits<Derived>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
   using Vector2 = Matrix<Scalar, 2, 1>;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp = VectorType::Zero(src.size());
@@ -185,9 +184,9 @@ struct unitOrthogonal_selector {
     Index sndi = 0;
     src.cwiseAbs().maxCoeff(&maxi);
     if (maxi == 0) sndi = 1;
-    RealScalar invnm = RealScalar(1) / (Vector2() << src.coeff(sndi), src.coeff(maxi)).finished().norm();
-    perp.coeffRef(maxi) = -numext::conj(src.coeff(sndi)) * invnm;
-    perp.coeffRef(sndi) = numext::conj(src.coeff(maxi)) * invnm;
+    const Vector2 unit = Vector2(-numext::conj(src.coeff(sndi)), numext::conj(src.coeff(maxi))).stableNormalized();
+    perp.coeffRef(maxi) = unit.coeff(0);
+    perp.coeffRef(sndi) = unit.coeff(1);
 
     return perp;
   }
@@ -197,7 +196,7 @@ template <typename Derived>
 struct unitOrthogonal_selector<Derived, 3> {
   using VectorType = typename plain_matrix_type<Derived>::type;
   using Scalar = typename traits<Derived>::Scalar;
-  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector2 = Matrix<Scalar, 2, 1>;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
     VectorType perp;
     /* Let us compute the crossed product of *this with a vector
@@ -208,20 +207,20 @@ struct unitOrthogonal_selector<Derived, 3> {
      * simply take ( -y, x, 0 ) and normalize it.
      */
     if ((!isMuchSmallerThan(src.x(), src.z())) || (!isMuchSmallerThan(src.y(), src.z()))) {
-      RealScalar invnm = RealScalar(1) / src.template head<2>().norm();
-      perp.coeffRef(0) = -numext::conj(src.y()) * invnm;
-      perp.coeffRef(1) = numext::conj(src.x()) * invnm;
-      perp.coeffRef(2) = 0;
+      const Vector2 unit = Vector2(-numext::conj(src.y()), numext::conj(src.x())).stableNormalized();
+      perp.coeffRef(0) = unit.coeff(0);
+      perp.coeffRef(1) = unit.coeff(1);
+      perp.coeffRef(2) = Scalar(0);
     }
     /* if both x and y are close to zero, then the vector is close
      * to the z-axis, so it's far from collinear to the x-axis for instance.
      * So we take the crossed product with (1,0,0) and normalize it.
      */
     else {
-      RealScalar invnm = RealScalar(1) / src.template tail<2>().norm();
-      perp.coeffRef(0) = 0;
-      perp.coeffRef(1) = -numext::conj(src.z()) * invnm;
-      perp.coeffRef(2) = numext::conj(src.y()) * invnm;
+      const Vector2 unit = Vector2(-numext::conj(src.z()), numext::conj(src.y())).stableNormalized();
+      perp.coeffRef(0) = Scalar(0);
+      perp.coeffRef(1) = unit.coeff(0);
+      perp.coeffRef(2) = unit.coeff(1);
     }
 
     return perp;
@@ -232,7 +231,7 @@ template <typename Derived>
 struct unitOrthogonal_selector<Derived, 2> {
   using VectorType = typename plain_matrix_type<Derived>::type;
   EIGEN_DEVICE_FUNC static inline VectorType run(const Derived& src) {
-    return VectorType(-numext::conj(src.y()), numext::conj(src.x())).normalized();
+    return VectorType(-numext::conj(src.y()), numext::conj(src.x())).stableNormalized();
   }
 };
 

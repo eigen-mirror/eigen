@@ -100,7 +100,11 @@ class Homogeneous : public MatrixBase<Homogeneous<MatrixType, Direction_> >, int
   template <typename Func>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::result_of<Func(Scalar, Scalar)>::type redux(
       const Func& func) const {
-    return func(m_matrix.redux(func), Scalar(1));
+    // One appended coefficient per column (Vertical) or per row (Horizontal) of m_matrix.
+    using Ones = std::conditional_t<int(Direction) == Vertical, typename internal::plain_row_type<MatrixType>::type,
+                                    typename internal::plain_col_type<MatrixType>::type>;
+    return func(m_matrix.redux(func),
+                Ones::Ones(int(Direction) == Vertical ? m_matrix.cols() : m_matrix.rows()).redux(func));
   }
 
  protected:

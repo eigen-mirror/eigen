@@ -158,6 +158,17 @@ struct make_householder_complex_zero_tail {
   }
 };
 
+// Covers each unitOrthogonal path: fixed size 2, both branches of fixed size 3, and the generic one.
+struct unit_orthogonal {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using namespace Eigen;
+    Map<Vector2f>(out + 12 * i) = Map<const Vector2f>(in + i).unitOrthogonal();
+    Map<Vector3f>(out + 12 * i + 2) = Vector3f(in[i] + 2.0f, in[i + 1], in[i + 2]).unitOrthogonal();
+    Map<Vector3f>(out + 12 * i + 5) = Vector3f(0.0f, 1e-20f * in[i], in[i + 1] + 2.0f).unitOrthogonal();
+    Map<Vector4f>(out + 12 * i + 8) = Map<const Vector4f>(in + i).unitOrthogonal();
+  }
+};
+
 // Applies the complex operators inside Eigen's own templates, which see the device overloads only through
 // Eigen/Core's include order; complex_operators below finds them through its using-directive.
 template <typename ComplexType>
@@ -856,6 +867,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix2f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix4f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(unit_orthogonal(), nthreads, in, out));
 
   CALL_SUBTEST((test_jacobi_rotations<float, ColMajor>()));
   CALL_SUBTEST((test_jacobi_rotations<float, RowMajor>()));

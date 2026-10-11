@@ -472,6 +472,14 @@ void transformations() {
   t21.preshear(Scalar(2), Scalar(3));
   VERIFY_IS_APPROX(t21, t23);
 
+  // shear() composes on the right, so it must also shear a projective last row.
+  Transform2 t24;
+  t24.matrix().setRandom();
+  if (Mode != int(Projective)) t24.makeAffine();
+  Transform2 t25 = t24 * t20;
+  t24.shear(Scalar(2), Scalar(3));
+  VERIFY_IS_APPROX(t24, t25);
+
   // mixed-scalar 2D rotate and prerotate
   {
     using OtherScalar = std::conditional_t<std::is_same<Scalar, float>::value, double, float>;

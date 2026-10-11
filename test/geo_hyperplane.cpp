@@ -36,6 +36,14 @@ void hyperplane_complex_scaling(const HyperplaneType &plane, std::true_type) {
     const VectorType p = VectorType::Random(plane.dim());
     VERIFY_IS_APPROX(rescaled.signedDistance(p), gamma * plane.signedDistance(p));
   }
+
+  // An affine map M carries the normal to M^{-H} n, since signedDistance() conjugates the normal.
+  using MatrixType = Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime>;
+  const MatrixType m = MatrixType::Random(plane.dim(), plane.dim());
+  const VectorType p = plane.projection(VectorType::Random(plane.dim()));
+  HyperplaneType transformed = plane;
+  VERIFY_IS_MUCH_SMALLER_THAN(numext::abs(transformed.transform(m).signedDistance(m * p)),
+                              typename HyperplaneType::RealScalar(1));
 }
 
 template <typename HyperplaneType>
@@ -203,6 +211,10 @@ void lines() {
     CoeffsType converted_coeffs = line_u2.coeffs();
     if (line_u2.normal().dot(line_u.normal()) < Scalar(0)) converted_coeffs = -line_u2.coeffs();
     VERIFY(line_u.coeffs().isApprox(converted_coeffs));
+
+    // a dynamic-size hyperplane must size its coefficients from the line (its normal may be flipped)
+    Hyperplane<Scalar, Dynamic> line_dyn(ParametrizedLine<Scalar, Dynamic>(pl.origin(), pl.direction()));
+    VERIFY_IS_APPROX(line_dyn.coeffs().cwiseAbs(), line_u2.coeffs().cwiseAbs());
   }
 }
 
@@ -250,6 +262,7 @@ void hyperplane_alignment() {
 
   VERIFY_IS_APPROX(p1->coeffs(), p2->coeffs());
   VERIFY_IS_APPROX(p1->coeffs(), p3->coeffs());
+  VERIFY(p1->isApprox(*p3) && p3->isApprox(*p1));
 }
 
 EIGEN_DECLARE_TEST(geo_hyperplane) {

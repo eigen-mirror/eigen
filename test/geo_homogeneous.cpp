@@ -45,6 +45,8 @@ void homogeneous(void) {
 
   hm0 << m0, ones.transpose();
   VERIFY_IS_APPROX(m0.colwise().homogeneous(), hm0);
+  VERIFY_IS_APPROX(m0.colwise().homogeneous().sum(), hm0.sum());
+  VERIFY_IS_APPROX(m0.transpose().rowwise().homogeneous().sum(), hm0.sum());
   VERIFY_IS_APPROX(m0, hm0.colwise().hnormalized());
   hm0.row(Size - 1).setRandom();
   for (int j = 0; j < Size; ++j) m0.col(j) = hm0.col(j).head(Size) / hm0(Size, j);

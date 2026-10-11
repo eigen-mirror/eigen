@@ -113,7 +113,8 @@ class Hyperplane {
    * so an arbitrary choice is made.
    */
   // FIXME: for consistency, consider implementing as a static Through function.
-  EIGEN_DEVICE_FUNC explicit Hyperplane(const ParametrizedLine<Scalar, AmbientDimAtCompileTime>& parametrized) {
+  EIGEN_DEVICE_FUNC explicit Hyperplane(const ParametrizedLine<Scalar, AmbientDimAtCompileTime>& parametrized)
+      : m_coeffs(parametrized.dim() + 1) {
     normal() = parametrized.direction().unitOrthogonal();
     offset() = -parametrized.origin().dot(normal());
   }
@@ -205,7 +206,7 @@ class Hyperplane {
   template <typename XprType>
   EIGEN_DEVICE_FUNC inline Hyperplane& transform(const MatrixBase<XprType>& mat, TransformTraits traits = Affine) {
     if (traits == Affine) {
-      normal() = mat.inverse().transpose() * normal();
+      normal() = mat.inverse().adjoint() * normal();
       m_coeffs /= normal().norm();
     } else if (traits == Isometry)
       normal() = mat * normal();
@@ -264,7 +265,7 @@ class Hyperplane {
   EIGEN_DEVICE_FUNC bool isApprox(
       const Hyperplane<Scalar, AmbientDimAtCompileTime, OtherOptions>& other,
       const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    return m_coeffs.isApprox(other.m_coeffs, prec);
+    return m_coeffs.isApprox(other.coeffs(), prec);
   }
 
   /** \returns \c true if \c *this and \a other describe approximately the same set of points,
