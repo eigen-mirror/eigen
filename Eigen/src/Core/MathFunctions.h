@@ -370,9 +370,28 @@ template <typename OldType, typename NewType>
 struct cast_impl<OldType, NewType, std::enable_if_t<!NumTraits<OldType>::IsComplex && NumTraits<NewType>::IsComplex>> {
   EIGEN_DEVICE_FUNC static inline NewType run(const OldType& x) {
     using NewReal = typename NumTraits<NewType>::Real;
-    return static_cast<NewType>(static_cast<NewReal>(x));
+    return static_cast<NewType>(cast_impl<OldType, NewReal>::run(x));
   }
 };
+
+#if EIGEN_ARCH_ARM64 && EIGEN_COMP_CLANG && !EIGEN_CLANG_STRICT_AT_LEAST(21, 0, 0)
+// Clang before 21, and the Clang forks whose version does not say, vectorize a loop of 64-bit integer to float
+// conversions through double on AArch64, which rounds twice. Rounding x to odd on the multiples of 2^11 where
+// |x| >= 2^53 makes the conversion to double exact and leaves a direct conversion unchanged.
+template <typename OldType>
+struct cast_impl<OldType, float, std::enable_if_t<std::is_integral<OldType>::value && sizeof(OldType) == 8>> {
+  EIGEN_DEVICE_FUNC static inline float run(const OldType& x) {
+    using U = std::make_unsigned_t<OldType>;
+    const U u = static_cast<U>(x);
+    // In two's complement, clearing the low bits rounds toward -inf for either sign; setting bit 11 then picks the odd
+    // neighbor.
+    const U low = 0x7ff;
+    const U odd = (u & ~low) | ((u & low) != 0 ? U(0x800) : U(0));
+    const U magnitude = std::is_signed<OldType>::value && (u >> 63) != 0 ? U(0) - u : u;
+    return static_cast<float>(magnitude >= (U(1) << 53) ? numext::bit_cast<OldType>(odd) : x);
+  }
+};
+#endif
 
 // Returns NewType directly to avoid unintended intermediate conversions.
 

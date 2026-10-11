@@ -73,9 +73,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   const RealScalar hi = numext::sqrt(NumTraits<RealScalar>::highest()) / RealScalar(2);
   const RealPacket is_large = pcmp_lt(pset1<RealPacket>(hi), x_max);
   const RealPacket is_small = pcmp_lt(x_max, pset1<RealPacket>(lo));
-  const RealPacket k_large = pset1<RealPacket>(RealScalar(NumTraits<RealScalar>::max_exponent() / 2 + 2));
-  const RealPacket k_small = pset1<RealPacket>(
-      RealScalar(-((3 * NumTraits<RealScalar>::digits() - NumTraits<RealScalar>::min_exponent() - 1) / 2)));
+  // Both divisions round down: for double, k_small = -589 maps denorm_min = 2^-1074 exactly onto lo = 2^-485.
+  constexpr int kLarge = NumTraits<RealScalar>::max_exponent() / 2 + 2;
+  constexpr int kSmall = -((3 * NumTraits<RealScalar>::digits() - NumTraits<RealScalar>::min_exponent() - 1) / 2);
+  const RealPacket k_large = pset1<RealPacket>(RealScalar(kLarge));
+  const RealPacket k_small = pset1<RealPacket>(RealScalar(kSmall));
   const RealPacket cst_one = pset1<RealPacket>(RealScalar(1));
   const RealPacket k = pselect(is_large, k_large, pand(is_small, k_small));
   const RealPacket scale = pselect(is_large, pldexp_fast(cst_one, pnegate(k_large)),

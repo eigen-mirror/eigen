@@ -2313,6 +2313,23 @@ void packetmath_complex() {
     VERIFY(test::areApprox(ref, pval, PacketSize) && "pcplxflip");
   }
 
+  // pcmp_eq is true for a complex element only where both components are equal: data2[i] - data1[i] is (0, 0), (1, 0)
+  // or (0, 1) as (i + shift) % 3 is 0, 1 or 2.
+  for (int shift = 0; shift < 3; ++shift) {
+    for (int i = 0; i < PacketSize; ++i) {
+      data1[i] = Scalar(RealScalar(i + 1), RealScalar(-i - 2));
+      const int k = (i + shift) % 3;
+      data2[i] = data1[i] + Scalar(RealScalar(k == 1), RealScalar(k == 2));
+    }
+    const Packet a = internal::pload<Packet>(data1);
+    internal::pstore(pval, internal::pcmp_eq(a, internal::pload<Packet>(data2)));
+    internal::pstore(ref, internal::ptrue(a));
+    for (int i = 0; i < PacketSize; ++i) {
+      if ((i + shift) % 3 != 0) ref[i] = Scalar(0);
+    }
+    VERIFY(test::areEqualBits(ref, pval, PacketSize, false) && "pcmp_eq");
+  }
+
   const RealScalar zero = RealScalar(0);
   const RealScalar one = RealScalar(1);
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();

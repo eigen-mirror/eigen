@@ -116,6 +116,16 @@ void test_conversion() {
   VERIFY_IS_EQUAL(
       numext::bit_cast<numext::uint16_t>(half(std::complex<double>(std::ldexp(1.0, -25) + std::ldexp(1.0, -60)))),
       0x0001);
+  // Beyond float's range a double overflows to infinity or underflows to zero, keeping its sign.
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(1e39)), 0x7c00);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(-1e39)), 0xfc00);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(1e-300)), 0x0000);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(-1e-300)), 0x8000);
+  VERIFY((numext::isnan)(half(std::numeric_limits<double>::quiet_NaN())));
+  // Integers convert through float directly: those it rounds overflow half anyway.
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(int32_t(65519))), 0x7bff);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half(-int64_t(65520))), 0xfc00);
+  VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(half((std::numeric_limits<uint64_t>::max)())), 0x7c00);
 }
 
 void test_numtraits() {

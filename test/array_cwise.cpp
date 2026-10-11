@@ -1468,18 +1468,28 @@ void cast_truncation_test() {
 }
 
 // cast_test compares approximately. A 64-bit integer must round to float once: 2^60 + 2^36 + 1 rounds up, but
-// rounding through double first lands on the midpoint 2^60 + 2^36, which ties down to 2^60.
-template <typename = void>
-void int64_to_float_cast_test() {
-  const int64_t big = (int64_t(1) << 60) + (int64_t(1) << 36) + 1;
-  const ArrayX<int64_t> a =
-      ArrayX<int64_t>::LinSpaced(17, 0, 16).unaryExpr([&](int64_t i) { return i % 2 ? big : -big; });
-  const ArrayXf f = a.cast<float>(), g = a.abs().cast<uint64_t>().cast<float>();
+// rounding through double first lands on the midpoint 2^60 + 2^36, which ties down to 2^60. Clang before 21 converts
+// that way on AArch64 when it vectorizes a scalar loop: without explicit vectorization, for a type with no vectorized
+// cast, for the unrolled remainder of a fixed size (14 in the generic backend with 16-byte vectors), and for
+// complex<float>, which no backend casts to from int64.
+template <typename T, int Size>
+void int64_to_float_cast_test(Index size = Size) {
+  const bool is_signed = std::is_signed<T>::value;
+  // Read through volatile: EIGEN_OPTIMIZATION_BARRIER is empty on MSVC, which folds constant conversions through
+  // double.
+  const volatile T big_source = (T(1) << 60) + (T(1) << 36) + 1;
+  const T big = big_source;
+  Array<T, Size, 1> a;
+  a.resize(size);
+  for (Index i = 0; i < a.size(); ++i) a(i) = is_signed && i % 2 == 0 ? T(0) - big : big;
+  const Array<float, Size, 1> f = a.template cast<float>();
+  const Array<std::complex<float>, Size, 1> c = a.template cast<std::complex<float>>();
   // 2^60 + 2^37, spelled exactly: MSVC folds a constant int64-to-float conversion through double.
   const float rounded = std::ldexp(1.f + std::ldexp(1.f, -23), 60);
   for (Index i = 0; i < a.size(); ++i) {
-    VERIFY_IS_EQUAL(f(i), i % 2 ? rounded : -rounded);
-    VERIFY_IS_EQUAL(g(i), rounded);
+    const float expected = is_signed && i % 2 == 0 ? -rounded : rounded;
+    VERIFY_IS_EQUAL(f(i), expected);
+    VERIFY_IS_EQUAL(c(i), std::complex<float>(expected, 0.f));
   }
 }
 
@@ -1687,9 +1697,15 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_28((cast_truncation_test<double, 8>()));
     CALL_SUBTEST_28((cast_truncation_test<double, 16>()));
     CALL_SUBTEST_28((cast_truncation_test<float, 16>()));
-    CALL_SUBTEST_28(int64_to_float_cast_test<>());
+    // QEMU, which runs the ppc64le tests, emulates xscvsxdsp and xscvuxdsp through double, so they round twice.
+#if !EIGEN_ARCH_PPC
+    CALL_SUBTEST_28((int64_to_float_cast_test<int64_t, Dynamic>(17)));
+    CALL_SUBTEST_28((int64_to_float_cast_test<int64_t, 14>()));
     CALL_SUBTEST_28(int64_to_float_midpoint_cast_test<int64_t>());
+    CALL_SUBTEST_28((int64_to_float_cast_test<uint64_t, Dynamic>(17)));
+    CALL_SUBTEST_28((int64_to_float_cast_test<uint64_t, 14>()));
     CALL_SUBTEST_28(int64_to_float_midpoint_cast_test<uint64_t>());
+#endif
     CALL_SUBTEST_29((cast_test<3, 1>()));
     CALL_SUBTEST_30((cast_test<5, 1>()));
     CALL_SUBTEST_31((cast_test<9, 1>()));

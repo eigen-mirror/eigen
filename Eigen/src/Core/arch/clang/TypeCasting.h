@@ -80,6 +80,26 @@ EIGEN_STRONG_INLINE PacketXf pcast<PacketXd, PacketXf>(const PacketXd& a, const 
 }
 
 template <>
+struct type_casting_traits<numext::int64_t, float> {
+  static constexpr int VectorizedCast = 1, SrcCoeffRatio = 2, TgtCoeffRatio = 1;
+};
+// Clang before 21 lowers an int64 -> float vector conversion through double on AArch64, which rounds twice. Rounding x
+// to odd on the multiples of 2^11 where |x| >= 2^53 makes that intermediate exact, and leaves a direct conversion
+// unchanged.
+template <>
+EIGEN_STRONG_INLINE PacketXf pcast<PacketXl, PacketXf>(const PacketXl& a, const PacketXl& b) {
+  using HalfFloat = detail::half_vector_t<PacketXf>;
+  const auto round_to_odd = [](const PacketXl& x) {
+    const PacketXl low = PacketXl(0x7ff);
+    const PacketXl odd = (x & ~low) | ((x & low) != 0 ? PacketXl(0x800) : PacketXl(0));
+    const PacketXl limit = PacketXl(int64_t(1) << 53);
+    return ((x >= limit) | (x <= -limit)) ? odd : x;
+  };
+  return detail::concat_halves<PacketXf>(__builtin_convertvector(round_to_odd(a), HalfFloat),
+                                         __builtin_convertvector(round_to_odd(b), HalfFloat));
+}
+
+template <>
 EIGEN_STRONG_INLINE PacketXl pcast<PacketXi, PacketXl>(const PacketXi& a) {
   return __builtin_convertvector(detail::lower_half(a), PacketXl);
 }
