@@ -2217,8 +2217,8 @@ struct exp_complex_test_impl {
     }
 
     RealScalar zero(0);
-#ifdef EIGEN_ARCH_ARM
-    // ARM automatically flushes denormals to zero.
+#if EIGEN_ARCH_ARM
+    // 32-bit ARM NEON flushes subnormals to zero.
     // Preserve sign by multiplying by +0.
     if (numext::abs(a) < (std::numeric_limits<RealScalar>::min)()) {
       a = a * zero;

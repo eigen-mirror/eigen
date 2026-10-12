@@ -142,7 +142,7 @@ void binary_op_test(std::string name, Fn fun, RefFn ref) {
 template <typename Scalar>
 void binary_ops_test() {
   binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(pow));
-#ifndef EIGEN_COMP_MSVC
+#if !EIGEN_COMP_MSVC
   binary_op_test<Scalar>(BINARY_FUNCTOR_TEST_ARGS(atan2));
 #else
   binary_op_test<Scalar>(
@@ -376,7 +376,7 @@ void float_pow_test_impl() {
             }
 
             Base a = eigenPow(j);
-#ifdef EIGEN_COMP_MSVC
+#if EIGEN_COMP_MSVC
             // Work around MSVC return value on underflow.
             // if std::pow returns 0 and Eigen returns a denormalized value, then skip the test
             int eigen_fpclass = std::fpclassify(a);

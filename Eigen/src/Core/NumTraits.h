@@ -248,7 +248,7 @@ template <>
 struct NumTraits<long double> : GenericNumTraits<long double> {
   EIGEN_DEVICE_FUNC constexpr static long double dummy_precision() { return static_cast<long double>(1e-15l); }
 
-#if defined(EIGEN_ARCH_PPC) && (__LDBL_MANT_DIG__ == 106)
+#if EIGEN_ARCH_PPC && (__LDBL_MANT_DIG__ == 106)
   // PowerPC double double causes issues with some values
   EIGEN_DEVICE_FUNC constexpr static long double epsilon() {
     // 2^(-(__LDBL_MANT_DIG__)+1)

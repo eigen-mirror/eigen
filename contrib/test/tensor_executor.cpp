@@ -836,10 +836,12 @@ void test_async_execute_select(Device d) {
   for (Index i = 0; i < dst.size(); ++i) VERIFY_IS_EQUAL(dst.coeff(i), numext::maxi(lhs.coeff(i), rhs.coeff(i)));
 }
 
-#ifndef EIGEN_DONT_VECTORIZE
-#define EIGEN_DONT_VECTORIZE 0
+// Eigen defines EIGEN_DONT_VECTORIZE without a value, e.g. when EIGEN_DONT_ALIGN disables alignment.
+#ifdef EIGEN_DONT_VECTORIZE
+#define VECTORIZABLE(T, VAL) false
+#else
+#define VECTORIZABLE(T, VAL) (Eigen::internal::packet_traits<T>::Vectorizable && (VAL))
 #endif
-#define VECTORIZABLE(T, VAL) !EIGEN_DONT_VECTORIZE&& Eigen::internal::packet_traits<T>::Vectorizable&& VAL
 
 #define CALL_SUBTEST_PART(PART) CALL_SUBTEST_##PART
 

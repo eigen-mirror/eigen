@@ -133,7 +133,7 @@ void ei_test_init_gpu() {
   std::cout << "  EIGEN_CUDACC:                 " << int(EIGEN_CUDACC) << "\n";
 #endif
 
-#ifdef EIGEN_CUDA_SDK_VER
+#if EIGEN_CUDA_SDK_VER
   std::cout << "  EIGEN_CUDA_SDK_VER:             " << int(EIGEN_CUDA_SDK_VER) << "\n";
 #endif
 
