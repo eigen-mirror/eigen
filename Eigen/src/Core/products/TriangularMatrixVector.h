@@ -255,13 +255,16 @@ struct triangular_product_impl<Mode, false, Lhs, true, Rhs, false> {
 
 namespace internal {
 
+// A factor s nested in a unit triangle reached the kernel through the product's alpha, so the unit diagonal
+// contributed alpha * s * rhs instead of alpha * rhs: subtract alpha * (s - 1) * rhs.
 template <int Mode, typename Lhs, typename Rhs, typename Dest, typename LhsScalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trmv_correct_unit_diagonal(const Lhs& lhs, const Rhs& rhs, Dest& dest,
+                                                                      const typename Dest::Scalar& alpha,
                                                                       const LhsScalar& lhs_alpha) {
   EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
     if (!numext::is_exactly_one(lhs_alpha)) {
       Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-      dest.head(diagSize) -= (lhs_alpha - LhsScalar(1)) * rhs.head(diagSize);
+      dest.head(diagSize) -= (alpha * (lhs_alpha - LhsScalar(1))) * rhs.head(diagSize);
     }
   }
 }
@@ -310,7 +313,7 @@ struct trmv_selector<Mode, ColMajor> {
 
     destPolicy.copy_back(dest, actualDestPtr);
 
-    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, lhs_alpha);
+    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, alpha, lhs_alpha);
   }
 };
 
@@ -357,7 +360,7 @@ struct trmv_selector<Mode, RowMajor> {
                                                                                               dest.innerStride(),
                                                                                               actualAlpha);
 
-    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, lhs_alpha);
+    trmv_correct_unit_diagonal<Mode>(lhs, rhs, dest, alpha, lhs_alpha);
   }
 };
 

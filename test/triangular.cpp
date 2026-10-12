@@ -167,6 +167,19 @@ void triangular_permutation_products(const MatrixType& m) {
   triangular_permutation_products_check(a.template triangularView<StrictlyUpper>(), perm);
   triangular_permutation_products_check(a.template selfadjointView<Lower>(), perm);
   triangular_permutation_products_check(a.template selfadjointView<Upper>(), perm);
+
+  // A complex alpha folded into a self-adjoint view scales the whole view, as in its other products, rather than
+  // being conjugated with the mirrored triangle.
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Scalar alpha = internal::random<Scalar>() + Scalar(RealScalar(2));
+  const MatrixType lower = a.template selfadjointView<Lower>(), upper = a.template selfadjointView<Upper>();
+  const MatrixType permDense = perm.toDenseMatrix().template cast<Scalar>();
+  MatrixType result = alpha * (a.template selfadjointView<Lower>() * perm);
+  VERIFY_IS_APPROX(result, MatrixType(alpha * MatrixType(lower * permDense)));
+  result = a;
+  result += alpha * (a.template selfadjointView<Upper>() * perm.inverse());
+  VERIFY_IS_APPROX(result, MatrixType(a + alpha * MatrixType(upper * permDense.transpose())));
 }
 
 template <typename MatrixType>

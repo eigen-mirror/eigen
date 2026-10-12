@@ -156,6 +156,22 @@ void product_selfadjoint(const MatrixType& m) {
     VERIFY_IS_APPROX(m2, m3.template triangularView<Lower>().toDenseMatrix());
   }
 
+  // rank2 update of a matrix with a non-unit inner stride
+  {
+    using VectorX = Matrix<Scalar, Dynamic, 1>;
+    const Index innerSize = MatrixType::IsRowMajor ? cols : rows;
+    VectorX buffer = VectorX::Zero(2 * rows * cols);
+    Map<MatrixType, 0, Stride<Dynamic, 2> > map1(buffer.data(), rows, cols, Stride<Dynamic, 2>(2 * innerSize, 2));
+    map1 = m1.template triangularView<Upper>();
+    map1.template selfadjointView<Upper>().rankUpdate(v1, v2, s1);
+    m3 = map1;
+    VERIFY_IS_APPROX(m3, (m1 + s1 * v1 * v2.adjoint() + numext::conj(s1) * v2 * v1.adjoint())
+                             .template triangularView<Upper>()
+                             .toDenseMatrix());
+    const Map<VectorX, 0, InnerStride<2> > gaps(buffer.data() + 1, rows * cols);
+    VERIFY(gaps.isZero());
+  }
+
   // matrix-vector
   m2 = m1.template triangularView<Lower>();
   VERIFY_IS_APPROX(m1 * m4, m2.template selfadjointView<Lower>() * m4);

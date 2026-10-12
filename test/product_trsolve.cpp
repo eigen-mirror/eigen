@@ -14,6 +14,44 @@
 
 #include "main.h"
 
+// Coefficients of a Mode triangle that flag every read outside the stored triangle, including the diagonal of a
+// unit triangle.
+template <typename Scalar, int Mode>
+struct triangle_only_functor {
+  bool* touched;
+  Scalar operator()(Index i, Index j) const {
+    const bool outside = ((Mode & Upper) ? i > j : i < j) || (i == j && (Mode & UnitDiag));
+    if (outside) *touched = true;
+    return i == j ? Scalar(2) : Scalar(1) / Scalar(Index(2) + i + j);
+  }
+};
+
+template <int Mode, typename Scalar>
+void trsolve_scaled_triangle_only(Index size) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  bool touched = false;
+  const auto a = Mat::NullaryExpr(size, size, triangle_only_functor<Scalar, Mode>{&touched});
+  const Mat dense = a.template triangularView<Mode>();
+  VERIFY(!touched);
+  const Scalar s(3);
+  const Vec b = Vec::Random(size);
+  Vec x = b;
+  (s * a).template triangularView<Mode>().solveInPlace(x);
+  VERIFY(!touched);
+  Vec ref = b;
+  (s * dense).eval().template triangularView<Mode>().solveInPlace(ref);
+  VERIFY_IS_APPROX(x, ref);
+}
+
+template <typename Scalar>
+void trsolve_scaled_reads_triangle_only(Index size) {
+  trsolve_scaled_triangle_only<Lower, Scalar>(size);
+  trsolve_scaled_triangle_only<Upper, Scalar>(size);
+  trsolve_scaled_triangle_only<UnitLower, Scalar>(size);
+  trsolve_scaled_triangle_only<UnitUpper, Scalar>(size);
+}
+
 #define VERIFY_TRSM(TRI, XB)                             \
   {                                                      \
     (XB).setRandom();                                    \
@@ -80,6 +118,17 @@ void trsolve(int size = Size, int cols = Cols) {
 
   VERIFY_TRSM_ONTHERIGHT(rmLhs.template triangularView<Lower>(), cmRhs);
   VERIFY_TRSM_ONTHERIGHT(rmLhs.conjugate().template triangularView<UnitUpper>(), rmRhs);
+
+  // Triangles with a scalar factor, which a unit diagonal does not share.
+  const Scalar s = Scalar(RealScalar(1.5)) + RealScalar(0.25) * internal::random<Scalar>();
+  VERIFY_TRSM((s * cmLhs).template triangularView<Lower>(), cmRhs);
+  VERIFY_TRSM((-rmLhs).template triangularView<Upper>(), rmRhs);
+  VERIFY_TRSM(s * cmLhs.template triangularView<Upper>(), rmRhs);
+  VERIFY_TRSM((cmLhs * s).adjoint().template triangularView<UnitLower>(), cmRhs);
+  VERIFY_TRSM((s * rmLhs).template triangularView<UnitUpper>(), cmRhs);
+  VERIFY_TRSM_ONTHERIGHT((s * cmLhs).template triangularView<UnitLower>(), cmRhs);
+  VERIFY_TRSM_ONTHERIGHT((s * rmLhs).template triangularView<Upper>(), rmRhs);
+  trsolve_scaled_reads_triangle_only<Scalar>(size);
 
   int c = internal::random<int>(0, cols - 1);
   VERIFY_TRSM(rmLhs.template triangularView<Lower>(), rmRhs.col(c));
@@ -341,6 +390,40 @@ void trsolve_no_malloc(int size, int cols) {
   VERIFY_TRSM_NO_MALLOC_ONTHERIGHT(lhs.adjoint().template triangularView<Lower>(), xRight, refRight);
 }
 
+// A right-hand side of fixed size at most 8 takes the unrolled solver, which reads the coefficients of a scaled
+// triangle itself: it needs no evaluated copy, and so no allocation, even when the matrix is dynamic.
+template <typename Scalar, int Mode>
+void trsolve_scaled_unrolled_no_malloc() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, 4, 1>;
+  using RowVec = Matrix<Scalar, 1, 4>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  STATIC_CHECK((int(internal::trsolve_traits<Mat, Vec, OnTheLeft>::Unrolling) == CompleteUnrolling));
+  STATIC_CHECK((int(internal::trsolve_traits<Mat, RowVec, OnTheRight>::Unrolling) == CompleteUnrolling));
+
+  Mat lhs = Mat::Random(4, 4) * RealScalar(0.1);
+  lhs.diagonal().array() += RealScalar(1);
+  const Scalar s(3);
+  Vec x, ref = Vec::Random();
+  VERIFY_TRSM_NO_MALLOC((s * lhs).template triangularView<Mode>(), x, ref);
+  RowVec xRight, refRight = RowVec::Random();
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT((s * lhs).template triangularView<Mode>(), xRight, refRight);
+
+  bool touched = false;
+  const auto a = Mat::NullaryExpr(4, 4, triangle_only_functor<Scalar, Mode>{&touched});
+  VERIFY_TRSM_NO_MALLOC((s * a).template triangularView<Mode>(), x, ref);
+  VERIFY_TRSM_NO_MALLOC_ONTHERIGHT((s * a).template triangularView<Mode>(), xRight, refRight);
+  VERIFY(!touched);
+}
+
+template <typename Scalar>
+void trsolve_scaled_unrolled_no_malloc_all() {
+  trsolve_scaled_unrolled_no_malloc<Scalar, Lower>();
+  trsolve_scaled_unrolled_no_malloc<Scalar, Upper>();
+  trsolve_scaled_unrolled_no_malloc<Scalar, UnitLower>();
+  trsolve_scaled_unrolled_no_malloc<Scalar, UnitUpper>();
+}
+
 template <int>
 void trsolve_no_malloc_all() {
   // The packed solver walks the triangular matrix in panels of max(mr, nr) columns; these sizes
@@ -358,6 +441,9 @@ void trsolve_no_malloc_all() {
       trsolve_no_malloc<std::complex<double>, ColMajor>(size, cols);
     }
   }
+  trsolve_scaled_unrolled_no_malloc_all<float>();
+  trsolve_scaled_unrolled_no_malloc_all<double>();
+  trsolve_scaled_unrolled_no_malloc_all<std::complex<double>>();
 }
 
 // The blocked solvers take their k-block depth, and a solve on the left its column panels, from the

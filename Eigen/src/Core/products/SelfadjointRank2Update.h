@@ -195,6 +195,12 @@ template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
 EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
+  // The rank-2 kernel below addresses the matrix with a unit inner stride.
+  if (MatrixType::InnerStrideAtCompileTime != 1 && nestedExpression().innerStride() != 1) {
+    nestedExpression().template triangularView<UpLo>() +=
+        typename MatrixType::PlainObject(alpha * u * v.adjoint() + numext::conj(alpha) * v * u.adjoint());
+    return *this;
+  }
   using UBlasTraits = internal::blas_traits<DerivedU>;
   using ActualUType = typename UBlasTraits::DirectLinearAccessType;
   using ActualUType_ = internal::remove_all_t<ActualUType>;

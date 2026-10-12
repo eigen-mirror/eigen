@@ -88,6 +88,17 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
   VERIFY_IS_APPROX(ge_xs = (s1 * mat).transpose().template triangularView<Mode>() * ge_left.adjoint(),
                    s1triTr * ge_left.adjoint());
 
+  // Subtracting a product whose triangle has a folded scalar factor, which a unit diagonal does not share.
+  ge_xs.setRandom();
+  ge_xs_save = ge_xs;
+  VERIFY_IS_APPROX(
+      (ge_xs_save - s1triTr * (s2 * ge_left.adjoint())).eval(),
+      ge_xs.noalias() -= (s1 * mat.transpose()).template triangularView<Mode>() * (s2 * ge_left.adjoint()));
+  ge_sx.setRandom(ge_left.rows(), mat.cols());
+  ge_sx_save = ge_sx;
+  VERIFY_IS_APPROX((ge_sx_save - (s2 * ge_left) * s1tri).eval(),
+                   ge_sx.noalias() -= (s2 * ge_left) * (s1 * mat).template triangularView<Mode>());
+
   // TODO check with sub-matrix expressions ?
 
   // Triangular times triangular or self-adjoint view: the right factor is densified and the product

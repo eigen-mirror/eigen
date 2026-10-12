@@ -102,18 +102,27 @@ class BandMatrixBase : public EigenBase<Derived> {
     using BuildType = Block<CoefficientsType, 1, DiagonalSize>;
     using Type =
         std::conditional_t<Conjugate, CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, BuildType>, BuildType>;
+    using ConstBuildType = Block<const CoefficientsType, 1, DiagonalSize>;
+    using ConstType = std::conditional_t<Conjugate, CwiseUnaryOp<internal::scalar_conjugate_op<Scalar>, ConstBuildType>,
+                                         ConstBuildType>;
   };
 
-  /** \returns a vector expression of the \a N -th sub or super diagonal */
+  /** \returns a vector expression of the \a N -th sub or super diagonal; for a self-adjoint matrix that stores
+   * only the opposite diagonal, the conjugate of that one */
   template <int N>
   inline typename DiagonalIntReturnType<N>::Type diagonal() {
-    return typename DiagonalIntReturnType<N>::BuildType(coeffs(), supers() - N, (std::max)(0, N), 1, diagonalLength(N));
+    constexpr int ActualN = DiagonalIntReturnType<N>::ActualIndex;
+    return typename DiagonalIntReturnType<N>::Type(typename DiagonalIntReturnType<N>::BuildType(
+        coeffs(), supers() - ActualN, (std::max)(0, ActualN), 1, diagonalLength(ActualN)));
   }
 
-  /** \returns a vector expression of the \a N -th sub or super diagonal */
+  /** \returns a vector expression of the \a N -th sub or super diagonal; for a self-adjoint matrix that stores
+   * only the opposite diagonal, the conjugate of that one */
   template <int N>
-  inline const typename DiagonalIntReturnType<N>::Type diagonal() const {
-    return typename DiagonalIntReturnType<N>::BuildType(coeffs(), supers() - N, (std::max)(0, N), 1, diagonalLength(N));
+  inline const typename DiagonalIntReturnType<N>::ConstType diagonal() const {
+    constexpr int ActualN = DiagonalIntReturnType<N>::ActualIndex;
+    return typename DiagonalIntReturnType<N>::ConstType(typename DiagonalIntReturnType<N>::ConstBuildType(
+        coeffs(), supers() - ActualN, (std::max)(0, ActualN), 1, diagonalLength(ActualN)));
   }
 
   /** \returns a vector expression of the \a i -th sub or super diagonal */
@@ -302,11 +311,11 @@ class TridiagonalMatrix : public BandMatrix<Scalar, Size, Size, Options & SelfAd
   explicit TridiagonalMatrix(Index size = Size) : Base(size, size, Options & SelfAdjoint ? 0 : 1, 1) {}
 
   inline typename Base::template DiagonalIntReturnType<1>::Type super() { return Base::template diagonal<1>(); }
-  inline const typename Base::template DiagonalIntReturnType<1>::Type super() const {
+  inline const typename Base::template DiagonalIntReturnType<1>::ConstType super() const {
     return Base::template diagonal<1>();
   }
   inline typename Base::template DiagonalIntReturnType<-1>::Type sub() { return Base::template diagonal<-1>(); }
-  inline const typename Base::template DiagonalIntReturnType<-1>::Type sub() const {
+  inline const typename Base::template DiagonalIntReturnType<-1>::ConstType sub() const {
     return Base::template diagonal<-1>();
   }
 };

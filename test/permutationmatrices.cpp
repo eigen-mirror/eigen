@@ -167,6 +167,26 @@ void permutationmatrices(const MatrixType& m) {
   VERIFY_IS_APPROX(m_original * rt.adjoint(), m_original * rp);
   m_permuted = m_original;
   VERIFY_IS_APPROX(m_permuted = lt.adjoint() * m_permuted, lp.inverse() * m_original);
+
+  // Accumulating permutation and transposition products without aliasing.
+  const MatrixType m_base = MatrixType::Random(rows, cols);
+  lm = lp;
+  rm = rp;
+  m_permuted = m_base;
+  m_permuted.noalias() += lp * m_original;
+  VERIFY_IS_APPROX(m_permuted, m_base + lm * m_original);
+  m_permuted = m_base;
+  m_permuted.noalias() -= m_original * rp.inverse();
+  VERIFY_IS_APPROX(m_permuted, m_base - m_original * rm.transpose());
+  m_permuted = m_base;
+  m_permuted.noalias() += Scalar(2) * (m_original * rp);
+  VERIFY_IS_APPROX(m_permuted, m_base + Scalar(2) * (m_original * rm));
+  m_permuted = m_base;
+  m_permuted.noalias() -= lt * m_original;
+  VERIFY_IS_APPROX(m_permuted, m_base - lm * m_original);
+  m_permuted = m_base;
+  m_permuted.noalias() += m_original * rt.transpose();
+  VERIFY_IS_APPROX(m_permuted, m_base + m_original * rm);
 }
 
 template <typename T>

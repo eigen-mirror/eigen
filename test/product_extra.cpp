@@ -98,6 +98,12 @@ void product_extra(const MatrixType& m) {
     VERIFY_IS_APPROX(m1 * mapvc2, m1 * vc2.reverse().eval());
     VERIFY_IS_APPROX(map1.adjoint() * v1.transpose(), m1.adjoint().reverse() * v1.transpose());
     VERIFY_IS_APPROX(m1.adjoint() * mapv1.transpose(), m1.adjoint() * v1.reverse().transpose());
+
+    // a destination with a negative inner stride
+    ColVectorType reversedRes(cols);
+    Map<ColVectorType, Unaligned, InnerStride<-1> > mapvcres(&reversedRes(cols - 1), cols, InnerStride<-1>(-1));
+    mapvcres.noalias() = m1.adjoint() * v1.transpose();
+    VERIFY_IS_APPROX(reversedRes, (m1.adjoint() * v1.transpose()).eval().reverse());
   }
 
   // regression test

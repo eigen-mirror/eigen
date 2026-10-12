@@ -54,8 +54,9 @@ struct general_matrix_matrix_rankupdate
     static EIGEN_STRONG_INLINE void run(Index size, Index depth, const Scalar* lhs, Index lhsStride,                   \
                                         const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr,                \
                                         Index resStride, Scalar alpha, level3_blocking<Scalar, Scalar>& blocking) {    \
-      EIGEN_IF_CONSTEXPR ((UpLo & (Lower | Upper)) == UpLo) {                                                          \
-        if (lhs == rhs) {                                                                                              \
+      /* SYRK computes lhs * lhs^T: rhs must be the same storage read in the opposite order. */                        \
+      EIGEN_IF_CONSTEXPR ((UpLo & (Lower | Upper)) == UpLo && LhsStorageOrder != RhsStorageOrder) {                    \
+        if (lhs == rhs && lhsStride == rhsStride) {                                                                    \
           general_matrix_matrix_rankupdate<Index, Scalar, LhsStorageOrder, ConjugateLhs, ColMajor, UpLo>::run(         \
               size, depth, lhs, lhsStride, rhs, rhsStride, res, resStride, alpha, blocking);                           \
           return;                                                                                                      \

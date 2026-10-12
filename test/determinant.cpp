@@ -155,6 +155,14 @@ void determinant(const MatrixType& m) {
 
   // check empty matrix
   VERIFY_IS_APPROX(m2.block(0, 0, 0, 0).determinant(), Scalar(1));
+
+  // triangular views
+  VERIFY_IS_APPROX(m2.template triangularView<Upper>().determinant(), m2.diagonal().prod());
+  VERIFY_IS_EQUAL(m2.template triangularView<UnitLower>().determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(m2.template triangularView<StrictlyUpper>().determinant(), Scalar(0));
+  VERIFY_IS_EQUAL(m2.block(0, 0, 0, 0).template triangularView<StrictlyLower>().determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(m2.block(0, 0, 0, 0).template triangularView<UnitUpper>().determinant(), Scalar(1));
+  VERIFY_IS_EQUAL(m2.block(0, 0, 0, 0).template triangularView<Lower>().determinant(), Scalar(1));
 }
 
 EIGEN_DECLARE_TEST(determinant) {

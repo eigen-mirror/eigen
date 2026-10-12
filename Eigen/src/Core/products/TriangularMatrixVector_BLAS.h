@@ -133,8 +133,10 @@ EIGEN_BLAS_TRMV_SPECIALIZE(scomplex)
       (&uplo, &trans, &diag, &n, (const BLASTYPE*)lhs_, &lda, (BLASTYPE*)x, &incx);                                \
                                                                                                                    \
       /* Add op(a_tr)rhs into res*/                                                                                \
+      /* BLAS addresses a vector with a negative increment from its lowest address, Eigen from entry 0. */         \
       EIGEN_CAT(EIGEN_CAT(BLASPREFIX, axpy), BLASPOSTFIX)                                                          \
-      (&n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)x, &incx, (BLASTYPE*)res_, &incy);          \
+      (&n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)x, &incx,                                   \
+       (BLASTYPE*)(resIncr < 0 ? res_ + (size - 1) * resIncr : res_), &incy);                                      \
       /* Non-square case - doesn't fit to BLAS ?TRMV. Fall to default triangular product*/                         \
       if (size < (std::max)(rows, cols)) {                                                                         \
         EIGEN_IF_CONSTEXPR (ConjRhs)                                                                               \
@@ -154,6 +156,7 @@ EIGEN_BLAS_TRMV_SPECIALIZE(scomplex)
           m = convert_index<BlasIndex>(size);                                                                      \
           n = convert_index<BlasIndex>(cols - size);                                                               \
         }                                                                                                          \
+        if (resIncr < 0) y += (m - 1) * resIncr;                                                                   \
         EIGEN_CAT(EIGEN_CAT(BLASPREFIX, gemv), BLASPOSTFIX)                                                        \
         (&trans, &m, &n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)a, &lda, (const BLASTYPE*)x,  \
          &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)y, &incy);                                    \
@@ -231,8 +234,10 @@ EIGEN_BLAS_TRMV_CM(scomplex, float, cf, c, EIGEN_BLAS_POSTFIX)
       (&uplo, &trans, &diag, &n, (const BLASTYPE*)lhs_, &lda, (BLASTYPE*)x, &incx);                                \
                                                                                                                    \
       /* Add op(a_tr)rhs into res*/                                                                                \
+      /* BLAS addresses a vector with a negative increment from its lowest address, Eigen from entry 0. */         \
       EIGEN_CAT(EIGEN_CAT(BLASPREFIX, axpy), BLASPOSTFIX)                                                          \
-      (&n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)x, &incx, (BLASTYPE*)res_, &incy);          \
+      (&n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)x, &incx,                                   \
+       (BLASTYPE*)(resIncr < 0 ? res_ + (size - 1) * resIncr : res_), &incy);                                      \
       /* Non-square case - doesn't fit to BLAS ?TRMV. Fall to default triangular product*/                         \
       if (size < (std::max)(rows, cols)) {                                                                         \
         EIGEN_IF_CONSTEXPR (ConjRhs)                                                                               \
@@ -252,6 +257,7 @@ EIGEN_BLAS_TRMV_CM(scomplex, float, cf, c, EIGEN_BLAS_POSTFIX)
           m = convert_index<BlasIndex>(size);                                                                      \
           n = convert_index<BlasIndex>(cols - size);                                                               \
         }                                                                                                          \
+        if (resIncr < 0) y += (m - 1) * resIncr;                                                                   \
         EIGEN_CAT(EIGEN_CAT(BLASPREFIX, gemv), BLASPOSTFIX)                                                        \
         (&trans, &n, &m, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)a, &lda, (const BLASTYPE*)x,  \
          &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)y, &incy);                                    \

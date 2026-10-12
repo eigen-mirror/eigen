@@ -141,6 +141,34 @@ void syrk(const MatrixType& m) {
                         .template triangularView<Upper>()
                         .toDenseMatrix()));
 
+  // The product of a matrix with itself, rather than with its adjoint, shares its storage without being a rank update.
+  m2.setZero();
+  m2.template triangularView<Lower>() = m1 * m1;
+  VERIFY_IS_APPROX(m2, (m1 * m1).eval().template triangularView<Lower>().toDenseMatrix());
+  rm2.setZero();
+  rm2.template triangularView<Upper>() += s1 * m1 * m1;
+  VERIFY_IS_APPROX(rm2, (s1 * m1 * m1).eval().template triangularView<Upper>().toDenseMatrix());
+
+  // A scalar factor of the update enters twice: (s u) (s u)^* = s conj(s) u u^*.
+  {
+    const Scalar s2 = internal::random<Scalar>();
+    const Rhs2 scaled2 = s2 * rhs2;
+    using VectorX = Matrix<Scalar, Dynamic, 1>;
+    const VectorX scaledCol = -(s2 * m1.col(c)), conjCol = (s2 * m1.col(c)).conjugate();
+    m2.setZero();
+    VERIFY_IS_APPROX((m2.template selfadjointView<Lower>().rankUpdate(s2 * rhs2, s1)._expression()),
+                     ((s1 * scaled2 * scaled2.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+    rm2.setZero();
+    VERIFY_IS_APPROX((rm2.template selfadjointView<Upper>().rankUpdate(rhs2 * s2, s1)._expression()),
+                     ((s1 * scaled2 * scaled2.adjoint()).eval().template triangularView<Upper>().toDenseMatrix()));
+    m2.setZero();
+    VERIFY_IS_APPROX((m2.template selfadjointView<Upper>().rankUpdate(-(s2 * m1.col(c)), s1)._expression()),
+                     ((s1 * scaledCol * scaledCol.adjoint()).eval().template triangularView<Upper>().toDenseMatrix()));
+    rm2.setZero();
+    VERIFY_IS_APPROX((rm2.template selfadjointView<Lower>().rankUpdate((s2 * m1.col(c)).conjugate(), s1)._expression()),
+                     ((s1 * conjCol * conjCol.adjoint()).eval().template triangularView<Lower>().toDenseMatrix()));
+  }
+
   // destination with a non-default inner-stride
   // see bug 1741
   {

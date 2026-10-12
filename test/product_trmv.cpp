@@ -79,6 +79,44 @@ void trmv(const MatrixType& m) {
   // TODO check with sub-matrices
 }
 
+// A destination with a negative inner stride, which BLAS addresses from its lowest entry and Eigen from entry 0.
+// Square and both non-square shapes reach the TRMV, AXPY and GEMV calls of the BLAS backend.
+template <typename Scalar, int StorageOrder, int Mode>
+void trmv_negative_stride_destination(Index rows, Index cols) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const Mat m = Mat::Random(rows, cols);
+  const Vec v = Vec::Random(cols);
+  const Mat dense = m.template triangularView<Mode>();
+  const Vec ref = dense * v;
+
+  // The reversed destination sits between two guard blocks of the same length.
+  Vec buffer = Vec::Random(3 * rows);
+  const Vec initial = buffer;
+  Map<Vec, Unaligned, InnerStride<-1>> dst(buffer.data() + 2 * rows - 1, rows, InnerStride<-1>(-1));
+  dst.noalias() = m.template triangularView<Mode>() * v;
+  VERIFY_IS_APPROX(Vec(dst), ref);
+  VERIFY_IS_EQUAL(buffer.head(rows), initial.head(rows));
+  VERIFY_IS_EQUAL(buffer.tail(rows), initial.tail(rows));
+}
+
+template <typename Scalar, int StorageOrder>
+void trmv_negative_stride_destination_shapes() {
+  const Index shapes[][2] = {{7, 7}, {9, 5}, {5, 9}};
+  for (const auto& shape : shapes) {
+    trmv_negative_stride_destination<Scalar, StorageOrder, Lower>(shape[0], shape[1]);
+    trmv_negative_stride_destination<Scalar, StorageOrder, Upper>(shape[0], shape[1]);
+    trmv_negative_stride_destination<Scalar, StorageOrder, UnitLower>(shape[0], shape[1]);
+    trmv_negative_stride_destination<Scalar, StorageOrder, UnitUpper>(shape[0], shape[1]);
+  }
+}
+
+template <typename Scalar>
+void trmv_negative_stride_destination_all() {
+  trmv_negative_stride_destination_shapes<Scalar, ColMajor>();
+  trmv_negative_stride_destination_shapes<Scalar, RowMajor>();
+}
+
 EIGEN_DECLARE_TEST(product_trmv) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -95,4 +133,8 @@ EIGEN_DECLARE_TEST(product_trmv) {
     CALL_SUBTEST_6(trmv(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
   }
+  CALL_SUBTEST_7(trmv_negative_stride_destination_all<float>());
+  CALL_SUBTEST_7(trmv_negative_stride_destination_all<double>());
+  CALL_SUBTEST_7(trmv_negative_stride_destination_all<std::complex<float>>());
+  CALL_SUBTEST_7(trmv_negative_stride_destination_all<std::complex<double>>());
 }

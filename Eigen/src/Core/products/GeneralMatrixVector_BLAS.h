@@ -114,10 +114,12 @@ EIGEN_BLAS_GEMV_SPECIALIZE(scomplex)
         x_ptr = x_tmp.data();                                                                                       \
         incx = 1;                                                                                                   \
       } else {                                                                                                      \
-        x_ptr = rhs;                                                                                                \
+        /* BLAS reads a negative increment from the lowest address, Eigen from entry 0. */                          \
+        x_ptr = rhsIncr < 0 ? rhs + (cols - 1) * rhsIncr : rhs;                                                     \
       }                                                                                                             \
+      auto* y_ptr = resIncr < 0 ? res + (rows - 1) * resIncr : res;                                                 \
       BLASFUNC(&trans, &m, &n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)lhs, &lda,               \
-               (const BLASTYPE*)x_ptr, &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)res, &incy);     \
+               (const BLASTYPE*)x_ptr, &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)y_ptr, &incy);   \
     }                                                                                                               \
   };
 

@@ -56,7 +56,39 @@ void bandmatrix(const MatrixType& _m) {
 
 using Eigen::internal::BandMatrix;
 
+// diagonal<N>() of a const band matrix, and the sub and super diagonals of a const tridiagonal one.
+template <int>
+void bandmatrix_const_diagonals() {
+  BandMatrix<double, Dynamic, Dynamic, 2, 1> band(6, 7, 2, 1);
+  band.coeffs().setRandom();
+  const BandMatrix<double, Dynamic, Dynamic, 2, 1>& constBand = band;
+  VERIFY_IS_EQUAL(RowVectorXd(constBand.diagonal<2>()), RowVectorXd(band.diagonal(2)));
+  VERIFY_IS_EQUAL(RowVectorXd(constBand.diagonal<-1>()), RowVectorXd(band.diagonal(-1)));
+
+  Eigen::internal::TridiagonalMatrix<double, Dynamic, 0> tri(5);
+  tri.coeffs().setRandom();
+  const Eigen::internal::TridiagonalMatrix<double, Dynamic, 0>& constTri = tri;
+  VERIFY_IS_EQUAL(RowVectorXd(constTri.super()), RowVectorXd(tri.diagonal(1)));
+  VERIFY_IS_EQUAL(RowVectorXd(constTri.sub()), RowVectorXd(tri.diagonal(-1)));
+}
+
+// A self-adjoint tridiagonal matrix stores the subdiagonal only; its superdiagonal is the conjugate.
+template <typename Scalar>
+void bandmatrix_selfadjoint_diagonals() {
+  using RowVector = Matrix<Scalar, 1, Dynamic>;
+  Eigen::internal::TridiagonalMatrix<Scalar, Dynamic, SelfAdjoint> tri(5);
+  tri.coeffs().setRandom();
+  const Eigen::internal::TridiagonalMatrix<Scalar, Dynamic, SelfAdjoint>& constTri = tri;
+  const RowVector sub = tri.diagonal(-1);
+  VERIFY_IS_EQUAL(RowVector(tri.sub()), sub);
+  VERIFY_IS_EQUAL(RowVector(tri.super()), RowVector(sub.conjugate()));
+  VERIFY_IS_EQUAL(RowVector(constTri.super()), RowVector(sub.conjugate()));
+}
+
 EIGEN_DECLARE_TEST(bandmatrix) {
+  CALL_SUBTEST(bandmatrix_const_diagonals<0>());
+  CALL_SUBTEST(bandmatrix_selfadjoint_diagonals<double>());
+  CALL_SUBTEST(bandmatrix_selfadjoint_diagonals<std::complex<double>>());
   for (int i = 0; i < 10 * g_repeat; i++) {
     Index rows = internal::random<Index>(1, 10);
     Index cols = internal::random<Index>(1, 10);
