@@ -36,6 +36,29 @@ if (${EIGEN_CI_BUILD_TARGET_FILE}) {
   }
 }
 
+# Sweep MSVC intermediate files (_CL_*) that killed jobs left in the shared
+# %TEMP%, which jobs predating the redirect below still use.  The cutoff
+# exceeds the 10 h job timeout, so a running job's files are never touched.
+$stale_cl = @(Get-ChildItem -Path $env:TEMP -Filter "_CL_*" -ErrorAction SilentlyContinue |
+              Where-Object { $_.LastWriteTime -lt (Get-Date).AddHours(-12) })
+if ($stale_cl.Count -gt 0) {
+  $stale_bytes = ($stale_cl | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue).Sum
+  $stale_mb = [math]::Round(($stale_bytes / 1MB), 1)
+  Write-Host ("Sweeping {0} stale _CL_* file(s) ({1} MB) from {2}" -f $stale_cl.Count, $stale_mb, $env:TEMP)
+  $stale_cl | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+}
+
+# Redirect MSVC compiler intermediate files into a job-scoped directory (.temp).
+# Normal completion removes .temp in the finally block below; after a timeout,
+# cancellation, or runner crash, the next job on the same build slot reclaims
+# it via GitLab Runner's default git clean -ffdx.
+$job_temp = Join-Path $rootdir ".temp"
+if (-Not (Test-Path $job_temp)) {
+  New-Item -ItemType Directory -Force -Path $job_temp | Out-Null
+}
+$env:TEMP = $job_temp
+$env:TMP = $job_temp
+
 # Find Visual Studio installation directory. -products * includes Build
 # Tools installs, which vswhere's default product filter skips; without it a
 # Build Tools-only runner gets an empty path here, vcvarsall never runs, and
@@ -306,6 +329,12 @@ try {
 
   # Return to root directory.
   cd ${rootdir}
+
+  # Reclaim job-local temporary directory on normal exit; killed or timed-out
+  # jobs are cleaned up by the next job's git clean -ffdx.
+  if (Test-Path $job_temp) {
+    Remove-Item -Recurse -Force $job_temp -ErrorAction SilentlyContinue
+  }
 }
 
 # Explicitly propagate exit code to indicate pass/failure of build command.

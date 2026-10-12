@@ -52,6 +52,7 @@ CLAUDE.md
 .ccache-bin/
 .sccache-bin/
 .sccache/
+.temp/
 ccache-stats.log
 .cred_port
 # Written by ci/lint/lint.sh.
