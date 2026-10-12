@@ -785,6 +785,25 @@ static void test_symm_pack() {
     verify_symm_pack_rhs<Scalar, ColMajor>(c.N, c.depth, c.cols, c.k2);
     verify_symm_pack_rhs<Scalar, RowMajor>(c.N, c.depth, c.cols, c.k2);
   }
+
+  // Full-panel direct regions [s_end, depth) of a ColMajor operand start at s_end = j + w - k2, off the depth chunk
+  // grid, with real-view lengths 4*svl*a + 2*svl + t that pass through the four-chunk (64-bit), paired and single-tile
+  // transposer loops in turn. The panel width w is nr and, where smaller, the 2*svl the full-panel path needs.
+  const int svl = internal::sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
+  const int NR = sme_nr<Scalar>();
+  const int scale = NumTraits<Scalar>::IsComplex ? 2 : 1;
+  for (int real_range : {10 * svl + 3, 14 * svl + 1}) {
+    const int range = (real_range + scale - 1) / scale;
+    for (int k2 : {5, NR - 3}) {
+      const int depth = NR - k2 + range, N = numext::maxi(k2 + depth, 2 * NR + 1);
+      verify_symm_pack_rhs<Scalar, ColMajor>(N, depth, 2 * NR + 1, k2);
+      verify_symm_pack_rhs<Scalar, RowMajor>(N, depth, 2 * NR + 1, k2);
+    }
+    if (svl >= 4 && 2 * svl < NR) {
+      const int w = 2 * svl, k2 = w - 3, depth = 3 + range;
+      verify_symm_pack_rhs<Scalar, ColMajor>(k2 + depth, depth, w, k2);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,6 +1083,31 @@ static void test_pack_direct() {
   // Four-panel LHS copies with leftover panels and tails, over several transposing depth chunks.
   for (int d : {35, 67, 97}) {
     for (int n : {4 * MR, 5 * MR + 1, 8 * MR + 3}) {
+      sweep_pack_direct<Scalar, ColMajor>(n, d);
+      sweep_pack_direct<Scalar, RowMajor>(n, d);
+    }
+  }
+  // Depths at and one past whole multiples of four depth chunks, where the full-panel transposer's loops hand over to
+  // the next and to the single-tile tail; a complex panel transposes a real view of twice the depth.
+  const int svl = internal::sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
+  const int deep = (NumTraits<Scalar>::IsComplex ? 16 : 32) * svl;
+  std::vector<int> deep_depths = {deep - 1, deep + 1};
+  for (int j : {2, 3, 8, 9}) {
+    deep_depths.push_back(4 * svl * j);
+    deep_depths.push_back(4 * svl * j + 1);
+  }
+  // Deduplicate deep + 1 == 4*svl*8 + 1 for real scalars.
+  std::sort(deep_depths.begin(), deep_depths.end());
+  deep_depths.erase(std::unique(deep_depths.begin(), deep_depths.end()), deep_depths.end());
+  // The paired transposer takes only unconjugated 2*svl-wide panels. At SVL 512 that is NR for every scalar and MR for
+  // all but complex<float>. Below it, eligible real tails reach the paired transposer through tail_pack once deep
+  // enough, and complex<float> has MR == 2*svl at SVL 256. Complex tails take the NEON tail_transpose_pack, so
+  // complex<double> at SVL 256 reaches the four-chunk loop only through test_symm_pack's 2*svl-wide direct regions.
+  std::vector<int> deep_widths = {MR, MR + 1, NR, 2 * NR + 1, 2 * svl};
+  std::sort(deep_widths.begin(), deep_widths.end());
+  deep_widths.erase(std::unique(deep_widths.begin(), deep_widths.end()), deep_widths.end());
+  for (int d : deep_depths) {
+    for (int n : deep_widths) {
       sweep_pack_direct<Scalar, ColMajor>(n, d);
       sweep_pack_direct<Scalar, RowMajor>(n, d);
     }

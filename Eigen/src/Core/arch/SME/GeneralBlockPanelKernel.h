@@ -246,8 +246,86 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel(Scalar* EIGEN_RESTRICT dst, const
   sve_copy_panel_range<Conjugate>(dst, src, src_stride, Index(0), depth, width);
 }
 
-// Full 2*svl-wide panel through all four tiles, four rows or depth steps per ZA move, source prefetched into L2
-// two steps ahead; returns the first depth index of the tail (< 2*svl) it leaves to the caller.
+// Slices c..c+3 of tiles Lo and Hi as four whole packed lines from d, w scalars apart: Lo's slice is a line's first
+// svl scalars, Hi's the rest.  Single-vector stores: a two-vector store would first copy each line's halves into a
+// consecutive register pair.
+template <int Lo, int Hi, typename RealScalar>
+static EIGEN_ALWAYS_INLINE void sme_store_lines_vg4(RealScalar* d, int w, int svl,
+                                                    uint32_t c) __arm_streaming __arm_in("za") {
+  const svbool_t all = sme_packet_traits<RealScalar>::ptrue();
+  const auto lo = sme_read_ver_za_vg4<Lo, RealScalar>(c), hi = sme_read_ver_za_vg4<Hi, RealScalar>(c);
+  pstoreu(all, d, pget<0>(lo));
+  pstoreu(all, d + svl, pget<0>(hi));
+  pstoreu(all, d + w, pget<1>(lo));
+  pstoreu(all, d + w + svl, pget<1>(hi));
+  pstoreu(all, d + 2 * w, pget<2>(lo));
+  pstoreu(all, d + 2 * w + svl, pget<2>(hi));
+  pstoreu(all, d + 3 * w, pget<3>(lo));
+  pstoreu(all, d + 3 * w + svl, pget<3>(hi));
+}
+
+// Four depth chunks of a full panel per fill, which needs eight tiles. No-op where the element type has four tiles:
+// the paired loop's two depth chunks already fill ZA. Returns the first depth index it leaves.
+template <typename RealScalar, typename Index>
+static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_four(RealScalar*, const RealScalar*, Index, Index k0,
+                                                         Index) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
+  return k0;
+}
+
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+template <int Tile, typename Index>
+static EIGEN_ALWAYS_INLINE void sme_write_rows_x4(uint32_t r, svcount_t pn, const double* p,
+                                                  Index stride) __arm_streaming __arm_inout("za") {
+  const auto a0 = ploadu_x4(pn, p), a1 = ploadu_x4(pn, p + stride), a2 = ploadu_x4(pn, p + 2 * stride),
+             a3 = ploadu_x4(pn, p + 3 * stride);
+  sme_write_hor_za_vg4<Tile>(r, pget<0>(a0), pget<0>(a1), pget<0>(a2), pget<0>(a3));
+  sme_write_hor_za_vg4<Tile + 1>(r, pget<1>(a0), pget<1>(a1), pget<1>(a2), pget<1>(a3));
+  sme_write_hor_za_vg4<Tile + 2>(r, pget<2>(a0), pget<2>(a1), pget<2>(a2), pget<2>(a3));
+  sme_write_hor_za_vg4<Tile + 3>(r, pget<3>(a0), pget<3>(a1), pget<3>(a2), pget<3>(a3));
+}
+
+// Both row-groups over four depth chunks in the eight ZA.D tiles, row-group 0 in tiles 0..3 and row-group 1 in tiles
+// 4..7, so every packed line is stored whole; source prefetched into L2 two steps ahead, two prefetches per row and
+// chunk (a whole chunk with 128-byte cache lines, as on Apple M4).
+template <typename Index>
+static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_four(double* EIGEN_RESTRICT dst, const double* EIGEN_RESTRICT src,
+                                                         Index src_stride, Index k0,
+                                                         Index k1) __arm_streaming __arm_inout("za") {
+  const int svl = sme_packet_traits<double>::size(), w = 2 * svl, d = 4 * svl;
+  const svcount_t pn = sme_packet_traits<double>::ptrue_c();
+  Index k = k0;
+  for (; k + d <= k1; k += d) {
+    // Only a chunk inside the range: the prefetch address must stay within the source.
+    const bool pf = k + 3 * d <= k1;
+    for (int r = 0; r < svl; r += 4) {
+      const double* p = src + Index(r) * src_stride + k;
+      const double* q = p + Index(svl) * src_stride;
+      if (pf) {
+        for (int u = 0; u < 4; ++u) {
+          __builtin_prefetch(p + u * src_stride + 2 * d, 0, 2);
+          __builtin_prefetch(p + u * src_stride + 2 * d + w, 0, 2);
+          __builtin_prefetch(q + u * src_stride + 2 * d, 0, 2);
+          __builtin_prefetch(q + u * src_stride + 2 * d + w, 0, 2);
+        }
+      }
+      sme_write_rows_x4<0>(uint32_t(r), pn, p, src_stride);
+      sme_write_rows_x4<4>(uint32_t(r), pn, q, src_stride);
+    }
+    for (int c = 0; c < svl; c += 4) {
+      double* d0 = dst + (k + c) * w;
+      sme_store_lines_vg4<0, 4>(d0, w, svl, uint32_t(c));
+      sme_store_lines_vg4<1, 5>(d0 + Index(svl) * w, w, svl, uint32_t(c));
+      sme_store_lines_vg4<2, 6>(d0 + Index(2 * svl) * w, w, svl, uint32_t(c));
+      sme_store_lines_vg4<3, 7>(d0 + Index(3 * svl) * w, w, svl, uint32_t(c));
+    }
+  }
+  return k;
+}
+#endif
+
+// Full 2*svl-wide panel through tiles 0..3, four rows or depth steps per ZA move, source prefetched into L2
+// two steps ahead, after sme_transpose_pack_four where the element type has eight tiles; returns the first depth
+// index of the tail (< 2*svl) it leaves to the caller.
 template <typename RealScalar, typename Index>
 static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTRICT dst,
                                                          const RealScalar* EIGEN_RESTRICT src, Index src_stride,
@@ -255,7 +333,7 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTR
   using Traits = sme_packet_traits<RealScalar>;
   const int svl = Traits::size(), w = 2 * svl;
   const svcount_t pn = Traits::ptrue_c();
-  Index k = k0;
+  Index k = sme_transpose_pack_four(dst, src, src_stride, k0, k1);
   for (; k + w <= k1; k += w) {
     const bool pf = k + 2 * w <= k1;
     for (int r = 0; r < svl; r += 4) {
@@ -276,20 +354,9 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_pair(RealScalar* EIGEN_RESTR
       sme_write_hor_za_vg4<3>(uint32_t(r), pget<1>(b0), pget<1>(b1), pget<1>(b2), pget<1>(b3));
     }
     for (int c = 0; c < svl; c += 4) {
-      const auto t0 = sme_read_ver_za_vg4<0, RealScalar>(uint32_t(c)),
-                 t2 = sme_read_ver_za_vg4<2, RealScalar>(uint32_t(c));
-      const auto t1 = sme_read_ver_za_vg4<1, RealScalar>(uint32_t(c)),
-                 t3 = sme_read_ver_za_vg4<3, RealScalar>(uint32_t(c));
       RealScalar* d0 = dst + (k + c) * w;
-      RealScalar* d1 = d0 + Index(svl) * w;
-      pstoreu_x2(pn, d0, pcreate(pget<0>(t0), pget<0>(t2)));
-      pstoreu_x2(pn, d0 + w, pcreate(pget<1>(t0), pget<1>(t2)));
-      pstoreu_x2(pn, d0 + 2 * w, pcreate(pget<2>(t0), pget<2>(t2)));
-      pstoreu_x2(pn, d0 + 3 * w, pcreate(pget<3>(t0), pget<3>(t2)));
-      pstoreu_x2(pn, d1, pcreate(pget<0>(t1), pget<0>(t3)));
-      pstoreu_x2(pn, d1 + w, pcreate(pget<1>(t1), pget<1>(t3)));
-      pstoreu_x2(pn, d1 + 2 * w, pcreate(pget<2>(t1), pget<2>(t3)));
-      pstoreu_x2(pn, d1 + 3 * w, pcreate(pget<3>(t1), pget<3>(t3)));
+      sme_store_lines_vg4<0, 2>(d0, w, svl, uint32_t(c));
+      sme_store_lines_vg4<1, 3>(d0 + Index(svl) * w, w, svl, uint32_t(c));
     }
   }
   return k;
