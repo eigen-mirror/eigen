@@ -110,31 +110,49 @@ struct linspaced_op_impl<Scalar, /*IsInteger*/ false> {
   const bool m_flip;
 };
 
+// Built-in integers compute in the unsigned type of Scalar's width, widened to Index's, which holds num_steps, the
+// index i, |high - low| and the offset from low where high - low overflows a signed Scalar or wraps an unsigned one;
+// low +- offset then wraps to the coefficient. Other scalars, custom integers included, compute in Scalar.
+template <typename Scalar, bool IsBuiltin = std::is_integral<Scalar>::value>
+struct linspaced_integer_traits {
+  using Wide = std::make_unsigned_t<std::conditional_t<(sizeof(Scalar) < sizeof(Index)), Index, Scalar>>;
+  EIGEN_DEVICE_FUNC static constexpr Scalar narrow(const Wide& x) {
+    return static_cast<Scalar>(numext::bit_cast<std::make_signed_t<Wide>>(x));
+  }
+};
+
+template <typename Scalar>
+struct linspaced_integer_traits<Scalar, false> {
+  using Wide = Scalar;
+  EIGEN_DEVICE_FUNC static constexpr Scalar narrow(const Wide& x) { return x; }
+};
+
 template <typename Scalar>
 struct linspaced_op_impl<Scalar, /*IsInteger*/ true> {
-  // Built-in integers narrower than Index compute in Index, as num_steps, the index i and the offset from low need not
-  // fit in Scalar while the coefficient does. Other scalars, custom integers included, compute in Scalar.
-  using Wide = std::conditional_t<std::is_integral<Scalar>::value && (sizeof(Scalar) < sizeof(Index)), Index, Scalar>;
+  using Traits = linspaced_integer_traits<Scalar>;
+  using Wide = typename Traits::Wide;
 
+  // Coefficient i is low +- i * m_step with m_step = |high - low| / (num_steps - 1), or, where values repeat because
+  // |high - low| + 1 < num_steps, low +- i / m_step with m_step = (num_steps + |high - low|) / (|high - low| + 1).
   EIGEN_DEVICE_FUNC constexpr linspaced_op_impl(const Scalar& low, const Scalar& high, Index num_steps)
       : m_low(low),
-        m_multiplier((Wide(high) - Wide(low)) / convert_index<Wide>(num_steps <= 1 ? 1 : num_steps - 1)),
-        m_divisor(convert_index<Wide>((high >= low ? num_steps : -num_steps) + (Wide(high) - Wide(low))) /
-                  ((numext::abs(Wide(high) - Wide(low)) + 1) == 0 ? 1 : (numext::abs(Wide(high) - Wide(low)) + 1))),
-        m_use_divisor(num_steps > 1 && (numext::abs(Wide(high) - Wide(low)) + 1) < num_steps) {}
+        m_decreasing(high < low),
+        m_range(high < low ? Wide(Wide(low) - Wide(high)) : Wide(Wide(high) - Wide(low))),
+        m_use_divisor(num_steps > 1 && m_range < convert_index<Wide>(num_steps - 1)),
+        m_step(m_use_divisor ? (convert_index<Wide>(num_steps) + m_range) / (m_range + Wide(1))
+                             : m_range / convert_index<Wide>(num_steps <= 1 ? 1 : num_steps - 1)) {}
 
   template <typename IndexType>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(IndexType i) const {
-    if (m_use_divisor)
-      return static_cast<Scalar>(m_low + convert_index<Wide>(i) / m_divisor);
-    else
-      return static_cast<Scalar>(m_low + convert_index<Wide>(i) * m_multiplier);
+    const Wide offset = m_use_divisor ? Wide(convert_index<Wide>(i) / m_step) : Wide(convert_index<Wide>(i) * m_step);
+    return Traits::narrow(m_decreasing ? Wide(Wide(m_low) - offset) : Wide(Wide(m_low) + offset));
   }
 
-  const Wide m_low;
-  const Wide m_multiplier;
-  const Wide m_divisor;
+  const Scalar m_low;
+  const bool m_decreasing;
+  const Wide m_range;
   const bool m_use_divisor;
+  const Wide m_step;
 };
 
 // ----- Linspace functor ----------------------------------------------------------------

@@ -545,15 +545,10 @@ struct log1p_impl {
   }
 };
 
-// Specialization for complex types that are not supported by std::log1p.
+// Specialization for complex types that are not supported by std::log1p; defined after the numext functions it is
+// built from.
 template <typename RealScalar>
-struct log1p_impl<std::complex<RealScalar>> {
-  EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
-
-  EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(const std::complex<RealScalar>& x) {
-    return std_fallback::log1p(x);
-  }
-};
+struct log1p_impl<std::complex<RealScalar>>;
 
 // numext::exp2 of a complex argument; defined after the numext functions it is built from.
 template <typename RealScalar>
@@ -2277,16 +2272,18 @@ struct scalar_fuzzy_default_impl<Scalar, false, true> {
   }
 };
 
+// Compares moduli, not their squares: abs2 overflows above sqrt(highest) and underflows below sqrt(min), where unequal
+// values then compared as approximately equal.
 template <typename Scalar>
 struct scalar_fuzzy_default_impl<Scalar, true, false> {
   using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename OtherScalar>
   EIGEN_DEVICE_FUNC static inline bool isMuchSmallerThan(const Scalar& x, const OtherScalar& y,
                                                          const RealScalar& prec) {
-    return numext::abs2(x) <= numext::abs2(y) * prec * prec;
+    return numext::abs(x) <= numext::abs(y) * prec;
   }
   EIGEN_DEVICE_FUNC static inline bool isApprox(const Scalar& x, const Scalar& y, const RealScalar& prec) {
-    return numext::abs2(x - y) <= numext::mini(numext::abs2(x), numext::abs2(y)) * prec * prec;
+    return numext::abs(x - y) <= numext::mini(numext::abs(x), numext::abs(y)) * prec;
   }
 };
 
@@ -2384,6 +2381,23 @@ struct expm1_impl<std::complex<RealScalar>> {
     const RealScalar real_part = xr < RealScalar(0) ? erm1 - er * one_minus_c : erm1 * c - one_minus_c;
     // exp(x) * sin(0) is NaN for infinite exp(x); keep the exact zero instead.
     return std::complex<RealScalar>(real_part, numext::is_exactly_zero(xi) ? xi : er * s);
+  }
+};
+
+template <typename RealScalar>
+struct log1p_impl<std::complex<RealScalar>> {
+  EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
+
+  EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(const std::complex<RealScalar>& z) {
+    const RealScalar x = z.real();
+    const RealScalar y = z.imag();
+    // log|1 + z| = log1p(x (2 + x) + y^2) / 2. Rounding |1 + z| instead loses the real part to cancellation near
+    // |1 + z| = 1, and with it the relative accuracy of log1p(z) for small z off the real axis.
+    if (numext::abs(x) < RealScalar(0.5) && numext::abs(y) < RealScalar(0.5) && !numext::is_exactly_zero(y)) {
+      return std::complex<RealScalar>(numext::log1p(x * (RealScalar(2) + x) + y * y) / RealScalar(2),
+                                      numext::atan2(y, RealScalar(1) + x));
+    }
+    return std_fallback::log1p(z);
   }
 };
 
@@ -2509,7 +2523,13 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_smith(const
   // guards against over/under-flow.
   const bool scale_imag = numext::abs(b_imag) <= numext::abs(b_real);
   const T rscale = scale_imag ? T(1) : b_real / b_imag;
-  const T iscale = scale_imag ? b_imag / b_real : T(1);
+  // d / c = +-1 for |c| = |d|, which the quotient misses as 0 / 0 or inf / inf when b = 0 or both parts of b are
+  // infinite; a zero divisor then gives an infinity and an infinite one zero, as in pdiv_complex. The sign is not taken
+  // from b_real * b_imag, which can overflow or underflow.
+  const T iscale = !scale_imag ? T(1)
+                   : numext::abs(b_imag) == numext::abs(b_real)
+                       ? numext::copysign(T(1), b_real) * numext::copysign(T(1), b_imag)
+                       : b_imag / b_real;
   const T denominator = b_real * rscale + b_imag * iscale;
   return std::complex<T>((a_real * rscale + a_imag * iscale) / denominator,
                          (a_imag * rscale - a_real * iscale) / denominator);

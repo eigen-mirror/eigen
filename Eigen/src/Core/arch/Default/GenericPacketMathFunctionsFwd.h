@@ -247,8 +247,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Pa
 template <typename Packet, int N>
 struct ppolevl;
 
-/** \internal \returns log(x) for complex types */
-template <typename Packet>
+/** \internal \returns log(x), or log2(x) for Base2, for complex types */
+template <typename Packet, bool Base2 = false>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x);
 
 /** \internal \returns exp(x) for complex types */

@@ -460,6 +460,27 @@ void linspaced_integer_divisor() {
     for (Index k = 0; k < 256; ++k) VERIFY_IS_EQUAL(int(u(k)), 255 - int(k));
   }
 
+  // 64-bit integers, where high - low wraps for unsigned decreasing sequences or overflows the signed type.
+  {
+    using VecU64 = Matrix<uint64_t, Dynamic, 1>;
+    VecU64 u = VecU64::LinSpaced(4, 9, 0), w = VecU64::LinSpaced(10, 3, 0);
+    for (Index k = 0; k < 4; ++k) VERIFY_IS_EQUAL(u(k), uint64_t(9 - 3 * k));
+    for (Index k = 0; k < 10; ++k) VERIFY_IS_EQUAL(w(k), uint64_t(3 - k / 3));
+    const uint64_t umax = (std::numeric_limits<uint64_t>::max)();
+    VecU64 x = VecU64::LinSpaced(2, umax, 0);
+    VERIFY_IS_EQUAL(x(0), umax);
+    VERIFY_IS_EQUAL(x(1), uint64_t(0));
+    using VecI64 = Matrix<int64_t, Dynamic, 1>;
+    const int64_t imin = (std::numeric_limits<int64_t>::min)(), imax = (std::numeric_limits<int64_t>::max)();
+    VecI64 y = VecI64::LinSpaced(2, imin, imax), z = VecI64::LinSpaced(3, imax, imin);
+    VERIFY_IS_EQUAL(y(0), imin);
+    VERIFY_IS_EQUAL(y(1), imax);
+    // The step is (2^64 - 1) / 2 = imax.
+    VERIFY_IS_EQUAL(z(0), imax);
+    VERIFY_IS_EQUAL(z(1), int64_t(0));
+    VERIFY_IS_EQUAL(z(2), -imax);
+  }
+
   // Custom integer scalars.
   {
     using VecC = Matrix<CustomInt, Dynamic, 1>;

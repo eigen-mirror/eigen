@@ -19,7 +19,7 @@ namespace Eigen {
 namespace internal {
 
 // default implementation of digits(), based on numeric_limits if specialized,
-// 0 for integer types, and log2(epsilon()) otherwise.
+// 0 for integer types, and 1 - log2(epsilon()) otherwise, as epsilon() = 2^(1 - digits).
 template <typename T, bool use_numeric_limits = std::numeric_limits<T>::is_specialized,
           bool is_integer = NumTraits<T>::IsInteger>
 struct default_digits_impl {
@@ -33,7 +33,7 @@ struct default_digits_impl<T, false, false>  // Floating point
     using std::ceil;
     using std::log2;
     using Real = typename NumTraits<T>::Real;
-    return int(ceil(-log2(NumTraits<Real>::epsilon())));
+    return int(ceil(-log2(NumTraits<Real>::epsilon()))) + 1;
   }
 };
 

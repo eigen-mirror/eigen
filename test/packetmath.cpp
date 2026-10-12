@@ -1064,6 +1064,16 @@ void packetmath() {
   CHECK_CWISE1_IF(PacketTraits::HasCbrt, numext::cbrt, internal::pcbrt);
 }
 
+// A part of a complex logarithm: NaN for NaN, the same infinity, a zero of the same sign, or within 8 eps.
+template <typename RealScalar>
+bool log_part_matches(const RealScalar& actual, const RealScalar& expected) {
+  if ((numext::isnan)(expected)) return (numext::isnan)(actual);
+  if ((numext::isinf)(expected) || expected == RealScalar(0)) {
+    return actual == expected && std::signbit(actual) == std::signbit(expected);
+  }
+  return numext::abs(actual - expected) <= RealScalar(8) * NumTraits<RealScalar>::epsilon() * numext::abs(expected);
+}
+
 // Notice that this definition works for complex types as well.
 // std::log2 only supports real types, not complex.
 template <typename Scalar>
@@ -2784,6 +2794,24 @@ void packetmath_complex() {
     data1[2] = Scalar(nan, inf);
     data1[3] = Scalar(nan, -inf);
     CHECK_CWISE1_IM1ULP_N(numext::log, internal::plog, 4);
+
+    // plog2 against the scalar functor, with each input alone among ordinary lanes: signed zeros, an infinity beside a
+    // NaN, and a modulus that overflows or is subnormal.
+    const internal::scalar_log2_op<Scalar> log2_op;
+    for (const Scalar& special :
+         {Scalar(-zero, -zero), Scalar(-one, -zero), Scalar(one, -zero), Scalar(inf, nan), Scalar(-inf, nan),
+          Scalar(nan, inf), Scalar(nan, -inf), Scalar(highest, highest), Scalar(smallest, smallest)}) {
+      for (int k = 0; k < PacketSize; ++k) {
+        for (int i = 0; i < PacketSize; ++i) data1[i] = Scalar(RealScalar(3), RealScalar(-4));
+        data1[k] = special;
+        internal::pstore(data2, internal::plog2(internal::pload<Packet>(data1)));
+        for (int i = 0; i < PacketSize; ++i) {
+          const Scalar expected = log2_op(data1[i]);
+          VERIFY(log_part_matches(data2[i].real(), expected.real()) && "internal::plog2");
+          VERIFY(log_part_matches(data2[i].imag(), expected.imag()) && "internal::plog2");
+        }
+      }
+    }
   }
   exp_complex_test<Scalar, Packet>(data1, data2, ref, size);
 }

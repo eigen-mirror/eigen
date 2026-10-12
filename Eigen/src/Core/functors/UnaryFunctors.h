@@ -187,8 +187,10 @@ struct functor_traits<scalar_carg_op<Scalar>> {
   using RealScalar = typename NumTraits<Scalar>::Real;
   enum {
     Cost = functor_traits<scalar_atan2_op<RealScalar>>::Cost,
-    // The generic pcarg lowers to patan2, whose quotient-based reduction needs pdiv.
-    PacketAccess = packet_traits<RealScalar>::HasATan && packet_traits<RealScalar>::HasDiv
+    // The generic pcarg lowers to patan2, whose quotient-based reduction needs pdiv. It takes complex packets only; a
+    // real argument is 0 or pi, which the scalar path returns.
+    PacketAccess =
+        NumTraits<Scalar>::IsComplex && packet_traits<RealScalar>::HasATan && packet_traits<RealScalar>::HasDiv
   };
 };
 
@@ -562,11 +564,27 @@ template <typename Scalar>
 struct scalar_log2_op {
   using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC constexpr inline Scalar operator()(const Scalar& a) const {
-    return internal::mul(RealScalar(EIGEN_LOG2E), numext::log(a));
+    return run(a, std::integral_constant<int, kKind>());
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC inline Packet packetOp(const Packet& a) const {
     return internal::plog2(a);
+  }
+
+ private:
+  // 0: float, double or long double; 1: std::complex of one of them; 2: any other scalar, user types included.
+  static constexpr int kKind =
+      std::is_floating_point<Scalar>::value                                                                ? 0
+      : std::is_floating_point<RealScalar>::value && std::is_same<Scalar, std::complex<RealScalar>>::value ? 1
+                                                                                                           : 2;
+  // std::log2 is exact at powers of two, like plog2; log2(e) * log(a) can be an ulp off there. complex_log2 takes the
+  // real part log2|a| from std::log2, like plog2 on complex packets.
+  EIGEN_DEVICE_FUNC static Scalar run(const Scalar& a, std::integral_constant<int, 0>) { return numext::log2(a); }
+  EIGEN_DEVICE_FUNC static Scalar run(const Scalar& a, std::integral_constant<int, 1>) {
+    return internal::complex_log2(a);
+  }
+  EIGEN_DEVICE_FUNC static Scalar run(const Scalar& a, std::integral_constant<int, 2>) {
+    return internal::mul(RealScalar(EIGEN_LOG2E), numext::log(a));
   }
 };
 template <typename Scalar>

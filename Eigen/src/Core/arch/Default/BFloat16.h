@@ -778,8 +778,12 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 fmax(const bfloat16& a, const bfl
 }
 
 EIGEN_DEVICE_FUNC inline bfloat16 fma(const bfloat16& a, const bfloat16& b, const bfloat16& c) {
-  // Emulate FMA via float.
+#if defined(EIGEN_GPU_COMPILE_PHASE) || defined(SYCL_DEVICE_ONLY)
+  // Rounds twice; see half_impl::fma_round_to_odd.
   return bfloat16(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
+#else
+  return bfloat16(half_impl::fma_round_to_odd(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
+#endif
 }
 
 #ifndef EIGEN_NO_IO
@@ -911,7 +915,9 @@ namespace std {
 template <>
 struct hash<Eigen::bfloat16> {
   EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::bfloat16& a) const {
-    return static_cast<std::size_t>(Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a));
+    // -0 == +0, so both must hash alike.
+    const Eigen::numext::uint16_t bits = Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a);
+    return static_cast<std::size_t>((bits & 0x7fff) == 0 ? 0 : bits);
   }
 };
 }  // namespace std

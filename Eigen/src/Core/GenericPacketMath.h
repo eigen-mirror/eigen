@@ -1425,15 +1425,10 @@ struct plog2_impl {
   }
 };
 
-// Scale both parts by the real factor: the complex product with (log2(e), 0) is NaN where log(a) is infinite.
+// Defined with plog_complex in GenericPacketMathComplex.h; declared here so that plog2 on a complex packet cannot
+// silently take the primary template before that header.
 template <typename Packet>
-struct plog2_impl<Packet, true> {
-  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) {
-    using RealPacket = typename unpacket_traits<Packet>::as_real;
-    using RealScalar = typename unpacket_traits<RealPacket>::type;
-    return Packet(pmul(pset1<RealPacket>(RealScalar(EIGEN_LOG2E)), plog(a).v));
-  }
-};
+struct plog2_impl<Packet, true>;
 
 /** \internal \returns the log2 of \a a (coeff-wise) */
 template <typename Packet>

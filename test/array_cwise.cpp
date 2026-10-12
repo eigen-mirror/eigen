@@ -961,6 +961,8 @@ void array_real(const ArrayType& m) {
   VERIFY_IS_APPROX(m1.logistic(), logistic(m1));
 
   VERIFY_IS_APPROX(m1.arg(), arg(m1));
+  // carg of a real array is its arg as a real Scalar, on the vectorized path too.
+  VERIFY_IS_CWISE_EQUAL(m1.carg(), m1.arg());
   VERIFY_IS_APPROX(m1.round(), round(m1));
   VERIFY_IS_APPROX(m1.rint(), rint(m1));
   VERIFY_IS_APPROX(m1.floor(), floor(m1));

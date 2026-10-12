@@ -958,15 +958,39 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(min)(const half& a, const half& b) { 
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(max)(const half& a, const half& b) { return a < b ? b : a; }
 
+// a * b + c for half or bfloat16 a, b and c, rounded to odd in double: narrowing the result to half or bfloat16, which
+// rounds to odd in float and then to nearest, then rounds a * b + c once. A float fma rounds twice instead: for half,
+// fma(33/32, 65/64, 2^-24) rounds to the midpoint 2145/2048 in float, then to even, 1 + 3/64, not up to 1 + 49/1024.
+// a * b is exact in double, and TwoSum (Knuth) gives the error e of s = a * b + c exactly. Device code does not use
+// it: GPUs run double at a fraction of the float rate, and SYCL devices need not support it.
+EIGEN_DEVICE_FUNC inline double fma_round_to_odd(float a, float b, float c) {
+  const double p = static_cast<double>(a) * static_cast<double>(b);
+  const double c_wide = static_cast<double>(c);
+  const double s = p + c_wide;
+  // p is exact, so s is nonfinite only for a nonfinite operand; TwoSum would then evaluate inf - inf (FE_INVALID).
+  if (!(numext::isfinite)(s)) return s;
+  const double p_part = s - c_wide;
+  const double e = (p - p_part) + (c_wide - (s - p_part));
+  if (e == 0) return s;
+  // Inexact: truncate toward zero, then set the last bit.
+  const bool away = (s > 0) != (e > 0);
+  return numext::bit_cast<double>((numext::bit_cast<numext::uint64_t>(s) - (away ? 1u : 0u)) | 1u);
+}
+
 EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
-#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
+  // Rounded once in hardware.
+  return __hfma(::__half(a), ::__half(b), ::__half(c));
+#elif defined(SYCL_DEVICE_ONLY)
+  // Rounds twice; see fma_round_to_odd.
+  return half(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
+#elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
   return half_from_rep(vfmah_f16(c.x, a.x, b.x));
 #elif defined(EIGEN_VECTORIZE_AVX512FP16)
   // Reduces to vfmadd213sh.
   return half(_mm_cvtsh_h(_mm_fmadd_ph(_mm_set_sh(a.x), _mm_set_sh(b.x), _mm_set_sh(c.x))));
 #else
-  // Emulate FMA via float.
-  return half(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
+  return half(fma_round_to_odd(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
 #endif
 }
 
@@ -1167,7 +1191,9 @@ namespace std {
 template <>
 struct hash<Eigen::half> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::size_t operator()(const Eigen::half& a) const {
-    return static_cast<std::size_t>(Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a));
+    // -0 == +0, so both must hash alike.
+    const Eigen::numext::uint16_t bits = Eigen::numext::bit_cast<Eigen::numext::uint16_t>(a);
+    return static_cast<std::size_t>((bits & 0x7fff) == 0 ? 0 : bits);
   }
 };
 }  // end namespace std

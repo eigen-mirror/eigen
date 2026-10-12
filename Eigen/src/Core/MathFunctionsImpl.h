@@ -286,6 +286,25 @@ EIGEN_DEVICE_FUNC constexpr ComplexT complex_log(const ComplexT& z) {
   return ComplexT(numext::log(a), b);
 }
 
+// log2|z| + i arg(z) log2(e), scaled as in complex_log. The real part comes from log2, which is exact where |z| is a
+// power of two; log2(e) log|z| can be an ulp off there.
+template <typename ComplexT>
+EIGEN_DEVICE_FUNC ComplexT complex_log2(const ComplexT& z) {
+  using T = typename NumTraits<ComplexT>::Real;
+  const T a = numext::abs(z);
+  EIGEN_USING_STD(atan2);
+  const T b = T(EIGEN_LOG2E) * atan2(z.imag(), z.real());
+  if (EIGEN_PREDICT_FALSE((numext::isinf)(a) && (numext::isfinite)(z.real()) && (numext::isfinite)(z.imag()))) {
+    const T half(0.5);
+    return ComplexT(numext::log2(numext::abs(ComplexT(z.real() * half, z.imag() * half))) + T(1), b);
+  }
+  if (EIGEN_PREDICT_FALSE(a < (numext::numeric_limits<T>::min)() && !numext::is_exactly_zero(a))) {
+    const T eps = NumTraits<T>::epsilon();
+    return ComplexT(numext::log2(numext::abs(ComplexT(z.real() / eps, z.imag() / eps))) + numext::log2(eps), b);
+  }
+  return ComplexT(numext::log2(a), b);
+}
+
 }  // end namespace internal
 
 }  // end namespace Eigen

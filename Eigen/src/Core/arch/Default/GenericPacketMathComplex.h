@@ -82,7 +82,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pmul_complex(const Pa
   return padd(tmp_im, tmp_re);                // a*c - b*d, a*d + b*c
 }
 
-template <typename Packet>
+template <typename Packet, bool Base2>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Packet& x) {
   using RealPacket = typename unpacket_traits<Packet>::as_real;
   using RealScalar = typename unpacket_traits<RealPacket>::type;
@@ -107,12 +107,14 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
   const RealPacket k = pselect(is_large, k_large, pand(is_small, k_small));
   const RealPacket scale = pselect(is_large, pldexp_fast(cst_one, pnegate(k_large)),
                                    pselect(is_small, pldexp_fast(cst_one, pnegate(k_small)), cst_one));
-  // log(sqrt(a^2 + b^2)), log(sqrt(a^2 + b^2))
-  const RealPacket xlogr =
-      pmadd(k, pset1<RealPacket>(RealScalar(EIGEN_LN2)), plog(phypot_complex(Packet(pmul(x.v, scale))).v));
+  // log(sqrt(a^2 + b^2)), log(sqrt(a^2 + b^2)); in base 2 the real part comes from plog2, which is exact where |x| is a
+  // power of two, rather than from log2(e) log|x|.
+  const RealPacket r = phypot_complex(Packet(pmul(x.v, scale))).v;
+  const RealPacket xlogr = Base2 ? padd(k, plog2(r)) : pmadd(k, pset1<RealPacket>(RealScalar(EIGEN_LN2)), plog(r));
 
   // Imag part
   RealPacket ximg = patan2(x.v, x_flip);  // atan2(a, b), atan2(b, a)
+  if (Base2) ximg = pmul(pset1<RealPacket>(RealScalar(EIGEN_LOG2E)), ximg);
 
   const RealPacket cst_pos_inf = pinf<RealPacket>();
   RealPacket is_x_pos_inf = pcmp_eq(x_abs, cst_pos_inf);
@@ -122,6 +124,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog_complex(const Pa
 
   return Packet(pselect(peven_mask(xreal), xreal, ximg));  // log(sqrt(a^2 + b^2)), atan2(b, a)
 }
+
+template <typename Packet>
+struct plog2_impl<Packet, true> {
+  static EIGEN_DEVICE_FUNC inline Packet run(const Packet& a) { return plog_complex<Packet, true>(a); }
+};
 
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Packet& a) {
