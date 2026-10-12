@@ -1399,6 +1399,18 @@ void packetmath_real() {
   }
   data1[0] = Scalar(1e-20);
   CHECK_CWISE1_IF(PacketTraits::HasTanh, std::tanh, internal::ptanh);
+  if (PacketTraits::HasTanh && PacketSize >= 2) {
+    // tanh(x) rounds to +-1 for |x| >= 20 in every type here; the rational approximations clamp |x| where they reach 1,
+    // which depends on whether pmadd is fused.
+    test::packet_helper<PacketTraits::HasTanh, Packet> h;
+    for (const Scalar x : {NumTraits<Scalar>::infinity(), Scalar(20)}) {
+      data1[0] = x;
+      data1[1] = -x;
+      h.store(data2, internal::ptanh(h.load(data1)));
+      VERIFY_IS_EQUAL(data2[0], Scalar(1));
+      VERIFY_IS_EQUAL(data2[1], Scalar(-1));
+    }
+  }
   if (PacketTraits::HasExp && PacketSize >= 2) {
     const Scalar small = NumTraits<Scalar>::epsilon();
     data1[0] = NumTraits<Scalar>::quiet_NaN();
@@ -1546,6 +1558,22 @@ void packetmath_real() {
       VERIFY(test::biteq(data2[0], data1[0]));
       h.store(data2, internal::pcos(h.load(data1)));
       VERIFY_IS_EQUAL(data2[0], Scalar(1));
+
+      // Doubles near multiples k pi/2, with |x - k pi/2| from 6e-19 to 9e-7 for |k| from 29 to 6e13: the reduction
+      // needs pi/2 to far beyond double precision, with or without FMA.
+      EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
+        const double hard_cases[] = {-45.553093477052002, -364.42474781641602, 857879.41830474522, 956274858.90980339,
+                                     -93293944418765.062};
+        const Scalar tol = Scalar(4) * NumTraits<Scalar>::epsilon();
+        for (const double x : hard_cases) {
+          for (int i = 0; i < PacketSize; ++i) data1[i] = Scalar(x);
+          h.store(data2, internal::psin(h.load(data1)));
+          h.store(data2 + PacketSize, internal::pcos(h.load(data1)));
+          const Scalar sin_x = Scalar(std::sin(data1[0])), cos_x = Scalar(std::cos(data1[0]));
+          VERIFY(numext::abs(data2[0] - sin_x) <= tol * numext::abs(sin_x));
+          VERIFY(numext::abs(data2[PacketSize] - cos_x) <= tol * numext::abs(cos_x));
+        }
+      }
     }
   }
   if (PacketTraits::HasReciprocal && PacketSize >= 2) {
@@ -2138,6 +2166,27 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
   VERIFY(test::areApprox(ref, pval, PacketSize) && "conj_helper pmadd");
 }
 
+// The FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW flags raised by op(operands, results), where operands are copies of
+// in[0, NumIn) and results are copied to out[0, NumOut). The copies go through volatile bytes after feholdexcept and
+// before fetestexcept, which keeps the compiler from folding op or moving it across the flag accesses: glibc marks
+// those functions leaf, so data that only escapes through a pointer may be moved across them.
+template <int NumIn, int NumOut, typename Scalar, typename Op>
+int raised_exceptions(const Scalar* in, Scalar* out, Op op) {
+  Scalar operands[NumIn], results[NumOut];
+  std::fenv_t saved_environment;
+  if (std::feholdexcept(&saved_environment) != 0) return 0;
+  const volatile unsigned char* in_bytes = reinterpret_cast<const volatile unsigned char*>(in);
+  unsigned char* operand_bytes = reinterpret_cast<unsigned char*>(operands);
+  for (std::size_t k = 0; k < sizeof(operands); ++k) operand_bytes[k] = in_bytes[k];
+  op(operands, results);
+  const unsigned char* result_bytes = reinterpret_cast<const unsigned char*>(results);
+  volatile unsigned char* out_bytes = reinterpret_cast<volatile unsigned char*>(out);
+  for (std::size_t k = 0; k < sizeof(results); ++k) out_bytes[k] = result_bytes[k];
+  const int raised = std::fetestexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
+  std::fesetenv(&saved_environment);
+  return raised;
+}
+
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
 struct exp_complex_test_impl {
   typedef typename Scalar::value_type RealScalar;
@@ -2268,6 +2317,102 @@ struct exp_complex_test_impl {
         }
       }
     }
+
+    // Where exp(x) overflows, exp(x) cos(y) or exp(x) sin(y) can still be finite: here the real part for y = 1.2 and
+    // the imaginary part for y = 3. The reference forms exp(x) = 2^64 exp(x - 64 ln(2)).
+    const RealScalar x_big = numext::log(NumTraits<RealScalar>::highest()) + RealScalar(0.5);
+    const RealScalar exp_scaled = numext::exp(x_big - RealScalar(64) * RealScalar(EIGEN_LN2));
+    for (const RealScalar y : {RealScalar(1.2), RealScalar(3)}) {
+      const Scalar w = pexp1(Scalar(x_big, y));
+      const RealScalar parts[] = {numext::real_ref(w), numext::imag_ref(w)};
+      const RealScalar expected[] = {std::ldexp(exp_scaled * numext::cos(y), 64),
+                                     std::ldexp(exp_scaled * numext::sin(y), 64)};
+      for (int k = 0; k < 2; ++k) {
+        if ((numext::isinf)(expected[k])) {
+          VERIFY_IS_EQUAL(parts[k], expected[k]);
+        } else {
+          VERIFY_IS_APPROX(parts[k], expected[k]);
+        }
+      }
+    }
+
+    const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+    const RealScalar log_highest = numext::log(NumTraits<RealScalar>::highest());
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    // Where exp(x / 2) overflows too, exp(x) sin(y) is still finite for a subnormal y, which is sin(y) exactly. The
+    // reference is exp(x) y in a wider type that holds exp(x); without one, it is (((y h) h) h) h with h = exp(x / 4),
+    // whose partial products are normal.
+    using Wide = std::conditional_t<std::is_same<RealScalar, float>::value, double, long double>;
+    constexpr bool kWideHoldsExp =
+        std::numeric_limits<Wide>::max_exponent > 4 * std::numeric_limits<RealScalar>::max_exponent &&
+        std::numeric_limits<Wide>::digits > std::numeric_limits<RealScalar>::digits + 8;
+    const RealScalar denorm_min = std::numeric_limits<RealScalar>::denorm_min();
+    const RealScalar huge_args[][2] = {
+        {RealScalar(2) * log_highest + RealScalar(2), RealScalar(12345) * denorm_min},
+        {log_highest - numext::log(RealScalar(4)) - numext::log(denorm_min), denorm_min}};
+    for (const auto& arg : huge_args) {
+      for (const RealScalar y : {arg[1], -arg[1]}) {
+        const Scalar w = pexp1(Scalar(arg[0], y));
+        VERIFY_IS_EQUAL(numext::real(w), inf);
+        if (kWideHoldsExp) {
+          // Within 4 eps (the implementation is within about 2.1 ulps).
+          const Wide expected = std::exp(Wide(arg[0])) * Wide(y);
+          VERIFY(std::abs(Wide(numext::imag(w)) - expected) <=
+                 Wide(4) * Wide(NumTraits<RealScalar>::epsilon()) * std::abs(expected));
+        } else {
+          const RealScalar h = numext::exp(arg[0] / RealScalar(4));
+          VERIFY_IS_APPROX(numext::imag(w), y * h * h * h * h);
+        }
+      }
+    }
+
+    // From (max_exponent - min_exponent + digits) ln(2) on, even exp(x) denorm_min overflows.
+    const int max_shift = std::numeric_limits<RealScalar>::max_exponent -
+                          std::numeric_limits<RealScalar>::min_exponent + std::numeric_limits<RealScalar>::digits;
+    for (const RealScalar shift : {RealScalar(0.5), RealScalar(4)}) {
+      for (const RealScalar y : {denorm_min, -denorm_min}) {
+        const Scalar w = pexp1(Scalar((RealScalar(max_shift) + shift) * RealScalar(EIGEN_LN2), y));
+        VERIFY_IS_EQUAL(numext::real(w), inf);
+        VERIFY_IS_EQUAL(numext::imag(w), y > 0 ? inf : -inf);
+      }
+    }
+#endif
+
+    // pexp raises no FE_DIVBYZERO, FE_INVALID or FE_OVERFLOW beyond those of the real pexp of the real parts, which it
+    // starts from: also not for x = +-inf or -highest while another element takes the overflow branch.
+    {
+      using RealPacket = typename internal::unpacket_traits<Packet>::as_real;
+      const RealScalar near_overflow = log_highest - RealScalar(0.25);
+      for (const RealScalar x0 : {inf, -inf, -NumTraits<RealScalar>::highest()}) {
+        Scalar z[PacketSize], w[PacketSize];
+        RealScalar x[2 * PacketSize], expx[2 * PacketSize];
+        for (int i = 0; i < PacketSize; ++i) {
+          z[i] = i == 0 ? Scalar(x0, RealScalar(1)) : Scalar(near_overflow, RealScalar(0.5));
+          x[2 * i] = x[2 * i + 1] = numext::real(z[i]);
+        }
+        const int complex_raised = raised_exceptions<PacketSize, PacketSize>(z, w, [](const Scalar* in, Scalar* out) {
+          internal::pstoreu(out, internal::pexp(internal::ploadu<Packet>(in)));
+        });
+        const int real_raised =
+            raised_exceptions<2 * PacketSize, 2 * PacketSize>(x, expx, [](const RealScalar* in, RealScalar* out) {
+              internal::pstoreu(out, internal::pexp(internal::ploadu<RealPacket>(in)));
+            });
+        VERIFY_IS_EQUAL(complex_raised & ~real_raised, 0);
+      }
+    }
+
+    // An element whose exp(x) is finite gets the same result whatever shares its packet.
+    if (PacketSize > 1) {
+      Scalar data[PacketSize], alone[PacketSize], mixed[PacketSize];
+      for (int i = 0; i < PacketSize; ++i) data[i] = Scalar(RealScalar(1.75) + RealScalar(i), RealScalar(0.5));
+      internal::pstoreu(alone, internal::pexp(internal::ploadu<Packet>(data)));
+      data[0] = Scalar(x_big, RealScalar(1.2));
+      internal::pstoreu(mixed, internal::pexp(internal::ploadu<Packet>(data)));
+      for (int i = 1; i < PacketSize; ++i) {
+        VERIFY_IS_EQUAL(numext::real(mixed[i]), numext::real(alone[i]));
+        VERIFY_IS_EQUAL(numext::imag(mixed[i]), numext::imag(alone[i]));
+      }
+    }
   }
 };
 
@@ -2280,6 +2425,27 @@ struct exp_complex_test_impl<Scalar, Packet, false> {
 template <typename Scalar, typename Packet>
 void exp_complex_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
   exp_complex_test_impl<Scalar, Packet>::run(data1, data2, ref, size);
+}
+
+// Checks pdiv(x, y) against its exact value, expected, in every element, and returns the FE_DIVBYZERO, FE_INVALID and
+// FE_OVERFLOW flags it raised.
+template <typename Scalar, typename Packet>
+int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, const Scalar& expected) {
+  constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+  Scalar operands[2 * PacketSize], q[PacketSize];
+  for (int i = 0; i < PacketSize; ++i) {
+    operands[i] = x;
+    operands[PacketSize + i] = y;
+  }
+  const int raised = raised_exceptions<2 * PacketSize, PacketSize>(operands, q, [](const Scalar* in, Scalar* out) {
+    internal::pstoreu(out, internal::pdiv(internal::ploadu<Packet>(in),
+                                          internal::ploadu<Packet>(in + internal::unpacket_traits<Packet>::size)));
+  });
+  for (int i = 0; i < PacketSize; ++i) {
+    VERIFY_IS_EQUAL(numext::real(q[i]), numext::real(expected));
+    VERIFY_IS_EQUAL(numext::imag(q[i]), numext::imag(expected));
+  }
+  return raised;
 }
 
 template <typename Scalar, typename Packet>
@@ -2349,6 +2515,49 @@ void packetmath_complex() {
       Scalar expected = data1[i] / data2[i];
       VERIFY_IS_APPROX(pval[i], expected);
     }
+
+    // Finite quotients of operands near the overflow threshold, beside an ordinary one. The exact quotients are given:
+    // libgcc's complex<double> division overflows on the second.
+    const RealScalar big = RealScalar(0.75) * NumTraits<RealScalar>::highest();
+    const RealScalar half = RealScalar(0.5);
+    const Scalar numerators[] = {Scalar(big, zero), Scalar(big, big), Scalar(big, big), Scalar(one, RealScalar(2))};
+    const Scalar denominators[] = {Scalar(big, big), Scalar(one, one), Scalar(big, -big), Scalar(RealScalar(3), one)};
+    const Scalar quotients[] = {Scalar(half, -half), Scalar(big, zero), Scalar(zero, one), Scalar(half, half)};
+    for (int k = 0; k < 4; ++k) {
+      for (int i = 0; i < PacketSize; ++i) {
+        data1[i] = numerators[(i + k) % 4];
+        data2[i] = denominators[(i + k) % 4];
+      }
+      internal::pstore(pval, internal::pdiv(internal::pload<Packet>(data1), internal::pload<Packet>(data2)));
+      for (int i = 0; i < PacketSize; ++i) VERIFY_IS_APPROX(pval[i], quotients[(i + k) % 4]);
+    }
+
+    // A denominator with a zero component raises no exception: the ratio of the other component to it is not formed.
+    const RealScalar two = RealScalar(2), three = RealScalar(3), four = RealScalar(4), three_halves = RealScalar(1.5);
+    const Scalar exact_operands[][3] = {{Scalar(one, zero), Scalar(one, zero), Scalar(one, zero)},
+                                        {Scalar(three, four), Scalar(zero, two), Scalar(two, -three_halves)},
+                                        {Scalar(three, four), Scalar(-two, zero), Scalar(-three_halves, -two)}};
+    for (const auto& operands : exact_operands) {
+      VERIFY_IS_EQUAL((pdiv_complex_exceptions<Scalar, Packet>(operands[0], operands[1], operands[2])), 0);
+    }
+
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+    // A large component beside a subnormal one, divided by one, must come back exactly: scaling the numerator by 1/4
+    // would flush the subnormal component.
+    const RealScalar tiny = std::numeric_limits<RealScalar>::denorm_min();
+    const Scalar mixed[] = {Scalar(big, tiny), Scalar(tiny, -big)};
+    for (int k = 0; k < 2; ++k) {
+      for (int i = 0; i < PacketSize; ++i) {
+        data1[i] = mixed[(i + k) % 2];
+        data2[i] = Scalar(one, zero);
+      }
+      internal::pstore(pval, internal::pdiv(internal::pload<Packet>(data1), internal::pload<Packet>(data2)));
+      for (int i = 0; i < PacketSize; ++i) {
+        VERIFY_IS_EQUAL(numext::real(pval[i]), numext::real(mixed[(i + k) % 2]));
+        VERIFY_IS_EQUAL(numext::imag(pval[i]), numext::imag(mixed[(i + k) % 2]));
+      }
+    }
+#endif
   }
 
   // Test pisnan.
@@ -2375,10 +2584,17 @@ void packetmath_complex() {
       for (RealScalar b : special_values) {
         for (RealScalar c : special_values) {
           for (RealScalar d : special_values) {
-            data1[0] = Scalar(a, b);
-            data2[0] = Scalar(c, d);
+            // CHECK_CWISE2_IF takes the second operand from data1 + PacketSize.
+            for (int i = 0; i < PacketSize; ++i) {
+              data1[i] = Scalar(a, b);
+              data1[i + PacketSize] = Scalar(c, d);
+            }
             CHECK_CWISE2_IF(PacketTraits::HasMul, internal::complex_multiply, internal::pmul);
-            CHECK_CWISE2_IF(PacketTraits::HasDiv, internal::complex_divide, internal::pdiv);
+            // pdiv follows Smith's algorithm, but where the scalar version forms 0/0 or inf/inf from a zero divisor or
+            // one with two infinite components, pdiv returns the infinite or zero quotient instead.
+            if (!(c == zero && d == zero) && !((numext::isinf)(c) && (numext::isinf)(d))) {
+              CHECK_CWISE2_IF(PacketTraits::HasDiv, internal::complex_divide_smith, internal::pdiv);
+            }
           }
         }
       }

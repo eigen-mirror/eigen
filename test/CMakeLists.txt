@@ -301,6 +301,7 @@ ei_add_test(float_conversion)
 ei_add_test(io)
 ei_add_test(packetmath "-DEIGEN_FAST_MATH=1")
 ei_add_test(packetmath_gather)
+ei_add_test(tanh_no_fast_math)
 # Generic clang vector backend tests for different vector sizes.
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles("

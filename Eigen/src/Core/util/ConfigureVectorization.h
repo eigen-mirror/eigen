@@ -533,6 +533,8 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_RVV10
+// pmadd and its variants map to the fused vfmadd/vfmsub/vfnmsub/vfnmadd.
+#define EIGEN_VECTORIZE_FMA
 #include <riscv_vector.h>
 
 // Since we depend on knowing RVV vector length at compile-time, we need
@@ -602,6 +604,8 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_LSX
+// pmadd and its variants map to the fused vfmadd/vfmsub/vfnmadd/vfnmsub.
+#define EIGEN_VECTORIZE_FMA
 #include <lsxintrin.h>
 
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
@@ -625,6 +629,13 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 // Enable FMA for ARM.
 #if defined(__ARM_FEATURE_FMA)
+#define EIGEN_VECTORIZE_FMA
+#endif
+
+// The generic clang backend skips the x86 detection above but fuses its pmadd where __FMA__ is defined, and the
+// kernels that choose constants or error-free products by EIGEN_VECTORIZE_FMA must know it.
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE) && defined(__FMA__) && \
+    !defined(EIGEN_VECTORIZE_FMA)
 #define EIGEN_VECTORIZE_FMA
 #endif
 

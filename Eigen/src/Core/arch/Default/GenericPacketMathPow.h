@@ -269,9 +269,14 @@ struct accurate_log2<double> {
     Packet t_hi, t_lo;
     // t = c * (x-1)
     twoprod(cst_2_log2e_hi, cst_2_log2e_lo, psub(x, one), t_hi, t_lo);
-    // r = c * (x-1) / (x+1),
+    // r = c * (x-1) / (x+1). x + 1 = s_hi + s_lo exactly (fast_twosum, as x < 2): rounding it would limit r, and with
+    // it y * log2(x) in pow, to working precision. t / (s_hi + s_lo) = (t / s_hi) (1 - s_lo / s_hi) to relative u^2.
+    Packet s_hi, s_lo;
+    fast_twosum(one, x, s_hi, s_lo);
+    Packet q_hi, q_lo;
+    doubleword_div_fp(t_hi, t_lo, s_hi, q_hi, q_lo);
     Packet r_hi, r_lo;
-    doubleword_div_fp(t_hi, t_lo, padd(x, one), r_hi, r_lo);
+    fast_twosum(q_hi, pnmadd(q_hi, pdiv(s_lo, s_hi), q_lo), r_hi, r_lo);
 
     // r2 = r * r
     Packet r2_hi, r2_lo;
@@ -406,9 +411,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS std::enable_if_t<!is_scalar<
   const Packet y_div_2 = pmul(y, pset1<Packet>(Scalar(0.5)));
   const Packet y_is_even = pcmp_eq(pround(y_div_2), y_div_2);
   const Packet y_is_odd_int = pandnot(y_is_int, y_is_even);
-  // Smallest exponent for which (1 + epsilon) overflows to infinity.
+  // From this |y| on, x^y is 0 or inf for every |x| != 1. The |x| nearest 1 is 1 - eps/2, with |log(x)| > eps/2,
+  // and |y| eps/2 >= (digits - min_exponent + 1) ln(2) takes x^y below half the smallest subnormal or past the
+  // largest finite value.
   constexpr Scalar huge_exponent =
-      (NumTraits<Scalar>::max_exponent() * Scalar(EIGEN_LN2)) / NumTraits<Scalar>::epsilon();
+      Scalar(2 * (numext::numeric_limits<Scalar>::digits - numext::numeric_limits<Scalar>::min_exponent + 1)) *
+      Scalar(EIGEN_LN2) / NumTraits<Scalar>::epsilon();
   const Packet y_abs_is_huge = pcmp_le(pset1<Packet>(huge_exponent), y_abs);
 
   // *  pow(base, exp) returns NaN if base is finite and negative

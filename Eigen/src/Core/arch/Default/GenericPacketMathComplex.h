@@ -36,12 +36,37 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Pa
   const RealPacket abs_y_flip = pcplxflip(Packet(abs_y)).v;
 
   const RealPacket mask = pcmp_lt(abs_y, abs_y_flip);  // |c| < |d|
-  RealPacket y_scaled = pselect(mask, pdiv(abs_y, abs_y_flip), one);
+  // Elements that do not use the ratio divide 1 / 1: |c| / |d| would raise FE_DIVBYZERO for d = 0.
+  RealPacket y_scaled = pdiv(pselect(mask, abs_y, one), pselect(mask, abs_y_flip, one));
   y_scaled = por(y_scaled, pandnot(y.v, abs_y));  // copy signs in case |c| == |d|
   RealPacket denom = pmul(y.v, y_scaled);
   denom = padd(denom, pcplxflip(Packet(denom)).v);  // c * c' + d * d'
   Packet num = pmul(x, pconj(Packet(y_scaled)));    // a * c' + b * d', -a * d + b * c
-  return Packet(pdiv(num.v, denom));
+  RealPacket result = pdiv(num.v, denom);
+  // y_scaled = y / max(|c|, |d|), so the denominator lies in [m, 2 m] for m = max(|c|, |d|) and the numerator's
+  // components are at most |a| + |b|. Either can overflow where x / y is finite, which needs a component above
+  // highest / 4. Elements whose numerator or denominator overflowed are recomputed with x (y) scaled by 1/4 where it
+  // has such a component, and the quotient by the inverse scale. The scaling can lose a subnormal component, so
+  // elements that did not overflow keep the unscaled quotient.
+  const RealPacket quarter_highest = pset1<RealPacket>(NumTraits<RealScalar>::highest() / RealScalar(4));
+  if (EIGEN_PREDICT_FALSE(predux_any(pcmp_lt(quarter_highest, pmax(pabs(x.v), abs_y))))) {
+    const RealPacket cst_quarter = pset1<RealPacket>(RealScalar(0.25));
+    const RealPacket abs_x = pabs(x.v);
+    const RealPacket large_x = pcmp_lt(quarter_highest, pmax(abs_x, pcplxflip(Packet(abs_x)).v));
+    const RealPacket large_y = pcmp_lt(quarter_highest, pmax(abs_y, abs_y_flip));
+    const Packet x_in(pselect(large_x, pmul(x.v, cst_quarter), x.v));
+    const RealPacket y_in = pselect(large_y, pmul(y.v, cst_quarter), y.v);
+    const RealPacket unscale =
+        pmul(pselect(large_x, pset1<RealPacket>(RealScalar(4)), one), pselect(large_y, cst_quarter, one));
+    RealPacket denom_in = pmul(y_in, y_scaled);
+    denom_in = padd(denom_in, pcplxflip(Packet(denom_in)).v);
+    const Packet num_in = pmul(x_in, pconj(Packet(y_scaled)));
+    const RealPacket inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
+    RealPacket overflow = por(pcmp_eq(pabs(num.v), inf), pcmp_eq(pabs(denom), inf));
+    overflow = por(overflow, pcplxflip(Packet(overflow)).v);
+    result = pselect(overflow, pmul(pdiv(num_in.v, denom_in), unscale), result);
+  }
+  return Packet(result);
 }
 
 template <typename Packet>
@@ -123,8 +148,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   // The fixups below need x = +-inf or an overflowing exp(x). Such inputs are rare, so packets without
   // |x| >= (max_exponent - 1) ln(2), just below the overflow threshold, skip them.
   const RealScalar large_x = RealScalar(NumTraits<RealScalar>::max_exponent() - 1) * RealScalar(EIGEN_LN2);
+  RealPacket expx_factor = expx;
   if (predux_any(pcmp_le(pset1<RealPacket>(large_x), pabs(x)))) {
     const RealPacket cst_pos_inf = pinf<RealPacket>();
+    const RealPacket is_x_pos_inf = pcmp_eq(x, cst_pos_inf);
+    const RealPacket split = pandnot(pcmp_eq(expx, cst_pos_inf), is_x_pos_inf);
     const RealPacket cst_neg_inf = por(psignmask<RealPacket>(), pinf<RealPacket>());
 
     // If x is -inf, we know that cossin(y) is bounded,
@@ -136,18 +164,41 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
     // If x is inf, and cos(y) has unknown sign (y is inf or NaN), the result
     // is (+/-inf, NaN), where the signs are undetermined (take the sign of y).
     RealPacket y_sign = por(pandnot(y, pabs(y)), pset1<RealPacket>(RealScalar(1)));
-    cisy = pselect(pand(pcmp_eq(x, cst_pos_inf), pisnan(cisy)), pand(y_sign, even_mask), cisy);
+    cisy = pselect(pand(is_x_pos_inf, pisnan(cisy)), pand(y_sign, even_mask), cisy);
 
-    // If exp(x) is +inf and y is finite, replace cisy with copysign(1, cisy) to
+    // If x is +inf and y is finite, replace cisy with copysign(1, cisy) to
     // prevent inf * 0 = NaN. The vectorized sincos may compute exact zero
     // for near-zero values like cos(pi/2), and inf * +-1 = +-inf is correct.
     // The y=0 case is handled separately below.
     RealPacket cisy_sign_one = por(pand(cisy, psignmask<RealPacket>()), pset1<RealPacket>(RealScalar(1)));
-    RealPacket expx_inf_y_finite = pand(pcmp_eq(expx, cst_pos_inf), pcmp_lt(pabs(y), cst_pos_inf));
-    cisy = pselect(expx_inf_y_finite, cisy_sign_one, cisy);
+    RealPacket x_inf_y_finite = pand(is_x_pos_inf, pcmp_lt(pabs(y), cst_pos_inf));
+    cisy = pselect(x_inf_y_finite, cisy_sign_one, cisy);
+
+    // exp(x) cis(y) can have a finite part where exp(x) overflows, up to (max_exponent - min_exponent + digits) ln(2),
+    // where exp(x) denorm_min overflows. Those elements (finite x) use x = n ln(2) + r, |r| <= ln(2)/2:
+    //   exp(x) cis(y) = (exp(r) (2^digits cis(y))) 2^(n - digits),
+    // where 2^digits cis(y) is exact and normal and the result is normal or overflows, so only exp(r) and one product
+    // round. x is clamped to x_max, one ln(2) further so that its rounding stays past the overflow point, and
+    // r = (x - n ln2_hi) - n ln2_lo as in pexp_float/pexp_double, the first difference exact for x <= x_max. Other
+    // elements use x = 0, which raises no exception, and keep exp(x) cis(y), whatever shares their packet.
+    const int digits = NumTraits<RealScalar>::digits();
+    const RealScalar x_max =
+        RealScalar(NumTraits<RealScalar>::max_exponent() - NumTraits<RealScalar>::min_exponent() + digits + 1) *
+        RealScalar(EIGEN_LN2);
+    constexpr bool is_float = std::is_same<RealScalar, float>::value;
+    const RealScalar ln2_hi = is_float ? RealScalar(0.693359375f) : RealScalar(0.693145751953125);
+    const RealScalar ln2_lo = is_float ? RealScalar(-2.12194440e-4f) : RealScalar(1.42860682030941723212e-6);
+    const RealPacket x_split = pselect(split, pmin(x, pset1<RealPacket>(x_max)), pzero(x));
+    const RealPacket n = print(pmul(x_split, pset1<RealPacket>(RealScalar(EIGEN_LOG2E))));
+    const RealPacket r = pnmadd(n, pset1<RealPacket>(ln2_lo), pnmadd(n, pset1<RealPacket>(ln2_hi), x_split));
+    const RealPacket scaled_cisy = pmul(cisy, pset1<RealPacket>(RealScalar(numext::uint64_t(1) << digits)));
+    const RealPacket split_result = pldexp(pmul(pexp_reduced_impl<RealPacket>::run(r), scaled_cisy),
+                                           psub(n, pset1<RealPacket>(RealScalar(digits))));
+    cisy = pselect(split, split_result, cisy);
+    expx_factor = pselect(split, pset1<RealPacket>(RealScalar(1)), expx);
   }
 
-  Packet result = Packet(pmul(expx, cisy));
+  Packet result = Packet(pmul(expx_factor, cisy));
 
   // If y is +/- 0, the input is real, so take the real result for consistency.
   result = pselect(Packet(pcmp_eq(y, pzero(y))), Packet(por(pand(expx, even_mask), pand(y, odd_mask))), result);

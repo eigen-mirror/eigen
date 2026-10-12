@@ -271,9 +271,19 @@ Packet trig_reduce_small_double(const Packet& x, const Packet& q) {
   Packet v = psub(t_hi, x);
   Packet t_lo = padd(psub(x, psub(t_hi, v)), psub(qp_hi, v));
 
-  // Accumulate the low part of the product and the remaining pi/2 terms.
-  t_lo = padd(t_lo, qp_lo);
-  t_lo = pmadd(cst_pio2_2<Packet>(), q, t_lo);
+  // Near a multiple of pi/2, t_hi + qp_lo cancels against q * pio2_2 too, so that product is formed exactly as well
+  // and the two large terms are added by 2sum: only terms of order u * |q * pio2_2| are rounded.
+  Packet qp2_hi, qp2_lo;
+  twoprod(cst_pio2_2<Packet>(), q, qp2_hi, qp2_lo);
+  Packet a_hi = padd(t_hi, qp_lo);
+  v = psub(a_hi, t_hi);
+  t_lo = padd(t_lo, padd(psub(t_hi, psub(a_hi, v)), psub(qp_lo, v)));
+  t_hi = padd(a_hi, qp2_hi);
+  v = psub(t_hi, a_hi);
+  t_lo = padd(t_lo, padd(psub(a_hi, psub(t_hi, v)), psub(qp2_hi, v)));
+
+  // Accumulate the low part of the product and the remaining pi/2 term.
+  t_lo = padd(t_lo, qp2_lo);
   t_lo = pmadd(cst_pio2_3<Packet>(), q, t_lo);
 
   return padd(t_hi, t_lo);
@@ -593,7 +603,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
 // Hyperbolic Functions
 //----------------------------------------------------------------------
 
-#ifdef EIGEN_FAST_MATH
+#if EIGEN_FAST_MATH
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
     Doesn't do anything fancy, just a 9/8-degree rational interpolant which
@@ -664,32 +674,31 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
   //     --type="[3,4]" --numF="[SG]" --denF="[SG]" --log --dispCoeff="dec" --output=tanhf.solly
   constexpr float alpha[] = {-1.46725140511989593505859375e-02f, -3.333333432674407958984375e-01f};
   constexpr float beta[] = {1.570280082523822784423828125e-02, 4.4401752948760986328125e-01, 1.0f};
-  const T x2 = pmul(x, x);
-  const T x3 = pmul(x2, x);
-  const T p = ppolevl<T, 1>::run(x2, alpha);
-  const T q = ppolevl<T, 2>::run(x2, beta);
-  const T small_tanh = pmadd(x3, pdiv(p, q), x);
-
   const T sign_mask = psignmask<T>();
+  const T x_sign = pand(sign_mask, x);
   const T abs_x = pandnot(x, sign_mask);
   constexpr float kSmallThreshold = 1.25f;
   const T large_mask = pcmp_lt(pset1<T>(kSmallThreshold), abs_x);
+  // The large elements enter the polynomial as 0, so that x^2 cannot overflow nor P/Q become inf/inf.
+  const T x_small = pandnot(x, large_mask);
+  const T x2 = pmul(x_small, x_small);
+  const T x3 = pmul(x2, x_small);
+  const T p = ppolevl<T, 1>::run(x2, alpha);
+  const T q = ppolevl<T, 2>::run(x2, beta);
+  // x^3 P/Q has the sign opposite to x, so the sum rounds tanh(-0) to +0; the sign of x restores it.
+  const T small_tanh = por(x_sign, pmadd(x3, pdiv(p, q), x_small));
   // Fast exit if all elements are small.
   if (!predux_any(large_mask)) {
     return small_tanh;
   }
 
-  //  Compute as 1 - (2 / (1 + exp(2*x)))
+  // Compute as 1 - (2 / (1 + exp(2*x))) for |x| clamped to 16, where it rounds to 1; the clamp keeps exp(2*x) from
+  // overflowing. The small elements, NaN included, enter exp as 0, which cannot raise FE_INVALID.
   const T one = pset1<T>(1.0f);
   const T two = pset1<T>(2.0f);
-  const T s = pexp_float<T, true>(pmul(two, abs_x));
-  const T abs_tanh = psub(one, pdiv(two, padd(s, one)));
-
-  // Handle infinite inputs and set sign bit.
   constexpr float kHugeThreshold = 16.0f;
-  const T huge_mask = pcmp_lt(pset1<T>(kHugeThreshold), abs_x);
-  const T x_sign = pand(sign_mask, x);
-  const T large_tanh = por(x_sign, pselect(huge_mask, one, abs_tanh));
+  const T s = pexp_float<T, true>(pmul(two, pmin(pselect(large_mask, abs_x, pzero(x)), pset1<T>(kHugeThreshold))));
+  const T large_tanh = por(x_sign, psub(one, pdiv(two, padd(s, one))));
   return pselect(large_mask, large_tanh, small_tanh);
 }
 
