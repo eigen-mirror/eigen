@@ -128,6 +128,7 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
   // If the first index is odd (imaginary), discard the first scalar
   // in 'result' and assign the missing scalar.
   // This operation is safe as the real component of the first scalar must exist.
+  // The complex load then starts one real scalar before the requested address, so it cannot keep an aligned mode.
 
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
@@ -138,7 +139,8 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
     bool p = (IsRowMajor ? col : row) & 1;
-    ComplexPacket cresult = BaseEvaluator::template packet<LoadMode, ComplexPacket>(r, c);
+    ComplexPacket cresult = p ? BaseEvaluator::template packet<Unaligned, ComplexPacket>(r, c)
+                              : BaseEvaluator::template packet<LoadMode, ComplexPacket>(r, c);
     PacketType result = preinterpret<PacketType>(cresult);
     if (p) {
       Scalar aux[RealPacketSize + 1];
@@ -157,9 +159,10 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
     EIGEN_STATIC_ASSERT((find_packet_by_size<ComplexScalar, RealPacketSize / 2>::value),
                         MISSING COMPATIBLE COMPLEX PACKET TYPE)
-    ComplexPacket cresult = BaseEvaluator::template packet<LoadMode, ComplexPacket>(index / 2);
-    PacketType result = preinterpret<PacketType>(cresult);
     bool p = index & 1;
+    ComplexPacket cresult = p ? BaseEvaluator::template packet<Unaligned, ComplexPacket>(index / 2)
+                              : BaseEvaluator::template packet<LoadMode, ComplexPacket>(index / 2);
+    PacketType result = preinterpret<PacketType>(cresult);
     if (p) {
       Scalar aux[RealPacketSize + 1];
       pstoreu(aux, result);
@@ -186,16 +189,20 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     Index actualCount = actualEnd - actualBegin;
     Index r = IsRowMajor ? row : row / 2;
     Index c = IsRowMajor ? col / 2 : col;
-    ComplexPacket cresult =
-        BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(r, c, actualBegin / 2, actualCount / 2);
-    PacketType result = preinterpret<PacketType>(cresult);
     bool p = (IsRowMajor ? col : row) & 1;
+    ComplexPacket cresult =
+        p ? BaseEvaluator::template packetSegment<Unaligned, ComplexPacket>(r, c, actualBegin / 2, actualCount / 2)
+          : BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(r, c, actualBegin / 2, actualCount / 2);
+    PacketType result = preinterpret<PacketType>(cresult);
     if (p) {
       Scalar aux[RealPacketSize + 1] = {};
       pstoreu(aux, result);
-      Index lastr = IsRowMajor ? row : row + actualEnd - 1;
-      Index lastc = IsRowMajor ? col + actualEnd - 1 : col;
-      aux[actualEnd] = coeff(lastr, lastc);
+      // aux[actualEnd] is in the segment only when begin + count is even; otherwise it lies past the end.
+      if (actualEnd == begin + count) {
+        Index lastr = IsRowMajor ? row : row + actualEnd - 1;
+        Index lastc = IsRowMajor ? col + actualEnd - 1 : col;
+        aux[actualEnd] = coeff(lastr, lastc);
+      }
       result = ploadu<PacketType>(aux + 1);
     }
     return result;
@@ -210,17 +217,82 @@ struct evaluator<RealView<Xpr>> : private evaluator<Xpr> {
     Index actualBegin = numext::round_down(begin, 2);
     Index actualEnd = numext::round_down(begin + count + 1, 2);
     Index actualCount = actualEnd - actualBegin;
-    ComplexPacket cresult =
-        BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(index / 2, actualBegin / 2, actualCount / 2);
-    PacketType result = preinterpret<PacketType>(cresult);
     bool p = index & 1;
+    ComplexPacket cresult =
+        p ? BaseEvaluator::template packetSegment<Unaligned, ComplexPacket>(index / 2, actualBegin / 2, actualCount / 2)
+          : BaseEvaluator::template packetSegment<LoadMode, ComplexPacket>(index / 2, actualBegin / 2, actualCount / 2);
+    PacketType result = preinterpret<PacketType>(cresult);
     if (p) {
       Scalar aux[RealPacketSize + 1] = {};
       pstoreu(aux, result);
-      aux[actualEnd] = coeff(index + actualEnd - 1);
+      if (actualEnd == begin + count) aux[actualEnd] = coeff(index + actualEnd - 1);
       result = ploadu<PacketType>(aux + 1);
     }
     return result;
+  }
+
+  // Stores of whole complex coefficients go to the underlying evaluator as complex packets; a store that starts or ends
+  // inside a coefficient (an odd real index or count) falls back to scalar stores. The swap kernel requires these.
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index row, Index col, const PacketType& x) {
+    constexpr int RealPacketSize = unpacket_traits<PacketType>::size;
+    using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
+    if (((IsRowMajor ? col : row) & 1) == 0) {
+      BaseEvaluator::template writePacket<StoreMode, ComplexPacket>(
+          IsRowMajor ? row : row / 2, IsRowMajor ? col / 2 : col, preinterpret<ComplexPacket>(x));
+    } else {
+      writePacketSegment<StoreMode, PacketType>(row, col, x, 0, RealPacketSize);
+    }
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketType& x) {
+    constexpr int RealPacketSize = unpacket_traits<PacketType>::size;
+    using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
+    if ((index & 1) == 0) {
+      BaseEvaluator::template writePacket<StoreMode, ComplexPacket>(index / 2, preinterpret<ComplexPacket>(x));
+    } else {
+      writePacketSegment<StoreMode, PacketType>(index, x, 0, RealPacketSize);
+    }
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index row, Index col, const PacketType& x, Index begin,
+                                                                Index count) {
+    constexpr int RealPacketSize = unpacket_traits<PacketType>::size;
+    using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
+    EIGEN_STATIC_ASSERT((find_packet_by_size<ComplexScalar, RealPacketSize / 2>::value),
+                        MISSING COMPATIBLE COMPLEX PACKET TYPE)
+    const Index inner = IsRowMajor ? col : row;
+    if (((inner | begin | count) & 1) == 0) {
+      const Index r = IsRowMajor ? row : row / 2;
+      const Index c = IsRowMajor ? col / 2 : col;
+      BaseEvaluator::template writePacketSegment<StoreMode, ComplexPacket>(r, c, preinterpret<ComplexPacket>(x),
+                                                                           begin / 2, count / 2);
+    } else {
+      Scalar aux[RealPacketSize];
+      pstoreu(aux, x);
+      for (Index i = begin; i < begin + count; ++i)
+        coeffRef(IsRowMajor ? row : row + i, IsRowMajor ? col + i : col) = aux[i];
+    }
+  }
+
+  template <int StoreMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacketSegment(Index index, const PacketType& x, Index begin,
+                                                                Index count) {
+    constexpr int RealPacketSize = unpacket_traits<PacketType>::size;
+    using ComplexPacket = typename find_packet_by_size<ComplexScalar, RealPacketSize / 2>::type;
+    EIGEN_STATIC_ASSERT((find_packet_by_size<ComplexScalar, RealPacketSize / 2>::value),
+                        MISSING COMPATIBLE COMPLEX PACKET TYPE)
+    if (((index | begin | count) & 1) == 0) {
+      BaseEvaluator::template writePacketSegment<StoreMode, ComplexPacket>(index / 2, preinterpret<ComplexPacket>(x),
+                                                                           begin / 2, count / 2);
+    } else {
+      Scalar aux[RealPacketSize];
+      pstoreu(aux, x);
+      for (Index i = begin; i < begin + count; ++i) coeffRef(index + i) = aux[i];
+    }
   }
 };
 

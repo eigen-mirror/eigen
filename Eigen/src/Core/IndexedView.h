@@ -180,6 +180,17 @@ class IndexedViewImpl : public internal::generic_xpr_base<IndexedView<XprType, R
     return nestedExpression().coeffRef(m_rowIndices[rowId], m_colIndices[colId]);
   }
 
+  // The two-index overloads above hide the base's linear coeffRef(), so vector views need their own.
+  constexpr Scalar& coeffRef(Index index) {
+    EIGEN_STATIC_ASSERT(Base::IsVectorAtCompileTime, YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX)
+    return coeffRef(Base::RowsAtCompileTime == 1 ? 0 : index, Base::RowsAtCompileTime == 1 ? index : 0);
+  }
+
+  constexpr const Scalar& coeffRef(Index index) const {
+    EIGEN_STATIC_ASSERT(Base::IsVectorAtCompileTime, YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX)
+    return coeffRef(Base::RowsAtCompileTime == 1 ? 0 : index, Base::RowsAtCompileTime == 1 ? index : 0);
+  }
+
  protected:
   MatrixTypeNested m_xpr;
   RowIndices m_rowIndices;

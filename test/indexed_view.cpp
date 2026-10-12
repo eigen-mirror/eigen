@@ -995,6 +995,33 @@ void check_aliasing() {
   VERIFY_IS_EQUAL(z, expected);
 }
 
+// Vector-shaped views provide linear coeffRef(), like every other writable vector expression.
+void check_vector_coeffRef() {
+  MatrixXd A = MatrixXd::Random(6, 5);
+  const std::vector<int> rows = {4, 0, 2};
+  auto col = A.col(1)(rows);
+  col.coeffRef(1) = 1.5;
+  VERIFY_IS_EQUAL(A(0, 1), 1.5);
+  const auto& constCol = col;
+  VERIFY_IS_EQUAL(constCol.coeffRef(2), A(2, 1));
+  auto row = A.row(3)(placeholders::lastN(3, 2));
+  row.coeffRef(0) = 2.5;
+  VERIFY_IS_EQUAL(A(3, 0), 2.5);
+  VERIFY_IS_EQUAL(row.coeffRef(2), A(3, 4));
+
+  // makeHouseholder() writes its essential part through coeffRef(i).
+  const VectorXd x = VectorXd::Random(4);
+  VectorXd expected(3), essential = VectorXd::Zero(6);
+  double tau, beta, tauRef, betaRef;
+  x.makeHouseholder(expected, tauRef, betaRef);
+  const std::vector<int> slots = {5, 1, 3};
+  auto essentialView = essential(slots);
+  x.makeHouseholder(essentialView, tau, beta);
+  VERIFY_IS_EQUAL(tau, tauRef);
+  VERIFY_IS_EQUAL(beta, betaRef);
+  VERIFY_IS_EQUAL(VectorXd(essential(slots)), expected);
+}
+
 EIGEN_DECLARE_TEST(indexed_view) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(check_indexed_view());
@@ -1008,6 +1035,7 @@ EIGEN_DECLARE_TEST(indexed_view) {
   CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, 6, 8>>()));
   CALL_SUBTEST_1((check_indexed_view_strides<Matrix<double, 6, 8, RowMajor>>()));
   CALL_SUBTEST_1(check_aliasing());
+  CALL_SUBTEST_1(check_vector_coeffRef());
 
   // static checks of some internals:
   STATIC_CHECK((internal::is_valid_index_type<int>::value));

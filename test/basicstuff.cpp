@@ -380,6 +380,16 @@ void denseInnerIteratorAdvance() {
   VERIFY(!it);
 }
 
+// nestedExpression() is callable on a non-const unary expression, whose operand is always nested as const.
+template <typename = void>
+void unaryNestedExpression() {
+  const Matrix3f m = Matrix3f::Random();
+  auto negated = -m;
+  VERIFY(&negated.nestedExpression() == &m);
+  auto absSum = (m + m).cwiseAbs();
+  VERIFY_IS_EQUAL(absSum.nestedExpression().rows(), m.rows());
+}
+
 EIGEN_DECLARE_TEST(basicstuff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(basicStuff(Matrix<float, 1, 1>()));
@@ -408,6 +418,7 @@ EIGEN_DECLARE_TEST(basicstuff) {
   }
 
   CALL_SUBTEST_1(denseInnerIteratorAdvance<>());
+  CALL_SUBTEST_1(unaryNestedExpression<>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<unsigned char>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<float>());
   CALL_SUBTEST_1(fixedSizeMatrixConstruction<double>());

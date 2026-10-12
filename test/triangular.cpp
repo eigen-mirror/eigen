@@ -655,6 +655,19 @@ void triangular_at_blocking_boundaries() {
   }
 }
 
+// nestedExpression() on a non-const view keeps the operand's constness: callable for a const operand, writable for a
+// mutable one.
+template <typename = void>
+void triangular_nested_expression() {
+  const Matrix3d a = Matrix3d::Identity();
+  auto lower = a.triangularView<Lower>();
+  VERIFY(&lower.nestedExpression() == &a);
+  Matrix3d b = Matrix3d::Zero();
+  auto upper = b.triangularView<Upper>();
+  upper.nestedExpression()(0, 1) = 1;
+  VERIFY_IS_EQUAL(b(0, 1), 1.0);
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().triangularView<Lower>();
   EIGEN_UNUSED_VARIABLE(m);
@@ -701,6 +714,7 @@ EIGEN_DECLARE_TEST(triangular) {
   }
 
   CALL_SUBTEST_1(bug_159());
+  CALL_SUBTEST_1(triangular_nested_expression<>());
 
   // Triangular solve/product at blocking boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_11(triangular_at_blocking_boundaries<0>());

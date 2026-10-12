@@ -161,8 +161,6 @@ class ReshapedImpl_dense<XprType, Rows, Cols, Order, false>
   using MatrixTypeNested = typename internal::ref_selector<XprType>::non_const_type;
   using NestedExpression = internal::remove_all_t<XprType>;
 
-  class InnerIterator;
-
   /** Fixed-size constructor
    */
   EIGEN_DEVICE_FUNC constexpr inline ReshapedImpl_dense(XprType& xpr) : m_xpr(xpr), m_rows(Rows), m_cols(Cols) {}
@@ -307,7 +305,9 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   };
 
   EIGEN_DEVICE_FUNC constexpr explicit reshaped_evaluator(const XprType& xpr)
-      : m_argImpl(xpr.nestedExpression()), m_xpr(xpr) {
+      : m_argImpl(xpr.nestedExpression()),
+        m_innerSize(Order == ColMajor ? xpr.rows() : xpr.cols()),
+        m_nestedInnerSize(Order == ColMajor ? xpr.nestedExpression().rows() : xpr.nestedExpression().cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
   }
 
@@ -320,18 +320,18 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   // the nested evaluator's linear index of that element.
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Index linear_index(Index rowId, Index colId) const {
     EIGEN_IF_CONSTEXPR (Order == ColMajor) {
-      return colId * m_xpr.rows() + rowId;
+      return colId * m_innerSize.value() + rowId;
     } else {
-      return colId + rowId * m_xpr.cols();
+      return colId + rowId * m_innerSize.value();
     }
   }
 
   EIGEN_DEVICE_FUNC constexpr inline RowCol index_remap(Index rowId, Index colId) const {
     const Index nth_elem_idx = linear_index(rowId, colId);
     EIGEN_IF_CONSTEXPR (Order == ColMajor) {
-      return RowCol(nth_elem_idx % m_xpr.nestedExpression().rows(), nth_elem_idx / m_xpr.nestedExpression().rows());
+      return RowCol(nth_elem_idx % m_nestedInnerSize.value(), nth_elem_idx / m_nestedInnerSize.value());
     } else {
-      return RowCol(nth_elem_idx / m_xpr.nestedExpression().cols(), nth_elem_idx % m_xpr.nestedExpression().cols());
+      return RowCol(nth_elem_idx / m_nestedInnerSize.value(), nth_elem_idx % m_nestedInnerSize.value());
     }
   }
 
@@ -476,7 +476,11 @@ struct reshaped_evaluator<ArgType, Rows, Cols, Order, /* HasDirectAccess */ fals
   }
 
   evaluator<ArgType> m_argImpl;
-  const XprType& m_xpr;
+  // Sizes are copied rather than read through the expression: select() evaluates a rewritten temporary expression
+  // that does not outlive this evaluator.
+  const variable_if_dynamic<Index, Order == ColMajor ? Rows : Cols> m_innerSize;
+  const variable_if_dynamic<Index, Order == ColMajor ? ArgType::RowsAtCompileTime : ArgType::ColsAtCompileTime>
+      m_nestedInnerSize;
 };
 
 template <typename ArgType, int Rows, int Cols, int Order>

@@ -140,10 +140,10 @@ class RefBase : public MapBase<Derived> {
 
     const bool swap_stride = (transpose != storage_differs);
 
-    // Determine expr's actual strides, resolving any defaults if zero.
-    const Index expr_inner_actual = resolveInnerStride(expr.innerStride());
-    const Index expr_outer_actual = resolveOuterStride(expr_inner_actual, expr.outerStride(), expr.rows(), expr.cols(),
-                                                       Expression::IsVectorAtCompileTime != 0, expr_row_major);
+    // Unlike a compile-time stride of 0, a runtime stride of 0 is not a default: it repeats coefficients, as in
+    // Map<const VectorXd, 0, InnerStride<>>(&x, n, InnerStride<>(0)).
+    const Index expr_inner_actual = expr.innerStride();
+    const Index expr_outer_actual = expr.outerStride();
 
     // If this is a column-major row vector or row-major column vector, the inner-stride
     // is arbitrary, so set it to either the compile-time inner stride or 1.

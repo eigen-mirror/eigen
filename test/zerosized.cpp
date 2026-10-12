@@ -43,6 +43,15 @@ void zeroSizedMatrix() {
     if (MatrixType::RowsAtCompileTime == Dynamic) VERIFY(t1.rows() == 0);
     if (MatrixType::ColsAtCompileTime == Dynamic) VERIFY(t1.cols() == 0);
 
+    MatrixType reversed = t1;
+    reversed.reverseInPlace();
+    VERIFY(reversed == t1.reverse());
+    if (t1.rows() == t1.cols()) {
+      MatrixType transposed = t1;
+      transposed.transposeInPlace();
+      VERIFY(transposed == t1.transpose());
+    }
+
     if (MatrixType::RowsAtCompileTime == Dynamic && MatrixType::ColsAtCompileTime == Dynamic) {
       MatrixType t2(0, 0);
       VERIFY(t2.rows() == 0);

@@ -76,7 +76,7 @@ class CwiseUnaryOp : public CwiseUnaryOpImpl<UnaryOp, XprType, typename internal
   }
 
   /** \returns the nested expression */
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE internal::remove_all_t<XprTypeNested>& nestedExpression() {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE std::remove_reference_t<XprTypeNested>& nestedExpression() {
     return m_xpr;
   }
 

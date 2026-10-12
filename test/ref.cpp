@@ -249,6 +249,25 @@ void test_ref_alignment_matching() {
   VERIFY(ref.data() == data);
 }
 
+// A runtime stride of 0 repeats a coefficient; a Ref must not read it as the default stride.
+void test_ref_zero_strides() {
+  const float data[6] = {1, 2, 3, 4, 5, 6};
+  Map<const VectorXf, 0, InnerStride<>> repeated(data, 4, InnerStride<>(0));
+  const Ref<const VectorXf, 0, InnerStride<>> repeatedRef(repeated);
+  VERIFY_IS_EQUAL(repeatedRef, VectorXf::Constant(4, data[0]));
+
+  Map<const MatrixXf, 0, OuterStride<>> repeatedCols(data, 2, 3, OuterStride<>(0));
+  const MatrixXf expectedCols = Vector2f(data[0], data[1]).replicate(1, 3);
+  const Ref<const MatrixXf, 0, OuterStride<>> colsRef(repeatedCols);
+  VERIFY_IS_EQUAL(colsRef, expectedCols);
+  const Ref<const MatrixXf, 0, Stride<Dynamic, Dynamic>> colsStrideRef(repeatedCols);
+  VERIFY_IS_EQUAL(colsStrideRef, expectedCols);
+
+  const VectorXf v = VectorXf::Random(5);
+  const Ref<const VectorXf, 0, InnerStride<>> indexedRef(v(seqN(2, 3, fix<0>)));
+  VERIFY_IS_EQUAL(indexedRef, VectorXf::Constant(3, v(2)));
+}
+
 template <typename B>
 EIGEN_DONT_INLINE void call_ref_1(Ref<VectorXf> a, const B &b) {
   VERIFY_IS_EQUAL(a, b);
@@ -435,4 +454,5 @@ EIGEN_DECLARE_TEST(ref) {
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(MatrixXd(9, 5)));
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
   CALL_SUBTEST_10(test_ref_alignment_matching());
+  CALL_SUBTEST_10(test_ref_zero_strides());
 }

@@ -141,6 +141,35 @@ void selfadjoint_l1norm_integer() {
   }
 }
 
+template <typename MatrixType>
+void selfadjoint_l1norm_empty(const MatrixType& m) {
+  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
+  VERIFY_IS_EQUAL(m.template selfadjointView<Lower>().l1Norm(), RealScalar(0));
+  VERIFY_IS_EQUAL(m.template selfadjointView<Upper>().l1Norm(), RealScalar(0));
+}
+
+// With a zero-sized fixed dimension col() and row() are not vectors, so the kernels must not take their head() or
+// tail(); the row-major form also instantiates the streaming pass on the transpose.
+template <typename Scalar>
+void selfadjoint_l1norm_zero_sized() {
+  selfadjoint_l1norm_empty(Matrix<Scalar, 0, 0>());
+  selfadjoint_l1norm_empty(Matrix<Scalar, 0, 0, RowMajor>());
+  selfadjoint_l1norm_empty(Matrix<Scalar, Dynamic, 0, ColMajor, 0, 0>());
+}
+
+// nestedExpression() on a non-const view keeps the operand's constness: callable for a const operand, writable for a
+// mutable one.
+template <typename = void>
+void selfadjoint_nested_expression() {
+  const Matrix3d a = Matrix3d::Identity();
+  auto lower = a.selfadjointView<Lower>();
+  VERIFY(&lower.nestedExpression() == &a);
+  Matrix3d b = Matrix3d::Zero();
+  auto upper = b.selfadjointView<Upper>();
+  upper.nestedExpression()(0, 1) = 1;
+  VERIFY_IS_EQUAL(b(0, 1), 1.0);
+}
+
 void bug_159() {
   Matrix3d m = Matrix3d::Random().selfadjointView<Lower>();
   EIGEN_UNUSED_VARIABLE(m);
@@ -161,6 +190,7 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   }
 
   CALL_SUBTEST_1(bug_159());
+  CALL_SUBTEST_1(selfadjoint_nested_expression<>());
   CALL_SUBTEST_4(selfadjoint_l1norm_sizes<double>());
   CALL_SUBTEST_4(selfadjoint_l1norm_sizes<std::complex<double> >());
   CALL_SUBTEST_6(selfadjoint_l1norm_sizes<std::complex<float> >());
@@ -168,6 +198,10 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   CALL_SUBTEST_6(selfadjoint_l1norm_range<std::complex<float> >());
   CALL_SUBTEST_1(selfadjoint_l1norm_integer<short>());
   CALL_SUBTEST_1(selfadjoint_l1norm_integer<int>());
+  CALL_SUBTEST_1(selfadjoint_l1norm_zero_sized<int>());
+  CALL_SUBTEST_4(selfadjoint_l1norm_zero_sized<double>());
+  CALL_SUBTEST_4(selfadjoint_l1norm_zero_sized<std::complex<double> >());
+  CALL_SUBTEST_6(selfadjoint_l1norm_zero_sized<std::complex<float> >());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<half>());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<bfloat16>());
 }

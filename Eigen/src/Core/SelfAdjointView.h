@@ -134,7 +134,9 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& _expression() const noexcept { return m_matrix; }
 
   EIGEN_DEVICE_FUNC constexpr const MatrixTypeNestedCleaned& nestedExpression() const noexcept { return m_matrix; }
-  EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedCleaned& nestedExpression() noexcept { return m_matrix; }
+  EIGEN_DEVICE_FUNC constexpr std::remove_reference_t<MatrixTypeNested>& nestedExpression() noexcept {
+    return m_matrix;
+  }
 
   EIGEN_DEVICE_FUNC const SelfAdjointView<
       const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(MatrixType, Scalar, internal::scalar_product_op), UpLo>

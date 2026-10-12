@@ -453,7 +453,7 @@ class TriangularView
   EIGEN_DEVICE_FUNC constexpr const NestedExpression& nestedExpression() const noexcept { return m_matrix; }
 
   /** \returns a reference to the nested expression */
-  EIGEN_DEVICE_FUNC constexpr NestedExpression& nestedExpression() noexcept { return m_matrix; }
+  EIGEN_DEVICE_FUNC constexpr MatrixTypeNestedNonRef& nestedExpression() noexcept { return m_matrix; }
 
   template <typename Other>
   EIGEN_DEVICE_FUNC inline Solve<TriangularView, Other> solve(const MatrixBase<Other>& other) const {

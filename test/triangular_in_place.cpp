@@ -188,5 +188,8 @@ EIGEN_DECLARE_TEST(triangular_in_place) {
     CALL_SUBTEST_6((triangular_inverse_all_modes<Matrix<double, 1, 1>>(1)));
     CALL_SUBTEST_6(triangular_inverse_all_modes<Matrix4d>(4));
     CALL_SUBTEST_6((triangular_inverse_all_modes<Matrix<std::complex<float>, 8, 8>>(8)));
+    // With a zero-sized fixed dimension col() is not a vector; inverseInPlace() must still compile.
+    CALL_SUBTEST_6((triangular_inverse_all_modes<Matrix<double, 0, 0>>(0)));
+    CALL_SUBTEST_6((triangular_inverse_all_modes<Matrix<float, Dynamic, 0, ColMajor, 0, 0>>(0)));
   }
 }

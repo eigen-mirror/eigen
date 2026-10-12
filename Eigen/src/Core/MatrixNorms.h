@@ -169,8 +169,9 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   template <typename SumsDerived, typename Derived>
   EIGEN_DEVICE_FUNC void accumulate(DenseBase<SumsDerived>& sums, const DenseBase<Derived>& m, Index j0, Index j1,
                                     Index begin, Index end) {
-    accumulateCast(sums, j0, j1, begin, m.col(j0).segment(begin, end - begin).template cast<Scalar>(),
-                   m.col(j1).segment(begin, end - begin).template cast<Scalar>());
+    // Fixed-width blocks rather than col().segment(): with a zero-sized fixed dimension col() is not a vector.
+    accumulateCast(sums, j0, j1, begin, m.template block<Dynamic, 1>(begin, j0, end - begin, 1).template cast<Scalar>(),
+                   m.template block<Dynamic, 1>(begin, j1, end - begin, 1).template cast<Scalar>());
   }
 
  private:
@@ -337,18 +338,24 @@ class selfadjoint_l1norm {
     return impl.inRange(n) ? RealScalar(norm) : l1NormPerColumn();
   }
 
-  // One column at a time, the mirrored term read as a row; no workspace.
+  template <typename Xpr>
+  EIGEN_DEVICE_FUNC static L1NormAccumulator absSum(const Xpr& x) {
+    return x.template cast<L1NormScalar>().template lpNorm<1>();
+  }
+
+  // One column at a time, the mirrored term read as a row; no workspace. Fixed-width and fixed-height blocks rather
+  // than col()/row(): with a zero-sized fixed dimension those are not vectors, so head()/tail() would not compile.
   EIGEN_DEVICE_FUNC RealScalar l1NormPerColumn() const {
     L1NormAccumulator norm = L1NormAccumulator(0);
     const Index n = m_matrix.rows();
     for (Index col = 0; col < n; ++col) {
       L1NormAccumulator abs_col_sum;
       EIGEN_IF_CONSTEXPR (UpLo == Lower) {
-        abs_col_sum = m_matrix.col(col).tail(n - col).template cast<L1NormScalar>().template lpNorm<1>() +
-                      m_matrix.row(col).head(col).template cast<L1NormScalar>().template lpNorm<1>();
+        abs_col_sum = absSum(m_matrix.template block<Dynamic, 1>(col, col, n - col, 1)) +
+                      absSum(m_matrix.template block<1, Dynamic>(col, 0, 1, col));
       } else {
-        abs_col_sum = m_matrix.col(col).head(col).template cast<L1NormScalar>().template lpNorm<1>() +
-                      m_matrix.row(col).tail(n - col).template cast<L1NormScalar>().template lpNorm<1>();
+        abs_col_sum = absSum(m_matrix.template block<Dynamic, 1>(0, col, col, 1)) +
+                      absSum(m_matrix.template block<1, Dynamic>(col, col, 1, n - col));
       }
       norm = numext::maxi(norm, abs_col_sum);
     }

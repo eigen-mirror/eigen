@@ -275,8 +275,10 @@ void BlockedInPlaceTranspose(MatrixType& m) {
       }
     }
   }
+  // Blocks rather than row()/col(): with a zero-sized fixed dimension those are not vectors and head() would not
+  // compile.
   for (Index row = row_start; row < m.rows(); ++row) {
-    m.matrix().row(row).head(row).swap(m.matrix().col(row).head(row).transpose());
+    m.matrix().block(row, 0, 1, row).swap(m.matrix().block(0, row, row, 1).transpose());
   }
 }
 

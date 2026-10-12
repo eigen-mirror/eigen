@@ -130,14 +130,16 @@ template <typename Derived>
 EIGEN_DEVICE_FUNC inline void DenseBase<Derived>::reverseInPlace() {
   constexpr int HalfRowsAtCompileTime = RowsAtCompileTime == Dynamic ? Dynamic : RowsAtCompileTime / 2;
   constexpr int HalfColsAtCompileTime = ColsAtCompileTime == Dynamic ? Dynamic : ColsAtCompileTime / 2;
+  // The middle column or row is a block rather than col()/row(): both branches compile for every shape, and with a
+  // zero-sized fixed dimension col()/row() is not a vector, so head()/tail() would not compile.
   if (cols() > rows()) {
     Index half = cols() / 2;
     this->template leftCols<HalfColsAtCompileTime>(half).swap(
         this->template rightCols<HalfColsAtCompileTime>(half).reverse());
     if ((cols() % 2) == 1) {
       Index half2 = rows() / 2;
-      col(half).template head<HalfRowsAtCompileTime>(half2).swap(
-          col(half).template tail<HalfRowsAtCompileTime>(half2).reverse());
+      this->template block<HalfRowsAtCompileTime, 1>(0, half, half2, 1)
+          .swap(this->template block<HalfRowsAtCompileTime, 1>(rows() - half2, half, half2, 1).reverse());
     }
   } else {
     Index half = rows() / 2;
@@ -145,8 +147,8 @@ EIGEN_DEVICE_FUNC inline void DenseBase<Derived>::reverseInPlace() {
         this->template bottomRows<HalfRowsAtCompileTime>(half).reverse());
     if ((rows() % 2) == 1) {
       Index half2 = cols() / 2;
-      row(half).template head<HalfColsAtCompileTime>(half2).swap(
-          row(half).template tail<HalfColsAtCompileTime>(half2).reverse());
+      this->template block<1, HalfColsAtCompileTime>(half, 0, 1, half2)
+          .swap(this->template block<1, HalfColsAtCompileTime>(half, cols() - half2, 1, half2).reverse());
     }
   }
 }

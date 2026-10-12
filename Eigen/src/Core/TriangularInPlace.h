@@ -70,11 +70,16 @@ EIGEN_DEVICE_FUNC void triangular_inverse_unblocked(MatrixType& mat, VectorType&
   }
 }
 
+// With a zero-sized fixed dimension there is nothing to invert, and col() is not a vector, so the kernels' column
+// tails would not compile.
+template <unsigned int Mode, typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime == 0, int> = 0>
+EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType&) {}
+
 // Blocked lower triangular inverse, block columns bottom-up as in LAPACK xTRTRI. With
 // L = [[L11, 0], [L21, L22]] the inverse is [[L11^-1, 0], [-L22^-1 L21 L11^-1, L22^-1]]; walking upwards
 // makes X22 = L22^-1 available first, so the large operation is the TRMM X22 L21 rather than a solve
 // against L22, and Eigen's TRMM runs closer to GEMM rate than its TRSM does on a 128-column operand.
-template <unsigned int Mode, typename MatrixType>
+template <unsigned int Mode, typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime != 0, int> = 0>
 EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   eigen_assert(mat.rows() == mat.cols());
   const Index n = mat.rows();
