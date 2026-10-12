@@ -533,6 +533,19 @@ struct diagonal {
   }
 };
 
+// The copy constructors of the structured plain types are device-callable.
+struct structured_copies {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
+    using namespace Eigen;
+    const DiagonalMatrix<float, 3> d(in[i], in[i + 1], in[i + 2]);
+    const DiagonalMatrix<float, 3> diagonalCopy(d);
+    const SkewSymmetricMatrix3<float> s(in[i + 3], in[i + 4], in[i + 5]);
+    const SkewSymmetricMatrix3<float> skewCopy(s);
+    Map<Vector3f>(out + i * 6) = diagonalCopy.diagonal();
+    Map<Vector3f>(out + i * 6 + 3) = skewCopy.vector();
+  }
+};
+
 template <typename T>
 struct jacobi_rotations {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
@@ -983,6 +996,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
 
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix3f, Vector3f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(diagonal<Matrix4f, Vector4f>(), nthreads, in, out));
+  CALL_SUBTEST(run_and_compare_to_gpu(structured_copies(), nthreads, in, out));
 
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix2f>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(matrix_inverse<Matrix3f>(), nthreads, in, out));

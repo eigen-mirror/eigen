@@ -509,13 +509,19 @@ class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
     memcpy(&header, src, header_bytes);
     src += header_bytes;
 
+    // The header is untrusted: check the sizes before allocating, and every inner index after copying.
+    if (EIGEN_PREDICT_FALSE(header.size < 0 || header.num_non_zeros < 0 ||
+                            header.num_non_zeros > NumTraits<StorageIndex>::highest() ||
+                            static_cast<numext::uint64_t>(header.num_non_zeros) >
+                                static_cast<numext::uint64_t>(end - src) / (sizeof(StorageIndex) + sizeof(Scalar))))
+      return nullptr;
+
     value.setZero();
     value.resize(header.size);
     value.resizeNonZeros(header.num_non_zeros);
 
     // Inner indices.
     std::size_t data_bytes = sizeof(StorageIndex) * header.num_non_zeros;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     if (data_bytes != 0) {
       memcpy(value.innerIndexPtr(), src, data_bytes);
     }
@@ -523,11 +529,17 @@ class Serializer<SparseVector<Scalar, Options, StorageIndex>, void> {
 
     // Values.
     data_bytes = sizeof(Scalar) * header.num_non_zeros;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     if (data_bytes != 0) {
       memcpy(value.valuePtr(), src, data_bytes);
     }
     src += data_bytes;
+
+    for (Index k = 0; k < header.num_non_zeros; ++k) {
+      if (EIGEN_PREDICT_FALSE(value.innerIndexPtr()[k] < 0 || value.innerIndexPtr()[k] >= header.size)) {
+        value.resize(0);
+        return nullptr;
+      }
+    }
     return src;
   }
 };

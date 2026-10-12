@@ -370,8 +370,9 @@ void fixedSizeMatrixConstruction() {
 // InnerIterator of a dense expression advances by more than one coefficient.
 template <typename = void>
 void denseInnerIteratorAdvance() {
-  Matrix<float, 5, 3> m = Matrix<float, 5, 3>::Random();
-  InnerIterator<Matrix<float, 5, 3>> it(m, 1);
+  using ColMajorMatrix = Matrix<float, 5, 3, ColMajor>;
+  ColMajorMatrix m = ColMajorMatrix::Random();
+  InnerIterator<ColMajorMatrix> it(m, 1);
   it += 2;
   VERIFY_IS_EQUAL(it.row(), Index(2));
   VERIFY_IS_EQUAL(it.value(), m(2, 1));

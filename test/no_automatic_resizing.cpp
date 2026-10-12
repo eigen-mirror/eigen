@@ -13,6 +13,7 @@
 #define EIGEN_NO_AUTOMATIC_RESIZING
 #include "main.h"
 #include <Eigen/Core>
+#include <Eigen/LU>
 #include <Eigen/SparseCore>
 
 template <typename Scalar>
@@ -221,10 +222,32 @@ void testProductNoAutomaticResizing() {
   VERIFY_RAISES_ASSERT(row.noalias() = lhs * Vector2d::Ones());
 }
 
+template <typename = void>
+void testSolveNoAutomaticResizing() {
+  const Matrix4d A = Matrix4d::Random() + 4 * Matrix4d::Identity();
+  const PartialPivLU<MatrixXd> lu(A);
+  const VectorXd b = VectorXd::Random(4);
+
+  VectorXd x;
+  x = lu.solve(b);
+  VERIFY_IS_APPROX(A * x, b);
+  x = lu.transpose().solve(b);
+  VERIFY_IS_APPROX(A.transpose() * x, b);
+  x = lu.adjoint().solve(b);
+  VERIFY_IS_APPROX(A.adjoint() * x, b);
+
+  x.setConstant(3, -1.0);
+  VERIFY_RAISES_ASSERT(x = lu.solve(b));
+  VERIFY_RAISES_ASSERT(x = lu.transpose().solve(b));
+  VERIFY_RAISES_ASSERT(x = lu.adjoint().solve(b));
+  VERIFY_IS_EQUAL(x.size(), 3);
+}
+
 EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_1(testNoAutomaticResizing<float>());
   CALL_SUBTEST_2(testNoAutomaticResizing<double>());
   CALL_SUBTEST_2(testProductNoAutomaticResizing<>());
+  CALL_SUBTEST_2(testSolveNoAutomaticResizing<>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<ColMajor>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<RowMajor>());
   CALL_SUBTEST_2(testResizeToMatchVector<VectorXd>());

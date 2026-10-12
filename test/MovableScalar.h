@@ -23,8 +23,8 @@ struct MovableScalar {
     return *this;
   }
   MovableScalar& operator=(MovableScalar&& other) noexcept {
-    m_data = other.m_data;
-    other.m_data = nullptr;
+    // other's destructor frees the buffer *this held.
+    std::swap(m_data, other.m_data);
     return *this;
   }
   MovableScalar(const Scalar& scalar) : m_data(new Scalar) { set(scalar); }

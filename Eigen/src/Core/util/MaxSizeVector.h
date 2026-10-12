@@ -57,6 +57,10 @@ class MaxSizeVector {
     }
   }
 
+  // The vector owns its buffer, so a member-wise copy would free it twice.
+  MaxSizeVector(const MaxSizeVector&) = delete;
+  MaxSizeVector& operator=(const MaxSizeVector&) = delete;
+
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ~MaxSizeVector() {
     for (size_t i = m_size; i > 0; --i) {
       m_data[i - 1].~T();

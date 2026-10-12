@@ -358,6 +358,9 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options> {
     Index oldSize = this->size();
     if (oldSize != size) {
       conditional_aligned_delete_auto<T, Align>(m_data, oldSize);
+      // Leave a valid empty object if the allocation below throws.
+      m_data = nullptr;
+      m_rows = 0;
       m_data = conditional_aligned_new_auto<T, Align>(size);
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     }
@@ -414,6 +417,9 @@ class DenseStorage_impl<T, Dynamic, Rows, Dynamic, Options> {
     Index oldSize = this->size();
     if (oldSize != size) {
       conditional_aligned_delete_auto<T, Align>(m_data, oldSize);
+      // Leave a valid empty object if the allocation below throws.
+      m_data = nullptr;
+      m_cols = 0;
       m_data = conditional_aligned_new_auto<T, Align>(size);
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     }
@@ -474,6 +480,10 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
     Index oldSize = this->size();
     if (oldSize != size) {
       conditional_aligned_delete_auto<T, Align>(m_data, oldSize);
+      // Leave a valid empty object if the allocation below throws.
+      m_data = nullptr;
+      m_rows = 0;
+      m_cols = 0;
       m_data = conditional_aligned_new_auto<T, Align>(size);
       EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN({})
     }

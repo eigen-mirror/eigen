@@ -30,6 +30,21 @@ void check_handmade_aligned_malloc() {
     for (int j = 0; j < i; j++) p[j] = 0;
     internal::handmade_aligned_free(p);
   }
+
+  // A request that would exceed PTRDIFF_MAX bytes with its padding fails, and one within `alignment` of SIZE_MAX does
+  // not wrap around to a tiny block.
+  const std::size_t max_object = static_cast<std::size_t>((std::numeric_limits<std::ptrdiff_t>::max)());
+  for (std::size_t huge : {max_object - std::size_t(alignment) + 1, (std::numeric_limits<std::size_t>::max)()}) {
+    char *p = static_cast<char *>(internal::handmade_aligned_malloc(huge, alignment));
+    VERIFY(p == nullptr);
+    internal::handmade_aligned_free(p);
+    p = static_cast<char *>(internal::handmade_aligned_malloc(8, alignment));
+    for (int j = 0; j < 8; j++) p[j] = char(j);
+    char *q = static_cast<char *>(internal::handmade_aligned_realloc(p, huge, 8, alignment));
+    VERIFY(q == nullptr);
+    for (int j = 0; j < 8; j++) VERIFY_IS_EQUAL(p[j], char(j));
+    internal::handmade_aligned_free(q == nullptr ? p : q);
+  }
 }
 
 void check_aligned_malloc() {
@@ -96,6 +111,19 @@ void check_custom_new_delete() {
   {
     std::size_t N = internal::random<std::size_t>(1, 10);
     T *t = new T[N];
+    delete[] t;
+  }
+
+  {
+    T *t = new (std::nothrow) T;
+    VERIFY(t != nullptr);
+    delete t;
+  }
+
+  {
+    std::size_t N = internal::random<std::size_t>(1, 10);
+    T *t = new (std::nothrow) T[N];
+    VERIFY(t != nullptr);
     delete[] t;
   }
 

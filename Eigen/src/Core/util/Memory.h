@@ -160,6 +160,8 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_malloc(std::size_t size,
                "Alignment must be at least sizeof(void*), less than or equal to 256, and a power of 2");
 
   check_that_malloc_is_allowed();
+  // No object may exceed PTRDIFF_MAX bytes (malloc rejects larger ones), and size + alignment must not wrap.
+  if (size > static_cast<std::size_t>((std::numeric_limits<std::ptrdiff_t>::max)()) - alignment) return nullptr;
   EIGEN_USING_STD(malloc)
   void* original = malloc(size + alignment);
   if (original == nullptr) return nullptr;
@@ -194,6 +196,8 @@ EIGEN_DEVICE_FUNC inline void* handmade_aligned_realloc(void* ptr, std::size_t n
   void* old_original = static_cast<uint8_t*>(ptr) - old_offset;
 
   check_that_malloc_is_allowed();
+  // Same bound as handmade_aligned_malloc; fail as realloc does, leaving the old block untouched.
+  if (new_size > static_cast<std::size_t>((std::numeric_limits<std::ptrdiff_t>::max)()) - alignment) return nullptr;
   EIGEN_USING_STD(realloc)
   void* original = realloc(old_original, new_size + alignment);
   if (original == nullptr) return nullptr;
@@ -337,7 +341,9 @@ EIGEN_DEVICE_FUNC inline void* conditional_aligned_realloc<false>(void* ptr, std
 
   check_that_malloc_is_allowed();
   EIGEN_USING_STD(realloc)
-  return realloc(ptr, new_size);
+  void* result = realloc(ptr, new_size);
+  if (!result) throw_std_bad_alloc();
+  return result;
 }
 
 /*****************************************************************************
@@ -886,10 +892,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 
 // HIP does not support new/delete on device.
 #if EIGEN_MAX_ALIGN_BYTES != 0 && !defined(EIGEN_HIP_DEVICE_COMPILE)
-#define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_NOTHROW(NeedsToAlign)                              \
-  EIGEN_DEVICE_FUNC void* operator new(std::size_t size, const std::nothrow_t&) noexcept { \
-    EIGEN_TRY { return Eigen::internal::conditional_aligned_malloc<NeedsToAlign>(size); }  \
-    EIGEN_CATCH(...) { return 0; }                                                         \
+#define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_NOTHROW(NeedsToAlign)                                \
+  EIGEN_DEVICE_FUNC void* operator new(std::size_t size, const std::nothrow_t&) noexcept {   \
+    EIGEN_TRY { return Eigen::internal::conditional_aligned_malloc<NeedsToAlign>(size); }    \
+    EIGEN_CATCH(...) { return 0; }                                                           \
+  }                                                                                          \
+  EIGEN_DEVICE_FUNC void* operator new[](std::size_t size, const std::nothrow_t&) noexcept { \
+    EIGEN_TRY { return Eigen::internal::conditional_aligned_malloc<NeedsToAlign>(size); }    \
+    EIGEN_CATCH(...) { return 0; }                                                           \
   }
 #define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)                                                              \
   EIGEN_DEVICE_FUNC void* operator new(std::size_t size) {                                                            \
@@ -922,6 +932,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
   /* nothrow-new (returns zero instead of std::bad_alloc) */                                                          \
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_NOTHROW(NeedsToAlign)                                                               \
   EIGEN_DEVICE_FUNC void operator delete(void* ptr, const std::nothrow_t&) noexcept {                                 \
+    Eigen::internal::conditional_aligned_free<NeedsToAlign>(ptr);                                                     \
+  }                                                                                                                   \
+  EIGEN_DEVICE_FUNC void operator delete[](void* ptr, const std::nothrow_t&) noexcept {                               \
     Eigen::internal::conditional_aligned_free<NeedsToAlign>(ptr);                                                     \
   }                                                                                                                   \
   typedef void eigen_aligned_operator_new_marker_type;

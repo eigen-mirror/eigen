@@ -51,6 +51,9 @@ Index Foo::copy_limit = NumTraits<Index>::highest();
 
 EIGEN_DECLARE_TEST(maxsizevector) {
   typedef MaxSizeVector<Foo> VectorX;
+  // A copy would share, and then free twice, the owned buffer.
+  VERIFY(!std::is_copy_constructible<VectorX>::value);
+  VERIFY(!std::is_copy_assignable<VectorX>::value);
   Foo::object_count = 0;
   for (int r = 0; r < g_repeat; r++) {
     Index rows = internal::random<Index>(3, 30);

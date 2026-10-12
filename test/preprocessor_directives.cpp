@@ -23,6 +23,8 @@
 #define EIGEN_64BIT_BLAS
 #elif defined(EIGEN_TEST_PART_4)
 #define EIGEN_ALIGN_TO_AVOID_FALSE_SHARING EIGEN_ALIGN_TO_BOUNDARY(256)
+#elif defined(EIGEN_TEST_PART_5)
+#define EIGEN_INITIALIZE_MATRICES_BY_NAN
 #endif
 
 #include "main.h"
@@ -90,10 +92,49 @@ void check_false_sharing_alignment() {
 #endif
 }
 
+// EIGEN_INITIALIZE_MATRICES_BY_NAN initializes new entries after resizing, including those that conservativeResize
+// appends, whether it reallocates the storage in place (same leading dimension) or copies it.
+void check_initialize_by_nan() {
+#if defined(EIGEN_TEST_PART_5)
+  MatrixXd m(2, 3);
+  VERIFY(m.array().isNaN().all());
+  m.setZero(2, 2);
+  m.conservativeResize(2, 3);
+  VERIFY(m.leftCols(2).isZero(0) && m.col(2).array().isNaN().all());
+  m.conservativeResize(3, 3);
+  VERIFY(m.row(2).array().isNaN().all());
+  Matrix<double, Dynamic, Dynamic, RowMajor> r = Matrix<double, Dynamic, Dynamic, RowMajor>::Zero(2, 2);
+  r.conservativeResize(3, 2);
+  VERIFY(r.topRows(2).isZero(0) && r.row(2).array().isNaN().all());
+  VectorXd v = VectorXd::Zero(2);
+  v.conservativeResize(5);
+  VERIFY(v.head(2).isZero(0) && v.tail(3).array().isNaN().all());
+  Matrix<double, Dynamic, Dynamic, ColMajor, 4, 4> f = Matrix<double, Dynamic, Dynamic, ColMajor, 4, 4>::Zero(2, 2);
+  f.conservativeResize(2, 4);
+  VERIFY(f.leftCols(2).isZero(0) && f.rightCols(2).array().isNaN().all());
+
+  // Shrinking appends nothing and conservativeResizeLike() assigns what it appends, so both reallocate in place.
+  m.setOnes(3, 3);
+  m.conservativeResize(3, 2);
+  VERIFY_IS_EQUAL(m, MatrixXd::Ones(3, 2));
+  r.setOnes(3, 2);
+  r.conservativeResize(1, 2);
+  VERIFY_IS_EQUAL(r, (Matrix<double, Dynamic, Dynamic, RowMajor>::Ones(1, 2)));
+  v.setOnes(5);
+  v.conservativeResize(3);
+  VERIFY_IS_EQUAL(v, VectorXd::Ones(3));
+  m.conservativeResizeLike(MatrixXd::Constant(3, 4, 2));
+  VERIFY(m.leftCols(2).isOnes(0) && (m.rightCols(2).array() == 2).all());
+  v.conservativeResizeLike(VectorXd::Constant(5, 2));
+  VERIFY(v.head(3).isOnes(0) && (v.tail(2).array() == 2).all());
+#endif
+}
+
 EIGEN_DECLARE_TEST(preprocessor_directives) {
   CALL_SUBTEST_1(check_index_type());
   CALL_SUBTEST_1(check_false_sharing_alignment());
   CALL_SUBTEST_2(check_index_type());
   CALL_SUBTEST_3(check_blas_index());
   CALL_SUBTEST_4(check_false_sharing_alignment());
+  CALL_SUBTEST_5(check_initialize_by_nan());
 }

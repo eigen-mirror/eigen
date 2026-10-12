@@ -928,14 +928,21 @@ namespace internal {
 template <typename Derived, typename OtherDerived, bool IsVector>
 struct conservative_resize_like_impl {
   static constexpr bool IsRelocatable = std::is_trivially_copyable<typename Derived::Scalar>::value;
+#ifdef EIGEN_INITIALIZE_COEFFS
+  // In-place reallocation leaves appended coefficients uninitialized, so under the initialization macros a resize that
+  // appends coefficients without assigning them copies into a new, initialized object instead.
+  static constexpr bool MustInitializeAppended = true;
+#else
+  static constexpr bool MustInitializeAppended = false;
+#endif
   static void run(DenseBase<Derived>& _this, Index rows, Index cols) {
     if (_this.rows() == rows && _this.cols() == cols) return;
     EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(Derived)
 
     EIGEN_IF_CONSTEXPR (IsRelocatable) {
-      if ((Derived::IsRowMajor && _this.cols() == cols) ||  // row-major and we change only the number of rows
-          (!Derived::IsRowMajor && _this.rows() == rows))   // column-major and we change only the number of columns
-      {
+      if (((Derived::IsRowMajor && _this.cols() == cols) ||    // row-major and we change only the number of rows
+           (!Derived::IsRowMajor && _this.rows() == rows)) &&  // column-major and we change only the number of columns
+          !(MustInitializeAppended && (Derived::IsRowMajor ? rows > _this.rows() : cols > _this.cols()))) {
 #ifndef EIGEN_NO_DEBUG
         internal::check_rows_cols_for_overflow<Derived::MaxSizeAtCompileTime, Derived::MaxRowsAtCompileTime,
                                                Derived::MaxColsAtCompileTime>::run(rows, cols);
@@ -996,15 +1003,19 @@ struct conservative_resize_like_impl<Derived, OtherDerived, true>
     : conservative_resize_like_impl<Derived, OtherDerived, false> {
   using Base = conservative_resize_like_impl<Derived, OtherDerived, false>;
   using Base::IsRelocatable;
+  using Base::MustInitializeAppended;
   using Base::run;
 
   static void run(DenseBase<Derived>& _this, Index size) {
     const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : size;
     const Index new_cols = Derived::RowsAtCompileTime == 1 ? size : 1;
-    EIGEN_IF_CONSTEXPR (IsRelocatable)
-      _this.derived().m_storage.conservativeResize(size, new_rows, new_cols);
-    else
-      Base::run(_this.derived(), new_rows, new_cols);
+    EIGEN_IF_CONSTEXPR (IsRelocatable) {
+      if (!(MustInitializeAppended && size > _this.size())) {
+        _this.derived().m_storage.conservativeResize(size, new_rows, new_cols);
+        return;
+      }
+    }
+    Base::run(_this.derived(), new_rows, new_cols);
   }
 
   static void run(DenseBase<Derived>& _this, const DenseBase<OtherDerived>& other) {

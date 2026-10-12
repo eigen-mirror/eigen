@@ -1804,10 +1804,11 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
     memcpy(dest, &header, header_bytes);
     dest += header_bytes;
 
+    // Empty arrays may have null pointers, which memcpy does not accept even for zero bytes.
     // innerNonZeros.
     if (!header.compressed) {
       std::size_t data_bytes = sizeof(StorageIndex) * header.outer_size;
-      memcpy(dest, value.innerNonZeroPtr(), data_bytes);
+      if (data_bytes != 0) memcpy(dest, value.innerNonZeroPtr(), data_bytes);
       dest += data_bytes;
     }
 
@@ -1818,12 +1819,12 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
 
     // Inner indices.
     data_bytes = sizeof(StorageIndex) * header.inner_buffer_size;
-    memcpy(dest, value.innerIndexPtr(), data_bytes);
+    if (data_bytes != 0) memcpy(dest, value.innerIndexPtr(), data_bytes);
     dest += data_bytes;
 
     // Values.
     data_bytes = sizeof(Scalar) * header.inner_buffer_size;
-    memcpy(dest, value.valuePtr(), data_bytes);
+    if (data_bytes != 0) memcpy(dest, value.valuePtr(), data_bytes);
     dest += data_bytes;
 
     return dest;
@@ -1839,9 +1840,25 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
     memcpy(&header, src, header_bytes);
     src += header_bytes;
 
+    // The header is untrusted: check that the sizes agree and that the arrays fit in the buffer before allocating.
+    // `compressed` is read through its byte, since a bool holding anything but 0 or 1 is undefined.
+    unsigned char compressed_byte;
+    memcpy(&compressed_byte, &header.compressed, 1);
+    const bool compressed = compressed_byte == 1;
+    numext::uint64_t remaining = static_cast<numext::uint64_t>(end - src);
+    if (EIGEN_PREDICT_FALSE(
+            compressed_byte > 1 || header.rows < 0 || header.cols < 0 ||
+            header.outer_size != (SparseMat::IsRowMajor ? header.rows : header.cols) || header.inner_buffer_size < 0 ||
+            header.inner_buffer_size > NumTraits<StorageIndex>::highest() ||
+            !take(remaining, compressed ? 0 : header.outer_size, sizeof(StorageIndex)) ||
+            !take(remaining, static_cast<numext::uint64_t>(header.outer_size) + 1, sizeof(StorageIndex)) ||
+            !take(remaining, header.inner_buffer_size, sizeof(StorageIndex)) ||
+            !take(remaining, header.inner_buffer_size, sizeof(Scalar))))
+      return nullptr;
+
     value.setZero();
     value.resize(header.rows, header.cols);
-    if (header.compressed) {
+    if (compressed) {
       value.makeCompressed();
     } else {
       value.uncompress();
@@ -1851,10 +1868,9 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
     value.data().resize(header.inner_buffer_size);
 
     // Initialize compressed state and inner non-zeros.
-    if (!header.compressed) {
+    if (!compressed) {
       // Inner non-zero counts.
       std::size_t data_bytes = sizeof(StorageIndex) * header.outer_size;
-      if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
       if (data_bytes != 0) {
         memcpy(value.innerNonZeroPtr(), src, data_bytes);
       }
@@ -1863,15 +1879,11 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
 
     // Outer indices.
     std::size_t data_bytes = sizeof(StorageIndex) * (header.outer_size + 1);
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
-    if (data_bytes != 0) {
-      memcpy(value.outerIndexPtr(), src, data_bytes);
-    }
+    memcpy(value.outerIndexPtr(), src, data_bytes);
     src += data_bytes;
 
     // Inner indices.
     data_bytes = sizeof(StorageIndex) * header.inner_buffer_size;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     if (data_bytes != 0) {
       memcpy(value.innerIndexPtr(), src, data_bytes);
     }
@@ -1879,12 +1891,47 @@ class Serializer<SparseMatrix<Scalar, Options, StorageIndex>, void> {
 
     // Values.
     data_bytes = sizeof(Scalar) * header.inner_buffer_size;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     if (data_bytes != 0) {
       memcpy(value.valuePtr(), src, data_bytes);
     }
     src += data_bytes;
+
+    if (EIGEN_PREDICT_FALSE(!valid_indices(value))) {
+      value.resize(0, 0);
+      return nullptr;
+    }
     return src;
+  }
+
+ private:
+  // Takes count elements of elem_bytes each from the remaining bytes; false if they do not fit.
+  EIGEN_DEVICE_FUNC static bool take(numext::uint64_t& remaining, numext::uint64_t count, std::size_t elem_bytes) {
+    if (count > remaining / elem_bytes) return false;
+    remaining -= count * elem_bytes;
+    return true;
+  }
+
+  // The index arrays are untrusted too. Outer vector j stores its entries in [outer[j], outer[j] + nnz[j]) of the
+  // value buffer, nnz[j] = outer[j + 1] - outer[j] when compressed; each must lie in the buffer and have an inner index
+  // in [0, innerSize()). Unused entries of an uncompressed matrix are not read.
+  EIGEN_DEVICE_FUNC static bool valid_indices(const SparseMat& value) {
+    const StorageIndex* outer = value.outerIndexPtr();
+    const StorageIndex* inner_non_zeros = value.innerNonZeroPtr();
+    const StorageIndex* inner = value.innerIndexPtr();
+    const Index buffer_size = value.data().size();
+    if (outer[0] != 0 || outer[value.outerSize()] != buffer_size) return false;
+    for (Index j = 0; j < value.outerSize(); ++j) {
+      if (outer[j + 1] < outer[j] || outer[j + 1] > buffer_size) return false;
+      Index stop = outer[j + 1];
+      if (inner_non_zeros != nullptr) {
+        if (inner_non_zeros[j] < 0 || inner_non_zeros[j] > outer[j + 1] - outer[j]) return false;
+        stop = outer[j] + inner_non_zeros[j];
+      }
+      for (Index k = outer[j]; k < stop; ++k) {
+        if (inner[k] < 0 || inner[k] >= value.innerSize()) return false;
+      }
+    }
+    return true;
   }
 };
 

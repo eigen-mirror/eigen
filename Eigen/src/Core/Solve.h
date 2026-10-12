@@ -126,10 +126,8 @@ struct evaluator<Solve<Decomposition, RhsType> >
 template <typename DstXprType, typename DecType, typename RhsType, typename Scalar>
 struct Assignment<DstXprType, Solve<DecType, RhsType>, internal::assign_op<Scalar, Scalar>, Dense2Dense> {
   using SrcXprType = Solve<DecType, RhsType>;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &func) {
+    resize_if_allowed(dst, src, func);
 
     src.dec()._solve_impl(src.rhs(), dst);
   }
@@ -140,10 +138,8 @@ template <typename DstXprType, typename DecType, typename RhsType, typename Scal
 struct Assignment<DstXprType, Solve<Transpose<const DecType>, RhsType>, internal::assign_op<Scalar, Scalar>,
                   Dense2Dense> {
   using SrcXprType = Solve<Transpose<const DecType>, RhsType>;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &func) {
+    resize_if_allowed(dst, src, func);
 
     src.dec().nestedExpression().template _solve_impl_transposed<false>(src.rhs(), dst);
   }
@@ -159,10 +155,8 @@ struct Assignment<
   using SrcXprType =
       Solve<CwiseUnaryOp<internal::scalar_conjugate_op<typename DecType::Scalar>, const Transpose<const DecType>>,
             RhsType>;
-  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &) {
-    Index dstRows = src.rows();
-    Index dstCols = src.cols();
-    if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
+  static void run(DstXprType &dst, const SrcXprType &src, const internal::assign_op<Scalar, Scalar> &func) {
+    resize_if_allowed(dst, src, func);
 
     src.dec().nestedExpression().nestedExpression().template _solve_impl_transposed<true>(src.rhs(), dst);
   }

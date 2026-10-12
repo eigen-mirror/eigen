@@ -76,10 +76,12 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   EIGEN_DEVICE_FUNC DenseMatrixType exponential() const {
     DenseMatrixType retVal = DenseMatrixType::Identity();
     const SkewSymmetricVectorType& v = vector();
-    if (v.isZero()) {
+    const Scalar norm2 = v.squaredNorm();
+    // exp(K) = I + K + O(|v|^2), so only a v whose squared norm is zero (or underflows) skips the formula.
+    if (numext::is_exactly_zero(norm2)) {
+      retVal += derived().toDenseMatrix();
       return retVal;
     }
-    const Scalar norm2 = v.squaredNorm();
     const Scalar norm = numext::sqrt(norm2);
     retVal += ((((1 - numext::cos(norm)) / norm2) * derived()) * derived()) +
               (numext::sin(norm) / norm) * derived().toDenseMatrix();
@@ -290,7 +292,7 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   /** copy constructor. prevent a default copy constructor from hiding the other templated constructor */
-  inline SkewSymmetricMatrix3(const SkewSymmetricMatrix3& other) : m_vector(other.vector()) {}
+  EIGEN_DEVICE_FUNC inline SkewSymmetricMatrix3(const SkewSymmetricMatrix3& other) : m_vector(other.vector()) {}
 #endif
 
   /** Copy operator. */
@@ -313,8 +315,11 @@ class SkewSymmetricMatrix3 : public SkewSymmetricBase<SkewSymmetricMatrix3<Scala
   using InitializeReturnType =
       SkewSymmetricWrapper<const CwiseNullaryOp<internal::scalar_constant_op<Scalar>, SkewSymmetricVectorType>>;
 
+  using ZeroInitializeReturnType =
+      SkewSymmetricWrapper<const CwiseNullaryOp<internal::scalar_zero_op<Scalar>, SkewSymmetricVectorType>>;
+
   /** Initializes a skew symmetric matrix with coefficients set to zero */
-  EIGEN_DEVICE_FUNC static InitializeReturnType Zero() { return SkewSymmetricVectorType::Zero().asSkewSymmetric(); }
+  EIGEN_DEVICE_FUNC static ZeroInitializeReturnType Zero() { return SkewSymmetricVectorType::Zero().asSkewSymmetric(); }
 
   /** Sets all coefficients to zero. */
   EIGEN_DEVICE_FUNC inline void setZero() { m_vector.setZero(); }
@@ -423,8 +428,9 @@ struct Assignment<DstXprType, SrcXprType, Functor, SkewSymmetric2Dense> {
     if ((dst.rows() != 3) || (dst.cols() != 3)) {
       dst.resize(3, 3);
     }
+    // The vector may be read from dst, so it is evaluated before dst is written.
+    const Matrix<typename SrcXprType::Scalar, 3, 1> v = src.vector();
     dst.diagonal().setZero();
-    const typename SrcXprType::SkewSymmetricVectorType v = src.vector();
     dst(0, 1) = -v(2);
     dst(1, 0) = v(2);
     dst(0, 2) = v(1);
@@ -434,14 +440,28 @@ struct Assignment<DstXprType, SrcXprType, Functor, SkewSymmetric2Dense> {
   }
   EIGEN_DEVICE_FUNC static void run(
       DstXprType& dst, const SrcXprType& src,
-      const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
-    dst.vector() += src.vector();
+      const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& func) {
+    update(dst, src, func);
   }
 
   EIGEN_DEVICE_FUNC static void run(
       DstXprType& dst, const SrcXprType& src,
-      const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& /*func*/) {
-    dst.vector() -= src.vector();
+      const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>& func) {
+    update(dst, src, func);
+  }
+
+ private:
+  // dst ?= src at the six off-diagonal entries; the diagonal of src is zero.
+  template <typename UpdateFunctor>
+  EIGEN_DEVICE_FUNC static void update(DstXprType& dst, const SrcXprType& src, const UpdateFunctor& func) {
+    eigen_assert(dst.rows() == 3 && dst.cols() == 3);
+    const Matrix<typename SrcXprType::Scalar, 3, 1> v = src.vector();
+    func.assignCoeff(dst.coeffRef(0, 1), -v(2));
+    func.assignCoeff(dst.coeffRef(1, 0), v(2));
+    func.assignCoeff(dst.coeffRef(0, 2), v(1));
+    func.assignCoeff(dst.coeffRef(2, 0), -v(1));
+    func.assignCoeff(dst.coeffRef(1, 2), -v(0));
+    func.assignCoeff(dst.coeffRef(2, 1), v(0));
   }
 };
 

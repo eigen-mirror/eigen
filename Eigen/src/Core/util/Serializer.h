@@ -106,8 +106,22 @@ class Serializer<DenseBase<Derived>, void> {
     EIGEN_USING_STD(memcpy)
     memcpy(&header, src, header_bytes);
     src += header_bytes;
+    // The header is untrusted: reject sizes that are negative, that value cannot take, or that overrun the buffer.
+    if (EIGEN_PREDICT_FALSE(header.rows < 0 || header.cols < 0)) return nullptr;
+    if (EIGEN_PREDICT_FALSE((Derived::RowsAtCompileTime != Dynamic && header.rows != Derived::RowsAtCompileTime) ||
+                            (Derived::ColsAtCompileTime != Dynamic && header.cols != Derived::ColsAtCompileTime) ||
+                            (Derived::MaxRowsAtCompileTime != Dynamic && header.rows > Derived::MaxRowsAtCompileTime) ||
+                            (Derived::MaxColsAtCompileTime != Dynamic && header.cols > Derived::MaxColsAtCompileTime)))
+      return nullptr;
+    // resize() forms rows * cols in Index, so bound the product by the largest Index as well as by the buffer.
+    using Count = numext::uint64_t;
+    const Count buffer_coeffs = static_cast<Count>(end - src) / sizeof(Scalar);
+    const Count index_max = static_cast<Count>(NumTraits<typename Derived::Index>::highest());
+    const Count max_coeffs = buffer_coeffs < index_max ? buffer_coeffs : index_max;
+    if (EIGEN_PREDICT_FALSE(header.cols != 0 &&
+                            static_cast<Count>(header.rows) > max_coeffs / static_cast<Count>(header.cols)))
+      return nullptr;
     const size_t data_bytes = sizeof(Scalar) * header.rows * header.cols;
-    if (EIGEN_PREDICT_FALSE(src + data_bytes > end)) return nullptr;
     value.resize(header.rows, header.cols);
     if (data_bytes > 0) memcpy(value.data(), src, data_bytes);
     return src + data_bytes;
