@@ -250,7 +250,13 @@ struct triangular_solve_packet_kernel {
                                              Index otherStride, Index cols) {
     Map<Matrix<Scalar, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<>> rest(other, size, cols,
                                                                                    OuterStride<>(otherStride));
-    Matrix<Scalar, Dynamic, Dynamic, ColMajor, Traits::WorkspaceRows, PacketSize> padded(size, Index(PacketSize));
+    static constexpr int PaddedBytes = Traits::WorkspaceRows * PacketSize * int(sizeof(Scalar));
+    static constexpr int PaddedMaxRows =
+        (EIGEN_STACK_ALLOCATION_LIMIT == 0 || PaddedBytes <= EIGEN_STACK_ALLOCATION_LIMIT) ? int(Traits::WorkspaceRows)
+                                                                                           : Dynamic;
+    static constexpr int PaddedMaxCols =
+        (EIGEN_STACK_ALLOCATION_LIMIT == 0 || PaddedBytes <= EIGEN_STACK_ALLOCATION_LIMIT) ? int(PacketSize) : Dynamic;
+    Matrix<Scalar, Dynamic, Dynamic, ColMajor, PaddedMaxRows, PaddedMaxCols> padded(size, Index(PacketSize));
     padded.leftCols(cols) = rest;
     padded.rightCols(PacketSize - cols).setZero();
     solve<1>(size, a, inverse, padded.data(), size);

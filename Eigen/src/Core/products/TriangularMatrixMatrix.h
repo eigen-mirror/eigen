@@ -90,7 +90,12 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   ei_declare_aligned_stack_constructed_variable(Scalar, blockA, sizeA, blocking.blockA());
   ei_declare_aligned_stack_constructed_variable(Scalar, blockB, sizeB, blocking.blockB());
 
-  Matrix<Scalar, SmallPanelWidth, SmallPanelWidth, LhsStorageOrder> triangularBuffer;
+  static constexpr int PanelCapacity =
+      (EIGEN_STACK_ALLOCATION_LIMIT == 0 ||
+       SmallPanelWidth * SmallPanelWidth * sizeof(Scalar) <= EIGEN_STACK_ALLOCATION_LIMIT)
+          ? int(SmallPanelWidth)
+          : Dynamic;
+  Matrix<Scalar, PanelCapacity, PanelCapacity, LhsStorageOrder> triangularBuffer(SmallPanelWidth, SmallPanelWidth);
   triangularBuffer.setZero();
   EIGEN_IF_CONSTEXPR ((Mode & ZeroDiag) == ZeroDiag)
     triangularBuffer.diagonal().setZero();
@@ -218,7 +223,12 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   ei_declare_aligned_stack_constructed_variable(Scalar, blockA, sizeA, blocking.blockA());
   ei_declare_aligned_stack_constructed_variable(Scalar, blockB, sizeB, blocking.blockB());
 
-  Matrix<Scalar, SmallPanelWidth, SmallPanelWidth, RhsStorageOrder> triangularBuffer;
+  static constexpr int PanelCapacity =
+      (EIGEN_STACK_ALLOCATION_LIMIT == 0 ||
+       SmallPanelWidth * SmallPanelWidth * sizeof(Scalar) <= EIGEN_STACK_ALLOCATION_LIMIT)
+          ? int(SmallPanelWidth)
+          : Dynamic;
+  Matrix<Scalar, PanelCapacity, PanelCapacity, RhsStorageOrder> triangularBuffer(SmallPanelWidth, SmallPanelWidth);
   triangularBuffer.setZero();
   EIGEN_IF_CONSTEXPR ((Mode & ZeroDiag) == ZeroDiag)
     triangularBuffer.diagonal().setZero();
