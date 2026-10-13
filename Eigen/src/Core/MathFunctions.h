@@ -1114,6 +1114,27 @@ struct binary_floating_point_traits {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Bits magnitude(const Scalar& value) { return bits(value) & ~kSignBit; }
 };
 
+// Redundant out-of-class definitions are required pre-C++17 but deprecated since.
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar>
+constexpr int binary_floating_point_traits<Scalar>::kFractionBits;
+template <typename Scalar>
+constexpr int binary_floating_point_traits<Scalar>::kExponentBits;
+template <typename Scalar>
+constexpr int binary_floating_point_traits<Scalar>::kExponentBias;
+template <typename Scalar>
+constexpr typename binary_floating_point_traits<Scalar>::Bits binary_floating_point_traits<Scalar>::kSignBit;
+template <typename Scalar>
+constexpr typename binary_floating_point_traits<Scalar>::Bits binary_floating_point_traits<Scalar>::kExponentUnit;
+template <typename Scalar>
+constexpr typename binary_floating_point_traits<Scalar>::Bits binary_floating_point_traits<Scalar>::kFractionMask;
+template <typename Scalar>
+constexpr typename binary_floating_point_traits<Scalar>::Bits binary_floating_point_traits<Scalar>::kExponentMask;
+template <typename Scalar>
+constexpr
+    typename binary_floating_point_traits<Scalar>::Bits binary_floating_point_traits<Scalar>::kMaxFiniteExponentBits;
+#endif
+
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const Scalar& value, false_type) {
   return numext::is_exactly_zero(value);

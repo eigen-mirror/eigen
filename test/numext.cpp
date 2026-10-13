@@ -1000,6 +1000,31 @@ void check_zero_no_flush() {
   }
 }
 
+// Stores the address of value, so a static data member passed here is odr-used at every optimization level.
+template <typename T>
+T read_through_address(const T& value) {
+  const T* volatile address = &value;
+  return *address;
+}
+
+// In C++14 this links only with the out-of-class definitions of the constants.
+template <typename Scalar>
+void check_binary_floating_point_traits_odr_use() {
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  const Bits minBits = numext::bit_cast<Bits>((std::numeric_limits<Scalar>::min)());
+  const Bits infinityBits = numext::bit_cast<Bits>(std::numeric_limits<Scalar>::infinity());
+  VERIFY_IS_EQUAL(read_through_address(Binary::kFractionBits), std::numeric_limits<Scalar>::digits - 1);
+  VERIFY_IS_EQUAL(read_through_address(Binary::kExponentBits),
+                  int(sizeof(Scalar) * CHAR_BIT) - std::numeric_limits<Scalar>::digits);
+  VERIFY_IS_EQUAL(read_through_address(Binary::kExponentBias), std::numeric_limits<Scalar>::max_exponent - 1);
+  VERIFY_IS_EQUAL(read_through_address(Binary::kSignBit), numext::bit_cast<Bits>(-Scalar(0)));
+  VERIFY_IS_EQUAL(read_through_address(Binary::kExponentUnit), minBits);
+  VERIFY_IS_EQUAL(read_through_address(Binary::kFractionMask), Bits(minBits - 1));
+  VERIFY_IS_EQUAL(read_through_address(Binary::kExponentMask), infinityBits);
+  VERIFY_IS_EQUAL(read_through_address(Binary::kMaxFiniteExponentBits), Bits(infinityBits - minBits));
+}
+
 template <typename Scalar>
 EIGEN_DONT_INLINE void check_binary_sign_no_flush_values() {
   using Binary = internal::binary_floating_point_traits<Scalar>;
@@ -1244,6 +1269,10 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_zero_no_flush<float>());
     CALL_SUBTEST(check_zero_no_flush<double>());
     CALL_SUBTEST(check_zero_no_flush_custom_scalar());
+    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<half>());
+    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<bfloat16>());
+    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<float>());
+    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<double>());
     CALL_SUBTEST(check_binary_sign_no_flush<float>());
     CALL_SUBTEST(check_binary_sign_no_flush<double>());
 
