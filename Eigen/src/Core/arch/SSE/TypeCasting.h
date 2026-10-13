@@ -25,6 +25,9 @@ template <>
 struct type_casting_traits<bool, float> : vectorized_type_casting_traits<bool, float> {};
 
 template <>
+struct type_casting_traits<bool, int> : vectorized_type_casting_traits<bool, int> {};
+
+template <>
 struct type_casting_traits<float, int> : vectorized_type_casting_traits<float, int> {};
 template <>
 struct type_casting_traits<int, float> : vectorized_type_casting_traits<int, float> {};
@@ -74,6 +77,19 @@ EIGEN_STRONG_INLINE Packet4f pcast<Packet16b, Packet4f>(const Packet16b& a) {
 #endif
   __m128 result = _mm_andnot_ps(_mm_castsi128_ps(abcd), cst_one);
   return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4i pcast<Packet16b, Packet4i>(const Packet16b& a) {
+#ifdef EIGEN_VECTORIZE_SSE4_1
+  __m128i a_extended = _mm_cvtepi8_epi32(a);
+  __m128i abcd = _mm_cmpeq_epi32(a_extended, _mm_setzero_si128());
+#else
+  __m128i abcd_efhg_ijkl_mnop = _mm_cmpeq_epi8(a, _mm_setzero_si128());
+  __m128i aabb_ccdd_eeff_gghh = _mm_unpacklo_epi8(abcd_efhg_ijkl_mnop, abcd_efhg_ijkl_mnop);
+  __m128i abcd = _mm_unpacklo_epi8(aabb_ccdd_eeff_gghh, aabb_ccdd_eeff_gghh);
+#endif
+  return _mm_andnot_si128(abcd, _mm_set1_epi32(1));
 }
 
 template <>

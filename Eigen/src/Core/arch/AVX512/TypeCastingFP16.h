@@ -123,6 +123,23 @@ EIGEN_STRONG_INLINE Packet8h pcast<Packet8s, Packet8h>(const Packet8s& a) {
   return _mm_cvtepi16_ph(a);
 }
 
+template <>
+EIGEN_STRONG_INLINE Packet32h pcast<Packet16b, Packet32h>(const Packet16b& a, const Packet16b& b) {
+  __m256i ab = _eigen_mm256_set_m128i(b, a);
+  __mmask32 mask = _mm256_cmpneq_epi8_mask(ab, _mm256_setzero_si256());
+  return _mm512_castsi512_ph(_mm512_maskz_set1_epi16(mask, 0x3c00));
+}
+template <>
+EIGEN_STRONG_INLINE Packet16h pcast<Packet16b, Packet16h>(const Packet16b& a) {
+  __mmask16 mask = _mm_cmpneq_epi8_mask(a, _mm_setzero_si128());
+  return _mm256_castsi256_ph(_mm256_maskz_set1_epi16(mask, 0x3c00));
+}
+template <>
+EIGEN_STRONG_INLINE Packet8h pcast<Packet16b, Packet8h>(const Packet16b& a) {
+  __mmask16 mask = _mm_cmpneq_epi8_mask(a, _mm_setzero_si128());
+  return _mm_castsi128_ph(_mm_maskz_set1_epi16(static_cast<__mmask8>(mask), 0x3c00));
+}
+
 }  // namespace internal
 }  // namespace Eigen
 
