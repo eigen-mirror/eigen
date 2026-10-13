@@ -69,6 +69,10 @@ namespace internal {
 template <typename Derived>
 struct has_compressed_access : bool_constant<(int(traits<Derived>::Flags) & CompressedAccessBit) != 0> {};
 
+// Defined in SparseApproxComparisons.h; BlockSparseMatrix.h uses it before that.
+template <typename Scalar, bool = use_scaled_comparison<Scalar>::value>
+struct sparse_approx_comparison;
+
 template <typename T, int Rows, int Cols, int Flags>
 struct sparse_eval;
 

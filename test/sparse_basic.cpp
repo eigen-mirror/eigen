@@ -1334,6 +1334,59 @@ void materialize_selfadjoint_pattern_lower_upper() {
   materialize_selfadjoint_pattern_random_impl<Upper>();
 }
 
+// isApprox() compared squared norms, which overflow to inf <= inf or underflow to 0 <= 0, so a.isApprox(3 * a) held for
+// tiny and huge matrices, and a.isApprox(-a) where a - (-a) overflows.
+template <typename Scalar, int Options>
+void sparse_isapprox_extreme_scales() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using SpMat = SparseMatrix<Scalar, Options>;
+  using OtherSpMat = SparseMatrix<Scalar, Options ^ RowMajor>;
+  const RealScalar highest = NumTraits<RealScalar>::highest();
+  const RealScalar min = (std::numeric_limits<RealScalar>::min)();
+  // highest / 2 makes a - (-a) overflow although a and -a are finite.
+  const RealScalar scales[] = {RealScalar(1),
+                               highest / RealScalar(2),
+                               highest / RealScalar(8),
+                               numext::sqrt(highest),
+                               RealScalar(1) / numext::sqrt(highest),
+                               min * RealScalar(16),
+                               std::numeric_limits<RealScalar>::denorm_min() * RealScalar(64)};
+  for (const RealScalar s : scales) {
+    SpMat a(5, 4);
+    a.insert(0, 0) = Scalar(s);
+    a.insert(2, 1) = Scalar(-2 * s);
+    a.insert(4, 3) = Scalar(s / 2);
+    a.makeCompressed();
+    const SpMat b = Scalar(3) * a;
+    SpMat uncompressed = a;
+    uncompressed.uncompress();
+    const OtherSpMat other = a;
+
+    VERIFY(a.isApprox(a));
+    VERIFY(!a.isApprox(b));
+    VERIFY(!b.isApprox(a));
+    VERIFY(!a.isApprox(SpMat(-a)));
+    VERIFY(!a.isApprox(SpMat(a.rows(), a.cols())));
+    VERIFY(uncompressed.isApprox(a));
+    VERIFY(!uncompressed.isApprox(b));
+    VERIFY(other.isApprox(a));
+    VERIFY(!a.isApprox(Scalar(3) * other));
+
+    SparseVector<Scalar> v(6);
+    v.insert(1) = Scalar(s);
+    v.insert(4) = Scalar(-s);
+    VERIFY(v.isApprox(v));
+    VERIFY(!v.isApprox(SparseVector<Scalar>(Scalar(3) * v)));
+
+    // A tight prec: |a - c| = 2^-10 |a| exactly where the values stay normal.
+    if (s >= min * RealScalar(16) && s <= highest / RealScalar(8)) {
+      const SpMat c = a * Scalar(RealScalar(1) + RealScalar(1) / RealScalar(1024));
+      VERIFY(a.isApprox(c, RealScalar(1) / RealScalar(512)));
+      VERIFY(!a.isApprox(c, RealScalar(1) / RealScalar(2048)));
+    }
+  }
+}
+
 template <int>
 void bug1105() {
   // Regression test for bug 1105
@@ -1383,6 +1436,9 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_5((big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125)));
 
   CALL_SUBTEST_5(bug1105<0>());
+  CALL_SUBTEST_1((sparse_isapprox_extreme_scales<float, ColMajor>()));
+  CALL_SUBTEST_1((sparse_isapprox_extreme_scales<double, RowMajor>()));
+  CALL_SUBTEST_1((sparse_isapprox_extreme_scales<std::complex<double>, ColMajor>()));
   CALL_SUBTEST_1(sparse_sub_assign_eigenbase<0>());
   CALL_SUBTEST_1(ambivector_coeff<0>());
   CALL_SUBTEST_1(sparsity_pattern_ref_sparse_expressions<0>());

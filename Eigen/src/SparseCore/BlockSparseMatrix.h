@@ -601,16 +601,19 @@ class BlockSparseMatrix
   // -------------------------------------------------------------------------
   bool isApprox(const BlockSparseMatrix& other,
                 const typename NumTraits<Scalar>::Real& prec = NumTraits<Scalar>::dummy_precision()) const {
-    using RealScalar = typename NumTraits<Scalar>::Real;
+    using Comparison = internal::sparse_approx_comparison<Scalar>;
+    using Wide = typename Comparison::Wide;
     // Frobenius-norm comparison, matching SparseMatrixBase::isApprox semantics
     // but computed directly from the block values — no scalar-level SparseMatrix
-    // materialization of either operand.  Explicit zero blocks contribute 0 to
-    // every norm, so the result is independent of structural differences.
-    RealScalar n2a = m_values.head(nonZeros()).matrix().squaredNorm();
-    RealScalar n2b = other.m_values.head(other.nonZeros()).matrix().squaredNorm();
-    BlockSparseMatrix diff = *this - other;
-    RealScalar d2 = diff.m_values.head(diff.nonZeros()).matrix().squaredNorm();
-    return d2 <= prec * prec * numext::mini(n2a, n2b);
+    // materialization of either operand while the squared norms are in range.
+    // Explicit zero blocks contribute 0 to every norm, so the result is
+    // independent of structural differences.
+    const auto squaredNorm = [](const BlockSparseMatrix& m) {
+      return m.m_values.head(m.nonZeros()).matrix().template cast<Wide>().squaredNorm();
+    };
+    return Comparison::compare(
+        squaredNorm(*this), squaredNorm(other), nonZeros() + other.nonZeros(), prec,
+        [&] { return squaredNorm(*this - other); }, [&] { return toSparse().isApprox(other.toSparse(), prec); });
   }
 
   // -------------------------------------------------------------------------

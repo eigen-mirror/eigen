@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "sparse.h"
+#include "CustomComplex.h"
 
 using namespace Eigen;
 
@@ -685,6 +686,53 @@ void test_block_sparse_integer_division() {
   VERIFY_IS_EQUAL(A.coeff(1, 3), 5);
 }
 
+// isApprox() compared squared norms, which overflow to inf <= inf or underflow to 0 <= 0, so A.isApprox(3 * A) held for
+// tiny and huge matrices.
+template <typename Scalar, int Options>
+void test_block_sparse_isapprox_extreme_scales() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using BSM = BlockSparseMatrix<Scalar, Options, 2, 2>;
+  const RealScalar highest = NumTraits<RealScalar>::highest();
+  const RealScalar min = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar scales[] = {RealScalar(1),
+                               highest / RealScalar(2),
+                               highest / RealScalar(8),
+                               numext::sqrt(highest),
+                               RealScalar(1) / numext::sqrt(highest),
+                               min * RealScalar(16),
+                               std::numeric_limits<RealScalar>::denorm_min() * RealScalar(64)};
+  for (const RealScalar s : scales) {
+    SparseMatrix<Scalar, Options> sparse(4, 6);
+    sparse.insert(0, 0) = Scalar(s);
+    sparse.insert(1, 1) = Scalar(-2 * s);
+    sparse.insert(3, 4) = Scalar(s / 2);
+    sparse.makeCompressed();
+    const BSM a = BSM::fromSparse(sparse);
+    VERIFY(a.isApprox(a));
+    VERIFY(!a.isApprox(a * Scalar(3)));
+    VERIFY(!a.isApprox(-a));
+    VERIFY(!a.isApprox(BSM(2, 3)));
+  }
+}
+
+// Custom scalars keep the squared comparison, so isApprox() must not widen them to std::complex.
+void test_block_sparse_isapprox_custom_complex() {
+  using Scalar = CustomComplex<double>;
+  using BSM = BlockSparseMatrix<Scalar, ColMajor, 2, 2>;
+  STATIC_CHECK(!internal::use_scaled_comparison<Scalar>::value);
+  SparseMatrix<Scalar> sparse(4, 6);
+  sparse.insert(0, 0) = Scalar(1, 2);
+  sparse.insert(1, 1) = Scalar(-2, 0.5);
+  sparse.insert(3, 4) = Scalar(0.5, -1);
+  sparse.makeCompressed();
+  const BSM a = BSM::fromSparse(sparse);
+  VERIFY(a.isApprox(a));
+  VERIFY(!a.isApprox(a * Scalar(3)));
+  VERIFY(!a.isApprox(-a));
+  VERIFY(sparse.isApprox(sparse));
+  VERIFY(!sparse.isApprox(-sparse));
+}
+
 void test_block_triplet_traits() {
   // Flat scalar array means BlockTriplet should be trivially copyable and
   // standard-layout for any trivially-copyable Scalar and StorageIndex.
@@ -765,6 +813,10 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
 
   // BlockTriplet type traits
   CALL_SUBTEST_17(test_block_triplet_traits());
+  CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<float, ColMajor>()));
+  CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<double, RowMajor>()));
+  CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_17(test_block_sparse_isapprox_custom_complex());
 
   // Complex scalar coverage: conjugation paths in adjoint, selfadjoint, triangular products
   CALL_SUBTEST_18((test_block_sparse<2, 2, ColMajor, std::complex<double>>(4, 6)));
