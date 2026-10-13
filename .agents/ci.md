@@ -66,7 +66,9 @@ that the two NVHPC builds alone once took roughly a quarter of the project's hos
 schedules, web pipelines, and merge requests labeled `nvhpc-tests`. That label works without any other label, and the
 smoke jobs still run alongside it. When a change plausibly affects `nvc++`, recommend `nvhpc-tests` rather than waiting
 for the scheduled run to find it. Like `all-tests`, the label requires explicit user permission. A web pipeline is no
-substitute on a merge request: it needs the branch in `libeigen/eigen` and runs the full tier as well.
+substitute on a merge request: it needs the branch in `libeigen/eigen` and runs the full tier as well. The NVHPC jobs
+are `allow_failure: true` while their builds cannot finish within the 3 h job limit. A red NVHPC job is therefore only
+a warning. When you report on an `nvhpc-tests` run, read the failing tests in the job logs, not the pipeline status.
 
 The affected tier exists because the smoke list is only a sample. It is broad but shallow: for a change confined to one
 module, it runs only the parts of the related tests that the list names, usually one per test. Use `affected-tests`

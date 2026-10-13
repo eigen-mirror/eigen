@@ -1244,8 +1244,10 @@ EIGEN_DECLARE_TEST(householder) {
 
     CALL_SUBTEST_9(householder_update(Matrix<double, 3, 5>()));
     CALL_SUBTEST_9(householder_update(Matrix<float, 4, 2>()));
-    CALL_SUBTEST_9(householder_update(
-        MatrixXcf(internal::random<Index>(1, EIGEN_TEST_MAX_SIZE), internal::random<Index>(1, EIGEN_TEST_MAX_SIZE))));
+    // householder_update() costs O(rows * min(rows, cols)^3); at EIGEN_TEST_MAX_SIZE it exceeds CI's 3000 s
+    // per-test timeout under QEMU's SME emulation.
+    CALL_SUBTEST_9(householder_update(MatrixXcf(internal::random<Index>(1, EIGEN_TEST_MAX_SIZE / 2),
+                                                internal::random<Index>(1, EIGEN_TEST_MAX_SIZE / 2))));
   }
 
   CALL_SUBTEST_10(householder_blocked_right_regression<double>());

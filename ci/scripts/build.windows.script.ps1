@@ -93,6 +93,8 @@ if ("${EIGEN_CI_CCACHE}" -eq "on") {
     # runner registration, and the Windows host runs multiple registrations.
     $job_id = if ($env:CI_JOB_ID) { [int64]$env:CI_JOB_ID } else { 0 }
     $env:SCCACHE_SERVER_PORT = [string](4226 + ($job_id % 10000))
+    # Keep the server for the whole job; see build.linux.script.sh.
+    $env:SCCACHE_IDLE_TIMEOUT = "0"
 
     $cred_server_job = $null
     if ($env:EIGEN_GCS_CACHE_TOKEN_RW -or $env:EIGEN_GCS_CACHE_TOKEN_RO) {

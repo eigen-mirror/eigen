@@ -37,14 +37,29 @@ void jacobisvd_method() {
 }
 
 template <typename MatrixType>
-void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
+void jacobisvd_thin_full_options_colpiv(const MatrixType& input) {
   svd_thin_full_option_checks<MatrixType, 0>(input);
   svd_thin_full_option_checks<MatrixType, PreconditionSquareMatrix>(input);
+}
+
+template <typename MatrixType>
+void jacobisvd_thin_full_options_householder(const MatrixType& input) {
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner>(input);
   svd_thin_full_option_checks<MatrixType, HouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
+}
+
+template <typename MatrixType>
+void jacobisvd_thin_full_options_fullpiv(const MatrixType& input) {
   // FullPiv only used when computing full unitaries
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner>(input);
   svd_option_checks_full_only<MatrixType, FullPivHouseholderQRPreconditioner | PreconditionSquareMatrix>(input);
+}
+
+template <typename MatrixType>
+void jacobisvd_thin_full_options(const MatrixType& input = MatrixType()) {
+  jacobisvd_thin_full_options_colpiv(input);
+  jacobisvd_thin_full_options_householder(input);
+  jacobisvd_thin_full_options_fullpiv(input);
 }
 
 template <typename MatrixType>
@@ -387,9 +402,15 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_48((jacobisvd_thin_full_options<MatrixXd>(
       MatrixXd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2),
                internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
-  CALL_SUBTEST_50((jacobisvd_thin_full_options<MatrixXcd>(
-      MatrixXcd(internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3),
-                internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3)))));
+  // Three parts, because under QEMU's SVE and SME emulation the six preconditioners together reach CI's 3000 s
+  // per-test timeout.
+  const int cd_rows = internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3);
+  const int cd_cols = internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 3);
+  TEST_SET_BUT_UNUSED_VARIABLE(cd_rows);
+  TEST_SET_BUT_UNUSED_VARIABLE(cd_cols);
+  CALL_SUBTEST_49((jacobisvd_thin_full_options_colpiv<MatrixXcd>(MatrixXcd(cd_rows, cd_cols))));
+  CALL_SUBTEST_50((jacobisvd_thin_full_options_householder<MatrixXcd>(MatrixXcd(cd_rows, cd_cols))));
+  CALL_SUBTEST_51((jacobisvd_thin_full_options_fullpiv<MatrixXcd>(MatrixXcd(cd_rows, cd_cols))));
 
   // test matrixbase method
   CALL_SUBTEST_52((jacobisvd_method<Matrix2cd>()));

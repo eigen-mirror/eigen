@@ -265,6 +265,9 @@ test:linux:x86-64:clang-19:default:asan-ubsan:contrib:
   # Match the rules on the paired builds in build.linux.gitlab-ci.yml: a test
   # job whose build did not run has nothing to execute.
   rules: !reference [.rules:libeigen:nvhpc, rules]
+  # A needed build that fails with allow_failure still lets this job run, but
+  # without the build directory.
+  allow_failure: true
 
 test:linux:x86-64:nvhpc-26.1:default:official:
   extends: .test:linux:x86-64:nvhpc-26.1:default

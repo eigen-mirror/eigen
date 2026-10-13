@@ -334,8 +334,11 @@ void testNistMisra1d(void) {
   misra1d_functor functor;
   LevenbergMarquardt<misra1d_functor> lm(functor);
   info = lm.minimize(x);
-  // check return value: MINPACK's, which needs xnorm to carry over from the last accepted step
-  VERIFY_IS_EQUAL(info, LevenbergMarquardtSpace::RelativeErrorAndReductionTooSmall);
+  // The exit must pass the xtol test, which on a rejected last step needs xnorm carried over from the last
+  // accepted one. Whether the ftol test passes too depends on actred / prered with both at roundoff level
+  // (~1e-14): x86 exits with 3, ARMv7 NEON and SVE with 2.
+  VERIFY(info == LevenbergMarquardtSpace::RelativeErrorTooSmall ||
+         info == LevenbergMarquardtSpace::RelativeErrorAndReductionTooSmall);
   // VERIFY_IS_EQUAL(lm.nfev(), 9);
   // VERIFY_IS_EQUAL(lm.njev(), 7);
   // check norm^2

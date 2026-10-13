@@ -37,6 +37,10 @@ if [[ "${EIGEN_CI_CCACHE}" == "on" ]]; then
     export SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-${EIGEN_CI_SCCACHE_CACHE_SIZE:-4G}}"
     export SCCACHE_BASEDIRS="${rootdir}"
     export SCCACHE_SERVER_PORT="$((4226 + (${CI_JOB_ID:-0} % 10000)))"
+    # Keep the server for the whole job. Its idle timer (600 s by default) resets only on new requests, so a long
+    # stretch of slow compiles stops it, and the restart fails every later compile once the job's GCS token has
+    # expired ("Server startup failed: ... Invalid Credentials"). A running server treats GCS errors as cache misses.
+    export SCCACHE_IDLE_TIMEOUT=0
 
     # Remote GCS caching via short-lived OAuth token injected from GitLab CI/CD variables:
     # EIGEN_GCS_CACHE_TOKEN_RW (protected branch / master) or EIGEN_GCS_CACHE_TOKEN_RO (MRs)
