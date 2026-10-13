@@ -35,40 +35,46 @@ static void BM_FullReduction(benchmark::State& state) {
 }
 
 // --- Partial reduction along dim 0 (inner dim, ColMajor) ---
-static void BM_ReduceInner(benchmark::State& state) {
+template <typename T>
+static void BM_ReduceInner_Typed(benchmark::State& state) {
   const int M = state.range(0);
   const int N = state.range(1);
 
-  Tensor<Scalar, 2> A(M, N);
+  Tensor<T, 2> A(M, N);
   A.setRandom();
 
   Eigen::array<int, 1> reduce_dims = {0};
 
   for (auto _ : state) {
-    Tensor<Scalar, 1> result = A.sum(reduce_dims);
+    Tensor<T, 1> result = A.sum(reduce_dims);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar));
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(T));
 }
 
+static void BM_ReduceInner(benchmark::State& state) { BM_ReduceInner_Typed<Scalar>(state); }
+
 // --- Partial reduction along dim 1 (outer dim, ColMajor) ---
-static void BM_ReduceOuter(benchmark::State& state) {
+template <typename T>
+static void BM_ReduceOuter_Typed(benchmark::State& state) {
   const int M = state.range(0);
   const int N = state.range(1);
 
-  Tensor<Scalar, 2> A(M, N);
+  Tensor<T, 2> A(M, N);
   A.setRandom();
 
   Eigen::array<int, 1> reduce_dims = {1};
 
   for (auto _ : state) {
-    Tensor<Scalar, 1> result = A.sum(reduce_dims);
+    Tensor<T, 1> result = A.sum(reduce_dims);
     benchmark::DoNotOptimize(result.data());
     benchmark::ClobberMemory();
   }
-  state.SetBytesProcessed(state.iterations() * M * N * sizeof(Scalar));
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(T));
 }
+
+static void BM_ReduceOuter(benchmark::State& state) { BM_ReduceOuter_Typed<Scalar>(state); }
 
 // --- Rank-4 partial reduction (batch x channels x H x W), reduce along spatial dims ---
 static void BM_ReduceSpatial(benchmark::State& state) {
@@ -127,5 +133,9 @@ BENCHMARK(BM_FullReduction<internal::SumReducer<Scalar>>) REDUCTION_SIZES->Name(
 BENCHMARK(BM_FullReduction<internal::MaxReducer<Scalar>>) REDUCTION_SIZES->Name("MaxReduction_Full");
 BENCHMARK(BM_ReduceInner) REDUCTION_SIZES;
 BENCHMARK(BM_ReduceOuter) REDUCTION_SIZES;
+BENCHMARK_TEMPLATE(BM_ReduceInner_Typed, Eigen::half) REDUCTION_SIZES;
+BENCHMARK_TEMPLATE(BM_ReduceOuter_Typed, Eigen::half) REDUCTION_SIZES;
+BENCHMARK_TEMPLATE(BM_ReduceInner_Typed, Eigen::bfloat16) REDUCTION_SIZES;
+BENCHMARK_TEMPLATE(BM_ReduceOuter_Typed, Eigen::bfloat16) REDUCTION_SIZES;
 BENCHMARK(BM_ReduceSpatial) SPATIAL_SIZES;
 BENCHMARK(BM_FullReduction_ThreadPool) THREADPOOL_REDUCTION_SIZES;

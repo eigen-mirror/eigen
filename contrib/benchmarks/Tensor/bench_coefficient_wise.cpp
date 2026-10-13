@@ -297,6 +297,59 @@ static void BM_Select_ThreadPool(benchmark::State& state) {
   state.counters["threads"] = threads;
 }
 
+// --- Element-wise type casting: a.cast<Tgt>() ---
+template <typename Src, typename Tgt>
+static void BM_Cast(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<Src, 2> a(M, N);
+  Tensor<Tgt, 2> b(M, N);
+  a.setRandom();
+
+  for (auto _ : state) {
+    b = a.template cast<Tgt>();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * (sizeof(Src) + sizeof(Tgt)));
+}
+
+template <typename T>
+static void BM_Sigmoid_Typed(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<T, 2> a(M, N);
+  Tensor<T, 2> b(M, N);
+  a.setRandom();
+
+  for (auto _ : state) {
+    b = a.sigmoid();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(T) * 2);
+}
+
+template <typename T>
+static void BM_Inverse_Typed(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<T, 2> a(M, N);
+  Tensor<T, 2> b(M, N);
+  a.setRandom();
+  a = a.abs() + a.constant(T(1));
+
+  for (auto _ : state) {
+    b = a.inverse();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * sizeof(T) * 2);
+}
+
 // clang-format off
 #define CWISE_SIZES \
   ->Args({256, 256})->Args({1024, 1024})
@@ -326,6 +379,12 @@ BENCHMARK_TEMPLATE(BM_Select, float) CWISE_SIZES;
 BENCHMARK_TEMPLATE(BM_Select, int32_t) CWISE_SIZES;
 BENCHMARK_TEMPLATE(BM_Select, Eigen::half) CWISE_SIZES;
 BENCHMARK_TEMPLATE(BM_Select, Eigen::bfloat16) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Cast, Eigen::half, bool) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Cast, Eigen::bfloat16, bool) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Sigmoid_Typed, Eigen::half) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Sigmoid_Typed, Eigen::bfloat16) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Inverse_Typed, Eigen::half) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Inverse_Typed, Eigen::bfloat16) CWISE_SIZES;
 BENCHMARK(BM_Add_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Mul_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_FMA_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();

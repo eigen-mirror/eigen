@@ -1197,11 +1197,11 @@ struct scalar_boolean_not_op {
   // `false` any value `a` that satisfies `a == Scalar(0)`
   // `true` is the complement of `false`
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    return a == Scalar(0) ? Scalar(1) : Scalar(0);
+    return Scalar(a == Scalar(0));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const {
-    const Packet cst_one = pset1<Packet>(Scalar(1));
+    const Packet cst_one = pset1<Packet>(Scalar(true));
     EIGEN_IF_CONSTEXPR ((std::is_same<Scalar, bool>::value)) {
       // Boolean packet lanes are canonical, so logical NOT is 1 & ~a.
       return pandnot(cst_one, a);
