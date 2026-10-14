@@ -308,7 +308,7 @@ class FFT {
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT(int(InputDerived::Flags) & int(ComplexDerived::Flags) & DirectAccessBit,
                         THIS_METHOD_IS_ONLY_FOR_EXPRESSIONS_WITH_DIRECT_MEMORY_ACCESS_SUCH_AS_MAP_OR_PLAIN_MATRICES)
-    eigen_assert((src.rows() == 1 || src.cols() == 1) && "the input of an FFT must be one-dimensional");
+    EIGEN_INTERNAL_ASSERT_VECTOR(src);
 
     if (nfft < 1) nfft = src.size();
 
@@ -381,7 +381,7 @@ class FFT {
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT(int(OutputDerived::Flags) & int(ComplexDerived::Flags) & DirectAccessBit,
                         THIS_METHOD_IS_ONLY_FOR_EXPRESSIONS_WITH_DIRECT_MEMORY_ACCESS_SUCH_AS_MAP_OR_PLAIN_MATRICES)
-    eigen_assert((src.rows() == 1 || src.cols() == 1) && "the input of an FFT must be one-dimensional");
+    EIGEN_INTERNAL_ASSERT_VECTOR(src);
 
     if (nfft < 1) {  // automatic FFT size determination
       if (realfft && HasFlag(HalfSpectrum))

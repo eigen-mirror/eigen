@@ -134,7 +134,8 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(ColDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(RowDerived)
     const Index m = col.size(), n = row.size();
-    eigen_assert(m > 0 && n > 0 && "Hankel generators must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_SIZE_MSG(col, m, "Hankel generators must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_SIZE_MSG(row, n, "Hankel generators must be non-empty");
     m_h.resize(m + n - 1);
     m_h.head(m) = col;
     if (n > 1) m_h.tail(n - 1) = row.tail(n - 1);
@@ -210,11 +211,8 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * the solution rows. */
   template <typename Rhs>
   Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    eigen_assert(rows() == cols() && "Hankel::solve requires a square matrix");
-    eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(*this, "Hankel::solve requires a square matrix");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     LookAheadLevinson<Scalar> levinson(toToeplitz());
     eigen_assert(levinson.info() == Success &&
                  "Hankel::solve: the Levinson recursion broke down; "
@@ -260,10 +258,6 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
   Product<Hankel, Rhs> operator*(const MatrixBase<Rhs>& x) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Hankel, Rhs>(*this, x.derived());
   }
 
@@ -278,7 +272,7 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
-    eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     const bool small = m == 1 || n == 1 ||
                        (m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold());
     if (small) {

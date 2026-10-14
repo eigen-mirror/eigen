@@ -356,20 +356,22 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
    * Note that copying a row-vector into a vector (and conversely) is allowed.
    * The resizing, if any, is then done in the appropriate way so that row-vectors
    * remain row-vectors and vectors remain vectors.
+   * Resizing a vector from a statically non-vector expression is rejected at
+   * compile time. With EIGEN_NO_STATIC_ASSERT, or for dynamic source dimensions,
+   * this precondition is checked by a debug assertion instead.
    */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE void resizeLike(const EigenBase<OtherDerived>& _other) {
     const OtherDerived& other = _other.derived();
+    EIGEN_INTERNAL_ASSERT_VECTOR_IF(IsVectorAtCompileTime, other);
 #ifndef EIGEN_NO_DEBUG
     internal::check_rows_cols_for_overflow<MaxSizeAtCompileTime, MaxRowsAtCompileTime, MaxColsAtCompileTime>::run(
         other.rows(), other.cols());
 #endif
     const Index othersize = other.rows() * other.cols();
     EIGEN_IF_CONSTEXPR (RowsAtCompileTime == 1) {
-      eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(1, othersize);
     } else EIGEN_IF_CONSTEXPR (ColsAtCompileTime == 1) {
-      eigen_assert(other.rows() == 1 || other.cols() == 1);
       resize(othersize, 1);
     } else {
       resize(other.rows(), other.cols());
@@ -724,10 +726,15 @@ class PlainObjectBase : public internal::dense_xpr_base<Derived>::type {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _resize_to_match(const EigenBase<OtherDerived>& other) {
 #ifdef EIGEN_NO_AUTOMATIC_RESIZING
-    eigen_assert((this->size() == 0 ||
-                  (IsVectorAtCompileTime ? ((other.rows() == 1 || other.cols() == 1) && this->size() == other.size())
-                                         : (rows() == other.rows() && cols() == other.cols()))) &&
-                 "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
+    constexpr bool shape_is_proven = IsVectorAtCompileTime ? (internal::vector_dimensions<OtherDerived>::Proven &&
+                                                              internal::matching_sizes<Derived, OtherDerived>::Proven)
+                                                           : internal::matching_shapes<Derived, OtherDerived>::Proven;
+    EIGEN_INTERNAL_SHAPE_ASSERT(
+        shape_is_proven,
+        (this->size() == 0 ||
+         (IsVectorAtCompileTime ? ((other.rows() == 1 || other.cols() == 1) && this->size() == other.size())
+                                : (rows() == other.rows() && cols() == other.cols()))) &&
+            "Size mismatch. Automatic resizing is disabled because EIGEN_NO_AUTOMATIC_RESIZING is defined");
     if (this->size() == 0) resizeLike(other);
     EIGEN_ONLY_USED_FOR_DEBUG(other);
 #else

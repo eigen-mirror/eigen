@@ -276,7 +276,7 @@ struct redux_impl<Func, Evaluator, DefaultTraversal, NoUnrolling> {
 
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
-    eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY(xpr);
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
     using Bounds = redux_max_size<XprType>;
@@ -354,7 +354,7 @@ struct redux_impl<Func, Evaluator, LinearTraversal, NoUnrolling> {
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     const Index size = xpr.size();
-    eigen_assert(size > 0 && "you are using an empty matrix");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_SIZE(xpr, size);
     // Do not generate wide reduction bodies for bounded expressions that cannot
     // reach their cutoff (GCC can otherwise diagnose their unreachable loads).
     EIGEN_IF_CONSTEXPR (functor_is_commutative<Func>::value) {
@@ -538,7 +538,7 @@ struct redux_impl<Func, Evaluator, SliceVectorizedTraversal, Unrolling> {
 
   template <typename XprType>
   EIGEN_DEVICE_FUNC static Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
-    eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY(xpr);
     const Index innerSize = xpr.innerSize();
     const Index outerSize = xpr.outerSize();
     const Index packetedInnerSize = numext::round_down(innerSize, PacketSize);
@@ -639,7 +639,7 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, CompleteUnrolling>
   template <typename XprType>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Evaluator& eval, const Func& func, const XprType& xpr) {
     EIGEN_ONLY_USED_FOR_DEBUG(xpr);
-    eigen_assert(xpr.rows() > 0 && xpr.cols() > 0 && "you are using an empty matrix");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY(xpr);
     if (VectorizedSize > 0) {
       Scalar res = func.predux(
           redux_vec_linear_unroller<Func, Evaluator, 0, Size / PacketSize>::template run<PacketType>(eval, func));
@@ -792,7 +792,7 @@ template <typename Derived>
 template <typename Func>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::redux(
     const Func& func) const {
-  eigen_assert(this->rows() > 0 && this->cols() > 0 && "you are using an empty matrix");
+  EIGEN_INTERNAL_ASSERT_NONEMPTY(*this);
 
   using ThisEvaluator = typename internal::redux_evaluator<Derived>;
   ThisEvaluator thisEval(derived());

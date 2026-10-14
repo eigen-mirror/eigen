@@ -932,7 +932,7 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
 template <typename MatrixType, int UpLo_>
 template <typename InputType>
 BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
-  eigen_assert(a.rows() == a.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(a);
   m_matrix = a.derived();
   return computeInPlace();
 }
@@ -940,7 +940,7 @@ BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::compute(const 
 /** \internal Factorizes the matrix held in m_matrix, which is overwritten by the packed factors. */
 template <typename MatrixType, int UpLo_>
 BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::computeInPlace() {
-  eigen_assert(m_matrix.rows() == m_matrix.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(m_matrix);
   const Index size = m_matrix.rows();
 
   // L1 norm of the implicit self-adjoint matrix, for rcond().
@@ -995,7 +995,7 @@ template <typename MatrixType, int UpLo_>
 template <typename Derived>
 bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  eigen_assert(m_matrix.rows() == bAndX.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_matrix, bAndX);
   bAndX = this->solve(bAndX);
   return true;
 }

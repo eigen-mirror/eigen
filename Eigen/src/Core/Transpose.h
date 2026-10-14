@@ -246,7 +246,7 @@ void BlockedInPlaceTranspose(MatrixType& m) {
   using Scalar = typename MatrixType::Scalar;
   using Packet = typename internal::packet_traits<typename MatrixType::Scalar>::type;
   const Index PacketSize = internal::packet_traits<Scalar>::size;
-  eigen_assert(m.rows() == m.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(m);
   int row_start = 0;
   for (; row_start + PacketSize <= m.rows(); row_start += PacketSize) {
     for (int col_start = row_start; col_start + PacketSize <= m.cols(); col_start += PacketSize) {
@@ -328,8 +328,11 @@ struct inplace_transpose_selector<MatrixType, false, MatchPacketSize> {  // non 
  * \sa transpose(), adjoint(), adjointInPlace() */
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline void DenseBase<Derived>::transposeInPlace() {
-  eigen_assert((rows() == cols() || (RowsAtCompileTime == Dynamic && ColsAtCompileTime == Dynamic)) &&
-               "transposeInPlace() called on a non-square non-resizable matrix");
+  using ShapeRelation = std::conditional_t<RowsAtCompileTime == Dynamic && ColsAtCompileTime == Dynamic,
+                                           internal::dimension_relation<1, 1>, internal::square_dimensions<Derived>>;
+  EIGEN_INTERNAL_SHAPE_ASSERT(ShapeRelation::Proven,
+                              (rows() == cols() || (RowsAtCompileTime == Dynamic && ColsAtCompileTime == Dynamic)) &&
+                                  "transposeInPlace() called on a non-square non-resizable matrix");
   internal::inplace_transpose_selector<Derived>::run(derived());
 }
 

@@ -86,7 +86,7 @@ struct determinant_impl<Derived, 4> {
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC inline typename internal::traits<Derived>::Scalar MatrixBase<Derived>::determinant() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   using Nested = typename internal::nested_eval<Derived, Base::RowsAtCompileTime>::type;
   return internal::determinant_impl<internal::remove_all_t<Nested>>::run(derived());
 }

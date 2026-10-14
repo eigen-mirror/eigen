@@ -194,8 +194,13 @@ template <int Side, typename OtherDerived>
 EIGEN_DEVICE_FUNC void TriangularViewImpl<MatrixType, Mode, Dense>::solveInPlace(
     const MatrixBase<OtherDerived>& _other) const {
   OtherDerived& other = _other.const_cast_derived();
-  eigen_assert(derived().cols() == derived().rows() && ((Side == OnTheLeft && derived().cols() == other.rows()) ||
-                                                        (Side == OnTheRight && derived().cols() == other.cols())));
+  EIGEN_INTERNAL_ASSERT_SQUARE(derived());
+  // TODO(C++17): use if constexpr (Side == OnTheLeft) with PRODUCT_SHAPE/SAME_COLS checks directly.
+  EIGEN_INTERNAL_CHECK_SHAPE(
+      (Side == OnTheLeft ? derived().cols() == other.rows() : derived().cols() == other.cols()),
+      YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+      std::conditional_t<Side == OnTheLeft, internal::product_dimensions<MatrixType, OtherDerived>,
+                         internal::matching_cols<MatrixType, OtherDerived>>);
   eigen_assert((!(int(Mode) & int(ZeroDiag))) && bool(int(Mode) & (int(Upper) | int(Lower))));
   // If solving for a 0x0 matrix, nothing to do, simply return.
   if (derived().cols() == 0) return;

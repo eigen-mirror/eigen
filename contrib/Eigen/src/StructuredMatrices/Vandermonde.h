@@ -185,7 +185,7 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
   template <typename Derived>
   Vandermonde(const MatrixBase<Derived>& nodes, Index cols) : m_x(nodes), m_cols(cols) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-    eigen_assert(m_x.size() > 0 && m_cols > 0 && "Vandermonde must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(*this, "Vandermonde must be non-empty");
     eigen_assert((Cols_ == Dynamic || Cols_ == cols) && "cols does not match the compile-time column count");
   }
 
@@ -224,7 +224,7 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * exactly; a node difference that overflows makes the determinant infinite, or
    * NaN when a zero factor is also present. */
   Scalar determinant() const {
-    eigen_assert(rows() == cols() && "Vandermonde::determinant requires a square matrix");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(*this, "Vandermonde::determinant requires a square matrix");
     const Index n = rows();
     Scalar det(1);
     internal::structured_exponent_type exponent = 0;
@@ -276,10 +276,6 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * \c .noalias() skips it. */
   template <typename Rhs>
   Product<Vandermonde, Rhs> operator*(const MatrixBase<Rhs>& a) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(a.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Vandermonde, Rhs>(*this, a.derived());
   }
 
@@ -292,7 +288,7 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
    * when the polynomial value is representable. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
-    eigen_assert(rhs.rows() == m_cols && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
     const bool unitAlpha = alpha == ProductScalar(1);
@@ -416,8 +412,9 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
    * nodes. */
   template <int Rows_, int Cols_>
   BjorckPereyra& compute(const Vandermonde<Scalar, Rows_, Cols_>& V) {
-    EIGEN_STATIC_ASSERT(Rows_ == Dynamic || Cols_ == Dynamic || Rows_ == Cols_, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    eigen_assert(V.rows() == V.cols() && "BjorckPereyra requires a square Vandermonde matrix");
+    EIGEN_INTERNAL_CHECK_SHAPE(V.rows() == V.cols() && "BjorckPereyra requires a square Vandermonde matrix",
+                               YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+                               internal::square_dimensions<Vandermonde<Scalar, Rows_, Cols_>>);
     m_x = V.nodes();
     m_order.clear();
     m_info = Success;
@@ -462,7 +459,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
   void _solve_impl(const RhsType& rhs, DstType& dst) const {
     using RhsScalar = typename RhsType::Scalar;
     using WorkScalar = typename DstType::Scalar;
-    using ProductOp = internal::scalar_product_op<Scalar, RhsScalar>;
+    using ProductOp EIGEN_UNUSED = internal::scalar_product_op<Scalar, RhsScalar>;
     EIGEN_CHECK_BINARY_COMPATIBILITY(ProductOp, Scalar, RhsScalar)
 
     const Index n = m_x.size();
@@ -489,7 +486,7 @@ class BjorckPereyra : public SolverBase<BjorckPereyra<Scalar_>> {
   void _solve_impl_transposed(const RhsType& rhs, DstType& dst) const {
     using RhsScalar = typename RhsType::Scalar;
     using WorkScalar = typename DstType::Scalar;
-    using ProductOp = internal::scalar_product_op<Scalar, RhsScalar>;
+    using ProductOp EIGEN_UNUSED = internal::scalar_product_op<Scalar, RhsScalar>;
     EIGEN_CHECK_BINARY_COMPATIBILITY(ProductOp, Scalar, RhsScalar)
 
     const Index n = m_x.size();

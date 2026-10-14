@@ -388,7 +388,8 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, RhsMode, false> {
 
   template <typename Dest>
   static void run(Dest& dst, const Lhs& a_lhs, const Rhs& a_rhs, const Scalar& alpha) {
-    eigen_assert(dst.rows() == a_lhs.rows() && dst.cols() == a_rhs.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(dst, a_lhs);
+    EIGEN_INTERNAL_ASSERT_SAME_COLS(dst, a_rhs);
 
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);

@@ -907,9 +907,7 @@ class restricted_packet_dense_assignment_kernel
 template <typename DstXprType, typename SrcXprType, typename Functor>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprType& dst, const SrcXprType& src,
                                                                        const Functor& /*func*/) {
-  EIGEN_ONLY_USED_FOR_DEBUG(dst);
-  EIGEN_ONLY_USED_FOR_DEBUG(src);
-  eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
 }
 
 template <typename DstXprType, typename SrcXprType, typename T1, typename T2>
@@ -926,7 +924,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprTyp
     }
 #else
     dst.resize(dstRows, dstCols);
-    eigen_assert(dst.rows() == dstRows && dst.cols() == dstCols);
+    EIGEN_INTERNAL_CHECK_SHAPE(dst.rows() == dstRows && dst.cols() == dstCols, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+                               internal::matching_shapes<DstXprType, SrcXprType>);
 #endif
   }
 }
@@ -1140,7 +1139,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
 
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     src.evalTo(dst);
   }
 
@@ -1154,7 +1153,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
 
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     src.addTo(dst);
   }
 
@@ -1166,7 +1165,7 @@ struct Assignment<DstXprType, SrcXprType, Functor, EigenBase2EigenBase, Weak> {
     Index dstCols = src.cols();
     if ((dst.rows() != dstRows) || (dst.cols() != dstCols)) dst.resize(dstRows, dstCols);
 
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     src.subTo(dst);
   }
 };

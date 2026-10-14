@@ -173,9 +173,10 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
   DiagonalPlusLowRank(const MatrixBase<DDerived>& d, const MatrixBase<UDerived>& U, const MatrixBase<VDerived>& V)
       : m_d(d), m_U(U), m_V(V) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(DDerived)
-    eigen_assert(m_d.size() > 0 && "DiagonalPlusLowRank must be non-empty");
-    eigen_assert(m_U.rows() == m_d.size() && m_V.rows() == m_d.size() && m_U.cols() == m_V.cols() &&
-                 "factor dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_d, "DiagonalPlusLowRank must be non-empty");
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS_MSG(m_d, m_U, "factor dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS_MSG(m_d, m_V, "factor dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_SAME_COLS_MSG(m_U, m_V, "factor dimensions do not match");
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_d.size(); }
@@ -238,10 +239,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * accuracy degrades accordingly, even for a well-conditioned operator [5]. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    eigen_assert(b.rows() == rows() && "right-hand side has the wrong number of rows");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const DiagonalVector dinv = m_d.cwiseInverse();
     Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x = dinv.asDiagonal() * b;
     internal::dplr_capacitance_impl<Rank_>::subtractSolveCorrection(*this, dinv, x);
@@ -318,10 +316,6 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * it. */
   template <typename Rhs>
   Product<DiagonalPlusLowRank, Rhs> operator*(const MatrixBase<Rhs>& v) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(v.rows() == cols() && "invalid product: dimensions do not match");
     return Product<DiagonalPlusLowRank, Rhs>(*this, v.derived());
   }
 
@@ -331,7 +325,7 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
    * promoted type. */
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
-    eigen_assert(rhs.rows() == rows() && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     const Matrix<ProductScalar, Size_, Rhs::ColsAtCompileTime> r = rhs;
     dst += alpha * (m_d.asDiagonal() * r);
     if (correctionRank() > 0) {

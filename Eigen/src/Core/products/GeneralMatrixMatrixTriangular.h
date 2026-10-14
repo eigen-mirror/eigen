@@ -303,8 +303,9 @@ struct general_product_to_triangular_selector<MatrixType, ProductType, UpLo, fal
     Index size = mat.cols();
     EIGEN_IF_CONSTEXPR (SkipDiag) size--;
     Index depth = actualLhs.cols();
-    eigen_assert(actualLhs.rows() == mat.rows() && actualRhs.cols() == mat.cols() &&
-                 actualLhs.cols() == actualRhs.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(actualLhs, mat);
+    EIGEN_INTERNAL_ASSERT_SAME_COLS(actualRhs, mat);
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(actualLhs, actualRhs);
     if (size <= 0 || depth == 0) return;
 
     using BlockingType =
@@ -336,7 +337,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename TriangularViewImpl<MatrixType_, M
 TriangularViewImpl<MatrixType_, Mode_, Dense>::_assignProduct(
     const ProductType& prod, const typename TriangularViewImpl<MatrixType_, Mode_, Dense>::Scalar& alpha, bool beta) {
   EIGEN_STATIC_ASSERT((Mode_ & UnitDiag) == 0, WRITING_TO_TRIANGULAR_PART_WITH_UNIT_DIAGONAL_IS_NOT_SUPPORTED);
-  eigen_assert(derived().nestedExpression().rows() == prod.rows() && derived().cols() == prod.cols());
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE(derived(), prod);
 
   // The rank-k and rank-1 kernels below update a square triangle.
   if (derived().rows() != derived().cols()) {

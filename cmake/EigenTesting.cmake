@@ -273,6 +273,8 @@ macro(ei_add_failtest testname)
 
   add_executable(${test_target_ok} ${testname}.cpp)
   add_executable(${test_target_ko} ${testname}.cpp)
+  target_link_libraries(${test_target_ok} PRIVATE Eigen3::Eigen)
+  target_link_libraries(${test_target_ko} PRIVATE Eigen3::Eigen)
   set_target_properties(${test_target_ok} ${test_target_ko} PROPERTIES
                         EXCLUDE_FROM_ALL TRUE
                         EXCLUDE_FROM_DEFAULT_BUILD TRUE)

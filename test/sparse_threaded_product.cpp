@@ -33,6 +33,13 @@ void verify_threaded_spmv(Index rows, Index cols, double density) {
   DenseVectorType y_adj_ref = refMat.adjoint() * x_adj;
 
   ThreadedSparseProduct<SparseMatrixType> op(A);
+  {
+    DenseVectorType wrong_x = DenseVectorType::Zero(cols + 1);
+    DenseVectorType wrong_adjoint_x = DenseVectorType::Zero(rows + 1);
+    DenseVectorType y(rows), adjoint_y(cols);
+    VERIFY_RAISES_ASSERT(op.apply(wrong_x, y));
+    VERIFY_RAISES_ASSERT(op.applyAdjoint(wrong_adjoint_x, adjoint_y));
+  }
   VERIFY(op.rows() == A.rows());
   VERIFY(op.cols() == A.cols());
 

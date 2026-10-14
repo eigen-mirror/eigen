@@ -968,7 +968,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   template <typename LhsDerived, typename RhsDerived>
   KroneckerOperator(const EigenBase<LhsDerived>& a, const EigenBase<RhsDerived>& b)
       : m_A(a.derived()), m_B(b.derived()) {
-    eigen_assert(m_A.size() > 0 && m_B.size() > 0 && "KroneckerOperator factors must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_A, "KroneckerOperator factors must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_B, "KroneckerOperator factors must be non-empty");
     LhsOps::prepare(m_A);
     RhsOps::prepare(m_B);
   }
@@ -1032,12 +1033,10 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \ref leastSquaresSolve for rank-deficient or rectangular factors. */
   template <typename Rhs>
   Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     const Index n1 = m_A.cols(), n2 = m_B.cols();
-    eigen_assert(m_A.rows() == n1 && m_B.rows() == n2 && "KroneckerOperator::solve requires square factors");
-    eigen_assert(b.rows() == n1 * n2 && "right-hand side has the wrong number of rows");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_A, "KroneckerOperator::solve requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::solve requires square factors");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const internal::kron_factor_solver<LhsMatrix> solverA(m_A);
     const internal::kron_factor_solver<RhsMatrix> solverB(m_B);
     Matrix<Scalar, ColsAtCompileTime, Rhs::ColsAtCompileTime> x(n1 * n2, b.cols());
@@ -1139,8 +1138,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * matrix, computed by one \c SparseLU solve against the identity (NaN when
    * the factorization fails). */
   KroneckerOperator<typename LhsOps::InverseFactor, typename RhsOps::InverseFactor> inverse() const {
-    eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
-                 "KroneckerOperator::inverse requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_A, "KroneckerOperator::inverse requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::inverse requires square factors");
     return {LhsOps::inversed(m_A), RhsOps::inversed(m_B)};
   }
 
@@ -1157,8 +1156,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * underflow on their own) never leave the representable range when the
    * determinant itself is representable. */
   Scalar determinant() const {
-    eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
-                 "KroneckerOperator::determinant requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_A, "KroneckerOperator::determinant requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::determinant requires square factors");
     Index exponent = 0;
     const Scalar mant = balancedDeterminant(exponent);
     return internal::structured_ldexp_clamped(mant, exponent);
@@ -1173,8 +1172,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * product must then be square -- with the accuracy
    * KroneckerSum::eigenvalues() describes for a sum. */
   ComplexVector eigenvalues() const {
-    eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
-                 "KroneckerOperator::eigenvalues requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_A, "KroneckerOperator::eigenvalues requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::eigenvalues requires square factors");
     // Column-major stacking of the nB x nA outer product puts mu_j(B) lambda_i(A)
     // at index i*nB + j, the Kronecker order.
     return (RhsSpectrum::eigenvalues(m_B) * LhsSpectrum::eigenvalues(m_A).transpose()).reshaped();
@@ -1185,8 +1184,8 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c i*n2 + j is \f$ v_i(A) \otimes v_j(B) \f$ and matches
    * \c eigenvalues()[i*n2 + j]. Assign it to a dense matrix to materialize. */
   KroneckerOperator<typename LhsSpectrum::Eigenvectors, typename RhsSpectrum::Eigenvectors> eigenvectors() const {
-    eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
-                 "KroneckerOperator::eigenvectors requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_A, "KroneckerOperator::eigenvectors requires square factors");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::eigenvectors requires square factors");
     return {LhsSpectrum::eigenvectors(m_A), RhsSpectrum::eigenvectors(m_B)};
   }
 
@@ -1327,10 +1326,6 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * \c .noalias() skips it. */
   template <typename Rhs>
   Product<KroneckerOperator, Rhs> operator*(const MatrixBase<Rhs>& x) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<KroneckerOperator, Rhs>(*this, x.derived());
   }
 
@@ -1356,7 +1351,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     using ProductMatrix = Matrix<ProductScalar, Dynamic, Dynamic, ColMajor>;  // ColMajor: see DenseMatrix
     const Index m1 = m_A.rows(), n1 = m_A.cols(), m2 = m_B.rows(), n2 = m_B.cols(), r = rhs.cols();
-    eigen_assert(rhs.rows() == n1 * n2 && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     typename internal::nested_eval<Rhs, 1>::type actualRhs(rhs);
     const bool skipA = LhsOps::isSquareIdentity(m_A), skipB = RhsOps::isSquareIdentity(m_B);
     ProductMatrix X, BX, Y, work;

@@ -266,12 +266,12 @@ void matrix_function_compute_block_atomic(const MatrixType& T, AtomicType& atomi
  */
 template <typename MatrixType>
 MatrixType matrix_function_solve_triangular_sylvester(const MatrixType& A, const MatrixType& B, const MatrixType& C) {
-  eigen_assert(A.rows() == A.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(A);
   eigen_assert(A.isUpperTriangular());
-  eigen_assert(B.rows() == B.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(B);
   eigen_assert(B.isUpperTriangular());
-  eigen_assert(C.rows() == A.rows());
-  eigen_assert(C.cols() == B.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(C, A);
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(C, B);
 
   typedef typename MatrixType::Scalar Scalar;
 
@@ -510,34 +510,34 @@ struct traits<MatrixFunctionReturnValue<Derived> > {
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::matrixFunction(
     typename internal::stem_function<typename internal::traits<Derived>::Scalar>::type f) const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   return MatrixFunctionReturnValue<Derived>(derived(), f);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::sin() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_sin<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::cos() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_cos<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::sinh() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_sinh<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::cosh() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_cosh<ComplexScalar>);
 }

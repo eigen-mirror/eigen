@@ -64,7 +64,7 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
   using RealVector = typename internal::plain_col_type<MatrixType, RealScalar>::type;
   const bool is_complex = (NumTraits<Scalar>::IsComplex != 0);
 
-  eigen_assert(dec.rows() == dec.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(dec);
   const Index n = dec.rows();
   if (n == 0) return RealScalar(0);
 
@@ -149,7 +149,7 @@ template <typename Decomposition>
 typename Decomposition::RealScalar rcond_estimate_helper(typename Decomposition::RealScalar matrix_norm,
                                                          const Decomposition& dec) {
   using RealScalar = typename Decomposition::RealScalar;
-  eigen_assert(dec.rows() == dec.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(dec);
   if (dec.rows() == 0) return NumTraits<RealScalar>::infinity();
   if (numext::is_exactly_zero(matrix_norm)) return RealScalar(0);
   if (dec.rows() == 1) return RealScalar(1);

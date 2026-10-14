@@ -237,8 +237,9 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
   using internal::structured_tdot;
   using internal::structured_upshift;
 
-  EIGEN_STATIC_ASSERT(Rows_ == Dynamic || Cols_ == Dynamic || Rows_ == Cols_, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-  eigen_assert(T.rows() == T.cols() && "LookAheadLevinson requires a square Toeplitz matrix");
+  EIGEN_INTERNAL_CHECK_SHAPE(T.rows() == T.cols() && "LookAheadLevinson requires a square Toeplitz matrix",
+                             YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+                             internal::square_dimensions<Toeplitz<Scalar, Rows_, Cols_>>);
   const Index n = T.rows();
   const DenseVector c = T.column();  // (rho_0, sigma_1, ..., sigma_{n-1})
   const DenseVector r = T.row();     // (rho_0, rho_1,   ..., rho_{n-1})

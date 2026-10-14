@@ -272,9 +272,8 @@ class ComplexQZ {
 template <typename MatrixType_>
 template <typename InputTypeA, typename InputTypeB>
 void ComplexQZ<MatrixType_>::compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ) {
-  eigen_assert(A.rows() == A.cols() && "A is not a square matrix");
-  eigen_assert(A.rows() == B.rows() && A.rows() == B.cols() &&
-               "B is not a square matrix or B is not of the same size as A");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(A, "A is not a square matrix");
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE_MSG(A, B, "B is not a square matrix or B is not of the same size as A");
   // Copy A and B, these will be the matrices on which we operate later
   m_S = A.derived();
   m_T = B.derived();
@@ -287,8 +286,8 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
   m_computeQZ = computeQZ;
   m_n = m_S.rows();
 
-  eigen_assert(m_n == m_S.cols() && "A is not a square matrix");
-  eigen_assert(m_n == m_T.rows() && m_n == m_T.cols() && "B is not a square matrix or B is not of the same size as A");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_S, "A is not a square matrix");
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE_MSG(m_S, m_T, "B is not a square matrix or B is not of the same size as A");
 
   m_isInitialized = true;
   m_global_iter = 0;
@@ -417,8 +416,8 @@ template <typename SparseMatrixType_>
 void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ) {
   m_computeQZ = computeQZ;
   m_n = A.rows();
-  eigen_assert(m_n == A.cols() && "A is not a square matrix");
-  eigen_assert(m_n == B.rows() && m_n == B.cols() && "B is not a square matrix or B is not of the same size as A");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(A, "A is not a square matrix");
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE_MSG(A, B, "B is not a square matrix or B is not of the same size as A");
   m_isInitialized = true;
   m_global_iter = 0;
   m_info = Success;

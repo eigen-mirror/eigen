@@ -134,7 +134,8 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   Cauchy(const MatrixBase<XDerived>& x, const MatrixBase<YDerived>& y) : m_x(x), m_y(y) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(XDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(YDerived)
-    eigen_assert(m_x.size() > 0 && m_y.size() > 0 && "Cauchy node vectors must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_x, "Cauchy node vectors must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_y, "Cauchy node vectors must be non-empty");
   }
 
   EIGEN_DEVICE_FUNC Index rows() const { return m_x.size(); }
@@ -175,7 +176,7 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * a node difference that overflows makes its factor infinite, which turns the
    * determinant into NaN when it meets a zero or another infinite factor. */
   Scalar determinant() const {
-    eigen_assert(rows() == cols() && "Cauchy::determinant requires a square matrix");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(*this, "Cauchy::determinant requires a square matrix");
     const Index n = rows();
     Scalar det(1);
     Index exponent = 0;
@@ -222,10 +223,6 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
    * \a v, and \c .noalias() skips it. */
   template <typename Rhs>
   Product<Cauchy, Rhs> operator*(const MatrixBase<Rhs>& v) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(v.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Cauchy, Rhs>(*this, v.derived());
   }
 
@@ -238,7 +235,7 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = cols();
-    eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     // A unit alpha must not multiply: even the identity complex scalar (1,0)
     // pollutes an (Inf,0) value with NaN through the 0*Inf cross term.
     const bool unitAlpha = alpha == ProductScalar(1);
@@ -351,7 +348,7 @@ class CauchyLU : public SolverBase<CauchyLU<Scalar_>> {
    * \f$D_x C-C D_y=\mathbf{1}\mathbf{1}^T\f$. \sa solve */
   template <int Rows_, int Cols_>
   CauchyLU& compute(const Cauchy<Scalar, Rows_, Cols_>& C) {
-    eigen_assert(C.rows() == C.cols() && "CauchyLU requires a square Cauchy matrix");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(C, "CauchyLU requires a square Cauchy matrix");
     const Index n = C.rows();
     DenseVector x = C.rowNodes();
     const DenseVector y = C.colNodes();

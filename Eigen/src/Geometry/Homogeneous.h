@@ -97,6 +97,9 @@ class Homogeneous : public MatrixBase<Homogeneous<MatrixType, Direction_> >, int
     return Product<Transform<Scalar, Dim, Mode, Options>, Homogeneous>(lhs, rhs);
   }
 
+  /** Reduces all coefficients, including the appended ones. An empty vector's
+   * homogeneous expression contains one coefficient equal to one.
+   */
   template <typename Func>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::result_of<Func(Scalar, Scalar)>::type redux(
       const Func& func) const {

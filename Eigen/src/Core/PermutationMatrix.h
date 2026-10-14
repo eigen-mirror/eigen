@@ -249,7 +249,7 @@ class PermutationBase : public EigenBase<Derived> {
   }
   template <typename Lhs, typename Rhs>
   void assignProduct(const Lhs& lhs, const Rhs& rhs) {
-    eigen_assert(lhs.cols() == rhs.rows());
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(lhs, rhs);
     for (Index i = 0; i < rows(); ++i) indices().coeffRef(i) = lhs.indices().coeff(rhs.indices().coeff(i));
   }
 #endif
@@ -271,7 +271,7 @@ class PermutationBase : public EigenBase<Derived> {
   template <typename Other>
   inline PlainPermutationType operator*(const InverseImpl<Other, PermutationStorage>& other) const {
     const auto& rhs = other.derived().nestedExpression();
-    eigen_assert(size() == rhs.size());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, rhs);
     PlainPermutationType result(size());
     // (P * Q.inverse())(Q(i)) = P(i).
     for (Index i = 0; i < size(); ++i) result.indices().coeffRef(rhs.indices().coeff(i)) = indices().coeff(i);

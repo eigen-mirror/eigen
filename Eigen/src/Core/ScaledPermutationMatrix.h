@@ -210,7 +210,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type operator*(
       const DiagonalBase<OtherDerived>& other) const {
     using Result = typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type;
-    eigen_assert(rows() == other.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, other);
     return Result(indices(), scales().cwiseProduct(other.diagonal()));
   }
 
@@ -219,7 +219,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   friend typename internal::scaled_permutation_product_result<OtherDerived, Derived, StorageIndex>::type operator*(
       const DiagonalBase<OtherDerived>& other, const ScaledPermutationBase& scaled) {
     using Result = typename internal::scaled_permutation_product_result<OtherDerived, Derived, StorageIndex>::type;
-    eigen_assert(other.rows() == scaled.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(other, scaled);
     Result result(scaled.rows());
     result.indices() = scaled.indices();
     for (Index k = 0; k < scaled.rows(); ++k)
@@ -230,7 +230,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   /** \returns the scaled permutation \c *this times the permutation \a other */
   template <typename OtherDerived>
   PlainObject operator*(const PermutationBase<OtherDerived>& other) const {
-    eigen_assert(rows() == other.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, other);
     PlainObject result(rows());
     for (Index k = 0; k < rows(); ++k) {
       const Index source = other.indices().coeff(k);
@@ -243,7 +243,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   /** \returns the scaled permutation permutation \a other times \a scaled */
   template <typename OtherDerived>
   friend PlainObject operator*(const PermutationBase<OtherDerived>& other, const ScaledPermutationBase& scaled) {
-    eigen_assert(other.rows() == scaled.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(other, scaled);
     PlainObject result(scaled.rows());
     for (Index k = 0; k < scaled.rows(); ++k)
       result.indices().coeffRef(k) = StorageIndex(other.indices().coeff(scaled.indices().coeff(k)));
@@ -254,7 +254,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   /** \returns the scaled permutation \c *this times the inverse permutation \a other */
   template <typename OtherDerived>
   PlainObject operator*(const InverseImpl<OtherDerived, PermutationStorage>& other) const {
-    eigen_assert(rows() == other.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, other);
     IndicesType inverse(rows());
     internal::invert_permutation_indices(other.derived().nestedExpression().indices(), inverse);
     PlainObject result(rows());
@@ -270,7 +270,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   template <typename OtherDerived>
   friend PlainObject operator*(const InverseImpl<OtherDerived, PermutationStorage>& other,
                                const ScaledPermutationBase& scaled) {
-    eigen_assert(other.rows() == scaled.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(other, scaled);
     IndicesType inverse(scaled.rows());
     internal::invert_permutation_indices(other.derived().nestedExpression().indices(), inverse);
     PlainObject result(scaled.rows());
@@ -284,7 +284,7 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type operator*(
       const ScaledPermutationBase<OtherDerived>& other) const {
     using Result = typename internal::scaled_permutation_product_result<Derived, OtherDerived, StorageIndex>::type;
-    eigen_assert(rows() == other.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, other);
     Result result(rows());
     for (Index k = 0; k < rows(); ++k) {
       const Index source = other.indices().coeff(k);
@@ -380,7 +380,7 @@ class ScaledPermutationMatrix
   EIGEN_DEVICE_FUNC ScaledPermutationMatrix(const PermutationBase<PermutationDerived>& permutation,
                                             const DiagonalBase<DiagonalDerived>& diagonal)
       : m_permutation(permutation), m_scales(diagonal.diagonal()) {
-    eigen_assert(permutation.rows() == diagonal.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(permutation, diagonal);
   }
 
   /** Constructs the scaled permutation with the given \a indices and \a scales. */
@@ -388,7 +388,7 @@ class ScaledPermutationMatrix
   EIGEN_DEVICE_FUNC ScaledPermutationMatrix(const MatrixBase<IndicesDerived>& indices,
                                             const MatrixBase<ScalesDerived>& scales)
       : m_permutation(indices), m_scales(scales) {
-    eigen_assert(indices.size() == scales.size());
+    EIGEN_INTERNAL_ASSERT_SAME_SIZE(indices, scales);
   }
 
   /** Converts the permutation \a permutation, all scales being one. */
@@ -465,7 +465,7 @@ operator*(const PermutationBase<PermutationDerived>& permutation, const Diagonal
   using Result =
       typename internal::scaled_permutation_result<typename DiagonalDerived::Scalar, PermutationDerived,
                                                    DiagonalDerived, typename PermutationDerived::StorageIndex>::type;
-  eigen_assert(permutation.rows() == diagonal.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(permutation, diagonal);
   return Result(permutation.indices(), diagonal.diagonal());
 }
 
@@ -478,7 +478,7 @@ operator*(const DiagonalBase<DiagonalDerived>& diagonal, const PermutationBase<P
   using Result =
       typename internal::scaled_permutation_result<typename DiagonalDerived::Scalar, PermutationDerived,
                                                    DiagonalDerived, typename PermutationDerived::StorageIndex>::type;
-  eigen_assert(permutation.rows() == diagonal.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(permutation, diagonal);
   Result result(permutation.rows());
   result.indices() = permutation.indices();
   for (Index k = 0; k < permutation.rows(); ++k)
@@ -496,7 +496,7 @@ operator*(const InverseImpl<PermutationType, PermutationStorage>& inverse,
   using Result =
       typename internal::scaled_permutation_result<typename DiagonalDerived::Scalar, PermutationType, DiagonalDerived,
                                                    typename PermutationType::StorageIndex>::type;
-  eigen_assert(inverse.rows() == diagonal.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(inverse, diagonal);
   Result result(inverse.rows());
   internal::invert_permutation_indices(inverse.derived().nestedExpression().indices(), result.indices());
   result.scales() = diagonal.diagonal();
@@ -513,7 +513,7 @@ operator*(const DiagonalBase<DiagonalDerived>& diagonal,
   using Result =
       typename internal::scaled_permutation_result<typename DiagonalDerived::Scalar, PermutationType, DiagonalDerived,
                                                    typename PermutationType::StorageIndex>::type;
-  eigen_assert(inverse.rows() == diagonal.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(inverse, diagonal);
   Result result(inverse.rows());
   internal::invert_permutation_indices(inverse.derived().nestedExpression().indices(), result.indices());
   for (Index k = 0; k < inverse.rows(); ++k)
@@ -581,14 +581,14 @@ struct Assignment<DstXprType, SrcXprType, Functor, ScaledPermutation2Dense> {
   static EIGEN_DEVICE_FUNC void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::add_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) += src.scales().coeff(k);
   }
 
   static EIGEN_DEVICE_FUNC void run(
       DstXprType& dst, const SrcXprType& src,
       const internal::sub_assign_op<typename DstXprType::Scalar, typename SrcXprType::Scalar>&) {
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     for (Index k = 0; k < src.rows(); ++k) dst.coeffRef(src.indices().coeff(k), k) -= src.scales().coeff(k);
   }
 };

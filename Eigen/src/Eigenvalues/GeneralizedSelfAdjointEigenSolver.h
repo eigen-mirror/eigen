@@ -196,7 +196,8 @@ template <typename MatrixType>
 template <typename InputTypeA, typename InputTypeB>
 GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::compute(
     const EigenBase<InputTypeA>& matA, const EigenBase<InputTypeB>& matB, int options) {
-  eigen_assert(matA.cols() == matA.rows() && matB.rows() == matA.rows() && matB.cols() == matB.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matA);
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE(matA, matB);
 
   // Compute the cholesky decomposition of matB = L L' = U'U
   m_cholB.compute(matB.derived());
@@ -209,7 +210,8 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 template <typename MatrixType>
 GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver<MatrixType>::computeInPlace(
     int options) {
-  eigen_assert(m_matC.cols() == m_matC.rows() && m_cholB.rows() == m_matC.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(m_matC);
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_cholB, m_matC);
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                ((options & GenEigMask) == 0 || (options & GenEigMask) == Ax_lBx || (options & GenEigMask) == ABx_lx ||
                 (options & GenEigMask) == BAx_lx) &&

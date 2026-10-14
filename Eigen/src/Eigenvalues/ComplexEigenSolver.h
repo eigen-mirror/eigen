@@ -259,7 +259,7 @@ template <typename InputType>
 ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
                                                                         bool computeEigenvectors) {
   // this code is inspired from Jampack
-  eigen_assert(matrix.cols() == matrix.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
 
   // Do a complex Schur decomposition, A = U T U^*
   // The eigenvalues are on the diagonal of T.

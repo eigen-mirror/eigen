@@ -100,7 +100,7 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CwiseBinaryOp(const Lhs& aLhs, const Rhs& aRhs,
                                                                 const BinaryOp& func = BinaryOp())
       : m_lhs(aLhs), m_rhs(aRhs), m_functor(func) {
-    eigen_assert(aLhs.rows() == aRhs.rows() && aLhs.cols() == aRhs.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(aLhs, aRhs);
   }
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept {

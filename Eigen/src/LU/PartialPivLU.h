@@ -291,7 +291,7 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
      * Step 3: update  c = P^-1 c.
      */
 
-    eigen_assert(rhs.rows() == m_lu.cols());
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS(m_lu, rhs, true);
 
     // Step 1
     dst = m_lu.template triangularView<Upper>().transpose().template conjugateIf<Conjugate>().solve(rhs);
@@ -606,7 +606,7 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions,
     nb_transpositions = 0;
     return;
   }
-  eigen_assert(lu.cols() == row_transpositions.size());
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(row_transpositions.indices(), lu);
   eigen_assert(row_transpositions.size() < 2 ||
                (&row_transpositions.coeffRef(1) - &row_transpositions.coeffRef(0)) == 1);
 
@@ -651,7 +651,7 @@ void PartialPivLU<MatrixType, PermutationIndex>::compute() {
   else
     m_l1_norm = RealScalar(0);
 
-  eigen_assert(m_lu.rows() == m_lu.cols() && "PartialPivLU is only for square (and moreover invertible) matrices");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_lu, "PartialPivLU is only for square (and moreover invertible) matrices");
   const Index size = m_lu.rows();
 
   m_rowsTranspositions.resize(size);

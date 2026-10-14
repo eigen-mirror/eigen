@@ -331,7 +331,8 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
   using TempVecSegment = typename TempVectorType::SegmentReturnType;
 
   Index n = mat.cols();
-  eigen_assert(mat.rows() == n && vec.size() == n);
+  EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(vec, mat);
 
   TempVectorType temp;
 
@@ -388,7 +389,7 @@ struct llt_inplace<Scalar, Lower> {
   static Index unblocked(MatrixType& mat) {
     using std::sqrt;
 
-    eigen_assert(mat.rows() == mat.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
     const Index size = mat.rows();
     for (Index k = 0; k < size; ++k) {
       Index rs = size - k - 1;  // remaining size
@@ -409,7 +410,7 @@ struct llt_inplace<Scalar, Lower> {
 
   template <typename MatrixType>
   static Index blocked(MatrixType& m) {
-    eigen_assert(m.rows() == m.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(m);
     Index size = m.rows();
     // The unblocked kernel walks row k of the factor, which strides through memory: it wins up to about 48 columns,
     // and beyond that 16-column blocks keep those walks short while amortizing the level-3 updates.
@@ -501,7 +502,7 @@ struct LLT_Traits<MatrixType, Upper> {
 template <typename MatrixType, int UpLo_>
 template <typename InputType>
 LLT<MatrixType, UpLo_>& LLT<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
-  eigen_assert(a.rows() == a.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(a);
   const Index size = a.rows();
   m_matrix.resize(size, size);
   if (!internal::is_same_dense(m_matrix, a.derived())) m_matrix = a.derived();
@@ -525,7 +526,7 @@ template <typename MatrixType_, int UpLo_>
 template <typename VectorType>
 LLT<MatrixType_, UpLo_>& LLT<MatrixType_, UpLo_>::rankUpdate(const VectorType& v, const RealScalar& sigma) {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(VectorType);
-  eigen_assert(v.size() == m_matrix.cols());
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(v, m_matrix);
   eigen_assert(m_isInitialized);
   if (internal::llt_inplace<typename MatrixType::Scalar, UpLo>::rankUpdate(m_matrix, v, sigma) >= 0)
     m_info = NumericalIssue;
@@ -597,7 +598,7 @@ template <typename MatrixType, int UpLo_>
 template <typename Derived>
 void LLT<MatrixType, UpLo_>::solveInPlace(const MatrixBase<Derived>& bAndX) const {
   eigen_assert(m_isInitialized && "LLT is not initialized.");
-  eigen_assert(m_matrix.rows() == bAndX.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_matrix, bAndX);
   matrixL().solveInPlace(bAndX);
   matrixU().solveInPlace(bAndX);
 }

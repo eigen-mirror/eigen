@@ -179,7 +179,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::add_assign_o
   using SrcXprType = Product<Lhs, Rhs, Options>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
                                                         const internal::add_assign_op<Scalar, Scalar>&) {
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     // FIXME shall we handle nested_eval here?
     generic_product_impl<Lhs, Rhs>::addTo(dst, src.lhs(), src.rhs());
   }
@@ -192,7 +192,7 @@ struct Assignment<DstXprType, Product<Lhs, Rhs, Options>, internal::sub_assign_o
   using SrcXprType = Product<Lhs, Rhs, Options>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(DstXprType& dst, const SrcXprType& src,
                                                         const internal::sub_assign_op<Scalar, Scalar>&) {
-    eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());
+    EIGEN_INTERNAL_ASSERT_SAME_SHAPE(dst, src);
     // FIXME shall we handle nested_eval here?
     generic_product_impl<Lhs, Rhs>::subTo(dst, src.lhs(), src.rhs());
   }
@@ -1119,9 +1119,7 @@ struct triangular_diagonal_product_impl {
   template <typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const MatrixType& matrix,
                                                         const DiagonalType& diagonal, const Alpha& alpha) {
-    eigen_assert(((ProductOrder == OnTheLeft && diagonal.size() == matrix.rows()) ||
-                  (ProductOrder == OnTheRight && diagonal.size() == matrix.cols())) &&
-                 "invalid matrix product");
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_AXIS_MSG(diagonal, matrix, ProductOrder == OnTheLeft, "invalid matrix product");
 
     const Index rows = matrix.rows();
     const Index cols = matrix.cols();
@@ -1259,8 +1257,8 @@ struct selfadjoint_diagonal_product_impl {
   template <bool Accumulate, typename Dest, typename Alpha>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void runImpl(Dest& dst, const MatrixType& matrix,
                                                             const DiagonalType& diagonal, const Alpha& alpha) {
-    eigen_assert(matrix.rows() == matrix.cols() && "SelfAdjointView is only for squared matrices");
-    eigen_assert(diagonal.size() == matrix.rows() && "invalid matrix product");
+    EIGEN_INTERNAL_ASSERT_SQUARE_MSG(matrix, "SelfAdjointView is only for squared matrices");
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS_MSG(diagonal, matrix, "invalid matrix product");
 
     const Index size = matrix.rows();
 

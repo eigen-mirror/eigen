@@ -373,7 +373,7 @@ struct traits<MatrixLogarithmReturnValue<Derived> > {
 
 template <typename Derived>
 const MatrixLogarithmReturnValue<Derived> MatrixBase<Derived>::log() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   return MatrixLogarithmReturnValue<Derived>(derived());
 }
 

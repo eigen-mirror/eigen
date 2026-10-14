@@ -135,7 +135,7 @@ class MatrixPowerAtomic {
 
 template <typename MatrixType>
 MatrixPowerAtomic<MatrixType>::MatrixPowerAtomic(const MatrixType& T, RealScalar p) : m_A(T), m_p(p) {
-  eigen_assert(T.rows() == T.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(T);
   eigen_assert(p > -1 && p < 1);
 }
 
@@ -369,7 +369,7 @@ class MatrixPower {
    * (or destroyed) before evaluation.
    */
   explicit MatrixPower(const MatrixType& A) : m_A(A), m_conditionNumber(0), m_rank(A.cols()), m_nulls(0) {
-    eigen_assert(A.rows() == A.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(A);
   }
 
   /**

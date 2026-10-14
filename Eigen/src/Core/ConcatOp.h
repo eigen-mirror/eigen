@@ -107,19 +107,14 @@ class Concat : public internal::dense_xpr_base<Concat<Direction, LhsType, RhsTyp
         (std::is_same<typename LhsType::Scalar, typename RhsType::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
     EIGEN_STATIC_ASSERT_SAME_XPR_KIND(LhsType, RhsType)
-    EIGEN_STATIC_ASSERT(Direction != Horizontal || int(LhsType::RowsAtCompileTime) == Dynamic ||
-                            int(RhsType::RowsAtCompileTime) == Dynamic ||
-                            int(LhsType::RowsAtCompileTime) == int(RhsType::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    EIGEN_STATIC_ASSERT(Direction != Vertical || int(LhsType::ColsAtCompileTime) == Dynamic ||
-                            int(RhsType::ColsAtCompileTime) == Dynamic ||
-                            int(LhsType::ColsAtCompileTime) == int(RhsType::ColsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
-    EIGEN_IF_CONSTEXPR (Direction == Vertical) {
-      eigen_assert(lhs.cols() == rhs.cols() && "vcat: number of columns must match");
-    } else {
-      eigen_assert(lhs.rows() == rhs.rows() && "hcat: number of rows must match");
-    }
+    // Select the relation first: C++14 would instantiate static assertions in both branches of an ordinary if.
+    // TODO(C++17): use if constexpr with EIGEN_INTERNAL_ASSERT_SAME_COLS/EIGEN_INTERNAL_ASSERT_SAME_ROWS directly.
+    EIGEN_INTERNAL_CHECK_SHAPE(
+        (Direction == Vertical ? lhs.cols() == rhs.cols() : lhs.rows() == rhs.rows()) &&
+            (Direction == Vertical ? "vcat: number of columns must match" : "hcat: number of rows must match"),
+        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+        std::conditional_t<Direction == Vertical, internal::matching_cols<LhsType, RhsType>,
+                           internal::matching_rows<LhsType, RhsType>>);
   }
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const {

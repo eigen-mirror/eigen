@@ -25,6 +25,11 @@ Assertions cost run time and can be turned off. You can suppress eigen_assert by
 
 \section StaticAssert Static assertions
 
+Coefficient-count checks against matrix rows or columns reject provably incompatible fixed dimensions at compile
+time, including in release builds. This applies to diagonal products, factorization workspaces and rank updates.
+Unknown dimensions retain debug runtime checks, also when \c EIGEN_NO_STATIC_ASSERT disables static diagnostics.
+Invalid fixed-size calls that previously compiled and asserted only at runtime can therefore fail to compile.
+
 In the Eigen library, there are many conditions that can and should be detected at compile time. For instance, we use static assertions to prevent the code below from compiling.
 
 \code
@@ -86,7 +91,38 @@ If \c EIGEN_NO_STATIC_ASSERT is defined, the static assertions are removed entir
 \endcode
 
 They are not downgraded to run-time checks, so the misuse they guard against is reported neither at compile time
-nor at run time. \c EIGEN_NO_STATIC_ASSERT is undefined by default.
+nor at run time unless the operation also has a runtime assertion.
+\c EIGEN_NO_STATIC_ASSERT is undefined by default.
+
+\subsection ShapeAssertions Shape preconditions
+
+Shared shape checks reject statically incompatible coefficient counts and product inner dimensions at compile time,
+including in release builds. Checks proven valid do not read dimensions at runtime.
+Matching rows and columns (including directional concatenation checks) follow the same rule.
+Vector adaptation and scalar extraction likewise reject provably invalid shapes, while
+allowing dynamically sized inputs that satisfy their preconditions at runtime.
+Square-only preconditions remain runtime checks, elided when the matrix is proven square.
+This preserves runtime-guarded calls on rectangular fixed-size types in C++14.
+Solver right-hand sides are checked against the appropriate fixed dimension, including
+the reversed row/column rule for transposed solves.
+Nonempty-input checks remain runtime-only so C++14 code can guard reductions on fixed empty expressions.
+They are elided for inputs proven nonempty. Empty dense
+\c sum() and \c prod() remain valid and return their respective identity values.
+Empty \c lpNorm<Infinity>() and \c hypotNorm() likewise remain valid and return zero.
+For an empty vector, \c stableNormalized() returns an empty vector and \c stableNormalize() is a no-op;
+the internal maximum-absolute-value reduction used by stable normalization has identity zero.
+An empty vector's \c homogeneous() expression is not empty: it contains the appended coefficient one,
+so its \c sum() and \c prod() return one rather than asserting on the underlying empty vector.
+These identity reductions are valid for fixed-size empty inputs in C++14 as well as dynamic inputs.
+Tensor shape checks reject different ranks or incompatible fixed extents. Equal rank alone
+never proves equality of runtime extents.
+Unknown dimensions are checked by debug assertions; maximum storage capacities are
+not treated as actual dimensions. Row and column vectors may have equal coefficient counts.
+
+With \c EIGEN_NO_STATIC_ASSERT, these shared checks retain their debug runtime fallback.
+Defining \c EIGEN_NO_DEBUG disables the default runtime assertions, not the static diagnostics.
+This stricter validation can reject invalid code that previously compiled and only asserted
+when executed in a debug build.
 
 */
 }

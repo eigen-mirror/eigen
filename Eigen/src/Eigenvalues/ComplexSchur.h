@@ -349,7 +349,7 @@ template <typename MatrixType>
 template <typename InputType>
 ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeU) {
   m_matUisUptodate = false;
-  eigen_assert(matrix.cols() == matrix.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
 
   if (matrix.cols() <= 1) {
     m_matT = matrix.derived().template cast<ComplexScalar>();
@@ -381,7 +381,7 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::compute(const EigenBase<Inpu
 template <typename MatrixType>
 ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeInPlace(bool computeU) {
   m_matUisUptodate = false;
-  eigen_assert(m_matT.cols() == m_matT.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(m_matT);
 
   if (m_matT.cols() <= 1) {
     if (computeU) m_matU = ComplexMatrixType::Identity(m_matT.rows(), m_matT.cols());

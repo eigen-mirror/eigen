@@ -126,7 +126,7 @@ struct TensorEvaluator<const TensorAssignOp<LeftArgType, RightArgType>, Device> 
   }
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
-    eigen_assert(dimensions_match(m_leftImpl.dimensions(), m_rightImpl.dimensions()));
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_leftImpl, m_rightImpl);
     m_leftImpl.evalSubExprsIfNeeded(nullptr);
     // If the lhs provides raw access to its storage area (i.e. if m_leftImpl.data() returns a non
     // null value), attempt to evaluate the rhs expression in place. Returns true iff in place

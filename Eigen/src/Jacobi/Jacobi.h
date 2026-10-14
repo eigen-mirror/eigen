@@ -488,7 +488,7 @@ EIGEN_DEVICE_FUNC void inline apply_rotation_in_the_plane(DenseBase<VectorX>& xp
   constexpr bool Vectorizable = (int(evaluator<VectorX>::Flags) & int(evaluator<VectorY>::Flags) & PacketAccessBit) &&
                                 (int(packet_traits<Scalar>::size) == int(packet_traits<OtherScalar>::size));
 
-  eigen_assert(xpr_x.size() == xpr_y.size());
+  EIGEN_INTERNAL_ASSERT_SAME_SIZE(xpr_x, xpr_y);
   Index size = xpr_x.size();
   Index incrx = xpr_x.derived().innerStride();
   Index incry = xpr_y.derived().innerStride();

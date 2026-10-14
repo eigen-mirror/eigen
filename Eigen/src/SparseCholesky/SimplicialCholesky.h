@@ -180,7 +180,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
     eigen_assert(m_factorizationIsOk &&
                  "The decomposition is not in a valid state for solving, you must first call either compute() or "
                  "symbolic()/numeric()");
-    eigen_assert(m_matrix.rows() == b.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_matrix, b);
 
     if (m_info != Success) return;
 
@@ -211,7 +211,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
   /** Computes the sparse Cholesky decomposition of \a matrix */
   template <bool DoLDLT, bool NonHermitian>
   void compute(const MatrixType& matrix) {
-    eigen_assert(matrix.rows() == matrix.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
     Index size = matrix.cols();
     CholMatrixType tmp(size, size);
     ConstCholMatrixPtr pmat;
@@ -222,7 +222,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
 
   template <bool DoLDLT, bool NonHermitian>
   void factorize(const MatrixType& a) {
-    eigen_assert(a.rows() == a.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(a);
     Index size = a.cols();
     CholMatrixType tmp(size, size);
     ConstCholMatrixPtr pmat;
@@ -245,7 +245,7 @@ class SimplicialCholeskyBase : public SparseSolverBase<Derived> {
 
   template <bool DoLDLT, bool NonHermitian>
   void analyzePattern(const MatrixType& a) {
-    eigen_assert(a.rows() == a.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(a);
     Index size = a.cols();
     CholMatrixType tmp(size, size);
     ConstCholMatrixPtr pmat;
@@ -930,7 +930,7 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
     eigen_assert(Base::m_factorizationIsOk &&
                  "The decomposition is not in a valid state for solving, you must first call either compute() or "
                  "symbolic()/numeric()");
-    eigen_assert(Base::m_matrix.rows() == b.rows());
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(Base::m_matrix, b);
 
     if (Base::m_info != Success) return;
 
@@ -984,7 +984,7 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
 template <typename Derived>
 template <bool NonHermitian>
 void SimplicialCholeskyBase<Derived>::ordering(const MatrixType& a, ConstCholMatrixPtr& pmat, CholMatrixType& ap) {
-  eigen_assert(a.rows() == a.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(a);
   const Index size = a.rows();
   pmat = &ap;
   // Note that ordering methods compute the inverse permutation

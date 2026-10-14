@@ -23,14 +23,9 @@ template <typename Lhs, typename Rhs>
 struct inner_product_assert {
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Lhs)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Rhs)
-  EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Lhs, Rhs)
-#ifndef EIGEN_NO_DEBUG
   static EIGEN_DEVICE_FUNC void run(const Lhs& lhs, const Rhs& rhs) {
-    eigen_assert((lhs.size() == rhs.size()) && "Inner product: lhs and rhs vectors must have same size");
+    EIGEN_INTERNAL_ASSERT_SAME_SIZE_MSG(lhs, rhs, "Inner product: lhs and rhs vectors must have same size");
   }
-#else
-  static EIGEN_DEVICE_FUNC void run(const Lhs&, const Rhs&) {}
-#endif
 };
 
 template <typename Func, typename Lhs, typename Rhs>

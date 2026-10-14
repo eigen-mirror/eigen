@@ -165,7 +165,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * cached transform. */
   template <typename Derived>
   explicit Bccb(const MatrixBase<Derived>& generator) : m_g(generator) {
-    eigen_assert(m_g.rows() > 0 && m_g.cols() > 0 && "Bccb generator must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_g, "Bccb generator must be non-empty");
     if (m_g.size() > internal::structured_direct_threshold()) {
       m_symbol = computeSymbol();
       m_prodSymbol = computeProdSymbol(m_g);
@@ -228,11 +228,8 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * multiple right-hand sides. */
   template <typename Rhs>
   Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const Index N = rows();
-    eigen_assert(b.rows() == N && "right-hand side has the wrong number of rows");
     const ComplexArray s = symbol();
     const RealArray mods = s.cwiseAbs();
     const ComplexArray sinv = internal::structured_pinv_symbol(s, mods, internal::structured_rank_threshold(s, mods));
@@ -370,10 +367,6 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * it. */
   template <typename Rhs>
   Product<Bccb, Rhs> operator*(const MatrixBase<Rhs>& x) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Bccb, Rhs>(*this, x.derived());
   }
 
@@ -383,7 +376,7 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index N = rows();
-    eigen_assert(rhs.rows() == N && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     if (N <= internal::structured_direct_threshold()) {
       directProduct(dst, rhs, alpha);
       return;

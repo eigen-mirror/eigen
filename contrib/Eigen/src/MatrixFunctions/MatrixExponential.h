@@ -423,7 +423,7 @@ struct traits<MatrixExponentialReturnValue<Derived> > {
 
 template <typename Derived>
 const MatrixExponentialReturnValue<Derived> MatrixBase<Derived>::exp() const {
-  eigen_assert(rows() == cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(*this);
   return MatrixExponentialReturnValue<Derived>(derived());
 }
 

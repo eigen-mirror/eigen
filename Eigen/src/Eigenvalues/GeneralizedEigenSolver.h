@@ -307,7 +307,8 @@ template <typename InputTypeA, typename InputTypeB>
 GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(const EigenBase<InputTypeA>& A,
                                                                                 const EigenBase<InputTypeB>& B,
                                                                                 bool computeEigenvectors) {
-  eigen_assert(A.cols() == A.rows() && B.cols() == A.rows() && B.cols() == B.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(A);
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE(A, B);
   // Reduce to generalized real Schur form:
   // A = Q S Z and B = Q T Z
   m_realQZ.compute(A.derived(), B.derived(), computeEigenvectors);

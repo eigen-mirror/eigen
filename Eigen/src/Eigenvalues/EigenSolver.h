@@ -394,7 +394,7 @@ template <typename InputType>
 EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputType>& matrix,
                                                           bool computeEigenvectors) {
   check_template_parameters();
-  eigen_assert(matrix.cols() == matrix.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
 
   // Reduce to real Schur form.
   m_realSchur.compute(matrix.derived(), computeEigenvectors);

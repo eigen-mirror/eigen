@@ -112,7 +112,8 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   Toeplitz(const MatrixBase<ColDerived>& col, const MatrixBase<RowDerived>& row) : m_col(col), m_row(row) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(ColDerived)
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(RowDerived)
-    eigen_assert(m_col.size() > 0 && m_row.size() > 0 && "Toeplitz generators must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_col, "Toeplitz generators must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_row, "Toeplitz generators must be non-empty");
     // Below the threshold every product takes the direct path and the symbol has
     // no consumer, so skip the embedding altogether.
     if (rows() > internal::structured_direct_threshold() || cols() > internal::structured_direct_threshold())
@@ -239,10 +240,6 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
    * \c .noalias() skips it. */
   template <typename Rhs>
   Product<Toeplitz, Rhs> operator*(const MatrixBase<Rhs>& x) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Toeplitz, Rhs>(*this, x.derived());
   }
 
@@ -252,7 +249,7 @@ class Toeplitz : public EigenBase<Toeplitz<Scalar_, Rows_, Cols_>> {
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index m = rows(), n = cols();
-    eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     const bool small = m <= internal::structured_direct_threshold() && n <= internal::structured_direct_threshold();
     if (small)
       directProduct(dst, rhs, alpha);

@@ -137,7 +137,7 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Vector3 _transformVector(const OtherVectorType& v) const {
     EIGEN_USING_STD(sin)
     EIGEN_USING_STD(cos)
-    eigen_assert(v.size() == 3);
+    EIGEN_INTERNAL_ASSERT_SAME_SIZE(v, m_axis);
 
     // Rodrigues' rotation formula: v' = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
     const Vector3 v3(v);
@@ -231,7 +231,9 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
   EIGEN_STATIC_ASSERT(
       (std::is_same<Scalar, typename Derived::Scalar>::value),
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-  eigen_assert(mat.cols() == 3 && mat.rows() == 3);
+  // operator= also instantiates this path for quaternion coefficients in C++14.
+  // TODO(C++17): use fixed-size if constexpr dispatch in operator= before adding a static 3-by-3 check here.
+  EIGEN_INTERNAL_SHAPE_ASSERT((internal::fixed_dimensions<Derived, 3, 3>::Proven), mat.cols() == 3 && mat.rows() == 3);
 
   // Compute a (non-unit) quaternion proportional to the rotation using
   // Shoemake's algorithm (shared with Quaternion::operator=(MatrixBase)),

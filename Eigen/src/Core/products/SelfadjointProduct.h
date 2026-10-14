@@ -201,7 +201,7 @@ struct selfadjoint_product_selector<MatrixType, OtherType, UpLo, false> {
 
     Index size = mat.cols();
     Index depth = actualOther.cols();
-    eigen_assert(actualOther.rows() == size);
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(mat, actualOther);
     if (size == 0 || depth == 0) return;
 
     using BlockingType =

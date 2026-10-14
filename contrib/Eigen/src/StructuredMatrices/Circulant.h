@@ -125,7 +125,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   template <typename Derived>
   explicit Circulant(const MatrixBase<Derived>& col) : m_col(col) {
     EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
-    eigen_assert(m_col.size() > 0 && "Circulant generator must be non-empty");
+    EIGEN_INTERNAL_ASSERT_NONEMPTY_MSG(m_col, "Circulant generator must be non-empty");
     if (m_col.size() > internal::structured_direct_threshold()) {
       m_symbol = computeSymbol();
       m_prodSymbol = computeProdSymbol(m_col);
@@ -243,10 +243,6 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * aliasing between the destination and \a x, and \c .noalias() skips it. */
   template <typename Rhs>
   Product<Circulant, Rhs> operator*(const MatrixBase<Rhs>& x) const {
-    EIGEN_STATIC_ASSERT(ColsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(ColsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        INVALID_MATRIX_PRODUCT)
-    eigen_assert(x.rows() == cols() && "invalid product: dimensions do not match");
     return Product<Circulant, Rhs>(*this, x.derived());
   }
 
@@ -258,11 +254,8 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * \c x = ifft( fft(b) ./ fft(c) ). Supports multiple right-hand sides. */
   template <typename Rhs>
   Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
-    EIGEN_STATIC_ASSERT(RowsAtCompileTime == Dynamic || Rhs::RowsAtCompileTime == Dynamic ||
-                            int(RowsAtCompileTime) == int(Rhs::RowsAtCompileTime),
-                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const Index n = rows();
-    eigen_assert(b.rows() == n && "right-hand side has the wrong number of rows");
     const ComplexVector s = symbol();
     const RealVector mods = s.cwiseAbs();
     const ComplexVector sinv = internal::structured_pinv_symbol(s, mods, internal::structured_rank_threshold(s, mods));
@@ -391,7 +384,7 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
   template <typename Dest, typename Rhs, typename ProductScalar>
   void addProduct(Dest& dst, const Rhs& rhs, const ProductScalar& alpha) const {
     const Index n = rows();
-    eigen_assert(rhs.rows() == n && "invalid product: dimensions do not match");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(*this, rhs, "invalid product: dimensions do not match");
     if (n <= internal::structured_direct_threshold()) {
       directProduct(dst, rhs, alpha);
       return;

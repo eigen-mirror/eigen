@@ -323,7 +323,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrix
   const StorageIndex size = StorageIndex(ap.rows());
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
-  eigen_assert(ap.rows() == ap.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(ap);
   eigen_assert(m_parent.size() == size);
   eigen_assert(m_workSpace.size() >= 3 * size);
 

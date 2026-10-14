@@ -357,7 +357,7 @@ struct ldlt_inplace<Lower> {
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
     using IndexType = typename TranspositionType::StorageIndex;
-    eigen_assert(mat.rows() == mat.cols());
+    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
     const Index size = mat.rows();
     bool found_zero_pivot = false;
     bool ret = true;
@@ -471,7 +471,8 @@ struct ldlt_inplace<Lower> {
     using RealScalar = typename MatrixType::RealScalar;
 
     const Index size = mat.rows();
-    eigen_assert(mat.cols() == size && w.size() == size);
+    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(w, mat);
 
     RealScalar alpha = 1;
 
@@ -554,7 +555,7 @@ struct LDLT_Traits<MatrixType, Upper> {
 template <typename MatrixType, int UpLo_>
 template <typename InputType>
 LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputType>& a) {
-  eigen_assert(a.rows() == a.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(a);
   const Index size = a.rows();
 
   m_matrix = a.derived();
@@ -600,7 +601,7 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::rankUpdate(
   using IndexType = typename TranspositionType::StorageIndex;
   const Index size = w.rows();
   if (m_isInitialized) {
-    eigen_assert(m_matrix.rows() == size);
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_matrix, w);
   } else {
     m_matrix.resize(size, size);
     m_matrix.setZero();
@@ -711,7 +712,7 @@ template <typename MatrixType, int UpLo_>
 template <typename Derived>
 bool LDLT<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
-  eigen_assert(m_matrix.rows() == bAndX.rows());
+  EIGEN_INTERNAL_ASSERT_SAME_ROWS(m_matrix, bAndX);
 
   bAndX = this->solve(bAndX);
 

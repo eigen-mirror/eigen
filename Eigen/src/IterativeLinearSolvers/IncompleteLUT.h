@@ -393,7 +393,7 @@ Index IncompleteLUT<Scalar, StorageIndex>::computeRowMatching(const MatrixType_&
 template <typename Scalar, typename StorageIndex>
 template <typename MatrixType_>
 void IncompleteLUT<Scalar, StorageIndex>::analyzePattern(const MatrixType_& amat) {
-  eigen_assert((amat.rows() == amat.cols()) && "The factorization should be done on a square matrix");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(amat, "The factorization should be done on a square matrix");
   // 1. Compute a static row permutation that makes the diagonal structurally
   //    nonzero. This is a workaround for the lack of partial pivoting in ILUT.
   //    For matrices that already have a nonzero diagonal, this returns the
@@ -433,7 +433,7 @@ void IncompleteLUT<Scalar, StorageIndex>::factorize(const MatrixType_& amat) {
   using std::sqrt;
   using std::swap;
 
-  eigen_assert((amat.rows() == amat.cols()) && "The factorization should be done on a square matrix");
+  EIGEN_INTERNAL_ASSERT_SQUARE_MSG(amat, "The factorization should be done on a square matrix");
   Index n = amat.cols();  // Size of the matrix
   m_lu.resize(n, n);
   // Declare Working vectors and variables

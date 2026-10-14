@@ -700,7 +700,7 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
                              static_cast<int>(TensorEvaluator<RightArgType, Device>::Layout) ||
                          internal::traits<XprType>::NumDimensions <= 1),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
-    eigen_assert(dimensions_match(m_leftImpl.dimensions(), m_rightImpl.dimensions()));
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_leftImpl, m_rightImpl);
   }
 
   typedef typename XprType::Index Index;
@@ -830,8 +830,8 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
         (std::is_same<typename internal::traits<Arg1Type>::Index, typename internal::traits<Arg3Type>::Index>::value),
         STORAGE_INDEX_MUST_MATCH)
 
-    eigen_assert(dimensions_match(m_arg1Impl.dimensions(), m_arg2Impl.dimensions()) &&
-                 dimensions_match(m_arg1Impl.dimensions(), m_arg3Impl.dimensions()));
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_arg1Impl, m_arg2Impl);
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_arg1Impl, m_arg3Impl);
   }
 
   typedef typename XprType::Index Index;
@@ -973,8 +973,8 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<IfArgType, Device>::Layout) ==
                          static_cast<int>(TensorEvaluator<ElseArgType, Device>::Layout)),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
-    eigen_assert(dimensions_match(m_condImpl.dimensions(), m_thenImpl.dimensions()));
-    eigen_assert(dimensions_match(m_thenImpl.dimensions(), m_elseImpl.dimensions()));
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_condImpl, m_thenImpl);
+    EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_thenImpl, m_elseImpl);
   }
 
   typedef typename XprType::Index Index;

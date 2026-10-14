@@ -309,6 +309,21 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_get(const Sizes<>&) {
   return -1;
 }
 
+// Fixed rank (DSizes) does not imply fixed extents (Sizes).
+template <typename Dims1, typename Dims2>
+struct tensor_dimension_relation {
+  static constexpr bool Compatible = array_size<Dims1>::value == array_size<Dims2>::value;
+  static constexpr bool Known = !Compatible;
+  static constexpr bool Proven = false;
+};
+
+template <std::ptrdiff_t... Left, std::ptrdiff_t... Right>
+struct tensor_dimension_relation<Sizes<Left...>, Sizes<Right...>> {
+  static constexpr bool Known = true;
+  static constexpr bool Compatible = std::is_same<Sizes<Left...>, Sizes<Right...>>::value;
+  static constexpr bool Proven = Compatible;
+};
+
 template <typename Dims1, typename Dims2, ptrdiff_t n, ptrdiff_t m>
 struct sizes_match_below_dim {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const Dims1&, const Dims2&) { return false; }
@@ -334,5 +349,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool dimensions_match(const Dims1& dims1, 
 }
 
 }  // end namespace Eigen
+
+#define EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(Lhs, Rhs)                                                                   \
+  EIGEN_INTERNAL_CHECK_SHAPE(                                                                                          \
+      Eigen::dimensions_match((Lhs).dimensions(), (Rhs).dimensions()) && "Both tensors must have the same dimensions", \
+      YOU_MIXED_TENSORS_OF_DIFFERENT_SIZES,                                                                            \
+      Eigen::internal::tensor_dimension_relation<Eigen::internal::remove_all_t<decltype((Lhs).dimensions())>,          \
+                                                 Eigen::internal::remove_all_t<decltype((Rhs).dimensions())>>)
 
 #endif  // EIGEN_TENSOR_TENSOR_DIMENSIONS_H

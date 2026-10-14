@@ -551,13 +551,17 @@ void svd_verify_assert_full_only(const MatrixType& m) {
   RhsType rhs = RhsType::Zero(m.rows());
   EIGEN_UNUSED_VARIABLE(rhs);  // Only used if asserts are enabled.
 
+  using TransposeRhsType = Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, 1>;
+  TransposeRhsType transposeRhs = TransposeRhsType::Zero(m.cols());
+  EIGEN_UNUSED_VARIABLE(transposeRhs);
+
   SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner) svd0;
   VERIFY_RAISES_ASSERT((svd0.matrixU()));
   VERIFY_RAISES_ASSERT((svd0.singularValues()));
   VERIFY_RAISES_ASSERT((svd0.matrixV()));
   VERIFY_RAISES_ASSERT((svd0.solve(rhs)));
-  VERIFY_RAISES_ASSERT((svd0.transpose().solve(rhs)));
-  VERIFY_RAISES_ASSERT((svd0.adjoint().solve(rhs)));
+  VERIFY_RAISES_ASSERT((svd0.transpose().solve(transposeRhs)));
+  VERIFY_RAISES_ASSERT((svd0.adjoint().solve(transposeRhs)));
 
   SVD_STATIC_OPTIONS(MatrixType, QRPreconditioner) svd1(m);
   VERIFY_RAISES_ASSERT((svd1.matrixU()));

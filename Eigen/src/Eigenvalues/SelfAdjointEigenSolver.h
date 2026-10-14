@@ -480,14 +480,14 @@ template <typename InputType>
 EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::compute(
     const EigenBase<InputType>& a_matrix, int options) {
   const InputType& matrix(a_matrix.derived());
-  eigen_assert(matrix.cols() == matrix.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
   m_eivec = matrix.template triangularView<Lower>();
   return computeInPlace(options);
 }
 
 template <typename MatrixType>
 EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeInPlace(int options) {
-  eigen_assert(m_eivec.cols() == m_eivec.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(m_eivec);
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
   bool computeEigenvectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
@@ -992,7 +992,8 @@ struct direct_selfadjoint_eigenvalues<SolverType, Size, false, true> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(SolverType& solver, const MatrixType& mat, int options) {
-    eigen_assert(mat.rows() == Size && mat.cols() == Size);
+    EIGEN_INTERNAL_CHECK_SHAPE(mat.rows() == Size && mat.cols() == Size, YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES,
+                               internal::fixed_dimensions<MatrixType, Size, Size>);
     eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                  "invalid option parameter");
     PlainMatrixType scaledMat = mat.template selfadjointView<Lower>();

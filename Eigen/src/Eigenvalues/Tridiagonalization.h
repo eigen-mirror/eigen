@@ -354,7 +354,7 @@ EIGEN_DEVICE_FUNC void tridiagonalization_inplace_unblocked(MatrixType& matA, Co
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   Index n = matA.rows();
-  eigen_assert(n == matA.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matA);
   eigen_assert(n == hCoeffs.size() + 1 || n == 1);
 
   for (Index i = 0; i < n - 1; ++i) {
@@ -397,7 +397,7 @@ void tridiagonalization_inplace_blocked(MatrixType& matA, CoeffVectorType& hCoef
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   const Index n = matA.rows();
-  eigen_assert(n == matA.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matA);
   eigen_assert(n == hCoeffs.size() + 1);
   eigen_assert(nb >= 2 && nb < n);
 
@@ -525,7 +525,7 @@ void tridiagonalization_inplace_blocked(MatrixType& matA, CoeffVectorType& hCoef
  */
 template <typename MatrixType, typename CoeffVectorType>
 EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& matA, CoeffVectorType& hCoeffs) {
-  eigen_assert(matA.rows() == matA.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matA);
   eigen_assert(matA.rows() == hCoeffs.size() + 1 || matA.rows() == 1);
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
@@ -590,7 +590,9 @@ template <typename MatrixType, typename DiagonalType, typename SubDiagonalType, 
           typename WorkSpaceType>
 EIGEN_DEVICE_FUNC void tridiagonalization_inplace(MatrixType& mat, DiagonalType& diag, SubDiagonalType& subdiag,
                                                   CoeffVectorType& hcoeffs, WorkSpaceType& workspace, bool extractQ) {
-  eigen_assert(mat.cols() == mat.rows() && diag.size() == mat.rows() && subdiag.size() == mat.rows() - 1);
+  EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(diag, mat);
+  eigen_assert(subdiag.size() == mat.rows() - 1);
   tridiagonalization_inplace_selector<MatrixType>::run(mat, diag, subdiag, hcoeffs, workspace, extractQ);
 }
 

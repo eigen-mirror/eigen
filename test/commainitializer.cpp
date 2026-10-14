@@ -68,6 +68,12 @@ struct test_block_recursion<0, N> {
 };
 
 void test_basics() {
+  MatrixXd empty_rows(0, 2), empty_cols(2, 0);
+  VERIFY_RAISES_ASSERT((empty_rows << 1.0));
+  VERIFY_RAISES_ASSERT((empty_cols << 1.0));
+  Matrix<double, 0, 2> fixed_empty;
+  VERIFY_RAISES_ASSERT((fixed_empty << 1.0));
+
   Matrix3d m3;
   Matrix4d m4;
 

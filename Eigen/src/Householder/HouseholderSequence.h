@@ -477,7 +477,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   typename internal::permutation_type_as_matrix_type<Scalar, OtherDerived>::Type operator*(
       const PermutationBase<OtherDerived>& other) const {
     using ResultType = typename internal::permutation_type_as_matrix_type<Scalar, OtherDerived>::Type;
-    eigen_assert(cols() == other.rows());
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(*this, other);
     ResultType res = ResultType::Identity(rows(), rows());
     applyThisOnTheLeft(res, true);
     // The permutation product runs in place when its operand is the destination.
@@ -490,7 +490,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   typename internal::permutation_type_as_matrix_type<Scalar, Inverse<OtherDerived>>::Type operator*(
       const InverseImpl<OtherDerived, PermutationStorage>& other) const {
     using ResultType = typename internal::permutation_type_as_matrix_type<Scalar, Inverse<OtherDerived>>::Type;
-    eigen_assert(cols() == other.rows());
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(*this, other);
     ResultType res = ResultType::Identity(rows(), rows());
     applyThisOnTheLeft(res, true);
     res.noalias() = res * other.derived();
@@ -506,7 +506,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   // the identity. Other inputs take the full path.
   template <typename ResultType, typename OtherDerived>
   ResultType applyToUpperTriangularOnTheLeft(const EigenBase<OtherDerived>& other, bool upperTriangular) const {
-    eigen_assert(cols() == other.rows());
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(*this, other);
     ResultType res;
     internal::assign_householder_operand(res, other);
     applyThisOnTheLeft(res, upperTriangular && res.rows() == res.cols());
@@ -608,7 +608,7 @@ template <typename OtherDerived, typename VectorsType, typename CoeffsType, int 
 typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
     const DiagonalBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
   using ResultType = typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type;
-  eigen_assert(other.cols() == h.rows());
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(other, h);
   ResultType res = ResultType::Identity(h.rows(), h.rows());
   h.applyThisOnTheLeft(res, true);
   // The lazy diagonal product multiplies from the left, D(i,i) * H(i,j), as a noncommutative scalar requires, and
@@ -642,7 +642,7 @@ typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar,
     const PermutationBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
   using ResultType =
       typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, OtherDerived>::Type;
-  eigen_assert(other.cols() == h.rows());
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(other, h);
   ResultType res = ResultType::Identity(h.rows(), h.rows());
   h.applyThisOnTheLeft(res, true);
   // The permutation product runs in place when its operand is the destination.
@@ -657,7 +657,7 @@ typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar,
     const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
   using ResultType =
       typename internal::permutation_type_as_matrix_type<typename VectorsType::Scalar, Inverse<OtherDerived>>::Type;
-  eigen_assert(other.cols() == h.rows());
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(other, h);
   ResultType res = ResultType::Identity(h.rows(), h.rows());
   h.applyThisOnTheLeft(res, true);
   res.noalias() = other.derived() * res;

@@ -203,7 +203,6 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC friend EIGEN_STRONG_INLINE DenseSkewSumReturnType<OtherDerived> operator+(
       const MatrixBase<OtherDerived>& lhs, const SkewSymmetricBase& rhs) {
-    EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(OtherDerived, DenseMatrixType);
     return lhs.derived() + rhs.toDenseMatrix();
   }
 
@@ -220,7 +219,6 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC friend EIGEN_STRONG_INLINE DenseSkewDifferenceReturnType<OtherDerived> operator-(
       const MatrixBase<OtherDerived>& lhs, const SkewSymmetricBase& rhs) {
-    EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(OtherDerived, DenseMatrixType);
     return lhs.derived() - rhs.toDenseMatrix();
   }
 
@@ -228,7 +226,6 @@ class SkewSymmetricBase : public EigenBase<Derived> {
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC friend EIGEN_STRONG_INLINE DenseSkewDifferenceReturnType<OtherDerived> operator-(
       const SkewSymmetricBase& lhs, const MatrixBase<OtherDerived>& rhs) {
-    EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(OtherDerived, DenseMatrixType);
     return lhs.toDenseMatrix() - rhs.derived();
   }
 };

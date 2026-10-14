@@ -155,7 +155,8 @@ struct sparse_solve_triangular_selector<Lhs, Rhs, Mode, Upper, ColMajor> {
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
 void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(MatrixBase<OtherDerived>& other) const {
-  eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(derived());
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(derived(), other);
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
   enum { copy = internal::traits<OtherDerived>::Flags & RowMajorBit };
@@ -310,7 +311,8 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
 template <typename ExpressionType, unsigned int Mode>
 template <typename OtherDerived>
 void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrixBase<OtherDerived>& other) const {
-  eigen_assert(derived().cols() == derived().rows() && derived().cols() == other.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(derived());
+  EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(derived(), other);
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
   internal::sparse_solve_triangular_sparse_selector<ExpressionType, OtherDerived, Mode>::run(

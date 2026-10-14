@@ -1328,7 +1328,7 @@ class BlockSparseTriangularView {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(m_matrix.cols() == rhs.rows() && "BlockSparseTriangularView * Dense: dimension mismatch");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(m_matrix, rhs, "BlockSparseTriangularView * Dense: dimension mismatch");
     using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
     ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
     for (Index out = 0; out < m_matrix.m_blockOuterSize; ++out) {
@@ -1356,7 +1356,7 @@ class BlockSparseTriangularView {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(lhs.cols() == tri.m_matrix.rows() && "Dense * BlockSparseTriangularView: dimension mismatch");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(lhs, tri.m_matrix, "Dense * BlockSparseTriangularView: dimension mismatch");
     constexpr bool isRM = BSM::IsRowMajor;
     using ResultType = Matrix<Scalar, OtherDerived::RowsAtCompileTime, Dynamic>;
     // BSM befriends BlockSparseTriangularView, but GCC <= 11 and MSVC do not
@@ -1434,7 +1434,7 @@ class BlockSparseTriangularView {
     constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
-    eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS_MSG(x, m_matrix, "solveInPlace: size mismatch");
 
     const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
     const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
@@ -1484,7 +1484,7 @@ class BlockSparseTriangularView {
     constexpr int DiagMode = IsUpper ? Upper : Lower;
     constexpr bool diagFirst = (IsUpper == BSM::IsRowMajor);
     Index nb = m_matrix.blockCols();  // == blockRows() for square matrices
-    eigen_assert(x.rows() == m_matrix.rows() && "solveInPlace: size mismatch");
+    EIGEN_INTERNAL_ASSERT_SAME_ROWS_MSG(x, m_matrix, "solveInPlace: size mismatch");
 
     const StorageIndex* innerPtr = m_matrix.innerIndexPtr();
     const StorageIndex* outerPtr = m_matrix.outerIndexPtr();
@@ -1680,7 +1680,7 @@ class BlockSparseSelfAdjointView {
     EIGEN_STATIC_ASSERT(
         (std::is_same<Scalar, typename OtherDerived::Scalar>::value),
         YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
-    eigen_assert(m_matrix.cols() == rhs.rows() && "BlockSparseSelfAdjointView * Dense: dimension mismatch");
+    EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(m_matrix, rhs, "BlockSparseSelfAdjointView * Dense: dimension mismatch");
     using ResultType = Matrix<Scalar, Dynamic, OtherDerived::ColsAtCompileTime>;
     ResultType result = ResultType::Zero(m_matrix.rows(), rhs.cols());
 

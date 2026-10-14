@@ -55,7 +55,9 @@ void reductionIdentityArguments() {
   fixed << Scalar(2), Scalar(3);
   dynamic = fixed;
   VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixed, sum, identity)), 5.0);
-  VERIFY_IS_EQUAL(double(internal::redux_with_identity(dynamic, sum, std::move(identity))), 5.0);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(
+                      dynamic, sum, ReductionIdentity<Scalar>(runtimeIdentity, lvalueConversions, rvalueConversions))),
+                  5.0);
   VERIFY_IS_EQUAL(lvalueConversions, 3);
   VERIFY_IS_EQUAL(rvalueConversions, 0);
 

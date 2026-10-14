@@ -234,13 +234,8 @@ class ThreadedSparseProduct {
   template <bool Adjoint, bool Overwrite>
   void apply_impl(const ConstVectorRef& x, MutableVectorRef& y, const Scalar& alpha) const {
     eigen_assert(m_mat && "ThreadedSparseProduct: matrix not set; call analyzePattern() first");
-    if (Adjoint) {
-      eigen_assert(x.size() == m_mat->rows());
-      eigen_assert(y.size() == m_mat->cols());
-    } else {
-      eigen_assert(x.size() == m_mat->cols());
-      eigen_assert(y.size() == m_mat->rows());
-    }
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_AXIS(x, *m_mat, Adjoint);
+    EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_AXIS(y, *m_mat, !Adjoint);
     // The kernel reads x and writes y concurrently across threads; aliasing
     // (x and y overlap) would mis-compute because some x[k] reads see y
     // writes from the same SpMV call. Cheap address-range check; cast to

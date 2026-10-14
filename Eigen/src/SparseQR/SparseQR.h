@@ -231,8 +231,8 @@ class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > 
   template <typename Rhs, typename Dest>
   bool _solve_impl(const MatrixBase<Rhs>& B, MatrixBase<Dest>& dest) const {
     eigen_assert(m_isInitialized && "The factorization should be called first, use compute()");
-    eigen_assert(this->rows() == B.rows() &&
-                 "SparseQR::solve() : invalid number of rows in the right hand side matrix");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, B, false,
+                                         "SparseQR::solve() : invalid number of rows in the right hand side matrix");
 
     Index rank = this->rank();
 
@@ -275,15 +275,15 @@ class SparseQR : public SparseSolverBase<SparseQR<MatrixType_, OrderingType_> > 
   template <typename Rhs>
   inline Solve<SparseQR, Rhs> solve(const MatrixBase<Rhs>& B) const {
     eigen_assert(m_isInitialized && "The factorization should be called first, use compute()");
-    eigen_assert(this->rows() == B.rows() &&
-                 "SparseQR::solve() : invalid number of rows in the right hand side matrix");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, B, false,
+                                         "SparseQR::solve() : invalid number of rows in the right hand side matrix");
     return Solve<SparseQR, Rhs>(*this, B.derived());
   }
   template <typename Rhs>
   inline Solve<SparseQR, Rhs> solve(const SparseMatrixBase<Rhs>& B) const {
     eigen_assert(m_isInitialized && "The factorization should be called first, use compute()");
-    eigen_assert(this->rows() == B.rows() &&
-                 "SparseQR::solve() : invalid number of rows in the right hand side matrix");
+    EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, B, false,
+                                         "SparseQR::solve() : invalid number of rows in the right hand side matrix");
     return Solve<SparseQR, Rhs>(*this, B.derived());
   }
 
@@ -735,7 +735,7 @@ struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived
     Index diagSize = (std::min)(m, n);
     res = m_other;
     if (m_transpose) {
-      eigen_assert(m_qr.m_Q.rows() == m_other.rows() && "Non conforming object sizes");
+      EIGEN_INTERNAL_ASSERT_SAME_ROWS_MSG(m_qr.m_Q, m_other, "Non conforming object sizes");
       // Compute res = Q' * other column by column
       for (Index j = 0; j < res.cols(); j++) {
         for (Index k = 0; k < diagSize; k++) {
@@ -747,7 +747,7 @@ struct SparseQR_QProduct : ReturnByValue<SparseQR_QProduct<SparseQRType, Derived
         }
       }
     } else {
-      eigen_assert(m_qr.matrixQ().cols() == m_other.rows() && "Non conforming object sizes");
+      EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE_MSG(m_qr.matrixQ(), m_other, "Non conforming object sizes");
 
       res.conservativeResize(rows(), cols());
 

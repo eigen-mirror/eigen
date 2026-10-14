@@ -308,7 +308,7 @@ class RealSchur {
 template <typename MatrixType>
 template <typename InputType>
 RealSchur<MatrixType>& RealSchur<MatrixType>::compute(const EigenBase<InputType>& matrix, bool computeU) {
-  eigen_assert(matrix.cols() == matrix.rows());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
   const Index size = matrix.rows();
   if (usePaddedWorkspace(size)) {
     WorkspaceMatrix storage(size + (MatrixType::IsRowMajor ? 0 : 1), size + (MatrixType::IsRowMajor ? 1 : 0));
@@ -342,7 +342,7 @@ template <typename TMatrix>
 RealSchur<MatrixType>& RealSchur<MatrixType>::computeInPlace(TMatrix& matT, bool computeU) {
   const Scalar considerAsZero = (std::numeric_limits<Scalar>::min)();
   const Index n = matT.rows();
-  eigen_assert(matT.cols() == n);
+  EIGEN_INTERNAL_ASSERT_SQUARE(matT);
 
   const Scalar maxCoeff = n == 0 ? Scalar(0) : matT.cwiseAbs().template maxCoeff<PropagateNaN>();
   if (!(numext::isfinite)(maxCoeff)) {

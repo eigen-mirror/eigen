@@ -143,7 +143,7 @@ template <typename RealScalar_>
 DPR1EigenSolver<RealScalar_>& DPR1EigenSolver<RealScalar_>::compute(const VectorType& d, RealScalar rho,
                                                                     const VectorType& z, int options) {
   const Index n = d.size();
-  eigen_assert(z.size() == n && "d and z must have the same size");
+  EIGEN_INTERNAL_ASSERT_SAME_SIZE_MSG(d, z, "d and z must have the same size");
   eigen_assert((options & ~EigVecMask) == 0 && (options & EigVecMask) != EigVecMask && "invalid option parameter");
   const bool computeVectors = (options & ComputeEigenvectors) == ComputeEigenvectors;
   m_vectorsComputed = false;

@@ -30,6 +30,9 @@ namespace Eigen {
  * This class represents an expression of either a fixed-size or dynamic-size reshape.
  * It is the return type of DenseBase::reshaped(NRowsType,NColsType) and
  * most of the time this is the only way it is used.
+ * The source and reshape must have the same coefficient count. Incompatible
+ * fixed counts are rejected at compile time, or by a debug assertion when
+ * EIGEN_NO_STATIC_ASSERT is defined. Dynamic counts are checked in debug builds.
  *
  * If you want to directly manipulate reshaped expressions,
  * for instance if you want to write a function returning such an expression,
@@ -115,13 +118,15 @@ class Reshaped : public ReshapedImpl<XprType, Rows, Cols, Order, typename intern
   EIGEN_DEVICE_FUNC constexpr inline Reshaped(XprType& xpr) : Impl(xpr) {
     EIGEN_STATIC_ASSERT(RowsAtCompileTime != Dynamic && ColsAtCompileTime != Dynamic,
                         THIS_METHOD_IS_ONLY_FOR_FIXED_SIZE)
-    eigen_assert(Rows * Cols == xpr.rows() * xpr.cols());
+    EIGEN_INTERNAL_ASSERT_RESHAPE_SIZE(xpr, Rows, Cols);
   }
 
   /** Dynamic-size constructor
    */
   EIGEN_DEVICE_FUNC constexpr inline Reshaped(XprType& xpr, Index reshapeRows, Index reshapeCols)
       : Impl(xpr, reshapeRows, reshapeCols) {
+    EIGEN_STATIC_ASSERT((internal::reshape_dimensions<XprType, Rows, Cols>::Compatible),
+                        YOU_MIXED_MATRICES_OF_DIFFERENT_SIZES)
     eigen_assert((RowsAtCompileTime == Dynamic || RowsAtCompileTime == reshapeRows) &&
                  (ColsAtCompileTime == Dynamic || ColsAtCompileTime == reshapeCols));
     eigen_assert(reshapeRows * reshapeCols == xpr.rows() * xpr.cols());

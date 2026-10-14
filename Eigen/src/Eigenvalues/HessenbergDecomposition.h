@@ -300,7 +300,7 @@ template <typename MatrixType, typename CoeffVectorType, typename WorkspaceType>
 void hessenberg_decomposition_inplace(MatrixType& matA, CoeffVectorType& hCoeffs, WorkspaceType& temp) {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
-  eigen_assert(matA.rows() == matA.cols());
+  EIGEN_INTERNAL_ASSERT_SQUARE(matA);
   Index n = matA.rows();
   temp.resize(n);
   for (Index i = 0; i < n - 1; ++i) {
