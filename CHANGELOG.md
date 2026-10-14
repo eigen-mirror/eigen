@@ -21,6 +21,9 @@ Bug fixes:
 - `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
 - `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
 
+Breaking changes:
+- The default `epsfcn` for central mode differences was changed to `cbrt(NumTraits<Scalar>::epsilon())` (used to be `sqrt(NumTraits<Scalar>::epsilon())`). The new default should reduce numerical error in most cases.
+
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]
 
