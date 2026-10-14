@@ -75,6 +75,10 @@ struct evaluator_traits<Toeplitz<Scalar_, Rows_, Cols_>> {
  * \tparam Rows_ the number of rows at compile time, or \c Dynamic (the default).
  * \tparam Cols_ the number of columns at compile time, or \c Dynamic (the default).
  *
+ * \par Examples
+ * \ref StructuredExampleLoveEquation "Love's integral equation and a preconditioned Toeplitz system",
+ * \ref StructuredExampleDeconvolution "deconvolution by Toeplitz least squares".
+ *
  * \sa class Circulant, makeToeplitz()
  */
 template <typename Scalar_, int Rows_, int Cols_>

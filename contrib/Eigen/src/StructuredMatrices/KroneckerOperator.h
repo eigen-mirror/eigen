@@ -906,6 +906,10 @@ struct kron_factor_spectrum<KroneckerOperator<LhsMatrix, RhsMatrix>, kKronKronec
  * \tparam RhsMatrix the type of the right factor \c B, under the same
  *         convention; its scalar type must match that of \c LhsMatrix.
  *
+ * \par Examples
+ * \ref StructuredExampleADI "ADI time stepping",
+ * \ref StructuredExampleSeparableLeastSquares "separable least squares".
+ *
  * \sa makeKroneckerOperator(), class Circulant, class Toeplitz
  */
 template <typename LhsMatrix, typename RhsMatrix>

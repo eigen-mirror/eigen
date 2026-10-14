@@ -78,6 +78,9 @@ Matrix<Scalar, Dynamic, 1> structured_upshift(const Matrix<Scalar, Dynamic, 1>& 
  *  - T. F. Chan and P. C. Hansen, "A look-ahead Levinson algorithm for indefinite
  *    Toeplitz systems," SIAM J. Matrix Anal. Appl., 13(2):490-506, 1992.
  *
+ * \par Examples
+ * \ref StructuredExampleLoveEquation "Love's integral equation and a preconditioned Toeplitz system".
+ *
  * \sa class Toeplitz
  */
 template <typename Scalar_>

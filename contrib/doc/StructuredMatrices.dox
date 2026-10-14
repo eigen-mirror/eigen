@@ -1,0 +1,371 @@
+namespace Eigen {
+
+/** \page StructuredMatricesExamples StructuredMatrices examples
+
+These programs solve problems from numerical PDEs, integral equations, signal and image processing, approximation
+theory, statistics, control and quantum mechanics with the \ref StructuredMatrices_Module. Each one replaces a dense
+or sparse factorization by an algorithm that exploits a structure of the problem -- a Kronecker product or sum,
+Toeplitz, Hankel or circulant, Vandermonde, Cauchy, or diagonal plus low rank -- and checks its result against a known
+solution or a general-purpose solver. The bracketed numbers cite the module's
+\ref StructuredMatricesReferences "references".
+
+\tableofcontents
+
+\section StructuredExamplesGrids Separable operators on tensor-product grids
+
+Finite differences on a tensor-product grid give Kronecker sums of 1-D matrices: with grid values stored with x as the
+fast index, the 2-D Laplacian is \f$ D_y \oplus D_x = D_y \otimes I + I \otimes D_x \f$. \ref KroneckerSum applies
+such operators without forming them, and \ref BartelsStewart solves them through the Schur forms or
+eigendecompositions of the 1-D factors. LeVeque [1] covers the discretizations.
+
+\subsection StructuredExamplePoisson2D The 2-D Poisson equation
+
+The fast Poisson solver: two \f$ n \times n \f$ eigendecompositions instead of a factorization of the
+\f$ n^2 \times n^2 \f$ matrix, with the second-order convergence of the discretization: the fast diagonalization
+method of Lynch, Rice and Thomas [2].
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredPoisson2D.cpp
+</td>
+<td>
+\verbinclude StructuredPoisson2D.out
+</td></tr></table>
+
+\subsection StructuredExampleHeat3D Implicit time stepping of the 3-D heat equation
+
+The decompositions are computed once and reused at every step. A shift such as the identity of
+\f$ I + \tau L \f$ goes into one factor, since \f$ I \otimes I \otimes I = I \f$.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredHeat3D.cpp
+</td>
+<td>
+\verbinclude StructuredHeat3D.out
+</td></tr></table>
+
+\subsection StructuredExampleConvectionDiffusion Convection-diffusion
+
+Nonsymmetric 1-D operators take the Schur-form path of \ref BartelsStewart, the algorithm of Bartels and Stewart [3];
+the solution agrees with \c SparseLU on the assembled matrix.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredConvectionDiffusion.cpp
+</td>
+<td>
+\verbinclude StructuredConvectionDiffusion.out
+</td></tr></table>
+
+\subsection StructuredExampleADI Alternating-direction implicit time stepping
+
+The Peaceman-Rachford ADI method [4] treats one direction at a time. Each half step is a \ref KroneckerOperator with an
+\c Identity() factor, which costs nothing: the product is a sparse product with the 1-D matrix and the solve one
+\c SparseLU of a tridiagonal matrix.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredADI.cpp
+</td>
+<td>
+\verbinclude StructuredADI.out
+</td></tr></table>
+
+\subsection StructuredExamplePreconditioner A non-separable potential
+
+When a term breaks the separable structure, the separable part still helps twice: \ref KroneckerSparseView
+assembles the sparse matrix in one expression, and the fast Poisson solver preconditions conjugate gradients.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredPreconditioner.cpp
+</td>
+<td>
+\verbinclude StructuredPreconditioner.out
+</td></tr></table>
+
+\subsection StructuredExampleTorusHelmholtz Periodic boundaries: the screened Poisson equation on a torus
+
+With periodic boundaries the five-point stencil is a block circulant with circulant blocks, solved by \ref Bccb
+through the 2-D FFT [5]. It is also the Kronecker sum of two 1-D periodic second-difference circulants, and the two
+solvers agree.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredTorusHelmholtz.cpp
+</td>
+<td>
+\verbinclude StructuredTorusHelmholtz.out
+</td></tr></table>
+
+\subsection StructuredExampleSpectralDifferentiation Fourier spectral differentiation
+
+On a periodic grid the spectral differentiation matrices are circulants [21], and their spectra are the wavenumbers:
+\ref Circulant::eigenvalues returns \f$ ik \f$, \ref Circulant::rank counts the \f$ N - 2 \f$ nonzero ones (the
+constant and the sawtooth mode are annihilated), and the pseudo-inverse \ref Circulant::solve integrates a periodic
+function with zero mean. Derivatives and the periodic boundary value problem \f$ u'' - u = f \f$ converge
+geometrically for smooth \f$ u \f$.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredSpectralDifferentiation.cpp
+</td>
+<td>
+\verbinclude StructuredSpectralDifferentiation.out
+</td></tr></table>
+
+\section StructuredExamplesSpectra Matrix equations and spectra
+
+\subsection StructuredExampleLyapunov The Lyapunov equation of a mass-spring chain
+
+\f$ A X + X A^T = C \f$ is \f$ (A \oplus A)\,\mathrm{vec}(X) = \mathrm{vec}(C) \f$, and the Sylvester equation
+\f$ A X + X B = C \f$ is \f$ (B^T \oplus A)\,\mathrm{vec}(X) = \mathrm{vec}(C) \f$. This example computes the
+controllability Gramian of a damped chain, whose system matrix has complex eigenvalue pairs; Simoncini [6] surveys the
+methods for such matrix equations.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredLyapunov.cpp
+</td>
+<td>
+\verbinclude StructuredLyapunov.out
+</td></tr></table>
+
+\subsection StructuredExampleHarmonicOscillator The 2-D quantum harmonic oscillator
+
+A separable Hamiltonian \f$ H_x \oplus H_y \f$ has the pairwise sums of the 1-D energies as its spectrum, which
+\ref KroneckerSum::eigenvalues returns without forming the 2-D matrix [7].
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredHarmonicOscillator.cpp
+</td>
+<td>
+\verbinclude StructuredHarmonicOscillator.out
+</td></tr></table>
+
+\subsection StructuredExampleImpurity An impurity bound state
+
+A localized perturbation of a diagonal band Hamiltonian is a rank-one update, the Koster-Slater model [8]. \ref DPR1EigenSolver finds the whole
+spectrum in \f$ O(N^2) \f$ from the secular equation [9], including the bound state that splits off below the band.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredImpurity.cpp
+</td>
+<td>
+\verbinclude StructuredImpurity.out
+</td></tr></table>
+
+\subsection StructuredExampleDivideAndConquer The merge step of divide and conquer
+
+Cuppen's method [25] tears a symmetric tridiagonal matrix into two halves plus a rank-one coupling; after the halves
+are diagonalized, what remains is the diagonal-plus-rank-one eigenproblem that \ref DPR1EigenSolver solves from the
+secular equation, with eigenvectors orthogonal to working accuracy by the construction of Gu and Eisenstat [9]. The
+example performs one such merge and compares with \c SelfAdjointEigenSolver.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredDivideAndConquer.cpp
+</td>
+<td>
+\verbinclude StructuredDivideAndConquer.out
+</td></tr></table>
+
+\section StructuredExamplesToeplitz Toeplitz, circulant and Hankel systems
+
+\subsection StructuredExampleLoveEquation Love's integral equation and a preconditioned Toeplitz system
+
+A translation-invariant kernel discretized on a uniform grid gives a \ref Toeplitz matrix. Love's equation [10] is solved
+directly by \ref LookAheadLevinson [11] in \f$ O(n^2) \f$. For large systems, conjugate gradients use the FFT-based
+Toeplitz product and Strang's \ref Circulant preconditioner [12], [13], \f$ O(n \log n) \f$ per iteration.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredLoveEquation.cpp
+</td>
+<td>
+\verbinclude StructuredLoveEquation.out
+</td></tr></table>
+
+\subsection StructuredExamplePade Pade approximation
+
+The denominator of a Pade approximant [14] solves a \ref Hankel system in the Taylor coefficients, solved in
+\f$ O(n^2) \f$ through its Toeplitz equivalent. Rescaling the variable equilibrates the coefficients and keeps the
+system Hankel.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredPade.cpp
+</td>
+<td>
+\verbinclude StructuredPade.out
+</td></tr></table>
+
+\section StructuredExamplesSignals Signal and image processing
+
+\subsection StructuredExampleDeconvolution Deconvolution by Toeplitz least squares
+
+The full convolution of a signal with a kernel is a rectangular \ref Toeplitz matrix. \c LSMR [22] solves the
+least-squares problem without forming it: products with the matrix and, through \ref Toeplitz::adjoint, its transpose
+cost \f$ O(p \log p) \f$ each by circulant embedding [13]. The matrix-free solution agrees with the dense QR of the
+materialized matrix.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredDeconvolution.cpp
+</td>
+<td>
+\verbinclude StructuredDeconvolution.out
+</td></tr></table>
+
+\subsection StructuredExampleDeblurring Image deblurring with periodic boundaries
+
+A blur with periodic boundary conditions is a \ref Bccb matrix [5]. A motion blur annihilates whole frequency lines,
+which \ref Bccb::rank counts exactly, so the pseudo-inverse \ref Bccb::solve cannot undo it and amplifies the noise
+next to those lines. Tikhonov regularization stays within the class: \f$ A^H A + \lambda I \f$ is the Bccb generated by
+the autocorrelation of the point spread function, computed with two products, and each \f$ \lambda \f$ costs one
+\f$ O(N \log N) \f$ solve.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredDeblurring.cpp
+</td>
+<td>
+\verbinclude StructuredDeblurring.out
+</td></tr></table>
+
+\subsection StructuredExampleProny Prony's method
+
+A sum of exponentials obeys a linear recurrence whose coefficients solve a \ref Hankel system in the samples [23]; the
+roots of its characteristic polynomial are the damping rates and frequencies, and the amplitudes solve the dual
+\ref Vandermonde system with complex nodes, which \ref BjorckPereyra handles in Leja order. The recurrence residual
+over all samples is a rectangular Hankel product.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredProny.cpp
+</td>
+<td>
+\verbinclude StructuredProny.out
+</td></tr></table>
+
+\section StructuredExamplesApproximation Interpolation and approximation
+
+\subsection StructuredExampleQuadrature Interpolatory quadrature
+
+The weights of an interpolatory quadrature rule solve the transposed \ref Vandermonde system, the dual problem that
+\ref BjorckPereyra [16] solves in \f$ O(n^2) \f$; on Chebyshev extreme points they are the Clenshaw-Curtis weights
+[15]. The primal solve gives interpolation coefficients.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredQuadrature.cpp
+</td>
+<td>
+\verbinclude StructuredQuadrature.out
+</td></tr></table>
+
+\subsection StructuredExampleRationalApproximation A discretized Cauchy integral
+
+Representing an analytic function by point charges outside its domain leads to a \ref Cauchy system, factored with
+pivoting in \f$ O(n^2) \f$ by \ref CauchyLU [18]; the error decays geometrically, as for the trapezoidal rule on a
+circle [17].
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredRationalApproximation.cpp
+</td>
+<td>
+\verbinclude StructuredRationalApproximation.out
+</td></tr></table>
+
+\subsection StructuredExamplePolynomialFit Polynomial least squares and the Hilbert matrix
+
+The normal equations of continuous least-squares approximation in the monomial basis have the Hilbert matrix, a
+\ref Cauchy matrix [26]: \ref CauchyLU solves them in \f$ O(n^2) \f$ and \ref Cauchy::determinant gives
+\f$ \det H_n \f$ in closed form where dense LU loses digits. The fitted polynomial is far less sensitive to
+\f$ \kappa(H_n) \f$ than its coefficients, and matches the discrete fit by a dense QR of the rectangular
+\ref Vandermonde matrix; Vandermonde products evaluate both.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredPolynomialFit.cpp
+</td>
+<td>
+\verbinclude StructuredPolynomialFit.out
+</td></tr></table>
+
+\subsection StructuredExampleSeparableLeastSquares Separable least squares on a grid
+
+The design matrix of a tensor-product polynomial fit on a grid is the Kronecker product of two rectangular Vandermonde
+matrices. \ref KroneckerOperator::leastSquaresSolve applies \f$ (A \otimes B)^+ = A^+ \otimes B^+ \f$ [27] with one
+complete orthogonal decomposition per factor, and \ref KroneckerOperator::rank and
+\ref KroneckerOperator::singularValues come from the factors too; the dense decomposition of the assembled matrix
+agrees.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredSeparableLeastSquares.cpp
+</td>
+<td>
+\verbinclude StructuredSeparableLeastSquares.out
+</td></tr></table>
+
+\section StructuredExamplesStatistics Statistics and estimation
+
+\subsection StructuredExampleGaussianProcess A Gaussian-process likelihood
+
+A covariance that is noise plus a low-rank feature model [19], [20] is a \ref DiagonalPlusLowRank operator. Its solve
+(Woodbury identity) and determinant (matrix determinant lemma) cost \f$ O(n k^2) \f$, the price of evaluating the
+log-likelihood.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredGaussianProcess.cpp
+</td>
+<td>
+\verbinclude StructuredGaussianProcess.out
+</td></tr></table>
+
+\subsection StructuredExampleKalmanUpdate A Kalman measurement update
+
+With a diagonal prior and \f$ k \f$ measurements, the posterior precision is diagonal plus rank \f$ k \f$, and
+\ref DiagonalPlusLowRank::inverse returns the posterior covariance as another \ref DiagonalPlusLowRank, since the
+Woodbury identity is the Kalman update [24]. The posterior mean is one \f$ O(nk) \f$ product and the posterior variances are
+read off the diagonal; the dense \f$ n \times n \f$ computation agrees.
+
+<table class="example">
+<tr><th>Example:</th><th>Output:</th></tr>
+<tr><td>
+\include StructuredKalmanUpdate.cpp
+</td>
+<td>
+\verbinclude StructuredKalmanUpdate.out
+</td></tr></table>
+
+*/
+
+}  // namespace Eigen

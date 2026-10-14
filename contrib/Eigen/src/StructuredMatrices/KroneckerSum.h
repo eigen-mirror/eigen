@@ -228,6 +228,15 @@ class kron_factor_solver<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  * \tparam RhsMatrix the type of the right factor \c B, under the same
  *         convention; its scalar type must match that of \c LhsMatrix.
  *
+ * \par Examples
+ * \ref StructuredExamplePoisson2D "the 2-D Poisson equation",
+ * \ref StructuredExampleHeat3D "the 3-D heat equation",
+ * \ref StructuredExampleConvectionDiffusion "convection-diffusion",
+ * \ref StructuredExamplePreconditioner "a non-separable potential",
+ * \ref StructuredExampleTorusHelmholtz "the screened Poisson equation on a torus",
+ * \ref StructuredExampleLyapunov "the Lyapunov equation",
+ * \ref StructuredExampleHarmonicOscillator "the 2-D quantum harmonic oscillator".
+ *
  * \sa makeKroneckerSum(), class BartelsStewart, class KroneckerOperator
  */
 template <typename LhsMatrix, typename RhsMatrix>
@@ -555,6 +564,13 @@ auto makeKroneckerSum(const EigenBase<D1>& a, const EigenBase<D2>& b, const Eige
  * returns NaN.
  *
  * \tparam KroneckerSumType the \ref KroneckerSum type to solve with.
+ *
+ * \par Examples
+ * \ref StructuredExamplePoisson2D "the 2-D Poisson equation",
+ * \ref StructuredExampleHeat3D "the 3-D heat equation",
+ * \ref StructuredExampleConvectionDiffusion "convection-diffusion",
+ * \ref StructuredExamplePreconditioner "a non-separable potential",
+ * \ref StructuredExampleLyapunov "the Lyapunov equation".
  *
  * \sa class KroneckerSum
  */

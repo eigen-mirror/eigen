@@ -13,6 +13,8 @@ Don't miss the <a href="../index.html">official Eigen documentation</a>.
 
  \subpage AutoDiffExamples "AutoDiff examples"
 
+ \subpage StructuredMatricesExamples "StructuredMatrices examples"
+
  \subpage SYCL_EIGEN "SYCL backend for Eigen"
 
 */

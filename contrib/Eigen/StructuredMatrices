@@ -90,6 +90,131 @@ namespace Eigen {
  * \code
  * #include <contrib/Eigen/StructuredMatrices>
  * \endcode
+ *
+ * \section StructuredMatricesApplications Applications
+ *
+ * The \ref StructuredMatricesExamples "worked examples" apply these classes to
+ * problems from computational science, each program checking its result
+ * against a known solution or a general-purpose solver:
+ *   - partial differential equations on tensor-product grids, whose
+ *     finite-difference operators are Kronecker sums of 1-D matrices [1]: the
+ *     \ref StructuredExamplePoisson2D "2-D Poisson equation" by fast
+ *     diagonalization [2], the
+ *     \ref StructuredExampleHeat3D "3-D heat equation" by implicit time
+ *     stepping, \ref StructuredExampleConvectionDiffusion "convection-diffusion"
+ *     by the Bartels-Stewart algorithm [3],
+ *     \ref StructuredExampleADI "alternating-direction implicit time stepping" [4],
+ *     a \ref StructuredExamplePreconditioner "non-separable potential" with a
+ *     fast Poisson preconditioner, and the
+ *     \ref StructuredExampleTorusHelmholtz "screened Poisson equation on a torus"
+ *     through block circulant matrices [5], and
+ *     \ref StructuredExampleSpectralDifferentiation "Fourier spectral differentiation"
+ *     on a periodic grid [21]
+ *     (\c KroneckerSum, \c BartelsStewart, \c KroneckerOperator,
+ *     \c KroneckerSparseView, \c Bccb, \c Circulant);
+ *   - matrix equations and spectra: the
+ *     \ref StructuredExampleLyapunov "Lyapunov equation" of a damped
+ *     mass-spring chain [6], the
+ *     \ref StructuredExampleHarmonicOscillator "2-D quantum harmonic oscillator" [7],
+ *     and the bound state of a
+ *     \ref StructuredExampleImpurity "Koster-Slater impurity" [8] by the
+ *     secular equation [9], and the
+ *     \ref StructuredExampleDivideAndConquer "merge step of divide and conquer" [25]
+ *     for the symmetric tridiagonal eigenproblem (\c KroneckerSum,
+ *     \c DPR1EigenSolver);
+ *   - integral equations and Toeplitz systems:
+ *     \ref StructuredExampleLoveEquation "Love's integral equation" of
+ *     electrostatics [10] by look-ahead Levinson [11], and a large Toeplitz
+ *     system by conjugate gradients with Strang's circulant preconditioner
+ *     [12], [13] (\c Toeplitz, \c LookAheadLevinson, \c Circulant);
+ *   - signal and image processing:
+ *     \ref StructuredExampleDeconvolution "deconvolution" as a rectangular
+ *     Toeplitz least-squares problem for LSMR [22],
+ *     \ref StructuredExampleDeblurring "image deblurring" with periodic
+ *     boundaries by Tikhonov regularization [5], and
+ *     \ref StructuredExampleProny "Prony's method" [23] for sums of
+ *     exponentials (\c Toeplitz, \c Bccb, \c Hankel, \c Vandermonde,
+ *     \c BjorckPereyra);
+ *   - approximation: \ref StructuredExamplePade "Padé approximants" [14]
+ *     through a Hankel solve,
+ *     \ref StructuredExampleQuadrature "interpolatory quadrature weights" [15]
+ *     through the dual Björck-Pereyra solve [16], a
+ *     \ref StructuredExampleRationalApproximation "discretized Cauchy integral" [17]
+ *     through the pivoted Cauchy factorization [18],
+ *     \ref StructuredExamplePolynomialFit "polynomial least squares" through
+ *     the Hilbert matrix [26], and
+ *     \ref StructuredExampleSeparableLeastSquares "separable least squares"
+ *     on a grid through the Kronecker pseudo-inverse [27] (\c Hankel,
+ *     \c Vandermonde, \c BjorckPereyra, \c Cauchy, \c CauchyLU,
+ *     \c KroneckerOperator);
+ *   - statistics and estimation: a
+ *     \ref StructuredExampleGaussianProcess "Gaussian-process likelihood" [19]
+ *     with a low-rank Fourier-feature covariance [20], and a
+ *     \ref StructuredExampleKalmanUpdate "Kalman measurement update" [24]
+ *     through the Woodbury identity (\c DiagonalPlusLowRank).
+ *
+ * \section StructuredMatricesReferences References
+ *
+ *  -# R. J. LeVeque, <em>Finite Difference Methods for Ordinary and Partial
+ *     Differential Equations</em>, SIAM, 2007.
+ *  -# R. E. Lynch, J. R. Rice and D. H. Thomas, "Direct solution of partial
+ *     difference equations by tensor product methods", <em>Numer. Math.</em>
+ *     6 (1964), 185-199.
+ *  -# R. H. Bartels and G. W. Stewart, "Solution of the matrix equation
+ *     AX + XB = C", <em>Comm. ACM</em> 15 (1972), 820-826.
+ *  -# D. W. Peaceman and H. H. Rachford, "The numerical solution of parabolic
+ *     and elliptic differential equations", <em>J. SIAM</em> 3 (1955), 28-41.
+ *  -# P. C. Hansen, J. G. Nagy and D. P. O'Leary, <em>Deblurring Images:
+ *     Matrices, Spectra, and Filtering</em>, SIAM, 2006.
+ *  -# V. Simoncini, "Computational methods for linear matrix equations",
+ *     <em>SIAM Rev.</em> 58 (2016), 377-441.
+ *  -# D. J. Griffiths, <em>Introduction to Quantum Mechanics</em>, 2nd ed.,
+ *     Pearson Prentice Hall, 2005.
+ *  -# G. F. Koster and J. C. Slater, "Wave functions for impurity levels",
+ *     <em>Phys. Rev.</em> 95 (1954), 1167-1176.
+ *  -# M. Gu and S. C. Eisenstat, "A stable and efficient algorithm for the
+ *     rank-one modification of the symmetric eigenproblem",
+ *     <em>SIAM J. Matrix Anal. Appl.</em> 15 (1994), 1266-1276.
+ *  -# E. R. Love, "The electrostatic field of two equal circular co-axial
+ *     conducting disks", <em>Quart. J. Mech. Appl. Math.</em> 2 (1949),
+ *     428-451.
+ *  -# T. F. Chan and P. C. Hansen, "A look-ahead Levinson algorithm for general
+ *     Toeplitz systems", <em>IEEE Trans. Signal Process.</em> 40 (1992),
+ *     1079-1090.
+ *  -# G. Strang, "A proposal for Toeplitz matrix calculations",
+ *     <em>Stud. Appl. Math.</em> 74 (1986), 171-176.
+ *  -# R. H. Chan and M. K. Ng, "Conjugate gradient methods for Toeplitz
+ *     systems", <em>SIAM Rev.</em> 38 (1996), 427-482.
+ *  -# G. A. Baker and P. Graves-Morris, <em>Padé Approximants</em>, 2nd ed.,
+ *     Cambridge University Press, 1996.
+ *  -# C. W. Clenshaw and A. R. Curtis, "A method for numerical integration on
+ *     an automatic computer", <em>Numer. Math.</em> 2 (1960), 197-205.
+ *  -# Å. Björck and V. Pereyra, "Solution of Vandermonde systems of
+ *     equations", <em>Math. Comp.</em> 24 (1970), 893-903.
+ *  -# L. N. Trefethen and J. A. C. Weideman, "The exponentially convergent
+ *     trapezoidal rule", <em>SIAM Rev.</em> 56 (2014), 385-458.
+ *  -# I. Gohberg, T. Kailath and V. Olshevsky, "Fast Gaussian elimination with
+ *     partial pivoting for matrices with displacement structure",
+ *     <em>Math. Comp.</em> 64 (1995), 1557-1576.
+ *  -# C. E. Rasmussen and C. K. I. Williams, <em>Gaussian Processes for
+ *     Machine Learning</em>, MIT Press, 2006.
+ *  -# A. Rahimi and B. Recht, "Random features for large-scale kernel
+ *     machines", <em>Advances in Neural Information Processing Systems</em> 20
+ *     (2007).
+ *  -# L. N. Trefethen, <em>Spectral Methods in MATLAB</em>, SIAM, 2000.
+ *  -# D. C.-L. Fong and M. A. Saunders, "LSMR: An iterative algorithm for
+ *     sparse least-squares problems", <em>SIAM J. Sci. Comput.</em> 33 (2011),
+ *     2950-2971.
+ *  -# G. R. de Prony, "Essai expérimental et analytique ...",
+ *     <em>J. de l'École Polytechnique</em> 1 (1795), 24-76.
+ *  -# R. E. Kalman, "A new approach to linear filtering and prediction
+ *     problems", <em>J. Basic Eng.</em> 82 (1960), 35-45.
+ *  -# J. J. M. Cuppen, "A divide and conquer method for the symmetric
+ *     tridiagonal eigenproblem", <em>Numer. Math.</em> 36 (1981), 177-195.
+ *  -# M.-D. Choi, "Tricks or treats with the Hilbert matrix",
+ *     <em>Amer. Math. Monthly</em> 90 (1983), 301-312.
+ *  -# C. F. Van Loan, "The ubiquitous Kronecker product",
+ *     <em>J. Comput. Appl. Math.</em> 123 (2000), 85-100.
  */
 
 }  // namespace Eigen

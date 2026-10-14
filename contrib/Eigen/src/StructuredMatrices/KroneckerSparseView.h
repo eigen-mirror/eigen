@@ -333,6 +333,9 @@ struct kron_view_nonzeros<KroneckerSum<LhsMatrix, RhsMatrix>, kKronSumFactor> {
  * \tparam OperatorType the \ref KroneckerOperator or \ref KroneckerSum type.
  * \tparam Options \c ColMajor or \c RowMajor, the storage order of the view.
  *
+ * \par Examples
+ * \ref StructuredExamplePreconditioner "a non-separable potential".
+ *
  * \sa KroneckerOperator::sparseView(), KroneckerSum::sparseView()
  */
 template <typename OperatorType, int Options>
