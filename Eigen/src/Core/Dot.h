@@ -87,7 +87,8 @@ struct stable_normalization_dispatch {
   using HasWritableRealView = bool_constant<!NumTraits<Scalar>::IsComplex || complex_array_access<Scalar>::value>;
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator max_abs(const VectorType& vec) {
-    return vec.realView().template cast<Accumulator>().cwiseAbs().template maxCoeff<PropagateNaN>();
+    return redux_with_identity(vec.realView().template cast<Accumulator>().cwiseAbs(),
+                               scalar_max_op<Accumulator, Accumulator, PropagateNaN>(), 0);
   }
 
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Accumulator scaled_squared_norm(const VectorType& vec,
@@ -502,9 +503,7 @@ template <typename Derived>
 struct lpNorm_selector<Derived, Infinity> {
   using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
-    if (Derived::SizeAtCompileTime == 0 || (Derived::SizeAtCompileTime == Dynamic && m.size() == 0))
-      return RealScalar(0);
-    return m.cwiseAbs().maxCoeff();
+    return redux_with_identity(m.cwiseAbs(), scalar_max_op<RealScalar, RealScalar>(), 0);
   }
 };
 

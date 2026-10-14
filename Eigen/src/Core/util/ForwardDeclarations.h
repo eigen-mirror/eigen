@@ -208,6 +208,10 @@ class BandMatrix;
 namespace internal {
 template <typename Lhs, typename Rhs>
 struct product_type;
+template <typename Derived, typename Func, typename Identity>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity(const DenseBase<Derived>& xpr,
+                                                                                   const Func& func,
+                                                                                   Identity&& identity);
 
 /** \internal
  * \class product_evaluator

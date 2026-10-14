@@ -230,6 +230,35 @@ void test_empty() {
   VERIFY_IS_EQUAL(empty.stableNorm(), 0.0f);
 }
 
+template <typename VectorType>
+void check_empty_stable_normalization(const VectorType& input) {
+  VectorType empty(input);
+  using RealScalar = typename VectorType::RealScalar;
+  VERIFY_IS_EQUAL((internal::stable_normalization_dispatch<VectorType, RealScalar>::max_abs(empty)), RealScalar(0));
+  VERIFY_IS_EQUAL(empty.stableNormalized().size(), 0);
+  empty.stableNormalize();
+  VERIFY_IS_EQUAL(empty.size(), 0);
+}
+
+template <typename Scalar>
+void stable_normalization_empty_reductions() {
+  check_empty_stable_normalization(Matrix<Scalar, 0, 1>());
+  check_empty_stable_normalization(Matrix<Scalar, 1, 0>());
+  check_empty_stable_normalization(Matrix<Scalar, Dynamic, 1>(0));
+  check_empty_stable_normalization(Matrix<Scalar, 1, Dynamic>(0));
+}
+
+template <typename RealScalar>
+void stable_normalization_max_abs_special_values() {
+  using VectorType = Matrix<RealScalar, 2, 1>;
+  using Dispatch = internal::stable_normalization_dispatch<VectorType, RealScalar>;
+  VectorType special;
+  special << RealScalar(1), NumTraits<RealScalar>::quiet_NaN();
+  VERIFY((numext::isnan)(Dispatch::max_abs(special)));
+  special << -NumTraits<RealScalar>::infinity(), RealScalar(1);
+  VERIFY_IS_EQUAL(Dispatch::max_abs(special), NumTraits<RealScalar>::infinity());
+}
+
 template <typename RealScalar>
 void stable_normalize_extremes() {
   typedef Matrix<RealScalar, 2, 1> Vector2;
@@ -832,6 +861,11 @@ void stable_normalize_custom_scalar() {
 
 EIGEN_DECLARE_TEST(stable_norm) {
   CALL_SUBTEST_1(test_empty<>());
+  CALL_SUBTEST_1(stable_normalization_empty_reductions<float>());
+  CALL_SUBTEST_2(stable_normalization_empty_reductions<double>());
+  CALL_SUBTEST_2(stable_normalization_empty_reductions<std::complex<double>>());
+  CALL_SUBTEST_1(stable_normalization_max_abs_special_values<float>());
+  CALL_SUBTEST_2(stable_normalization_max_abs_special_values<double>());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_3(test_hypot<double>());

@@ -740,6 +740,36 @@ struct redux_dispatch<Func, Evaluator, XprType, true> {
   }
 };
 
+// Convert identity to Scalar only for empty inputs; otherwise reduce without inserting it.
+// Tag dispatch avoids instantiating redux for statically empty inputs in C++14.
+// TODO(C++17): replace tag dispatch with if constexpr.
+template <typename Derived, typename Func, typename Identity>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>&,
+                                                                                        const Func&,
+                                                                                        Identity&& identity,
+                                                                                        true_type) {
+  return typename Derived::Scalar(std::forward<Identity>(identity));
+}
+
+template <typename Derived, typename Func, typename Identity>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>& xpr,
+                                                                                        const Func& func,
+                                                                                        Identity&& identity,
+                                                                                        false_type) {
+  EIGEN_IF_CONSTEXPR (Derived::SizeAtCompileTime == Dynamic) {
+    if (xpr.size() == 0) return typename Derived::Scalar(std::forward<Identity>(identity));
+  }
+  return xpr.derived().redux(func);
+}
+
+template <typename Derived, typename Func, typename Identity>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity(const DenseBase<Derived>& xpr,
+                                                                                   const Func& func,
+                                                                                   Identity&& identity) {
+  return redux_with_identity_impl(xpr, func, std::forward<Identity>(identity),
+                                  bool_constant<Derived::MaxSizeAtCompileTime == 0>());
+}
+
 }  // end namespace internal
 
 /***************************************************************************
@@ -808,14 +838,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::sum() const {
-  EIGEN_IF_CONSTEXPR (MaxSizeAtCompileTime == 0 || SizeAtCompileTime == 0) {
-    return Scalar(0);
-  } else {
-    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
-      if (size() == 0) return Scalar(0);
-    }
-    return derived().redux(Eigen::internal::scalar_sum_op<Scalar, Scalar>());
-  }
+  return internal::redux_with_identity(*this, internal::scalar_sum_op<Scalar, Scalar>(), 0);
 }
 
 /** \returns the mean of all coefficients of *this
@@ -843,14 +866,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::prod() const {
-  EIGEN_IF_CONSTEXPR (MaxSizeAtCompileTime == 0 || SizeAtCompileTime == 0) {
-    return Scalar(1);
-  } else {
-    EIGEN_IF_CONSTEXPR (SizeAtCompileTime == Dynamic) {
-      if (size() == 0) return Scalar(1);
-    }
-    return derived().redux(Eigen::internal::scalar_product_op<Scalar>());
-  }
+  return internal::redux_with_identity(*this, internal::scalar_product_op<Scalar>(), 1);
 }
 
 /** \returns the trace of \c *this, i.e. the sum of the coefficients on the main diagonal.

@@ -40,6 +40,7 @@ void homogeneous(void) {
   VERIFY_IS_APPROX(v0, hv0.hnormalized());
 
   VERIFY_IS_APPROX(v0.homogeneous().sum(), hv0.sum());
+  VERIFY_IS_APPROX(v0.homogeneous().prod(), hv0.prod());
   VERIFY_IS_APPROX(v0.homogeneous().minCoeff(), hv0.minCoeff());
   VERIFY_IS_APPROX(v0.homogeneous().maxCoeff(), hv0.maxCoeff());
 
@@ -138,7 +139,59 @@ void homogeneous(void) {
   }
 }
 
+template <typename Expression>
+void check_empty_homogeneous_reductions(const Expression& expression, Index appended_ones) {
+  using Scalar = typename Expression::Scalar;
+  VERIFY_IS_EQUAL(expression.size(), appended_ones);
+  VERIFY_IS_EQUAL(expression.sum(), Scalar(appended_ones));
+  VERIFY_IS_EQUAL(expression.prod(), Scalar(1));
+  if (appended_ones > 0) {
+    VERIFY_IS_EQUAL(expression.minCoeff(), Scalar(1));
+    VERIFY_IS_EQUAL(expression.maxCoeff(), Scalar(1));
+    // This associative functor has identity -1, not a guessed sum/product identity.
+    VERIFY_IS_EQUAL(expression.redux([](Scalar a, Scalar b) { return a + b + Scalar(1); }),
+                    Scalar(2 * appended_ones - 1));
+  } else {
+    VERIFY_RAISES_ASSERT(expression.minCoeff());
+    VERIFY_RAISES_ASSERT(expression.maxCoeff());
+  }
+}
+
+template <typename Scalar>
+void homogeneous_empty_reductions() {
+  using DynamicMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  check_empty_homogeneous_reductions(Matrix<Scalar, 0, 1>().homogeneous(), 1);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 1, 0>().homogeneous(), 1);
+  check_empty_homogeneous_reductions(Matrix<Scalar, Dynamic, 1>(0).homogeneous(), 1);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 1, Dynamic>(0).homogeneous(), 1);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 0, 3>().colwise().homogeneous(), 3);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 0, 3>().rowwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 3, 0>().colwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 3, 0>().rowwise().homogeneous(), 3);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 0, 0>().colwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(Matrix<Scalar, 0, 0>().rowwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(DynamicMatrix(0, 3).colwise().homogeneous(), 3);
+  check_empty_homogeneous_reductions(DynamicMatrix(0, 3).rowwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(DynamicMatrix(3, 0).colwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(DynamicMatrix(3, 0).rowwise().homogeneous(), 3);
+  check_empty_homogeneous_reductions(Matrix<Scalar, Dynamic, Dynamic, 0, 0, 0>().colwise().homogeneous(), 0);
+  check_empty_homogeneous_reductions(Matrix<Scalar, Dynamic, Dynamic, 0, 0, 0>().rowwise().homogeneous(), 0);
+}
+
+template <typename Scalar>
+void homogeneous_empty_complex_reductions() {
+  VERIFY_IS_EQUAL((Matrix<Scalar, 0, 1>().homogeneous().sum()), Scalar(1));
+  VERIFY_IS_EQUAL((Matrix<Scalar, 1, 0>().homogeneous().prod()), Scalar(1));
+  VERIFY_IS_EQUAL((Matrix<Scalar, Dynamic, 1>(0).homogeneous().prod()), Scalar(1));
+  VERIFY_IS_EQUAL((Matrix<Scalar, 1, Dynamic>(0).homogeneous().sum()), Scalar(1));
+  VERIFY_IS_EQUAL((Matrix<Scalar, 0, 3>().colwise().homogeneous().sum()), Scalar(3));
+  VERIFY_IS_EQUAL((Matrix<Scalar, 3, 0>().rowwise().homogeneous().sum()), Scalar(3));
+}
+
 EIGEN_DECLARE_TEST(geo_homogeneous) {
+  CALL_SUBTEST_1(homogeneous_empty_reductions<float>());
+  CALL_SUBTEST_2(homogeneous_empty_reductions<double>());
+  CALL_SUBTEST_2(homogeneous_empty_complex_reductions<std::complex<double>>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((homogeneous<float, 1>()));
     CALL_SUBTEST_2((homogeneous<double, 3>()));

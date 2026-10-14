@@ -9,6 +9,65 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "MovableScalar.h"
+
+template <typename Scalar>
+struct ReductionIdentity {
+  ReductionIdentity(double initialValue, int& lvalueCount, int& rvalueCount)
+      : value(initialValue), lvalueConversions(lvalueCount), rvalueConversions(rvalueCount) {}
+  ReductionIdentity(const ReductionIdentity&) = delete;
+  ReductionIdentity(ReductionIdentity&&) = delete;
+
+  explicit operator Scalar() const& {
+    ++lvalueConversions;
+    return Scalar(value);
+  }
+  explicit operator Scalar() && {
+    ++rvalueConversions;
+    return Scalar(value);
+  }
+
+  double value;
+  int& lvalueConversions;
+  int& rvalueConversions;
+};
+
+template <typename Scalar>
+void reductionIdentityArguments() {
+  const internal::scalar_sum_op<Scalar, Scalar> sum;
+  const Matrix<Scalar, 0, 1> fixedEmpty;
+  const Matrix<Scalar, Dynamic, 1, 0, 0, 1> zeroCapacity(0);
+  Matrix<Scalar, Dynamic, 1> dynamic(0);
+  const double runtimeIdentity = 0.25;
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixedEmpty, sum, runtimeIdentity)), runtimeIdentity);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(dynamic, sum, runtimeIdentity)), runtimeIdentity);
+
+  int lvalueConversions = 0, rvalueConversions = 0;
+  ReductionIdentity<Scalar> identity(runtimeIdentity, lvalueConversions, rvalueConversions);
+  const auto& constIdentity = identity;
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixedEmpty, sum, identity)), runtimeIdentity);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(zeroCapacity, sum, identity)), runtimeIdentity);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(dynamic, sum, constIdentity)), runtimeIdentity);
+  VERIFY_IS_EQUAL(lvalueConversions, 3);
+  VERIFY_IS_EQUAL(rvalueConversions, 0);
+
+  Matrix<Scalar, 2, 1> fixed;
+  fixed << Scalar(2), Scalar(3);
+  dynamic = fixed;
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixed, sum, identity)), 5.0);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(dynamic, sum, std::move(identity))), 5.0);
+  VERIFY_IS_EQUAL(lvalueConversions, 3);
+  VERIFY_IS_EQUAL(rvalueConversions, 0);
+
+  dynamic.resize(0);
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(dynamic, sum, std::move(identity))), runtimeIdentity);
+  VERIFY_IS_EQUAL(
+      double(internal::redux_with_identity(
+          fixedEmpty, sum, ReductionIdentity<Scalar>(runtimeIdentity, lvalueConversions, rvalueConversions))),
+      runtimeIdentity);
+  VERIFY_IS_EQUAL(lvalueConversions, 3);
+  VERIFY_IS_EQUAL(rvalueConversions, 2);
+}
 
 template <typename MatrixType>
 void zeroReduction(const MatrixType& m) {
@@ -19,6 +78,11 @@ void zeroReduction(const MatrixType& m) {
   VERIFY(m.sum() == 0);
   VERIFY(m.norm() == 0);
   VERIFY(m.squaredNorm() == 0);
+  EIGEN_IF_CONSTEXPR (!NumTraits<typename MatrixType::Scalar>::IsInteger) {
+    VERIFY(m.template lpNorm<Infinity>() == 0);
+    VERIFY(m.hypotNorm() == 0);
+    VERIFY(m.stableNorm() == 0);
+  }
   VERIFY(m.count() == 0);
   VERIFY(m.allFinite());
   VERIFY(!m.hasNaN());
@@ -82,6 +146,17 @@ void zeroSizedMatrix() {
   }
 }
 
+// Complex extrema are unordered; check only reductions with defined empty identities.
+template <typename MatrixType>
+void zeroComplexReduction(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  VERIFY_IS_EQUAL(m.sum(), Scalar(0));
+  VERIFY_IS_EQUAL(m.prod(), Scalar(1));
+  VERIFY_IS_EQUAL(m.template lpNorm<Infinity>(), 0.0);
+  VERIFY_IS_EQUAL(m.hypotNorm(), 0.0);
+  VERIFY_IS_EQUAL(m.stableNorm(), 0.0);
+}
+
 template <typename VectorType>
 void zeroSizedVector() {
   VectorType t1;
@@ -98,6 +173,8 @@ void zeroSizedVector() {
 }
 
 EIGEN_DECLARE_TEST(zerosized) {
+  reductionIdentityArguments<double>();
+  reductionIdentityArguments<MovableScalar<double>>();
   zeroSizedMatrix<Matrix2d>();
   zeroSizedMatrix<Matrix3i>();
   zeroSizedMatrix<Matrix<float, 2, Dynamic> >();
@@ -114,4 +191,9 @@ EIGEN_DECLARE_TEST(zerosized) {
   zeroSizedVector<VectorXf>();
   zeroSizedVector<Matrix<float, 0, 1> >();
   zeroSizedVector<Matrix<float, 1, 0> >();
+  zeroComplexReduction(MatrixXcd(0, 3));
+  zeroComplexReduction(MatrixXcd(3, 0));
+  zeroComplexReduction(Matrix<std::complex<double>, 0, 0>());
+  zeroComplexReduction(Matrix<std::complex<double>, 0, 3>());
+  zeroComplexReduction(Matrix<std::complex<double>, 3, 0>());
 }

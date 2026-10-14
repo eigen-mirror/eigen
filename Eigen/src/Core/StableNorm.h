@@ -148,7 +148,14 @@ struct stable_norm_matrix_dispatch<MatrixType, Accumulator, true> {
   }
 };
 
-template <typename VectorType, std::enable_if_t<VectorType::IsVectorAtCompileTime, int> = 0>
+// Avoid instantiating block reductions for statically empty inputs, including in C++14.
+template <typename Derived, std::enable_if_t<Derived::MaxSizeAtCompileTime == 0, int> = 0>
+typename Derived::RealScalar stable_norm_impl(const Derived&) {
+  return typename Derived::RealScalar(0);
+}
+
+template <typename VectorType,
+          std::enable_if_t<VectorType::IsVectorAtCompileTime && VectorType::MaxSizeAtCompileTime != 0, int> = 0>
 typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
   using std::sqrt;
 
@@ -166,7 +173,8 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
   return RealScalar(scale * sqrt(ssq));
 }
 
-template <typename MatrixType, std::enable_if_t<!MatrixType::IsVectorAtCompileTime, int> = 0>
+template <typename MatrixType,
+          std::enable_if_t<!MatrixType::IsVectorAtCompileTime && MatrixType::MaxSizeAtCompileTime != 0, int> = 0>
 typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
   using std::sqrt;
 
@@ -329,10 +337,9 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
 template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real MatrixBase<Derived>::hypotNorm() const {
   using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
-  if (size() == 0) return RealScalar(0);
   // Component reduction avoids rounded complex magnitudes and permits promoted accumulation.
-  return RealScalar(
-      derived().realView().template cast<Accumulator>().cwiseAbs().redux(internal::scalar_hypot_op<Accumulator>()));
+  return RealScalar(internal::redux_with_identity(derived().realView().template cast<Accumulator>().cwiseAbs(),
+                                                  internal::scalar_hypot_op<Accumulator>(), 0));
 }
 
 }  // end namespace Eigen
