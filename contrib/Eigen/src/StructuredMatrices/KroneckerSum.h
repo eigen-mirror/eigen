@@ -955,6 +955,23 @@ struct generic_product_impl<KroneckerSum<LhsMatrix, RhsMatrix>, Rhs, StructuredS
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::RowsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::ColsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::MaxRowsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::MaxColsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::SizeAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerSum<LhsMatrix, RhsMatrix>::MaxSizeAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr bool KroneckerSum<LhsMatrix, RhsMatrix>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_KRONECKER_SUM_H

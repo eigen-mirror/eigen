@@ -237,6 +237,13 @@ class TensorRefBase : public TensorBase<Derived> {
   TensorLazyBaseEvaluator<Dimensions, Scalar>* m_evaluator = nullptr;
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Derived>
+constexpr typename TensorRefBase<Derived>::Index TensorRefBase<Derived>::NumIndices;
+template <typename Derived>
+constexpr int TensorRefBase<Derived>::Layout;
+#endif
+
 }  // namespace internal
 
 /**

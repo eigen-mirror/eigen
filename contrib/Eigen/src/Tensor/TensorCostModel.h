@@ -246,6 +246,25 @@ class TensorCostModel {
   }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Device>
+constexpr int TensorCostModel<Device>::kDeviceCyclesPerComputeCycle;
+template <typename Device>
+constexpr int TensorCostModel<Device>::kStartupCycles;
+template <typename Device>
+constexpr int TensorCostModel<Device>::kPerThreadCycles;
+template <typename Device>
+constexpr int TensorCostModel<Device>::kTaskSize;
+template <typename Device>
+constexpr int TensorCostModel<Device>::kMemBandwidthSaturationThreads;
+template <typename Device>
+constexpr double TensorCostModel<Device>::kMemBoundThreshold;
+template <typename Device>
+constexpr double TensorCostModel<Device>::kDramThresholdBytes;
+template <typename Device>
+constexpr double TensorCostModel<Device>::kByteCost;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_TENSOR_TENSOR_COST_MODEL_H

@@ -651,6 +651,23 @@ struct generic_product_impl<Bccb<Scalar_, BlockSize_, NumBlocks_>, Rhs, Structur
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::RowsAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::ColsAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::MaxColsAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::SizeAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr int Bccb<Scalar_, BlockSize_, NumBlocks_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int BlockSize_, int NumBlocks_>
+constexpr bool Bccb<Scalar_, BlockSize_, NumBlocks_>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_BCCB_H

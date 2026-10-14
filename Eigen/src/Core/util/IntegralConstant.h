@@ -109,6 +109,11 @@ class FixedInt {
   constexpr VariableAndFixedInt<N> operator()(int val) const { return VariableAndFixedInt<N>(val); }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <int N>
+constexpr int FixedInt<N>::value;
+#endif
+
 /** \internal
  * \class VariableAndFixedInt
  *

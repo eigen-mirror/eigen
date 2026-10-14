@@ -640,6 +640,27 @@ struct generic_product_impl<Vandermonde<Scalar_, Rows_, Cols_>, Rhs, StructuredS
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::RowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::ColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::SizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr bool Vandermonde<Scalar_, Rows_, Cols_>::IsRowMajor;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::NodeOptions;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Vandermonde<Scalar_, Rows_, Cols_>::Flags;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_VANDERMONDE_H

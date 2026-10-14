@@ -558,6 +558,23 @@ struct generic_product_impl<Circulant<Scalar_, Size_>, Rhs, StructuredShape, Den
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::RowsAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::ColsAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::SizeAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr int Circulant<Scalar_, Size_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Size_>
+constexpr bool Circulant<Scalar_, Size_>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_CIRCULANT_H

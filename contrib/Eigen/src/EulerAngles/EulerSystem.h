@@ -176,6 +176,15 @@ class EulerSystem {
   friend struct internal::eulerangles_assign_impl;
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <int Alpha, int Beta, int Gamma>
+constexpr int EulerSystem<Alpha, Beta, Gamma>::AlphaAxis;
+template <int Alpha, int Beta, int Gamma>
+constexpr int EulerSystem<Alpha, Beta, Gamma>::BetaAxis;
+template <int Alpha, int Beta, int Gamma>
+constexpr int EulerSystem<Alpha, Beta, Gamma>::GammaAxis;
+#endif
+
 #define EIGEN_EULER_SYSTEM_TYPEDEF(A, B, C) typedef EulerSystem<EULER_##A, EULER_##B, EULER_##C> EulerSystem##A##B##C;
 
 /** Default XYZ Euler coordinate system.

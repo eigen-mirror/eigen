@@ -426,6 +426,27 @@ struct generic_product_impl<Hankel<Scalar_, Rows_, Cols_>, Rhs, StructuredShape,
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::RowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::ColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::SizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr bool Hankel<Scalar_, Rows_, Cols_>::IsRowMajor;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::GenSizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Hankel<Scalar_, Rows_, Cols_>::SolveRowsAtCompileTime;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_HANKEL_H

@@ -346,6 +346,23 @@ struct generic_product_impl<Toeplitz<Scalar_, Rows_, Cols_>, Rhs, StructuredShap
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::RowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::ColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::SizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Toeplitz<Scalar_, Rows_, Cols_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr bool Toeplitz<Scalar_, Rows_, Cols_>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_TOEPLITZ_H

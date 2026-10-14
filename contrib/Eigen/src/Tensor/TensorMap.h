@@ -185,6 +185,16 @@ class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePoi
   Dimensions m_dimensions;
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename PlainObjectType, int Options_, template <class> class MakePointer_>
+constexpr typename TensorMap<PlainObjectType, Options_, MakePointer_>::Index
+    TensorMap<PlainObjectType, Options_, MakePointer_>::NumIndices;
+template <typename PlainObjectType, int Options_, template <class> class MakePointer_>
+constexpr int TensorMap<PlainObjectType, Options_, MakePointer_>::Layout;
+template <typename PlainObjectType, int Options_, template <class> class MakePointer_>
+constexpr int TensorMap<PlainObjectType, Options_, MakePointer_>::Options;
+#endif
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_TENSOR_TENSOR_MAP_H

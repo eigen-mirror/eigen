@@ -129,6 +129,13 @@ struct Sizes {
   }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <std::ptrdiff_t... Indices>
+constexpr std::ptrdiff_t Sizes<Indices...>::total_size;
+template <std::ptrdiff_t... Indices>
+constexpr std::ptrdiff_t Sizes<Indices...>::count;
+#endif
+
 namespace internal {
 template <std::ptrdiff_t... Indices>
 constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::ptrdiff_t array_prod(const Sizes<Indices...>&) {
@@ -257,6 +264,11 @@ struct DSizes : array<DenseIndex, NumDims> {
         indices, *static_cast<const Base*>(this));
   }
 };
+
+#if EIGEN_COMP_CXXVER < 17
+template <typename DenseIndex, int NumDims>
+constexpr int DSizes<DenseIndex, NumDims>::count;
+#endif
 
 template <typename IndexType, int NumDims>
 std::ostream& operator<<(std::ostream& os, const DSizes<IndexType, NumDims>& dims) {

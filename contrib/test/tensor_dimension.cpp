@@ -91,7 +91,52 @@ static void test_narrowing_dimensions() {
   VERIFY_RAISES_ASSERT((Eigen::DSizes<std::ptrdiff_t, 3>(2, 3, std::size_t(-1))));
 }
 
+// A volatile pointer forces odr-use even when optimization could fold the value.
+template <typename T>
+T read_through_address(const T& value) {
+  const T* volatile address = &value;
+  return *address;
+}
+
+static void test_dimension_constants_odr_use() {
+  VERIFY_IS_EQUAL((read_through_address(Eigen::Sizes<2, 3>::total_size)), std::ptrdiff_t(6));
+  VERIFY_IS_EQUAL((read_through_address(Eigen::Sizes<2, 3>::count)), std::ptrdiff_t(2));
+  VERIFY_IS_EQUAL(read_through_address(Eigen::Sizes<>::total_size), std::ptrdiff_t(1));
+  VERIFY_IS_EQUAL(read_through_address(Eigen::Sizes<>::count), std::ptrdiff_t(0));
+  VERIFY_IS_EQUAL((read_through_address(Eigen::DSizes<Index, 3>::count)), 3);
+  VERIFY_IS_EQUAL((read_through_address(Eigen::DSizes<int, 0>::count)), 0);
+}
+
+template <typename TensorType>
+void tensor_rank_layout_odr_use(int rank, int layout) {
+  VERIFY_IS_EQUAL(read_through_address(TensorType::NumIndices), rank);
+  VERIFY_IS_EQUAL(read_through_address(TensorType::Layout), layout);
+}
+
+template <typename TensorType>
+void tensor_metadata_odr_use(int rank, int layout, int options) {
+  tensor_rank_layout_odr_use<TensorType>(rank, layout);
+  VERIFY_IS_EQUAL(read_through_address(TensorType::Options), options);
+}
+
+static void test_tensor_metadata_odr_use() {
+  tensor_metadata_odr_use<Tensor<float, 3>>(3, ColMajor, 0);
+  tensor_metadata_odr_use<Tensor<float, 3, RowMajor, int>>(3, RowMajor, RowMajor);
+  tensor_metadata_odr_use<Tensor<float, 0>>(0, ColMajor, 0);
+  tensor_metadata_odr_use<TensorFixedSize<float, Sizes<2, 3>>>(2, ColMajor, 0);
+  tensor_metadata_odr_use<TensorFixedSize<float, Sizes<2, 3>, RowMajor, int>>(2, RowMajor, RowMajor);
+  tensor_metadata_odr_use<TensorFixedSize<float, Sizes<>>>(0, ColMajor, 0);
+  tensor_metadata_odr_use<TensorMap<Tensor<float, 3>>>(3, ColMajor, 0);
+  tensor_metadata_odr_use<TensorMap<const Tensor<float, 3, RowMajor>, Aligned>>(3, RowMajor, Aligned);
+  tensor_metadata_odr_use<TensorMap<TensorFixedSize<float, Sizes<2, 3>>>>(2, ColMajor, 0);
+  tensor_rank_layout_odr_use<TensorRef<Tensor<float, 3>>>(3, ColMajor);
+  tensor_rank_layout_odr_use<TensorRef<const Tensor<float, 3, RowMajor>>>(3, RowMajor);
+  tensor_rank_layout_odr_use<TensorRef<TensorFixedSize<float, Sizes<>>>>(0, ColMajor);
+}
+
 EIGEN_DECLARE_TEST(tensor_dimension) {
+  CALL_SUBTEST(test_dimension_constants_odr_use());
+  CALL_SUBTEST(test_tensor_metadata_odr_use());
   CALL_SUBTEST(test_dynamic_size());
   CALL_SUBTEST(test_fixed_size());
   CALL_SUBTEST(test_match());

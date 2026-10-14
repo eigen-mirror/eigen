@@ -1524,6 +1524,23 @@ struct generic_product_impl<KroneckerOperator<LhsMatrix, RhsMatrix>, Rhs, Struct
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::RowsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::ColsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::MaxRowsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::MaxColsAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::SizeAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr int KroneckerOperator<LhsMatrix, RhsMatrix>::MaxSizeAtCompileTime;
+template <typename LhsMatrix, typename RhsMatrix>
+constexpr bool KroneckerOperator<LhsMatrix, RhsMatrix>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_KRONECKER_OPERATOR_H

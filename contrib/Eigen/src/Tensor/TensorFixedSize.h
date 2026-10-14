@@ -213,6 +213,15 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, typename Dimensions_, int Options_, typename IndexType>
+constexpr std::size_t TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType>::NumIndices;
+template <typename Scalar_, typename Dimensions_, int Options_, typename IndexType>
+constexpr int TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType>::Layout;
+template <typename Scalar_, typename Dimensions_, int Options_, typename IndexType>
+constexpr int TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType>::Options;
+#endif
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_TENSOR_TENSOR_FIXED_SIZE_H

@@ -302,6 +302,20 @@ void eulerangles_data_constructor() {
   VERIFY_IS_APPROX(e.gamma(), gamma);
 }
 
+// A volatile pointer forces odr-use even when optimization could fold the value.
+template <typename T>
+T read_through_address(const T& value) {
+  const T* volatile address = &value;
+  return *address;
+}
+
+template <typename System>
+void eulerangles_axes_odr_use(int alpha, int beta, int gamma) {
+  VERIFY_IS_EQUAL(read_through_address(System::AlphaAxis), alpha);
+  VERIFY_IS_EQUAL(read_through_address(System::BetaAxis), beta);
+  VERIFY_IS_EQUAL(read_through_address(System::GammaAxis), gamma);
+}
+
 EIGEN_DECLARE_TEST(EulerAngles) {
   // Simple cast test
   EulerAnglesXYZd onesEd(1, 1, 1);
@@ -325,6 +339,8 @@ EIGEN_DECLARE_TEST(EulerAngles) {
 
   CALL_SUBTEST_6(eulerangles_data_constructor<float>());
   CALL_SUBTEST_6(eulerangles_data_constructor<double>());
+  CALL_SUBTEST_6((eulerangles_axes_odr_use<EulerSystemXYZ>(1, 2, 3)));
+  CALL_SUBTEST_6((eulerangles_axes_odr_use<EulerSystem<1, -2, 3>>(1, -2, 3)));
 
   // TODO: Add tests for auto diff
   // TODO: Add tests for complex numbers

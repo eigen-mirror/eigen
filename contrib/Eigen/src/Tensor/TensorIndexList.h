@@ -42,6 +42,15 @@ struct type2indexpair {
   }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <Index n>
+constexpr Index type2index<n>::value;
+template <Index f, Index s>
+constexpr Index type2indexpair<f, s>::first;
+template <Index f, Index s>
+constexpr Index type2indexpair<f, s>::second;
+#endif
+
 template <Index n>
 struct NumTraits<type2index<n>> {
   typedef Index Real;

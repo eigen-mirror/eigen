@@ -462,6 +462,23 @@ struct generic_product_impl<Cauchy<Scalar_, Rows_, Cols_>, Rhs, StructuredShape,
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::RowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::ColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::SizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr int Cauchy<Scalar_, Rows_, Cols_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Rows_, int Cols_>
+constexpr bool Cauchy<Scalar_, Rows_, Cols_>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_CAUCHY_H

@@ -366,6 +366,23 @@ struct generic_product_impl<DiagonalPlusLowRank<Scalar_, Size_, Rank_>, Rhs, Str
 
 }  // namespace internal
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::RowsAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::ColsAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::MaxRowsAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::MaxColsAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::SizeAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr int DiagonalPlusLowRank<Scalar_, Size_, Rank_>::MaxSizeAtCompileTime;
+template <typename Scalar_, int Size_, int Rank_>
+constexpr bool DiagonalPlusLowRank<Scalar_, Size_, Rank_>::IsRowMajor;
+#endif
+
 }  // namespace Eigen
 
 #endif  // EIGEN_STRUCTURED_DIAGONAL_PLUS_LOW_RANK_H

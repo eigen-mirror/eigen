@@ -1542,7 +1542,58 @@ void test_structured_flushed_subnormal_scaling() {
   forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
 }
 
+// A volatile pointer forces odr-use even when optimization could fold the value.
+template <typename T>
+T read_through_address(const T& value) {
+  const T* volatile address = &value;
+  return *address;
+}
+
+template <typename Operator>
+void structured_metadata_odr_use(int rows, int cols, bool row_major = false) {
+  const int size = rows == Dynamic || cols == Dynamic ? Dynamic : rows * cols;
+  VERIFY_IS_EQUAL(read_through_address(Operator::RowsAtCompileTime), rows);
+  VERIFY_IS_EQUAL(read_through_address(Operator::ColsAtCompileTime), cols);
+  VERIFY_IS_EQUAL(read_through_address(Operator::MaxRowsAtCompileTime), rows);
+  VERIFY_IS_EQUAL(read_through_address(Operator::MaxColsAtCompileTime), cols);
+  VERIFY_IS_EQUAL(read_through_address(Operator::SizeAtCompileTime), size);
+  VERIFY_IS_EQUAL(read_through_address(Operator::MaxSizeAtCompileTime), size);
+  VERIFY_IS_EQUAL(read_through_address(Operator::IsRowMajor), row_major);
+}
+
+static void test_structured_metadata_odr_use() {
+  structured_metadata_odr_use<Bccb<double, 2, 3>>(6, 6);
+  structured_metadata_odr_use<Bccb<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Cauchy<double, 4, 3>>(4, 3);
+  structured_metadata_odr_use<Cauchy<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Circulant<double, 4>>(4, 4);
+  structured_metadata_odr_use<Circulant<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<DiagonalPlusLowRank<double, 4, 2>>(4, 4);
+  structured_metadata_odr_use<DiagonalPlusLowRank<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Hankel<double, 4, 3>>(4, 3);
+  structured_metadata_odr_use<Hankel<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<KroneckerOperator<Matrix<double, 2, 3>, Matrix<double, 3, 4>>>(6, 12);
+  structured_metadata_odr_use<KroneckerOperator<MatrixXd, MatrixXd>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<KroneckerSum<Matrix2d, Matrix3d>>(6, 6);
+  structured_metadata_odr_use<KroneckerSum<MatrixXd, MatrixXd>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Toeplitz<double, 4, 3>>(4, 3);
+  structured_metadata_odr_use<Toeplitz<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Vandermonde<double, 4, 3>>(4, 3);
+  structured_metadata_odr_use<Vandermonde<double>>(Dynamic, Dynamic);
+  structured_metadata_odr_use<Vandermonde<double, 1, 3>>(1, 3, true);
+  VERIFY_IS_EQUAL((read_through_address(Hankel<double, 4, 3>::GenSizeAtCompileTime)), 6);
+  VERIFY_IS_EQUAL((read_through_address(Hankel<double, 4, 3>::SolveRowsAtCompileTime)), 3);
+  VERIFY_IS_EQUAL(read_through_address(Hankel<double>::GenSizeAtCompileTime), Dynamic);
+  VERIFY_IS_EQUAL(read_through_address(Hankel<double>::SolveRowsAtCompileTime), Dynamic);
+  VERIFY_IS_EQUAL((read_through_address(Vandermonde<double, 4, 3>::NodeOptions)), int(DontAlign));
+  VERIFY_IS_EQUAL((read_through_address(Vandermonde<double, 4, 3>::Flags)), 0);
+  VERIFY_IS_EQUAL(read_through_address(Vandermonde<double>::NodeOptions), int(AutoAlign));
+  VERIFY_IS_EQUAL(read_through_address(Vandermonde<double>::Flags), 0);
+  VERIFY_IS_EQUAL((read_through_address(Vandermonde<double, 1, 3>::Flags)), int(RowMajorBit));
+}
+
 EIGEN_DECLARE_TEST(structured_matrices) {
+  CALL_SUBTEST_16(test_structured_metadata_odr_use());
   for (int i = 0; i < g_repeat; ++i) {
     // Circulant: direct path (small), FFT path (composite and prime sizes), edge cases.
     CALL_SUBTEST_1((test_circulant_product<double>(1)));

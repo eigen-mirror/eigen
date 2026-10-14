@@ -376,6 +376,15 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   }
 };
 
+#if EIGEN_COMP_CXXVER < 17
+template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
+constexpr int Tensor<Scalar_, NumIndices_, Options_, IndexType_>::NumIndices;
+template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
+constexpr int Tensor<Scalar_, NumIndices_, Options_, IndexType_>::Layout;
+template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
+constexpr int Tensor<Scalar_, NumIndices_, Options_, IndexType_>::Options;
+#endif
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_TENSOR_TENSOR_H
