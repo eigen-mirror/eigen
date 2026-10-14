@@ -1450,7 +1450,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     const int packed_size = std::min<int>(PacketType<LhsScalar, Device>::size, PacketType<RhsScalar, Device>::size);
     const int output_packet_size = internal::unpacket_traits<PacketReturnType>::size;
     const double kd = static_cast<double>(bk);
-    double compute_bandwidth = computeBandwidth(false, bm, bn, bk);
+    double compute_bandwidth = computeBandwidth(bm, bn, bk);
     // Computations.
     TensorOpCost cost = TensorOpCost(0, 0, kd * compute_bandwidth, true, packed_size);
     // Output stores.
@@ -1499,7 +1499,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   TensorOpCost contractionCostPerInnerDim(Index m, Index n, Index k) const {
     // Compute cost.
     const int output_packet_size = internal::unpacket_traits<PacketReturnType>::size;
-    TensorOpCost cost(0, 0, (computeBandwidth(true, m, n, k) * m) * n, true, output_packet_size);
+    TensorOpCost cost(0, 0, (computeBandwidth(m, n, k) * m) * n, true, output_packet_size);
     // Output stores.
     cost += TensorOpCost(0, sizeof(CoeffReturnType), 0, true, output_packet_size);
     TensorOpCost lhsCost = this->m_leftImpl.costPerCoeff(true) * m;
@@ -1533,13 +1533,11 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     return num_threads;
   }
 
-  double computeBandwidth(bool shard_by_col, Index bm, Index bn, Index bk) const {
+  double computeBandwidth(Index bm, Index bn, Index bk) const {
     // Peak VFMA bandwidth is 0.5. However if we have not enough data for
     // vectorization bandwidth drops. The 4.0 and 2.0 bandwidth is determined
     // experimentally.
-    double computeBandwidth = bk == 1                                                                          ? 4.0
-                              : (shard_by_col ? bn : bm) < Traits::nr || (shard_by_col ? bm : bn) < Traits::mr ? 2.0
-                                                                                                               : 0.5;
+    double computeBandwidth = bk == 1 ? 4.0 : (bn < Traits::nr || bm < Traits::mr) ? 2.0 : 0.5;
 #ifndef EIGEN_VECTORIZE_FMA
     // Bandwidth of all of VFMA/MULPS/ADDPS is 0.5 on latest Intel processors.
     // However for MULPS/ADDPS we have dependent sequence of 2 such

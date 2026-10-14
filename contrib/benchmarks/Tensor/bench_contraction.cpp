@@ -146,5 +146,5 @@ static void BM_Contraction_RowMajor(benchmark::State& state) {
 
 BENCHMARK(BM_Contraction) CONTRACTION_SIZES;
 BENCHMARK(BM_Contraction_RowMajor) CONTRACTION_SIZES;
-BENCHMARK(BM_Contraction_ThreadPool) CONTRACTION_THREADPOOL_SIZES;
+BENCHMARK(BM_Contraction_ThreadPool) CONTRACTION_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_BatchContraction) BATCH_SIZES;
