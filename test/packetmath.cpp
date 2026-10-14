@@ -2177,23 +2177,28 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 }
 
 // The FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW flags raised by op(operands, results), where operands are copies of
-// in[0, NumIn) and results are copied to out[0, NumOut). The copies go through volatile bytes after feholdexcept and
-// before fetestexcept, which keeps the compiler from folding op or moving it across the flag accesses: glibc marks
-// those functions leaf, so data that only escapes through a pointer may be moved across them.
+// in[0, NumIn) and results are copied to out[0, NumOut). The operands are read from, and the results written to,
+// volatile objects after feholdexcept and before fetestexcept, which keeps the compiler from folding op or moving it
+// across the flag accesses: glibc marks those functions leaf, so data that only escapes through a pointer may be moved
+// across them. The objects themselves must be volatile: GCC 10 at -O3 drops volatile-qualified accesses to the
+// caller's non-volatile arrays, and with them an op whose results the caller never reads.
 template <int NumIn, int NumOut, typename Scalar, typename Op>
 int raised_exceptions(const Scalar* in, Scalar* out, Op op) {
   Scalar operands[NumIn], results[NumOut];
+  volatile unsigned char staged_operands[sizeof(operands)], staged_results[sizeof(results)];
+  const unsigned char* in_bytes = reinterpret_cast<const unsigned char*>(in);
+  for (std::size_t k = 0; k < sizeof(operands); ++k) staged_operands[k] = in_bytes[k];
   std::fenv_t saved_environment;
   if (std::feholdexcept(&saved_environment) != 0) return 0;
-  const volatile unsigned char* in_bytes = reinterpret_cast<const volatile unsigned char*>(in);
   unsigned char* operand_bytes = reinterpret_cast<unsigned char*>(operands);
-  for (std::size_t k = 0; k < sizeof(operands); ++k) operand_bytes[k] = in_bytes[k];
+  for (std::size_t k = 0; k < sizeof(operands); ++k) operand_bytes[k] = staged_operands[k];
   op(operands, results);
   const unsigned char* result_bytes = reinterpret_cast<const unsigned char*>(results);
-  volatile unsigned char* out_bytes = reinterpret_cast<volatile unsigned char*>(out);
-  for (std::size_t k = 0; k < sizeof(results); ++k) out_bytes[k] = result_bytes[k];
+  for (std::size_t k = 0; k < sizeof(results); ++k) staged_results[k] = result_bytes[k];
   const int raised = std::fetestexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
   std::fesetenv(&saved_environment);
+  unsigned char* out_bytes = reinterpret_cast<unsigned char*>(out);
+  for (std::size_t k = 0; k < sizeof(results); ++k) out_bytes[k] = staged_results[k];
   return raised;
 }
 
