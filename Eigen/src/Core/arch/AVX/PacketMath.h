@@ -1932,7 +1932,7 @@ template <>
 EIGEN_STRONG_INLINE Packet4d pldexp<Packet4d>(const Packet4d& a, const Packet4d& exponent) {
   // Clamp exponent to [-2099, 2099]
   const Packet4d max_exponent = pset1<Packet4d>(2099.0);
-  const Packet4i e = _mm256_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  const Packet4i e = _mm256_cvttpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
 
   // The single-rounding split of pldexp_generic.
   const Packet4i bias = pset1<Packet4i>(1023);

@@ -7,6 +7,7 @@
 
 #include <benchmark/benchmark.h>
 #include <cstdint>
+#include <random>
 #include <Eigen/Core>
 #include <contrib/Eigen/SpecialFunctions>
 
@@ -181,6 +182,32 @@ static void BM_ExpComplexSpecialInputs(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * Index(sizeof(Scalar)) * 2);
 }
 
+// The SSE and AVX float rsqrt estimates flush subnormal inputs, so packets holding one take a 1 / sqrt fallback, while
+// zeros stay on the fast path. mode: 0 = inputs in [0.01, 100), 1 = one zero per 8 coefficients, 2 = one subnormal
+// per 64 coefficients, 3 = subnormal inputs only. Zeros and subnormals sit at pseudo-random positions, so a branch on
+// them is unpredictable.
+template <typename Scalar>
+static void BM_RsqrtSpecialInputs(benchmark::State& state) {
+  const Index n = state.range(0);
+  const int mode = int(state.range(1));
+  const Scalar subnormal = (std::numeric_limits<Scalar>::min)() / Scalar(3);
+  std::mt19937 gen(42);
+  Array<Scalar, Dynamic, 1> a(n), b(n);
+  for (Index i = 0; i < n; ++i) {
+    const std::uint32_t r = gen();
+    a(i) = Scalar(0.01 + double(i % 1000) / 10.0);
+    if (mode == 1 && r % 8 == 0) a(i) = Scalar(0);
+    if ((mode == 2 && r % 64 == 0) || mode == 3) a(i) = subnormal;
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(a.data());
+    b = a.rsqrt();
+    benchmark::DoNotOptimize(b.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * n * sizeof(Scalar) * 2);
+}
+
 // mode: 0 = inputs in [0.5, 2), 1 = subnormal inputs, 2 = one subnormal per 64 coefficients. The subnormal is
 // min / 3, whose reciprocal is finite. The SSE and AVX rcp estimates flush it, so packets holding one take the
 // division fallback of preciprocal; the AVX-512 rcp14 estimate does not.
@@ -333,6 +360,8 @@ BENCHMARK(BM_LogSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("LogSpecialInputs_float");
 BENCHMARK(BM_Log1pSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Log1pSpecialInputs_float");
+BENCHMARK(BM_RsqrtSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2, 3}})
+    ->ArgNames({"size", "mode"})->Name("RsqrtSpecialInputs_float");
 BENCHMARK(BM_Inverse<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Inverse_float");
 BENCHMARK_TEMPLATE(BM_Sign, float)->ArgsProduct({{1024, 16384, 262144}, {0, 1, 2}})->ArgNames({"size", "mode"})->Name("Sign_float");

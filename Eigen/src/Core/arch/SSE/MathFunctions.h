@@ -44,10 +44,18 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet16b psqrt<Packet16b>(c
 }
 
 #if EIGEN_FAST_MATH
-// Even on Skylake, using Newton iteration is a win for reciprocal square root.
+// Even on Skylake, using Newton iteration is a win for reciprocal square root. rsqrtps reads a subnormal x as zero,
+// giving +-inf, so the subnormal lanes, 1 <= bits(|x|) <= 0x007fffff, take 1 / sqrt(x) instead. Adding 0x7f800000
+// moves exactly that range above 0x7f800000 and wraps every larger value negative. With SSE this test of x alone is
+// faster than the test of x * estimate in prsqrt<Packet8f>, which wins with AVX. Under DAZ the fallback reads a
+// subnormal as zero too, and returns the estimate's +-inf.
 template <>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED Packet4f prsqrt<Packet4f>(const Packet4f& x) {
-  return generic_rsqrt_newton_step<Packet4f, /*Steps=*/1>::run(x, _mm_rsqrt_ps(x));
+  const Packet4f r = generic_rsqrt_newton_step<Packet4f, /*Steps=*/1>::run(x, _mm_rsqrt_ps(x));
+  const Packet4i bias = pset1<Packet4i>(0x7f800000);
+  const Packet4i abs_bits = pand(Packet4i(_mm_castps_si128(x)), pset1<Packet4i>(0x7fffffff));
+  const Packet4f redo = _mm_castsi128_ps(pcmp_lt(bias, padd(abs_bits, bias)));
+  return predux_any(redo) ? pselect(redo, pdiv(pset1<Packet4f>(1.0f), psqrt(x)), r) : r;
 }
 
 #ifdef EIGEN_VECTORIZE_FMA

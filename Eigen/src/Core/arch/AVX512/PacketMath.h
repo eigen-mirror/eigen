@@ -1221,12 +1221,40 @@ EIGEN_STRONG_INLINE void pstoreu<double>(double* to, const Packet8d& from, uint8
   EIGEN_DEBUG_UNALIGNED_STORE return _mm512_mask_storeu_pd(to, mask, from);
 }
 
+// The gathers and scatters below address lane i through the 32-bit offset i * stride. Where that overflows an int,
+// the lanes are addressed one at a time.
+template <typename Packet>
+EIGEN_STRONG_INLINE bool avx512_lane_offsets_fit(Index stride) {
+  const Index max_stride = Index(NumTraits<int>::highest()) / Index(unpacket_traits<Packet>::size - 1);
+  return stride <= max_stride && stride >= -max_stride;
+}
+
+template <typename Scalar, typename Packet>
+EIGEN_STRONG_INLINE Packet avx512_pgather_lanes(const Packet& src, const Scalar* from, Index stride,
+                                                typename unpacket_traits<Packet>::mask_t umask) {
+  EIGEN_ALIGN64 Scalar values[unpacket_traits<Packet>::size];
+  pstore(values, src);
+  for (int i = 0; i < unpacket_traits<Packet>::size; ++i)
+    if ((umask >> i) & 1) values[i] = from[i * stride];
+  return pload<Packet>(values);
+}
+
+template <typename Scalar, typename Packet>
+EIGEN_STRONG_INLINE void avx512_pscatter_lanes(Scalar* to, const Packet& from, Index stride,
+                                               typename unpacket_traits<Packet>::mask_t umask) {
+  EIGEN_ALIGN64 Scalar values[unpacket_traits<Packet>::size];
+  pstore(values, from);
+  for (int i = 0; i < unpacket_traits<Packet>::size; ++i)
+    if ((umask >> i) & 1) to[i * stride] = values[i];
+}
+
 template <typename Scalar, typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pgather(const Packet& src, const Scalar* from, Index stride,
                                         typename unpacket_traits<Packet>::mask_t umask);
 template <>
 EIGEN_DEVICE_FUNC inline Packet16f pgather<float, Packet16f>(const Packet16f& src, const float* from, Index stride,
                                                              uint16_t umask) {
+  if (!avx512_lane_offsets_fit<Packet16f>(stride)) return avx512_pgather_lanes(src, from, stride, umask);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1237,6 +1265,7 @@ EIGEN_DEVICE_FUNC inline Packet16f pgather<float, Packet16f>(const Packet16f& sr
 template <>
 EIGEN_DEVICE_FUNC inline Packet8d pgather<double, Packet8d>(const Packet8d& src, const double* from, Index stride,
                                                             uint8_t umask) {
+  if (!avx512_lane_offsets_fit<Packet8d>(stride)) return avx512_pgather_lanes(src, from, stride, umask);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1254,6 +1283,7 @@ EIGEN_DEVICE_FUNC inline Packet16f pgather<float, Packet16f>(const float* from, 
     const Packet16i indices = _mm512_setr_epi32(0, 2, 4, 6, 8, 10, 12, 14, 17, 19, 21, 23, 25, 27, 29, 31);
     return _mm512_permutex2var_ps(low, indices, high);
   }
+  if (!avx512_lane_offsets_fit<Packet16f>(stride)) return pgather_partial<float, Packet16f>(from, stride, 16);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1268,6 +1298,7 @@ EIGEN_DEVICE_FUNC inline Packet8d pgather<double, Packet8d>(const double* from, 
     const __m512i indices = _mm512_setr_epi64(0, 2, 4, 6, 9, 11, 13, 15);
     return _mm512_permutex2var_pd(low, indices, high);
   }
+  if (!avx512_lane_offsets_fit<Packet8d>(stride)) return pgather_partial<double, Packet8d>(from, stride, 8);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1276,6 +1307,7 @@ EIGEN_DEVICE_FUNC inline Packet8d pgather<double, Packet8d>(const double* from, 
 }
 template <>
 EIGEN_DEVICE_FUNC inline Packet8l pgather<int64_t, Packet8l>(const int64_t* from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet8l>(stride)) return pgather_partial<int64_t, Packet8l>(from, stride, 8);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1284,6 +1316,7 @@ EIGEN_DEVICE_FUNC inline Packet8l pgather<int64_t, Packet8l>(const int64_t* from
 }
 template <>
 EIGEN_DEVICE_FUNC inline Packet16i pgather<int, Packet16i>(const int* from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet16i>(stride)) return pgather_partial<int, Packet16i>(from, stride, 16);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1296,6 +1329,7 @@ EIGEN_DEVICE_FUNC inline void pscatter(Scalar* to, const Packet& from, Index str
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<float, Packet16f>(float* to, const Packet16f& from, Index stride,
                                                          uint16_t umask) {
+  if (!avx512_lane_offsets_fit<Packet16f>(stride)) return avx512_pscatter_lanes(to, from, stride, umask);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1305,6 +1339,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<float, Packet16f>(float* to, const Packet
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<double, Packet8d>(double* to, const Packet8d& from, Index stride,
                                                          uint8_t umask) {
+  if (!avx512_lane_offsets_fit<Packet8d>(stride)) return avx512_pscatter_lanes(to, from, stride, umask);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1313,6 +1348,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<double, Packet8d>(double* to, const Packe
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<float, Packet16f>(float* to, const Packet16f& from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet16f>(stride)) return pscatter_partial<float, Packet16f>(to, from, stride, 16);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);
@@ -1320,6 +1356,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<float, Packet16f>(float* to, const Packet
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<double, Packet8d>(double* to, const Packet8d& from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet8d>(stride)) return pscatter_partial<double, Packet8d>(to, from, stride, 8);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1327,6 +1364,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<double, Packet8d>(double* to, const Packe
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<int64_t, Packet8l>(int64_t* to, const Packet8l& from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet8l>(stride)) return pscatter_partial<int64_t, Packet8l>(to, from, stride, 8);
   Packet8i stride_vector = _mm256_set1_epi32(convert_index<int>(stride));
   Packet8i stride_multiplier = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);
   Packet8i indices = _mm256_mullo_epi32(stride_vector, stride_multiplier);
@@ -1334,6 +1372,7 @@ EIGEN_DEVICE_FUNC inline void pscatter<int64_t, Packet8l>(int64_t* to, const Pac
 }
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<int, Packet16i>(int* to, const Packet16i& from, Index stride) {
+  if (!avx512_lane_offsets_fit<Packet16i>(stride)) return pscatter_partial<int, Packet16i>(to, from, stride, 16);
   Packet16i stride_vector = _mm512_set1_epi32(convert_index<int>(stride));
   Packet16i stride_multiplier = _mm512_set_epi32(15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
   Packet16i indices = _mm512_mullo_epi32(stride_vector, stride_multiplier);

@@ -1726,8 +1726,8 @@ EIGEN_STRONG_INLINE Packet2d pldexp<Packet2d>(const Packet2d& a, const Packet2d&
   // 32 first selects it.
   const Packet2d max_exponent = pset1<Packet2d>(2099.0);
   const Packet2d last_max = pset1<Packet2d>(1022.0);
-  const Packet4i e = _mm_cvtpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
-  const Packet4i b = _mm_cvtpd_epi32(pmin(pmax(exponent, pnegate(last_max)), last_max));
+  const Packet4i e = _mm_cvttpd_epi32(pmin(pmax(exponent, pnegate(max_exponent)), max_exponent));
+  const Packet4i b = _mm_cvttpd_epi32(pmin(pmax(exponent, pnegate(last_max)), last_max));
   const Packet4i t = pandnot(psub(e, b), pset1<Packet4i>(1));  // even
   const Packet4i biased =
       padd(Packet4i(_mm_unpacklo_epi32(t, psub(e, t))), Packet4i(_mm_set_epi32(1023, 2046, 1023, 2046)));

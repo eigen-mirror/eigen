@@ -88,13 +88,13 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4d psqrt<Packet4d>(con
 #if EIGEN_FAST_MATH
 template <>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet8f prsqrt<Packet8f>(const Packet8f& a) {
-  // _mm256_rsqrt_ps returns -inf for negative denormals.
-  // _mm512_rsqrt**_ps returns -NaN for negative denormals.  We may want
-  // consistency here.
-  // const Packet8f rsqrt = pselect(pcmp_lt(a, pzero(a)),
-  //                                pset1<Packet8f>(-NumTraits<float>::quiet_NaN()),
-  //                                _mm256_rsqrt_ps(a));
-  return generic_rsqrt_newton_step<Packet8f, /*Steps=*/1>::run(a, _mm256_rsqrt_ps(a));
+  // vrsqrtps reads a subnormal a as zero, giving e = +-inf. a * e, the Newton step's first product, is therefore +inf
+  // for subnormal a, and finite or NaN for every other a; those lanes take 1 / sqrt(a) instead. Under DAZ the multiply
+  // reads a subnormal as zero too, and the estimate's +-inf is the DAZ result.
+  const Packet8f e = _mm256_rsqrt_ps(a);
+  const Packet8f r = generic_rsqrt_newton_step<Packet8f, /*Steps=*/1>::run(a, e);
+  const Packet8f redo = pcmp_eq(pmul(a, e), pset1<Packet8f>(NumTraits<float>::infinity()));
+  return predux_any(redo) ? pselect(redo, pdiv(pset1<Packet8f>(1.0f), psqrt(a)), r) : r;
 }
 
 template <>
