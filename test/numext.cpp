@@ -465,7 +465,9 @@ EIGEN_DONT_INLINE int complex_divide_exceptions(const std::complex<T>& a, const 
   volatile T parts[4] = {a.real(), a.imag(), b.real(), b.imag()};
   std::fenv_t environment;
   if (std::feholdexcept(&environment) != 0) return -1;
-  const std::complex<T> q = numext::divide(std::complex<T>(parts[0], parts[1]), std::complex<T>(parts[2], parts[3]));
+  // MSVC's std::complex<T>(const T&, const T&) cannot bind a volatile T, so read each part into a temporary.
+  const std::complex<T> q =
+      numext::divide(std::complex<T>(T(parts[0]), T(parts[1])), std::complex<T>(T(parts[2]), T(parts[3])));
   volatile T result[2] = {q.real(), q.imag()};
   EIGEN_UNUSED_VARIABLE(result);
   const int exceptions = std::fetestexcept(FE_OVERFLOW | FE_UNDERFLOW | FE_INVALID | FE_DIVBYZERO);

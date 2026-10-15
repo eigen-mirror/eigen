@@ -278,6 +278,18 @@ static void test_type_casting() {
   }
 }
 
+// An explicit instantiation instantiates every non-template member, so the condPacket() paths that a bool condition
+// over these branch types cannot take must be member templates.
+template struct Eigen::TensorEvaluator<
+    const Eigen::TensorSelectOp<const Tensor<bool, 1>, const Tensor<float, 1>, const Tensor<float, 1>>,
+    Eigen::DefaultDevice>;
+template struct Eigen::TensorEvaluator<
+    const Eigen::TensorSelectOp<const Tensor<bool, 1>, const Tensor<double, 1>, const Tensor<double, 1>>,
+    Eigen::DefaultDevice>;
+template struct Eigen::TensorEvaluator<
+    const Eigen::TensorSelectOp<const Tensor<bool, 1>, const Tensor<int, 1>, const Tensor<int, 1>>,
+    Eigen::DefaultDevice>;
+
 static void test_select() {
   using TypedGTOp = internal::scalar_cmp_op<float, float, internal::cmp_GT, true>;
 

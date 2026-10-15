@@ -228,7 +228,8 @@ template <int Options>
 void test_malformed_sparse_matrix() {
   using T = SparseMatrix<float, Options, int>;
   using Header = typename Serializer<T>::Header;
-  constexpr bool kRowMajor = T::IsRowMajor;
+  // static: MSVC 19.29 wants a captureless lambda to capture even a constexpr local.
+  static constexpr bool kRowMajor = T::IsRowMajor;
   // 3 x 2 with entries (0, 0), (2, 0), (1, 1): compressed, the payload is outer[3], inner[3], values[3] in column-major
   // order, and outer[4], inner[3], values[3] in row-major order.
   T m(3, 2);

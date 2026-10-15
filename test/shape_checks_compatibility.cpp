@@ -48,7 +48,7 @@ double guarded_determinants(const Matrix<double, Rows, Cols>& matrix) {
 EIGEN_DECLARE_TEST(shape_checks_compatibility) {
   VERIFY_IS_EQUAL(guarded_tail_max<1>(Matrix<double, 1, 1>::Ones()), 0.0);
   VERIFY_IS_EQUAL(guarded_tail_max<2>(Vector2d::Constant(7)), 7.0);
-  VERIFY_IS_EQUAL(guarded_column_max_size(Matrix<double, 0, 0>()), Index(0));
+  VERIFY_IS_EQUAL(guarded_column_max_size<0>(Matrix<double, 0, 0>()), Index(0));
   VERIFY_IS_EQUAL(guarded_column_max_size<2>(Matrix2d::Ones()), Index(2));
   VERIFY_IS_EQUAL((guarded_determinants<3, 4>(Matrix<double, 3, 4>::Zero())), 0.0);
   VERIFY_IS_EQUAL((guarded_determinants<2, 2>(Matrix2d::Identity())), 6.0);

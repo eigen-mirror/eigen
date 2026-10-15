@@ -408,7 +408,10 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   };
   using LhsScalar = std::conditional_t<Transpose, RhsScalar_, LhsScalar_>;
   using RhsScalar = std::conditional_t<Transpose, LhsScalar_, RhsScalar_>;
-  enum { SizeA = ActualRows * MaxDepth, SizeB = ActualCols * MaxDepth };
+  // A zero-sized fixed dimension must not declare a zero-length array, which MSVC rejects (C2229); every caller
+  // returns before it touches the blocks of an empty product.
+  static constexpr int SizeA = plain_enum_max(int(ActualRows) * MaxDepth, 1);
+  static constexpr int SizeB = plain_enum_max(int(ActualCols) * MaxDepth, 1);
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES >= EIGEN_DEFAULT_ALIGN_BYTES
   EIGEN_ALIGN_MAX LhsScalar m_staticA[SizeA];

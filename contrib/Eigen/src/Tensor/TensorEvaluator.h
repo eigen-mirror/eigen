@@ -989,6 +989,13 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   static constexpr bool VectorizedCondCast =
       std::is_same<CondScalar, bool>::value && TensorEvaluator<IfArgType, Device>::PacketAccess &&
       internal::type_casting_traits<CondScalar, std::remove_const_t<Scalar>>::VectorizedCast;
+  // How condPacket() builds the mask: 0 = coefficient by coefficient, 1 = from one condition packet, 2 = from two,
+  // 3 = from one wider condition packet while it stays inside the condition.
+  static constexpr int CondPacketMode = !VectorizedCondCast                ? 0
+                                        : CondPacketSize == PacketSize     ? 1
+                                        : PacketSize == 2 * CondPacketSize ? 2
+                                        : CondPacketSize > PacketSize      ? 3
+                                                                           : 0;
   typedef typename TensorEvaluator<IfArgType, Device>::Dimensions Dimensions;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
@@ -1054,33 +1061,33 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     return m_condImpl.coeff(index) ? m_thenImpl.coeff(index) : m_elseImpl.coeff(index);
   }
 
-  template <bool UseVecCast = VectorizedCondCast>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<UseVecCast && (CondPacketSize == PacketSize), PacketReturnType>
-  condPacket(Index index) const {
+  // Tag dispatch rather than enable_if overloads: MSVC 19.29 folds the non-dependent part of each enable_if
+  // condition and then rejects the overloads whose conditions fold alike as redeclarations (C2535). Modes 1-3 are
+  // member templates so that explicitly instantiating the evaluator does not instantiate pcasts its packet types lack.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType condPacket(Index index) const {
+    return condPacket(index, std::integral_constant<int, CondPacketMode>());
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType condPacket(Index index, std::integral_constant<int, 0>) const {
+    return scalarCondPacket(index);
+  }
+
+  template <typename Unused = void>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType condPacket(Index index, std::integral_constant<int, 1>) const {
     return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index));
   }
 
-  template <bool UseVecCast = VectorizedCondCast>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
-      std::enable_if_t<UseVecCast && (PacketSize == 2 * CondPacketSize), PacketReturnType>
-      condPacket(Index index) const {
+  template <typename Unused = void>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType condPacket(Index index, std::integral_constant<int, 2>) const {
     return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index),
                                                          m_condImpl.template packet<Unaligned>(index + CondPacketSize));
   }
 
-  template <bool UseVecCast = VectorizedCondCast>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<UseVecCast && (CondPacketSize > PacketSize), PacketReturnType>
-  condPacket(Index index) const {
+  template <typename Unused = void>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType condPacket(Index index, std::integral_constant<int, 3>) const {
     if (index + CondPacketSize <= m_condSize) {
       return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index));
     }
-    return scalarCondPacket(index);
-  }
-
-  template <bool UseVecCast = VectorizedCondCast>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<
-      !UseVecCast || (CondPacketSize < PacketSize && PacketSize != 2 * CondPacketSize), PacketReturnType>
-  condPacket(Index index) const {
     return scalarCondPacket(index);
   }
 
@@ -1108,9 +1115,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    const bool cond_vectorized =
-        vectorized && (TernaryPacketAccess ||
-                       (VectorizedCondCast && (CondPacketSize >= PacketSize || PacketSize == 2 * CondPacketSize)));
+    const bool cond_vectorized = vectorized && (TernaryPacketAccess || CondPacketMode != 0);
     return m_condImpl.costPerCoeff(cond_vectorized) +
            (vectorized ? (m_thenImpl.costPerCoeff(vectorized) + m_elseImpl.costPerCoeff(vectorized) +
                           TensorOpCost(0, 0, internal::functor_traits<TernarySelectOp>::Cost, vectorized, PacketSize))
