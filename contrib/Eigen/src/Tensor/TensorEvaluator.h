@@ -966,7 +966,8 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   EIGEN_DEVICE_FUNC TensorEvaluator(const XprType& op, const Device& device)
       : m_condImpl(op.ifExpression(), device),
         m_thenImpl(op.thenExpression(), device),
-        m_elseImpl(op.elseExpression(), device) {
+        m_elseImpl(op.elseExpression(), device),
+        m_condSize(internal::array_prod(m_condImpl.dimensions())) {
     EIGEN_STATIC_ASSERT((static_cast<int>(TensorEvaluator<IfArgType, Device>::Layout) ==
                          static_cast<int>(TensorEvaluator<ThenArgType, Device>::Layout)),
                         YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -981,6 +982,12 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
   typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
+  using CondScalar = std::remove_const_t<typename internal::traits<IfArgType>::Scalar>;
+  using CondPacket = typename PacketType<CondScalar, Device>::type;
+  static constexpr int CondPacketSize = PacketType<CondScalar, Device>::size;
+  static constexpr bool VectorizedCondCast =
+      std::is_same<CondScalar, bool>::value && TensorEvaluator<IfArgType, Device>::PacketAccess &&
+      internal::type_casting_traits<CondScalar, std::remove_const_t<Scalar>>::VectorizedCast;
   typedef typename TensorEvaluator<IfArgType, Device>::Dimensions Dimensions;
   typedef StorageMemory<CoeffReturnType, Device> Storage;
   typedef typename Storage::Type EvaluatorPointerType;
@@ -1046,17 +1053,50 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     return m_condImpl.coeff(index) ? m_thenImpl.coeff(index) : m_elseImpl.coeff(index);
   }
 
-  template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<!UseTernary, bool> = true>
-  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
+  template <bool UseVecCast = VectorizedCondCast>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<UseVecCast && (CondPacketSize == PacketSize), PacketReturnType>
+  condPacket(Index index) const {
+    return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index));
+  }
+
+  template <bool UseVecCast = VectorizedCondCast>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
+      std::enable_if_t<UseVecCast && (PacketSize == 2 * CondPacketSize), PacketReturnType>
+      condPacket(Index index) const {
+    return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index),
+                                                         m_condImpl.template packet<Unaligned>(index + CondPacketSize));
+  }
+
+  template <bool UseVecCast = VectorizedCondCast>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<UseVecCast && (CondPacketSize > PacketSize), PacketReturnType>
+  condPacket(Index index) const {
+    if (index + CondPacketSize <= m_condSize) {
+      return internal::pcast<CondPacket, PacketReturnType>(m_condImpl.template packet<Unaligned>(index));
+    }
+    return scalarCondPacket(index);
+  }
+
+  template <bool UseVecCast = VectorizedCondCast>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::enable_if_t<
+      !UseVecCast || (CondPacketSize < PacketSize && PacketSize != 2 * CondPacketSize), PacketReturnType>
+  condPacket(Index index) const {
+    return scalarCondPacket(index);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType scalarCondPacket(Index index) const {
     EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
     std::remove_const_t<Scalar> arr[PacketSize];
     EIGEN_UNROLL_LOOP
     for (Index i = 0; i < PacketSize; ++i) {
-      arr[i] = m_condImpl.coeff(index + i) ? Scalar(-1) : Scalar(0);
+      arr[i] = m_condImpl.coeff(index + i) ? Scalar(true) : Scalar(false);
     }
-    return TernarySelectOp().template packetOp<PacketReturnType>(m_thenImpl.template packet<LoadMode>(index),
-                                                                 m_elseImpl.template packet<LoadMode>(index),
-                                                                 internal::pload<PacketReturnType>(arr));
+    return internal::pload<PacketReturnType>(arr);
+  }
+
+  template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<!UseTernary, bool> = true>
+  EIGEN_DEVICE_FUNC PacketReturnType packet(Index index) const {
+    return TernarySelectOp().template packetOp<PacketReturnType>(
+        m_thenImpl.template packet<LoadMode>(index), m_elseImpl.template packet<LoadMode>(index), condPacket(index));
   }
 
   template <int LoadMode, bool UseTernary = TernaryPacketAccess, std::enable_if_t<UseTernary, bool> = true>
@@ -1067,8 +1107,13 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool vectorized) const {
-    return m_condImpl.costPerCoeff(vectorized) +
-           m_thenImpl.costPerCoeff(vectorized).cwiseMax(m_elseImpl.costPerCoeff(vectorized));
+    const bool cond_vectorized =
+        vectorized && (TernaryPacketAccess ||
+                       (VectorizedCondCast && (CondPacketSize >= PacketSize || PacketSize == 2 * CondPacketSize)));
+    return m_condImpl.costPerCoeff(cond_vectorized) +
+           (vectorized ? (m_thenImpl.costPerCoeff(vectorized) + m_elseImpl.costPerCoeff(vectorized) +
+                          TensorOpCost(0, 0, internal::functor_traits<TernarySelectOp>::Cost, vectorized, PacketSize))
+                       : m_thenImpl.costPerCoeff(vectorized).cwiseMax(m_elseImpl.costPerCoeff(vectorized)));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
@@ -1076,7 +1121,10 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     auto else_req = m_elseImpl.getResourceRequirements();
 
     auto merged_req = internal::TensorBlockResourceRequirements::merge(then_req, else_req);
-    merged_req.cost_per_coeff = then_req.cost_per_coeff.cwiseMax(else_req.cost_per_coeff);
+    merged_req.cost_per_coeff =
+        PacketAccess ? (then_req.cost_per_coeff + else_req.cost_per_coeff +
+                        TensorOpCost(0, 0, internal::functor_traits<TernarySelectOp>::Cost, PacketAccess, PacketSize))
+                     : then_req.cost_per_coeff.cwiseMax(else_req.cost_per_coeff);
 
     return internal::TensorBlockResourceRequirements::merge(m_condImpl.getResourceRequirements(), merged_req);
   }
@@ -1105,6 +1153,7 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
   TensorEvaluator<IfArgType, Device> m_condImpl;
   TensorEvaluator<ThenArgType, Device> m_thenImpl;
   TensorEvaluator<ElseArgType, Device> m_elseImpl;
+  const Index m_condSize;
 };
 
 }  // end namespace Eigen

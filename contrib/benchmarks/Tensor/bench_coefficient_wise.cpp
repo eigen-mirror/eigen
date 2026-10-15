@@ -249,6 +249,54 @@ static void BM_ReLU_Rank4(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * batch * C * H * H * sizeof(Scalar) * 2);
 }
 
+// --- Ternary boolean mask select: mask.select(a, b) ---
+template <typename T>
+static void BM_Select(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+
+  Tensor<bool, 2> mask(M, N);
+  Tensor<T, 2> a(M, N);
+  Tensor<T, 2> b(M, N);
+  Tensor<T, 2> c(M, N);
+  mask.setRandom();
+  a.setRandom();
+  b.setRandom();
+
+  for (auto _ : state) {
+    c = mask.select(a, b);
+    benchmark::DoNotOptimize(c.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * (sizeof(bool) + sizeof(T) * 3));
+}
+
+template <typename T>
+static void BM_Select_ThreadPool(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const int threads = state.range(2);
+
+  Tensor<bool, 2> mask(M, N);
+  Tensor<T, 2> a(M, N);
+  Tensor<T, 2> b(M, N);
+  Tensor<T, 2> c(M, N);
+  mask.setRandom();
+  a.setRandom();
+  b.setRandom();
+
+  ThreadPool tp(threads);
+  ThreadPoolDevice dev(&tp, threads);
+
+  for (auto _ : state) {
+    c.device(dev) = mask.select(a, b);
+    benchmark::DoNotOptimize(c.data());
+    benchmark::ClobberMemory();
+  }
+  state.SetBytesProcessed(state.iterations() * M * N * (sizeof(bool) + sizeof(T) * 3));
+  state.counters["threads"] = threads;
+}
+
 // clang-format off
 #define CWISE_SIZES \
   ->Args({256, 256})->Args({1024, 1024})
@@ -274,8 +322,13 @@ BENCHMARK(BM_Mul) CWISE_SIZES;
 BENCHMARK(BM_FMA) CWISE_SIZES;
 BENCHMARK(BM_BetaincBroadcast) CWISE_SIZES;
 BENCHMARK(BM_ReLU_Rank4) RANK4_SIZES;
+BENCHMARK_TEMPLATE(BM_Select, float) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Select, int32_t) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Select, Eigen::half) CWISE_SIZES;
+BENCHMARK_TEMPLATE(BM_Select, Eigen::bfloat16) CWISE_SIZES;
 BENCHMARK(BM_Add_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Mul_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_FMA_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_Tanh_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_ReLU_ThreadPool) CWISE_THREADPOOL_SIZES->UseRealTime();
+BENCHMARK_TEMPLATE(BM_Select_ThreadPool, float) CWISE_THREADPOOL_SIZES->UseRealTime();

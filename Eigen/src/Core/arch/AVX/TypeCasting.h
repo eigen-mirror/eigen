@@ -25,6 +25,13 @@ template <>
 struct type_casting_traits<bool, float> : vectorized_type_casting_traits<bool, float> {};
 
 template <>
+struct type_casting_traits<bool, int> : vectorized_type_casting_traits<bool, int> {};
+template <>
+struct type_casting_traits<bool, half> : vectorized_type_casting_traits<bool, half> {};
+template <>
+struct type_casting_traits<bool, bfloat16> : vectorized_type_casting_traits<bool, bfloat16> {};
+
+template <>
 struct type_casting_traits<float, int> : vectorized_type_casting_traits<float, int> {};
 template <>
 struct type_casting_traits<int, float> : vectorized_type_casting_traits<int, float> {};
@@ -135,6 +142,17 @@ EIGEN_STRONG_INLINE Packet8f pcast<Packet16b, Packet8f>(const Packet16b& a) {
 #endif
   __m256 result = _mm256_andnot_ps(_mm256_castsi256_ps(abcd_efgh), cst_one);
   return result;
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8i pcast<Packet16b, Packet8i>(const Packet16b& a) {
+#ifdef EIGEN_VECTORIZE_AVX2
+  __m256i a_extended = _mm256_cvtepi8_epi32(a);
+  __m256i abcd_efgh = _mm256_cmpeq_epi32(a_extended, _mm256_setzero_si256());
+  return _mm256_andnot_si256(abcd_efgh, _mm256_set1_epi32(1));
+#else
+  return _mm256_cvttps_epi32(pcast<Packet16b, Packet8f>(a));
+#endif
 }
 
 template <>
@@ -324,6 +342,13 @@ template <>
 EIGEN_STRONG_INLINE Packet8h pcast<Packet8f, Packet8h>(const Packet8f& a) {
   return float2half(a);
 }
+
+template <>
+EIGEN_STRONG_INLINE Packet8h pcast<Packet16b, Packet8h>(const Packet16b& a) {
+  __m128i eq_zero = _mm_cmpeq_epi8(a, _mm_setzero_si128());
+  __m128i mask16 = _mm_unpacklo_epi8(eq_zero, eq_zero);
+  return _mm_andnot_si128(mask16, _mm_set1_epi16(0x3c00));
+}
 #endif
 
 template <>
@@ -334,6 +359,13 @@ EIGEN_STRONG_INLINE Packet8f pcast<Packet8bf, Packet8f>(const Packet8bf& a) {
 template <>
 EIGEN_STRONG_INLINE Packet8bf pcast<Packet8f, Packet8bf>(const Packet8f& a) {
   return F32ToBf16(a);
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet8bf pcast<Packet16b, Packet8bf>(const Packet16b& a) {
+  __m128i eq_zero = _mm_cmpeq_epi8(a, _mm_setzero_si128());
+  __m128i mask16 = _mm_unpacklo_epi8(eq_zero, eq_zero);
+  return _mm_andnot_si128(mask16, _mm_set1_epi16(0x3f80));
 }
 
 }  // end namespace internal
