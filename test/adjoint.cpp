@@ -9,6 +9,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
+#include "CustomComplex.h"
 
 // |value|, promoted so that the error bounds below accumulate in the widest available type.
 template <typename T>
@@ -369,6 +371,173 @@ void inner_product_exact_values() {
   }
 }
 
+// isOrthogonal() must hold at every representable scale, including scales whose squares or fourth powers overflow or
+// underflow.
+template <typename Scalar>
+void is_orthogonal_scaling() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Vec v = Vec::Zero(5), w = Vec::Zero(5);
+  v(1) = Scalar(1);
+  v(3) = Scalar(2);
+  w(0) = Scalar(3);
+  w(4) = Scalar(-1);
+  const RealScalar scales[] = {RealScalar(1), RealScalar(1) / NumTraits<RealScalar>::epsilon(),
+                               NumTraits<RealScalar>::highest() / RealScalar(4),
+                               NumTraits<RealScalar>::epsilon() * NumTraits<RealScalar>::epsilon(),
+                               (std::numeric_limits<RealScalar>::min)() * RealScalar(4)};
+  for (RealScalar sv : scales) {
+    for (RealScalar sw : scales) {
+      const Vec a = v * sv, b = w * sw, c = (v + w) * sw;
+      VERIFY(a.isOrthogonal(b));
+      VERIFY(!a.isOrthogonal(a));
+      VERIFY(!a.isOrthogonal(Vec(v * sw)));
+      VERIFY(!a.isOrthogonal(c));
+    }
+  }
+  VERIFY(Vec::Zero(5).isOrthogonal(v));
+}
+
+// A tight prec must not be squared away: <a/|a|, b/|b|> = t, where t^2 rounds to zero. This holds at every
+// power-of-two scale that keeps t |a| normal, including scales where the product in <a, b> underflows.
+template <typename RealScalar>
+void is_orthogonal_tight_prec() {
+  using Vec = Matrix<RealScalar, 2, 1>;
+  const RealScalar t = numext::sqrt(std::numeric_limits<RealScalar>::denorm_min()) / RealScalar(2);
+  const int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  const int maxExponent = std::numeric_limits<RealScalar>::max_exponent;
+  for (int ea = minExponent; ea < maxExponent; ea += 7) {
+    const RealScalar sa = std::ldexp(RealScalar(1), ea);
+    if (!(t * sa >= (std::numeric_limits<RealScalar>::min)())) continue;
+    for (int eb = minExponent; eb < maxExponent; eb += 5) {
+      const Vec a(sa, t * sa), b(RealScalar(0), std::ldexp(RealScalar(1), eb));
+      VERIFY(!a.isOrthogonal(b, RealScalar(0)));
+      VERIFY(!a.isOrthogonal(b, t / RealScalar(2)));
+      VERIFY(a.isOrthogonal(b, RealScalar(2) * t));
+    }
+  }
+}
+
+// <a, b> = 0 exactly must stay zero for prec = 0 and tiny positive prec at power-of-two scales near both ends of the
+// exponent range; for float and double, their squares overflow or underflow.
+template <typename Scalar>
+void is_orthogonal_exact_cancellation(const Scalar& phaseA = Scalar(1), const Scalar& phaseB = Scalar(1)) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, 3, 1>;
+  const Vec a = Vec(Scalar(1), Scalar(3), Scalar(1)) * phaseA;
+  const Vec b = Vec(Scalar(3), Scalar(-1), Scalar(0)) * phaseB;
+  const RealScalar scales[] = {RealScalar(1),
+                               RealScalar(std::ldexp(1.0, std::numeric_limits<RealScalar>::max_exponent - 4)),
+                               RealScalar(std::ldexp(1.0, std::numeric_limits<RealScalar>::min_exponent + 1))};
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar precs[] = {RealScalar(0), std::numeric_limits<RealScalar>::denorm_min(), eps * eps};
+  for (RealScalar sa : scales) {
+    for (RealScalar sb : scales) {
+      const Vec x = a * sa, y = b * sb;
+      for (RealScalar prec : precs) {
+        VERIFY(x.isOrthogonal(y, prec));
+        VERIFY(y.isOrthogonal(x, prec));
+        VERIFY(!x.isOrthogonal(x, prec));
+      }
+    }
+  }
+}
+
+// <v, w> = 0 exactly although v spans more exponents than scaling its maximum to 1 keeps normal. In float,
+// v = (2^63, 16393 * 2^-90) and w = (-245895 * 2^-126, 15 * 2^27), with 16393 * 15 = 245895.
+template <typename RealScalar>
+void is_orthogonal_wide_range_cancellation() {
+  using Vec = Matrix<RealScalar, 2, 1>;
+  const int p = std::numeric_limits<RealScalar>::max_exponent / 2 - 1;
+  const int q = p + std::numeric_limits<RealScalar>::min_exponent - std::numeric_limits<RealScalar>::digits - 4;
+  const int s = std::numeric_limits<RealScalar>::digits + 3;
+  const Vec v(std::ldexp(RealScalar(1), p), std::ldexp(RealScalar(16393), q));
+  const Vec w(std::ldexp(RealScalar(-245895), q + s - p), std::ldexp(RealScalar(15), s));
+  VERIFY_IS_EQUAL(v.dot(w), RealScalar(0));
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  for (RealScalar prec : {RealScalar(0), std::numeric_limits<RealScalar>::denorm_min(), eps * eps, eps}) {
+    VERIFY(v.isOrthogonal(w, prec));
+    VERIFY(w.isOrthogonal(v, prec));
+  }
+}
+
+// <x, y> != 0 is not orthogonal at prec = 0, although |<x, y>| / (|x| |y|) < denorm_min. For a = (2^e, 2^-e, 0) and
+// b = (0, 2^e, 2^e), <a, b> = 1 while |a|^2 and |b|^2 overflow and a(1) 2^-e underflows. For c = (1, 2^-f, 0) and
+// d = (0, 2^-f, 1), c(1) d(1) < denorm_min / 2 underflows although |c|^2 and |d|^2 are in range.
+template <typename Scalar>
+void is_orthogonal_nonzero_overlap(const Scalar& phaseA = Scalar(1), const Scalar& phaseB = Scalar(1)) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, 3, 1>;
+  const int e = 3 * std::numeric_limits<RealScalar>::max_exponent / 4;
+  const int f = (std::numeric_limits<RealScalar>::digits - std::numeric_limits<RealScalar>::min_exponent) / 2 + 2;
+  const RealScalar large = std::ldexp(RealScalar(1), e), small = std::ldexp(RealScalar(1), -e);
+  const RealScalar tiny = std::ldexp(RealScalar(1), -f);
+  const Vec a = Vec(Scalar(large), Scalar(small), Scalar(0)) * phaseA;
+  const Vec b = Vec(Scalar(0), Scalar(large), Scalar(large)) * phaseB;
+  const Vec c = Vec(Scalar(1), Scalar(tiny), Scalar(0)) * phaseA;
+  const Vec d = Vec(Scalar(0), Scalar(tiny), Scalar(1)) * phaseB;
+  VERIFY_IS_EQUAL(a.dot(b), numext::conj(phaseA) * phaseB);
+  for (const auto& pair : {std::make_pair(a, b), std::make_pair(c, d)}) {
+    VERIFY(!pair.first.isOrthogonal(pair.second, RealScalar(0)));
+    VERIFY(!pair.second.isOrthogonal(pair.first, RealScalar(0)));
+    VERIFY(pair.first.isOrthogonal(pair.second, std::numeric_limits<RealScalar>::denorm_min()));
+    VERIFY(pair.first.isOrthogonal(pair.second));
+  }
+}
+
+// A non-finite coefficient is orthogonal to nothing; a zero or empty vector is orthogonal to everything.
+template <typename Scalar>
+void is_orthogonal_special_values() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Vec v(3), w(3);
+  v << Scalar(1), Scalar(3), Scalar(1);
+  w << Scalar(3), Scalar(-1), Scalar(0);
+  for (const RealScalar special :
+       {NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::infinity(), -NumTraits<RealScalar>::infinity()}) {
+    for (Index i = 0; i < 3; ++i) {
+      Vec x = v;
+      x(i) = Scalar(special);
+      VERIFY(!x.isOrthogonal(w));
+      VERIFY(!w.isOrthogonal(x));
+      VERIFY(!x.isOrthogonal(Vec::Zero(3)));
+      VERIFY(!x.isOrthogonal(x));
+    }
+  }
+  VERIFY(Vec::Zero(3).isOrthogonal(v, RealScalar(0)));
+  VERIFY(v.isOrthogonal(Vec::Zero(3), RealScalar(0)));
+  VERIFY(Vec().isOrthogonal(Vec(), RealScalar(0)));
+}
+
+// Under FTZ and DAZ, a vector whose largest coefficient is subnormal is still nonzero.
+template <typename Scalar>
+void is_orthogonal_flush_to_zero() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Bits = typename internal::binary_floating_point_traits<RealScalar>::Bits;
+  using Vec = Matrix<Scalar, 2, 1>;
+  // A runtime bit pattern keeps the subnormal out of constant-folded floating-point arithmetic.
+  volatile Bits subnormalBits = Bits(1);
+  const Scalar tiny(numext::bit_cast<RealScalar>(Bits(subnormalBits)));
+  const Vec v(tiny, Scalar(0)), w(Scalar(0), tiny), u(tiny, tiny);
+  ScopedFlushToZero flushToZero(FlushToZeroMode::Both);
+  if (!flushToZero.isSupported()) return;
+  VERIFY(!v.isOrthogonal(v));
+  VERIFY(!v.isOrthogonal(v, RealScalar(0)));
+  VERIFY(!v.isOrthogonal(u));
+  VERIFY(v.isOrthogonal(w));
+}
+
+// A custom complex scalar keeps the squared form, which needs no conversion to std::complex.
+void is_orthogonal_custom_complex() {
+  using Complex = CustomComplex<double>;
+  Matrix<Complex, 2, 1> a, b;
+  a << Complex(1, 2), Complex(3, 0);
+  b << Complex(3, 0), Complex(-1, 2);
+  VERIFY(a.isOrthogonal(b, 0.0));
+  VERIFY(b.isOrthogonal(a, 0.0));
+  VERIFY(!a.isOrthogonal(a));
+}
+
 // Test transposeInPlace at vectorization boundary sizes.
 // BlockedInPlaceTranspose uses PacketSize-blocked loops with a scalar remainder (line 273),
 // exercising off-by-one-prone transitions.
@@ -501,6 +670,33 @@ EIGEN_DECLARE_TEST(adjoint) {
   CALL_SUBTEST_24(inner_product_exact_values<bool>());
   CALL_SUBTEST_24(inner_product_exact_values<half>());
   CALL_SUBTEST_24(inner_product_exact_values<bfloat16>());
+  CALL_SUBTEST_24(is_orthogonal_scaling<float>());
+  CALL_SUBTEST_24(is_orthogonal_scaling<double>());
+  CALL_SUBTEST_24(is_orthogonal_scaling<std::complex<float>>());
+  CALL_SUBTEST_24(is_orthogonal_tight_prec<float>());
+  CALL_SUBTEST_24(is_orthogonal_tight_prec<double>());
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<float>());
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<double>());
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<half>());
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<bfloat16>());
+  // conj(1 + i) (2 - i) = 1 - 3i multiplies every product exactly.
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<std::complex<float>>({1, 1}, {2, -1}));
+  CALL_SUBTEST_24(is_orthogonal_exact_cancellation<std::complex<double>>({1, 1}, {2, -1}));
+  CALL_SUBTEST_24(is_orthogonal_wide_range_cancellation<float>());
+  CALL_SUBTEST_24(is_orthogonal_wide_range_cancellation<double>());
+  CALL_SUBTEST_24(is_orthogonal_nonzero_overlap<float>());
+  CALL_SUBTEST_24(is_orthogonal_nonzero_overlap<double>());
+  CALL_SUBTEST_24(is_orthogonal_nonzero_overlap<long double>());
+  CALL_SUBTEST_24(is_orthogonal_nonzero_overlap<std::complex<float>>({1, 1}, {2, -1}));
+  CALL_SUBTEST_24(is_orthogonal_nonzero_overlap<std::complex<double>>({1, 1}, {2, -1}));
+  CALL_SUBTEST_24(is_orthogonal_special_values<float>());
+  CALL_SUBTEST_24(is_orthogonal_special_values<double>());
+  CALL_SUBTEST_24(is_orthogonal_special_values<std::complex<float>>());
+  CALL_SUBTEST_24(is_orthogonal_special_values<half>());
+  CALL_SUBTEST_24(is_orthogonal_flush_to_zero<float>());
+  CALL_SUBTEST_24(is_orthogonal_flush_to_zero<double>());
+  CALL_SUBTEST_24(is_orthogonal_flush_to_zero<std::complex<float>>());
+  CALL_SUBTEST_24(is_orthogonal_custom_complex());
 
   // transposeInPlace at vectorization boundaries (deterministic, outside g_repeat).
   CALL_SUBTEST_18(transposeInPlace_boundary<float>());

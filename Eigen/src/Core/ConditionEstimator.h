@@ -81,7 +81,11 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
   // lower_bound is a lower bound on
   //   ||inv(matrix)||_1  = sup_v ||inv(matrix) v||_1 / ||v||_1
   // and is the objective maximized by the supergradient ascent algorithm below.
+  // A solve through an exactly zero pivot yields Inf or NaN. NaN fails every comparison below and
+  // would be dropped by the final maximum, so any non-finite probe makes the estimate infinite.
+  const RealScalar infinite_norm = NumTraits<RealScalar>::infinity();
   RealScalar lower_bound = v.template lpNorm<1>();
+  if (!(numext::isfinite)(lower_bound)) return infinite_norm;
   if (n == 1) return lower_bound;
 
   // Gradient ascent: the optimum is achieved at a unit vector e_j. Each
@@ -99,6 +103,8 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
     }
     // Supergradient: z = A^{-T} * sign(v), pick argmax |z_i|.
     v = dec.adjoint().solve(sign_vector);
+    // maxCoeff() would skip a NaN, and the solves with A may stay finite where this one is not.
+    if (!v.allFinite()) return infinite_norm;
     v.real().cwiseAbs().maxCoeff(&v_max_abs_index);
     if (v_max_abs_index == old_v_max_abs_index) {
       // Optimality: supergradient points to the same unit vector.
@@ -107,6 +113,7 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
     // Probe the best unit vector: v = A^{-1} * e_j.
     v = dec.solve(Vector::Unit(n, v_max_abs_index));
     lower_bound = v.template lpNorm<1>();
+    if (!(numext::isfinite)(lower_bound)) return infinite_norm;
     if (lower_bound <= old_lower_bound) {
       // No improvement from the gradient step.
       break;
@@ -129,6 +136,7 @@ typename Decomposition::RealScalar rcond_invmatrix_L1_norm_estimate(const Decomp
   }
   v = dec.solve(v);
   const RealScalar alt_est = (RealScalar(2) * v.template lpNorm<1>()) / (RealScalar(3) * RealScalar(n));
+  if (!(numext::isfinite)(alt_est)) return infinite_norm;
   return numext::maxi(lower_bound, alt_est);
 }
 
@@ -152,6 +160,9 @@ typename Decomposition::RealScalar rcond_estimate_helper(typename Decomposition:
   EIGEN_INTERNAL_ASSERT_SQUARE(dec);
   if (dec.rows() == 0) return NumTraits<RealScalar>::infinity();
   if (numext::is_exactly_zero(matrix_norm)) return RealScalar(0);
+  // As in LAPACK's xGECON: a NaN norm gives NaN and an infinite one 0, also for the 1x1 shortcut.
+  if ((numext::isnan)(matrix_norm)) return matrix_norm;
+  if (!(numext::isfinite)(matrix_norm)) return RealScalar(0);
   if (dec.rows() == 1) return RealScalar(1);
   const RealScalar inverse_matrix_norm = rcond_invmatrix_L1_norm_estimate(dec);
   return (numext::is_exactly_zero(inverse_matrix_norm) ? RealScalar(0)

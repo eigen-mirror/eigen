@@ -144,6 +144,13 @@ void stable_norm(const MatrixType& m) {
     VERIFY((numext::isnan)(v.blueNorm()));
     VERIFY(!(numext::isfinite)(v.hypotNorm()));
     VERIFY((numext::isnan)(v.hypotNorm()));
+    VERIFY((numext::isnan)(v.template lpNorm<1>()));
+    VERIFY((numext::isnan)(v.template lpNorm<Infinity>()));
+    // The maximum used to drop a NaN met after its first coefficient.
+    v = vrand;
+    v(rows - 1, cols - 1) = std::numeric_limits<RealScalar>::quiet_NaN();
+    VERIFY((numext::isnan)(v.template lpNorm<Infinity>()));
+    VERIFY((numext::isnan)(v.colwise().template lpNorm<Infinity>()(cols - 1)));
   }
 
   // +inf

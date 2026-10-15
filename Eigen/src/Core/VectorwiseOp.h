@@ -87,7 +87,7 @@ struct partial_redux_dummy_func;
     typedef BINARYOP<Scalar, Scalar> BinaryOp;                                              \
     template <int Size>                                                                     \
     struct Cost : std::integral_constant<int, COST> {};                                     \
-    enum { Vectorizable = VECTORIZABLE };                                                   \
+    enum { Vectorizable = (VECTORIZABLE) && functor_traits<BinaryOp>::PacketAccess };       \
     template <typename XprType>                                                             \
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const { \
       return mat.MEMBER();                                                                  \

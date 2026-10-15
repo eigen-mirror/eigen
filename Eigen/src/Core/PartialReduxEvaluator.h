@@ -205,7 +205,9 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
     static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
     static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : PacketSize;
     static constexpr int PanelCols = Direction == Vertical ? PacketSize : ArgType::ColsAtCompileTime;
-    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
+    // Not an InnerPanel: the panel starts at an arbitrary inner index idx, so its outer stride says nothing about the
+    // alignment of its packets.
+    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, false>;
     using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
     using BinaryOp = typename MemberOp::BinaryOp;
     using Impl = internal::packetwise_redux_impl<BinaryOp, PanelEvaluator>;
@@ -235,7 +237,7 @@ struct evaluator<PartialReduxExpr<ArgType, MemberOp, Direction> >
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC PacketType packetSegment(Index idx, Index begin, Index count) const {
     static constexpr int PanelRows = Direction == Vertical ? ArgType::RowsAtCompileTime : Dynamic;
     static constexpr int PanelCols = Direction == Vertical ? Dynamic : ArgType::ColsAtCompileTime;
-    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, true /* InnerPanel */>;
+    using PanelType = Block<const ArgTypeNestedCleaned, PanelRows, PanelCols, false>;
     using PanelEvaluator = typename internal::redux_evaluator<PanelType>;
     using BinaryOp = typename MemberOp::BinaryOp;
     using Impl = internal::packetwise_segment_redux_impl<BinaryOp, PanelEvaluator>;

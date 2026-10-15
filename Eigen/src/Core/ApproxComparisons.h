@@ -46,8 +46,9 @@ struct comparison_magnitude {
   EIGEN_DEVICE_FUNC explicit comparison_magnitude(const comparison_magnitude<OtherRealScalar>& value)
       : exponent(value.exponent), fraction(RealScalar(value.fraction)) {}
 
-  EIGEN_DEVICE_FUNC void multiply(const RealScalar& value) {
-    const comparison_magnitude factor(value);
+  EIGEN_DEVICE_FUNC void multiply(const RealScalar& value) { multiply(comparison_magnitude(value)); }
+
+  EIGEN_DEVICE_FUNC void multiply(const comparison_magnitude& factor) {
     const comparison_magnitude product(fraction * factor.fraction);
     fraction = product.fraction;
     exponent += factor.exponent + product.exponent;
@@ -392,6 +393,143 @@ template <typename Derived>
 struct isMuchSmallerThan_scalar_selector<Derived, true>
     : isMuchSmallerThan_object_selector<Derived, typename Derived::RealScalar, true> {};
 
+// a b = fraction 2^exponent, with the frexp significands of a and b multiplied in [1/4, 1): a b rounded as if the
+// exponent range were unbounded. Zero if a or b is.
+template <typename RealScalar>
+struct unbounded_product {
+  EIGEN_DEVICE_FUNC unbounded_product(const RealScalar& a, const RealScalar& b) {
+    int exponentA = 0, exponentB = 0;
+    const RealScalar fractionA = frexp_preserving_subnormals(a, exponentA);
+    const RealScalar fractionB = frexp_preserving_subnormals(b, exponentB);
+    fraction = fractionA * fractionB;
+    exponent = exponentA + exponentB;
+  }
+
+  // a b 2^-maxExponent, exact unless it falls below the normal range.
+  EIGEN_DEVICE_FUNC RealScalar scaled(int maxExponent) const {
+    return ldexp_preserving_subnormals(fraction, exponent - maxExponent);
+  }
+
+  RealScalar fraction;
+  int exponent;
+};
+
+// |<v, w>| <= prec |v| |w|. The squared form, |<v, w>|^2 <= prec^2 |v|^2 |w|^2, is homogeneous of degree four, so for
+// |v_i| above ~4e9 or below ~1e-11 in float both sides overflow to inf <= inf or underflow to 0 <= 0. Scalars that
+// isApprox() does not scale, integers, custom complex and exact custom types included, keep it: it needs no sqrt.
+template <typename Derived, typename OtherDerived,
+          bool Scaled = use_scaled_comparison<typename Derived::Scalar>::value &&
+                        use_scaled_comparison<typename OtherDerived::Scalar>::value>
+struct is_orthogonal_impl {
+  template <typename RealScalar>
+  static bool run(const Derived& v, const OtherDerived& w, const RealScalar& prec) {
+    typename nested_eval<Derived, 2>::type nested(v);
+    typename nested_eval<OtherDerived, 2>::type otherNested(w);
+    return numext::abs2(nested.dot(otherNested)) <= prec * prec * nested.squaredNorm() * otherNested.squaredNorm();
+  }
+};
+
+// Unsquared from the coefficients while |v|^2, |w|^2 and |<v, w>| are in range; otherwise with every product of
+// components rounded at its own exponent, so that neither an exact cancellation nor a nonzero product outside the
+// exponent range is lost.
+template <typename Derived, typename OtherDerived>
+struct is_orthogonal_impl<Derived, OtherDerived, true> {
+  // half and bfloat16 are compared in float, which holds them exactly.
+  using Accumulator = std::common_type_t<
+      typename stable_norm_accumulator<typename NumTraits<typename Derived::Scalar>::Real>::type,
+      typename stable_norm_accumulator<typename NumTraits<typename OtherDerived::Scalar>::Real>::type>;
+  template <typename Xpr>
+  using Wide = std::conditional_t<NumTraits<typename Xpr::Scalar>::IsComplex, std::complex<Accumulator>, Accumulator>;
+
+  template <typename RealScalar>
+  static bool run(const Derived& v, const OtherDerived& w, const RealScalar& prec) {
+    // Widening must not admit operands that dot() rejects, such as float and double.
+    EIGEN_CHECK_BINARY_COMPATIBILITY(
+        scalar_conj_product_op<typename Derived::Scalar EIGEN_COMMA typename OtherDerived::Scalar>,
+        typename Derived::Scalar, typename OtherDerived::Scalar)
+    typename nested_eval<Derived, 2>::type nested(v);
+    typename nested_eval<OtherDerived, 2>::type otherNested(w);
+    const auto& wideV = nested.template cast<Wide<Derived>>();
+    const auto& wideW = otherNested.template cast<Wide<OtherDerived>>();
+    const Accumulator v2 = wideV.squaredNorm();
+    const Accumulator w2 = wideW.squaredNorm();
+    // Each flushed product, square or partial sum moves |v|^2, |w|^2 or <v, w> by less than min, and a complex
+    // coefficient takes up to four per component: less than 8n min in all, at most epsilon x for any x >= lower.
+    const Accumulator lower = Accumulator(8) * Accumulator(v.size()) *
+                              stable_normalization_normal_min<Accumulator, Accumulator>::run() /
+                              NumTraits<Accumulator>::epsilon();
+    const Accumulator highest = NumTraits<Accumulator>::highest();
+    if (v2 >= lower && v2 <= highest && w2 >= lower && w2 <= highest) {
+      const Accumulator absDot = numext::abs(wideV.dot(wideW));
+      const Accumulator bound = Accumulator(prec) * (numext::sqrt(v2) * numext::sqrt(w2));
+      // |<v, w>| <= |v| |w| <= highest up to rounding. Below lower, underflow may have hidden all of <v, w>, but
+      // |<v, w>| < 2 lower.
+      if (absDot >= lower && absDot <= highest) return absDot <= bound;
+      if (absDot < lower && bound >= Accumulator(2) * lower) return true;
+    }
+    return run_unbounded(wideV, wideW, Accumulator(prec));
+  }
+
+ private:
+  using Product = unbounded_product<Accumulator>;
+
+  // func(ac, bd, ad, bc) for each conj(x_k) y_k = (ac + bd) + i (ad - bc), where x_k = a + ib and y_k = c + id.
+  template <typename X, typename Y, typename Func>
+  static void for_each_product(const X& x, const Y& y, Func func) {
+    const evaluator<X> xCoeffs(x);
+    const evaluator<Y> yCoeffs(y);
+    for (Index k = 0; k < x.size(); ++k) {
+      const Accumulator a = numext::real(xCoeffs.coeff(k)), b = numext::imag(xCoeffs.coeff(k));
+      const Accumulator c = numext::real(yCoeffs.coeff(k)), d = numext::imag(yCoeffs.coeff(k));
+      func(Product(a, c), Product(b, d), Product(a, d), Product(b, c));
+    }
+  }
+
+  // |<x, y>| from the products scaled by 2^-E, E the largest product exponent: the largest term is at least 1/4, and
+  // only a term that falls below the normal range, far under an ulp of it, rounds again.
+  template <typename X, typename Y>
+  static comparison_magnitude<Accumulator> unbounded_dot_magnitude(const X& x, const Y& y) {
+    bool nonzero = false;
+    int maxExponent = 0;
+    const auto include = [&](const Product& product) {
+      if (product.fraction == Accumulator(0)) return;
+      maxExponent = nonzero ? numext::maxi(maxExponent, product.exponent) : product.exponent;
+      nonzero = true;
+    };
+    for_each_product(x, y, [&](const Product& ac, const Product& bd, const Product& ad, const Product& bc) {
+      include(ac);
+      include(bd);
+      include(ad);
+      include(bc);
+    });
+    if (!nonzero) return comparison_magnitude<Accumulator>(Accumulator(0));
+    Accumulator re(0), im(0);
+    for_each_product(x, y, [&](const Product& ac, const Product& bd, const Product& ad, const Product& bc) {
+      re += ac.scaled(maxExponent) + bd.scaled(maxExponent);
+      im += ad.scaled(maxExponent) - bc.scaled(maxExponent);
+    });
+    comparison_magnitude<Accumulator> magnitude(numext::hypot(re, im));
+    magnitude.exponent += maxExponent;
+    return magnitude;
+  }
+
+  // Keep the exponent arithmetic from inhibiting inlining of ordinary comparisons.
+  template <typename V, typename W>
+  static EIGEN_DONT_INLINE bool run_unbounded(const V& v, const W& w, const Accumulator& prec) {
+    // A vector with a non-finite coefficient is orthogonal to nothing, a zero vector to everything.
+    if (!v.allFinite() || !w.allFinite()) return false;
+    // |<v, w>|^2 <= prec^2 |v|^2 |w|^2 between magnitudes that carry their own exponents.
+    const comparison_magnitude<Accumulator> absDot = unbounded_dot_magnitude(v, w);
+    comparison_magnitude<Accumulator> dot2 = absDot;
+    dot2.multiply(absDot);
+    comparison_magnitude<Accumulator> bound = unbounded_dot_magnitude(v, v);
+    bound.multiply(unbounded_dot_magnitude(w, w));
+    bound.multiply(prec);
+    bound.multiply(prec);
+    return dot2 <= bound;
+  }
+};
+
 }  // end namespace internal
 
 /** \returns \c true if \c *this is approximately equal to \a other, within the precision
@@ -457,6 +595,18 @@ template <typename OtherDerived>
 EIGEN_DEVICE_FUNC constexpr bool DenseBase<Derived>::isMuchSmallerThan(const DenseBase<OtherDerived>& other,
                                                                        const RealScalar& prec) const {
   return internal::isMuchSmallerThan_object_selector<Derived, OtherDerived>::run(derived(), other.derived(), prec);
+}
+
+/** \returns true if *this is approximately orthogonal to \a other,
+ *          within the precision given by \a prec.
+ *
+ * Example: \include MatrixBase_isOrthogonal.cpp
+ * Output: \verbinclude MatrixBase_isOrthogonal.out
+ */
+template <typename Derived>
+template <typename OtherDerived>
+bool MatrixBase<Derived>::isOrthogonal(const MatrixBase<OtherDerived>& other, const RealScalar& prec) const {
+  return internal::is_orthogonal_impl<Derived, OtherDerived>::run(derived(), other.derived(), prec);
 }
 
 }  // end namespace Eigen

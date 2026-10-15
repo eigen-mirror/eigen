@@ -60,6 +60,10 @@
 #include "simplicial_cholesky.cpp"
 #endif
 
+#ifdef EIGEN_TEST_PART_12
+#include "main.h"
+#endif
+
 #include <Eigen/Dense>
 
 #undef min
@@ -74,10 +78,17 @@
 #include <boost/multiprecision/number.hpp>
 #include <boost/math/special_functions.hpp>
 #include <boost/math/complex.hpp>
+#include <boost/rational.hpp>
 
 typedef boost::multiprecision::number<boost::multiprecision::cpp_dec_float<100>, boost::multiprecision::et_on> Real;
 
 namespace Eigen {
+template <>
+struct NumTraits<boost::rational<int> > : GenericNumTraits<boost::rational<int> > {
+  static constexpr bool IsInteger = false;
+  static constexpr bool RequireInitialization = true;
+};
+
 template <>
 struct NumTraits<Real> : GenericNumTraits<Real> {
   static inline Real dummy_precision() { return 1e-50; }
@@ -143,6 +154,19 @@ Real test_relative_error(const Real& a, const Real& b) {
 
 namespace Eigen {}
 
+// isOrthogonal() of exact and non-IEEE scalars keeps the form that needs no square root.
+void is_orthogonal_custom_scalars() {
+  using R = boost::rational<int>;
+  Matrix<R, 2, 1> a, b;
+  a << R(1, 2), R(1, 3);
+  b << R(2), R(-3);
+  VERIFY(a.isOrthogonal(b, R(0)));
+  VERIFY(!a.isOrthogonal(a, R(0)));
+  Matrix<Real, 3, 1> u(Real(1), Real(2), Real(0)), w(Real(-2), Real(1), Real(5));
+  VERIFY(u.isOrthogonal(w));
+  VERIFY(!u.isOrthogonal(u));
+}
+
 EIGEN_DECLARE_TEST(boostmultiprec) {
   typedef Matrix<Real, Dynamic, Dynamic> Mat;
   typedef Matrix<std::complex<Real>, Dynamic, Dynamic> MatC;
@@ -206,4 +230,5 @@ EIGEN_DECLARE_TEST(boostmultiprec) {
                                     internal::random<int>(EIGEN_TEST_MAX_SIZE / 4, EIGEN_TEST_MAX_SIZE / 2)))));
 
   CALL_SUBTEST_11((test_simplicial_cholesky_T<Real, int, ColMajor>()));
+  CALL_SUBTEST_12(is_orthogonal_custom_scalars());
 }

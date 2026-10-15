@@ -80,6 +80,15 @@ void structured_abs_sums() {
   matrix(0, 0) = Scalar((std::numeric_limits<RealScalar>::infinity)());
   VERIFY((numext::isinf)(internal::triangular_abs_sum<Lower>(matrix)));
   VERIFY((numext::isinf)(internal::hessenberg_abs_sum<Upper>(matrix)));
+
+  // A NaN column sum makes the self-adjoint 1-norm NaN; it used to be dropped, giving 0 for [1 NaN; NaN 1].
+  for (Index n : {2, 3, 6, 17}) {
+    Mat symmetric = Mat::Identity(n, n);
+    symmetric(n - 1, n - 2) = nan;
+    symmetric(n - 2, n - 1) = nan;
+    VERIFY((numext::isnan)(symmetric.template selfadjointView<Lower>().l1Norm()));
+    VERIFY((numext::isnan)(symmetric.template selfadjointView<Upper>().l1Norm()));
+  }
 }
 
 EIGEN_DECLARE_TEST(structured_norm) {

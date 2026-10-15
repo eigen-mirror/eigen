@@ -95,6 +95,28 @@ void rcond_singular() {
 
   FullPivLU<MatrixType> lu(m);
   VERIFY_IS_EQUAL(lu.rcond(), Scalar(0));
+
+  // An exactly zero pivot makes the estimator's solves produce NaN, which must not be dropped:
+  // diag(1, ..., 1, 0) used to report rcond == 1 while diag(1, ..., 1, 1e-30) reports 1e-30.
+  using RealScalar = typename MatrixType::RealScalar;
+  MatrixType d = MatrixType::Identity(size, size);
+  d(size - 1, size - 1) = Scalar(0);
+  VERIFY_IS_EQUAL(PartialPivLU<MatrixType>(d).rcond(), RealScalar(0));
+  VERIFY_IS_EQUAL(PartialPivLU<MatrixType>(m).rcond(), RealScalar(0));
+}
+
+// A singular matrix whose LU factors are exact, with U(4,4) == 0. The dynamic-size triangular solve
+// skips a zero right-hand side entry, so every solve with A stays finite; only the solve with A^H
+// divides by the zero pivot. Its NaN used to be dropped, giving rcond ~ 0.15.
+template <typename MatrixType>
+void rcond_singular_finite_solves() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  MatrixType m(5, 5);
+  m << 8, 8, -2, -6, -6, -4, 0, -3, -1, 3, 2, 0, 0, 1, -1, 2, 4, -1, 3, -3, -4, -4, -2, -3, 5;
+  PartialPivLU<MatrixType> lu(m);
+  VERIFY_IS_EQUAL(lu.matrixLU()(4, 4), Scalar(0));
+  VERIFY_IS_EQUAL(lu.rcond(), RealScalar(0));
 }
 
 template <typename MatrixType>
@@ -176,6 +198,14 @@ void rcond_1x1() {
     LDLT<Mat1> ldlt(m);
     VERIFY_IS_APPROX(ldlt.rcond(), RealScalar(1));
   }
+
+  // The 1x1 shortcut used to report a NaN or infinite matrix as perfectly conditioned.
+  m(0, 0) = NumTraits<RealScalar>::quiet_NaN();
+  VERIFY((numext::isnan)(PartialPivLU<Mat1>(m).rcond()));
+  VERIFY((numext::isnan)(LDLT<Mat1>(m).rcond()));
+  m(0, 0) = NumTraits<RealScalar>::infinity();
+  VERIFY_IS_EQUAL(PartialPivLU<Mat1>(m).rcond(), RealScalar(0));
+  VERIFY_IS_EQUAL(LDLT<Mat1>(m).rcond(), RealScalar(0));
 }
 
 template <typename MatrixType>
@@ -234,6 +264,7 @@ EIGEN_DECLARE_TEST(condition_estimator) {
     CALL_SUBTEST_3(rcond_llt<MatrixXf>());
     CALL_SUBTEST_3(rcond_ldlt<MatrixXf>());
     CALL_SUBTEST_3(rcond_singular<MatrixXf>());
+    CALL_SUBTEST_3(rcond_singular_finite_solves<MatrixXf>());
     CALL_SUBTEST_3(rcond_identity<MatrixXf>());
     CALL_SUBTEST_3(rcond_ill_conditioned<MatrixXf>());
 
@@ -242,6 +273,7 @@ EIGEN_DECLARE_TEST(condition_estimator) {
     CALL_SUBTEST_4(rcond_llt<MatrixXd>());
     CALL_SUBTEST_4(rcond_ldlt<MatrixXd>());
     CALL_SUBTEST_4(rcond_singular<MatrixXd>());
+    CALL_SUBTEST_4(rcond_singular_finite_solves<MatrixXd>());
     CALL_SUBTEST_4(rcond_identity<MatrixXd>());
     CALL_SUBTEST_4(rcond_ill_conditioned<MatrixXd>());
 
@@ -250,6 +282,7 @@ EIGEN_DECLARE_TEST(condition_estimator) {
     CALL_SUBTEST_5(rcond_llt<MatrixXcf>());
     CALL_SUBTEST_5(rcond_ldlt<MatrixXcf>());
     CALL_SUBTEST_5(rcond_singular<MatrixXcf>());
+    CALL_SUBTEST_5(rcond_singular_finite_solves<MatrixXcf>());
     CALL_SUBTEST_5(rcond_identity<MatrixXcf>());
 
     CALL_SUBTEST_6(rcond_partial_piv_lu<MatrixXcd>());
@@ -257,6 +290,7 @@ EIGEN_DECLARE_TEST(condition_estimator) {
     CALL_SUBTEST_6(rcond_llt<MatrixXcd>());
     CALL_SUBTEST_6(rcond_ldlt<MatrixXcd>());
     CALL_SUBTEST_6(rcond_singular<MatrixXcd>());
+    CALL_SUBTEST_6(rcond_singular_finite_solves<MatrixXcd>());
     CALL_SUBTEST_6(rcond_identity<MatrixXcd>());
   }
 }

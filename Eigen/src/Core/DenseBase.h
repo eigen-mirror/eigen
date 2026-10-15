@@ -509,7 +509,7 @@ class DenseBase
   select(const typename DenseBase<ElseDerived>::Scalar& thenScalar, const DenseBase<ElseDerived>& elseMatrix) const;
 
   template <int p>
-  RealScalar lpNorm() const;
+  EIGEN_DEVICE_FUNC RealScalar lpNorm() const;
 
   template <int RowFactor, int ColFactor>
   EIGEN_DEVICE_FUNC const Replicate<Derived, RowFactor, ColFactor> replicate() const;

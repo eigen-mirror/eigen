@@ -60,6 +60,7 @@ ei_add_failtest("swap_2")
 ei_add_failtest("ternary_1")
 ei_add_failtest("ternary_2")
 ei_add_failtest("approx_mixed_scalars")
+ei_add_failtest("orthogonal_mixed_scalars")
 
 ei_add_failtest("sparse_ref_1")
 ei_add_failtest("sparse_ref_2")

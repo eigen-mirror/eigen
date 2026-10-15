@@ -299,6 +299,11 @@ class selfadjoint_l1norm {
   using L1NormScalar = typename L1NormImpl::Scalar;
   using L1NormAccumulator = typename L1NormImpl::Real;
 
+  // As in LAPACK's xLANSY, a NaN column sum makes the norm NaN; maxi(0, NaN) would return 0.
+  static EIGEN_DEVICE_FUNC L1NormAccumulator maxColumnSum(const L1NormAccumulator& norm, const L1NormAccumulator& sum) {
+    return (norm < sum || (numext::isnan)(sum)) ? sum : norm;
+  }
+
   // Each column is read once, top to bottom, two at a time: |a_ij| goes to column j's sum and, as
   // the mirrored a_ji, to sums[i]. Lower walks the columns forward and Upper backward so that
   // sums[j] is complete when column j is reached. Of a pair (j0, j1) only j0's element in row j1
@@ -327,13 +332,13 @@ class selfadjoint_l1norm {
       // an autodiff sum is an expression).
       L1NormAccumulator col0 = numext::real(sums.coeff(j0)) + impl.abs(m.coeff(j0, j0)) + boundary;
       L1NormAccumulator col1 = numext::real(sums.coeff(j1)) + impl.abs(m.coeff(j1, j1)) + boundary;
-      norm = numext::maxi(norm, col0);
-      norm = numext::maxi(norm, col1);
+      norm = maxColumnSum(norm, col0);
+      norm = maxColumnSum(norm, col1);
     }
     if (k < n) {
       Index j = Mode == Lower ? k : 0;
       L1NormAccumulator col = numext::real(sums.coeff(j)) + impl.abs(m.coeff(j, j));
-      norm = numext::maxi(norm, col);
+      norm = maxColumnSum(norm, col);
     }
     return impl.inRange(n) ? RealScalar(norm) : l1NormPerColumn();
   }
@@ -357,7 +362,7 @@ class selfadjoint_l1norm {
         abs_col_sum = absSum(m_matrix.template block<Dynamic, 1>(0, col, col, 1)) +
                       absSum(m_matrix.template block<1, Dynamic>(col, col, 1, n - col));
       }
-      norm = numext::maxi(norm, abs_col_sum);
+      norm = maxColumnSum(norm, abs_col_sum);
     }
     return RealScalar(norm);
   }

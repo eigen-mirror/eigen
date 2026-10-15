@@ -477,6 +477,14 @@ void vectorwiseop_array_extensions(const ArrayType& m) {
   expected = m1.cwiseMax(Scalar(-0.25));
   VERIFY_IS_APPROX(expected, m1.colwise().cwiseMax(Scalar(-0.25)));
   VERIFY_IS_APPROX(expected, m1.rowwise().cwiseMax(Scalar(-0.25)));
+
+  // DenseBase declares lpNorm(); arrays and their partial reductions must link.
+  VERIFY_IS_APPROX(m1.template lpNorm<1>(), m1.matrix().template lpNorm<1>());
+  VERIFY_IS_APPROX(m1.template lpNorm<2>(), m1.matrix().norm());
+  VERIFY_IS_APPROX(m1.template lpNorm<3>(), m1.matrix().template lpNorm<3>());
+  VERIFY_IS_APPROX(m1.template lpNorm<Infinity>(), m1.abs().maxCoeff());
+  VERIFY_IS_APPROX(m1.colwise().template lpNorm<1>(), m1.abs().colwise().sum());
+  VERIFY_IS_APPROX(m1.rowwise().template lpNorm<Infinity>(), m1.abs().rowwise().maxCoeff());
 }
 
 template <typename MatrixType>
@@ -641,6 +649,44 @@ void vectorwiseop_rowmajor() {
   VERIFY_IS_APPROX(ColMajorMatrix(mc.rowwise() - rv), ColMajorMatrix(mr.rowwise() - rv));
 }
 
+// The packet path of a partial reduction must follow its functor's PacketAccess: bool has packets
+// on x86 but no pmin/pmax, so these failed to compile when the reduction runs along the inner dimension.
+void vectorwiseop_bool_minmax() {
+  Array<bool, Dynamic, Dynamic, RowMajor> rowMajor = Array<bool, Dynamic, Dynamic, RowMajor>::Constant(3, 37, false);
+  rowMajor(1, 33) = true;
+  rowMajor.col(2).setConstant(true);
+  Array<bool, Dynamic, Dynamic> colMajor = rowMajor.transpose();
+  Array<bool, 1, Dynamic> anyInCol = rowMajor.colwise().maxCoeff();
+  Array<bool, 1, Dynamic> allInCol = rowMajor.colwise().minCoeff();
+  Array<bool, Dynamic, 1> anyInRow = colMajor.rowwise().maxCoeff();
+  Array<bool, Dynamic, 1> allInRow = colMajor.rowwise().minCoeff();
+  for (Index j = 0; j < rowMajor.cols(); ++j) {
+    VERIFY_IS_EQUAL(anyInCol(j), j == 2 || j == 33);
+    VERIFY_IS_EQUAL(allInCol(j), j == 2);
+    VERIFY_IS_EQUAL(anyInRow(j), j == 2 || j == 33);
+    VERIFY_IS_EQUAL(allInRow(j), j == 2);
+  }
+}
+
+// A destination that is not packet aligned makes the assignment request source packets at unaligned indices; the
+// panels reduced for them used to load aligned packets when the reduced matrix has a fixed, aligned outer stride.
+template <typename Scalar>
+void vectorwiseop_unaligned_panel() {
+  using ColMajorMatrix = Matrix<Scalar, 128, 4>;
+  using RowMajorMatrix = Matrix<Scalar, 4, 128, RowMajor>;
+  const ColMajorMatrix mc = ColMajorMatrix::Random();
+  const RowMajorMatrix mr = mc.transpose();
+  const Matrix<Scalar, Dynamic, 1> rowSums = mc.rowwise().sum().eval();
+  for (Index offset = 1; offset < 4; ++offset) {
+    Matrix<Scalar, Dynamic, 1> column = Matrix<Scalar, Dynamic, 1>::Zero(128 + offset);
+    column.segment(offset, 128) = mc.rowwise().sum();
+    VERIFY_IS_APPROX(column.segment(offset, 128), rowSums);
+    Matrix<Scalar, 1, Dynamic> row = Matrix<Scalar, 1, Dynamic>::Zero(128 + offset);
+    row.segment(offset, 128) = mr.colwise().sum();
+    VERIFY_IS_APPROX(row.segment(offset, 128), rowSums.transpose());
+  }
+}
+
 EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_11(vectorwiseop_operand_order());
   CALL_SUBTEST_11(vectorwiseop_minmax_nan<PropagateNaN>());
@@ -666,6 +712,9 @@ EIGEN_DECLARE_TEST(vectorwiseop) {
   CALL_SUBTEST_10(vectorwiseop_rowmajor<float>());
   CALL_SUBTEST_10(vectorwiseop_rowmajor<double>());
   CALL_SUBTEST_10(vectorwiseop_rowmajor<std::complex<float>>());
+  CALL_SUBTEST_10(vectorwiseop_bool_minmax());
+  CALL_SUBTEST_10(vectorwiseop_unaligned_panel<float>());
+  CALL_SUBTEST_10(vectorwiseop_unaligned_panel<double>());
   CALL_SUBTEST_11(vectorwiseop_array_extensions(Array<float, 3, 4>()));
   CALL_SUBTEST_11(vectorwiseop_array_extensions(ArrayXXd(3, 4)));
   CALL_SUBTEST_12(vectorwiseop_matrix_extensions(Matrix<float, 4, 5>()));

@@ -178,6 +178,31 @@ void selfadjoint_eigensolver_large_fixed_no_malloc() {
   VERIFY_IS_EQUAL(solver.info(), Eigen::Success);
 }
 
+// isOrthogonal() compares dynamic vectors without a temporary, also where it scales them by powers of two.
+template <typename Scalar>
+void is_orthogonal_no_malloc() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  const RealScalar scales[] = {RealScalar(1),
+                               RealScalar(std::ldexp(1.0, std::numeric_limits<RealScalar>::max_exponent - 4)),
+                               RealScalar(std::ldexp(1.0, std::numeric_limits<RealScalar>::min_exponent + 1))};
+  Eigen::internal::set_is_malloc_allowed(true);
+  Vec v(3), w(3), a(3), b(3);
+  Eigen::internal::set_is_malloc_allowed(false);
+  v << Scalar(1), Scalar(3), Scalar(1);
+  w << Scalar(3), Scalar(-1), Scalar(0);
+  for (RealScalar sv : scales) {
+    for (RealScalar sw : scales) {
+      a = v * sv;
+      b = w * sw;
+      VERIFY(a.isOrthogonal(b));
+      VERIFY(a.isOrthogonal(b, RealScalar(0)));
+      VERIFY(a.isOrthogonal(b.reverse()));
+      VERIFY(!a.isOrthogonal(a));
+    }
+  }
+}
+
 void test_zerosized() {
   // default constructors:
   Eigen::MatrixXd A;
@@ -245,6 +270,12 @@ EIGEN_DECLARE_TEST(nomalloc) {
   CALL_SUBTEST_10(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
 
   CALL_SUBTEST_5(test_zerosized());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<float>());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<double>());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<std::complex<float>>());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<std::complex<double>>());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<half>());
+  CALL_SUBTEST_11(is_orthogonal_no_malloc<bfloat16>());
 
   CALL_SUBTEST_6(test_reference(Matrix<float, 32, 32>()));
   CALL_SUBTEST_7(test_reference(R1));
