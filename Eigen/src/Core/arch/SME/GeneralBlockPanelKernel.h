@@ -116,12 +116,13 @@ static constexpr int kSmeNrCD = sme_block<std::complex<double>>::nr;
 // packed panel of width `width`, for the depth sub-range [k0, k1).  Both dst and
 // src are indexed by the absolute depth index k (dst[k*width+off],
 // src[k*src_stride+off]); the caller offsets `src` to the region's column base
-// and `dst` to the panel base.  Generalised over the runtime svl: the panel is
-// covered in svl-wide column chunks, each streamed over the depth sub-range.
-// The chunk loop is outermost so each chunk's predicate is computed once instead
-// of per depth step (the runtime chunk count keeps the compiler from hoisting it
-// on its own).  The symm packers reuse this for the diagonal-split direct/
-// transposed regions (a contiguous depth sub-range at a depth offset).
+// and `dst` to the panel base.  A panel with svl < width <= 2*svl stores each packed
+// line with one two-vector store; others store svl-wide predicated chunks, each
+// streamed over the depth sub-range.  The chunk loop is outermost so each chunk's
+// predicate is computed once instead of per depth step (the runtime chunk count
+// keeps the compiler from hoisting it on its own).  The symm packers reuse this
+// for the diagonal-split direct/transposed regions (a contiguous depth sub-range
+// at a depth offset).
 template <bool Conjugate, typename Scalar, typename Index>
 static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst, const Scalar* EIGEN_RESTRICT src,
                                                      Index src_stride, Index k0, Index k1,
@@ -131,6 +132,23 @@ static EIGEN_ALWAYS_INLINE void sve_copy_panel_range(Scalar* EIGEN_RESTRICT dst,
   if (width == 2 * svl) {
     // Full panel: one two-vector load and store per depth step, four steps in flight.
     const svcount_t pn = Traits::ptrue_c();
+    Index k = k0;
+    for (; k + 4 <= k1; k += 4) {
+      const auto v0 = ploadu_x2(pn, &src[k * src_stride]);
+      const auto v1 = ploadu_x2(pn, &src[(k + 1) * src_stride]);
+      const auto v2 = ploadu_x2(pn, &src[(k + 2) * src_stride]);
+      const auto v3 = ploadu_x2(pn, &src[(k + 3) * src_stride]);
+      pstoreu_x2(pn, &dst[k * width], v0);
+      pstoreu_x2(pn, &dst[(k + 1) * width], v1);
+      pstoreu_x2(pn, &dst[(k + 2) * width], v2);
+      pstoreu_x2(pn, &dst[(k + 3) * width], v3);
+    }
+    for (; k < k1; ++k) pstoreu_x2(pn, &dst[k * width], ploadu_x2(pn, &src[k * src_stride]));
+    return;
+  }
+  if (width > svl && width < 2 * svl) {
+    // Tail panel: each packed line in one counter-predicated two-vector store, four steps in flight.
+    const svcount_t pn = Traits::whilelt_c2(0, width);
     Index k = k0;
     for (; k + 4 <= k1; k += 4) {
       const auto v0 = ploadu_x2(pn, &src[k * src_stride]);
@@ -383,7 +401,7 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_partial(RealScalar* EIGEN_RE
   const svcount_t pn = Traits::ptrue_c();
   const Vec zero = pset1<Vec>(RealScalar(0));
   const int rows_lo = sme_min(width, svl), rows_hi = width - rows_lo;
-  const svbool_t pg_lo = Traits::whilelt(0, rows_lo), pg_hi = Traits::whilelt(0, rows_hi);
+  const svbool_t pg_lo = Traits::whilelt(0, rows_lo);
   const svbool_t pg_two = Traits::whilelt(0, 2 * width);
   Index k = k0;
   for (; k + w2 <= k1; k += w2) {
@@ -419,6 +437,27 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_partial(RealScalar* EIGEN_RE
       }
       continue;
     }
+    if (rows_hi > 0) {
+      // Each line in one counter-predicated two-vector store.
+      const svcount_t pc = Traits::whilelt_c2(0, width);
+      for (int c = 0; c < svl; c += 4) {
+        const auto t0 = sme_read_ver_za_vg4<0, RealScalar>(uint32_t(c)),
+                   t1 = sme_read_ver_za_vg4<1, RealScalar>(uint32_t(c));
+        const auto t2 = sme_read_ver_za_vg4<2, RealScalar>(uint32_t(c)),
+                   t3 = sme_read_ver_za_vg4<3, RealScalar>(uint32_t(c));
+        RealScalar* d0 = dst + (k + c) * width;
+        RealScalar* d1 = d0 + Index(svl) * width;
+        pstoreu_x2(pc, d0, pcreate(pget<0>(t0), pget<0>(t2)));
+        pstoreu_x2(pc, d0 + width, pcreate(pget<1>(t0), pget<1>(t2)));
+        pstoreu_x2(pc, d0 + 2 * width, pcreate(pget<2>(t0), pget<2>(t2)));
+        pstoreu_x2(pc, d0 + 3 * width, pcreate(pget<3>(t0), pget<3>(t2)));
+        pstoreu_x2(pc, d1, pcreate(pget<0>(t1), pget<0>(t3)));
+        pstoreu_x2(pc, d1 + width, pcreate(pget<1>(t1), pget<1>(t3)));
+        pstoreu_x2(pc, d1 + 2 * width, pcreate(pget<2>(t1), pget<2>(t3)));
+        pstoreu_x2(pc, d1 + 3 * width, pcreate(pget<3>(t1), pget<3>(t3)));
+      }
+      continue;
+    }
     for (int c = 0; c < svl; c += 4) {
       const auto t0 = sme_read_ver_za_vg4<0, RealScalar>(uint32_t(c)),
                  t1 = sme_read_ver_za_vg4<1, RealScalar>(uint32_t(c));
@@ -432,18 +471,6 @@ static EIGEN_ALWAYS_INLINE Index sme_transpose_pack_partial(RealScalar* EIGEN_RE
       pstoreu(pg_lo, d1 + width, pget<1>(t1));
       pstoreu(pg_lo, d1 + 2 * width, pget<2>(t1));
       pstoreu(pg_lo, d1 + 3 * width, pget<3>(t1));
-      if (rows_hi > 0) {
-        const auto t2 = sme_read_ver_za_vg4<2, RealScalar>(uint32_t(c)),
-                   t3 = sme_read_ver_za_vg4<3, RealScalar>(uint32_t(c));
-        pstoreu(pg_hi, d0 + svl, pget<0>(t2));
-        pstoreu(pg_hi, d0 + width + svl, pget<1>(t2));
-        pstoreu(pg_hi, d0 + 2 * width + svl, pget<2>(t2));
-        pstoreu(pg_hi, d0 + 3 * width + svl, pget<3>(t2));
-        pstoreu(pg_hi, d1 + svl, pget<0>(t3));
-        pstoreu(pg_hi, d1 + width + svl, pget<1>(t3));
-        pstoreu(pg_hi, d1 + 2 * width + svl, pget<2>(t3));
-        pstoreu(pg_hi, d1 + 3 * width + svl, pget<3>(t3));
-      }
     }
   }
   return k;

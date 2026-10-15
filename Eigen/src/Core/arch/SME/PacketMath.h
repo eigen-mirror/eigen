@@ -91,6 +91,14 @@ struct sme_packet_traits<float> {
   static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_b32(begin, end);
   }
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c2(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
+#if EIGEN_COMP_GNUC_STRICT
+    // GCC 14 and 15 crash folding a counter whilelt whose bounds are small constants, as a full panel's width
+    // inlined into a copy's tail branch is; keep `end` opaque to it.
+    EIGEN_OPTIMIZATION_BARRIER(end)
+#endif
+    return svwhilelt_c32_s64(begin, end, 2);
+  }
   static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_c32_s64(begin, end, 4);
   }
@@ -109,6 +117,13 @@ struct sme_packet_traits<double> {
   static EIGEN_ALWAYS_INLINE svcount_t ptrue_c() __arm_streaming EIGEN_SME_ZA_AGNOSTIC { return svptrue_c64(); }
   static EIGEN_ALWAYS_INLINE svbool_t whilelt(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_b64(begin, end);
+  }
+  static EIGEN_ALWAYS_INLINE svcount_t whilelt_c2(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
+#if EIGEN_COMP_GNUC_STRICT
+    // See the float specialization.
+    EIGEN_OPTIMIZATION_BARRIER(end)
+#endif
+    return svwhilelt_c64_s64(begin, end, 2);
   }
   static EIGEN_ALWAYS_INLINE svcount_t whilelt_c4(int64_t begin, int64_t end) __arm_streaming EIGEN_SME_ZA_AGNOSTIC {
     return svwhilelt_c64_s64(begin, end, 4);

@@ -28,8 +28,8 @@ static void add_gflops_counter(benchmark::State& state) {
 }
 
 // Sampled coefficients of c = a * b: |c(i,j) - sum_q a(i,q) b(q,j)| <= 8 p eps sum_q |a(i,q)| |b(q,j)|, p the depth.
-template <typename Lhs>
-static bool gemm_result_ok(const Lhs& a, const Mat& b, const Mat& c) {
+template <typename Lhs, typename Rhs>
+static bool gemm_result_ok(const Lhs& a, const Rhs& b, const Mat& c) {
   for (Index i : {Index(0), a.rows() / 2, a.rows() - 1}) {
     for (Index j : {Index(0), b.cols() / 2, b.cols() - 1}) {
       Scalar expected(0);
@@ -44,15 +44,15 @@ static bool gemm_result_ok(const Lhs& a, const Mat& b, const Mat& c) {
   return true;
 }
 
-// c += a * b with a stored in LhsOrder; b and c are column-major.
-template <int LhsOrder>
+// c += a * b with a stored in LhsOrder and b in RhsOrder; c is column-major.
+template <int LhsOrder, int RhsOrder = ColMajor>
 static void eigen_gemm(benchmark::State& state) {
   int m = state.range(0);
   int n = state.range(1);
   int p = state.range(2);
   Matrix<Scalar, Dynamic, Dynamic, LhsOrder> a(m, p);
   a.setRandom();
-  Mat b(p, n);
+  Matrix<Scalar, Dynamic, Dynamic, RhsOrder> b(p, n);
   b.setRandom();
   Mat c = Mat::Zero(m, n);
   gemm(a, b, c);
@@ -71,6 +71,7 @@ static void eigen_gemm(benchmark::State& state) {
 
 static void BM_EigenGemm(benchmark::State& state) { eigen_gemm<ColMajor>(state); }
 static void BM_EigenGemmRowMajorLhs(benchmark::State& state) { eigen_gemm<RowMajor>(state); }
+static void BM_EigenGemmRowMajorRhs(benchmark::State& state) { eigen_gemm<ColMajor, RowMajor>(state); }
 
 // clang-format off
 #define GEMM_SIZES \
@@ -97,10 +98,20 @@ static void BM_EigenGemmRowMajorLhs(benchmark::State& state) { eigen_gemm<RowMaj
     ->ArgsProduct({{64}, {64}, {41, 81, 120, 136, 256, 512, 2048, 4096}}) \
     ->ArgsProduct({{2048}, {64}, {64, 128, 256, 512, 1024}}) \
     ->Args({128, 128, 2048})->Args({256, 256, 2048})->Args({4096, 64, 512})->Args({2048, 128, 512})
+
+// Tail panels: at SVL 512, m = 60, 120 and 252 leave a's last panel between one and two vectors wide (28, 24 and 28
+// floats; 12 doubles for 60 and 252), and n = 60 leaves b's. A column-major b and a row-major a pack through the ZA
+// transposer, a row-major b through the copy; a column-major a is mostly read in place.
+#define TAIL_PANEL_SIZES \
+    ->Args({60, 60, 1024})->Args({60, 64, 1024})->Args({64, 60, 1024})->Args({120, 120, 1024})->Args({252, 252, 252})
 // clang-format on
 
-BENCHMARK(BM_EigenGemm) GEMM_SIZES DEPTH_SWEEP_SIZES;
-BENCHMARK(BM_EigenGemmRowMajorLhs)->Args({256, 256, 256})->Args({1024, 1024, 1024}) DEPTH_SWEEP_SIZES;
+BENCHMARK(BM_EigenGemm) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES;
+BENCHMARK(BM_EigenGemmRowMajorLhs)->Args({256, 256, 256})->Args({1024, 1024, 1024}) DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES;
+BENCHMARK(BM_EigenGemmRowMajorRhs)
+    ->Args({64, 64, 1024})
+    ->Args({256, 256, 256})
+    ->Args({1024, 1024, 1024}) TAIL_PANEL_SIZES;
 
 // The reference below calls sgemm_/dgemm_ directly, so it is real-only.
 #if defined(HAVE_BLAS) && !defined(EIGEN_BENCH_COMPLEX_SCALAR)

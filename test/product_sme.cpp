@@ -1103,7 +1103,8 @@ static void test_pack_direct() {
   // all but complex<float>. Below it, eligible real tails reach the paired transposer through tail_pack once deep
   // enough, and complex<float> has MR == 2*svl at SVL 256. Complex tails take the NEON tail_transpose_pack, so
   // complex<double> at SVL 256 reaches the four-chunk loop only through test_symm_pack's 2*svl-wide direct regions.
-  std::vector<int> deep_widths = {MR, MR + 1, NR, 2 * NR + 1, 2 * svl};
+  // Real tails between svl and 2*svl wide store whole packed lines, through the copy or the ZA transposer.
+  std::vector<int> deep_widths = {MR, MR + 1, NR, 2 * NR + 1, 2 * svl, svl + 1, 2 * svl - 1};
   std::sort(deep_widths.begin(), deep_widths.end());
   deep_widths.erase(std::unique(deep_widths.begin(), deep_widths.end()), deep_widths.end());
   for (int d : deep_depths) {
