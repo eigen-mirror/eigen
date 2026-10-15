@@ -641,7 +641,8 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE internal::TensorBlockResourceRequirements getResourceRequirements() const {
     static constexpr double functor_cost = internal::functor_traits<UnaryOp>::Cost;
-    return m_argImpl.getResourceRequirements().addCostPerCoeff({0, 0, functor_cost / PacketSize});
+    return m_argImpl.getResourceRequirements().addCostPerCoeff(
+        TensorOpCost(0, 0, functor_cost, PacketAccess, PacketSize));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
@@ -768,7 +769,7 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
     static constexpr double functor_cost = internal::functor_traits<BinaryOp>::Cost;
     return internal::TensorBlockResourceRequirements::merge(m_leftImpl.getResourceRequirements(),
                                                             m_rightImpl.getResourceRequirements())
-        .addCostPerCoeff({0, 0, functor_cost / PacketSize});
+        .addCostPerCoeff(TensorOpCost(0, 0, functor_cost, PacketAccess, PacketSize));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
@@ -912,7 +913,7 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
                m_arg1Impl.getResourceRequirements(),
                internal::TensorBlockResourceRequirements::merge(m_arg2Impl.getResourceRequirements(),
                                                                 m_arg3Impl.getResourceRequirements()))
-        .addCostPerCoeff({0, 0, functor_cost / PacketSize});
+        .addCostPerCoeff(TensorOpCost(0, 0, functor_cost, PacketAccess, PacketSize));
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,

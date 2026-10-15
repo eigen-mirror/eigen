@@ -145,11 +145,11 @@ class TensorCostModel {
   // Scaling from Eigen compute cost to device cycles.
   static constexpr int kDeviceCyclesPerComputeCycle = 1;
 
-  // Thread overhead in device cycles. ~8us at 3GHz.
+  // Thread overhead in device cycles. ~33us at 3GHz.
   // Minimum total work to justify thread pool dispatch.
-  static constexpr int kStartupCycles = 25000;
+  static constexpr int kStartupCycles = 100000;
   // Minimum work per thread to amortize dispatch and synchronization overhead.
-  static constexpr int kPerThreadCycles = 25000;
+  static constexpr int kPerThreadCycles = 50000;
   static constexpr int kTaskSize = 40000;
 
   // Memory bandwidth saturation: on typical multi-socket servers, 2-6 cores
