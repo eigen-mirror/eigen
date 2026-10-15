@@ -163,7 +163,11 @@ struct tribb_kernel {
     gebp_kernel<LhsScalar, RhsScalar, Index, ResMapper, mr, nr, ConjLhs, ConjRhs> gebp_kernel1;
     gebp_kernel<LhsScalar, RhsScalar, Index, BufferMapper, mr, nr, ConjLhs, ConjRhs> gebp_kernel2;
 
-    Matrix<ResScalar, BlockSize, BlockSize, ColMajor> buffer;
+    static constexpr int BufferCapacity =
+        (EIGEN_STACK_ALLOCATION_LIMIT == 0 || BlockSize * BlockSize * sizeof(ResScalar) <= EIGEN_STACK_ALLOCATION_LIMIT)
+            ? int(BlockSize)
+            : Dynamic;
+    Matrix<ResScalar, BufferCapacity, BufferCapacity, ColMajor> buffer(BlockSize, BlockSize);
 
     // let's process the block per panel of actual_mc x BlockSize,
     // again, each is split into three parts, etc.

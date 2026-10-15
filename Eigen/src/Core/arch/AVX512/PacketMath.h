@@ -733,20 +733,7 @@ EIGEN_STRONG_INLINE Packet16i cat256i(const Packet8i& a, const Packet8i& b) {
 
 // Helper function for bit packing snippet of low precision comparison.
 // It packs the flags from 32x16 to 16x16.
-EIGEN_STRONG_INLINE __m256i Pack32To16(const Packet16f& rf) {
-  // Split data into small pieces and handle with AVX instructions
-  // to guarantee internal order of vector.
-  // Operation:
-  //   dst[15:0]    := Saturate16(rf[31:0])
-  //   dst[31:16]   := Saturate16(rf[63:32])
-  //   ...
-  //   dst[255:240] := Saturate16(rf[255:224])
-  __m256i lo = _mm256_castps_si256(extract256<0>(rf));
-  __m256i hi = _mm256_castps_si256(extract256<1>(rf));
-  __m128i result_lo = _mm_packs_epi32(_mm256_extractf128_si256(lo, 0), _mm256_extractf128_si256(lo, 1));
-  __m128i result_hi = _mm_packs_epi32(_mm256_extractf128_si256(hi, 0), _mm256_extractf128_si256(hi, 1));
-  return _mm256_insertf128_si256(_mm256_castsi128_si256(result_lo), result_hi, 1);
-}
+EIGEN_STRONG_INLINE __m256i Pack32To16(const Packet16f& rf) { return _mm512_cvtepi32_epi16(_mm512_castps_si512(rf)); }
 
 template <>
 EIGEN_STRONG_INLINE Packet16f pisnan(const Packet16f& a) {
@@ -3091,21 +3078,13 @@ EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet32s>(numext::int16_t* out
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet16s>(numext::int16_t* out, const Packet16s& x) {
   EIGEN_DEBUG_ALIGNED_STORE
-#if defined(EIGEN_VECTORIZE_AVX512F) && defined(EIGEN_VECTORIZE_AVX512VL)
-  _mm256_store_epi32(out, x);
-#else
   _mm256_store_si256(reinterpret_cast<__m256i*>(out), x);
-#endif
 }
 
 template <>
 EIGEN_STRONG_INLINE void pstore<numext::int16_t, Packet8s>(numext::int16_t* out, const Packet8s& x) {
   EIGEN_DEBUG_ALIGNED_STORE
-#if defined(EIGEN_VECTORIZE_AVX512F) && defined(EIGEN_VECTORIZE_AVX512VL)
-  _mm256_store_epi32(out, x);
-#else
   _mm_store_si128(reinterpret_cast<__m128i*>(out), x);
-#endif
 }
 
 template <>
