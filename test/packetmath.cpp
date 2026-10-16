@@ -1415,8 +1415,7 @@ void packetmath_real() {
   data1[0] = Scalar(1e-20);
   CHECK_CWISE1_IF(PacketTraits::HasTanh, std::tanh, internal::ptanh);
   if (PacketTraits::HasTanh && PacketSize >= 2) {
-    // tanh(x) rounds to +-1 for |x| >= 20 in every type here; the rational approximations clamp |x| where they reach 1,
-    // which depends on whether pmadd is fused.
+    // Keep constant inputs foldable: contraction during constant folding may differ from runtime evaluation.
     test::packet_helper<PacketTraits::HasTanh, Packet> h;
     for (const Scalar x : {NumTraits<Scalar>::infinity(), Scalar(20)}) {
       data1[0] = x;
@@ -1424,6 +1423,26 @@ void packetmath_real() {
       h.store(data2, internal::ptanh(h.load(data1)));
       VERIFY_IS_EQUAL(data2[0], Scalar(1));
       VERIFY_IS_EQUAL(data2[1], Scalar(-1));
+    }
+    // Volatile inputs exercise runtime evaluation, with saturated and ordinary values sharing a packet.
+    const volatile double values[] = {
+        NumTraits<double>::infinity(), -NumTraits<double>::infinity(), 20.0, -20.0, 0.0, -0.0, 0.5,
+        NumTraits<double>::quiet_NaN()};
+    constexpr int NumValues = int(sizeof(values) / sizeof(values[0]));
+    for (int offset = 0; offset < NumValues; ++offset) {
+      for (int i = 0; i < PacketSize; ++i) data1[i] = Scalar(values[(offset + i) % NumValues]);
+      h.store(data2, internal::ptanh(h.load(data1)));
+      for (int i = 0; i < PacketSize; ++i) {
+        if ((numext::isnan)(data1[i])) {
+          VERIFY((numext::isnan)(data2[i]));
+        } else if (data1[i] == Scalar(0)) {
+          VERIFY(test::biteq(data2[i], data1[i]));
+        } else if (numext::abs(data1[i]) >= Scalar(20)) {
+          VERIFY_IS_EQUAL(data2[i], data1[i] > Scalar(0) ? Scalar(1) : Scalar(-1));
+        } else {
+          VERIFY_IS_APPROX(data2[i], Scalar(std::tanh(double(data1[i]))));
+        }
+      }
     }
   }
   if (PacketTraits::HasExp && PacketSize >= 2) {
@@ -2452,10 +2471,10 @@ void exp_complex_test(Scalar* data1, Scalar* data2, Scalar* ref, int size) {
   exp_complex_test_impl<Scalar, Packet>::run(data1, data2, ref, size);
 }
 
-// Checks pdiv(x, y) against its exact value, expected, in every element, and returns the FE_DIVBYZERO, FE_INVALID and
-// FE_OVERFLOW flags it raised.
+// Computes pdiv(x, y) in every element, checks that the elements agree, stores their value in quotient, and returns the
+// FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW flags it raised.
 template <typename Scalar, typename Packet>
-int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, const Scalar& expected) {
+int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, Scalar& quotient) {
   constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
   Scalar operands[2 * PacketSize], q[PacketSize];
   for (int i = 0; i < PacketSize; ++i) {
@@ -2466,9 +2485,10 @@ int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, const Scalar& expe
     internal::pstoreu(out, internal::pdiv(internal::ploadu<Packet>(in),
                                           internal::ploadu<Packet>(in + internal::unpacket_traits<Packet>::size)));
   });
-  for (int i = 0; i < PacketSize; ++i) {
-    VERIFY_IS_EQUAL(numext::real(q[i]), numext::real(expected));
-    VERIFY_IS_EQUAL(numext::imag(q[i]), numext::imag(expected));
+  quotient = q[0];
+  for (int i = 1; i < PacketSize; ++i) {
+    VERIFY_IS_EQUAL(numext::real(q[i]), numext::real(quotient));
+    VERIFY_IS_EQUAL(numext::imag(q[i]), numext::imag(quotient));
   }
   return raised;
 }
@@ -2557,13 +2577,30 @@ void packetmath_complex() {
       for (int i = 0; i < PacketSize; ++i) VERIFY_IS_APPROX(pval[i], quotients[(i + k) % 4]);
     }
 
-    // A denominator with a zero component raises no exception: the ratio of the other component to it is not formed.
+    // Zero components, components of equal magnitude and infinite denominators raise no exception for a finite
+    // quotient.
     const RealScalar two = RealScalar(2), three = RealScalar(3), four = RealScalar(4), three_halves = RealScalar(1.5);
     const Scalar exact_operands[][3] = {{Scalar(one, zero), Scalar(one, zero), Scalar(one, zero)},
                                         {Scalar(three, four), Scalar(zero, two), Scalar(two, -three_halves)},
-                                        {Scalar(three, four), Scalar(-two, zero), Scalar(-three_halves, -two)}};
+                                        {Scalar(three, four), Scalar(-two, zero), Scalar(-three_halves, -two)},
+                                        {Scalar(four, zero), Scalar(two, two), Scalar(one, -one)},
+                                        {Scalar(three, four), Scalar(inf, zero), Scalar(zero, zero)},
+                                        {Scalar(three, four), Scalar(zero, inf), Scalar(zero, -zero)},
+                                        {Scalar(three, four), Scalar(inf, inf), Scalar(zero, zero)}};
+    Scalar quotient;
     for (const auto& operands : exact_operands) {
-      VERIFY_IS_EQUAL((pdiv_complex_exceptions<Scalar, Packet>(operands[0], operands[1], operands[2])), 0);
+      VERIFY_IS_EQUAL((pdiv_complex_exceptions<Scalar, Packet>(operands[0], operands[1], quotient)), 0);
+      VERIFY_IS_EQUAL(numext::real(quotient), numext::real(operands[2]));
+      VERIFY_IS_EQUAL(numext::imag(quotient), numext::imag(operands[2]));
+    }
+
+    // A zero denominator, whatever the signs of its zeros, raises no exception other than FE_DIVBYZERO.
+    const Scalar zero_denominators[] = {Scalar(zero, zero), Scalar(-zero, zero), Scalar(zero, -zero),
+                                        Scalar(-zero, -zero)};
+    for (const Scalar& denominator : zero_denominators) {
+      VERIFY_IS_EQUAL(
+          (pdiv_complex_exceptions<Scalar, Packet>(Scalar(three, four), denominator, quotient)) & ~FE_DIVBYZERO, 0);
+      VERIFY((numext::isinf)(numext::real(quotient)) && (numext::isinf)(numext::imag(quotient)));
     }
 
 #if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.

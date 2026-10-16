@@ -679,27 +679,27 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(PacketXd)
     return -(__builtin_elementwise_fma(a, b, c));                                                 \
   }
 #else
-// Fallback if FMA builtin is not available
+// Separate operation calls prevent default contraction during constant folding without hardware FMA.
 #define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
                                                      const PACKET_TYPE& c) {                      \
-    return (a * b) + c;                                                                           \
+    return padd(pmul(a, b), c);                                                                   \
   }                                                                                               \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
                                                      const PACKET_TYPE& c) {                      \
-    return (a * b) - c;                                                                           \
+    return psub(pmul(a, b), c);                                                                   \
   }                                                                                               \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
                                                       const PACKET_TYPE& c) {                     \
-    return c - (a * b);                                                                           \
+    return psub(c, pmul(a, b));                                                                   \
   }                                                                                               \
   template <>                                                                                     \
   EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
                                                       const PACKET_TYPE& c) {                     \
-    return -((a * b) + c);                                                                        \
+    return pnegate(padd(pmul(a, b), c));                                                          \
   }
 #endif
 

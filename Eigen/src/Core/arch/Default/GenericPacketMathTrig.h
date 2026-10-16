@@ -707,7 +707,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
     This uses a 19/18-degree rational interpolant which
     is accurate up to a couple of ulps in the (approximate) range [-18.7, 18.7],
-    outside of which tanh(x) = +/-1 in single precision. The input is clamped
+    outside of which tanh(x) = +/-1 in double precision. The input is clamped
     to the range [-c, c]. The value c is chosen as the smallest value where
     the approximation evaluates to exactly 1.
 
