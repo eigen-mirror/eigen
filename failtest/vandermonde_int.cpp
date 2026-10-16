@@ -13,5 +13,5 @@ int main() {
   Eigen::Matrix<Scalar, 2, 1> nodes;
   nodes << Scalar(1), Scalar(2);
   Eigen::Vandermonde<Scalar, 2, 2> vandermonde(nodes);
-  return static_cast<int>(vandermonde.rows());
+  return vandermonde.rows() != 2;
 }

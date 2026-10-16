@@ -14,8 +14,8 @@ int main() {
   const Eigen::Vector2f a(1.0f, 0.0f);
   const Eigen::Vector2d b(0.0, 1e300);
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD
-  return int(a.isOrthogonal(b));
+  return !a.isOrthogonal(b);
 #else
-  return int(a.cast<double>().isOrthogonal(b));
+  return !a.cast<double>().isOrthogonal(b);
 #endif
 }
