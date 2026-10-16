@@ -50,7 +50,8 @@ struct large_stride_lanes {
 // The largest stride whose lane offsets fit in an int, the next one, and its negation.
 template <typename Packet>
 std::vector<Index> large_strides() {
-  const Index fits = Index(NumTraits<int>::highest()) / (internal::unpacket_traits<Packet>::size - 1);
+  const int last_lane = numext::maxi<int>(1, internal::unpacket_traits<Packet>::size - 1);
+  const Index fits = Index(NumTraits<int>::highest()) / last_lane;
   return {fits, fits + 1, -(fits + 1)};
 }
 
