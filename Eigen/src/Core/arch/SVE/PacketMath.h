@@ -261,18 +261,29 @@ EIGEN_STRONG_INLINE void pstoreu<numext::int32_t>(numext::int32_t* to, const Pac
   EIGEN_DEBUG_UNALIGNED_STORE svst1_s32(svptrue_b32(), to, from);
 }
 
+// The 32-bit gathers and scatters address lane i through the int32 index i * stride. Where that would overflow, the
+// lanes are addressed one at a time.
+EIGEN_STRONG_INLINE bool sve_s32index_fits(Index stride) {
+  const Index max_stride = Index(NumTraits<numext::int32_t>::highest()) / Index(EIGEN_ARM64_SVE_VL / 32 - 1);
+  return stride <= max_stride && stride >= -max_stride;
+}
+
 template <>
 EIGEN_DEVICE_FUNC inline PacketXi pgather<numext::int32_t, PacketXi>(const numext::int32_t* from, Index stride) {
+  if (!sve_s32index_fits(stride))
+    return pgather_partial<numext::int32_t, PacketXi>(from, stride, unpacket_traits<PacketXi>::size);
   // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
-  svint32_t indices = svindex_s32(0, stride);
+  svint32_t indices = svindex_s32(0, numext::int32_t(stride));
   return svld1_gather_s32index_s32(svptrue_b32(), from, indices);
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<numext::int32_t, PacketXi>(numext::int32_t* to, const PacketXi& from,
                                                                   Index stride) {
+  if (!sve_s32index_fits(stride))
+    return pscatter_partial<numext::int32_t, PacketXi>(to, from, stride, unpacket_traits<PacketXi>::size);
   // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
-  svint32_t indices = svindex_s32(0, stride);
+  svint32_t indices = svindex_s32(0, numext::int32_t(stride));
   svst1_scatter_s32index_s32(svptrue_b32(), to, indices, from);
 }
 
@@ -888,15 +899,19 @@ EIGEN_STRONG_INLINE void pstoreu<float>(float* to, const PacketXf& from) {
 
 template <>
 EIGEN_DEVICE_FUNC inline PacketXf pgather<float, PacketXf>(const float* from, Index stride) {
+  if (!sve_s32index_fits(stride))
+    return pgather_partial<float, PacketXf>(from, stride, unpacket_traits<PacketXf>::size);
   // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
-  svint32_t indices = svindex_s32(0, stride);
+  svint32_t indices = svindex_s32(0, numext::int32_t(stride));
   return svld1_gather_s32index_f32(svptrue_b32(), from, indices);
 }
 
 template <>
 EIGEN_DEVICE_FUNC inline void pscatter<float, PacketXf>(float* to, const PacketXf& from, Index stride) {
+  if (!sve_s32index_fits(stride))
+    return pscatter_partial<float, PacketXf>(to, from, stride, unpacket_traits<PacketXf>::size);
   // Index format: {base=0, base+stride, base+stride*2, base+stride*3, ...}
-  svint32_t indices = svindex_s32(0, stride);
+  svint32_t indices = svindex_s32(0, numext::int32_t(stride));
   svst1_scatter_s32index_f32(svptrue_b32(), to, indices, from);
 }
 

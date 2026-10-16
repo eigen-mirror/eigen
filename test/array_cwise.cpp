@@ -960,6 +960,54 @@ void array_real(const ArrayType& m) {
   VERIFY_IS_APPROX(m1.cosh().acosh(), acosh(cosh(m1)));
   VERIFY_IS_APPROX(m1.logistic(), logistic(m1));
 
+  // sin and cos must reduce large arguments accurately. A Cody-Waite reduction in Scalar loses every bit of the
+  // reduced argument long before |x| reaches 2^digits.
+  if (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) {
+    Array<Scalar, Dynamic, 1> x(2 * NumTraits<Scalar>::digits());
+    for (Index i = 0; i < x.size(); ++i) x(i) = Scalar(std::ldexp(1.0 + 0.37 * double(i % 3), int(i)));
+    const Array<Scalar, Dynamic, 1> s = x.sin(), c = x.cos();
+    for (Index i = 0; i < x.size(); ++i) {
+      VERIFY(abs(s(i) - numext::sin(x(i))) <= Scalar(4) * NumTraits<Scalar>::epsilon());
+      VERIFY(abs(c(i) - numext::cos(x(i))) <= Scalar(4) * NumTraits<Scalar>::epsilon());
+    }
+    // tanh(x) rounds to +-1 for |x| >= 20. The rational approximation clamps |x| where it reaches 1, which depends on
+    // whether pmadd is fused.
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    const Scalar big[] = {inf, -inf, Scalar(20), Scalar(-20)};
+    for (Index i = 0; i < x.size(); ++i) x(i) = big[i % 4];
+    // Evaluate into an array: comparing the expression would call the scalar tanh, which is std::tanh for double.
+    const Array<Scalar, Dynamic, 1> t = x.tanh(), sgn = x.sign();
+    VERIFY_IS_CWISE_EQUAL(t, sgn);
+  }
+
+  // Division by zero and by infinity is exact, also where pdiv refines a reciprocal estimate.
+  {
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    Array<Scalar, Dynamic, 1> num(32), den(32), quotient(32);
+    for (Index i = 0; i < num.size(); ++i) {
+      num(i) = (i % 4 < 2) ? Scalar(3) : Scalar(-3);
+      den(i) = (i % 2) ? inf : Scalar(0);
+      quotient(i) = (i % 2) ? Scalar(0) : num(i) * inf;
+    }
+    // Evaluate into an array: comparing the expression would divide coefficient by coefficient.
+    const Array<Scalar, Dynamic, 1> q = num / den;
+    VERIFY_IS_CWISE_EQUAL(q, quotient);
+  }
+
+  // rint rounds halfway cases to even. generic_rint passes values beyond 2^digits through by a lane-wise pcmp_lt, so
+  // every packet mixes both kinds.
+  {
+    const float halves[] = {0.5f, 1.5f, 2.5f, 1e30f, -0.5f, -1.5f, -2.5f, -1e30f};
+    const float even[] = {0.f, 2.f, 2.f, 1e30f, -0.f, -2.f, -2.f, -1e30f};
+    Array<Scalar, Dynamic, 1> h(32), r(32);
+    for (Index i = 0; i < h.size(); ++i) {
+      h(i) = Scalar(halves[i % 8]);
+      r(i) = Scalar(even[i % 8]);
+    }
+    const Array<Scalar, Dynamic, 1> rh = h.rint();
+    VERIFY_IS_CWISE_EQUAL(rh, r);
+  }
+
   VERIFY_IS_APPROX(m1.arg(), arg(m1));
   // carg of a real array is its arg as a real Scalar, on the vectorized path too.
   VERIFY_IS_CWISE_EQUAL(m1.carg(), m1.arg());

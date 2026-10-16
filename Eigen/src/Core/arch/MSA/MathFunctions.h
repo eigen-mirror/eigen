@@ -15,7 +15,7 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
-/* The sin, cos, exp, and log functions of this file come from
+/* The exp and log functions of this file come from
  * Julien Pommier's sse math library: http://gruntthepeon.free.fr/ssemath/
  */
 
@@ -225,96 +225,18 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4f ptanh<Packet4f>(con
   return p;
 }
 
-template <bool sine>
-Packet4f psincos_inner_msa_float(const Packet4f& _x) {
-  static EIGEN_DECLARE_CONST_Packet4f(sincos_max_arg, 13176795.0f);  // Approx. (2**24) / (4/Pi).
-  static EIGEN_DECLARE_CONST_Packet4f(minus_cephes_DP1, -0.78515625f);
-  static EIGEN_DECLARE_CONST_Packet4f(minus_cephes_DP2, -2.4187564849853515625e-4f);
-  static EIGEN_DECLARE_CONST_Packet4f(minus_cephes_DP3, -3.77489497744594108e-8f);
-  static EIGEN_DECLARE_CONST_Packet4f(sincof_p0, -1.9515295891e-4f);
-  static EIGEN_DECLARE_CONST_Packet4f(sincof_p1, 8.3321608736e-3f);
-  static EIGEN_DECLARE_CONST_Packet4f(sincof_p2, -1.6666654611e-1f);
-  static EIGEN_DECLARE_CONST_Packet4f(coscof_p0, 2.443315711809948e-5f);
-  static EIGEN_DECLARE_CONST_Packet4f(coscof_p1, -1.388731625493765e-3f);
-  static EIGEN_DECLARE_CONST_Packet4f(coscof_p2, 4.166664568298827e-2f);
-  static EIGEN_DECLARE_CONST_Packet4f(cephes_FOPI, 1.27323954473516f);  // 4/Pi.
-  static EIGEN_DECLARE_CONST_Packet4f(half, 0.5f);
-  static EIGEN_DECLARE_CONST_Packet4f(1, 1.0f);
+EIGEN_FLOAT_PACKET_FUNCTION(sin, Packet4f)
+EIGEN_FLOAT_PACKET_FUNCTION(cos, Packet4f)
 
-  Packet4f x = pabs(_x);
-
-  // Translate infinite arguments into NANs.
-  Packet4f zero_or_nan_if_inf = psub(_x, _x);
-  x = padd(x, zero_or_nan_if_inf);
-  // Prevent sin/cos from generating values larger than 1.0 in magnitude
-  // for very large arguments by setting x to 0.0.
-  Packet4i small_or_nan_mask = __builtin_msa_fcult_w(x, p4f_sincos_max_arg);
-  x = pand(x, (Packet4f)small_or_nan_mask);
-
-  // Scale x by 4/Pi to find x's octant.
-  Packet4f y = pmul(x, p4f_cephes_FOPI);
-  // Get the octant. We'll reduce x by this number of octants or by one more than it.
-  Packet4i y_int = __builtin_msa_ftrunc_s_w(y);
-  // x's from even-numbered octants will translate to octant 0: [0, +Pi/4].
-  // x's from odd-numbered octants will translate to octant -1: [-Pi/4, 0].
-  // Adjustment for odd-numbered octants: octant = (octant + 1) & (~1).
-  Packet4i y_int1 = __builtin_msa_addvi_w(y_int, 1);
-  Packet4i y_int2 = (Packet4i)__builtin_msa_bclri_w((Packet4ui)y_int1, 0);  // bclri = bit-clear
-  y = __builtin_msa_ffint_s_w(y_int2);
-
-  // Compute the sign to apply to the polynomial.
-  Packet4i sign_mask = sine ? pxor(__builtin_msa_slli_w(y_int1, 29), (Packet4i)_x)
-                            : __builtin_msa_slli_w(__builtin_msa_addvi_w(y_int, 3), 29);
-
-  // Get the polynomial selection mask.
-  // We'll calculate both (sin and cos) polynomials and then select from the two.
-  Packet4i poly_mask = __builtin_msa_ceqi_w(__builtin_msa_slli_w(y_int2, 30), 0);
-
-  // Reduce x by y octants to get: -Pi/4 <= x <= +Pi/4.
-  // The magic pass: "Extended precision modular arithmetic"
-  // x = ((x - y * DP1) - y * DP2) - y * DP3
-  Packet4f tmp1 = pmul(y, p4f_minus_cephes_DP1);
-  Packet4f tmp2 = pmul(y, p4f_minus_cephes_DP2);
-  Packet4f tmp3 = pmul(y, p4f_minus_cephes_DP3);
-  x = padd(x, tmp1);
-  x = padd(x, tmp2);
-  x = padd(x, tmp3);
-
-  // Evaluate the cos(x) polynomial.
-  y = p4f_coscof_p0;
-  Packet4f z = pmul(x, x);
-  y = pmadd(y, z, p4f_coscof_p1);
-  y = pmadd(y, z, p4f_coscof_p2);
-  y = pmul(y, z);
-  y = pmul(y, z);
-  y = __builtin_msa_fmsub_w(y, z, p4f_half);
-  y = padd(y, p4f_1);
-
-  // Evaluate the sin(x) polynomial.
-  Packet4f y2 = p4f_sincof_p0;
-  y2 = pmadd(y2, z, p4f_sincof_p1);
-  y2 = pmadd(y2, z, p4f_sincof_p2);
-  y2 = pmul(y2, z);
-  y2 = pmadd(y2, x, x);
-
-  // Select the correct result from the two polynomials.
-  y = sine ? (Packet4f)__builtin_msa_bsel_v((v16u8)poly_mask, (v16u8)y, (v16u8)y2)
-           : (Packet4f)__builtin_msa_bsel_v((v16u8)poly_mask, (v16u8)y2, (v16u8)y);
-
-  // Update the sign.
-  sign_mask = pxor(sign_mask, (Packet4i)y);
-  y = (Packet4f)__builtin_msa_binsli_w((v4u32)y, (v4u32)sign_mask, 0);  // binsli = bit-insert-left
-  return y;
+// generic_exp2 clamps its argument with pmin and pmax, which keep the number over a NaN under EIGEN_FAST_MATH.
+template <>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4f pexp2<Packet4f>(const Packet4f& x) {
+  return pselect(pisnan(x), x, generic_exp2(x));
 }
 
 template <>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4f psin<Packet4f>(const Packet4f& x) {
-  return psincos_inner_msa_float</* sine */ true>(x);
-}
-
-template <>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet4f pcos<Packet4f>(const Packet4f& x) {
-  return psincos_inner_msa_float</* sine */ false>(x);
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet2d pexp2<Packet2d>(const Packet2d& x) {
+  return pselect(pisnan(x), x, generic_exp2(x));
 }
 
 template <>
