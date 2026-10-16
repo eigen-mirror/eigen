@@ -1083,7 +1083,9 @@ struct fma_impl<double, void> {
 template <typename Scalar, typename EnableIf = void>
 struct madd_impl {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Scalar& x, const Scalar& y, const Scalar& z) {
-    return x * y + z;
+    // Separate statements prevent FP_CONTRACT ON from fusing the unfused fallback.
+    const Scalar xy = x * y;
+    return xy + z;
   }
 };
 

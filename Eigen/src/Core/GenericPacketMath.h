@@ -1683,8 +1683,31 @@ struct pmadd_impl {
   }
 };
 
+#if defined(EIGEN_VECTORIZE_FMA)
+// Scalar path for pmadd with FMA to ensure consistency with vectorized path.
+template <typename Scalar>
+struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && has_fma<Scalar>::value>> {
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(a, b, c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(a, b, Scalar(-c));
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return numext::fma(Scalar(-a), b, c);
+  }
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return -Scalar(numext::fma(a, b, c));
+  }
+};
+
+template <typename Scalar>
+struct pmadd_impl<
+    Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits<Scalar>::IsSigned && !has_fma<Scalar>::value>> {
+#else
 template <typename Scalar>
 struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits<Scalar>::IsSigned>> {
+#endif
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
     return numext::madd<Scalar>(a, b, c);
   }

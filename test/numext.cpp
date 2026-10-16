@@ -1114,6 +1114,15 @@ void check_shift() {
   }
 }
 
+void check_scalar_tanh_saturation() {
+  VERIFY_IS_EQUAL(internal::ptanh_float(20.0f), 1.0f);
+  VERIFY_IS_EQUAL(internal::ptanh_float(-20.0f), -1.0f);
+  VERIFY_IS_EQUAL(internal::ptanh_double(20.0), 1.0);
+  VERIFY_IS_EQUAL(internal::ptanh_double(-20.0), -1.0);
+  VERIFY_IS_EQUAL(numext::tanh(20.0f), 1.0f);
+  VERIFY_IS_EQUAL(numext::tanh(-20.0f), -1.0f);
+}
+
 EIGEN_DECLARE_TEST(numext) {
   for (int k = 0; k < g_repeat; ++k) {
     CALL_SUBTEST(check_copysign<half>());
@@ -1287,5 +1296,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_shift<uint16_t>());
     CALL_SUBTEST(check_shift<uint32_t>());
     CALL_SUBTEST(check_shift<uint64_t>());
+
+    CALL_SUBTEST(check_scalar_tanh_saturation());
   }
 }
