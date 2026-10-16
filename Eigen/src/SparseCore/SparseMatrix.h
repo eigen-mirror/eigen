@@ -1725,7 +1725,11 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
     std::iota(m_outerIndex, m_outerIndex + m_outerSize + 1, StorageIndex(0));
   } else {
     // check for integer overflow: if maxReserveSize == 0, insertion is not possible
-    Index maxReserveSize = static_cast<Index>(NumTraits<StorageIndex>::highest()) - m_data.allocatedSize();
+    // StorageIndex can be wider than Index (long long with a 32-bit Index), so clamp its maximum to Index's.
+    using WideIndex = typename std::common_type<Index, StorageIndex>::type;
+    const Index maxSize =
+        static_cast<Index>(numext::mini<WideIndex>(NumTraits<StorageIndex>::highest(), NumTraits<Index>::highest()));
+    Index maxReserveSize = maxSize - m_data.allocatedSize();
     eigen_assert(maxReserveSize > 0);
     if (m_outerSize <= maxReserveSize) {
       // allocate space for one additional element per vector
