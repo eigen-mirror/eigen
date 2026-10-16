@@ -284,6 +284,11 @@ struct gemv_static_vector_if<Scalar, Size, Dynamic, true> {
   EIGEN_DEVICE_FUNC constexpr Scalar* data() { return 0; }
 };
 
+template <typename Scalar, int Size>
+struct gemv_static_vector_if<Scalar, Size, 0, true> {
+  EIGEN_DEVICE_FUNC constexpr Scalar* data() { return nullptr; }
+};
+
 template <typename Scalar, int Size, int MaxSize>
 struct gemv_static_vector_if<Scalar, Size, MaxSize, true> {
 #if EIGEN_MAX_STATIC_ALIGN_BYTES != 0

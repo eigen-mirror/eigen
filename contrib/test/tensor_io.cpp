@@ -7,6 +7,12 @@
 // Public License v. 2.0. If a copy of the MPL was not distributed
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
+
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 10
+// GCC loses nested initializer-list bounds after inlining small heap-allocated tensors.
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#endif
+
 #include "main.h"
 
 #include <sstream>

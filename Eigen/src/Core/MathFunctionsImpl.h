@@ -295,7 +295,7 @@ EIGEN_DEVICE_FUNC ComplexT complex_log2(const ComplexT& z) {
   EIGEN_USING_STD(atan2);
   const T b = T(EIGEN_LOG2E) * atan2(z.imag(), z.real());
   if (EIGEN_PREDICT_FALSE((numext::isinf)(a) && (numext::isfinite)(z.real()) && (numext::isfinite)(z.imag()))) {
-    const T half(0.5);
+    const T half = T(0.5);
     return ComplexT(numext::log2(numext::abs(ComplexT(z.real() * half, z.imag() * half))) + T(1), b);
   }
   if (EIGEN_PREDICT_FALSE(a < (numext::numeric_limits<T>::min)() && !numext::is_exactly_zero(a))) {

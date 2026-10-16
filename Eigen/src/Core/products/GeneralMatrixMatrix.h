@@ -414,11 +414,11 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   static constexpr int SizeB = plain_enum_max(int(ActualCols) * MaxDepth, 1);
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES >= EIGEN_DEFAULT_ALIGN_BYTES
-  EIGEN_ALIGN_MAX LhsScalar m_staticA[SizeA];
-  EIGEN_ALIGN_MAX RhsScalar m_staticB[SizeB];
+  EIGEN_ALIGN_MAX LhsScalar m_staticA[SizeA > 0 ? SizeA : 1];
+  EIGEN_ALIGN_MAX RhsScalar m_staticB[SizeB > 0 ? SizeB : 1];
 #else
-  EIGEN_ALIGN_MAX char m_staticA[SizeA * sizeof(LhsScalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
-  EIGEN_ALIGN_MAX char m_staticB[SizeB * sizeof(RhsScalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
+  EIGEN_ALIGN_MAX char m_staticA[(SizeA > 0 ? SizeA : 1) * sizeof(LhsScalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
+  EIGEN_ALIGN_MAX char m_staticB[(SizeB > 0 ? SizeB : 1) * sizeof(RhsScalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
 #endif
 
  public:

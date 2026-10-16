@@ -172,6 +172,8 @@ class SparseMapBase<Derived, WriteAccessors> : public SparseMapBase<Derived, Rea
   enum { IsRowMajor = Base::IsRowMajor };
 
   using Base::operator=;
+  EIGEN_DEFAULT_COPY_CONSTRUCTOR(SparseMapBase)
+  SparseMapBase& operator=(const SparseMapBase&) = default;
 
  public:
   //----------------------------------------

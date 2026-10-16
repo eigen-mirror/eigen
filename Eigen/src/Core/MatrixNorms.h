@@ -310,6 +310,7 @@ class selfadjoint_l1norm {
   // lies outside the rows the two share.
   template <int Mode, typename Mat>
   RealScalar l1NormStreaming(const Mat& m) const {
+    EIGEN_IF_CONSTEXPR (Mat::MaxRowsAtCompileTime == 0) return RealScalar(0);
     const Index n = m.rows();
     // The accumulator lives in the object for bounded sizes and on the stack otherwise, so that
     // neither fixed-size nor preallocated dynamic-size decompositions allocate.

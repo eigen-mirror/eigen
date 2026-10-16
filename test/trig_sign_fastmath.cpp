@@ -46,7 +46,7 @@ struct packet_cexp_sign_check<Scalar, true> {
   static void run() {
     using Complex = std::complex<Scalar>;
     using Packet = typename internal::packet_traits<Complex>::type;
-    constexpr Index kSize = internal::unpacket_traits<Packet>::size;
+    constexpr Index kSize = internal::packet_traits<Complex>::size;
     const Index n = numext::maxi<Index>(32, kSize);
     std::vector<Complex> x(n), y(n);
     for (Index i = 0; i < n; ++i)

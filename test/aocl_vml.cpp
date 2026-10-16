@@ -13,11 +13,11 @@
 #ifdef EIGEN_TEST_AOCL_STUBS
 #include <cmath>
 #define EIGEN_TEST_AOCL_UNARY_STUB(NAME, FUNC)     \
-  static void NAME(int n, double* x, double* y) {  \
+  inline void NAME(int n, double* x, double* y) {  \
     for (int i = 0; i < n; ++i) y[i] = FUNC(x[i]); \
   }
 #define EIGEN_TEST_AOCL_BINARY_STUB(NAME, FUNC)              \
-  static void NAME(int n, double* x, double* z, double* y) { \
+  inline void NAME(int n, double* x, double* z, double* y) { \
     for (int i = 0; i < n; ++i) y[i] = FUNC(x[i], z[i]);     \
   }
 static double aocl_stub_add(double a, double b) { return a + b; }

@@ -1561,7 +1561,8 @@ void structured_metadata_odr_use(int rows, int cols, bool row_major = false) {
   VERIFY_IS_EQUAL(read_through_address(Operator::IsRowMajor), row_major);
 }
 
-static void test_structured_metadata_odr_use() {
+template <typename = void>
+void test_structured_metadata_odr_use() {
   structured_metadata_odr_use<Bccb<double, 2, 3>>(6, 6);
   structured_metadata_odr_use<Bccb<double>>(Dynamic, Dynamic);
   structured_metadata_odr_use<Cauchy<double, 4, 3>>(4, 3);
@@ -1593,7 +1594,7 @@ static void test_structured_metadata_odr_use() {
 }
 
 EIGEN_DECLARE_TEST(structured_matrices) {
-  CALL_SUBTEST_16(test_structured_metadata_odr_use());
+  CALL_SUBTEST_16(test_structured_metadata_odr_use<>());
   for (int i = 0; i < g_repeat; ++i) {
     // Circulant: direct path (small), FFT path (composite and prime sizes), edge cases.
     CALL_SUBTEST_1((test_circulant_product<double>(1)));
