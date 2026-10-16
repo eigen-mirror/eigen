@@ -166,6 +166,7 @@ EIGEN_DECLARE_TEST(tensor_reduction_gpu) {
     Eigen::GpuDevice device(&stream);
     const int multi_processors = device.getNumGpuMultiProcessors();
     for (int outputs : {4 * multi_processors, 16 * multi_processors, 65 * multi_processors}) {
+      EIGEN_UNUSED_VARIABLE(outputs);
       CALL_SUBTEST_7((test_last_dim_reductions<double, ColMajor>(outputs, 1, 128)));
       CALL_SUBTEST_7((test_first_dim_reductions<double, RowMajor>(128, 1, outputs)));
     }

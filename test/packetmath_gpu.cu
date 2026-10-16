@@ -634,9 +634,29 @@ void check_special_values(
 // host reference; the values the standard fixes are checked exactly.
 
 template <typename Scalar>
+Scalar exp_reference(Scalar x) {
+  return static_cast<Scalar>(std::exp(static_cast<typename wider_type<Scalar>::type>(x)));
+}
+template <typename Scalar>
+Scalar exp2_reference(Scalar x) {
+  return static_cast<Scalar>(std::exp2(static_cast<typename wider_type<Scalar>::type>(x)));
+}
+template <typename Scalar>
+Scalar expm1_reference(Scalar x) {
+  return static_cast<Scalar>(std::expm1(static_cast<typename wider_type<Scalar>::type>(x)));
+}
+template <typename Scalar>
+Scalar log_reference(Scalar x) {
+  return static_cast<Scalar>(std::log(static_cast<typename wider_type<Scalar>::type>(x)));
+}
+template <typename Scalar>
+Scalar log1p_reference(Scalar x) {
+  return static_cast<Scalar>(std::log1p(static_cast<typename wider_type<Scalar>::type>(x)));
+}
+
+template <typename Scalar>
 void packetmath_gpu_real_math() {
   using Packet = typename packet_traits<Scalar>::type;
-  using Wider = typename wider_type<Scalar>::type;
   const int kSize = packet_layout<Packet>::kSize;
   const MathUlpBudget& budget = std::is_same<Scalar, double>::value ? kDoubleUlps : kFloatUlps;
 
@@ -678,21 +698,11 @@ void packetmath_gpu_real_math() {
     }
   }
 
-  check_unary<Packet, op_pexp>(
-      in, [](Scalar x) { return static_cast<Scalar>(std::exp(static_cast<Wider>(x))); },
-      compare_ulps<Scalar>{budget.exp});
-  check_unary<Packet, op_pexp2>(
-      in, [](Scalar x) { return static_cast<Scalar>(std::exp2(static_cast<Wider>(x))); },
-      compare_ulps<Scalar>{budget.exp2});
-  check_unary<Packet, op_pexpm1>(
-      in, [](Scalar x) { return static_cast<Scalar>(std::expm1(static_cast<Wider>(x))); },
-      compare_ulps<Scalar>{budget.expm1});
-  check_unary<Packet, op_plog>(
-      positive, [](Scalar x) { return static_cast<Scalar>(std::log(static_cast<Wider>(x))); },
-      compare_ulps<Scalar>{budget.log});
-  check_unary<Packet, op_plog1p>(
-      above_minus_one, [](Scalar x) { return static_cast<Scalar>(std::log1p(static_cast<Wider>(x))); },
-      compare_ulps<Scalar>{budget.log1p});
+  check_unary<Packet, op_pexp>(in, exp_reference<Scalar>, compare_ulps<Scalar>{budget.exp});
+  check_unary<Packet, op_pexp2>(in, exp2_reference<Scalar>, compare_ulps<Scalar>{budget.exp2});
+  check_unary<Packet, op_pexpm1>(in, expm1_reference<Scalar>, compare_ulps<Scalar>{budget.expm1});
+  check_unary<Packet, op_plog>(positive, log_reference<Scalar>, compare_ulps<Scalar>{budget.log});
+  check_unary<Packet, op_plog1p>(above_minus_one, log1p_reference<Scalar>, compare_ulps<Scalar>{budget.log1p});
 
   check_special_values<Packet, op_pexp>(
       {{zero, one}, {-zero, one}, {-inf, zero}, {inf, inf}, {nan, nan}, {lowest, zero}, {largest, inf}});
@@ -740,7 +750,6 @@ void packetmath_gpu_real_core() {
                kHasRsqrt, kHasSign, kHasAbsDiff, kHasSetLinear, kHasConj});
 
   const Buffer<Scalar> in = unary_inputs<Scalar>(kSize, 1 << 18);
-  const int n = int(in.size()) / kSize;
 
   // Loads and stores keep every bit, NaN payloads included.
   check_unary<Packet, op_identity>(
@@ -972,7 +981,6 @@ void packetmath_gpu_half_core() {
   // Exhaustive: every value a half can hold.
   const std::vector<Scalar> all = all_half_values();
   const Buffer<Scalar> in = Eigen::Map<const Buffer<Scalar>>(all.data(), all.size());
-  const int n = int(in.size()) / kSize;
 
   check_unary<Packet, op_identity>(
       in, [](Scalar x) { return x; }, bits_and_payload);
