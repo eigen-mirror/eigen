@@ -29,7 +29,7 @@ struct scalar_boolean_select_op {
   using result_type = Scalar;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const ThenScalar& a, const ElseScalar& b,
                                                                     const ConditionScalar& cond) const {
-    return cond == ConditionScalar(0) ? b : a;
+    return cond == ConditionScalar(false) ? b : a;
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a, const Packet& b, const Packet& cond) const {

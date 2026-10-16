@@ -166,7 +166,12 @@ using __half_raw = cl::sycl::half;
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC _EIGEN_MAYBE_CONSTEXPR __half_raw raw_uint16_to_half(numext::uint16_t x);
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const __half_raw& h);
+template <bool AssumeArgumentIsNormalOrInfinityOrZero = false>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff);
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne<false>(float ff);
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne<true>(float ff);
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h);
 
 // Narrowing a wider floating-point value or an integer of more than 24 bits through float rounds twice. Rounding to
@@ -290,18 +295,18 @@ struct half : public half_impl::half_base {
       : half_impl::half_base(half_impl::raw_uint16_to_half(b ? 0x3c00 : 0)) {}
   template <class T, std::enable_if_t<!std::is_integral<T>::value, int> = 0>
   explicit EIGEN_DEVICE_FUNC half(T val)
-      : half_impl::half_base(half_impl::float_to_half_rtne(half_impl::narrow_to_float(val))) {}
+      : half_impl::half_base(half_impl::float_to_half_rtne<false>(half_impl::narrow_to_float(val))) {}
   // Float rounds only integers beyond 2^24, which half overflows either way.
   template <class T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
   explicit EIGEN_DEVICE_FUNC half(T val)
-      : half_impl::half_base(half_impl::float_to_half_rtne(static_cast<float>(val))) {}
-  explicit EIGEN_DEVICE_FUNC half(float f) : half_impl::half_base(half_impl::float_to_half_rtne(f)) {}
+      : half_impl::half_base(half_impl::float_to_half_rtne<true>(static_cast<float>(val))) {}
+  explicit EIGEN_DEVICE_FUNC half(float f) : half_impl::half_base(half_impl::float_to_half_rtne<false>(f)) {}
 
   // Following the convention of numpy, converting between complex and
   // float will lead to loss of imag value.
   template <typename RealScalar>
   explicit EIGEN_DEVICE_FUNC half(std::complex<RealScalar> c)
-      : half_impl::half_base(half_impl::float_to_half_rtne(half_impl::narrow_to_float(c.real()))) {}
+      : half_impl::half_base(half_impl::float_to_half_rtne<false>(half_impl::narrow_to_float(c.real()))) {}
 
   EIGEN_DEVICE_FUNC operator float() const {  // NOLINT: Allow implicit conversion to float, because it is lossless.
     return half_impl::half_to_float(*this);
@@ -757,7 +762,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const 
 #endif
 }
 
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff) {
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne<false>(float ff) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   __half tmp_ff = __float2half(ff);
   return *(__half_raw*)&tmp_ff;
@@ -823,6 +829,44 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne(float ff) {
 
   o.x |= static_cast<numext::uint16_t>(sign >> 16);
   return o;
+#endif
+}
+
+// float_to_half_rtne template specialization that assumes that its function
+// argument (ff) is either a normal floating-point number that does not
+// underflow to a half subnormal, +/-infinity, or zero. Used to improve
+// compile-time constant folding and conversion from an integer type to half.
+template <>
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC __half_raw float_to_half_rtne<true>(float ff) {
+#if defined(EIGEN_GPU_COMPILE_PHASE)
+  __half tmp_ff = __float2half(ff);
+  return *(__half_raw*)&tmp_ff;
+
+#elif EIGEN_HAS_ARM64_FP16
+  __half_raw h;
+  h.x = static_cast<__fp16>(ff);
+  return h;
+
+#elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
+  __half_raw h;
+  h.x = static_cast<_Float16>(ff);
+  return h;
+
+#else
+  uint32_t f_bits = Eigen::numext::bit_cast<uint32_t>(ff);
+  const uint32_t f16max_bits = {(127 + 16) << 23};
+  const uint32_t sign = f_bits & 0x80000000u;
+  f_bits ^= sign;
+
+  numext::uint16_t raw = 0x0000u;
+  if (f_bits >= f16max_bits) {
+    raw = 0x7c00u;
+  } else if (f_bits != 0) {
+    const uint32_t mant_odd = (f_bits >> 13) & 1u;
+    f_bits += 0xc8000fffU + mant_odd;
+    raw = static_cast<numext::uint16_t>(f_bits >> 13);
+  }
+  return raw_uint16_to_half(raw | static_cast<numext::uint16_t>(sign >> 16));
 #endif
 }
 
