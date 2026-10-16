@@ -14,5 +14,5 @@ int main() {
   nodes << 0.0, 1.0;
   Eigen::Vandermonde<double, 2, Cols> vandermonde(nodes, Cols);
   Eigen::BjorckPereyra<double> solver(vandermonde);
-  return static_cast<int>(solver.rows());
+  return solver.rows() != 2;
 }

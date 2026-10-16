@@ -13,5 +13,5 @@ int main() {
   Eigen::Vector2d nodes;
   nodes << 0.0, 1.0;
   Eigen::Vandermonde<double, 2, Cols> vandermonde(nodes);
-  return static_cast<int>(vandermonde.cols());
+  return vandermonde.cols() != Cols;
 }
