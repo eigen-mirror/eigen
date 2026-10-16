@@ -2589,6 +2589,20 @@ struct sme_neon_tile<Scalar, Index, 0, NCol> {
   }
 };
 
+// pc[0..1] += alpha * (re, im). A real alpha skips ai*im and ai*re, since
+// 0*inf = NaN would spread an infinite half into the other one.
+template <typename RealScalar>
+EIGEN_ALWAYS_INLINE void sme_neon_cstore_scalar(RealScalar* pc, RealScalar re, RealScalar im, RealScalar ar,
+                                                RealScalar ai) {
+  if (ai == RealScalar(0)) {
+    pc[0] += ar * re;
+    pc[1] += ar * im;
+  } else {
+    pc[0] += ar * re - ai * im;
+    pc[1] += ar * im + ai * re;
+  }
+}
+
 // Complex counterpart over the real view of the panels. Conjugation is folded
 // into the signs of the four real products.
 template <typename RealScalar, typename Index, bool ConjLhs, bool ConjRhs, int NPack, int NCol>
@@ -2597,6 +2611,31 @@ struct sme_neon_ctile {
   using Packet = typename packet_traits<RealScalar>::type;
   using Cols = sme_neon_cols<RealScalar, NCol>;
   static constexpr int PS = packet_traits<RealScalar>::size;
+  // Unit row stride: each column is PS interleaved (re, im) pairs. A real alpha
+  // is one FMA per half, c + ar*acc, which rounds once, so it overflows only
+  // where the result does. A complex alpha forms alpha*acc before adding C;
+  // folding C into that chain overflows on finite results (see
+  // sme_accumulate_pair_real_alpha).
+  template <bool RealAlpha>
+  static EIGEN_ALWAYS_INLINE void store_unit_stride(Scalar* C, Index cs, const Packet (&acc_re)[NPack][NCol],
+                                                    const Packet (&acc_im)[NPack][NCol], RealScalar ar, RealScalar ai) {
+    const Packet valpha_re = pset1<Packet>(ar), valpha_im = pset1<Packet>(ai);
+    for (int c = 0; c < NCol; ++c) {
+      for (int p = 0; p < NPack; ++p) {
+        RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(p * PS) + Index(c) * cs);
+        Packet cre, cim;
+        sme_neon_ld2(pc, cre, cim);
+        EIGEN_IF_CONSTEXPR (RealAlpha) {
+          cre = pmadd(valpha_re, acc_re[p][c], cre);
+          cim = pmadd(valpha_re, acc_im[p][c], cim);
+        } else {
+          cre = padd(cre, pnmadd(valpha_im, acc_im[p][c], pmul(valpha_re, acc_re[p][c])));
+          cim = padd(cim, pmadd(valpha_im, acc_re[p][c], pmul(valpha_re, acc_im[p][c])));
+        }
+        sme_neon_st2(pc, cre, cim);
+      }
+    }
+  }
   static EIGEN_ALWAYS_INLINE void run(Scalar* C, Index rs, Index cs, const RealScalar* rA, const RealScalar* rB,
                                       Index depth, Scalar alpha, Index pw, Index cw) {
     Packet acc_re[NPack][NCol], acc_im[NPack][NCol];
@@ -2618,27 +2657,21 @@ struct sme_neon_ctile {
           acc_re, acc_im, are, aim, Cols::load(b), Cols::load(b + cw));
     }
     const RealScalar ar = numext::real(alpha), ai = numext::imag(alpha);
-    const Packet valpha_re = pset1<Packet>(ar), valpha_im = pset1<Packet>(ai);
+    if (rs == 1) {
+      if (ai == RealScalar(0)) {
+        store_unit_stride<true>(C, cs, acc_re, acc_im, ar, ai);
+      } else {
+        store_unit_stride<false>(C, cs, acc_re, acc_im, ar, ai);
+      }
+      return;
+    }
     for (int c = 0; c < NCol; ++c) {
       for (int p = 0; p < NPack; ++p) {
         RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(p * PS) * rs + Index(c) * cs);
-        if (rs == 1) {
-          // Unit row stride: the column is PS interleaved (re, im) pairs.
-          Packet cre, cim;
-          sme_neon_ld2(pc, cre, cim);
-          cre = pnmadd(valpha_im, acc_im[p][c], pmadd(valpha_re, acc_re[p][c], cre));
-          cim = pmadd(valpha_im, acc_re[p][c], pmadd(valpha_re, acc_im[p][c], cim));
-          sme_neon_st2(pc, cre, cim);
-        } else {
-          RealScalar re[PS], im[PS];
-          pstoreu(re, acc_re[p][c]);
-          pstoreu(im, acc_im[p][c]);
-          for (int l = 0; l < PS; ++l) {
-            RealScalar* pl = pc + Index(l) * 2 * rs;
-            pl[0] += ar * re[l] - ai * im[l];
-            pl[1] += ar * im[l] + ai * re[l];
-          }
-        }
+        RealScalar re[PS], im[PS];
+        pstoreu(re, acc_re[p][c]);
+        pstoreu(im, acc_im[p][c]);
+        for (int l = 0; l < PS; ++l) sme_neon_cstore_scalar(pc + Index(l) * 2 * rs, re[l], im[l], ar, ai);
       }
     }
   }
@@ -2671,11 +2704,8 @@ struct sme_neon_ctile<RealScalar, Index, ConjLhs, ConjRhs, 0, NCol> {
         acc_im[0][c] += acc_im[u][c];
       }
     const RealScalar ar = numext::real(alpha), ai = numext::imag(alpha);
-    for (int c = 0; c < NCol; ++c) {
-      RealScalar* pc = reinterpret_cast<RealScalar*>(C + Index(c) * cs);
-      pc[0] += ar * acc_re[0][c] - ai * acc_im[0][c];
-      pc[1] += ar * acc_im[0][c] + ai * acc_re[0][c];
-    }
+    for (int c = 0; c < NCol; ++c)
+      sme_neon_cstore_scalar(reinterpret_cast<RealScalar*>(C + Index(c) * cs), acc_re[0][c], acc_im[0][c], ar, ai);
   }
 };
 

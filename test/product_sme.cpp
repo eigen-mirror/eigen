@@ -617,10 +617,12 @@ static Scalar pack_sentinel() {
 // ---------------------------------------------------------------------------
 // NEON small-block path: sme_gebp_neon called directly on hand-packed panels,
 // over every row, column and depth tail of the tile ladder, both conjugation
-// flags, a non-trivial alpha, panel-mode stride/offset and a general-stride C.
+// flags, a non-trivial alpha (and a real one for complex scalars), panel-mode
+// stride/offset and a general-stride C.
 // ---------------------------------------------------------------------------
 template <typename Scalar, bool ConjLhs, bool ConjRhs>
-static void verify_neon_small_block(Index rows, Index cols, Index depth, bool panel_mode, bool strided_c) {
+static void verify_neon_small_block(Index rows, Index cols, Index depth, const Scalar& alpha, bool panel_mode,
+                                    bool strided_c) {
   const Index MR = sme_mr<Scalar>();
   const Index NR = sme_nr<Scalar>();
   const Index strideA = panel_mode ? depth + 3 : depth;
@@ -645,7 +647,6 @@ static void verify_neon_small_block(Index rows, Index cols, Index depth, bool pa
       for (Index c = 0; c < w; ++c) set_packed(packedB.data() + j * strideB + offsetB * w, w, k, c, B(k, j + c));
   }
 
-  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
   const Index rs = strided_c ? 2 : 1;
   const Index cs = strided_c ? 3 * rows : rows;
   SmeVector<Scalar> storage = SmeVector<Scalar>::Random(cs * cols);
@@ -677,16 +678,20 @@ static void test_neon_small_blocks() {
   const Index widths[] = {1, 2, 3, PS, PS + 1, 2 * PS + 1, 4 * PS, 4 * PS + 3, MR - 1, MR, MR + 1, 2 * MR + 5};
   const Index col_widths[] = {1, 2, 3, 4, 5, 9, NR - 1, NR, NR + 1, 2 * NR + 2};
   const Index depths[] = {1, 2, 3, 4, 5, 8, 9, 35};
+  const Scalar alpha = nontrivial_alpha_impl<Scalar>::run();
+  const Scalar real_alpha = Scalar(numext::real(alpha));
   for (Index rows : widths) {
     for (Index cols : col_widths) {
       for (Index depth : depths) {
         const bool panel_mode = (rows + cols + depth) % 2 == 0;
         const bool strided_c = (rows + depth) % 3 == 0;
-        verify_neon_small_block<Scalar, false, false>(rows, cols, depth, panel_mode, strided_c);
+        verify_neon_small_block<Scalar, false, false>(rows, cols, depth, alpha, panel_mode, strided_c);
         if (NumTraits<Scalar>::IsComplex) {
-          verify_neon_small_block<Scalar, true, false>(rows, cols, depth, panel_mode, strided_c);
-          verify_neon_small_block<Scalar, false, true>(rows, cols, depth, panel_mode, strided_c);
-          verify_neon_small_block<Scalar, true, true>(rows, cols, depth, panel_mode, strided_c);
+          // A real alpha has its own store; conjugation is folded into the accumulators before it.
+          verify_neon_small_block<Scalar, false, false>(rows, cols, depth, real_alpha, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, true, false>(rows, cols, depth, alpha, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, false, true>(rows, cols, depth, alpha, panel_mode, strided_c);
+          verify_neon_small_block<Scalar, true, true>(rows, cols, depth, alpha, panel_mode, strided_c);
         }
       }
     }
@@ -1281,49 +1286,94 @@ static void test_complex_alpha_range() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
   const int svl = internal::sme_packet_traits<Real>::size();
   const Real h = std::ldexp(Real(1), std::numeric_limits<Real>::max_exponent - 2);
-  const Index depth = 65;
   const Scalar initial(3 * h, 0);
   const Scalar alphas[] = {Scalar(1, 1), Scalar(-1, 0)};
   const Scalar expected[] = {Scalar(3 * h, 2 * h), Scalar(2 * h, -h)};
-  for (int n : {svl / 2 - 1, svl / 2, svl / 2 + 1, svl, svl + 1}) {
-    if (n < 2) continue;
-    Mat a = Mat::Zero(n, depth), b = Mat::Zero(depth, n);
-    a.col(0).setConstant(Scalar(h, h));
-    b.row(0).setOnes();
-    const Mat ac = a.conjugate(), bc = b.conjugate();
-    for (int t = 0; t < 2; ++t) {
-      const Scalar alpha = alphas[t];
-      for (int conjugation = 0; conjugation < 4; ++conjugation) {
-        Mat c = Mat::Constant(n, n, initial);
-        if (conjugation == 0) c.noalias() += alpha * (a * b);
-        if (conjugation == 1) c.noalias() += alpha * (ac.conjugate() * b);
-        if (conjugation == 2) c.noalias() += alpha * (a * bc.conjugate());
-        if (conjugation == 3) c.noalias() += alpha * (ac.conjugate() * bc.conjugate());
-        for (Index j = 0; j < n; ++j) {
-          for (Index i = 0; i < n; ++i) {
-            VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
-            VERIFY(c(i, j) == expected[t]);
+  // At depth 8 the products with 5 < n <= sme_neon_shallow_width run on the NEON kernel (smaller ones are
+  // coefficient-based), at 65 on ZA.
+  for (Index depth : {Index(8), Index(65)}) {
+    for (int n : {svl / 2 - 1, svl / 2, svl / 2 + 1, svl, svl + 1}) {
+      if (n < 2) continue;
+      Mat a = Mat::Zero(n, depth), b = Mat::Zero(depth, n);
+      a.col(0).setConstant(Scalar(h, h));
+      b.row(0).setOnes();
+      const Mat ac = a.conjugate(), bc = b.conjugate();
+      for (int t = 0; t < 2; ++t) {
+        const Scalar alpha = alphas[t];
+        for (int conjugation = 0; conjugation < 4; ++conjugation) {
+          Mat c = Mat::Constant(n, n, initial);
+          if (conjugation == 0) c.noalias() += alpha * (a * b);
+          if (conjugation == 1) c.noalias() += alpha * (ac.conjugate() * b);
+          if (conjugation == 2) c.noalias() += alpha * (a * bc.conjugate());
+          if (conjugation == 3) c.noalias() += alpha * (ac.conjugate() * bc.conjugate());
+          for (Index j = 0; j < n; ++j) {
+            for (Index i = 0; i < n; ++i) {
+              VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
+              VERIFY(c(i, j) == expected[t]);
+            }
+          }
+        }
+        // One packed panel through each kernel at every depth; a larger runtime SVL may exceed its static width.
+        if (n <= numext::mini(sme_mr<Scalar>(), sme_nr<Scalar>())) {
+          std::vector<Scalar> pa(n * depth), pb(n * depth);
+          for (Index k = 0; k < depth; ++k) {
+            for (Index i = 0; i < n; ++i) {
+              set_packed(pa.data(), Index(n), k, i, a(i, k));
+              set_packed(pb.data(), Index(n), k, i, b(k, i));
+            }
+          }
+          const Index rs = Order == RowMajor ? n : 1, cs = Order == RowMajor ? 1 : n;
+          for (int kernel = 0; kernel < 2; ++kernel) {
+            Mat c = Mat::Constant(n, n, initial);
+            if (kernel == 0) {
+              internal::sme_gebp_dispatch<Scalar, false, false>::run(c.data(), rs, cs, pa.data(), pb.data(), Index(n),
+                                                                     depth, Index(n), alpha, depth, depth, Index(0),
+                                                                     Index(0));
+            } else {
+              internal::sme_gebp_neon<Scalar, false, false>(c.data(), rs, cs, pa.data(), pb.data(), Index(n), depth,
+                                                            Index(n), alpha, depth, depth, Index(0), Index(0));
+            }
+            for (Index j = 0; j < n; ++j) {
+              for (Index i = 0; i < n; ++i) {
+                VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
+                VERIFY(c(i, j) == expected[t]);
+              }
+            }
           }
         }
       }
-      // One packed panel; a larger runtime SVL may exceed its static width.
-      if (n <= numext::mini(sme_mr<Scalar>(), sme_nr<Scalar>())) {
-        std::vector<Scalar> pa(n * depth), pb(n * depth);
-        for (Index k = 0; k < depth; ++k) {
-          for (Index i = 0; i < n; ++i) {
-            set_packed(pa.data(), Index(n), k, i, a(i, k));
-            set_packed(pb.data(), Index(n), k, i, b(k, i));
-          }
-        }
-        Mat c = Mat::Constant(n, n, initial);
-        internal::sme_gebp_dispatch<Scalar, false, false>::run(
-            c.data(), Index(Order == RowMajor ? n : 1), Index(Order == RowMajor ? 1 : n), pa.data(), pb.data(),
-            Index(n), depth, Index(n), alpha, depth, depth, Index(0), Index(0));
-        for (Index j = 0; j < n; ++j) {
-          for (Index i = 0; i < n; ++i) {
-            VERIFY((std::isfinite)(c(i, j).real()) && (std::isfinite)(c(i, j).imag()));
-            VERIFY(c(i, j) == expected[t]);
-          }
+    }
+  }
+}
+
+// With a real alpha, an overflowing imaginary part leaves the real part finite
+// in every store of the NEON kernel: 5 - (2 + inf i) = 3 - inf i, where
+// ar*re - ai*im would give NaN. Rows cover the packet and scalar-row tiles,
+// rs = 2 the strided store.
+template <typename Real>
+static void test_neon_real_alpha_overflow() {
+  using Scalar = std::complex<Real>;
+  const Index PS = Index(internal::packet_traits<Real>::size);
+  const Index MR = sme_mr<Scalar>();
+  const Index cols = numext::mini(Index(5), Index(sme_nr<Scalar>()));
+  const Index depth = 2;
+  const Real big = Real(0.75) * NumTraits<Real>::highest();
+  for (Index rows : {Index(1), PS, PS + 1, 2 * PS + 1}) {
+    if (rows > MR) continue;
+    std::vector<Scalar> pa(rows * depth), pb(cols * depth);
+    for (Index k = 0; k < depth; ++k) {
+      for (Index i = 0; i < rows; ++i) set_packed(pa.data(), rows, k, i, Scalar(1, big));
+      for (Index j = 0; j < cols; ++j) set_packed(pb.data(), cols, k, j, Scalar(1, 0));
+    }
+    for (Index rs : {Index(1), Index(2)}) {
+      const Index cs = rs * rows;
+      std::vector<Scalar> c(cs * cols, Scalar(5, 0));
+      internal::sme_gebp_neon<Scalar, false, false>(c.data(), rs, cs, pa.data(), pb.data(), rows, depth, cols,
+                                                    Scalar(-1, 0), depth, depth, Index(0), Index(0));
+      for (Index j = 0; j < cols; ++j) {
+        for (Index i = 0; i < rows; ++i) {
+          VERIFY_IS_EQUAL(c[j * cs + i * rs].real(), Real(3));
+          VERIFY(c[j * cs + i * rs].imag() == -NumTraits<Real>::infinity());
         }
       }
     }
@@ -1376,6 +1426,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_disjoint_parts<std::complex<float>>());
   CALL_SUBTEST_3((test_complex_alpha_range<float, ColMajor>()));
   CALL_SUBTEST_3((test_complex_alpha_range<float, RowMajor>()));
+  CALL_SUBTEST_3(test_neon_real_alpha_overflow<float>());
 
   // complex<double> accumulates into ZA.D tiles, so it needs FEAT_SME_F64F64
   // exactly as double does.
@@ -1390,6 +1441,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_4(test_disjoint_parts<std::complex<double>>());
   CALL_SUBTEST_4((test_complex_alpha_range<double, ColMajor>()));
   CALL_SUBTEST_4((test_complex_alpha_range<double, RowMajor>()));
+  CALL_SUBTEST_4(test_neon_real_alpha_overflow<double>());
 #endif
 
   // A scalar type SME does not specialize, proving it still routes through the
