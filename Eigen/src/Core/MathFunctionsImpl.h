@@ -276,7 +276,7 @@ EIGEN_DEVICE_FUNC constexpr ComplexT complex_log(const ComplexT& z) {
   T b = atan2(z.imag(), z.real());
   // log|z| is finite where |z| itself overflows or rounds to a subnormal: scale z exactly by a power of two first.
   if (EIGEN_PREDICT_FALSE((numext::isinf)(a) && (numext::isfinite)(z.real()) && (numext::isfinite)(z.imag()))) {
-    const T half(0.5);
+    const T half = T(0.5);
     return ComplexT(numext::log(numext::abs(ComplexT(z.real() * half, z.imag() * half))) + T(EIGEN_LN2), b);
   }
   if (EIGEN_PREDICT_FALSE(a < (numext::numeric_limits<T>::min)() && !numext::is_exactly_zero(a))) {

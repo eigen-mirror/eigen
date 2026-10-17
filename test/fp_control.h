@@ -93,7 +93,7 @@ class ScopedFlushToZero {
 #if EIGEN_TEST_HAS_X86_DAZ
     if (flushToZeroModeIncludes(requested, FlushToZeroMode::Inputs)) wanted |= x86DenormalsAreZeroMask();
 #endif
-    _mm_setcsr(static_cast<unsigned int>((control_state_ & ~x86FlushMask()) | wanted));
+    _mm_setcsr(static_cast<unsigned int>((static_cast<std::uint32_t>(control_state_) & ~x86FlushMask()) | wanted));
     restore_ = true;
     const std::uint32_t actual = static_cast<std::uint32_t>(_mm_getcsr()) & x86FlushMask();
     mode_ = static_cast<FlushToZeroMode>(((actual & x86FlushToZeroMask()) != 0 ? 1 : 0) |

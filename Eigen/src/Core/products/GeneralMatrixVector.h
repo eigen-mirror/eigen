@@ -81,7 +81,9 @@ struct gemv_segment_loader {
 };
 template <typename Packet, int Order, typename Mapper>
 struct gemv_segment_loader<Packet, Order, Mapper, true> {
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Mapper& m, Index i, Index j, Index count) {
+  // i and j keep the kernel's index type, which is the mapper's.
+  template <typename RowIndex, typename ColIndex>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Mapper& m, RowIndex i, ColIndex j, Index count) {
     return ploaduSegment<Packet>(&m(i, j), 0, count);
   }
 };

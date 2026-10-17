@@ -501,7 +501,8 @@ void complex_pow_test() {
         for (int n = -12; n <= 12; ++n) {
           if (n == 0) continue;
           double tiny = std::copysign(std::ldexp(1.0, -60), double(s));
-          std::complex<double> w = swapped ? std::complex<double>(tiny, a) : std::complex<double>(a, tiny);
+          std::complex<double> w =
+              swapped ? std::complex<double>(tiny, double(a)) : std::complex<double>(double(a), tiny);
           if (n < 0) w = std::conj(w) / std::norm(w);
           std::complex<double> reference = w;
           for (int k = 1; k < numext::abs(n); ++k) reference *= w;

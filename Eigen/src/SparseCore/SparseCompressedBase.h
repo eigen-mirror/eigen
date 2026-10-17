@@ -68,9 +68,9 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
     else if (derived().outerSize() == 0)
       return 0;
     else if (isCompressed())
-      return outerIndexPtr()[derived().outerSize()] - outerIndexPtr()[0];
+      return internal::convert_index<Index>(outerIndexPtr()[derived().outerSize()] - outerIndexPtr()[0]);
     else
-      return innerNonZeros().sum();
+      return internal::convert_index<Index>(innerNonZeros().sum());
   }
 
   /** \returns a const pointer to the array of values.
@@ -197,9 +197,9 @@ class SparseCompressedBase : public SparseMatrixBase<Derived> {
     const Index outer = Derived::IsRowMajor ? row : col;
     const Index inner = Derived::IsRowMajor ? col : row;
 
-    Index start = this->outerIndexPtr()[outer];
-    Index end = this->isCompressed() ? this->outerIndexPtr()[outer + 1]
-                                     : this->outerIndexPtr()[outer] + this->innerNonZeroPtr()[outer];
+    Index start = internal::convert_index<Index>(this->outerIndexPtr()[outer]);
+    Index end = this->isCompressed() ? internal::convert_index<Index>(this->outerIndexPtr()[outer + 1])
+                                     : start + internal::convert_index<Index>(this->innerNonZeroPtr()[outer]);
     eigen_assert(end >= start && "you are using a non finalized sparse matrix or written coefficient does not exist");
     internal::LowerBoundIndex p;
     p.value =
@@ -242,11 +242,11 @@ class SparseCompressedBase<Derived>::InnerIterator {
       m_id = 0;
       m_end = mat.nonZeros();
     } else {
-      m_id = mat.outerIndexPtr()[outer];
+      m_id = internal::convert_index<Index>(mat.outerIndexPtr()[outer]);
       if (mat.isCompressed())
-        m_end = mat.outerIndexPtr()[outer + 1];
+        m_end = internal::convert_index<Index>(mat.outerIndexPtr()[outer + 1]);
       else
-        m_end = m_id + mat.innerNonZeroPtr()[outer];
+        m_end = m_id + internal::convert_index<Index>(mat.innerNonZeroPtr()[outer]);
     }
   }
 
@@ -279,8 +279,8 @@ class SparseCompressedBase<Derived>::InnerIterator {
 
   inline StorageIndex index() const { return m_indices[m_id]; }
   inline Index outer() const { return m_outer.value(); }
-  inline Index row() const { return IsRowMajor ? m_outer.value() : index(); }
-  inline Index col() const { return IsRowMajor ? index() : m_outer.value(); }
+  inline Index row() const { return IsRowMajor ? m_outer.value() : Index(index()); }
+  inline Index col() const { return IsRowMajor ? Index(index()) : m_outer.value(); }
 
   inline operator bool() const { return m_id < m_end; }
 
@@ -527,8 +527,9 @@ struct inner_sort_impl {
   static inline void run(SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
-      Index begin_offset = obj.outerIndexPtr()[outer];
-      Index end_offset = is_compressed ? obj.outerIndexPtr()[outer + 1] : (begin_offset + obj.innerNonZeroPtr()[outer]);
+      Index begin_offset = internal::convert_index<Index>(obj.outerIndexPtr()[outer]);
+      Index end_offset = is_compressed ? internal::convert_index<Index>(obj.outerIndexPtr()[outer + 1])
+                                       : (begin_offset + internal::convert_index<Index>(obj.innerNonZeroPtr()[outer]));
       CompressedStorageIterator<Scalar, StorageIndex> begin_it(begin_offset, obj.innerIndexPtr(), obj.valuePtr());
       CompressedStorageIterator<Scalar, StorageIndex> end_it(end_offset, obj.innerIndexPtr(), obj.valuePtr());
       std::sort(begin_it, end_it, Comp());
@@ -537,8 +538,9 @@ struct inner_sort_impl {
   static inline Index check(const SparseCompressedBase<Derived>& obj, Index begin, Index end) {
     const bool is_compressed = obj.isCompressed();
     for (Index outer = begin; outer < end; outer++) {
-      Index begin_offset = obj.outerIndexPtr()[outer];
-      Index end_offset = is_compressed ? obj.outerIndexPtr()[outer + 1] : (begin_offset + obj.innerNonZeroPtr()[outer]);
+      Index begin_offset = internal::convert_index<Index>(obj.outerIndexPtr()[outer]);
+      Index end_offset = is_compressed ? internal::convert_index<Index>(obj.outerIndexPtr()[outer + 1])
+                                       : (begin_offset + internal::convert_index<Index>(obj.innerNonZeroPtr()[outer]));
       const StorageIndex* begin_it = obj.innerIndexPtr() + begin_offset;
       const StorageIndex* end_it = obj.innerIndexPtr() + end_offset;
       bool is_sorted = std::is_sorted(begin_it, end_it, Comp());

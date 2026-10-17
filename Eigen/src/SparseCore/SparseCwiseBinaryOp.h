@@ -82,16 +82,16 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
 
     EIGEN_STRONG_INLINE InnerIterator& operator++() {
       if (m_lhsIter && m_rhsIter && (m_lhsIter.index() == m_rhsIter.index())) {
-        m_id = m_lhsIter.index();
+        m_id = convert_index<StorageIndex>(m_lhsIter.index());
         m_value = m_functor(m_lhsIter.value(), m_rhsIter.value());
         ++m_lhsIter;
         ++m_rhsIter;
       } else if (m_lhsIter && (!m_rhsIter || (m_lhsIter.index() < m_rhsIter.index()))) {
-        m_id = m_lhsIter.index();
+        m_id = convert_index<StorageIndex>(m_lhsIter.index());
         m_value = m_functor(m_lhsIter.value(), Scalar(0));
         ++m_lhsIter;
       } else if (m_rhsIter && (!m_lhsIter || (m_lhsIter.index() > m_rhsIter.index()))) {
-        m_id = m_rhsIter.index();
+        m_id = convert_index<StorageIndex>(m_rhsIter.index());
         m_value = m_functor(Scalar(0), m_rhsIter.value());
         ++m_rhsIter;
       } else {

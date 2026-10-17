@@ -119,7 +119,7 @@ EIGEN_BLAS_GEMM_SPECIALIZATION(scomplex, cf, float, EIGEN_BLAS_SYM(cgemm))
 
 // If OpenBLAS with BUILD_BFLOAT16=1 support is available,
 // use sbgemm for bfloat16.
-#if EIGEN_USE_OPENBLAS_BFLOAT16
+#if defined(EIGEN_USE_OPENBLAS_BFLOAT16) && EIGEN_USE_OPENBLAS_BFLOAT16
 
 extern "C" {
 // OpenBLAS prototype.

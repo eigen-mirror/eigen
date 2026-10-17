@@ -10,14 +10,13 @@
 
 static long int nb_temporaries;
 
-template <typename = void>
 inline void on_temporary_creation() {
   // here's a great place to set a breakpoint when debugging failures in this test!
   nb_temporaries++;
 }
 
 #define EIGEN_SPARSE_CREATE_TEMPORARY_PLUGIN \
-  { on_temporary_creation<>(); }
+  { on_temporary_creation(); }
 
 #include "sparse.h"
 

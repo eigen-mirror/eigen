@@ -17,7 +17,7 @@ struct packet_trig_sign_check<Scalar, Func, true> {
   static Packet eval(const Packet& p, std::integral_constant<int, 2>) { return internal::ptan(p); }
 
   static void run() {
-    constexpr Index kSize = internal::unpacket_traits<Packet>::size;
+    constexpr Index kSize = internal::packet_traits<Scalar>::size;
     const Index n = numext::maxi<Index>(32, kSize);
     std::vector<Scalar> x(n), y(n);
     // +-(0.3 + 0.7 k) covers all four quadrants with sin, cos and tan bounded away from 0.

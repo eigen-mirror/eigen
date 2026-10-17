@@ -48,7 +48,7 @@ Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixSpecialUnitary(int si
 }
 
 template <typename MatrixType>
-void run_test(int dim, int num_elements) {
+void run_test(unsigned dim, int num_elements) {
   using std::abs;
   typedef typename internal::traits<MatrixType>::Scalar Scalar;
   typedef Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixX;
@@ -118,7 +118,7 @@ EIGEN_DECLARE_TEST(umeyama) {
     const int num_elements = internal::random<int>(40, 500);
 
     // works also for dimensions bigger than 3...
-    for (int dim = 2; dim < 8; ++dim) {
+    for (unsigned dim = 2; dim < 8; ++dim) {
       CALL_SUBTEST_1(run_test<MatrixXd>(dim, num_elements));
       CALL_SUBTEST_2(run_test<MatrixXf>(dim, num_elements));
     }

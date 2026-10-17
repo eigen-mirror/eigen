@@ -142,7 +142,7 @@ class PermutationBase : public EigenBase<Derived> {
   template <typename DenseDerived>
   void evalTo(MatrixBase<DenseDerived>& other) const {
     other.setZero();
-    for (Index i = 0; i < rows(); ++i) other.coeffRef(indices().coeff(i), i) = typename DenseDerived::Scalar(1);
+    for (Index i = 0; i < rows(); ++i) other.coeffRef(Index(indices().coeff(i)), i) = typename DenseDerived::Scalar(1);
   }
 #endif
 
@@ -200,9 +200,9 @@ class PermutationBase : public EigenBase<Derived> {
       }
     }
     for (Index k = 0; k < size(); ++k) {
-      if (indices().coeff(k) == i)
+      if (indices().coeff(k) == StorageIndex(i))
         indices().coeffRef(k) = StorageIndex(j);
-      else if (indices().coeff(k) == j)
+      else if (indices().coeff(k) == StorageIndex(j))
         indices().coeffRef(k) = StorageIndex(i);
     }
     return derived();
@@ -245,7 +245,7 @@ class PermutationBase : public EigenBase<Derived> {
  protected:
   template <typename OtherDerived>
   void assignTranspose(const PermutationBase<OtherDerived>& other) {
-    for (Index i = 0; i < rows(); ++i) indices().coeffRef(other.indices().coeff(i)) = StorageIndex(i);
+    for (Index i = 0; i < rows(); ++i) indices().coeffRef(Index(other.indices().coeff(i))) = StorageIndex(i);
   }
   template <typename Lhs, typename Rhs>
   void assignProduct(const Lhs& lhs, const Rhs& rhs) {
@@ -274,7 +274,7 @@ class PermutationBase : public EigenBase<Derived> {
     EIGEN_INTERNAL_ASSERT_SAME_ROWS(*this, rhs);
     PlainPermutationType result(size());
     // (P * Q.inverse())(Q(i)) = P(i).
-    for (Index i = 0; i < size(); ++i) result.indices().coeffRef(rhs.indices().coeff(i)) = indices().coeff(i);
+    for (Index i = 0; i < size(); ++i) result.indices().coeffRef(Index(rhs.indices().coeff(i))) = indices().coeff(i);
     return result;
   }
 
@@ -360,7 +360,7 @@ class PermutationMatrix
   /** Constructs an uninitialized permutation matrix of given size.
    */
   EIGEN_DEVICE_FUNC explicit PermutationMatrix(Index size) : m_indices(size) {
-    eigen_internal_assert(size <= NumTraits<StorageIndex>::highest());
+    internal::convert_index<StorageIndex>(size);  // asserts that size fits StorageIndex
   }
 
   /** Copy constructor. */
@@ -407,7 +407,7 @@ class PermutationMatrix
   template <typename Other>
   PermutationMatrix(const InverseImpl<Other, PermutationStorage>& other)
       : m_indices(other.derived().nestedExpression().size()) {
-    eigen_internal_assert(m_indices.size() <= NumTraits<StorageIndex>::highest());
+    internal::convert_index<StorageIndex>(m_indices.size());  // asserts that size fits StorageIndex
     Base::assignTranspose(other.derived().nestedExpression());
   }
   template <typename Lhs, typename Rhs>

@@ -454,12 +454,12 @@ void permute_symm_to_fullsymm(
   count.setZero();
   dest.resize(size, size);
   for (Index j = 0; j < size; ++j) {
-    Index jp = perm ? perm[j] : j;
+    Index jp = perm ? internal::convert_index<Index>(perm[j]) : j;
     for (MatIterator it(matEval, j); it; ++it) {
-      Index i = it.index();
+      Index i = internal::convert_index<Index>(it.index());
       Index r = it.row();
       Index c = it.col();
-      Index ip = perm ? perm[i] : i;
+      Index ip = perm ? internal::convert_index<Index>(perm[i]) : i;
       EIGEN_IF_CONSTEXPR (Mode == int(Upper | Lower))
         count[StorageOrderMatch ? jp : ip]++;
       else if (r == c)
@@ -470,7 +470,7 @@ void permute_symm_to_fullsymm(
       }
     }
   }
-  Index nnz = count.sum();
+  Index nnz = internal::convert_index<Index>(count.sum());
 
   // reserve space
   dest.resizeNonZeros(nnz);
@@ -480,7 +480,7 @@ void permute_symm_to_fullsymm(
 
   // copy data
   for (StorageIndex j = 0; j < size; ++j) {
-    for (MatIterator it(matEval, j); it; ++it) {
+    for (MatIterator it(matEval, internal::convert_index<Index>(j)); it; ++it) {
       StorageIndex i = internal::convert_index<StorageIndex>(it.index());
       Index r = it.row();
       Index c = it.col();
@@ -489,19 +489,19 @@ void permute_symm_to_fullsymm(
       StorageIndex ip = perm ? perm[i] : i;
 
       EIGEN_IF_CONSTEXPR (Mode == int(Upper | Lower)) {
-        Index k = count[StorageOrderMatch ? jp : ip]++;
+        StorageIndex k = count[internal::convert_index<Index>(StorageOrderMatch ? jp : ip)]++;
         dest.innerIndexPtr()[k] = StorageOrderMatch ? ip : jp;
         dest.valuePtr()[k] = it.value();
       } else if (r == c) {
-        Index k = count[ip]++;
+        StorageIndex k = count[internal::convert_index<Index>(ip)]++;
         dest.innerIndexPtr()[k] = ip;
         dest.valuePtr()[k] = it.value();
       } else if (((Mode & Lower) == Lower && r > c) || ((Mode & Upper) == Upper && r < c)) {
         EIGEN_IF_CONSTEXPR (!StorageOrderMatch) std::swap(ip, jp);
-        Index k = count[jp]++;
+        StorageIndex k = count[internal::convert_index<Index>(jp)]++;
         dest.innerIndexPtr()[k] = ip;
         dest.valuePtr()[k] = it.value();
-        k = count[ip]++;
+        k = count[internal::convert_index<Index>(ip)]++;
         dest.innerIndexPtr()[k] = jp;
         dest.valuePtr()[k] = (NonHermitian ? it.value() : numext::conj(it.value()));
       }
@@ -535,28 +535,29 @@ void permute_symm_to_symm(const MatrixType& mat,
   dest.resize(size, size);
   for (StorageIndex j = 0; j < size; ++j) {
     StorageIndex jp = perm ? perm[j] : j;
-    for (MatIterator it(matEval, j); it; ++it) {
+    for (MatIterator it(matEval, internal::convert_index<Index>(j)); it; ++it) {
       StorageIndex i = it.index();
       if ((int(SrcMode) == int(Lower) && i < j) || (int(SrcMode) == int(Upper) && i > j)) continue;
 
       StorageIndex ip = perm ? perm[i] : i;
-      count[int(DstMode) == int(Lower) ? (std::min)(ip, jp) : (std::max)(ip, jp)]++;
+      count[internal::convert_index<Index>(int(DstMode) == int(Lower) ? (std::min)(ip, jp) : (std::max)(ip, jp))]++;
     }
   }
   dest.outerIndexPtr()[0] = 0;
   for (Index j = 0; j < size; ++j) dest.outerIndexPtr()[j + 1] = dest.outerIndexPtr()[j] + count[j];
-  dest.resizeNonZeros(dest.outerIndexPtr()[size]);
+  dest.resizeNonZeros(internal::convert_index<Index>(dest.outerIndexPtr()[size]));
   for (Index j = 0; j < size; ++j) count[j] = dest.outerIndexPtr()[j];
 
   for (StorageIndex j = 0; j < size; ++j) {
-    for (MatIterator it(matEval, j); it; ++it) {
+    for (MatIterator it(matEval, internal::convert_index<Index>(j)); it; ++it) {
       StorageIndex i = it.index();
       if ((int(SrcMode) == int(Lower) && i < j) || (int(SrcMode) == int(Upper) && i > j)) continue;
 
       StorageIndex jp = perm ? perm[j] : j;
       StorageIndex ip = perm ? perm[i] : i;
 
-      Index k = count[int(DstMode) == int(Lower) ? (std::min)(ip, jp) : (std::max)(ip, jp)]++;
+      StorageIndex k =
+          count[internal::convert_index<Index>(int(DstMode) == int(Lower) ? (std::min)(ip, jp) : (std::max)(ip, jp))]++;
       dest.innerIndexPtr()[k] = int(DstMode) == int(Lower) ? (std::max)(ip, jp) : (std::min)(ip, jp);
 
       EIGEN_IF_CONSTEXPR (!StorageOrderMatch) std::swap(ip, jp);

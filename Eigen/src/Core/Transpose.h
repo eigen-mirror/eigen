@@ -247,9 +247,9 @@ void BlockedInPlaceTranspose(MatrixType& m) {
   using Packet = typename internal::packet_traits<typename MatrixType::Scalar>::type;
   const Index PacketSize = internal::packet_traits<Scalar>::size;
   EIGEN_INTERNAL_ASSERT_SQUARE(m);
-  int row_start = 0;
+  Index row_start = 0;
   for (; row_start + PacketSize <= m.rows(); row_start += PacketSize) {
-    for (int col_start = row_start; col_start + PacketSize <= m.cols(); col_start += PacketSize) {
+    for (Index col_start = row_start; col_start + PacketSize <= m.cols(); col_start += PacketSize) {
       PacketBlock<Packet> A;
       if (row_start == col_start) {
         for (Index i = 0; i < PacketSize; ++i)

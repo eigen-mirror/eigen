@@ -228,6 +228,66 @@ files to it explicitly:
 python3 scripts/add_spdx_headers.py --paths path/to/new-file.cpp
 ```
 
+## Compiler Warnings
+
+Test builds compile with the warning set in the top-level [`CMakeLists.txt`](../CMakeLists.txt) (`-Wall -Wextra`,
+`-Wshorten-64-to-32`, `-Wdouble-promotion`, `-Wundef`, `-Wshadow`, among others), and no job fails on a warning. A
+new warning therefore turns up only in a build log. Do not add a warning. When a new warning is a compiler false
+positive, keep the code and say so in the merge request rather than suppressing it. Read the build-job logs of the
+merge request pipeline, and compare them against a scheduled or web pipeline on the target branch. Those pipelines run
+every build job, while default-branch pushes run only a few. Prefer one at the merge request's base commit; the newest
+scheduled pipeline can be days older, and the master changes in between then show up in the diff:
+
+```bash
+base=$(glab api "projects/libeigen%2Feigen/merge_requests/<iid>" |
+  python3 -c 'import json, sys; print(json.load(sys.stdin)["diff_refs"]["base_sha"])')
+glab api "projects/libeigen%2Feigen/pipelines?sha=$base&per_page=100" |       # base pipeline id, if one exists
+  python3 -c 'import json, sys; print(*[p["id"] for p in json.load(sys.stdin) if p["source"] in ("schedule", "web")][:1])'
+glab api "projects/libeigen%2Feigen/pipelines?ref=master&source=schedule&per_page=1"    # otherwise the newest scheduled
+warnings() {  # warnings() <pipeline-id>: one line per build job and warning site
+  glab api --paginate "projects/libeigen%2Feigen/pipelines/$1/jobs?per_page=100" | python3 -c '
+import json, sys
+s, d, i = sys.stdin.read(), json.JSONDecoder(), 0
+while i < len(s):
+    page, i = d.raw_decode(s, i)
+    for j in page:
+        if j["stage"] == "build" and j["status"] in ("success", "failed"): print(j["id"], j["name"])' |
+  while read -r id name; do
+    name=${name%:affected}
+    glab api "projects/libeigen%2Feigen/jobs/$id/trace" |
+      sed -E 's/\x1b\[[0-9;]*[mK]//g; s/\r//; s/^[0-9-]+T[0-9:.]+Z [0-9A-Z]+ //' |
+      grep -E ': warning[: #]|warning C[0-9]{4}' |
+      sed -E "s|\\\\|/|g; s|^.*/eigen/||; s|:[0-9]+:[0-9]+:|:|; s|\([0-9]+\)||; s|^|$name: |"
+  done | sort -u
+}
+diff <(warnings <base-id>) <(warnings <mr-id>)
+```
+
+The normalization strips what differs between runs of the same warning: the `:affected` suffix that merge request
+build jobs carry, the runners' per-line timestamps, line numbers in both the `file:12:3:` and the MSVC/nvcc
+`file(12):` forms, and the checkout prefix, which on Windows is a backslash path with a per-run runner directory.
+Without it, every warning in a merge request pipeline reads as new. A warning in a changed file that
+appears on both sides can still come from a changed line, so check those as well. The default merge request
+pipeline builds only the smoke targets. Most warnings below appear only in configurations that the `affected-tests`
+labels enable.
+
+Many warnings show up in only one configuration, so an x86-64 build that compiles cleanly proves little:
+
+- 32-bit ARM, where `Index` is `int`: a `StorageIndex` of `long long` that is narrowed to `Index`
+  (`-Wshorten-64-to-32`), and a comparison of an unsigned `StorageIndex` with `Index` (`-Wsign-compare`).
+- Clang with a `long double` scalar or reference: `-Wdouble-promotion`, including from direct initialization
+  `T x(0.5)`. Write `T(0.5)`.
+- An `int` index type, as in Tensor contractions, which instantiate the GEMM/GEMV kernels with `Index = int`:
+  narrowing inside kernels written against `Eigen::Index`.
+- gcc-10 (`-Wdeprecated-copy`, `-Wignored-attributes` on packet template arguments), MSVC (`C4xxx`), and nvcc
+  (`#177-D` for unused entities in a test split).
+
+Each build log prints its configure line (`+++ cmake -G Ninja ...`); rerun it locally, without the sccache launcher
+and emulator arguments, to reproduce a job's warnings. `-fsyntax-only` with the commands from
+`compile_commands.json` reports the same front-end warnings and needs no target libraries. To convert
+`StorageIndex` to `Index`, use `internal::convert_index<Index>(x)`, or follow the local file's idiom. A warning from
+a third-party build, such as Doxygen's own sources, is outside a change's scope.
+
 ## Clang-Tidy
 
 Lint an implementation header with the CI driver below, not by running clang-tidy on it directly. The driver compiles
@@ -278,7 +338,9 @@ file clean. [`ci-internals.md`](ci-internals.md) explains how the parts are chos
 2. Format and check the task's changed lines and new files using the Worktree-Safe Formatting recipes above.
 3. Run the focused builds and tests documented in [`testing.md`](testing.md).
 4. Run applicable spelling, REUSE, and clang-tidy checks.
-5. When the change touches Doxygen markup, a documented name, a module `README`, or a snippet, apply the `docs-build`
+5. Check the build logs for new compiler warnings, as described under Compiler Warnings above, including the
+   configurations where `Index` or `StorageIndex` has a different width.
+6. When the change touches Doxygen markup, a documented name, a module `README`, or a snippet, apply the `docs-build`
    label. The recommended test labels do not trigger the documentation job; [`docs.md`](docs.md) records its
    coverage and validation requirements.
-6. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.
+7. State what ran, what did not run, and why. Do not claim coverage from jobs or hardware that were unavailable.

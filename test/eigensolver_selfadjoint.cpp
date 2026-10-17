@@ -1195,7 +1195,7 @@ void direct_selfadjoint_rotated_boundary() {
   using MatrixType = Matrix<Scalar, 3, 3, Options>;
   using WideMatrix = Matrix<long double, 3, 3>;
   using WideVector = Matrix<long double, 3, 1>;
-  const long double epsilon = NumTraits<Scalar>::epsilon();
+  const long double epsilon = static_cast<long double>(NumTraits<Scalar>::epsilon());
   const Scalar scale = numext::ldexp(Scalar(1), std::numeric_limits<Scalar>::max_exponent - 1);
   const long double repeated = 2 - 64 * epsilon;
   const long double tolerance = 48 * epsilon;

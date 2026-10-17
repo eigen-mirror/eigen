@@ -163,8 +163,8 @@ class kron_view_iterator<Factor, RowMajor, kKronSparseFactor> {
   kron_view_iterator(const Factor& f, Index outer)
       : m_values(f.valuePtr()),
         m_indices(f.innerIndexPtr()),
-        m_pos(f.outerIndexPtr()[outer]),
-        m_end(f.outerIndexPtr()[outer + 1]) {
+        m_pos(convert_index<Index>(f.outerIndexPtr()[outer])),
+        m_end(convert_index<Index>(f.outerIndexPtr()[outer + 1])) {
     eigen_internal_assert(f.isCompressed());
   }
   explicit operator bool() const { return m_pos < m_end; }
@@ -172,7 +172,7 @@ class kron_view_iterator<Factor, RowMajor, kKronSparseFactor> {
     ++m_pos;
     return *this;
   }
-  Index index() const { return m_indices[m_pos]; }
+  Index index() const { return Index(m_indices[m_pos]); }
   Scalar value() const { return m_values[m_pos]; }
 
  private:

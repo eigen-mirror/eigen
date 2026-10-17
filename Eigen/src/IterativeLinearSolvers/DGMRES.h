@@ -163,7 +163,7 @@ class DGMRES : public IterativeSolverBase<DGMRES<MatrixType_, Preconditioner_> >
    * Set the number of eigenvalues to deflate at each restart
    */
   void setEigenv(const Index neig) {
-    m_neig = neig;
+    m_neig = internal::convert_index<StorageIndex>(neig);
     if (neig + 1 > m_maxNeig) m_maxNeig = neig + 1;  // To allow for complex conjugates
   }
 

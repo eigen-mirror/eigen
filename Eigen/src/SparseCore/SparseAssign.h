@@ -210,7 +210,7 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
       dst.startVec(j);
       for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) {
         Scalar v = it.value();
-        dst.insertBackByOuterInner(j, it.index()) = v;
+        dst.insertBackByOuterInner(j, Index(it.index())) = v;
       }
     }
     dst.finalize();
@@ -228,7 +228,7 @@ void assign_sparse_to_sparse(DstXprType &dst, const SrcXprType &src) {
       temp.startVec(j);
       for (typename SrcEvaluatorType::InnerIterator it(srcEvaluator, j); it; ++it) {
         Scalar v = it.value();
-        temp.insertBackByOuterInner(transpose ? it.index() : j, transpose ? j : it.index()) = v;
+        temp.insertBackByOuterInner(transpose ? Index(it.index()) : j, transpose ? j : Index(it.index())) = v;
       }
     }
     temp.finalize();

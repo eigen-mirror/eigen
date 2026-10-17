@@ -36,7 +36,7 @@ void sparse_scatter() {
   for (Index size = 0; size <= 65; ++size) {
     const Map<const Vector> values(storage.data() + 1, size);
     actual = expected = initial;
-    for (Index i = 0; i < size; ++i) expected[indices[i]] -= scale * numext::conj(values[i]);
+    for (Index i = 0; i < size; ++i) expected[Index(indices[i])] -= scale * numext::conj(values[i]);
     const Index expectedProcessed = apply_sparse_scatter(actual.data(), indices.data(), scale * values.conjugate());
     VERIFY((actual - expected).cwiseAbs().maxCoeff() <= tolerance);
 
@@ -44,12 +44,12 @@ void sparse_scatter() {
     const Index processed =
         internal::sparse_scatter_sub_packets<true>(actual.data(), indices.data(), values.data(), size, scale);
     VERIFY_IS_EQUAL(processed, expectedProcessed);
-    for (Index i = processed; i < size; ++i) actual[indices[i]] -= numext::conj(values[i]) * scale;
+    for (Index i = processed; i < size; ++i) actual[Index(indices[i])] -= numext::conj(values[i]) * scale;
     VERIFY((actual - expected).cwiseAbs().maxCoeff() <= tolerance);
 
     const Map<const Vector, Unaligned, InnerStride<2>> strided(storage.data() + 1, size);
     actual = expected = initial;
-    for (Index i = 0; i < size; ++i) expected[indices[i]] -= strided[i] * scale;
+    for (Index i = 0; i < size; ++i) expected[Index(indices[i])] -= strided[i] * scale;
     apply_sparse_scatter(actual.data(), indices.data(), strided * scale);
     VERIFY((actual - expected).cwiseAbs().maxCoeff() <= tolerance);
   }

@@ -41,7 +41,7 @@ struct HostInputGate {
   std::atomic<bool> release{false};
 };
 
-static void CUDART_CB wait_for_host_input_gate(void* data) {
+EIGEN_UNUSED static void CUDART_CB wait_for_host_input_gate(void* data) {
   HostInputGate* gate = static_cast<HostInputGate*>(data);
   gate->entered.store(true, std::memory_order_release);
   while (!gate->release.load(std::memory_order_acquire)) std::this_thread::yield();

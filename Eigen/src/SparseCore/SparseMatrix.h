@@ -383,7 +383,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
         m_outerIndex[m_outerSize] = m_outerIndex[m_outerSize - 1] + m_innerNonZeros[m_outerSize - 1] +
                                     internal::convert_index<StorageIndex>(reserveSizes[m_outerSize - 1]);
 
-      m_data.resize(m_outerIndex[m_outerSize]);
+      m_data.resize(internal::convert_index<Index>(m_outerIndex[m_outerSize]));
     } else {
       StorageIndex* newOuterIndex = internal::conditional_aligned_new_auto<StorageIndex, true>(m_outerSize + 1);
 
@@ -403,7 +403,8 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
         StorageIndex innerNNZ = m_innerNonZeros[j];
         StorageIndex begin = m_outerIndex[j];
         StorageIndex target = newOuterIndex[j];
-        m_data.moveChunk(begin, target, innerNNZ);
+        m_data.moveChunk(internal::convert_index<Index>(begin), internal::convert_index<Index>(target),
+                         internal::convert_index<Index>(innerNNZ));
       }
 
       std::swap(m_outerIndex, newOuterIndex);
@@ -437,7 +438,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     StorageIndex p = m_outerIndex[outer + 1];
     ++m_outerIndex[outer + 1];
     m_data.append(Scalar(0), inner);
-    return m_data.value(p);
+    return m_data.value(internal::convert_index<Index>(p));
   }
 
   /** \internal
@@ -569,11 +570,12 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   Scalar& insertByOuterInner(Index j, Index i) {
     eigen_assert(j >= 0 && j < m_outerSize && "invalid outer index");
     eigen_assert(i >= 0 && i < m_innerSize && "invalid inner index");
-    Index start = m_outerIndex[j];
-    Index end = isCompressed() ? m_outerIndex[j + 1] : start + m_innerNonZeros[j];
+    Index start = internal::convert_index<Index>(m_outerIndex[j]);
+    Index end = isCompressed() ? internal::convert_index<Index>(m_outerIndex[j + 1])
+                               : start + internal::convert_index<Index>(m_innerNonZeros[j]);
     Index dst = start == end ? end : m_data.searchLowerIndex(start, end, i);
     if (dst == end) {
-      Index capacity = m_outerIndex[j + 1] - end;
+      Index capacity = internal::convert_index<Index>(m_outerIndex[j + 1]) - end;
       if (capacity > 0) {
         // implies uncompressed: push to back of vector
         m_innerNonZeros[j]++;
@@ -597,23 +599,23 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
     StorageIndex start = m_outerIndex[1];
     m_outerIndex[1] = m_innerNonZeros[0];
     // try to move fewer, larger contiguous chunks
-    Index copyStart = start;
-    Index copyTarget = m_innerNonZeros[0];
+    Index copyStart = internal::convert_index<Index>(start);
+    Index copyTarget = internal::convert_index<Index>(m_innerNonZeros[0]);
     for (Index j = 1; j < m_outerSize; j++) {
       StorageIndex end = start + m_innerNonZeros[j];
       StorageIndex nextStart = m_outerIndex[j + 1];
       // dont forget to move the last chunk!
       bool breakUpCopy = (end != nextStart) || (j == m_outerSize - 1);
       if (breakUpCopy) {
-        Index chunkSize = end - copyStart;
+        Index chunkSize = internal::convert_index<Index>(end) - copyStart;
         if (chunkSize > 0) m_data.moveChunk(copyStart, copyTarget, chunkSize);
-        copyStart = nextStart;
+        copyStart = internal::convert_index<Index>(nextStart);
         copyTarget += chunkSize;
       }
       start = nextStart;
       m_outerIndex[j + 1] = m_outerIndex[j] + m_innerNonZeros[j];
     }
-    m_data.resize(m_outerIndex[m_outerSize]);
+    m_data.resize(internal::convert_index<Index>(m_outerIndex[m_outerSize]));
 
     // release as much memory as possible
     internal::conditional_aligned_delete_auto<StorageIndex, true>(m_innerNonZeros, m_outerSize);
@@ -1678,9 +1680,9 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
   // find a vector with capacity, starting at `outer` and searching to the left and right
   for (Index leftTarget = outer - 1, rightTarget = outer; (leftTarget >= 0) || (rightTarget < m_outerSize);) {
     if (rightTarget < m_outerSize) {
-      Index start = m_outerIndex[rightTarget];
-      Index end = start + m_innerNonZeros[rightTarget];
-      Index nextStart = m_outerIndex[rightTarget + 1];
+      Index start = internal::convert_index<Index>(m_outerIndex[rightTarget]);
+      Index end = start + internal::convert_index<Index>(m_innerNonZeros[rightTarget]);
+      Index nextStart = internal::convert_index<Index>(m_outerIndex[rightTarget + 1]);
       Index capacity = nextStart - end;
       if (capacity > 0) {
         // move [dst, end) to dst+1 and insert at dst
@@ -1695,9 +1697,9 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
       rightTarget++;
     }
     if (leftTarget >= 0) {
-      Index start = m_outerIndex[leftTarget];
-      Index end = start + m_innerNonZeros[leftTarget];
-      Index nextStart = m_outerIndex[leftTarget + 1];
+      Index start = internal::convert_index<Index>(m_outerIndex[leftTarget]);
+      Index end = start + internal::convert_index<Index>(m_innerNonZeros[leftTarget]);
+      Index nextStart = internal::convert_index<Index>(m_outerIndex[leftTarget + 1]);
       Index capacity = nextStart - end;
       if (capacity > 0) {
         // tricky: dst is a lower bound, so we must insert at dst-1 when shifting left
@@ -1717,7 +1719,7 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
   // no room for interior insertion
   // nonZeros() == m_data.size()
   // record offset as outerIndexPtr will change
-  Index dst_offset = dst - m_outerIndex[outer];
+  Index dst_offset = dst - internal::convert_index<Index>(m_outerIndex[outer]);
   // allocate space for random insertion
   if (m_data.allocatedSize() == 0) {
     // fast method to allocate space for one element per vector in empty matrix
@@ -1744,8 +1746,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
     }
   }
   // insert element at `dst` with new outer indices
-  Index start = m_outerIndex[outer];
-  Index end = start + m_innerNonZeros[outer];
+  Index start = internal::convert_index<Index>(m_outerIndex[outer]);
+  Index end = start + internal::convert_index<Index>(m_innerNonZeros[outer]);
   Index new_dst = start + dst_offset;
   Index chunkSize = end - new_dst;
   if (chunkSize > 0) m_data.moveChunk(new_dst, new_dst + 1, chunkSize);

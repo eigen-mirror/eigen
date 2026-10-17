@@ -456,7 +456,7 @@ void tridiagonal_eigensolver_eigenvectors() {
       d << RealScalar(1), RealScalar(0), RealScalar(0);
       e << RealScalar(0), c * eps;
       for (const auto& range : {EigenvalueRange::all(), EigenvalueRange::indices(0, 2), EigenvalueRange::indices(1, 2),
-                                EigenvalueRange::values(-0.5, 0.5)}) {
+                                EigenvalueRange::values(-0.5L, 0.5L)}) {
         TridiagonalEigenSolver<RealScalar> blocks;
         blocks.computeEigenvalues(d, e, range);
         const VectorType values = blocks.eigenvalues();

@@ -38,7 +38,7 @@ struct packet_layout<ulonglong2> {
 }  // namespace test
 }  // namespace Eigen
 
-namespace {
+namespace packetmath_gpu_test {
 
 using Eigen::Index;
 using Eigen::internal::packet_traits;
@@ -49,19 +49,9 @@ using test::special_values;
 using test::Buffer;
 using test::packet_layout;
 
-// Named budgets. rsqrt is the one approximate intrinsic among the core operations: the CUDA Math API documents
-// 2 ulp for rsqrtf and 1 ulp for rsqrt. The float reference rounds 1/sqrt from double. The double reference uses
-// long double, which is double itself under MSVC; rounding y = sqrt(x) and then 1/y is still within 1.5 ulp of
-// 1/sqrt(x), so a device result within 1 ulp is at most 2 representable steps from the reference.
-const uint64_t kRsqrtFloatUlps = 3;
-const uint64_t kRsqrtDoubleUlps = 2;
-// The CUDA Math API's documented maximum error for each function, plus one for the rounding of the reference from
-// the wider type. The Windows CRT expm1 reference can be 3 ulps off, and its long double has no extra precision.
 struct MathUlpBudget {
   uint64_t log, log1p, exp, exp2, expm1;
 };
-const MathUlpBudget kFloatUlps = {2, 2, 3, 3, 2};
-const MathUlpBudget kDoubleUlps = {2, 2, 2, 2, EIGEN_COMP_MSVC ? 3 : 2};
 
 // The reference uses the next floating-point type; long double is not wider on MSVC.
 template <typename Scalar>
@@ -658,7 +648,10 @@ template <typename Scalar>
 void packetmath_gpu_real_math() {
   using Packet = typename packet_traits<Scalar>::type;
   const int kSize = packet_layout<Packet>::kSize;
-  const MathUlpBudget& budget = std::is_same<Scalar, double>::value ? kDoubleUlps : kFloatUlps;
+  // The CUDA Math API's documented maximum error for each function, plus one for the rounding of the reference from
+  // the wider type. The Windows CRT expm1 reference can be 3 ulps off, and its long double has no extra precision.
+  const MathUlpBudget budget = std::is_same<Scalar, double>::value ? MathUlpBudget{2, 2, 2, 2, EIGEN_COMP_MSVC ? 3 : 2}
+                                                                   : MathUlpBudget{2, 2, 3, 3, 2};
 
   const std::vector<int> traits = device_traits<Scalar>();
   VERIFY_IS_EQUAL(traits[kHasExp], 1);
@@ -735,7 +728,11 @@ void packetmath_gpu_real_core() {
   const compare_bits<Scalar> bits{true};
   const compare_bits<Scalar> bits_and_payload{false};
   const auto values = test::areEqual<Scalar>;
-  const uint64_t rsqrt_ulps = std::is_same<Scalar, double>::value ? kRsqrtDoubleUlps : kRsqrtFloatUlps;
+  // rsqrt is the one approximate intrinsic among the core operations: the CUDA Math API documents 2 ulp for rsqrtf
+  // and 1 ulp for rsqrt. The float reference rounds 1/sqrt from double. The double reference uses long double, which
+  // is double itself under MSVC; rounding y = sqrt(x) and then 1/y is still within 1.5 ulp of 1/sqrt(x), so a device
+  // result within 1 ulp is at most 2 representable steps from the reference.
+  const uint64_t rsqrt_ulps = std::is_same<Scalar, double>::value ? 2 : 3;
 
   // The device's view of the type, and what this part covers of it.
   const std::vector<int> traits = device_traits<Scalar>();
@@ -1333,7 +1330,9 @@ void host_pass_instantiation() {
   VERIFY(clamped(1) >= 0.0f && clamped(1) <= 1.0f);
 }
 
-}  // namespace
+}  // namespace packetmath_gpu_test
+
+using namespace packetmath_gpu_test;
 
 EIGEN_DECLARE_TEST(packetmath_gpu) {
   ei_test_init_gpu();
