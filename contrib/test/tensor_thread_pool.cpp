@@ -717,6 +717,32 @@ static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
 }
 
 template <int DataLayout>
+static void test_sharded_by_inner_dim_cost_model() {
+  typedef Tensor<float, 1>::DimensionPair DimPair;
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+
+  ThreadPool threads(8);
+  Eigen::ThreadPoolDevice device(&threads, 8);
+
+  Tensor<float, 2, DataLayout> t_left(2, 2);
+  Tensor<float, 2, DataLayout> t_right(2, 2);
+  auto expr = t_left.contract(t_right, dims);
+  using ContractionEval = TensorEvaluator<const decltype(expr), Eigen::ThreadPoolDevice>;
+  ContractionEval eval(expr, device);
+
+  // Small/moderate contractions where outer-dimension parallelism stays low
+  // must not be diverted into inner-dimension sharding by stale overhead
+  // constants in numThreadsInnerDim.
+  VERIFY_IS_EQUAL(eval.numThreadsInnerDim(32, 64, 128), 1);
+  VERIFY(!ContractionEval::shardByInnerDim(32, 64, 128, /*num_threads=*/1, eval.numThreadsInnerDim(32, 64, 128)));
+
+  // Deep inner dimension with tiny outer dimensions should still shard by k.
+  const int nt_k = eval.numThreadsInnerDim(2, 10, 200000);
+  VERIFY(nt_k > 1);
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, 200000, /*num_threads=*/1, nt_k));
+}
+
+template <int DataLayout>
 void test_full_contraction() {
   int contract_size1 = internal::random<int>(1, 500);
   int contract_size2 = internal::random<int>(1, 500);
@@ -1276,6 +1302,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction<RowMajor>());
   CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction_with_output_kernel<ColMajor>());
   CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_7(test_sharded_by_inner_dim_cost_model<ColMajor>());
+  CALL_SUBTEST_7(test_sharded_by_inner_dim_cost_model<RowMajor>());
 
   CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction<ColMajor>());
   CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction<RowMajor>());
