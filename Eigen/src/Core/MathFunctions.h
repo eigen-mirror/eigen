@@ -2432,15 +2432,15 @@ struct complex_exp2_impl {
   EIGEN_STATIC_ASSERT_NON_INTEGER(RealScalar)
 
   EIGEN_DEVICE_FUNC static inline std::complex<RealScalar> run(const std::complex<RealScalar>& x) {
-    using Complex = std::complex<RealScalar>;
+    using ComplexScalar = std::complex<RealScalar>;
     const RealScalar a = x.real();
     const RealScalar b = x.imag();
     // (a, +-0) -> (2^a, +-0), also for a = +-inf and NaN.
-    if (numext::is_exactly_zero(b)) return Complex(numext::exp2(a), b);
+    if (numext::is_exactly_zero(b)) return ComplexScalar(numext::exp2(a), b);
     // (+inf, inf or NaN) -> (inf, NaN) and (-inf, inf or NaN) -> (0, 0), where 2^a cos(t) would be NaN.
     // b * 0 is that NaN, raising FE_INVALID for b = inf as Annex G asks.
     if ((numext::isinf)(a) && !(numext::isfinite)(b)) {
-      return a > RealScalar(0) ? Complex(a, b * RealScalar(0)) : Complex(RealScalar(0), RealScalar(0));
+      return a > RealScalar(0) ? ComplexScalar(a, b * RealScalar(0)) : ComplexScalar(RealScalar(0), RealScalar(0));
     }
     // ln2_lo = (double(ln(2)) - ln2_hi) + (ln(2) - double(ln(2))), the first difference exact in Wide.
     // nvcc 11.8 drops parentheses around a `>` in a template argument when it regenerates host code.
@@ -2479,11 +2479,11 @@ struct complex_exp2_impl {
       const int p = NumTraits<RealScalar>::digits();
       const RealScalar b_p = numext::ldexp(abs_b, p);
       const RealScalar im = numext::ldexp(m * numext::fma(b_p, ln2_hi, b_p * ln2_lo), e - p);
-      return Complex(numext::ldexp(m, e), negative ? -im : im);
+      return ComplexScalar(numext::ldexp(m, e), negative ? -im : im);
     }
     const RealScalar re = e == 0 ? m * c : numext::ldexp(m * c, e);
     const RealScalar im = e == 0 ? m * s : numext::ldexp(m * s, e);
-    return Complex(re, negative ? -im : im);
+    return ComplexScalar(re, negative ? -im : im);
   }
 };
 
