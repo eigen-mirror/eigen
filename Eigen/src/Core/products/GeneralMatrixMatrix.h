@@ -128,6 +128,31 @@ EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::false_type, Gebp&, const ResMap
                                             const Scalar*, Index, Index, Index, ResScalar) {
   return false;
 }
+template <typename Scalar, typename Index>
+EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth);
+template <typename Scalar, int LhsOrder, int RhsOrder, bool ConjLhs, bool ConjRhs, int ResInnerStride, typename Index>
+EIGEN_DONT_INLINE void sme_small_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride,
+                                      const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
+                                      Scalar alpha, Scalar* blockA, Scalar* blockB);
+// The test stays inline: a call into the NEON path's frame dirties stack lines the ZA path then packs into.
+template <int LhsOrder, int RhsOrder, bool ConjLhs, bool ConjRhs, int ResInnerStride, typename Scalar, typename Index,
+          typename Blocking>
+EIGEN_ALWAYS_INLINE bool sme_run_small_gemm(std::true_type, Index rows, Index cols, Index depth, const Scalar* lhs,
+                                            Index lhsStride, const Scalar* rhs, Index rhsStride, Scalar* res,
+                                            Index resIncr, Index resStride, Scalar alpha, Blocking& blocking) {
+  if (!sme_small_gemm_wins<Scalar>(rows, cols, depth)) return false;
+  const bool fits = depth <= blocking.kc() && rows <= blocking.mc() && cols <= blocking.nc();
+  sme_small_gemm<Scalar, LhsOrder, RhsOrder, ConjLhs, ConjRhs, ResInnerStride>(
+      rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res, resIncr, resStride, alpha,
+      fits ? blocking.blockA() : nullptr, fits ? blocking.blockB() : nullptr);
+  return true;
+}
+template <int LhsOrder, int RhsOrder, bool ConjLhs, bool ConjRhs, int ResInnerStride, typename LhsScalar,
+          typename RhsScalar, typename ResScalar, typename Index, typename Blocking>
+EIGEN_ALWAYS_INLINE bool sme_run_small_gemm(std::false_type, Index, Index, Index, const LhsScalar*, Index,
+                                            const RhsScalar*, Index, ResScalar*, Index, Index, ResScalar, Blocking&) {
+  return false;
+}
 #endif
 
 // RHS-first loop order: nc -> kc -> mc. Used by SME to stream ColMajor result
@@ -208,9 +233,13 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
     if (numext::is_exactly_zero(alpha)) return;
 #ifdef EIGEN_VECTORIZE_SME
     // A parallel session needs every thread to take the packed path; scaleAndAddTo runs tiny results on one thread.
-    if (info == nullptr && sme_run_tiny_gemm<LhsStorageOrder, RhsStorageOrder>(
-                               bool_constant<sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value>(), rows, cols, depth,
-                               lhs_, lhsStride, rhs_, rhsStride, res_, resIncr, resStride, alpha))
+    if (info == nullptr &&
+        (sme_run_tiny_gemm<LhsStorageOrder, RhsStorageOrder>(
+             bool_constant<sme_tiny_gemm_pair<LhsScalar, RhsScalar>::value>(), rows, cols, depth, lhs_, lhsStride, rhs_,
+             rhsStride, res_, resIncr, resStride, alpha) ||
+         sme_run_small_gemm<LhsStorageOrder, RhsStorageOrder, ConjugateLhs, ConjugateRhs, ResInnerStride>(
+             bool_constant<sme_has_gebp_kernel<LhsScalar, RhsScalar>::value>(), rows, cols, depth, lhs_, lhsStride,
+             rhs_, rhsStride, res_, resIncr, resStride, alpha, blocking)))
       return;
 #endif
 

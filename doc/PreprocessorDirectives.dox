@@ -151,7 +151,14 @@ run time. However, these assertions do cost time and can thus be turned off.
    the panel bound; a block of such panels no wider than the width bound, or the shallow width up to the shallow
    depth, or narrower than the thin bound on one side). One value overrides the per-scalar defaults, which are fitted
    for Apple M4. \c EIGEN_SME_NO_NEON_SMALL_BLOCKS and \c EIGEN_SME_FORCE_NEON_SMALL_BLOCKS pin the path for A/B runs;
-   both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double).
+   both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double), and the small-product
+   path below.
+ - \b \c EIGEN_SME_NEON_SMALL_PRODUCT - Largest rows x cols x depth at which the ARM SME backend runs a whole
+   general matrix product on the NEON kernel, without packing it for the ZA tiles. A result of at most two NEON
+   vectors of rows also takes it while the right-hand side is at most 64 KB (and, for real scalars, the depth at most
+   128), and a real result of at most three columns and at least three LHS panels of rows never does. One value
+   overrides the per-scalar defaults (28672 for float, 10240 for double and complex<float>, 5120 for
+   complex<double>), which are fitted for Apple M4 Pro and checked on Apple M4.
  - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
    \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other
