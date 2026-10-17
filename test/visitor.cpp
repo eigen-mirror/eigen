@@ -10,6 +10,8 @@
 
 #include "main.h"
 
+#include <cfenv>
+
 template <typename MatrixType>
 void matrixVisitor_impl(MatrixType& m) {
   typedef typename MatrixType::Scalar Scalar;
@@ -390,6 +392,66 @@ void checkBooleanVisitors(const DenseBase<Derived>& matrix) {
   VERIFY_IS_EQUAL(matrix.any(), count != 0);
 }
 
+template <typename VectorType>
+void checkFuzzyPredicates(VectorType&, std::false_type) {}
+
+template <typename VectorType>
+void checkFuzzyPredicates(VectorType& v, std::true_type) {
+  using Scalar = typename VectorType::Scalar;
+  for (Index k = -1; k < v.size(); ++k) {
+    v.setConstant(Scalar(2));
+    if (k >= 0) v(k) = Scalar(3);
+    VERIFY_IS_EQUAL(v.isApproxToConstant(Scalar(2)), k < 0);
+    v.setZero();
+    if (k >= 0) v(k) = Scalar(1);
+    VERIFY_IS_EQUAL(v.isZero(), k < 0);
+    v.setOnes();
+    if (k >= 0) v(k) = Scalar(NumTraits<typename NumTraits<Scalar>::Real>::infinity());
+    VERIFY_IS_EQUAL(v.allFinite(), k < 0);
+  }
+}
+
+// The deciding coefficient at each position of a vector, which for sizes below a packet reaches the masked segment
+// load where the target has one.
+template <typename VectorType>
+void checkPredicatesAtEachPosition(VectorType& v) {
+  using Scalar = typename VectorType::Scalar;
+  for (int value = 0; value <= 1; ++value) {
+    for (Index k = -1; k < v.size(); ++k) {
+      v.setConstant(Scalar(value));
+      if (k >= 0) v(k) = Scalar(!value);
+      checkBooleanVisitors(v);
+    }
+  }
+  checkFuzzyPredicates(v, internal::bool_constant<!NumTraits<Scalar>::IsInteger>());
+}
+
+template <typename Scalar, int Size>
+void checkFixedPartialPacket() {
+  Array<Scalar, Size, 1> v;
+  checkPredicatesAtEachPosition(v);
+}
+
+template <typename Scalar, int... Sizes>
+void checkFixedPartialPackets(std::integer_sequence<int, Sizes...>) {
+  int unused[] = {0, (checkFixedPartialPacket<Scalar, Sizes + 1>(), 0)...};
+  EIGEN_UNUSED_VARIABLE(unused);
+}
+
+// Every runtime size up to two packets, aligned and not, and fixed sizes up to seven.
+template <typename Scalar>
+void checkPartialPackets() {
+  constexpr Index PacketSize = internal::packet_traits<Scalar>::size;
+  std::vector<Scalar> data(2 * PacketSize + 3);
+  for (Index size = 0; size <= 2 * PacketSize + 1; ++size) {
+    Array<Scalar, Dynamic, 1> v(size);
+    checkPredicatesAtEachPosition(v);
+    Map<Array<Scalar, Dynamic, 1>, Unaligned> unaligned(data.data() + 1, size);
+    checkPredicatesAtEachPosition(unaligned);
+  }
+  checkFixedPartialPackets<Scalar>(std::make_integer_sequence<int, 7>());
+}
+
 template <typename Scalar, int Options>
 void checkBooleanVisitorTraversal() {
   constexpr int PacketSize = internal::packet_traits<Scalar>::size;
@@ -421,6 +483,65 @@ void checkBooleanVisitorTraversal() {
   checkBooleanVisitors(fixed);
   fixed(fixed.size() - 1) = Scalar(0);
   checkBooleanVisitors(fixed);
+}
+
+template <typename ArrayType>
+EIGEN_DONT_INLINE bool anyOfArray(const ArrayType& a) {
+  return a.any();
+}
+
+// any() ORs whole integer packets before testing them, but not floating-point ones: the OR of two finite coefficients
+// can be a signaling NaN, which a floating-point comparison would flag as an invalid operation.
+template <typename Scalar>
+void checkAnyRaisesNoInvalid() {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr Index PacketSize = internal::packet_traits<Scalar>::size;
+  // The successor of 1 and 2: their OR has an all-ones exponent and only the lowest mantissa bit set, a signaling NaN.
+  const Bits one = numext::bit_cast<Bits>(Scalar(1)) | Bits(1), two = numext::bit_cast<Bits>(Scalar(2));
+  for (Index size : {2 * PacketSize, 3 * PacketSize, 8 * PacketSize, 9 * PacketSize + 3}) {
+    Array<Scalar, Dynamic, 1> a(size);
+    for (Index i = 0; i < size; ++i) a(i) = numext::bit_cast<Scalar>((i / PacketSize) % 2 ? one : two);
+#if defined(FE_ALL_EXCEPT) && defined(FE_INVALID)
+    std::feclearexcept(FE_ALL_EXCEPT);
+    VERIFY(anyOfArray(a));
+    VERIFY_IS_EQUAL(std::fetestexcept(FE_INVALID) & FE_INVALID, 0);
+#else
+    VERIFY(anyOfArray(a));
+#endif
+  }
+}
+
+template <typename ArrayType>
+EIGEN_DONT_INLINE bool quotientAllFinite(const ArrayType& a, const ArrayType& b) {
+  return (a / b).allFinite();
+}
+template <typename ArrayType>
+EIGEN_DONT_INLINE bool quotientIsZero(const ArrayType& a, const ArrayType& b) {
+  return (a / b).matrix().isZero();
+}
+
+template <typename ArrayType>
+void checkQuotientRaisesNoInvalid(const ArrayType& a, const ArrayType& b) {
+#if defined(FE_ALL_EXCEPT) && defined(FE_INVALID)
+  std::feclearexcept(FE_ALL_EXCEPT);
+  VERIFY(quotientAllFinite(a, b));
+  VERIFY(!quotientIsZero(a, b) || a.size() == 0);
+  VERIFY_IS_EQUAL(std::fetestexcept(FE_INVALID) & FE_INVALID, 0);
+#else
+  VERIFY(quotientAllFinite(a, b));
+  VERIFY(!quotientIsZero(a, b) || a.size() == 0);
+#endif
+}
+
+// A segment shorter than a packet is tested with one masked load only where the expression loads its coefficients:
+// a quotient would also divide the zeros past the segment, 0 / 0, and flag an invalid operation that the scalar tests
+// of the same coefficients do not.
+template <typename Scalar>
+void checkPartialPacketsRaiseNoInvalid() {
+  constexpr Index PacketSize = internal::packet_traits<Scalar>::size;
+  for (Index size = 0; size <= 2 * PacketSize + 1; ++size)
+    checkQuotientRaisesNoInvalid<Array<Scalar, Dynamic, 1>>(Array<Scalar, Dynamic, 1>::Constant(size, Scalar(1)),
+                                                            Array<Scalar, Dynamic, 1>::Constant(size, Scalar(2)));
 }
 
 template <bool Vectorize = false>
@@ -671,8 +792,10 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<bool, ColMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<bool, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<float, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<float, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<double, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<int, ColMajor>()));
+  CALL_SUBTEST_14((checkBooleanVisitorTraversal<int, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<int64_t, RowMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<Eigen::half, ColMajor>()));
   CALL_SUBTEST_14((checkBooleanVisitorTraversal<std::complex<float>, RowMajor>()));
@@ -684,4 +807,15 @@ EIGEN_DECLARE_TEST(visitor) {
   CALL_SUBTEST_14((checkVisitorShortCircuit<RowMajor, true>()));
   CALL_SUBTEST_15(checkFindCoeffWithoutPacketCmp<ColMajor>());
   CALL_SUBTEST_15(checkFindCoeffWithoutPacketCmp<RowMajor>());
+  CALL_SUBTEST_16(checkAnyRaisesNoInvalid<float>());
+  CALL_SUBTEST_16(checkAnyRaisesNoInvalid<double>());
+  CALL_SUBTEST_16(checkPartialPacketsRaiseNoInvalid<float>());
+  CALL_SUBTEST_16(checkPartialPacketsRaiseNoInvalid<double>());
+  CALL_SUBTEST_17(checkPartialPackets<float>());
+  CALL_SUBTEST_17(checkPartialPackets<double>());
+  CALL_SUBTEST_17(checkPartialPackets<int>());
+  CALL_SUBTEST_17(checkPartialPackets<int64_t>());
+  CALL_SUBTEST_17(checkPartialPackets<Eigen::half>());
+  CALL_SUBTEST_17(checkPartialPackets<std::complex<float>>());
+  CALL_SUBTEST_17(checkPartialPackets<std::complex<double>>());
 }

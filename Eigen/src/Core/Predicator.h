@@ -136,6 +136,11 @@ struct predicate_search<true> : packet_predicate {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found(const Packet& m) {
     return predux_any(m);
   }
+  // Only the lanes set in a lane mask, as for a segment.
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found_in(const Packet& m, const Packet& lanes) {
+    return predux_any(pand(m, lanes));
+  }
   template <typename Predicate, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool test_scalar(const Predicate& pred, const Scalar& x) {
     return pred(x);
@@ -151,6 +156,10 @@ struct predicate_search<false> : packet_predicate {
   template <typename Packet>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found(const Packet& m) {
     return predux_any(pandnot(ptrue(m), m));
+  }
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found_in(const Packet& m, const Packet& lanes) {
+    return predux_any(pandnot(lanes, m));
   }
   template <typename Predicate, typename Scalar>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool test_scalar(const Predicate& pred, const Scalar& x) {
@@ -178,6 +187,23 @@ struct bool_lane_search : predicate_search<true> {
     return x;
   }
 };
+// any_of(nonzero) on integer lanes ORs the coefficients themselves and compares the OR with zero once per block: it
+// is zero exactly where every coefficient is. Floating-point lanes keep the compare per packet: their OR can be a
+// signaling NaN, which a floating-point compare would flag as an invalid operation.
+struct or_lane_search : predicate_search<true> {
+  template <typename Predicate, typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet apply(const Predicate&, const Packet& x) {
+    return x;
+  }
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found(const Packet& m) {
+    return predux_any(pandnot(ptrue(m), pcmp_eq(m, pzero(m))));
+  }
+  template <typename Packet>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool found_in(const Packet& m, const Packet& lanes) {
+    return found(pand(m, lanes));
+  }
+};
 template <bool Target, typename Predicate>
 struct predicate_search_for {
   using type = predicate_search<Target>;
@@ -185,6 +211,10 @@ struct predicate_search_for {
 template <typename Scalar>
 struct predicate_search_for<false, nonzero_predicate<Scalar>> {
   using type = zero_lane_search;
+};
+template <typename Scalar>
+struct predicate_search_for<true, nonzero_predicate<Scalar>> {
+  using type = std::conditional_t<std::is_integral<Scalar>::value, or_lane_search, predicate_search<true>>;
 };
 template <>
 struct predicate_search_for<true, nonzero_predicate<bool>> {
@@ -195,6 +225,8 @@ struct predicate_search_for<true, nonzero_predicate<bool>> {
 template <typename Evaluator, bool Linear = Evaluator::LinearAccess>
 struct predicate_segment {
   using Scalar = typename Evaluator::Scalar;
+  static constexpr bool FixedSize = Evaluator::RowsAtCompileTime > 0 && Evaluator::ColsAtCompileTime > 0;
+  static constexpr bool PlainLoad = int(Evaluator::CoeffReadCost) <= int(NumTraits<Scalar>::ReadCost);
   const Evaluator& eval;
   Index length;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE predicate_segment(const Evaluator& evaluator, Index, Index size)
@@ -207,10 +239,17 @@ struct predicate_segment {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index i) const {
     return eval.template packet<Packet>(i);
   }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetSegment(Index i, Index count) const {
+    return eval.template packetSegment<Packet>(i, 0, count);
+  }
 };
 template <typename Evaluator>
 struct predicate_segment<Evaluator, false> {
   using Scalar = typename Evaluator::Scalar;
+  static constexpr bool FixedSize =
+      (Evaluator::IsRowMajor ? Evaluator::ColsAtCompileTime : Evaluator::RowsAtCompileTime) > 0;
+  static constexpr bool PlainLoad = int(Evaluator::CoeffReadCost) <= int(NumTraits<Scalar>::ReadCost);
   const Evaluator& eval;
   Index outer;
   Index length;
@@ -223,6 +262,11 @@ struct predicate_segment<Evaluator, false> {
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index i) const {
     return Evaluator::IsRowMajor ? eval.template packet<Packet>(outer, i) : eval.template packet<Packet>(i, outer);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetSegment(Index i, Index count) const {
+    return Evaluator::IsRowMajor ? eval.template packetSegment<Packet>(outer, i, 0, count)
+                                 : eval.template packetSegment<Packet>(i, outer, 0, count);
   }
 };
 
@@ -320,6 +364,27 @@ struct predicate_search_segment {
     return run(seg, pred);
   }
 };
+// first(count) is a packet whose first count lanes are all ones and whose other lanes are zero. table is one packet of
+// 0xff bytes followed by one packet of zero bytes; an unaligned load that starts Size - count lanes into it reads count
+// lanes of ones, then zeros. Bytes rather than Scalars, so that one table serves lanes of any width.
+template <typename Packet, typename Bytes = std::make_index_sequence<2 * sizeof(Packet)>>
+struct predicate_lane_table;
+template <typename Packet, std::size_t... Byte>
+struct predicate_lane_table<Packet, std::index_sequence<Byte...>> {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  static constexpr Index Size = unpacket_traits<Packet>::size;
+  // Aligned to the packet, so that every load start is aligned to its Scalar.
+  alignas(sizeof(Packet)) static constexpr unsigned char table[2 * sizeof(Packet)] = {
+      (Byte < sizeof(Packet) ? 0xff : 0)...};
+  static EIGEN_STRONG_INLINE Packet first(Index count) {
+    return ploadu<Packet>(reinterpret_cast<const Scalar*>(table + (Size - count) * sizeof(Scalar)));
+  }
+};
+#if EIGEN_COMP_CXXVER < 17
+template <typename Packet, std::size_t... Byte>
+alignas(sizeof(Packet)) constexpr unsigned char predicate_lane_table<Packet, std::index_sequence<Byte...>>::table[];
+#endif
+
 template <typename Search, typename Packet>
 struct predicate_search_segment<Search, Packet, true> {
   // One helper per packet, taking its operands by reference and returning the mask by value: if the early inliner
@@ -351,11 +416,29 @@ struct predicate_search_segment<Search, Packet, true> {
         i = 3 * PacketSize;
       }
       if (EIGEN_PREDICT_TRUE(i == size)) return false;
+    } else if (has_packet_segment<Packet>::value && Segment::PlainLoad && (Segment::FixedSize || size >= 4)) {
+      return run_partial(seg, pred, bool_constant<has_packet_segment<Packet>::value>());
     } else if (size < 4 && predicate_groups_scalars<Predicate>::value) {
       // Shorter than one packet and than a group of four: only these sizes reach this check.
       return predicate_search_upto3<Search>(seg, 0, pred);
     }
     return predicate_search_tail<Search>(seg, i, pred);
+  }
+
+  // A segment shorter than one packet, of a compile-time length or of at least four coefficients: one masked load,
+  // with the lanes past the segment masked off. Shorter runtime lengths keep their scalar tests, which are faster than
+  // building the masks; a compile-time length folds them. Only for a segment that loads its coefficients
+  // (Segment::PlainLoad): an expression computes on the zeros past the segment too, and 0 / 0 there would raise
+  // FE_INVALID, which the scalar tests of the same coefficients do not.
+  template <typename Segment, typename Predicate>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool run_partial(const Segment& seg, Predicate pred, std::true_type) {
+    const Index size = seg.size();
+    return Search::found_in(Search::apply(pred, seg.template packetSegment<Packet>(0, size)),
+                            predicate_lane_table<Packet>::first(size));
+  }
+  template <typename Segment, typename Predicate>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool run_partial(const Segment& seg, Predicate pred, std::false_type) {
+    return predicate_search_tail<Search>(seg, 0, pred);
   }
 
   template <int Block, typename Segment, typename Predicate>

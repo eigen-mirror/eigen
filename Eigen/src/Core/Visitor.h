@@ -339,11 +339,19 @@ class visitor_evaluator {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index row, Index col) const {
     return m_evaluator.template packet<Alignment, Packet>(row, col);
   }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetSegment(Index row, Index col, Index begin, Index count) const {
+    return m_evaluator.template packetSegment<Unaligned, Packet>(row, col, begin, count);
+  }
   // linear access
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_evaluator.coeff(index); }
   template <typename Packet, int Alignment = XprAlignment>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packet(Index index) const {
     return m_evaluator.template packet<Alignment, Packet>(index);
+  }
+  template <typename Packet>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetSegment(Index index, Index begin, Index count) const {
+    return m_evaluator.template packetSegment<Unaligned, Packet>(index, begin, count);
   }
 
  protected:
