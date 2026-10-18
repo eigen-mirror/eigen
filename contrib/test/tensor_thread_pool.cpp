@@ -558,14 +558,15 @@ void test_async_multithread_contraction_agrees_with_singlethread() {
 // We are triggering 'evalShardedByInnerDim' optimization.
 template <int DataLayout>
 static void test_sharded_by_inner_dim_contraction() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
 
   const int num_threads = internal::random<int>(4, 16);
   ThreadPool threads(num_threads);
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
-  Tensor<float, 2, DataLayout> t_left(2, 10000);
-  Tensor<float, 2, DataLayout> t_right(10000, 10);
+  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
+  Tensor<float, 2, DataLayout> t_left(2, k);
+  Tensor<float, 2, DataLayout> t_right(k, 10);
   Tensor<float, 2, DataLayout> t_result(2, 10);
 
   t_left.setRandom();
@@ -577,16 +578,23 @@ static void test_sharded_by_inner_dim_contraction() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
-  MapXf m_left(t_left.data(), 2, 10000);
-  MapXf m_right(t_right.data(), 10000, 10);
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
+  MapXf m_left(t_left.data(), 2, k);
+  MapXf m_right(t_right.data(), k, 10);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
+  auto contraction = t_left.contract(t_right, dims);
+  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
+  ContractionEval eval(contraction, device);
+  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
+  VERIFY(nt_k > 1);
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
+
   // compute results by separate methods
-  t_result.device(device) = t_left.contract(t_right, dims);
+  t_result.device(device) = contraction;
   m_result = m_left * m_right;
 
   for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
@@ -597,14 +605,15 @@ static void test_sharded_by_inner_dim_contraction() {
 // We are triggering 'evalShardedByInnerDim' optimization with output kernel.
 template <int DataLayout>
 static void test_sharded_by_inner_dim_contraction_with_output_kernel() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
 
   const int num_threads = internal::random<int>(4, 16);
   ThreadPool threads(num_threads);
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
-  Tensor<float, 2, DataLayout> t_left(2, 10000);
-  Tensor<float, 2, DataLayout> t_right(10000, 10);
+  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
+  Tensor<float, 2, DataLayout> t_left(2, k);
+  Tensor<float, 2, DataLayout> t_right(k, 10);
   Tensor<float, 2, DataLayout> t_result(2, 10);
 
   t_left.setRandom();
@@ -616,16 +625,23 @@ static void test_sharded_by_inner_dim_contraction_with_output_kernel() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
-  MapXf m_left(t_left.data(), 2, 10000);
-  MapXf m_right(t_right.data(), 10000, 10);
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
+  MapXf m_left(t_left.data(), 2, k);
+  MapXf m_right(t_right.data(), k, 10);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
+  auto contraction = t_left.contract(t_right, dims, SqrtOutputKernel());
+  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
+  ContractionEval eval(contraction, device);
+  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
+  VERIFY(nt_k > 1);
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
+
   // compute results by separate methods
-  t_result.device(device) = t_left.contract(t_right, dims, SqrtOutputKernel());
+  t_result.device(device) = contraction;
   m_result = m_left * m_right;
 
   for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
@@ -636,14 +652,15 @@ static void test_sharded_by_inner_dim_contraction_with_output_kernel() {
 // We are triggering 'evalShardedByInnerDim' optimization.
 template <int DataLayout>
 static void test_async_sharded_by_inner_dim_contraction() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
 
   const int num_threads = internal::random<int>(4, 16);
   ThreadPool threads(num_threads);
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
-  Tensor<float, 2, DataLayout> t_left(2, 10000);
-  Tensor<float, 2, DataLayout> t_right(10000, 10);
+  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
+  Tensor<float, 2, DataLayout> t_left(2, k);
+  Tensor<float, 2, DataLayout> t_right(k, 10);
   Tensor<float, 2, DataLayout> t_result(2, 10);
 
   t_left.setRandom();
@@ -655,17 +672,24 @@ static void test_async_sharded_by_inner_dim_contraction() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
-  MapXf m_left(t_left.data(), 2, 10000);
-  MapXf m_right(t_right.data(), 10000, 10);
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
+  MapXf m_left(t_left.data(), 2, k);
+  MapXf m_right(t_right.data(), k, 10);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
+  auto contraction = t_left.contract(t_right, dims);
+  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
+  ContractionEval eval(contraction, device);
+  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
+  VERIFY(nt_k > 1);
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
+
   // compute results by separate methods
   Eigen::Barrier barrier(1);
-  t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims);
+  t_result.device(device, [&barrier]() { barrier.Notify(); }) = contraction;
   barrier.Wait();
 
   m_result = m_left * m_right;
@@ -678,14 +702,15 @@ static void test_async_sharded_by_inner_dim_contraction() {
 // We are triggering 'evalShardedByInnerDim' optimization with output kernel.
 template <int DataLayout>
 static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
 
   const int num_threads = internal::random<int>(4, 16);
   ThreadPool threads(num_threads);
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
-  Tensor<float, 2, DataLayout> t_left(2, 10000);
-  Tensor<float, 2, DataLayout> t_right(10000, 10);
+  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
+  Tensor<float, 2, DataLayout> t_left(2, k);
+  Tensor<float, 2, DataLayout> t_right(k, 10);
   Tensor<float, 2, DataLayout> t_result(2, 10);
 
   t_left.setRandom();
@@ -697,17 +722,24 @@ static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
-  MapXf m_left(t_left.data(), 2, 10000);
-  MapXf m_right(t_right.data(), 10000, 10);
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
+  MapXf m_left(t_left.data(), 2, k);
+  MapXf m_right(t_right.data(), k, 10);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
 
   // this contraction should be equivalent to a single matrix multiplication
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
+  auto contraction = t_left.contract(t_right, dims, SqrtOutputKernel());
+  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
+  ContractionEval eval(contraction, device);
+  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
+  VERIFY(nt_k > 1);
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
+
   // compute results by separate methods
   Eigen::Barrier barrier(1);
-  t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims, SqrtOutputKernel());
+  t_result.device(device, [&barrier]() { barrier.Notify(); }) = contraction;
   barrier.Wait();
   m_result = m_left * m_right;
 
@@ -718,7 +750,7 @@ static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
 
 template <int DataLayout>
 static void test_sharded_by_inner_dim_cost_model() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   ThreadPool threads(8);
@@ -730,16 +762,32 @@ static void test_sharded_by_inner_dim_cost_model() {
   using ContractionEval = TensorEvaluator<const decltype(expr), Eigen::ThreadPoolDevice>;
   ContractionEval eval(expr, device);
 
-  // Small/moderate contractions where outer-dimension parallelism stays low
-  // must not be diverted into inner-dimension sharding by stale overhead
-  // constants in numThreadsInnerDim.
-  VERIFY_IS_EQUAL(eval.numThreadsInnerDim(32, 64, 128), 1);
-  VERIFY(!ContractionEval::shardByInnerDim(32, 64, 128, /*num_threads=*/1, eval.numThreadsInnerDim(32, 64, 128)));
+  // Scale k by the packet width so the parallel cost (6.6e4..2.6e5 cycles across FMA and panel-width regimes) sits
+  // between the old hardcoded threshold (~5.7e4 cycles) and the TensorCostModel threshold (~4.0e5 cycles) under every
+  // SIMD width.
+  const Index f32_packet_size = PacketType<float, Eigen::ThreadPoolDevice>::size;
+  const Index moderate_f32_k = 64 * f32_packet_size;
+  VERIFY_IS_EQUAL(eval.numThreadsInnerDim(32, 64, moderate_f32_k), 1);
+  VERIFY(!ContractionEval::shardByInnerDim(32, 64, moderate_f32_k, /*num_threads=*/1,
+                                           eval.numThreadsInnerDim(32, 64, moderate_f32_k)));
+
+  // Cover the bfloat16 contraction shape (16 x 128 x k) that motivated the fix.
+  Tensor<Eigen::bfloat16, 2, DataLayout> bf16_left(2, 2);
+  Tensor<Eigen::bfloat16, 2, DataLayout> bf16_right(2, 2);
+  auto bf16_expr = bf16_left.contract(bf16_right, dims);
+  using Bf16ContractionEval = TensorEvaluator<const decltype(bf16_expr), Eigen::ThreadPoolDevice>;
+  Bf16ContractionEval bf16_eval(bf16_expr, device);
+  const Index bf16_packet_size = PacketType<Eigen::bfloat16, Eigen::ThreadPoolDevice>::size;
+  const Index moderate_bf16_k = 64 * bf16_packet_size;
+  VERIFY_IS_EQUAL(bf16_eval.numThreadsInnerDim(16, 128, moderate_bf16_k), 1);
+  VERIFY(!Bf16ContractionEval::shardByInnerDim(16, 128, moderate_bf16_k, /*num_threads=*/1,
+                                               bf16_eval.numThreadsInnerDim(16, 128, moderate_bf16_k)));
 
   // Deep inner dimension with tiny outer dimensions should still shard by k.
-  const int nt_k = eval.numThreadsInnerDim(2, 10, 200000);
+  const Index deep_f32_k = 30000 * f32_packet_size;
+  const int nt_k = eval.numThreadsInnerDim(2, 10, deep_f32_k);
   VERIFY(nt_k > 1);
-  VERIFY(ContractionEval::shardByInnerDim(2, 10, 200000, /*num_threads=*/1, nt_k));
+  VERIFY(ContractionEval::shardByInnerDim(2, 10, deep_f32_k, /*num_threads=*/1, nt_k));
 }
 
 template <int DataLayout>
