@@ -1520,8 +1520,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         TensorCostModel<ThreadPoolDevice>::totalCost(m * n, TensorOpCost(2, 1, 1, true, output_packet_size));
     int num_threads = 1;
     double min_cost = total_parallel_cost;
-    double kPerThreadOverHead = 3000;
-    double kFixedOverHead = 20000;
+    double kPerThreadOverHead = TensorCostModel<ThreadPoolDevice>::kPerThreadCycles;
+    double kFixedOverHead = TensorCostModel<ThreadPoolDevice>::kStartupCycles;
     for (int nt = 2; nt <= this->m_device.numThreads(); nt += 2) {
       double sequential_cost = kFixedOverHead + nt * (reduction_cost + kPerThreadOverHead);
       double parallel_cost = total_parallel_cost / nt + sequential_cost;
