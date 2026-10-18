@@ -286,6 +286,7 @@ ei_add_test(maxsizevector)
 ei_add_test(numext)
 ei_add_test(complex_sqrt)
 ei_add_test(numext_fma_off)
+ei_add_test(numext_fma_on)
 # Fused residuals must not depend on optional compiler contraction.
 set(twoprod_test_flags "")
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
