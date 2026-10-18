@@ -1230,6 +1230,46 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
 #endif
 #endif
 
+namespace Eigen {
+namespace internal {
+// A volatile asm that the optimizer must execute exactly where it is written, so a value passed through it is defined
+// only on its branch, and an operation that consumes it stays there instead of being evaluated speculatively.
+// EIGEN_OPTIMIZATION_BARRIER is not volatile, and its "+g,w" and "+g,x" alternatives put a scalar float or double in
+// memory on clang; the float and double overloads keep the value in a register.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(T& x) {
+  EIGEN_UNUSED_VARIABLE(x);
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && \
+    (EIGEN_COMP_GNUC || (defined(__clang__) && defined(_MSC_VER)))
+  __asm__ __volatile__("" : "+m"(x));
+#endif
+}
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && \
+    (EIGEN_COMP_GNUC || (defined(__clang__) && defined(_MSC_VER)))
+#if EIGEN_ARCH_i386_OR_x86_64 && EIGEN_COMP_NVHPC
+// nvc++ rejects a long double asm operand under every constraint, so its bytes go through memory instead.
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(long double& x) {
+  __asm__ __volatile__("" : "+m"(*reinterpret_cast<unsigned char(*)[sizeof(long double)]>(&x)));
+}
+#endif
+#if EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_FP)
+#define EIGEN_FP_REGISTER_CONSTRAINT "+w"
+#elif EIGEN_ARCH_i386_OR_x86_64 && defined(__SSE2__)
+#define EIGEN_FP_REGISTER_CONSTRAINT "+x"
+#endif
+#ifdef EIGEN_FP_REGISTER_CONSTRAINT
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(float& x) {
+  __asm__ __volatile__("" : EIGEN_FP_REGISTER_CONSTRAINT(x));
+}
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(double& x) {
+  __asm__ __volatile__("" : EIGEN_FP_REGISTER_CONSTRAINT(x));
+}
+#undef EIGEN_FP_REGISTER_CONSTRAINT
+#endif
+#endif
+}  // namespace internal
+}  // namespace Eigen
+
 #if EIGEN_COMP_MSVC
 // NOTE MSVC often gives C4127 warnings with compiletime if statements. See bug 1362.
 // This workaround suppresses MSVC C4127 warnings for compile-time conditionals.
