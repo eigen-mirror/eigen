@@ -456,6 +456,9 @@ void check_complex_divide() {
 #if EIGEN_COMP_MSVC
 #pragma float_control(precise, on, push)
 #pragma fenv_access(on)
+#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64) && !defined(__GPUCC__) && \
+    !defined(__SYCL_DEVICE_ONLY__)
+#pragma STDC FENV_ACCESS ON
 #endif
 
 // The exceptions numext::divide(a, b) raises. Volatile operands and results keep the division between the flag
@@ -541,6 +544,9 @@ void check_narrow_fma_nonfinite() {
 #if EIGEN_COMP_MSVC
 #pragma fenv_access(off)
 #pragma float_control(pop)
+#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64) && !defined(__GPUCC__) && \
+    !defined(__SYCL_DEVICE_ONLY__)
+#pragma STDC FENV_ACCESS OFF
 #endif
 
 // log2(2^k) = k on the scalar path, as on the vectorized one. A size-1 array takes the scalar path.

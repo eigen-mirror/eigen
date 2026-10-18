@@ -2540,19 +2540,28 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_smith(const
                                                                            const std::complex<T>& b) {
   const T a_real = numext::real(a);
   const T a_imag = numext::imag(a);
-  const T b_real = numext::real(b);
-  const T b_imag = numext::imag(b);
+  T b_real = numext::real(b);
+  T b_imag = numext::imag(b);
   // Smith's complex division (https://arxiv.org/pdf/1210.4539.pdf),
   // guards against over/under-flow.
   const bool scale_imag = numext::abs(b_imag) <= numext::abs(b_real);
-  const T rscale = scale_imag ? T(1) : b_real / b_imag;
-  // d / c = +-1 for |c| = |d|, which the quotient misses as 0 / 0 or inf / inf when b = 0 or both parts of b are
-  // infinite; a zero divisor then gives an infinity and an infinite one zero, as in pdiv_complex. The sign is not taken
-  // from b_real * b_imag, which can overflow or underflow.
-  const T iscale = !scale_imag ? T(1)
-                   : numext::abs(b_imag) == numext::abs(b_real)
-                       ? numext::copysign(T(1), b_real) * numext::copysign(T(1), b_imag)
-                       : b_imag / b_real;
+  T rscale = T(1);
+  T iscale = T(1);
+  if (numext::abs(b_imag) == numext::abs(b_real)) {
+    // d / c = +-1 for |c| = |d|, which the quotient misses as 0 / 0 or inf / inf when b = 0 or both parts of b are
+    // infinite; a zero divisor then gives an infinity and an infinite one zero, as in pdiv_complex. The sign is not
+    // taken from b_real * b_imag, which can overflow or underflow.
+    iscale = numext::copysign(T(1), b_real) * numext::copysign(T(1), b_imag);
+  } else if (scale_imag) {
+    // Each quotient divides by the larger part of b, which is not zero here. The barrier keeps the quotient on its
+    // branch: an if-converted form evaluates both quotients, and the untaken one divides by zero for a divisor on an
+    // axis, raising FE_DIVBYZERO. The barrier is applied in place, so that the branch costs no register copy.
+    volatile_barrier(b_real);
+    iscale = b_imag / b_real;
+  } else {
+    volatile_barrier(b_imag);
+    rscale = b_real / b_imag;
+  }
   const T denominator = b_real * rscale + b_imag * iscale;
   return std::complex<T>((a_real * rscale + a_imag * iscale) / denominator,
                          (a_imag * rscale - a_real * iscale) / denominator);
