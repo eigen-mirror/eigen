@@ -83,6 +83,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     evalProductImpl<EvalToCallback, Alignment>(buffer, std::move(done));
   }
 
+  using Base::dispatchContraction;
+
   template <typename DoneCallback, int Alignment>
   void evalProductImpl(Scalar* buffer, DoneCallback done) const {
     // This function computes a lot of heuristics in multiple steps, and it
@@ -110,7 +112,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       return;
     }
     if (k == 0) {
-      internal::tensor_contraction_dispatch(
+      dispatchContraction(
           [&](auto lhs_c, auto rhs_c, auto rhs_r) {
             this->template evalProductSequential<lhs_c(), rhs_c(), rhs_r(), Unaligned>(buffer);
           },
@@ -189,7 +191,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     if (n == 1) num_threads = 1;
 
     if (num_threads == 1) {
-      internal::tensor_contraction_dispatch(
+      dispatchContraction(
           [&](auto lhs_c, auto rhs_c, auto rhs_r) {
             this->template evalProductSequential<lhs_c(), rhs_c(), rhs_r(), Unaligned>(buffer);
           },
@@ -275,15 +277,15 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // optimization.
     if (parallelize_by_sharding_dim_only) parallel_pack = false;
 
-    internal::tensor_contraction_dispatch(
+    dispatchContraction(
         [&](auto lhs_c, auto rhs_c, auto rhs_r) {
           EIGEN_IF_CONSTEXPR (IsEvalInSyncMode) {
-            EvalParallelContext<NoCallback, lhs_c(), rhs_c(), rhs_r(), Alignment> ctx(
+            EvalParallelContext<NoCallback, lhs_c(), rhs_c(), rhs_r()> ctx(
                 this, num_threads, buffer, m, n, k, bm, bn, bk, nm, nn, nk, gm, gn, nm0, nn0, shard_by_col,
                 parallel_pack, parallelize_by_sharding_dim_only, NoCallback());
             ctx.run();
           } else {
-            auto* ctx = new EvalParallelContext<DoneCallback, lhs_c(), rhs_c(), rhs_r(), Alignment>(
+            auto* ctx = new EvalParallelContext<DoneCallback, lhs_c(), rhs_c(), rhs_r()>(
                 this, num_threads, buffer, m, n, k, bm, bn, bk, nm, nn, nk, gm, gn, nm0, nn0, shard_by_col,
                 parallel_pack, parallelize_by_sharding_dim_only, std::move(done));
             ctx->run();
@@ -348,7 +350,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   // accessible by block packing and kernel tasks.
 
   template <typename DoneCallback, bool lhs_inner_dim_contiguous, bool rhs_inner_dim_contiguous,
-            bool rhs_inner_dim_reordered, int Alignment>
+            bool rhs_inner_dim_reordered>
   class EvalParallelContext {
    public:
     using LhsMapper =
@@ -1154,7 +1156,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     void processBlock(Index block_idx, Index begin, Index end) {
       Scalar* buf = block_buffers[block_idx];
 
-      internal::tensor_contraction_dispatch(
+      dispatchContraction(
           [&](auto lhs_c, auto rhs_c, auto rhs_r) {
             evaluator->template evalGemmPartialWithoutOutputKernel<lhs_c(), rhs_c(), rhs_r(), Alignment>(
                 buf, begin, end, /*num_threads=*/internal::convert_index<int>(num_blocks));

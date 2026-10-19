@@ -292,6 +292,44 @@ static void test_out_of_order_contraction() {
                                    mat1(0, 1, 1) * mat2(1, 1, 0) + mat1(1, 1, 1) * mat2(1, 1, 1));
 }
 
+template <int DataLayout, int ContractDims>
+static void check_dispatch_pruning_for_rank() {
+  using Tensor3 = Tensor<float, 3, DataLayout>;
+  using Contraction = TensorContractionOp<const Eigen::array<DimPair, ContractDims>, const Tensor3, const Tensor3>;
+  using Evaluator = TensorEvaluator<const Contraction, DefaultDevice>;
+
+  for (int lhs_c_int = 0; lhs_c_int < 2; ++lhs_c_int) {
+    for (int rhs_c_int = 0; rhs_c_int < 2; ++rhs_c_int) {
+      for (int rhs_r_int = 0; rhs_r_int < 2; ++rhs_r_int) {
+        const bool lhs_c_in = lhs_c_int != 0;
+        const bool rhs_c_in = rhs_c_int != 0;
+        const bool rhs_r_in = rhs_r_int != 0;
+        bool dispatched_lhs_c = false;
+        bool dispatched_rhs_c = false;
+        bool dispatched_rhs_r = false;
+        Evaluator::dispatchContraction(
+            [&](auto lhs_c, auto rhs_c, auto rhs_r) {
+              static_assert(!rhs_r() || (ContractDims > 1 && !rhs_c()), "unreachable contraction instantiated");
+              dispatched_lhs_c = lhs_c();
+              dispatched_rhs_c = rhs_c();
+              dispatched_rhs_r = rhs_r();
+            },
+            lhs_c_in, rhs_c_in, rhs_r_in);
+        VERIFY_IS_EQUAL(dispatched_lhs_c, lhs_c_in);
+        VERIFY_IS_EQUAL(dispatched_rhs_c, rhs_c_in);
+        VERIFY_IS_EQUAL(dispatched_rhs_r, (ContractDims > 1) && !rhs_c_in && rhs_r_in);
+      }
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_dispatch_pruning() {
+  check_dispatch_pruning_for_rank<DataLayout, 0>();
+  check_dispatch_pruning_for_rank<DataLayout, 1>();
+  check_dispatch_pruning_for_rank<DataLayout, 2>();
+}
+
 template <int DataLayout>
 static void test_consistency() {
   // this does something like testing (A*B)^T = (B^T * A^T)
@@ -955,6 +993,8 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_4(test_expr<RowMajor>());
   CALL_SUBTEST_4(test_out_of_order_contraction<ColMajor>());
   CALL_SUBTEST_4(test_out_of_order_contraction<RowMajor>());
+  CALL_SUBTEST_4(test_dispatch_pruning<ColMajor>());
+  CALL_SUBTEST_4(test_dispatch_pruning<RowMajor>());
   CALL_SUBTEST_5(test_consistency<ColMajor>());
   CALL_SUBTEST_5(test_consistency<RowMajor>());
   CALL_SUBTEST_5(test_large_contraction<ColMajor>());
