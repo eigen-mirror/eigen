@@ -17,6 +17,7 @@ namespace Eigen {
 
 /**
  * \defgroup NumericalDiff_Module Numerical differentiation module
+ * \brief Finite-difference Jacobians and differentiation weights.
  *
  * \code
  * #include <contrib/Eigen/NumericalDiff>
@@ -28,19 +29,13 @@ namespace Eigen {
  * is a different method and has its own module in Eigen : \ref
  * AutoDiff_Module.
  *
- * NumericalDiff implements the "Forward" and "Central" schemes. Stencil
- * computes finite-difference weights for arbitrary fixed-size grids and
- * derivative orders; the caller supplies the points and chooses the
- * step size. The "Forward" and "Central" schemes are basic methods, and
- * there exist some more elaborated way of computing such approximates.
- * They are implemented using both proprietary and free software, and
- * usually requires linking to an external library. It is very easy for
- * you to write a functor using such software, and the purpose is quite
- * orthogonal to what we want to achieve with Eigen.
- *
- * This is why we will not provide wrappers for every great numerical
- * differentiation software that exist, but should rather stick with those
- * basic ones, that still are useful for testing.
+ * This module provides the following classes:
+ * - \ref NumericalDiff extends a functor with Jacobian computation using
+ *   \c Forward or \c Central finite differences at a fixed step.
+ * - \ref Ridders stores a functor and computes its Jacobian using adaptive
+ *   central differences and Richardson extrapolation, with optional error estimates.
+ * - \ref Stencil computes finite-difference weights for arbitrary fixed-size
+ *   grids and derivative orders, using points and a step size chosen by the caller.
  *
  * Also, the \ref NonLinearOptimization_Module needs this in order to
  * provide full features compatibility with the original (c)minpack
@@ -56,6 +51,7 @@ namespace Eigen {
 // IWYU pragma: begin_exports
 #include "src/NumericalDiff/NumericalDiff.h"
 #include "src/NumericalDiff/Stencil.h"
+#include "src/NumericalDiff/Ridders.h"
 // IWYU pragma: end_exports
 
 #include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
