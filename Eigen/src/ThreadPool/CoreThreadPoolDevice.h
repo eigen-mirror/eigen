@@ -316,8 +316,7 @@ struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVec
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index size = kernel.size();
-    const Index alignedStart =
-        DstIsAligned ? 0 : internal::first_aligned<RequestedAlignment>(kernel.dstDataPtr(), size);
+    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<DstAlignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
     head_loop::run(kernel, 0, alignedStart);

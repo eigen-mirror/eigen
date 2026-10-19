@@ -215,29 +215,44 @@ void product_selfadjoint_boundary() {
   }
 }
 
-// Same test for complex type (tests conjugation logic).
-template <int>
+// Same test for complex types, including buffers aligned only to alignof(RealScalar) < sizeof(Scalar).
+template <typename Scalar>
 void product_selfadjoint_boundary_complex() {
-  typedef std::complex<float> Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RealVec = Matrix<RealScalar, Dynamic, 1>;
 
-  const int sizes[] = {1, 8, 47, 48, 49, 64};
-  for (int si = 0; si < 6; ++si) {
-    int n = sizes[si];
+  const int sizes[] = {1, 2, 3, 4, 8, 9, 16, 47, 48, 49, 64};
+  for (int n : sizes) {
     Mat m1 = Mat::Random(n, n);
     m1 = (m1 + m1.adjoint()).eval();                               // make Hermitian
     m1.diagonal() = m1.diagonal().real().template cast<Scalar>();  // real diagonal
 
     Vec v1 = Vec::Random(n);
     Mat rhs = Mat::Random(n, 3);
+    Vec ref = m1 * v1;
 
-    Mat m2 = m1.triangularView<Lower>();
-    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * v1, m1 * v1);
-    VERIFY_IS_APPROX(m2.selfadjointView<Lower>() * rhs, m1 * rhs);
+    Mat m2 = m1.template triangularView<Lower>();
+    VERIFY_IS_APPROX(m2.template selfadjointView<Lower>() * v1, ref);
+    VERIFY_IS_APPROX(m2.template selfadjointView<Lower>() * rhs, m1 * rhs);
 
-    m2 = m1.triangularView<Upper>();
-    VERIFY_IS_APPROX(m2.selfadjointView<Upper>() * v1, m1 * v1);
+    m2 = m1.template triangularView<Upper>();
+    VERIFY_IS_APPROX(m2.template selfadjointView<Upper>() * v1, ref);
+
+    RealVec unaligned_res_storage(2 * n + 1);
+    RealVec unaligned_rhs_storage(2 * n + 1);
+    Map<Vec, Unaligned> unaligned_res(reinterpret_cast<Scalar*>(unaligned_res_storage.data() + 1), n);
+    Map<Vec, Unaligned> unaligned_rhs(reinterpret_cast<Scalar*>(unaligned_rhs_storage.data() + 1), n);
+    unaligned_rhs = v1;
+
+    unaligned_res.setZero();
+    unaligned_res.noalias() += m1.template selfadjointView<Lower>() * unaligned_rhs;
+    VERIFY_IS_APPROX(unaligned_res, ref);
+
+    unaligned_res.setZero();
+    unaligned_res.noalias() += m1.template selfadjointView<Upper>() * unaligned_rhs;
+    VERIFY_IS_APPROX(unaligned_res, ref);
   }
 }
 
@@ -267,5 +282,6 @@ EIGEN_DECLARE_TEST(product_selfadjoint) {
 
   // Deterministic blocking boundary tests (outside g_repeat).
   CALL_SUBTEST_8(product_selfadjoint_boundary<0>());
-  CALL_SUBTEST_9(product_selfadjoint_boundary_complex<0>());
+  CALL_SUBTEST_9(product_selfadjoint_boundary_complex<std::complex<float>>());
+  CALL_SUBTEST_9(product_selfadjoint_boundary_complex<std::complex<double>>());
 }

@@ -44,7 +44,7 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
 
   PlainObject dst(rows, cols), ref(rows, cols), rhs(rows, cols);
   rhs.setRandom();
-  const auto rhs_xpr = rhs.cwiseAbs2();
+  const auto rhs_xpr = rhs + rhs;
 
   // linear access
   dst.setRandom();
@@ -56,6 +56,15 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
   ref = rhs_xpr.unaryExpr(VectorizationOn());
   dst.device(threadPoolDevice) = rhs_xpr.unaryExpr(VectorizationOn());
   VERIFY_IS_CWISE_EQUAL(ref, dst);
+
+  EIGEN_IF_CONSTEXPR (PlainObject::SizeAtCompileTime == Dynamic) {
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    Matrix<RealScalar, Dynamic, 1> raw_buf(2 * rows * cols + 2);
+    Map<PlainObject, Unaligned> unaligned_dst(reinterpret_cast<Scalar*>(raw_buf.data() + 1), rows, cols);
+    unaligned_dst.setZero();
+    unaligned_dst.device(threadPoolDevice) = rhs_xpr.unaryExpr(VectorizationOn());
+    VERIFY_IS_CWISE_EQUAL(ref, unaligned_dst);
+  }
 
   // outer-inner access
   Index blockRows = numext::maxi(Index(1), rows - 1);
@@ -80,6 +89,7 @@ void test_threaded_assignment(const PlainObject&, Index rows = PlainObject::Rows
 EIGEN_DECLARE_TEST(assignment_threaded) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST(test_threaded_assignment(MatrixXd(), 123, 123));
+    CALL_SUBTEST(test_threaded_assignment(MatrixXcd(), 123, 123));
     CALL_SUBTEST(test_threaded_assignment(Matrix<float, 16, 16>()));
   }
 }
