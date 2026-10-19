@@ -140,7 +140,87 @@ void check_custom_new_delete() {
 #endif
 }
 
+template <int Alignment>
+struct alignas(Alignment) ScratchScalar {
+  static int alive;
+  int value;
+  ScratchScalar() : value(17) {
+    VERIFY(std::uintptr_t(this) % Alignment == 0);
+    ++alive;
+  }
+  ~ScratchScalar() { --alive; }
+};
+template <int Alignment>
+int ScratchScalar<Alignment>::alive = 0;
+
+template <int Alignment>
+void check_typed_scratch() {
+  using T = ScratchScalar<Alignment>;
+  STATIC_CHECK((std::is_same<decltype(internal::scratch_malloc<T>(sizeof(T))), T *>::value));
+  const Index sizes[] = {1, 3, EIGEN_STACK_ALLOCATION_LIMIT / sizeof(T) + 1};
+  for (Index size : sizes) {
+    T *raw = internal::scratch_malloc<T>(sizeof(T) * size);
+    VERIFY(std::uintptr_t(raw) % Alignment == 0);
+    VERIFY_IS_EQUAL(T::alive, 0);
+    std::memset(static_cast<void *>(raw), 0, sizeof(T) * size);
+    internal::scratch_free<T>(raw);
+    {
+      ei_declare_aligned_stack_constructed_variable(T, data, size, nullptr);
+      VERIFY_IS_EQUAL(T::alive, size);
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(data[i].value, 17);
+    }
+    VERIFY_IS_EQUAL(T::alive, 0);
+    T *data = internal::scratch_new<T>(size);
+    VERIFY_IS_EQUAL(T::alive, size);
+    internal::scratch_delete(data, size);
+    VERIFY_IS_EQUAL(T::alive, 0);
+  }
+  internal::scratch_free<T>(nullptr);
+#ifdef EIGEN_EXCEPTIONS
+  EIGEN_IF_CONSTEXPR (alignof(T) > EIGEN_STACK_ALIGN_BYTES &&
+                      (EIGEN_STACK_ALIGN_BYTES != 0 || alignof(T) > alignof(std::max_align_t))) {
+    const std::size_t overhead = alignof(T) - 1 + sizeof(void *);
+    const std::size_t max_size = (std::numeric_limits<std::size_t>::max)();
+    for (std::size_t bytes : {max_size, max_size - overhead + 1}) {
+      bool threw = false;
+      try {
+        T *raw = internal::scratch_malloc<T>(bytes);
+        internal::scratch_free<T>(raw);
+      } catch (const std::bad_alloc &) {
+        threw = true;
+      }
+      VERIFY(threw);
+    }
+  }
+#endif
+  {
+    T supplied[2];
+    {
+      ei_declare_aligned_stack_constructed_variable(T, data, 2, supplied);
+      VERIFY(data == supplied);
+      VERIFY_IS_EQUAL(T::alive, 2);
+    }
+    VERIFY_IS_EQUAL(T::alive, 2);
+  }
+  VERIFY_IS_EQUAL(T::alive, 0);
+#if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
+  {
+    T supplied[3];
+    using Vector = Matrix<T, Dynamic, 1>;
+    using View = Map<Vector, Unaligned>;
+    View input(supplied, 3);
+    internal::local_nested_eval_wrapper<View, 2, true> copy(input, nullptr);
+    VERIFY(std::uintptr_t(copy.object.data()) % Alignment == 0);
+    VERIFY_IS_EQUAL(copy.object(0).value, 17);
+  }
+  VERIFY_IS_EQUAL(T::alive, 0);
+#endif
+}
+
 EIGEN_DECLARE_TEST(dynalloc) {
+  CALL_SUBTEST(check_typed_scratch<16>());
+  CALL_SUBTEST(check_typed_scratch<64>());
+  CALL_SUBTEST(check_typed_scratch<512>());
   // low level dynamic memory allocation
   CALL_SUBTEST(check_handmade_aligned_malloc());
   CALL_SUBTEST(check_aligned_malloc());
