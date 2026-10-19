@@ -537,8 +537,9 @@ EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T* ptr, std::size_
  * \param array the address of the start of the array
  * \param size the size of the array
  *
- * \note If no element of the array is well aligned or the requested alignment is not a multiple of a scalar,
- * the size of the array is returned.
+ * \note Returns 0 if \a Alignment <= alignof(Scalar). If alignof(Scalar) < \a Alignment <= sizeof(Scalar), all
+ * elements share the alignment of the first one, so 0 or \a size is returned. Otherwise \a size is returned if no
+ * element is well aligned or \a Alignment is not a multiple of sizeof(Scalar).
  *
  * \note We rely on the assumption that sizeof(Scalar) is a power of 2. On the other hand, we do not assume that the
  * array address is a multiple of sizeof(Scalar), as that fails for example with Scalar=double on certain 32-bit

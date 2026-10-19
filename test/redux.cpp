@@ -256,7 +256,7 @@ void redux_vec_boundary() {
       Map<const Vec, Unaligned> mapped_for_prod(buf_for_prod.data() + offset, n);
       redux_vec_boundary_check(mapped, mapped_for_prod);
     }
-    EIGEN_IF_CONSTEXPR (!internal::packet_traits<Scalar>::AlignedOnScalar) {
+    {
       using RealScalar = typename NumTraits<Scalar>::Real;
       Matrix<RealScalar, Dynamic, 1> raw_buf(2 * n + 1);
       Matrix<RealScalar, Dynamic, 1> raw_buf_for_prod(2 * n + 1);

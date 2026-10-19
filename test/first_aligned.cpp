@@ -47,7 +47,7 @@ EIGEN_DECLARE_TEST(first_aligned) {
 
   // alignof(std::complex<double>) == 8 while sizeof(std::complex<double>) == 16; an 8-byte-offset buffer
   // cannot reach >= 16-byte alignment at any element stride.
-  EIGEN_ALIGN_MAX std::complex<double> array_cdouble[100];
+  EIGEN_ALIGN16 std::complex<double> array_cdouble[100];
   test_first_aligned_helper(array_cdouble, 50);
   test_first_aligned_helper(array_cdouble + 1, 50);
   std::complex<double> *array_cdouble_plus_8_bytes =

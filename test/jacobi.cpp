@@ -54,8 +54,7 @@ void jacobi(const MatrixType& m = MatrixType()) {
     VERIFY_IS_APPROX(b.col(p), c * a.col(p) - s * a.col(q));
     VERIFY_IS_APPROX(b.col(q), numext::conj(s) * a.col(p) + numext::conj(c) * a.col(q));
 
-    EIGEN_IF_CONSTEXPR (RowsAtCompileTime == Dynamic &&
-                        !internal::packet_traits<typename MatrixType::Scalar>::AlignedOnScalar) {
+    EIGEN_IF_CONSTEXPR (RowsAtCompileTime == Dynamic) {
       using Scalar = typename MatrixType::Scalar;
       using RealScalar = typename NumTraits<Scalar>::Real;
       using Vec = Matrix<Scalar, Dynamic, 1>;
