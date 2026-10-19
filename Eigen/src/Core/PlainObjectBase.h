@@ -934,7 +934,9 @@ namespace internal {
 
 template <typename Derived, typename OtherDerived, bool IsVector>
 struct conservative_resize_like_impl {
-  static constexpr bool IsRelocatable = std::is_trivially_copyable<typename Derived::Scalar>::value;
+  // Fixed-capacity storage only changes its dimensions; its coefficients never relocate.
+  static constexpr bool IsRelocatable =
+      Derived::MaxSizeAtCompileTime != Dynamic || std::is_trivially_copyable<typename Derived::Scalar>::value;
 #ifdef EIGEN_INITIALIZE_COEFFS
   // In-place reallocation leaves appended coefficients uninitialized, so under the initialization macros a resize that
   // appends coefficients without assigning them copies into a new, initialized object instead.

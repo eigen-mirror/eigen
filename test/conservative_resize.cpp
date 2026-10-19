@@ -15,9 +15,9 @@
 
 using namespace Eigen;
 
-template <typename Scalar, int Storage>
+template <typename Scalar, int Storage, int MaxSize = Dynamic>
 void run_matrix_tests() {
-  typedef Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Storage> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Storage, MaxSize, MaxSize>;
 
   MatrixType m, n;
 
@@ -156,6 +156,114 @@ void max_size_checks() {
   VERIFY_IS_EQUAL(v.size(), 4);
 }
 
+struct ResizeScalar {
+  int value = 0;
+  static Index copies;
+  static Index moves;
+
+  ResizeScalar() = default;
+  ResizeScalar(const ResizeScalar& other) : value(other.value) { ++copies; }
+  ResizeScalar(ResizeScalar&& other) noexcept : value(other.value) { ++moves; }
+  ResizeScalar& operator=(const ResizeScalar& other) {
+    value = other.value;
+    ++copies;
+    return *this;
+  }
+  ResizeScalar& operator=(ResizeScalar&& other) noexcept {
+    value = other.value;
+    ++moves;
+    return *this;
+  }
+  static void reset() { copies = moves = 0; }
+};
+
+Index ResizeScalar::copies = 0;
+Index ResizeScalar::moves = 0;
+
+template <typename VectorType>
+void fixed_capacity_vector_resize() {
+  STATIC_CHECK((!std::is_trivially_copyable<ResizeScalar>::value));
+  STATIC_CHECK((internal::conservative_resize_like_impl<VectorType>::IsRelocatable));
+  STATIC_CHECK((!internal::conservative_resize_like_impl<Matrix<ResizeScalar, Dynamic, 1>>::IsRelocatable));
+  VectorType v;
+  const ResizeScalar* data = v.data();
+  ResizeScalar::reset();
+  for (Index size = 1; size <= VectorType::MaxSizeAtCompileTime; ++size) {
+    v.conservativeResize(size);
+    v(size - 1).value = int(size);
+  }
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY(v.data() == data);
+  for (Index i = 0; i < v.size(); ++i) VERIFY_IS_EQUAL(v(i).value, i + 1);
+
+  v.conservativeResize(2);
+  v.conservativeResize(2);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+
+  // A source with the opposite orientation exercises the vector resizeLike specialization.
+  Matrix<ResizeScalar, VectorType::IsRowMajor ? Dynamic : 1, VectorType::IsRowMajor ? 1 : Dynamic> other(5);
+  for (Index i = 0; i < other.size(); ++i) other(i).value = -int(i + 1);
+  v.conservativeResizeLike(other);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 3);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY_IS_EQUAL(v.rows(), VectorType::IsRowMajor ? 1 : 5);
+  VERIFY_IS_EQUAL(v.cols(), VectorType::IsRowMajor ? 5 : 1);
+  for (Index i = 0; i < v.size(); ++i) VERIFY_IS_EQUAL(v(i).value, i < 2 ? i + 1 : -(i + 1));
+
+  ResizeScalar::reset();
+  v.conservativeResizeLike(other.head(1));
+  VERIFY_IS_EQUAL(v.size(), 1);
+  VERIFY_IS_EQUAL(v(0).value, 1);
+  v.conservativeResize(0);
+  VERIFY_IS_EQUAL(v.size(), 0);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY(v.data() == data);
+}
+
+template <typename MatrixType>
+void fixed_capacity_matrix_resize() {
+  STATIC_CHECK((internal::conservative_resize_like_impl<MatrixType>::IsRelocatable));
+  STATIC_CHECK((!internal::conservative_resize_like_impl<Matrix<ResizeScalar, Dynamic, Dynamic>>::IsRelocatable));
+  const Index inner = 3;
+  MatrixType m(MatrixType::IsRowMajor ? 0 : inner, MatrixType::IsRowMajor ? inner : 0);
+  const ResizeScalar* data = m.data();
+  ResizeScalar::reset();
+  for (Index outer = 1; outer <= 5; ++outer) {
+    m.conservativeResize(MatrixType::IsRowMajor ? outer : inner, MatrixType::IsRowMajor ? inner : outer);
+    for (Index i = (outer - 1) * inner; i < m.size(); ++i) m.data()[i].value = int(i + 1);
+  }
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY(m.data() == data);
+  for (Index i = 0; i < m.size(); ++i) VERIFY_IS_EQUAL(m.data()[i].value, i + 1);
+
+  m.conservativeResize(MatrixType::IsRowMajor ? 2 : inner, MatrixType::IsRowMajor ? inner : 2);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  MatrixType other(MatrixType::IsRowMajor ? 4 : inner, MatrixType::IsRowMajor ? inner : 4);
+  for (Index i = 0; i < other.size(); ++i) other.data()[i].value = -int(i + 1);
+  m.conservativeResizeLike(other);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 2 * inner);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY_IS_EQUAL(m.rows(), other.rows());
+  VERIFY_IS_EQUAL(m.cols(), other.cols());
+  for (Index i = 0; i < m.size(); ++i) VERIFY_IS_EQUAL(m.data()[i].value, i < 2 * inner ? i + 1 : -(i + 1));
+
+  ResizeScalar::reset();
+  other.resize(MatrixType::IsRowMajor ? 1 : inner, MatrixType::IsRowMajor ? inner : 1);
+  m.conservativeResizeLike(other);
+  VERIFY_IS_EQUAL(m.size(), inner);
+  for (Index i = 0; i < m.size(); ++i) VERIFY_IS_EQUAL(m.data()[i].value, i + 1);
+  m.conservativeResize(MatrixType::IsRowMajor ? 0 : inner, MatrixType::IsRowMajor ? inner : 0);
+  VERIFY_IS_EQUAL(m.size(), 0);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY(m.data() == data);
+}
+
 EIGEN_DECLARE_TEST(conservative_resize) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1((run_matrix_tests<int, Eigen::RowMajor>()));
@@ -182,5 +290,14 @@ EIGEN_DECLARE_TEST(conservative_resize) {
 #endif
     CALL_SUBTEST_6((run_vector_tests<AnnoyingScalar>()));
     CALL_SUBTEST_6((noncopyable<0>()));
+
+    CALL_SUBTEST_7((fixed_capacity_vector_resize<Array<ResizeScalar, Dynamic, 1, ColMajor, 8, 1>>()));
+    CALL_SUBTEST_7((fixed_capacity_vector_resize<Matrix<ResizeScalar, 1, Dynamic, RowMajor, 1, 8>>()));
+    CALL_SUBTEST_7((fixed_capacity_matrix_resize<Matrix<ResizeScalar, Dynamic, Dynamic, ColMajor, 5, 5>>()));
+    CALL_SUBTEST_7((fixed_capacity_matrix_resize<Array<ResizeScalar, Dynamic, Dynamic, RowMajor, 5, 5>>()));
+    CALL_SUBTEST_7((fixed_capacity_matrix_resize<Matrix<ResizeScalar, 3, Dynamic, ColMajor, 3, 5>>()));
+    CALL_SUBTEST_7((fixed_capacity_matrix_resize<Array<ResizeScalar, Dynamic, 3, RowMajor, 5, 3>>()));
+    CALL_SUBTEST_7((run_matrix_tests<AnnoyingScalar, RowMajor, 75>()));
+    CALL_SUBTEST_7((run_matrix_tests<AnnoyingScalar, ColMajor, 75>()));
   }
 }
