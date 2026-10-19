@@ -32,23 +32,34 @@ static int nb_storeu;
   }
 
 #include "main.h"
+#include <Eigen/Core>
 
-template <typename Scalar>
+template <typename Scalar, int Options = ColMajor>
 void assignment_packet_boundaries() {
-  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using VectorType = Matrix<Scalar, Options == RowMajor ? 1 : Dynamic, Options == RowMajor ? Dynamic : 1, Options>;
+  using MapType = Map<VectorType>;
+  using Traits = internal::copy_using_evaluator_traits<internal::evaluator<MapType>, internal::evaluator<MapType>,
+                                                       internal::assign_op<Scalar, Scalar>>;
+  STATIC_CHECK((!internal::packet_traits<Scalar>::Vectorizable || Traits::Traversal == LinearVectorizedTraversal));
+  STATIC_CHECK(Traits::Unrolling == NoUnrolling);
   constexpr int packetSize = internal::packet_traits<Scalar>::size;
   for (Index offset = 0; offset < packetSize; ++offset) {
-    for (Index size = 0; size <= 2 * packetSize + 1; ++size) {
-      VectorType source(size), storage(size + 2 * packetSize);
-      for (Index i = 0; i < size; ++i) source(i) = Scalar(i + 1);
+    for (Index size = 0; size <= 9 * packetSize + 1; ++size) {
+      VectorType sourceStorage(size + 2 * packetSize), storage(size + 2 * packetSize);
+      MapType source(sourceStorage.data() + (packetSize - offset) % packetSize, size);
+      for (Index i = 0; i < size; ++i) source(i) = Scalar(i % 7 + 1);
       storage.setConstant(Scalar(-1));
-      Map<VectorType> destination(storage.data() + offset, size);
+      MapType destination(storage.data() + offset, size);
       destination = source;
-      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i + 1));
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i % 7 + 1));
       destination += source;
-      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(2 * (i + 1)));
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(2 * (i % 7 + 1)));
       destination -= source;
-      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i + 1));
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(i % 7 + 1));
+      destination.array() = source.array().square();
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar((i % 7 + 1) * (i % 7 + 1)));
+      destination.array() += destination.array();
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(destination(i), Scalar(2 * (i % 7 + 1) * (i % 7 + 1)));
       for (Index i = 0; i < offset; ++i) VERIFY_IS_EQUAL(storage(i), Scalar(-1));
       for (Index i = offset + size; i < storage.size(); ++i) VERIFY_IS_EQUAL(storage(i), Scalar(-1));
     }
@@ -58,6 +69,10 @@ void assignment_packet_boundaries() {
 EIGEN_DECLARE_TEST(unalignedcount) {
   CALL_SUBTEST(assignment_packet_boundaries<float>());
   CALL_SUBTEST(assignment_packet_boundaries<double>());
+  CALL_SUBTEST((assignment_packet_boundaries<float, RowMajor>()));
+  CALL_SUBTEST(assignment_packet_boundaries<int>());
+  CALL_SUBTEST(assignment_packet_boundaries<std::complex<float>>());
+  CALL_SUBTEST(assignment_packet_boundaries<std::complex<double>>());
 #if defined(EIGEN_VECTORIZE_AVX512)
   VectorXf a(48), b(48);
   a.fill(0);

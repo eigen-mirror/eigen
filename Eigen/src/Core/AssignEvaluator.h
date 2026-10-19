@@ -535,8 +535,21 @@ struct dense_assignment_loop_impl<Kernel, LinearVectorizedTraversal, NoUnrolling
 
     head_loop::run(kernel, 0, alignedStart);
 
-    for (Index index = alignedStart; index <= size - PacketSize; index += PacketSize)
-      kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
+#if EIGEN_GNUC_STRICT_AT_LEAST(8, 0, 0) && EIGEN_ARCH_i386_OR_x86_64 && !defined(EIGEN_GPUCC)
+    // GCC leaves cheap unary packet operations rolled. Copies, multi-source expressions and expensive functors
+    // showed no consistent benefit, so use the coefficient cost as a conservative unrolling heuristic.
+    using SrcEvaluator = typename Kernel::SrcEvaluatorType;
+    EIGEN_IF_CONSTEXPR (int(SrcEvaluator::CoeffReadCost) > NumTraits<Scalar>::ReadCost &&
+                        int(SrcEvaluator::CoeffReadCost) <= 2 * NumTraits<Scalar>::ReadCost) {
+#pragma GCC unroll 2
+      for (Index index = alignedStart; index <= size - PacketSize; index += PacketSize)
+        kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
+    } else
+#endif
+    {
+      for (Index index = alignedStart; index <= size - PacketSize; index += PacketSize)
+        kernel.template assignPacket<Alignment, SrcAlignment, PacketType>(index);
+    }
 
     // Derive the tail bound directly; GCC can lose its range when it comes from the packet-loop induction variable.
     const Index alignedEnd = size - (size - alignedStart) % PacketSize;
