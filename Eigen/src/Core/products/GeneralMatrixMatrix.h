@@ -21,6 +21,60 @@ namespace internal {
 template <typename LhsScalar_, typename RhsScalar_>
 class level3_blocking;
 
+// Coalesce two heap packing buffers so glibc's dynamic thresholds learn the whole workspace size (#3201).
+// Leave stack allocations and caller-provided buffers on their existing paths.
+template <typename LhsScalar, typename RhsScalar>
+class gemm_packing_space {
+  LhsScalar* m_blockA;
+  RhsScalar* m_blockB;
+  aligned_stack_memory_handler<unsigned char> m_storage;
+  aligned_stack_memory_handler<LhsScalar> m_lhs_lifetime;
+  aligned_stack_memory_handler<RhsScalar> m_rhs_lifetime;
+
+  static EIGEN_DONT_INLINE unsigned char* allocateCombined(std::size_t sizeA, std::size_t sizeB, LhsScalar*& blockA,
+                                                           RhsScalar*& blockB) {
+    check_size_for_overflow<LhsScalar>(sizeA);
+    check_size_for_overflow<RhsScalar>(sizeB);
+    // Not numext::maxi: under SYCL_DEVICE_ONLY its cl_ulong (std::size_t) specialization is not constexpr.
+    constexpr std::size_t alignment = (std::max)(std::size_t{EIGEN_STACK_ALIGN_BYTES}, alignof(RhsScalar));
+    const std::size_t max_bytes = (std::numeric_limits<std::ptrdiff_t>::max)();
+    const std::size_t bytesA = sizeA * sizeof(LhsScalar);
+    const std::size_t bytesB = sizeB * sizeof(RhsScalar);
+    if (bytesA > max_bytes - (alignment - 1)) throw_std_bad_alloc();
+    const std::size_t offsetB = first_multiple(bytesA, alignment);
+    if (bytesB > max_bytes - offsetB) throw_std_bad_alloc();
+    unsigned char* storage = static_cast<unsigned char*>(scratch_malloc(offsetB + bytesB));
+    blockA = reinterpret_cast<LhsScalar*>(storage);
+    blockB = reinterpret_cast<RhsScalar*>(storage + offsetB);
+    return storage;
+  }
+
+  static unsigned char* allocate(std::size_t sizeA, std::size_t sizeB, LhsScalar*& blockA, RhsScalar*& blockB) {
+    if (blockA != nullptr || blockB != nullptr || sizeA == 0 || sizeB == 0) return nullptr;
+#if defined(EIGEN_ALLOCA) && !defined(EIGEN_NO_ALLOCA)
+    if (sizeA <= EIGEN_STACK_ALLOCATION_LIMIT / sizeof(LhsScalar) ||
+        sizeB <= EIGEN_STACK_ALLOCATION_LIMIT / sizeof(RhsScalar))
+      return nullptr;
+#endif
+    // scratch_malloc guarantees only EIGEN_STACK_ALIGN_BYTES, or malloc's alignment when that is 0.
+    constexpr std::size_t base_alignment =
+        EIGEN_STACK_ALIGN_BYTES > 0 ? EIGEN_STACK_ALIGN_BYTES : alignof(std::max_align_t);
+    if ((std::max)(alignof(LhsScalar), alignof(RhsScalar)) > base_alignment) return nullptr;
+    return allocateCombined(sizeA, sizeB, blockA, blockB);
+  }
+
+ public:
+  gemm_packing_space(std::size_t sizeA, std::size_t sizeB, LhsScalar* blockA, RhsScalar* blockB)
+      : m_blockA(blockA),
+        m_blockB(blockB),
+        m_storage(allocate(sizeA, sizeB, m_blockA, m_blockB), 0, true),
+        m_lhs_lifetime(blockA == nullptr ? m_blockA : nullptr, sizeA, false),
+        m_rhs_lifetime(blockB == nullptr ? m_blockB : nullptr, sizeB, false) {}
+
+  LhsScalar* blockA() const { return m_blockA; }
+  RhsScalar* blockB() const { return m_blockB; }
+};
+
 // LHS-first loop order: mc -> kc -> nc. This is Eigen's usual sequential
 // schedule, with a fast path that can pack RHS once for tall skinny blocking.
 struct gemm_pack_lhs_first_loop_policy {
@@ -339,8 +393,9 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
       std::size_t sizeA = kc * mc;
       std::size_t sizeB = kc * nc;
 
-      ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, blocking.blockA());
-      ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, blocking.blockB());
+      gemm_packing_space<LhsScalar, RhsScalar> packing(sizeA, sizeB, blocking.blockA(), blocking.blockB());
+      ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, packing.blockA());
+      ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, packing.blockB());
 
       // The SME kernel uses RHS-first order so consecutive gebp calls stream
       // through adjacent row panels of a ColMajor result. Other kernels --

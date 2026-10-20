@@ -95,8 +95,9 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
     std::size_t sizeA = kc * mc;
     std::size_t sizeB = kc * size;
 
-    ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, blocking.blockA());
-    ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, blocking.blockB());
+    gemm_packing_space<LhsScalar, RhsScalar> packing(sizeA, sizeB, blocking.blockA(), blocking.blockB());
+    ei_declare_aligned_stack_constructed_variable(LhsScalar, blockA, sizeA, packing.blockA());
+    ei_declare_aligned_stack_constructed_variable(RhsScalar, blockB, sizeB, packing.blockB());
 
     gemm_pack_lhs<LhsScalar, Index, LhsMapper, Traits::mr, Traits::LhsProgress, typename Traits::LhsPacket4Packing,
                   LhsStorageOrder>
