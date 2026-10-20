@@ -279,19 +279,19 @@ static void verify_conjugated_products(int n) {
   const SmeColMajorMat<Scalar> reference = deepA.lazyProduct(deepB);
   C = initial;
   C.noalias() += deepA * deepB;
-  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + reference));
+  VERIFY(verifyProductUpdate(C, initial + reference, Scalar(1), deepA, deepB, initial));
   C = initial;
   C.noalias() += alpha * (deepA * deepB);
-  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + alpha * reference));
+  VERIFY(verifyProductUpdate(C, initial + alpha * reference, alpha, deepA, deepB, initial));
   // A real alpha takes the complex store's fused path: -1 from -=, and a
   // non-unit real scale.
   const Scalar real_alpha(typename NumTraits<Scalar>::Real(1.375));
   C = initial;
   C.noalias() -= deepA * deepB;
-  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial - reference));
+  VERIFY(verifyProductUpdate(C, initial - reference, Scalar(-1), deepA, deepB, initial));
   C = initial;
   C.noalias() += real_alpha * (deepA * deepB);
-  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + real_alpha * reference));
+  VERIFY(verifyProductUpdate(C, initial + real_alpha * reference, real_alpha, deepA, deepB, initial));
 
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   // RowMajor GEMM normally transposes the computation. Call the packed kernel
@@ -309,7 +309,7 @@ static void verify_conjugated_products(int n) {
       internal::sme_gebp_dispatch<Scalar, false, false>::run(
           C.data(), Index(ResMat::IsRowMajor ? n : 1), Index(ResMat::IsRowMajor ? 1 : n), packedA.data(),
           packedB.data(), Index(n), Index(65), Index(n), scale, Index(65), Index(65), Index(0), Index(0));
-      VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), SmeColMajorMat<Scalar>(initial + scale * reference));
+      VERIFY(verifyProductUpdate(C, initial + scale * reference, scale, deepA, deepB, initial));
     }
   }
 #endif
@@ -510,16 +510,16 @@ static void test_tiny_results_order() {
         MC C = MC::Random(m, n);
         const MC C0 = C;
         C.noalias() = A * B;
-        VERIFY_IS_APPROX(C, ref);
+        VERIFY(verifyProduct(C, ref, A, B));
         C = C0;
         C.noalias() += A * B;
-        VERIFY_IS_APPROX(C, C0 + ref);
+        VERIFY(verifyProductUpdate(C, C0 + ref, Scalar(1), A, B, C0));
         C = C0;
         C.noalias() -= Scalar(2) * A * B;
-        VERIFY_IS_APPROX(C, C0 - Scalar(2) * ref);
+        VERIFY(verifyProductUpdate(C, C0 - Scalar(2) * ref, Scalar(-2), A, B, C0));
         const MA At = A.transpose();
         C.noalias() = At.transpose() * B;
-        VERIFY_IS_APPROX(C, ref);
+        VERIFY(verifyProduct(C, ref, A, B));
       }
 }
 
@@ -776,7 +776,7 @@ static void verify_neon_small_block(Index rows, Index cols, Index depth, const S
   const SmeColMajorMat<Scalar> Ac = ConjLhs ? A.conjugate().eval() : A;
   const SmeColMajorMat<Scalar> Bc = ConjRhs ? B.conjugate().eval() : B;
   const SmeColMajorMat<Scalar> ref = c_before + alpha * Ac.lazyProduct(Bc);
-  VERIFY_IS_APPROX(SmeColMajorMat<Scalar>(C), ref);
+  VERIFY(verifyProductUpdate(C, ref, alpha, Ac, Bc, c_before));
 
   // Cells the strided map skips stay untouched.
   if (strided_c) {

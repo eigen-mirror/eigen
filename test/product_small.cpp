@@ -446,6 +446,27 @@ void product_verify_rejects_nonfinite() {
   VERIFY(!verifyProduct(nan, zero, abs_a, abs_b, 4));
 }
 
+// verifyProductUpdate() bounds C0 + alpha*A*B by 5*sqrt(k+2)*eps*2*|| |alpha|*|A|*|B| + |C0| ||_F, here
+// 20*eps*(2e-6*|alpha| + 1): an error of a few eps*|C0| passes although the bound on A*B alone rejects it.
+template <typename Scalar>
+void product_verify_update(const Scalar &large_alpha) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Real = typename NumTraits<Scalar>::Real;
+  const Real eps = NumTraits<Scalar>::epsilon();
+  const Mat A = Mat::Constant(1, 2, Scalar(1e-3f)), B = Mat::Constant(2, 1, Scalar(1e-3f)), C0 = Mat::Ones(1, 1);
+  for (const Scalar alpha : {Scalar(-2), large_alpha}) {
+    const Mat expected = C0 + alpha * A * B;
+    const Mat off4 = expected.array() + Scalar(4 * eps), off40 = expected.array() + Scalar(40 * eps);
+    VERIFY(verifyProductUpdate(off4, expected, alpha, A, B, C0));
+    VERIFY(!verifyProduct(off4, expected, A, B));
+    VERIFY(verifyProductUpdate(off40, expected, alpha, A, B, C0) == (numext::abs(alpha) > Real(2)));
+    VERIFY(!verifyProductUpdate(Mat::Constant(1, 1, Scalar(std::numeric_limits<Real>::infinity())), expected, alpha, A,
+                                B, C0));
+    VERIFY(!verifyProductUpdate(Mat::Constant(1, 1, Scalar(std::numeric_limits<Real>::quiet_NaN())), expected, alpha, A,
+                                B, C0));
+  }
+}
+
 EIGEN_DECLARE_TEST(product_small) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(product(Matrix<float, 3, 2>()));
@@ -492,6 +513,8 @@ EIGEN_DECLARE_TEST(product_small) {
   CALL_SUBTEST_6(product_small_regressions<0>());
   CALL_SUBTEST_6(product_transposed_triple_bound<0>());
   CALL_SUBTEST_6(product_verify_rejects_nonfinite<0>());
+  CALL_SUBTEST_6(product_verify_update(1e6f));
+  CALL_SUBTEST_6(product_verify_update(std::complex<float>(0.0f, 1e6f)));
 
   // Deterministic sweep at transition boundaries (outside g_repeat).
   CALL_SUBTEST_54(product_transition_sizes<float>());
