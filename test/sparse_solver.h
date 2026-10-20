@@ -316,6 +316,7 @@ template <typename Solver, typename DenseMat>
 void check_sparse_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
   typedef typename Solver::MatrixType Mat;
   typedef typename Mat::Scalar Scalar;
+  typedef typename NumTraits<Scalar>::Real RealScalar;
 
   solver.compute(A);
   if (solver.info() != Success) {
@@ -323,8 +324,17 @@ void check_sparse_determinant(Solver& solver, const typename Solver::MatrixType&
     return;
   }
 
-  Scalar refDet = dA.determinant();
-  VERIFY_IS_APPROX(refDet, solver.determinant());
+  // d det(A) = det(A) tr(A^{-1} dA). With the LU backward error |dA| <= gamma_n |L||U| (Higham, ASNA, Thm. 9.3) and
+  // |L||U| ~ |A|, each determinant is off by about n eps cond |det(A)|, cond = sum_ij |A^{-1}_ji| |A_ij| >= n, which
+  // is unbounded for the matrices check_sparse_square_determinant draws. The factor 8 is empirical: partial pivoting
+  // stays below 0.5. The test_precision floor admits the growth of threshold pivoting, which |L||U| ~ |A| ignores;
+  // UMFPACK's symmetric strategy takes diagonal pivots down to 1e-3 of the column maximum.
+  const RealScalar cond = dA.inverse().transpose().cwiseAbs().cwiseProduct(dA.cwiseAbs()).sum();
+  const RealScalar tolerance =
+      numext::maxi(test_precision<Scalar>(), RealScalar(8 * dA.rows()) * NumTraits<RealScalar>::epsilon() * cond);
+  VERIFY((numext::isfinite)(tolerance));
+  const Scalar refDet = dA.determinant();
+  VERIFY(numext::abs(solver.determinant() - refDet) <= tolerance * numext::abs(refDet));
 }
 template <typename Solver, typename DenseMat>
 void check_sparse_abs_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
