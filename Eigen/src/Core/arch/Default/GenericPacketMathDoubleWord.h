@@ -115,7 +115,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
   veltkamp_splitting(y, y_hi, y_lo);
 
   p_hi = pmul(x, y);
-  p_lo = pmadd(x_hi, y_hi, pnegate(p_hi));
+  p_lo = pmsub(x_hi, y_hi, p_hi);
   p_lo = pmadd(x_hi, y_lo, p_lo);
   p_lo = pmadd(x_lo, y_hi, p_lo);
   p_lo = pmadd(x_lo, y_lo, p_lo);
@@ -129,7 +129,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const 
   veltkamp_splitting(x, x_hi, x_lo);
   veltkamp_splitting(y, y_hi, y_lo);
 
-  Packet p_lo = pmadd(x_hi, y_hi, pnegate(xy));
+  Packet p_lo = pmsub(x_hi, y_hi, xy);
   p_lo = pmadd(x_hi, y_lo, p_lo);
   p_lo = pmadd(x_lo, y_hi, p_lo);
   p_lo = pmadd(x_lo, y_lo, p_lo);
