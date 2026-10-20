@@ -296,27 +296,31 @@ template <typename Kernel>
 struct dense_assignment_loop_with_device<Kernel, CoreThreadPoolDevice, LinearVectorizedTraversal, NoUnrolling> {
   using Scalar = typename Kernel::Scalar;
   using PacketType = typename Kernel::PacketType;
-  static constexpr Index XprEvaluationCost = cost_helper<Kernel>::Cost,
-                         RequestedAlignment = Kernel::AssignmentTraits::LinearRequiredAlignment,
-                         PacketSize = unpacket_traits<PacketType>::size,
-                         DstIsAligned = Kernel::AssignmentTraits::DstAlignment >= RequestedAlignment,
-                         DstAlignment = packet_traits<Scalar>::AlignedOnScalar ? RequestedAlignment
-                                                                               : Kernel::AssignmentTraits::DstAlignment,
-                         SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+  static constexpr int PacketSize = unpacket_traits<PacketType>::size;
+  static constexpr int SrcAlignment = Kernel::AssignmentTraits::JointAlignment;
+  static constexpr int DstAlignment = plain_enum_max(Kernel::AssignmentTraits::DstAlignment, alignof(Scalar));
+  static constexpr int RequestedAlignment = unpacket_traits<PacketType>::alignment;
+  static constexpr bool Alignable = (DstAlignment >= RequestedAlignment) ||
+                                    (static_cast<std::size_t>(RequestedAlignment - DstAlignment) % sizeof(Scalar) == 0);
+  static constexpr int Alignment = Alignable ? RequestedAlignment : DstAlignment;
+  static constexpr bool DstIsAligned = DstAlignment >= Alignment;
+  static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
+  static constexpr Index XprEvaluationCost = cost_helper<Kernel>::Cost;
+
   struct AssignmentFunctor : public Kernel {
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE AssignmentFunctor(Kernel& kernel) : Kernel(kernel) {}
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void operator()(Index index) {
-      this->template assignPacket<DstAlignment, SrcAlignment, PacketType>(index);
+      this->template assignPacket<Alignment, SrcAlignment, PacketType>(index);
     }
   };
-  static constexpr bool UsePacketSegment = Kernel::AssignmentTraits::UsePacketSegment;
+
   using head_loop =
       unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, DstIsAligned>;
-  using tail_loop = unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, UsePacketSegment, false>;
+  using tail_loop = unaligned_dense_assignment_loop<PacketType, Alignment, SrcAlignment, UsePacketSegment, false>;
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Kernel& kernel, CoreThreadPoolDevice& device) {
     const Index size = kernel.size();
-    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<DstAlignment>(kernel.dstDataPtr(), size);
+    const Index alignedStart = DstIsAligned ? 0 : internal::first_aligned<Alignment>(kernel.dstDataPtr(), size);
     const Index alignedEnd = alignedStart + numext::round_down(size - alignedStart, PacketSize);
 
     head_loop::run(kernel, 0, alignedStart);
