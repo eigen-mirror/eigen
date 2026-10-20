@@ -226,25 +226,25 @@ class PermutationBase : public EigenBase<Derived> {
    *
    * \note \blank \note_try_to_help_rvo
    */
-  inline InverseReturnType inverse() const { return InverseReturnType(derived()); }
+  EIGEN_DEVICE_FUNC inline InverseReturnType inverse() const { return InverseReturnType(derived()); }
   /** \returns the transpose permutation matrix.
    *
    * \note \blank \note_try_to_help_rvo
    */
-  inline InverseReturnType transpose() const { return InverseReturnType(derived()); }
+  EIGEN_DEVICE_FUNC inline InverseReturnType transpose() const { return InverseReturnType(derived()); }
   /** \returns the adjoint of the permutation matrix. Its entries are real and it is orthogonal, so this equals
    * transpose() and inverse().
    *
    * \note \blank \note_try_to_help_rvo
    */
-  InverseReturnType adjoint() const { return InverseReturnType(derived()); }
+  EIGEN_DEVICE_FUNC InverseReturnType adjoint() const { return InverseReturnType(derived()); }
 
   /**** multiplication helpers to hopefully get RVO ****/
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
  protected:
   template <typename OtherDerived>
-  void assignTranspose(const PermutationBase<OtherDerived>& other) {
+  EIGEN_DEVICE_FUNC void assignTranspose(const PermutationBase<OtherDerived>& other) {
     for (Index i = 0; i < rows(); ++i) indices().coeffRef(Index(other.indices().coeff(i))) = StorageIndex(i);
   }
   template <typename Lhs, typename Rhs>
@@ -405,7 +405,7 @@ class PermutationMatrix
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
   template <typename Other>
-  PermutationMatrix(const InverseImpl<Other, PermutationStorage>& other)
+  EIGEN_DEVICE_FUNC PermutationMatrix(const InverseImpl<Other, PermutationStorage>& other)
       : m_indices(other.derived().nestedExpression().size()) {
     internal::convert_index<StorageIndex>(m_indices.size());  // asserts that size fits StorageIndex
     Base::assignTranspose(other.derived().nestedExpression());

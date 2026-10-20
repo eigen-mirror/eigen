@@ -9,3 +9,5 @@ eigen_add_benchmark(bench_llt_inverse bench_llt_inverse.cpp DEFINITIONS SCALAR=d
 eigen_add_benchmark(bench_llt_inverse_cplx bench_llt_inverse.cpp DEFINITIONS "SCALAR=std::complex<double>")
 eigen_add_benchmark(bench_llt_inverse_float bench_llt_inverse.cpp DEFINITIONS SCALAR=float)
 eigen_add_benchmark(bench_llt_inverse_cplxf bench_llt_inverse.cpp DEFINITIONS "SCALAR=std::complex<float>")
+
+eigen_add_benchmark(bench_cholesky_reconstruction bench_cholesky_reconstruction.cpp)

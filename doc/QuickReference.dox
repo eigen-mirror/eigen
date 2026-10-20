@@ -732,6 +732,15 @@ m3  = s1 * m1.conjugate().selfadjointView<Eigen::Upper>() * m3;
 m3 -= s1 * m3.adjoint() * m1.selfadjointView<Eigen::Lower>();\endcode
 </td></tr>
 <tr><td>
+Symmetric permutation in place: \n
+\f$ S := P S P^T \f$ (only the selected triangle is accessed)
+</td><td>\code
+M.selfadjointView<Eigen::Lower>().applyPermutation(P);
+M.selfadjointView<Eigen::Upper>().applyPermutation(P.inverse());
+// P can also be a Transpositions sequence.
+M.selfadjointView<Eigen::Lower>().applyTransposition(i,j);\endcode
+</td></tr>
+<tr><td>
 Rank 1 and rank K update: \n
 \f$ upper(M_1) \mathrel{{+}{=}} s_1 M_2 M_2^* \f$ \n
 \f$ lower(M_1) \mathbin{{-}{=}} M_2^* M_2 \f$

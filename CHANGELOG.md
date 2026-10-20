@@ -9,6 +9,7 @@ New features:
 - Support building Eigen's in-tree BLAS library with 64-bit (`ILP64`) integers (`eigen_blas_ilp64` and `eigen_blas_ilp64_static`, controlled by `EIGEN_BUILD_BLAS_ILP64`)
 - `PreconditionSquareMatrix` option, which applies JacobiSVD's QR preconditioners to square matrices. BDCSVD forwards this option to JacobiSVD for matrices smaller than the switch size [!3212]
 - `DenseBase::replicate` and `VectorwiseOp::replicate` accept `Eigen::fix<N>` factors [!3262, !3282]
+- `SelfAdjointView::applyPermutation()` and `SelfAdjointView::applyTransposition()`, which replace the viewed matrix `S` by `P S P^T` in place, reading and writing only the stored triangle [#3174, !3395]
 
 Bug fixes:
 - Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]

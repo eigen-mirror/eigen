@@ -34,6 +34,23 @@
 //   }
 // };
 
+template <typename MatrixType, int UpLo>
+struct selfadjoint_permutation {
+  EIGEN_DEVICE_FUNC void operator()(int i, const typename MatrixType::Scalar* in,
+                                    typename MatrixType::Scalar* out) const {
+    using namespace Eigen;
+    MatrixType matrix = Map<const MatrixType>(in + i);
+    PermutationMatrix<4> permutation;
+    permutation.indices() << 1, 3, 0, 2;
+    matrix.template selfadjointView<UpLo>().applyPermutation(permutation);
+    Map<MatrixType>(out + 48 * i) = matrix;
+    matrix.template selfadjointView<UpLo>().applyPermutation(permutation.inverse());
+    Map<MatrixType>(out + 48 * i + 16) = matrix;
+    matrix.template selfadjointView<UpLo>().applyTransposition(3, 0);
+    Map<MatrixType>(out + 48 * i + 32) = matrix;
+  }
+};
+
 template <typename Scalar>
 struct scaled_permutation_product {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
@@ -1044,6 +1061,13 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Upper>(), nthreads, in, out));
+
+  CALL_SUBTEST((run_and_compare_to_gpu(selfadjoint_permutation<Matrix4f, Lower>(), nthreads, in, out)));
+  CALL_SUBTEST(
+      (run_and_compare_to_gpu(selfadjoint_permutation<Matrix<float, 4, 4, RowMajor>, Upper>(), nthreads, in, out)));
+  CALL_SUBTEST((run_and_compare_to_gpu(selfadjoint_permutation<Matrix4cf, Upper>(), nthreads, cfin, cfout)));
+  CALL_SUBTEST((run_and_compare_to_gpu(selfadjoint_permutation<Matrix<std::complex<float>, 4, 4, RowMajor>, Lower>(),
+                                       nthreads, cfin, cfout)));
 
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_l1_norm<Matrix4f, Upper>(), nthreads, in, out));

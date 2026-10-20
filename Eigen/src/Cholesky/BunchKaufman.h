@@ -414,31 +414,6 @@ struct bunch_kaufman;
 
 template <>
 struct bunch_kaufman<Lower> {
-  // Interchange rows and columns kk and kp (kp >= kk) in the lower triangle of the Hermitian matrix
-  // `mat`, including the already-computed factor columns to the left of column `kfirst` (so that the
-  // stored unit triangular factor stays consistent with a single up-front permutation P). `kfirst` is
-  // the first column of the pivot block (== kk for a 1x1 pivot, == kk-1 for a 2x2 pivot).
-  template <typename MatrixType>
-  static void apply_symmetric_pivot(MatrixType& mat, Index kfirst, Index kk, Index kp, Index kstep) {
-    using Scalar = typename MatrixType::Scalar;
-    const Index n = mat.rows();
-    const Index s = n - kp - 1;
-    if (s > 0) mat.col(kk).tail(s).swap(mat.col(kp).tail(s));
-    for (Index i = kk + 1; i < kp; ++i) {
-      Scalar tmp = mat.coeff(i, kk);
-      mat.coeffRef(i, kk) = numext::conj(mat.coeff(kp, i));
-      mat.coeffRef(kp, i) = numext::conj(tmp);
-    }
-    numext::swap(mat.coeffRef(kk, kk), mat.coeffRef(kp, kp));
-    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
-      mat.coeffRef(kp, kk) = numext::conj(mat.coeff(kp, kk));
-    }
-    if (kfirst > 0) mat.row(kk).head(kfirst).swap(mat.row(kp).head(kfirst));
-    if (kstep == 2) {
-      numext::swap(mat.coeffRef(kfirst + 1, kfirst), mat.coeffRef(kp, kfirst));
-    }
-  }
-
   // Unblocked (level-2 BLAS) Bunch-Kaufman factorization of the lower triangle of `mat`, in place.
   // Columns [k0, n) are factorized. On output:
   //   - the strictly-lower triangle holds the unit lower factor L (with explicit zeros at the
@@ -501,7 +476,7 @@ struct bunch_kaufman<Lower> {
       }
 
       const Index kk = k + kstep - 1;  // column of the pivot block to interchange with kp
-      if (kp != kk) apply_symmetric_pivot(mat, k, kk, kp, kstep);
+      if (kp != kk) selfadjoint_swap_lower(mat, kk, kp);
 
       if (kstep == 1) {
         transpositions.coeffRef(k) = StorageIndex(kp);
@@ -674,7 +649,7 @@ struct bunch_kaufman<Lower> {
 
       const Index kk = jc + kstep - 1;
       if (kp != kk) {
-        apply_symmetric_pivot(mat, jc, kk, kp, kstep);
+        selfadjoint_swap_lower(mat, kk, kp);
         const Index nwc = j + kstep;  // number of populated W columns
         W.row(kk).head(nwc).swap(W.row(kp).head(nwc));
       }
@@ -1086,15 +1061,13 @@ typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>
 template <typename MatrixType, int UpLo_>
 MatrixType BunchKaufman<MatrixType, UpLo_>::reconstructedMatrix() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  const Index size = m_matrix.rows();
-  MatrixType res(size, size);
-
-  res.setIdentity();
-  res = transpositionsP() * res;              // P
-  res = matrixU() * res;                      // U P = L^* P
-  applyD(res);                                // D L^* P
-  res = matrixL() * res;                      // L D L^* P
-  res = transpositionsP().transpose() * res;  // P^T L D L^* P
+  MatrixType res = matrixU();
+  applyD(res);
+  res = matrixL() * res;
+  // P^T (L D L^*) P; the stored pivots cannot alias the new result.
+  auto lower_triangle = res.template selfadjointView<Lower>();
+  for (Index k = m_matrix.rows() - 1; k >= 0; --k) lower_triangle.applyTransposition(k, m_transpositions.coeff(k));
+  res.template triangularView<StrictlyUpper>() = res.adjoint();
 
   return res;
 }

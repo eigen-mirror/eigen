@@ -383,19 +383,7 @@ struct ldlt_inplace<Lower> {
 
       transpositions.coeffRef(k) = IndexType(index_of_biggest_in_corner);
       if (k != index_of_biggest_in_corner) {
-        // apply the transposition while taking care to consider only
-        // the lower triangular part
-        Index s = size - index_of_biggest_in_corner - 1;  // trailing size after the biggest element
-        mat.row(k).head(k).swap(mat.row(index_of_biggest_in_corner).head(k));
-        mat.col(k).tail(s).swap(mat.col(index_of_biggest_in_corner).tail(s));
-        std::swap(mat.coeffRef(k, k), mat.coeffRef(index_of_biggest_in_corner, index_of_biggest_in_corner));
-        for (Index i = k + 1; i < index_of_biggest_in_corner; ++i) {
-          Scalar tmp = mat.coeffRef(i, k);
-          mat.coeffRef(i, k) = numext::conj(mat.coeffRef(index_of_biggest_in_corner, i));
-          mat.coeffRef(index_of_biggest_in_corner, i) = numext::conj(tmp);
-        }
-        EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex)
-          mat.coeffRef(index_of_biggest_in_corner, k) = numext::conj(mat.coeff(index_of_biggest_in_corner, k));
+        selfadjoint_swap_lower(mat, k, index_of_biggest_in_corner);
       }
 
       // partition the matrix:
@@ -725,20 +713,13 @@ bool LDLT<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) const {
 template <typename MatrixType, int UpLo_>
 MatrixType LDLT<MatrixType, UpLo_>::reconstructedMatrix() const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
-  const Index size = m_matrix.rows();
-  MatrixType res(size, size);
-
-  // P
-  res.setIdentity();
-  res = transpositionsP() * res;
-  // L^* P
-  res = matrixU() * res;
-  // D(L^*P)
+  MatrixType res = matrixU();
   res = vectorD().real().asDiagonal() * res;
-  // L(DL^*P)
   res = matrixL() * res;
-  // P^T (LDL^*P)
-  res = transpositionsP().transpose() * res;
+  // P^T (L D L^*) P; the stored pivots cannot alias the new result.
+  auto lower_triangle = res.template selfadjointView<Lower>();
+  for (Index k = m_matrix.rows() - 1; k >= 0; --k) lower_triangle.applyTransposition(k, m_transpositions.coeff(k));
+  res.template triangularView<StrictlyUpper>() = res.adjoint();
 
   return res;
 }
