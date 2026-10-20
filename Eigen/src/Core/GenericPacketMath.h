@@ -321,6 +321,18 @@ struct pcast_generic<SrcPacket, TgtPacket, false, true> {
   }
 };
 
+// Make x opaque to the compiler without changing its value, where supported.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pbarrier(Packet& x) {
+  EIGEN_UNUSED_VARIABLE(x);
+  EIGEN_OPTIMIZATION_BARRIER(x)
+}
+// The wrapper is a class, which EIGEN_OPTIMIZATION_BARRIER passes through memory; its vector can stay in a register.
+template <typename T, int unique_id>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void pbarrier(eigen_packet_wrapper<T, unique_id>& x) {
+  pbarrier(x.m_val);
+}
+
 /** \internal \returns a + b (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet padd(const Packet& a, const Packet& b) {

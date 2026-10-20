@@ -19,21 +19,6 @@
 
 namespace Eigen {
 
-namespace internal {
-
-// Keeps -ffast-math from folding the rounded evaluation points back into x and h, e.g. (x + h) - x
-// into h. EIGEN_OPTIMIZATION_BARRIER is an asm operand constraint restricted to plain types (see
-// Macros.h), so class-type scalars go unguarded.
-template <typename Scalar, std::enable_if_t<std::is_floating_point<Scalar>::value, int> = 0>
-EIGEN_STRONG_INLINE void numerical_diff_barrier(Scalar& x) {
-  EIGEN_UNUSED_VARIABLE(x);
-  EIGEN_OPTIMIZATION_BARRIER(x)
-}
-template <typename Scalar, std::enable_if_t<!std::is_floating_point<Scalar>::value, int> = 0>
-EIGEN_STRONG_INLINE void numerical_diff_barrier(Scalar&) {}
-
-}  // namespace internal
-
 enum NumericalDiffMode { Forward, Central };
 
 /**
@@ -149,7 +134,8 @@ class NumericalDiff : public Functor_ {
       // of x[j] + h perturbs h by up to ulp(x[j]) <= epsilon |x[j]| <= (epsilon/rel_tol) * h <= h, comparable
       // to the error of the difference quotient itself.
       Scalar x_plus = _x[j] + h;
-      internal::numerical_diff_barrier(x_plus);
+      // Keeps -ffast-math from folding (x[j] + h) - x[j] back into h.
+      internal::pbarrier(x_plus);
       h = x_plus - _x[j];
       switch (mode) {
         case Forward:
@@ -166,7 +152,7 @@ class NumericalDiff : public Functor_ {
           // x[j] - h can round (a tie when x[j] < 0 has |x[j]| within h above a power of two), so
           // divide by the separation of the two evaluation points rather than by 2*h.
           Scalar x_minus = _x[j] - h;
-          internal::numerical_diff_barrier(x_minus);
+          internal::pbarrier(x_minus);
           x[j] = x_minus;
           Functor::operator()(x, val1);
           nfev++;

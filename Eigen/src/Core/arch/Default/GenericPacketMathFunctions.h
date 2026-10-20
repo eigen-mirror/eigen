@@ -654,7 +654,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_exp2(const Pa
   if (!predux_any(pcmp_lt(pset1<Packet>(Scalar(max_exponent - 2)), pabs(n)))) return pldexp_fast(y, n);
   const Packet h = print(pmul(n, pset1<Packet>(Scalar(0.5))));
   Packet out = pldexp_fast(y, h);
-  EIGEN_OPTIMIZATION_BARRIER(out)
+  pbarrier(out);
   return pldexp_fast(out, psub(n, h));
 }
 
@@ -828,7 +828,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet generic_rint(const Packet& a) {
   Packet sign_a = pandnot(a, abs_a);
   Packet rint_a = padd(abs_a, cst_limit);
   // Don't compile-away addition and subtraction.
-  EIGEN_OPTIMIZATION_BARRIER(rint_a);
+  pbarrier(rint_a);
   rint_a = psub(rint_a, cst_limit);
   rint_a = por(rint_a, sign_a);
   // If greater than limit (or NaN), simply return a.

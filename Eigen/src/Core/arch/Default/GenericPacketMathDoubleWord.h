@@ -25,6 +25,22 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void absolute_split(const Packet& x, Packe
   r = psub(x, n);
 }
 
+// Knuth two-sum: x + y = s_hi + s_lo exactly, with no magnitude ordering required.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twosum(const Packet& x, const Packet& y, Packet& s_hi, Packet& s_lo) {
+  s_hi = padd(x, y);
+  pbarrier(s_hi);
+  Packet y_part = psub(s_hi, x);
+  pbarrier(y_part);
+  Packet x_part = psub(s_hi, y_part);
+  pbarrier(x_part);
+  Packet x_err = psub(x, x_part);
+  pbarrier(x_err);
+  Packet y_err = psub(y, y_part);
+  pbarrier(y_err);
+  s_lo = padd(x_err, y_err);
+}
+
 // This function computes the sum {s_hi, s_lo}, such that x + y = s_hi + s_lo
 // holds exactly, and s_hi = fl(x+y), if |x| >= |y|.
 template <typename Packet>
@@ -44,14 +60,14 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const 
 template <typename Scalar, std::enable_if_t<is_scalar<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
   // Error-free products require FMA even when EIGEN_SCALAR_MADD_USE_FMA disables fusion in scalar madd.
-  return numext::fma(x, y, Scalar(-xy));
+  return twoprod_low_fma(x, y, xy);
 }
 
 // This function implements the extended precision product of
 // a pair of floating point numbers. Given {x, y}, it computes the pair
 // {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
-// p_hi = fl(x * y).
-template <typename Packet>
+// p_hi = fl(x * y). PreventReassociation preserves the separately rounded non-FMA operations.
+template <typename Packet, bool PreventReassociation = false>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
   p_hi = pmul(x, y);
   p_lo = twoprod_low(x, y, p_hi);
@@ -79,10 +95,10 @@ struct has_fast_fma<long double> : std::true_type {};
 
 template <typename Scalar, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
-  return numext::fma(x, y, Scalar(-xy));
+  return twoprod_low_fma(x, y, xy);
 }
 
-template <typename Scalar, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
+template <typename Scalar, bool PreventReassociation = false, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Scalar& x, const Scalar& y, Scalar& p_hi, Scalar& p_lo) {
   p_hi = x * y;
   p_lo = twoprod_low(x, y, p_hi);
@@ -93,47 +109,48 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Scalar& x, const Scalar
 // exactly and that half of the significand of x fits in x_hi.
 // This is Algorithm 3 from Jean-Michel Muller, "Elementary Functions",
 // 3rd edition, Birkh\"auser, 2016.
-template <typename Packet>
+template <typename Packet, bool PreventReassociation = false>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void veltkamp_splitting(const Packet& x, Packet& x_hi, Packet& x_lo) {
   using Scalar = typename unpacket_traits<Packet>::type;
   constexpr int shift = (NumTraits<Scalar>::digits() + 1) / 2;
   const Scalar shift_scale = Scalar(uint64_t(1) << shift);  // Scalar constructor not necessarily constexpr.
-  const Packet gamma = pmul(pset1<Packet>(shift_scale + Scalar(1)), x);
+  Packet gamma = pmul(pset1<Packet>(shift_scale + Scalar(1)), x);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(gamma);
   Packet rho = psub(x, gamma);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(rho);
   x_hi = padd(rho, gamma);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(x_hi);
   x_lo = psub(x, x_hi);
 }
 
-// This function implements Dekker's algorithm for products x * y.
-// Given floating point numbers {x, y} computes the pair
-// {p_hi, p_lo} such that x * y = p_hi + p_lo holds exactly and
-// p_hi = fl(x * y).
-template <typename Packet, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
-  Packet x_hi, x_lo, y_hi, y_lo;
-  veltkamp_splitting(x, x_hi, x_lo);
-  veltkamp_splitting(y, y_hi, y_lo);
-
-  p_hi = pmul(x, y);
-  p_lo = pmsub(x_hi, y_hi, p_hi);
-  p_lo = pmadd(x_hi, y_lo, p_lo);
-  p_lo = pmadd(x_lo, y_hi, p_lo);
-  p_lo = pmadd(x_lo, y_lo, p_lo);
-}
-
 // A version of twoprod that takes x, y, and fl(x*y) as input and returns the p_lo such that
-// x * y = xy + p_lo holds exactly.
-template <typename Packet, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
+// x * y = xy + p_lo holds exactly. PreventReassociation preserves the separately rounded operations.
+template <typename Packet, bool PreventReassociation = false, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet twoprod_low(const Packet& x, const Packet& y, const Packet& xy) {
   Packet x_hi, x_lo, y_hi, y_lo;
-  veltkamp_splitting(x, x_hi, x_lo);
-  veltkamp_splitting(y, y_hi, y_lo);
+  veltkamp_splitting<Packet, PreventReassociation>(x, x_hi, x_lo);
+  veltkamp_splitting<Packet, PreventReassociation>(y, y_hi, y_lo);
 
   Packet p_lo = pmsub(x_hi, y_hi, xy);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(p_lo);
   p_lo = pmadd(x_hi, y_lo, p_lo);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(p_lo);
   p_lo = pmadd(x_lo, y_hi, p_lo);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(p_lo);
   p_lo = pmadd(x_lo, y_lo, p_lo);
   return p_lo;
+}
+
+// This function implements Dekker's algorithm for products x * y.
+// Given floating point numbers {x, y}, it computes {p_hi, p_lo} such that
+// x * y = p_hi + p_lo exactly and p_hi = fl(x * y).
+template <typename Packet, bool PreventReassociation = false, std::enable_if_t<!has_fast_fma<Packet>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet& y, Packet& p_hi, Packet& p_lo) {
+  Packet hi = pmul(x, y);
+  EIGEN_IF_CONSTEXPR (PreventReassociation) pbarrier(hi);
+  const Packet lo = twoprod_low<Packet, PreventReassociation>(x, y, hi);
+  p_hi = hi;
+  p_lo = lo;
 }
 
 #endif  // EIGEN_VECTORIZE_FMA

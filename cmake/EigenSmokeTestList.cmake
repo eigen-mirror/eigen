@@ -152,6 +152,7 @@ set(ei_smoke_test_list
   triangular_1
   tridiagonal_eigensolver_1
   tridiagonal_eigensolver_3
+  trig_reduction_fastmath
   type_alias
   lu_9
   umeyama_3

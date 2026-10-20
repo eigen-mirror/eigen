@@ -93,9 +93,9 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pfrexp_generic(const Packet& a, Pac
 template <typename Packet>
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Packet pldexp_apply_factors(const Packet& a, const Packet& c1, const Packet& c2) {
   Packet out = pmul(a, c1);
-  EIGEN_OPTIMIZATION_BARRIER(out)
+  pbarrier(out);
   out = pmul(out, c1);
-  EIGEN_OPTIMIZATION_BARRIER(out)
+  pbarrier(out);
   return pmul(out, c2);
 }
 

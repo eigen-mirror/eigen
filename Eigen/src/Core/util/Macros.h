@@ -1125,6 +1125,7 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 //   x: (SSE) Any SSE register.
 //      (AArch64) Like w, but restricted to registers 0 to 15 inclusive.
 //   v: (PowerPC) An Altivec vector register.
+//      (x86) Any EVEX-encodable SSE register, including registers 16-31.
 //   wa:(PowerPC) A VSX register.
 //
 // "X" (uppercase) should work for all cases, though this seems to fail for
@@ -1143,9 +1144,48 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 //           gcc for ppc64le,
 // both vectors and scalars.
 //
-// Note that this is restricted to plain types - this will not work
-// directly for std::complex<T>, Eigen::half, Eigen::bfloat16. For these,
-// you will need to apply to the underlying POD type.
+// GCC (including MinGW) and Clang on x86, Arm and PPC pass class, union,
+// complex and array operands through memory. Elsewhere, apply the barrier to
+// the underlying plain type of std::complex<T>, Eigen::half or Eigen::bfloat16.
+#if (EIGEN_COMP_GNUC_STRICT || EIGEN_COMP_CLANG || EIGEN_COMP_MINGW) && \
+    (EIGEN_ARCH_PPC || EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_i386_OR_x86_64)
+namespace Eigen {
+namespace internal {
+// Macros.h precedes Meta.h and <type_traits>. Operands are classified without cv-qualifiers: __builtin_classify_type
+// does not evaluate its operand, but GCC rejects a volatile one in a constant expression.
+template <typename T>
+struct optimization_barrier_unqualified {
+  using type = T;
+};
+template <typename T>
+struct optimization_barrier_unqualified<const T> {
+  using type = T;
+};
+template <typename T>
+struct optimization_barrier_unqualified<volatile T> {
+  using type = T;
+};
+template <typename T>
+struct optimization_barrier_unqualified<const volatile T> {
+  using type = T;
+};
+// Aggregates go to memory. GCC rejects register and general constraints for a struct of three doubles or a double[8]
+// on every target, and for an int[4] or a struct of two doubles on 32-bit Arm; on PPC, complex<float> comes back
+// corrupted at -O3 even with "m" added as an alternative. A memory operand hides the object's own bytes, not the
+// storage it points to.
+template <typename T>
+struct optimization_barrier_in_memory {
+  // 9 = complex, 12 = class, 13 = union. Arrays decay to pointers here and are matched below.
+  static constexpr int kTypeClass = __builtin_classify_type(*static_cast<T*>(nullptr));
+  static constexpr bool value = kTypeClass == 9 || kTypeClass == 12 || kTypeClass == 13;
+};
+template <typename T, decltype(sizeof(0)) N>
+struct optimization_barrier_in_memory<T[N]> {
+  static constexpr bool value = true;
+};
+}  // namespace internal
+}  // namespace Eigen
+#endif
 #if EIGEN_ARCH_PPC && EIGEN_COMP_GNUC_STRICT
 // These register alternatives are broken on Clang. Packet4f is loaded into a single register rather than a vector,
 // zeroing out some entries, and integer types generate a compile error.
@@ -1158,9 +1198,8 @@ EIGEN_DEVICE_FUNC constexpr void ignore_unused_variable(const T&) {}
 #endif
 namespace Eigen {
 namespace internal {
-// Complex, class, and union operands go to memory: a class that must stay in memory is a compile error with the
-// register constraints, and complex<float> comes back corrupted at -O3, even with "m" added as an alternative. The two
-// constraints need separate instantiations because GCC rejects an impossible constraint even on a branch not taken.
+// The two constraints need separate instantiations because GCC rejects an impossible constraint even on a branch not
+// taken.
 template <bool InMemory>
 struct ppc_optimization_barrier_impl {
   template <typename T>
@@ -1177,9 +1216,8 @@ struct ppc_optimization_barrier_impl<true> {
 };
 template <typename T>
 EIGEN_ALWAYS_INLINE void ppc_optimization_barrier(T& x) {
-  // __builtin_classify_type does not evaluate its operand: 9 = complex, 12 = class, 13 = union.
-  constexpr int kTypeClass = __builtin_classify_type(*static_cast<T*>(nullptr));
-  ppc_optimization_barrier_impl<kTypeClass == 9 || kTypeClass == 12 || kTypeClass == 13>::run(x);
+  using Operand = typename optimization_barrier_unqualified<T>::type;
+  ppc_optimization_barrier_impl<optimization_barrier_in_memory<Operand>::value>::run(x);
 }
 }  // namespace internal
 }  // namespace Eigen
@@ -1189,12 +1227,121 @@ EIGEN_ALWAYS_INLINE void ppc_optimization_barrier(T& x) {
 // Clang's PPC backend does not accept one register constraint covering all scalar and vector operands. In particular,
 // "wa" crashes the backend for scalar integers narrower than 64 bits.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+m"(X));
+#elif (EIGEN_COMP_GNUC_STRICT || EIGEN_COMP_CLANG || EIGEN_COMP_MINGW) && \
+    (EIGEN_ARCH_ARM_OR_ARM64 || EIGEN_ARCH_i386_OR_x86_64)
+// Clang chooses memory for mixed general/vector constraints. Use a register-only constraint for float, double,
+// and builtin vectors that fit in one enabled register, and memory for aggregates. Other operands retain the
+// general/memory alternatives.
+#if EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_FP)
+#define EIGEN_BARRIER_GENERAL_CONSTRAINT "+g,w"
+#define EIGEN_BARRIER_REGISTER_CONSTRAINT "+w"
+#elif EIGEN_ARCH_ARM_OR_ARM64
+// Arm without VFP or NEON: "w" will not compile, and no operand takes the register path.
+#define EIGEN_BARRIER_GENERAL_CONSTRAINT "+g"
+#define EIGEN_BARRIER_REGISTER_CONSTRAINT "+g"
+#else
+#define EIGEN_BARRIER_GENERAL_CONSTRAINT "+g,x"
+#ifdef __AVX512F__
+// Unlike "x", "v" also allows registers 16-31.
+#define EIGEN_BARRIER_REGISTER_CONSTRAINT "+v"
+#else
+#define EIGEN_BARRIER_REGISTER_CONSTRAINT "+x"
+#endif
+#endif
+#if EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_NEON)
+#define EIGEN_BARRIER_VECTOR_BYTES 16
+#elif EIGEN_ARCH_i386_OR_x86_64 && defined(__AVX512F__)
+#define EIGEN_BARRIER_VECTOR_BYTES 64
+#elif EIGEN_ARCH_i386_OR_x86_64 && defined(__AVX__)
+#define EIGEN_BARRIER_VECTOR_BYTES 32
+#elif EIGEN_ARCH_i386_OR_x86_64 && defined(__SSE2__)
+#define EIGEN_BARRIER_VECTOR_BYTES 16
+#else
+#define EIGEN_BARRIER_VECTOR_BYTES 0
+#endif
+// The SME kernels use the barrier in streaming functions with ZA state. GCC refuses to inline a helper without these
+// attributes there, and Clang 23 calls it out of line, switching streaming mode and lazily saving ZA around each call.
+// Clang 20 and later have __arm_agnostic; for GCC, __arm_streaming_compatible suffices.
+#if EIGEN_ARCH_ARM64 && defined(__ARM_FEATURE_SME)
+#define EIGEN_BARRIER_SME_ATTRIBUTES __arm_streaming_compatible
+#if EIGEN_COMP_CLANG
+#if !__is_identifier(__arm_agnostic)
+#undef EIGEN_BARRIER_SME_ATTRIBUTES
+#define EIGEN_BARRIER_SME_ATTRIBUTES __arm_streaming_compatible __arm_agnostic("sme_za_state")
+#endif
+#endif
+#else
+#define EIGEN_BARRIER_SME_ATTRIBUTES
+#endif
+namespace Eigen {
+namespace internal {
+// GCC before 14 classifies builtin vectors as -1; newer GCC and Clang use 19. nullptr_t also has category -1 and is
+// excluded below. Scalars have other categories. Sizeless SVE types have no sizeof and keep the general constraint.
+template <typename T, typename = void>
+struct optimization_barrier_in_register {
+  static constexpr bool value = false;
+};
+template <typename T>
+struct optimization_barrier_in_register<T, decltype(void(sizeof(T)))> {
+  static constexpr int kTypeClass = __builtin_classify_type(*static_cast<T*>(nullptr));
+  static constexpr bool value = (kTypeClass == -1 || kTypeClass == 19) && sizeof(T) <= EIGEN_BARRIER_VECTOR_BYTES;
+};
+template <>
+struct optimization_barrier_in_register<decltype(nullptr)> {
+  static constexpr bool value = false;
+};
+#if (EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_FP) && (__ARM_FP & 4)) || (EIGEN_ARCH_i386_OR_x86_64 && defined(__SSE2__))
+template <>
+struct optimization_barrier_in_register<float> {
+  static constexpr bool value = true;
+};
+#endif
+#if (EIGEN_ARCH_ARM_OR_ARM64 && defined(__ARM_FP) && (__ARM_FP & 8)) || (EIGEN_ARCH_i386_OR_x86_64 && defined(__SSE2__))
+template <>
+struct optimization_barrier_in_register<double> {
+  static constexpr bool value = true;
+};
+#endif
+enum class optimization_barrier_operand_kind { General, Register, Memory };
+template <optimization_barrier_operand_kind Kind>
+struct optimization_barrier_impl {
+  template <typename T>
+  static EIGEN_ALWAYS_INLINE void run(T& x) EIGEN_BARRIER_SME_ATTRIBUTES {
+    __asm__("" : EIGEN_BARRIER_GENERAL_CONSTRAINT(x));
+  }
+};
+template <>
+struct optimization_barrier_impl<optimization_barrier_operand_kind::Register> {
+  template <typename T>
+  static EIGEN_ALWAYS_INLINE void run(T& x) EIGEN_BARRIER_SME_ATTRIBUTES {
+    __asm__("" : EIGEN_BARRIER_REGISTER_CONSTRAINT(x));
+  }
+};
+template <>
+struct optimization_barrier_impl<optimization_barrier_operand_kind::Memory> {
+  template <typename T>
+  static EIGEN_ALWAYS_INLINE void run(T& x) EIGEN_BARRIER_SME_ATTRIBUTES {
+    __asm__("" : "+m"(x));
+  }
+};
+template <typename T>
+EIGEN_ALWAYS_INLINE void optimization_barrier(T& x) EIGEN_BARRIER_SME_ATTRIBUTES {
+  using Operand = typename optimization_barrier_unqualified<T>::type;
+  constexpr optimization_barrier_operand_kind kKind =
+      optimization_barrier_in_memory<Operand>::value     ? optimization_barrier_operand_kind::Memory
+      : optimization_barrier_in_register<Operand>::value ? optimization_barrier_operand_kind::Register
+                                                         : optimization_barrier_operand_kind::General;
+  optimization_barrier_impl<kKind>::run(x);
+}
+}  // namespace internal
+}  // namespace Eigen
+#undef EIGEN_BARRIER_GENERAL_CONSTRAINT
+#undef EIGEN_BARRIER_REGISTER_CONSTRAINT
+#undef EIGEN_BARRIER_VECTOR_BYTES
+#undef EIGEN_BARRIER_SME_ATTRIBUTES
+#define EIGEN_OPTIMIZATION_BARRIER(X) Eigen::internal::optimization_barrier(X);
 #elif EIGEN_ARCH_ARM_OR_ARM64
 #ifdef __ARM_FP
-// General, VFP or NEON.
-// Clang doesn't like "r",
-//    error: non-trivial scalar-to-vector conversion, possible invalid
-//           constraint for vector typ
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+g,w"(X));
 #else
 // Arm without VFP or NEON.
@@ -1224,6 +1371,29 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
 #else
 #define EIGEN_OPTIMIZATION_BARRIER(X)
 #endif
+#elif EIGEN_COMP_MSVC && defined(_M_FP_FAST)
+// MSVC has no inline asm on x64 or Arm64, and /fp:fast folds across an empty barrier, e.g. x - q*c1 - q*c2 into
+// x - q*(c1 + c2). Reloading x from an address OR-ed with a volatile zero hides its value from the optimizer at the
+// cost of a store and a store-forwarded load.
+namespace Eigen {
+namespace internal {
+template <typename Dummy = void>
+struct msvc_optimization_barrier_zero {
+  static volatile decltype(sizeof(0)) value;
+};
+template <typename Dummy>
+volatile decltype(sizeof(0)) msvc_optimization_barrier_zero<Dummy>::value = 0;
+template <typename T>
+EIGEN_ALWAYS_INLINE void msvc_optimization_barrier(T& x) {
+  x = *reinterpret_cast<T*>(reinterpret_cast<decltype(sizeof(0))>(&x) | msvc_optimization_barrier_zero<>::value);
+}
+template <typename T, decltype(sizeof(0)) N>
+EIGEN_ALWAYS_INLINE void msvc_optimization_barrier(T (&x)[N]) {
+  for (auto& element : x) msvc_optimization_barrier(element);
+}
+}  // namespace internal
+}  // namespace Eigen
+#define EIGEN_OPTIMIZATION_BARRIER(X) Eigen::internal::msvc_optimization_barrier(X);
 #else
 // Not implemented for other compilers.
 #define EIGEN_OPTIMIZATION_BARRIER(X)
@@ -1234,8 +1404,7 @@ namespace Eigen {
 namespace internal {
 // A volatile asm that the optimizer must execute exactly where it is written, so a value passed through it is defined
 // only on its branch, and an operation that consumes it stays there instead of being evaluated speculatively.
-// EIGEN_OPTIMIZATION_BARRIER is not volatile, and its "+g,w" and "+g,x" alternatives put a scalar float or double in
-// memory on clang; the float and double overloads keep the value in a register.
+// EIGEN_OPTIMIZATION_BARRIER is not volatile and can move across branches.
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(T& x) {
   EIGEN_UNUSED_VARIABLE(x);

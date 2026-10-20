@@ -192,7 +192,7 @@ struct generic_i0 {
 #if defined(__FAST_MATH__) || defined(__ASSOCIATIVE_MATH__) || EIGEN_COMP_NVHPC
     // Unfortunately fast-math reassociates (exp(|x|/2) * exp(|x|/2)) * i0e(x) which reintroduces the overflow,
     // so we need to tell it not to.
-    EIGEN_OPTIMIZATION_BARRIER(scaled)
+    pbarrier(scaled);
 #endif
     // i0e(inf) = 0 would turn exp(inf) * i0e(inf) into NaN; i0(+-inf) = +inf.
     const T inf = pinf<T>();
@@ -353,7 +353,7 @@ struct generic_i1 {
     T scaled = pmul(half_exp, i1e);
 #if defined(__FAST_MATH__) || defined(__ASSOCIATIVE_MATH__) || EIGEN_COMP_NVHPC
     // Reassociating back to (exp(|x|/2) * exp(|x|/2)) * i1e(x) would reintroduce the overflow.
-    EIGEN_OPTIMIZATION_BARRIER(scaled)
+    pbarrier(scaled);
 #endif
     // i1(+-inf) = +-inf; the scaled product would be inf * 0 = NaN.
     return pselect(pcmp_eq(ax, pinf<T>()), x, pmul(half_exp, scaled));

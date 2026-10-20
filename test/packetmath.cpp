@@ -736,7 +736,7 @@ struct packetmath_64bit_boundary_test<Scalar, Packet,
   }
 };
 
-// Ensure optimization barrier compiles and doesn't modify contents.
+// Ensure the macro and packet optimization barriers preserve every lane.
 // Only applies to raw types, so will not work for std::complex, Eigen::half
 // or Eigen::bfloat16. For those you would need to refer to an underlying
 // storage element.
@@ -750,11 +750,18 @@ struct eigen_optimization_barrier_test<
     Packet, std::enable_if_t<!NumTraits<Packet>::IsComplex && !std::is_same<Packet, Eigen::half>::value &&
                              !std::is_same<Packet, Eigen::bfloat16>::value>> {
   static void run() {
-    typedef typename internal::unpacket_traits<Packet>::type Scalar;
-    Scalar s = internal::random<Scalar>();
-    Packet barrier = internal::pset1<Packet>(s);
+    using Scalar = typename internal::unpacket_traits<Packet>::type;
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+    Scalar input[PacketSize], output[PacketSize];
+    for (int i = 0; i < PacketSize; ++i) input[i] = internal::random<Scalar>();
+    Packet barrier = internal::ploadu<Packet>(input);
     EIGEN_OPTIMIZATION_BARRIER(barrier);
-    eigen_assert(s == internal::pfirst(barrier) && "EIGEN_OPTIMIZATION_BARRIER");
+    internal::pstoreu(output, barrier);
+    for (int i = 0; i < PacketSize; ++i) VERIFY_IS_EQUAL(input[i], output[i]);
+    // Deduced, as in the kernels, so wrapped packets take the unwrapping overload.
+    internal::pbarrier(barrier);
+    internal::pstoreu(output, barrier);
+    for (int i = 0; i < PacketSize; ++i) VERIFY_IS_EQUAL(input[i], output[i]);
   }
 };
 

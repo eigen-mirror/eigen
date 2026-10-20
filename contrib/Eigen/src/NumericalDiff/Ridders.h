@@ -182,8 +182,8 @@ class Ridders : public internal::ridders_solver_traits<Functor_> {
       for (int step = 0; step < m_parameters.maxSteps; ++step) {
         Scalar xPlus = input[j] + h;
         Scalar xMinus = input[j] - h;
-        internal::numerical_diff_barrier(xPlus);
-        internal::numerical_diff_barrier(xMinus);
+        internal::pbarrier(xPlus);
+        internal::pbarrier(xMinus);
         if (!(numext::isfinite)(xPlus) || !(numext::isfinite)(xMinus)) break;
         if (step > 0 && xPlus == previousPlus && xMinus == previousMinus) break;
 

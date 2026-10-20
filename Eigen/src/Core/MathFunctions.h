@@ -2229,6 +2229,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar madd(const Scalar& x, const Scalar&
 
 namespace internal {
 
+// Two-product residual using FMA, including software FMA when hardware FMA is unavailable.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low_fma(const Scalar& x, const Scalar& y, const Scalar& xy) {
+  return numext::fma(x, y, Scalar(-xy));
+}
+
 template <typename T>
 EIGEN_DEVICE_FUNC bool isfinite_impl(const std::complex<T>& x) {
   EIGEN_IF_CONSTEXPR ((std::is_floating_point<T>::value)) {
@@ -2456,7 +2462,7 @@ struct complex_exp2_impl {
     const bool negative = b < RealScalar(0);
     const RealScalar abs_b = numext::abs(b);
     const RealScalar t_hi = abs_b * ln2_hi;
-    const RealScalar t_lo = numext::fma(abs_b, ln2_hi, -t_hi) + abs_b * ln2_lo;
+    const RealScalar t_lo = twoprod_low_fma(abs_b, ln2_hi, t_hi) + abs_b * ln2_lo;
     // |t_lo| <= ulp(t_hi) / 2, so the Taylor terms below are exact to rounding unless |t| exceeds about 2 / sqrt(eps).
     // The phase is within an ulp of b ln(2) while |t| < 1 / eps.
     RealScalar sin_lo = t_lo;

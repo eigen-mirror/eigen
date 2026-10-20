@@ -412,8 +412,8 @@ EIGEN_STRONG_INLINE typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<Re
   RealScalar secondQuotient = secondNumerator / secondDenominator;
 #if defined(__FAST_MATH__) || EIGEN_COMP_NVHPC
   // NVHPC does not expose a preprocessor macro for -fast, so retain the barriers in all NVHPC builds.
-  EIGEN_OPTIMIZATION_BARRIER(firstQuotient)
-  EIGEN_OPTIMIZATION_BARRIER(secondQuotient)
+  pbarrier(firstQuotient);
+  pbarrier(secondQuotient);
 #endif
   return firstQuotient * secondQuotient;
 }
@@ -423,7 +423,7 @@ EIGEN_STRONG_INLINE typename bdcsvd_impl<RealScalar_>::RealScalar bdcsvd_impl<Re
     RealScalar numerator, RealScalar firstDenominator, RealScalar secondDenominator) {
   RealScalar firstQuotient = numerator / firstDenominator;
 #if defined(__FAST_MATH__) || EIGEN_COMP_NVHPC
-  EIGEN_OPTIMIZATION_BARRIER(firstQuotient)
+  pbarrier(firstQuotient);
 #endif
   return firstQuotient / secondDenominator;
 }
@@ -656,7 +656,7 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
       // Unsafe FP reassociation may otherwise turn `mus + (shift - dk)` into
       // `(mus + shift) - dk`, losing `mus` when `shift` and `dk` cancel.
       RealScalar diff = shifts(lastIdx) - dk;
-      EIGEN_OPTIMIZATION_BARRIER(diff)
+      pbarrier(diff);
       RealScalar prod = (singVals(lastIdx) + dk) * (mus(lastIdx) + diff);
 
       for (Index l = 0; l < m; ++l) {
@@ -671,7 +671,7 @@ void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef&
           }
           Index j = i < k ? i : perm(l - 1);
           diff = shifts(j) - dk;
-          EIGEN_OPTIMIZATION_BARRIER(diff)
+          pbarrier(diff);
           prod *= productOfQuotients(singVals(j) + dk, diag(i) + dk, mus(j) + diff, diag(i) - dk);
         }
       }
@@ -706,9 +706,9 @@ void bdcsvd_impl<RealScalar_>::computeSingVecs(const ArrayRef& zhat, const Array
         const RealScalar diagonal = diag(i);
         const RealScalar z = zhat(i);
         RealScalar diff = diagonal - shift;
-        EIGEN_OPTIMIZATION_BARRIER(diff)
+        pbarrier(diff);
         diff -= mu;
-        EIGEN_OPTIMIZATION_BARRIER(diff)
+        pbarrier(diff);
         const RealScalar sum = diagonal + singularValue;
         U(i, k) = sequentialQuotient(z, diff, sum);
         if (m_compV && l > 0) V(i, k) = sequentialQuotient(diagonal * z, diff, sum);

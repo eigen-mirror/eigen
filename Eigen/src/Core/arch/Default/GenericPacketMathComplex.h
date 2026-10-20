@@ -404,7 +404,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex(const P
   if (predux_any(por(pcmp_lt(hi, z_abs), is_small))) {
     Packet z_scaled = z;
     // Keeps compilers from executing this branch speculatively on the common path.
-    EIGEN_OPTIMIZATION_BARRIER(z_scaled.v)
+    pbarrier(z_scaled.v);
     return psqrt_complex_impl(z_scaled, true);
   }
   return psqrt_complex_impl(z, false);
