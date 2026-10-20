@@ -134,6 +134,36 @@ static void test_tensor_metadata_odr_use() {
   tensor_rank_layout_odr_use<TensorRef<TensorFixedSize<float, Sizes<>>>>(0, ColMajor);
 }
 
+// Test the accessors on actual tensors/maps/refs
+// Check the dynamic assessors for both in- and out-of-range
+// Only test static for in-range here (out-of-range causes a compilation failure)
+static void test_dimension_accessors() {
+  Tensor<float, 3> t(2, 3, 7);
+  Eigen::TensorFixedSize<float, Eigen::Sizes<2, 3, 7>> f;
+  Eigen::TensorMap<Tensor<float, 3>> m(t.data(), 2, 3, 7);
+  Eigen::TensorRef<Tensor<float, 3>> r(t);
+
+  VERIFY_IS_EQUAL(t.dimension<1>(), 3);
+  VERIFY_IS_EQUAL(f.dimension<1>(), 3);
+  VERIFY_IS_EQUAL(m.dimension<1>(), 3);
+  VERIFY_IS_EQUAL(r.dimension<1>(), 3);
+  static_assert(Eigen::TensorFixedSize<float, Eigen::Sizes<2, 3, 7>>::dimension<2>() == 7, "constexpr");
+
+  VERIFY_IS_EQUAL(t.dimension(2), 7);
+  VERIFY_IS_EQUAL(f.dimension(2), 7);
+  VERIFY_IS_EQUAL(m.dimension(2), 7);
+  VERIFY_IS_EQUAL(r.dimension(2), 7);
+
+  VERIFY_RAISES_ASSERT(t.dimension(3));
+  VERIFY_RAISES_ASSERT(t.dimension(-1));
+  VERIFY_RAISES_ASSERT(f.dimension(3));
+  VERIFY_RAISES_ASSERT(f.dimension(-1));
+  VERIFY_RAISES_ASSERT(m.dimension(3));
+  VERIFY_RAISES_ASSERT(m.dimension(-1));
+  VERIFY_RAISES_ASSERT(r.dimension(3));
+  VERIFY_RAISES_ASSERT(r.dimension(-1));
+}
+
 EIGEN_DECLARE_TEST(tensor_dimension) {
   CALL_SUBTEST(test_dimension_constants_odr_use());
   CALL_SUBTEST(test_tensor_metadata_odr_use());
@@ -144,4 +174,5 @@ EIGEN_DECLARE_TEST(tensor_dimension) {
   CALL_SUBTEST(test_index_type_promotion());
   CALL_SUBTEST(test_unsigned_dimensions());
   CALL_SUBTEST(test_narrowing_dimensions());
+  CALL_SUBTEST(test_dimension_accessors());
 }

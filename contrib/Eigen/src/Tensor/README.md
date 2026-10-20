@@ -696,13 +696,15 @@ std::cout << "Dim size: " << d.size() << ", dim 0: " << d[0]
 
 Returns the n-th dimension of the tensor.  The actual type of the
 `dimension()` result is `<Tensor-Type>::Index`, but you can
-always use it like an int.
+always use it like an int. The requested dimension can also be
+supplied as a template parameter.
 
 ```cpp
 Eigen::Tensor<float, 2> a(3, 4);
+auto dim0 = a.dimension<0>();
 int dim1 = a.dimension(1);
-std::cout << "Dim 1: " << dim1;
-// Dim 1: 4
+std::cout << "Dim 0: " << dim0 << " Dim 1: " << dim1;
+// Dim 0: 3 Dim 1: 4
 ```
 
 ### Index size()

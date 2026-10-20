@@ -278,7 +278,10 @@ class TensorBlockDescriptor {
 
   IndexType offset() const { return m_offset; }
   const Dimensions& dimensions() const { return m_dimensions; }
-  IndexType dimension(int index) const { return m_dimensions[index]; }
+  IndexType dimension(Index n) const {
+    eigen_internal_assert(0 <= n && n < NumDims);
+    return m_dimensions[n];
+  }
   IndexType size() const { return array_prod<IndexType>(m_dimensions); }
 
   const DestinationBuffer& destination() const { return m_destination; }
