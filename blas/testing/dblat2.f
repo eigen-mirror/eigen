@@ -100,8 +100,10 @@
 *> \ingroup double_blas_testing
 *
 *  =====================================================================
-*> SPDX-FileCopyrightText: The Eigen Authors
-*> SPDX-License-Identifier: BSD-3-Clause
+*> SPDX-FileCopyrightText: 1992-2015 The University of Tennessee and The University of Tennessee Research Foundation
+*> SPDX-FileCopyrightText: 2000-2015 The University of California Berkeley
+*> SPDX-FileCopyrightText: 2006-2015 The University of Colorado Denver
+*> SPDX-License-Identifier: BSD-3-Clause-Open-MPI
       PROGRAM DBLAT2
 *
 *  -- Reference BLAS test routine (version 3.4.1) --

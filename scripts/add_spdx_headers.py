@@ -18,7 +18,7 @@ untouched. Re-running after a clean run produces no changes.
 The license id assigned to each file is determined by `classify(path)`:
 - LAPACKE/BLAS bridges with Intel copyright    -> BSD-3-Clause
 - MORSE-derived cmake/Find*.cmake modules      -> BSD-3-Clause
-- Reference-BLAS Fortran tests blas/testing/*.f -> BSD-3-Clause
+- netlib Reference-BLAS / LAPACK files         -> BSD-3-Clause-Open-MPI
 - LevenbergMarquardt MINPACK-derived headers   -> MPL-2.0 AND LicenseRef-MINPACK
 - Everything else under repo                    -> MPL-2.0
 
@@ -68,10 +68,17 @@ MORSE_MARKER = b"@copyright (c) 2009-2014 The University of Tennessee"
 # Header marker for the LevenbergMarquardt MINPACK-derived files.
 MINPACK_MARKER = b"Minpack license"
 
-# Reference-BLAS / LAPACK Fortran (Univ. of Tennessee/Berkeley/Colorado Denver).
+# netlib Reference-BLAS / LAPACK files. LAPACK's LICENSE is BSD-3-Clause plus an IP disclaimer,
+# i.e. BSD-3-Clause-Open-MPI. These files carry no Copyright line, so the holders named in that
+# LICENSE are tagged rather than The Eigen Authors.
 REFBLAS_MARKERS = (
     b"Reference BLAS is a software package",
     b"LAPACK is a software package provided by Univ. of Tennessee",
+)
+NETLIB_COPYRIGHT_HOLDERS = (
+    "The University of Tennessee and The University of Tennessee Research Foundation",
+    "The University of California Berkeley",
+    "The University of Colorado Denver",
 )
 
 # Apache-2.0 — TensorFlow-derived BFloat16, Codeplay FindComputeCpp.cmake.
@@ -159,7 +166,7 @@ def classify(rel: Path, content: bytes) -> str:
     if MINPACK_MARKER in content:
         return "MPL-2.0 AND LicenseRef-MINPACK"
     if any(m in content for m in REFBLAS_MARKERS):
-        return "BSD-3-Clause"
+        return "BSD-3-Clause-Open-MPI"
     if APACHE_MARKER in content:
         return "Apache-2.0"
     return "MPL-2.0"
@@ -241,7 +248,9 @@ def insert_spdx(
     # REUSE-IgnoreStart
     spdx_lines = []
     if not has_copyright:
-        spdx_lines.append(f"{comment} SPDX-FileCopyrightText: The Eigen Authors{eol}")
+        is_netlib = spdx_id == "BSD-3-Clause-Open-MPI"
+        for holder in NETLIB_COPYRIGHT_HOLDERS if is_netlib else ("The Eigen Authors",):
+            spdx_lines.append(f"{comment} SPDX-FileCopyrightText: {holder}{eol}")
     spdx_lines.append(f"{comment} SPDX-License-Identifier: {spdx_id}{eol}")
     spdx_line = "".join(spdx_lines).encode()
     # REUSE-IgnoreEnd

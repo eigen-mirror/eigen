@@ -5,8 +5,10 @@ See LICENSE, COPYING.MPL2, and these links:
 
 Some files contain third-party code under permissive or otherwise
 MPL2-compatible licenses, hence the other COPYING.* files here. These
-include Apache-2.0, BSD-style notices, the MINPACK license, and the MORSE
-CMake module BSD-style notice in cmake/MORSE-Copyright.txt.
+include Apache-2.0, BSD-style notices, the MINPACK license, the MORSE
+CMake module BSD-style notice in cmake/MORSE-Copyright.txt, and the LAPACK
+license (BSD-3-Clause-Open-MPI) of the netlib BLAS test programs in
+blas/testing/ and the LAPACK timer stubs and test script in lapack/.
 
 Note that some optional external dependencies (e.g. FFTW, MPFR C++)
 are distributed under different licenses, including the GPL. Refer to
