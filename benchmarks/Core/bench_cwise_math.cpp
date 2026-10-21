@@ -260,6 +260,9 @@ BENCH_CWISE_UNARY(Sigmoid, Scalar(1) / (Scalar(1) + (-a).exp()), -10, 10)
 
 BENCH_CWISE_BINARY(Min, a.min(b), -100, 100)
 BENCH_CWISE_BINARY(Max, a.max(b), -100, 100)
+BENCH_CWISE_BINARY(Add, a + b, -100, 100)
+BENCH_CWISE_BINARY(Mul, (a * b), -100, 100)
+BENCH_CWISE_BINARY(Div, a / b, 1, 100)
 
 // Power: array^scalar
 template <typename Scalar>
@@ -356,6 +359,12 @@ BENCHMARK(BM_Erf<float>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 104857
     ->ArgNames({"size", "mode"})->Name("Erf_float");
 BENCHMARK(BM_Erf<bfloat16>)->ArgsProduct({{1024, 4096, 16384, 65536, 262144, 1048576}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("Erf_bfloat16");
+BENCHMARK(BM_Add<bfloat16>) CWISE_SIZES ->Name("Add_bfloat16");
+BENCHMARK(BM_Mul<bfloat16>) CWISE_SIZES ->Name("Mul_bfloat16");
+BENCHMARK(BM_Div<bfloat16>) CWISE_SIZES ->Name("Div_bfloat16");
+BENCHMARK(BM_Exp<bfloat16>) CWISE_SIZES ->Name("Exp_bfloat16");
+BENCHMARK(BM_Log<bfloat16>) CWISE_SIZES ->Name("Log_bfloat16");
+BENCHMARK(BM_Tanh<bfloat16>) CWISE_SIZES ->Name("Tanh_bfloat16");
 BENCHMARK(BM_LogSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("LogSpecialInputs_float");
 BENCHMARK(BM_Log1pSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})

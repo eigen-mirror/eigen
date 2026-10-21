@@ -3121,6 +3121,66 @@ void packetmath_bfloat16_sign_bits_flushed() {
 }
 #endif
 
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_SME)
+// The bfloat16 arithmetic packets round a float result to nearest even. Check them against that rounding applied to
+// the float packet op, over every encoding of one operand and a fixed set for the other that puts sums and products
+// on exact midpoints: 1 and 3 against [256, 512), 1 + 2^-7 and 2^-7 against values near 1, plus the range ends and
+// the special values. NaN lanes compare as NaN, since a kernel may keep the operand's payload.
+void packetmath_bfloat16_arithmetic_rounding() {
+  using Packet = internal::packet_traits<bfloat16>::type;
+  using FloatPacket = internal::packet_traits<float>::type;
+  constexpr int packet_size = internal::unpacket_traits<Packet>::size;
+  static_assert(internal::unpacket_traits<FloatPacket>::size == packet_size,
+                "the bfloat16 packet and the float packet must have the same size");
+  const numext::uint16_t others[] = {0x0000, 0x8000, 0x3f80, 0x4040, 0x3f81, 0x3c00, 0x4380, 0xbf81,
+                                     0x7f7f, 0x0080, 0x0001, 0x7f80, 0xff80, 0x7fc0, 0x7f81, 0x3f7f};
+  constexpr int count = sizeof(others) / sizeof(others[0]);
+  EIGEN_ALIGN_MAX bfloat16 a[packet_size], b[packet_size], c[packet_size], out[packet_size];
+  EIGEN_ALIGN_MAX float fa[packet_size], fb[packet_size], fc[packet_size], ref[packet_size];
+  auto verify = [&](const Packet& result, const FloatPacket& expected) {
+    internal::pstore(out, result);
+    internal::pstore(ref, expected);
+    for (int i = 0; i < packet_size; ++i) {
+      numext::uint16_t got = numext::bit_cast<numext::uint16_t>(out[i]);
+      numext::uint16_t want = numext::bit_cast<numext::uint16_t>(static_cast<bfloat16>(ref[i]));
+      if ((want & 0x7fff) > 0x7f80) {
+        VERIFY((got & 0x7fff) > 0x7f80);
+      } else {
+        VERIFY_IS_EQUAL(got, want);
+      }
+    }
+  };
+  for (int j = 0; j < count; ++j) {
+    for (int i = 0; i < packet_size; ++i) {
+      b[i] = numext::bit_cast<bfloat16>(others[j]);
+      c[i] = numext::bit_cast<bfloat16>(others[(j + 1) % count]);
+      fb[i] = static_cast<float>(b[i]);
+      fc[i] = static_cast<float>(c[i]);
+    }
+    Packet qb = internal::pload<Packet>(b), qc = internal::pload<Packet>(c);
+    FloatPacket pb = internal::pload<FloatPacket>(fb), pc = internal::pload<FloatPacket>(fc);
+    for (unsigned first = 0; first < 65536; first += packet_size) {
+      for (int i = 0; i < packet_size; ++i) {
+        a[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
+        fa[i] = static_cast<float>(a[i]);
+      }
+      Packet qa = internal::pload<Packet>(a);
+      FloatPacket pa = internal::pload<FloatPacket>(fa);
+      verify(internal::padd(qa, qb), internal::padd(pa, pb));
+      verify(internal::psub(qa, qb), internal::psub(pa, pb));
+      verify(internal::pmul(qa, qb), internal::pmul(pa, pb));
+      verify(internal::pdiv(qa, qb), internal::pdiv(pa, pb));
+      verify(internal::pabsdiff(qa, qb), internal::pabsdiff(pa, pb));
+      verify(internal::pmadd(qa, qb, qc), internal::pmadd(pa, pb, pc));
+      verify(internal::pmsub(qa, qb, qc), internal::pmsub(pa, pb, pc));
+      verify(internal::pnmadd(qa, qb, qc), internal::pnmadd(pa, pb, pc));
+      verify(internal::pnmsub(qa, qb, qc), internal::pnmsub(pa, pb, pc));
+    }
+  }
+}
+#endif
+
 namespace Eigen {
 namespace test {
 
@@ -3198,6 +3258,11 @@ EIGEN_DECLARE_TEST(packetmath) {
     defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
+#endif
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_SME)
+  CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding());
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)
