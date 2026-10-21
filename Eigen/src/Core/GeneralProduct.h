@@ -408,6 +408,43 @@ struct gemv_dense_selector<OnTheLeft, StorageOrder, BlasCompatible> {
   }
 };
 
+// Keep the shortcut's expression out of the general GEMV caller's inlining budget.
+template <bool ConjugateLhs, typename LhsScalar, typename RhsScalar, typename Dest>
+EIGEN_DONT_INLINE void gemv_single_column_update(const LhsScalar* data, Index rows, Index stride, RhsScalar rhsValue,
+                                                 typename Dest::Scalar alpha, Dest& dest) {
+  using Column = Matrix<LhsScalar, Dynamic, 1>;
+  // A runtime stride of one must be visible to the assignment evaluator to enable packets.
+  // Preserve alpha * (lhs * rhs): folding alpha into rhs can overflow before the product.
+  if (stride == 1) {
+    Map<const Column> column(data, rows);
+    dest.col(0).matrix() += alpha * (column.template conjugateIf<ConjugateLhs>() * rhsValue);
+  } else {
+    Map<const Column, Unaligned, InnerStride<>> column(data, rows, InnerStride<>(stride));
+    dest.col(0).matrix() += alpha * (column.template conjugateIf<ConjugateLhs>() * rhsValue);
+  }
+}
+
+template <bool Enable, bool ConjugateLhs, bool ConjugateRhs>
+struct gemv_single_column {
+  template <typename Lhs, typename Rhs, typename Scalar, typename Dest>
+  static EIGEN_STRONG_INLINE bool run(const Lhs&, const Rhs&, const Scalar&, Dest&, bool) {
+    return false;
+  }
+};
+
+template <bool ConjugateLhs, bool ConjugateRhs>
+struct gemv_single_column<true, ConjugateLhs, ConjugateRhs> {
+  template <typename Lhs, typename Rhs, typename Scalar, typename Dest>
+  static EIGEN_STRONG_INLINE bool run(const Lhs& lhs, const Rhs& rhs, const Scalar& alpha, Dest& dest, bool eligible) {
+    if (!eligible || lhs.cols() != 1) return false;
+    if (!numext::is_exactly_zero(alpha)) {
+      gemv_single_column_update<ConjugateLhs>(lhs.data(), lhs.rows(), lhs.col(0).innerStride(),
+                                              conj_if<ConjugateRhs>()(rhs.coeff(0, 0)), alpha, dest);
+    }
+    return true;
+  }
+};
+
 template <>
 struct gemv_dense_selector<OnTheRight, ColMajor, true> {
   template <typename Lhs, typename Rhs, typename Dest>
@@ -425,6 +462,16 @@ struct gemv_dense_selector<OnTheRight, ColMajor, true> {
     ActualRhsType actualRhs = RhsBlasTraits::extract(rhs);
 
     ResScalar actualAlpha = combine_scalar_factors(alpha, lhs, rhs);
+
+    constexpr bool DoubleScalars = std::is_same<LhsScalar, RhsScalar>::value &&
+                                   std::is_same<LhsScalar, ResScalar>::value && std::is_same<ResScalar, double>::value;
+    // Float updates can be slower than the buffered packet kernel; bypass it only for matching double scalars.
+    constexpr bool EnableSingleColumn =
+        Lhs::ColsAtCompileTime == Dynamic && DoubleScalars && Dest::InnerStrideAtCompileTime != 1;
+    if (gemv_single_column<EnableSingleColumn, LhsBlasTraits::NeedToConjugate, RhsBlasTraits::NeedToConjugate>::run(
+            actualLhs, actualRhs, actualAlpha, dest,
+            Dest::InnerStrideAtCompileTime != Dynamic || dest.innerStride() != 1))
+      return;
 
     // make sure Dest is a compile-time vector type (bug 1166)
     using ActualDest = std::conditional_t<Dest::IsVectorAtCompileTime, Dest, typename Dest::ColXpr>;
@@ -492,6 +539,15 @@ struct gemv_dense_selector<OnTheRight, RowMajor, true> {
     std::add_const_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
 
     ResScalar actualAlpha = combine_scalar_factors(alpha, lhs, rhs);
+
+    // Cost heuristic: broadcasts may allocate for owning scalars. Complex shortcuts can worsen GCC's kernel spilling.
+    constexpr bool EnableSingleColumn = Lhs::ColsAtCompileTime == Dynamic && !NumTraits<ResScalar>::IsComplex &&
+                                        std::is_trivially_copyable<LhsScalar>::value &&
+                                        std::is_trivially_copyable<RhsScalar>::value &&
+                                        std::is_trivially_copyable<ResScalar>::value;
+    if (gemv_single_column<EnableSingleColumn, LhsBlasTraits::NeedToConjugate, RhsBlasTraits::NeedToConjugate>::run(
+            actualLhs, actualRhs, actualAlpha, dest, true))
+      return;
 
     enum {
       // FIXME: find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1

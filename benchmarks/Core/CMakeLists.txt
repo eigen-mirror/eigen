@@ -27,6 +27,7 @@ eigen_add_benchmark(bench_gemm_scaled_double bench_gemm_scaled.cpp DEFINITIONS S
 eigen_add_benchmark(bench_gemm_scaled_complex bench_gemm_scaled.cpp DEFINITIONS "SCALAR=std::complex<float>")
 eigen_add_benchmark(bench_gemm_scaled_complex_double bench_gemm_scaled.cpp DEFINITIONS "SCALAR=std::complex<double>")
 eigen_add_benchmark(bench_gemv bench_gemv.cpp)
+eigen_add_benchmark(bench_gemv_degenerate bench_gemv_degenerate.cpp)
 eigen_add_benchmark(bench_vecadd bench_vecadd.cpp)
 foreach(scalar float double)
   foreach(operation abs:0 square:1 add:2 copy:3 exp:4)
