@@ -175,6 +175,28 @@ void bug_159() {
   EIGEN_UNUSED_VARIABLE(m);
 }
 
+template <unsigned int UpLo, typename MatrixType>
+EIGEN_DONT_INLINE void verify_selfadjoint_copy(const MatrixType& m, const MatrixType& dense) {
+  for (Index j = 0; j < m.cols(); ++j)
+    for (Index i = 0; i < m.rows(); ++i)
+      VERIFY_IS_EQUAL(dense(i, j), (UpLo == Upper ? i <= j : i >= j) ? m(i, j) : numext::conj(m(j, i)));
+}
+
+// GCC PR target/124138 miscompiled this copy for 4x4 double with AVX-512 (see SelfAdjointView.h). It needs the copy
+// materialized in a function of its own, and a reference built without the mirrored stores that GCC also miscompiles.
+template <unsigned int UpLo, typename MatrixType>
+EIGEN_DONT_INLINE void selfadjoint_copy(const MatrixType& m) {
+  const MatrixType dense = m.template selfadjointView<UpLo>();
+  verify_selfadjoint_copy<UpLo>(m, dense);
+}
+
+template <typename MatrixType>
+void selfadjoint_copy_fixed() {
+  const MatrixType m = MatrixType::Random();
+  selfadjoint_copy<Upper>(m);
+  selfadjoint_copy<Lower>(m);
+}
+
 EIGEN_DECLARE_TEST(selfadjoint) {
   for (int i = 0; i < g_repeat; i++) {
     int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
@@ -190,6 +212,9 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   }
 
   CALL_SUBTEST_1(bug_159());
+  CALL_SUBTEST_2(selfadjoint_copy_fixed<Matrix4d>());
+  CALL_SUBTEST_2((selfadjoint_copy_fixed<Matrix<double, 4, 4, RowMajor> >()));
+  CALL_SUBTEST_3(selfadjoint_copy_fixed<Matrix4cd>());
   CALL_SUBTEST_1(selfadjoint_nested_expression<>());
   CALL_SUBTEST_4(selfadjoint_l1norm_sizes<double>());
   CALL_SUBTEST_4(selfadjoint_l1norm_sizes<std::complex<double> >());

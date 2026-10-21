@@ -846,6 +846,15 @@ struct Dense2Triangular {};
 template <typename Kernel, unsigned int Mode, int UnrollCount, bool SetOpposite>
 struct triangular_assignment_loop;
 
+// Whether call_triangular_assignment_loop fully unrolls the assignment.
+template <typename DstEvaluatorType, typename SrcEvaluatorType>
+struct triangular_assignment_unrolls {
+  static constexpr int Size = DstEvaluatorType::XprType::SizeAtCompileTime;
+  static constexpr bool value =
+      Size != Dynamic && SrcEvaluatorType::CoeffReadCost < HugeCost &&
+      Size * (int(DstEvaluatorType::CoeffReadCost) + int(SrcEvaluatorType::CoeffReadCost)) / 2 <= EIGEN_UNROLLING_LIMIT;
+};
+
 /** \internal Specialization of the dense assignment kernel for triangular matrices.
  * The main difference is that the triangular, diagonal, and opposite parts are processed through three different
  * functions. \tparam UpLo must be either Lower or Upper \tparam Mode must be either 0, UnitDiag, ZeroDiag, or
@@ -917,13 +926,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_triangular_assignment_loop(DstXp
                                                     SetOpposite, DstEvaluatorType, SrcEvaluatorType, Functor>;
   Kernel kernel(dstEvaluator, srcEvaluator, func, dst.const_cast_derived());
 
-  enum {
-    unroll = DstXprType::SizeAtCompileTime != Dynamic && SrcEvaluatorType::CoeffReadCost < HugeCost &&
-             DstXprType::SizeAtCompileTime *
-                     (int(DstEvaluatorType::CoeffReadCost) + int(SrcEvaluatorType::CoeffReadCost)) / 2 <=
-                 EIGEN_UNROLLING_LIMIT
-  };
-
+  constexpr bool unroll = triangular_assignment_unrolls<DstEvaluatorType, SrcEvaluatorType>::value;
   triangular_assignment_loop<Kernel, Mode, unroll ? int(DstXprType::SizeAtCompileTime) : Dynamic, SetOpposite>::run(
       kernel);
 }

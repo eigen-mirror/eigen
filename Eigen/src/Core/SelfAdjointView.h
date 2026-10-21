@@ -379,6 +379,23 @@ struct evaluator_traits<SelfAdjointView<MatrixType, Mode> > {
   using Shape = SelfAdjointShape;
 };
 
+// GCC PR target/124138 (https://gcc.gnu.org/PR124138): since GCC 4.9, avx_vpermilp_parallel accepted selectors 4-7
+// for elements 2 and 3 of a V8DF permutation, emitting the lane-crossing {0, 1, 2, 6, 4, 5, 6, 7} as vpermilpd, which
+// yields {0, 1, 2, 2, 4, 5, 6, 7}. SLP forms that permutation from the unrolled mirrored stores of a 4x4 double copy,
+// at -O2 since GCC 12. Hiding the copied value from the vectorizer avoids it; the loop used for larger sizes is
+// unaffected. Fixed in GCC 14.4, 15.3 and 16, and on the GCC 13 branch after 13.4.
+template <bool Unrolled, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void selfadjoint_mirror_barrier(Scalar&) {}
+#if EIGEN_COMP_GNUC_STRICT && defined(__AVX512F__) && !defined(EIGEN_GPU_COMPILE_PHASE) && \
+    (EIGEN_GNUC_STRICT_LESS_THAN(13, 5, 0) ||                                              \
+     (EIGEN_GNUC_STRICT_AT_LEAST(14, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(14, 4, 0)) ||    \
+     (EIGEN_GNUC_STRICT_AT_LEAST(15, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(15, 3, 0)))
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void selfadjoint_mirror_barrier<true, double>(double& value) {
+  EIGEN_OPTIMIZATION_BARRIER(value);
+}
+#endif
+
 template <int UpLo, int SetOpposite, typename DstEvaluatorTypeT, typename SrcEvaluatorTypeT, typename Functor,
           int Version>
 class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEvaluatorTypeT, SrcEvaluatorTypeT, Functor,
@@ -405,6 +422,7 @@ class triangular_dense_assignment_kernel<UpLo, SelfAdjoint, SetOpposite, DstEval
   EIGEN_DEVICE_FUNC void assignCoeff(Index row, Index col) {
     eigen_internal_assert(row != col);
     Scalar tmp = m_src.coeff(row, col);
+    selfadjoint_mirror_barrier<triangular_assignment_unrolls<DstEvaluatorType, SrcEvaluatorType>::value>(tmp);
     m_functor.assignCoeff(m_dst.coeffRef(row, col), tmp);
     m_functor.assignCoeff(m_dst.coeffRef(col, row), numext::conj(tmp));
   }
