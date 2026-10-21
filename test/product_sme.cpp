@@ -1092,6 +1092,38 @@ static void verify_pack_rhs_direct(Index depth, Index cols) {
   check_packed_rhs<Scalar, StorageOrder, PanelMode, Conjugate>(Mapper(V.data(), V.outerStride()), V, depth, cols);
 }
 
+template <bool Conjugate, typename Scalar>
+EIGEN_DONT_INLINE __arm_locally_streaming static void sme_copy_range(Scalar* dst, const Scalar* src, Index stride,
+                                                                     Index k0, Index k1, int width) {
+  internal::sve_copy_panel_range<Conjugate>(dst, src, stride, k0, k1, width);
+}
+
+// Every partial-vector width, including copies ending with an unshifted tail and exact vector boundaries.
+template <typename Scalar>
+static void test_copy_panel_range() {
+  const int svl = internal::sme_packet_traits<typename NumTraits<Scalar>::Real>::size();
+  for (int width = 1; width <= 2 * svl; ++width) {
+    for (Index k0 : {0, 1, svl - 1}) {
+      for (Index depth : {0, 1, 2, 3, svl - 1, svl, svl + 1, 2 * svl + 1}) {
+        const Index k1 = k0 + depth;
+        SmeRowMajorMat<Scalar> src = SmeRowMajorMat<Scalar>::Random(k1, width + 3);
+        SmeVector<Scalar> packed = SmeVector<Scalar>::Constant(k1 * width + 2, pack_sentinel<Scalar>());
+        SmeVector<Scalar> ref = packed;
+        sme_copy_range<false>(packed.data() + 1, src.data(), src.outerStride(), k0, k1, width);
+        for (Index k = k0; k < k1; ++k)
+          for (Index c = 0; c < width; ++c) set_packed(ref.data() + 1, Index(width), k, c, Scalar(src(k, c)));
+        VERIFY_IS_EQUAL(packed, ref);
+        packed.setConstant(pack_sentinel<Scalar>());
+        sme_copy_range<true>(packed.data() + 1, src.data(), src.outerStride(), k0, k1, width);
+        for (Index k = k0; k < k1; ++k)
+          for (Index c = 0; c < width; ++c)
+            set_packed(ref.data() + 1, Index(width), k, c, Scalar(numext::conj(src(k, c))));
+        VERIFY_IS_EQUAL(packed, ref);
+      }
+    }
+  }
+}
+
 // Inner-strided blas mapper LHS: element(i, k) laid out with inner stride
 // `incr`.  ColMajor takes the vectorised gather path; RowMajor takes the scalar
 // path (its packets would run along depth, not rows).
@@ -1496,6 +1528,47 @@ static void test_neon_real_alpha_overflow() {
   }
 }
 
+// GCC 14 must keep the full-grid store's ZA tuples intact across C loads. Exact integer results and sentinel
+// padding also cover the single-tile stores used for ragged rows and columns.
+template <typename Scalar>
+EIGEN_DONT_INLINE __arm_locally_streaming __arm_new("za") void sme_test_store_grid(Scalar* out, Index ldc,
+                                                                                   const Scalar* a, const Scalar* b,
+                                                                                   int rows, int cols) {
+  using Traits = internal::sme_packet_traits<Scalar>;
+  const int svl = Traits::size();
+  const auto pg = Traits::ptrue();
+  svzero_za();
+  internal::outer_product_2x2<Scalar>(internal::ploadu(pg, a), internal::ploadu(pg, a + svl), internal::ploadu(pg, b),
+                                      internal::ploadu(pg, b + svl));
+  internal::sme_store_2x2_grid(out, Index(1), ldc, Scalar(2), Index(2), svl, rows - svl, Index(1),
+                               internal::sme_min(cols, svl), cols > svl ? cols - svl : 0);
+}
+
+template <typename Scalar>
+static void test_tile_pair_stores() {
+  const int svl = internal::sme_packet_traits<Scalar>::size();
+  const Index ldc = 2 * svl + 7;
+  std::vector<Scalar> a(2 * svl), b(2 * svl);
+  for (int i = 0; i < 2 * svl; ++i) {
+    a[i] = Scalar(i % 7 + 1);
+    b[i] = Scalar(i % 5 + 2);
+  }
+  const int widths[] = {1, 2, 3, 4, 5, svl - 1, svl, svl + 1, svl + 2, 2 * svl - 1, 2 * svl};
+  std::vector<Scalar> out(ldc * (2 * svl + 3)), expected(out.size());
+  for (int rows = svl + 1; rows <= 2 * svl; ++rows) {
+    for (int cols : widths) {
+      if (cols > 2 * svl) continue;
+      std::fill(out.begin(), out.end(), Scalar(-9999));
+      expected = out;
+      for (int j = 0; j < cols; ++j)
+        for (int i = 0; i < rows; ++i) expected[2 + i + (1 + j) * ldc] += Scalar(2) * a[i] * b[j];
+      internal::sme_fpsr_guard guard;
+      sme_test_store_grid(out.data(), ldc, a.data(), b.data(), rows, cols);
+      for (Index i = 0; i < Index(out.size()); ++i) VERIFY_IS_EQUAL(out[i], expected[i]);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_whilelt_operand_types<float>());
   CALL_SUBTEST_1(test_packet_ops<float>());
@@ -1503,6 +1576,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_1(test_conjugated_products<float>());
   CALL_SUBTEST_1(test_symm_pack<float>());
   CALL_SUBTEST_1(test_pack_direct<float>());
+  CALL_SUBTEST_1(test_copy_panel_range<float>());
   CALL_SUBTEST_1(test_mapper_fallback<float>());
   CALL_SUBTEST_1(test_neon_small_blocks<float>());
   CALL_SUBTEST_1(test_small_products<float>());
@@ -1523,6 +1597,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_2(test_packet_ops<double>());
   CALL_SUBTEST_2(test_symm_pack<double>());
   CALL_SUBTEST_2(test_pack_direct<double>());
+  CALL_SUBTEST_2(test_copy_panel_range<double>());
   CALL_SUBTEST_2(test_mapper_fallback<double>());
   CALL_SUBTEST_2(test_neon_small_blocks<double>());
   CALL_SUBTEST_2(test_small_products<double>());
@@ -1538,6 +1613,7 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST_3(test_conjugated_products<std::complex<float>>());
   CALL_SUBTEST_3(test_symm_pack<std::complex<float>>());
   CALL_SUBTEST_3(test_pack_direct<std::complex<float>>());
+  CALL_SUBTEST_3(test_copy_panel_range<std::complex<float>>());
   CALL_SUBTEST_3(test_mapper_fallback<std::complex<float>>());
   CALL_SUBTEST_3(test_neon_small_blocks<std::complex<float>>());
   CALL_SUBTEST_3(test_small_products<std::complex<float>>());
@@ -1554,6 +1630,7 @@ EIGEN_DECLARE_TEST(product_sme) {
 #ifdef EIGEN_VECTORIZE_SME_F64F64
   CALL_SUBTEST_4(test_symm_pack<std::complex<double>>());
   CALL_SUBTEST_4(test_pack_direct<std::complex<double>>());
+  CALL_SUBTEST_4(test_copy_panel_range<std::complex<double>>());
   CALL_SUBTEST_4(test_mapper_fallback<std::complex<double>>());
   CALL_SUBTEST_4(test_neon_small_blocks<std::complex<double>>());
   CALL_SUBTEST_4(test_small_products<std::complex<double>>());
@@ -1580,5 +1657,9 @@ EIGEN_DECLARE_TEST(product_sme) {
   CALL_SUBTEST(test_small_products<double>());
   CALL_SUBTEST(test_small_products<std::complex<double>>());
 #endif
+#endif
+  CALL_SUBTEST_9(test_tile_pair_stores<float>());
+#ifdef EIGEN_VECTORIZE_SME_F64F64
+  CALL_SUBTEST_9(test_tile_pair_stores<double>());
 #endif
 }
