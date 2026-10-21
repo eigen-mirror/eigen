@@ -78,25 +78,36 @@ EIGEN_BLAS_RANKUPDATE_SPECIALIZE(float)
 // EIGEN_BLAS_RANKUPDATE_SPECIALIZE(scomplex)
 
 // SYRK for float/double
-#define EIGEN_BLAS_RANKUPDATE_R(EIGTYPE, BLASTYPE, BLASFUNC)                                                        \
-  template <typename Index, int AStorageOrder, bool ConjugateA, int UpLo>                                           \
-  struct general_matrix_matrix_rankupdate<Index, EIGTYPE, AStorageOrder, ConjugateA, ColMajor, UpLo> {              \
-    enum {                                                                                                          \
-      IsLower = (UpLo & Lower) == Lower,                                                                            \
-      LowUp = IsLower ? Lower : Upper,                                                                              \
-      conjA = ((AStorageOrder == ColMajor) && ConjugateA) ? 1 : 0                                                   \
-    };                                                                                                              \
-    static EIGEN_STRONG_INLINE void run(Index size, Index depth, const EIGTYPE* lhs, Index lhsStride,               \
-                                        const EIGTYPE* /*rhs*/, Index /*rhsStride*/, EIGTYPE* res, Index resStride, \
-                                        EIGTYPE alpha, level3_blocking<EIGTYPE, EIGTYPE>& /*blocking*/) {           \
-      if (size == 0 || depth == 0) return;                                                                          \
-      BlasIndex lda = convert_index<BlasIndex>(lhsStride), ldc = convert_index<BlasIndex>(resStride),               \
-                n = convert_index<BlasIndex>(size), k = convert_index<BlasIndex>(depth);                            \
-      char uplo = ((IsLower) ? 'L' : 'U'), trans = ((AStorageOrder == RowMajor) ? 'T' : 'N');                       \
-      EIGTYPE beta(1);                                                                                              \
-      BLASFUNC(&uplo, &trans, &n, &k, (const BLASTYPE*)&numext::real_ref(alpha), lhs, &lda,                         \
-               (const BLASTYPE*)&numext::real_ref(beta), res, &ldc);                                                \
-    }                                                                                                               \
+#define EIGEN_BLAS_RANKUPDATE_R(EIGTYPE, BLASTYPE, BLASFUNC)                                                           \
+  template <typename Index, int AStorageOrder, bool ConjugateA, int UpLo>                                              \
+  struct general_matrix_matrix_rankupdate<Index, EIGTYPE, AStorageOrder, ConjugateA, ColMajor, UpLo> {                 \
+    using Scalar = EIGTYPE;                                                                                            \
+    enum {                                                                                                             \
+      IsLower = (UpLo & Lower) == Lower,                                                                               \
+      LowUp = IsLower ? Lower : Upper,                                                                                 \
+      conjA = ((AStorageOrder == ColMajor) && ConjugateA) ? 1 : 0                                                      \
+    };                                                                                                                 \
+    static EIGEN_STRONG_INLINE void run(Index size, Index depth, const EIGTYPE* lhs, Index lhsStride,                  \
+                                        const EIGTYPE* /*rhs*/, Index /*rhsStride*/, Scalar* res, Index resStride,     \
+                                        EIGTYPE alpha, level3_blocking<EIGTYPE, EIGTYPE>& blocking) {                  \
+      if (size == 0 || depth == 0 || numext::is_exactly_zero(alpha)) return;                                           \
+      if (!blas_compatible_stride<AStorageOrder>(size, depth, lhsStride) ||                                            \
+          !blas_compatible_stride<ColMajor>(size, size, resStride)) {                                                  \
+        general_matrix_matrix_triangular_product<Index, EIGTYPE, AStorageOrder, ConjugateA, EIGTYPE,                   \
+                                                 AStorageOrder == ColMajor ? RowMajor : ColMajor, ConjugateA,          \
+                                                 ColMajor, 1, UpLo, BuiltIn>::run(size, depth, lhs, lhsStride, lhs,    \
+                                                                                  lhsStride, res, Index(1), resStride, \
+                                                                                  alpha, blocking);                    \
+        return;                                                                                                        \
+      }                                                                                                                \
+      BlasIndex lda = blas_leading_dim<AStorageOrder>(size, depth, lhsStride),                                         \
+                ldc = blas_leading_dim<ColMajor>(size, size, resStride), n = convert_index<BlasIndex>(size),           \
+                k = convert_index<BlasIndex>(depth);                                                                   \
+      char uplo = ((IsLower) ? 'L' : 'U'), trans = ((AStorageOrder == RowMajor) ? 'T' : 'N');                          \
+      EIGTYPE beta(1);                                                                                                 \
+      BLASFUNC(&uplo, &trans, &n, &k, (const BLASTYPE*)&numext::real_ref(alpha), lhs, &lda,                            \
+               (const BLASTYPE*)&numext::real_ref(beta), res, &ldc);                                                   \
+    }                                                                                                                  \
   };
 
 #ifdef EIGEN_USE_MKL

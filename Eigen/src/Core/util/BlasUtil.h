@@ -21,6 +21,28 @@ namespace Eigen {
 
 namespace internal {
 
+// A singleton stored column never uses its outer stride, but BLAS still checks ld >= max(1, inner).
+// Normalize before narrowing: an unused stride need not fit BlasIndex.
+template <int StorageOrder, typename Index>
+EIGEN_STRONG_INLINE BlasIndex blas_leading_dim(Index rows, Index cols, Index stride) {
+  const Index inner = StorageOrder == ColMajor ? rows : cols;
+  const Index outer = StorageOrder == ColMajor ? cols : rows;
+  return convert_index<BlasIndex>(outer <= 1 ? numext::maxi(inner, Index(1)) : stride);
+}
+
+template <int StorageOrder, typename Index>
+EIGEN_STRONG_INLINE bool blas_compatible_stride(Index rows, Index cols, Index stride) {
+  const Index inner = StorageOrder == ColMajor ? rows : cols;
+  const Index outer = StorageOrder == ColMajor ? cols : rows;
+  return outer <= 1 || stride >= numext::maxi(inner, Index(1));
+}
+
+// BLAS rejects zero increments even when the vector has only one coefficient.
+template <typename Index>
+EIGEN_STRONG_INLINE BlasIndex blas_vector_increment(Index size, Index stride) {
+  return convert_index<BlasIndex>(size <= 1 ? Index(1) : stride);
+}
+
 // forward declarations
 template <typename LhsScalar, typename RhsScalar, typename Index, typename DataMapper, int mr, int nr,
           bool ConjugateLhs = false, bool ConjugateRhs = false>

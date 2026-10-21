@@ -91,7 +91,17 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
     static void run(Index _rows, Index _cols, Index _depth, const EIGTYPE* _lhs, Index lhsStride, const EIGTYPE* _rhs, \
                     Index rhsStride, EIGTYPE* res, Index resStride, EIGTYPE alpha,                                     \
                     level3_blocking<EIGTYPE, EIGTYPE>& blocking) {                                                     \
-      if (_rows == 0 || _cols == 0 || _depth == 0) return;                                                             \
+      if (_rows == 0 || _cols == 0 || _depth == 0 || numext::is_exactly_zero(alpha)) return;                           \
+      if (!blas_compatible_stride<LhsStorageOrder>(_rows, _depth, lhsStride) ||                                        \
+          !blas_compatible_stride<RhsStorageOrder>(_depth, _cols, rhsStride) ||                                        \
+          !blas_compatible_stride<ColMajor>(_rows, _cols, resStride)) {                                                \
+        product_triangular_matrix_matrix<EIGTYPE, Index, Mode, true, LhsStorageOrder, ConjugateLhs, RhsStorageOrder,   \
+                                         ConjugateRhs, ColMajor, 1, BuiltIn>::run(_rows, _cols, _depth, _lhs,          \
+                                                                                  lhsStride, _rhs, rhsStride, res,     \
+                                                                                  Index(1), resStride, alpha,          \
+                                                                                  blocking);                           \
+        return;                                                                                                        \
+      }                                                                                                                \
       Index diagSize = (std::min)(_rows, _depth);                                                                      \
       Index rows = IsLower ? _rows : diagSize;                                                                         \
       Index depth = IsLower ? diagSize : _depth;                                                                       \
@@ -173,7 +183,7 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
         lda = convert_index<BlasIndex>(a_tmp.outerStride());                                                           \
       } else {                                                                                                         \
         a = _lhs;                                                                                                      \
-        lda = convert_index<BlasIndex>(lhsStride);                                                                     \
+        lda = blas_leading_dim<LhsStorageOrder>(rows, depth, lhsStride);                                               \
       }                                                                                                                \
       /*std::cout << "TRMM_L: A is square! Go to BLAS TRMM implementation! \n";*/                                      \
       /* call ?trmm*/                                                                                                  \
@@ -215,7 +225,17 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(ctrmm))
     static void run(Index _rows, Index _cols, Index _depth, const EIGTYPE* _lhs, Index lhsStride, const EIGTYPE* _rhs, \
                     Index rhsStride, EIGTYPE* res, Index resStride, EIGTYPE alpha,                                     \
                     level3_blocking<EIGTYPE, EIGTYPE>& blocking) {                                                     \
-      if (_rows == 0 || _cols == 0 || _depth == 0) return;                                                             \
+      if (_rows == 0 || _cols == 0 || _depth == 0 || numext::is_exactly_zero(alpha)) return;                           \
+      if (!blas_compatible_stride<LhsStorageOrder>(_rows, _depth, lhsStride) ||                                        \
+          !blas_compatible_stride<RhsStorageOrder>(_depth, _cols, rhsStride) ||                                        \
+          !blas_compatible_stride<ColMajor>(_rows, _cols, resStride)) {                                                \
+        product_triangular_matrix_matrix<EIGTYPE, Index, Mode, false, LhsStorageOrder, ConjugateLhs, RhsStorageOrder,  \
+                                         ConjugateRhs, ColMajor, 1, BuiltIn>::run(_rows, _cols, _depth, _lhs,          \
+                                                                                  lhsStride, _rhs, rhsStride, res,     \
+                                                                                  Index(1), resStride, alpha,          \
+                                                                                  blocking);                           \
+        return;                                                                                                        \
+      }                                                                                                                \
       Index diagSize = (std::min)(_cols, _depth);                                                                      \
       Index rows = _rows;                                                                                              \
       Index depth = IsLower ? _depth : diagSize;                                                                       \
@@ -299,7 +319,7 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(ctrmm))
         lda = convert_index<BlasIndex>(a_tmp.outerStride());                                                           \
       } else {                                                                                                         \
         a = _rhs;                                                                                                      \
-        lda = convert_index<BlasIndex>(rhsStride);                                                                     \
+        lda = blas_leading_dim<RhsStorageOrder>(depth, cols, rhsStride);                                               \
       }                                                                                                                \
       /*std::cout << "TRMM_R: A is square! Go to BLAS TRMM implementation! \n";*/                                      \
       /* call ?trmm*/                                                                                                  \

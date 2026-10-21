@@ -89,38 +89,53 @@ EIGEN_BLAS_GEMV_SPECIALIZE(float)
 EIGEN_BLAS_GEMV_SPECIALIZE(dcomplex)
 EIGEN_BLAS_GEMV_SPECIALIZE(scomplex)
 
-#define EIGEN_BLAS_GEMV_SPECIALIZATION(EIGTYPE, BLASTYPE, BLASFUNC)                                                 \
-  template <typename Index, int LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs>                              \
-  struct general_matrix_vector_product_gemv<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, ConjugateRhs> { \
-    typedef Matrix<EIGTYPE, Dynamic, 1, ColMajor> GEMVVector;                                                       \
-                                                                                                                    \
-    static void run(Index rows, Index cols, const EIGTYPE* lhs, Index lhsStride, const EIGTYPE* rhs, Index rhsIncr, \
-                    EIGTYPE* res, Index resIncr, EIGTYPE alpha) {                                                   \
-      if (rows == 0 || cols == 0) return;                                                                           \
-      BlasIndex m = convert_index<BlasIndex>(rows), n = convert_index<BlasIndex>(cols),                             \
-                lda = convert_index<BlasIndex>(lhsStride), incx = convert_index<BlasIndex>(rhsIncr),                \
-                incy = convert_index<BlasIndex>(resIncr);                                                           \
-      const EIGTYPE beta(1);                                                                                        \
-      const EIGTYPE* x_ptr;                                                                                         \
-      char trans = (LhsStorageOrder == ColMajor) ? 'N' : (ConjugateLhs) ? 'C' : 'T';                                \
-      EIGEN_IF_CONSTEXPR (LhsStorageOrder == RowMajor) {                                                            \
-        m = convert_index<BlasIndex>(cols);                                                                         \
-        n = convert_index<BlasIndex>(rows);                                                                         \
-      }                                                                                                             \
-      GEMVVector x_tmp;                                                                                             \
-      EIGEN_IF_CONSTEXPR (ConjugateRhs) {                                                                           \
-        Map<const GEMVVector, 0, InnerStride<> > map_x(rhs, cols, 1, InnerStride<>(incx));                          \
-        x_tmp = map_x.conjugate();                                                                                  \
-        x_ptr = x_tmp.data();                                                                                       \
-        incx = 1;                                                                                                   \
-      } else {                                                                                                      \
-        /* BLAS reads a negative increment from the lowest address, Eigen from entry 0. */                          \
-        x_ptr = rhsIncr < 0 ? rhs + (cols - 1) * rhsIncr : rhs;                                                     \
-      }                                                                                                             \
-      auto* y_ptr = resIncr < 0 ? res + (rows - 1) * resIncr : res;                                                 \
-      BLASFUNC(&trans, &m, &n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)lhs, &lda,               \
-               (const BLASTYPE*)x_ptr, &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)y_ptr, &incy);   \
-    }                                                                                                               \
+#define EIGEN_BLAS_GEMV_SPECIALIZATION(EIGTYPE, BLASTYPE, BLASFUNC)                                                    \
+  template <typename Index, int LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs>                                 \
+  struct general_matrix_vector_product_gemv<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, ConjugateRhs> {    \
+    using Scalar = EIGTYPE;                                                                                            \
+    typedef Matrix<EIGTYPE, Dynamic, 1, ColMajor> GEMVVector;                                                          \
+                                                                                                                       \
+    static void run(Index rows, Index cols, const EIGTYPE* lhs, Index lhsStride, const EIGTYPE* rhs, Index rhsIncr,    \
+                    Scalar* res, Index resIncr, EIGTYPE alpha) {                                                       \
+      if (rows == 0 || cols == 0 || numext::is_exactly_zero(alpha)) return;                                            \
+      if (!blas_compatible_stride<LhsStorageOrder>(rows, cols, lhsStride) || (cols > 1 && rhsIncr == 0) ||             \
+          (rows > 1 && resIncr == 0)) {                                                                                \
+        using LhsMapper = const_blas_data_mapper<EIGTYPE, Index, LhsStorageOrder>;                                     \
+        using RhsMapper = const_blas_data_mapper<EIGTYPE, Index, LhsStorageOrder == ColMajor ? RowMajor : ColMajor>;   \
+        const GEMVVector rhs_copy = Map<const GEMVVector, 0, InnerStride<>>(rhs, cols, InnerStride<>(rhsIncr));        \
+        GEMVVector result = GEMVVector::Zero(rows);                                                                    \
+        general_matrix_vector_product<Index, EIGTYPE, LhsMapper, LhsStorageOrder, ConjugateLhs, EIGTYPE, RhsMapper,    \
+                                      ConjugateRhs, BuiltIn>::run(rows, cols, LhsMapper(lhs, lhsStride),               \
+                                                                  RhsMapper(rhs_copy.data(), Index(1)), result.data(), \
+                                                                  Index(1), alpha);                                    \
+        Map<GEMVVector, 0, InnerStride<>>(res, rows, InnerStride<>(resIncr)) += result;                                \
+        return;                                                                                                        \
+      }                                                                                                                \
+      BlasIndex m = convert_index<BlasIndex>(rows), n = convert_index<BlasIndex>(cols);                                \
+      const EIGTYPE beta(1);                                                                                           \
+      const EIGTYPE* x_ptr;                                                                                            \
+      char trans = (LhsStorageOrder == ColMajor) ? 'N' : (ConjugateLhs) ? 'C' : 'T';                                   \
+      EIGEN_IF_CONSTEXPR (LhsStorageOrder == RowMajor) {                                                               \
+        m = convert_index<BlasIndex>(cols);                                                                            \
+        n = convert_index<BlasIndex>(rows);                                                                            \
+      }                                                                                                                \
+      const BlasIndex lda = blas_leading_dim<LhsStorageOrder>(rows, cols, lhsStride);                                  \
+      BlasIndex incx = blas_vector_increment(cols, rhsIncr);                                                           \
+      const BlasIndex incy = blas_vector_increment(rows, resIncr);                                                     \
+      GEMVVector x_tmp;                                                                                                \
+      EIGEN_IF_CONSTEXPR (ConjugateRhs) {                                                                              \
+        Map<const GEMVVector, 0, InnerStride<>> map_x(rhs, cols, 1, InnerStride<>(incx));                              \
+        x_tmp = map_x.conjugate();                                                                                     \
+        x_ptr = x_tmp.data();                                                                                          \
+        incx = 1;                                                                                                      \
+      } else {                                                                                                         \
+        /* BLAS reads a negative increment from the lowest address, Eigen from entry 0. */                             \
+        x_ptr = rhsIncr < 0 ? rhs + (cols - 1) * rhsIncr : rhs;                                                        \
+      }                                                                                                                \
+      auto* y_ptr = resIncr < 0 ? res + (rows - 1) * resIncr : res;                                                    \
+      BLASFUNC(&trans, &m, &n, (const BLASTYPE*)&numext::real_ref(alpha), (const BLASTYPE*)lhs, &lda,                  \
+               (const BLASTYPE*)x_ptr, &incx, (const BLASTYPE*)&numext::real_ref(beta), (BLASTYPE*)y_ptr, &incy);      \
+    }                                                                                                                  \
   };
 
 #ifdef EIGEN_USE_MKL
