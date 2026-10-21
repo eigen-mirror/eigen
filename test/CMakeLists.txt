@@ -685,11 +685,14 @@ if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)
 endif()
 
+ei_add_test(sycl_macro_collision)
+
 if(EIGEN_TEST_SYCL)
   set(EIGEN_SYCL ON)
   include(SyclConfigureTesting)
 
   ei_add_test(sycl_basic)
+  ei_add_test(sycl_include_order)
   set(EIGEN_SYCL OFF)
 endif()
 

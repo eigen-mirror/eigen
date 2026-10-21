@@ -30,7 +30,7 @@
 namespace Eigen {
 
 namespace internal {
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
 #define SYCL_PLOAD(packet_type, AlignedType)                                                                           \
   template <>                                                                                                          \
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE packet_type pload##AlignedType<packet_type>(                                   \
@@ -559,7 +559,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void ptranspose(PacketBlock<cl::sycl::cl_d
   kernel.packet[1].x() = tmp;
 }
 
-#endif  // SYCL_DEVICE_ONLY
+#endif  // EIGEN_SYCL_DEVICE_ONLY
 
 }  // end namespace internal
 

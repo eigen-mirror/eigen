@@ -23,7 +23,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 4, int> count_leading_zeros(const T val) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
   return __clz(val);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
   return cl::sycl::clz(val);
 #elif EIGEN_COMP_MSVC
   unsigned long index;
@@ -39,7 +39,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 8, int> count_leading_zeros(const T val) {
 #ifdef EIGEN_GPU_COMPILE_PHASE
   return __clzll(val);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
   return static_cast<int>(cl::sycl::clz(val));
 #elif EIGEN_COMP_MSVC && EIGEN_ARCH_x86_64
   unsigned long index;
@@ -76,7 +76,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint32_t muluh(const uint32_t a, const T b) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return __umulhi(a, b);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
   return cl::sycl::mul_hi(a, static_cast<uint32_t>(b));
 #else
   return (static_cast<uint64_t>(a) * b) >> 32;
@@ -87,7 +87,7 @@ template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint64_t muluh(const uint64_t a, const T b) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return __umul64hi(a, b);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
   return cl::sycl::mul_hi(a, static_cast<uint64_t>(b));
 #elif EIGEN_COMP_MSVC && (EIGEN_ARCH_x86_64 || EIGEN_ARCH_ARM64)
   return __umulh(a, static_cast<uint64_t>(b));
@@ -111,7 +111,7 @@ struct DividerHelper {
 template <typename T>
 struct DividerHelper<64, T> {
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE uint64_t computeMultiplier(const int log_div, const T divider) {
-#if EIGEN_HAS_BUILTIN_INT128 && !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY)
+#if EIGEN_HAS_BUILTIN_INT128 && !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__)
     return static_cast<uint64_t>((static_cast<__uint128_t>(1) << (64 + log_div)) / static_cast<__uint128_t>(divider) -
                                  (static_cast<__uint128_t>(1) << 64) + 1);
 #else
@@ -194,7 +194,7 @@ class TensorIntDivisor<int32_t, true> {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE int divide(const int32_t n) const {
 #ifdef EIGEN_GPU_COMPILE_PHASE
     return __umulhi(magic, n) >> shift;
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::mul_hi(magic, static_cast<uint32_t>(n)) >> shift;
 #else
     uint64_t v = static_cast<uint64_t>(magic) * static_cast<uint64_t>(n);

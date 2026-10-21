@@ -1090,7 +1090,7 @@ struct functor_traits<scalar_trunc_op<Scalar>> {
 template <typename Scalar, bool UseTypedPredicate = false>
 struct scalar_isnan_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return numext::isnan(a);
 #else
     return numext::isnan EIGEN_NOT_A_MACRO(a);
@@ -1101,7 +1101,7 @@ struct scalar_isnan_op {
 template <typename Scalar>
 struct scalar_isnan_op<Scalar, true> {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return (numext::isnan(a) ? ptrue(a) : pzero(a));
 #else
     return (numext::isnan EIGEN_NOT_A_MACRO(a) ? ptrue(a) : pzero(a));
@@ -1125,7 +1125,7 @@ struct functor_traits<scalar_isnan_op<Scalar, UseTypedPredicate>> {
 template <typename Scalar, bool UseTypedPredicate = false>
 struct scalar_isinf_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return numext::isinf(a);
 #else
     return (numext::isinf)(a);
@@ -1136,7 +1136,7 @@ struct scalar_isinf_op {
 template <typename Scalar>
 struct scalar_isinf_op<Scalar, true> {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return (numext::isinf(a) ? ptrue(a) : pzero(a));
 #else
     return (numext::isinf EIGEN_NOT_A_MACRO(a) ? ptrue(a) : pzero(a));
@@ -1159,7 +1159,7 @@ struct functor_traits<scalar_isinf_op<Scalar, UseTypedPredicate>> {
 template <typename Scalar, bool UseTypedPredicate = false>
 struct scalar_isfinite_op {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return numext::isfinite(a);
 #else
     return (numext::isfinite)(a);
@@ -1170,7 +1170,7 @@ struct scalar_isfinite_op {
 template <typename Scalar>
 struct scalar_isfinite_op<Scalar, true> {
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return (numext::isfinite(a) ? ptrue(a) : pzero(a));
 #else
     return (numext::isfinite EIGEN_NOT_A_MACRO(a) ? ptrue(a) : pzero(a));

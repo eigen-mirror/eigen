@@ -67,10 +67,11 @@ struct lgamma_impl {
 template <>
 struct lgamma_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(float x) {
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && defined(EIGEN_HAS_LGAMMA_R) && !defined(__APPLE__)
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && defined(EIGEN_HAS_LGAMMA_R) && \
+    !defined(__APPLE__)
     int dummy;
     return ::lgammaf_r(x, &dummy);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::lgamma(x);
 #else
     return ::lgammaf(x);
@@ -81,10 +82,11 @@ struct lgamma_impl<float> {
 template <>
 struct lgamma_impl<double> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(double x) {
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && defined(EIGEN_HAS_LGAMMA_R) && !defined(__APPLE__)
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && defined(EIGEN_HAS_LGAMMA_R) && \
+    !defined(__APPLE__)
     int dummy;
     return ::lgamma_r(x, &dummy);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::lgamma(x);
 #else
     return ::lgamma(x);
@@ -474,7 +476,7 @@ struct erfc_impl {
 template <>
 struct erfc_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float x) {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::erfc(x);
 #else
     return generic_fast_erfc<float>::run(x);
@@ -485,7 +487,7 @@ struct erfc_impl<float> {
 template <>
 struct erfc_impl<double> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(const double x) {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::erfc(x);
 #else
     return generic_fast_erfc<double>::run(x);
@@ -594,7 +596,7 @@ struct erf_impl {
 template <>
 struct erf_impl<float> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float x) {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::erf(x);
 #else
     return generic_fast_erf<float>::run(x);
@@ -605,7 +607,7 @@ struct erf_impl<float> {
 template <>
 struct erf_impl<double> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(const double x) {
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
     return cl::sycl::erf(x);
 #else
     return generic_fast_erf<double>::run(x);

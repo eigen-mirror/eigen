@@ -160,7 +160,7 @@ struct __half_raw {
 
 // CUDA GPU compile phase.
 
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
 using __half_raw = cl::sycl::half;
 #endif
 
@@ -755,7 +755,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC numext::uint16_t raw_half_as_uint16(const 
   return numext::bit_cast<numext::uint16_t>(h.x);
 #elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
   return numext::bit_cast<numext::uint16_t>(h.x);
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
   return numext::bit_cast<numext::uint16_t>(h);
 #else
   return h.x;
@@ -1025,7 +1025,7 @@ EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
 #if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   // Rounded once in hardware.
   return __hfma(::__half(a), ::__half(b), ::__half(c));
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(__SYCL_DEVICE_ONLY__)
   // Rounds twice; see fma_round_to_odd.
   return half(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
 #elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)

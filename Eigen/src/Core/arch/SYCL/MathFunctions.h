@@ -32,7 +32,7 @@ namespace internal {
 // Make sure this is only available when targeting a GPU: we don't want to
 // introduce conflicts between these packet_traits definitions and the ones
 // we'll use on the host side (SSE, AVX, ...)
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
 
 // Generic macro for unary SYCL math functions.
 #define SYCL_PACKET_FUNCTION(EIGEN_FUNC, SYCL_FUNC, PACKET)                          \

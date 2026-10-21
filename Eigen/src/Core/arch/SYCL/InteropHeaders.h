@@ -78,7 +78,7 @@ struct sycl_packet_traits : default_packet_traits {
   };
 };
 
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
 #define SYCL_PACKET_TRAITS(packet_type, unpacket_type, lengths)       \
   template <>                                                         \
   struct packet_traits<unpacket_type> : sycl_packet_traits<lengths> { \
@@ -129,7 +129,7 @@ namespace internal {
 template <typename PacketReturnType, int PacketSize>
 struct PacketWrapper;
 // This function should never get called on the device
-#ifndef SYCL_DEVICE_ONLY
+#ifndef EIGEN_SYCL_DEVICE_ONLY
 template <typename PacketReturnType, int PacketSize>
 struct PacketWrapper {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;
@@ -147,7 +147,7 @@ struct PacketWrapper {
   }
 };
 
-#elif defined(SYCL_DEVICE_ONLY)
+#elif defined(EIGEN_SYCL_DEVICE_ONLY)
 template <typename PacketReturnType>
 struct PacketWrapper<PacketReturnType, 4> {
   typedef typename ::Eigen::internal::unpacket_traits<PacketReturnType>::type Scalar;

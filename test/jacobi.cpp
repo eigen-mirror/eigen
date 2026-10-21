@@ -145,7 +145,7 @@ void jacobi_makegivens_subnormal() {
         for (int mode = 0; mode < 4; ++mode) {
           JacobiRotation<Scalar> rotation, withoutR;
           Scalar r;
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && EIGEN_ARCH_i386_OR_x86_64 && \
     (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
           {
             struct RestoreMxcsr {

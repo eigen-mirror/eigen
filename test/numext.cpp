@@ -986,7 +986,7 @@ void check_zero_no_flush() {
                            std::numeric_limits<Scalar>::quiet_NaN()};
   const int count = sizeof(values) / sizeof(values[0]);
   for (int mode = 0; mode < 4; ++mode) {
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && EIGEN_ARCH_i386_OR_x86_64 && \
     defined(_MM_SET_DENORMALS_ZERO_MODE)
     ScopedFlushToZero restore;
     const unsigned mask = _MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
@@ -1070,7 +1070,7 @@ void check_binary_sign_no_flush() {
   ScopedFlushToZero flush;
   if (!flush.isSupported()) return;
   check_binary_sign_no_flush_values<Scalar>();
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && EIGEN_ARCH_i386_OR_x86_64 && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && EIGEN_ARCH_i386_OR_x86_64 && \
     defined(_MM_SET_DENORMALS_ZERO_MODE)
   _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
   check_binary_sign_no_flush_values<Scalar>();

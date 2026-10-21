@@ -83,7 +83,7 @@ EIGEN_DECLARE_TEST(optimization_barrier) {
   VERIFY(!svptest_any(svptrue_b64(), svcmpne_n_f64(svptrue_b64(), sizeless, 1.25)));
 #endif
 
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && \
     (EIGEN_COMP_GNUC || (defined(__clang__) && defined(_MSC_VER)) || (EIGEN_COMP_MSVC && defined(_M_FP_FAST)))
   VERIFY_IS_EQUAL(rounded_by_barrier(1.25f), 1.0f);
   VERIFY_IS_EQUAL(rounded_by_barrier(1.25), 1.0);

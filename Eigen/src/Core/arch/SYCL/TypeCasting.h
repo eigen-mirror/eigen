@@ -29,7 +29,7 @@
 namespace Eigen {
 
 namespace internal {
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
 template <>
 struct type_casting_traits<float, int> {
   enum { VectorizedCast = 1, SrcCoeffRatio = 1, TgtCoeffRatio = 1 };

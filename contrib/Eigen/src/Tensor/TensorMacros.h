@@ -29,7 +29,7 @@
 #define EIGEN_SFINAE_ENABLE_IF(__condition__) std::enable_if_t<(__condition__), int> = 0
 
 // Define a macro to use a reference on the host but a value on the device
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(__SYCL_DEVICE_ONLY__)
 #define EIGEN_DEVICE_REF
 #else
 #define EIGEN_DEVICE_REF &

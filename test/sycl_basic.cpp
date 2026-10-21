@@ -351,7 +351,7 @@ void test_predux_any(Operation& operation) {
 
 void test_predux_any_float() {
   auto operation = [](const float* in, int* out) {
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
     const cl::sycl::cl_int4 int_none(0);
     const cl::sycl::cl_int4 int_some(0, -1, 0, 0);
     const cl::sycl::cl_int4 int_all(-1);
@@ -370,7 +370,7 @@ void test_predux_any_float() {
 
 void test_predux_any_half() {
   auto operation = [](const float* in, int* out) {
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
     const cl::sycl::cl_short8 short_none(0);
     const cl::sycl::cl_short8 short_some(0, -1, 0, 0, 0, 0, 0, 0);
     const cl::sycl::cl_short8 short_all(-1);
@@ -389,7 +389,7 @@ void test_predux_any_half() {
 
 void test_predux_any_double() {
   auto operation = [](const float* in, int* out) {
-#ifdef SYCL_DEVICE_ONLY
+#ifdef EIGEN_SYCL_DEVICE_ONLY
     const cl::sycl::cl_long2 long_none(0);
     const cl::sycl::cl_long2 long_some(0, -1);
     const cl::sycl::cl_long2 long_all(-1);

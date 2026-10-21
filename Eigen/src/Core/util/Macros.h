@@ -561,12 +561,14 @@
 #error "NVCC as the target platform for HIPCC is currently not supported."
 #endif
 
-#if defined(__CUDACC__) && !defined(EIGEN_NO_CUDA) && !defined(__SYCL_DEVICE_ONLY__)
+// SYCL CUDA kernels still need CUDA scalar math unless Eigen's SYCL backend is selected.
+#if defined(__CUDACC__) && !defined(EIGEN_NO_CUDA) && (!defined(__SYCL_DEVICE_ONLY__) || !defined(EIGEN_USE_SYCL))
 // Means the compiler is either nvcc or clang with CUDA enabled
 #define EIGEN_CUDACC __CUDACC__
 #endif
 
-#if defined(__CUDA_ARCH__) && !defined(EIGEN_NO_CUDA) && !defined(__SYCL_DEVICE_ONLY__)
+#if defined(__CUDA_ARCH__) && !defined(EIGEN_NO_CUDA) && \
+    (!defined(__SYCL_DEVICE_ONLY__) || (defined(__CUDACC__) && !defined(EIGEN_USE_SYCL)))
 // Means we are generating code for the device
 #define EIGEN_CUDA_ARCH __CUDA_ARCH__
 #endif
@@ -721,9 +723,11 @@
 #endif
 
 #if defined(EIGEN_USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)
-// EIGEN_USE_SYCL is a user-defined macro while __SYCL_DEVICE_ONLY__ is a compiler-defined macro.
-// In most cases we want to check if both macros are defined which can be done using the define below.
+// Eigen's SYCL dispatch flag. SYCL_DEVICE_ONLY is kept for users, but AdaptiveCpp's headers also define it.
+#define EIGEN_SYCL_DEVICE_ONLY
+#ifndef SYCL_DEVICE_ONLY
 #define SYCL_DEVICE_ONLY
+#endif
 #endif
 
 // Under fast-math flags (-ffinite-math-only in particular), clang attaches the
@@ -735,7 +739,7 @@
 // store/load pair where it is materialized. It uses a memory operand so that it works for any
 // packet type, including aggregates, and expands to nothing outside affected builds.
 #if EIGEN_COMP_CLANG && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && !defined(EIGEN_GPU_COMPILE_PHASE) && \
-    !defined(SYCL_DEVICE_ONLY)
+    !defined(__SYCL_DEVICE_ONLY__)
 #define EIGEN_FAST_MATH_CONSTANT_BARRIER(X) __asm__("" : "+m"(X))
 #else
 #define EIGEN_FAST_MATH_CONSTANT_BARRIER(X)
@@ -936,7 +940,7 @@
 // adds attributes to maximize inlining. This should only be used when really necessary: in particular, the
 // __attribute__((always_inline)) used on GCC is often unnecessary and can severely harm compile times.
 #ifndef EIGEN_ALWAYS_INLINE
-#if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
+#if EIGEN_COMP_GNUC && !defined(EIGEN_SYCL_DEVICE_ONLY)
 #define EIGEN_ALWAYS_INLINE __attribute__((always_inline)) inline
 #else
 #define EIGEN_ALWAYS_INLINE EIGEN_STRONG_INLINE
@@ -949,7 +953,7 @@
 // (those with auto parameters), so we leave it empty and rely on the
 // optimizer to inline small lambda bodies at /O2.
 #ifndef EIGEN_LAMBDA_ALWAYS_INLINE
-#if EIGEN_COMP_GNUC && !defined(SYCL_DEVICE_ONLY)
+#if EIGEN_COMP_GNUC && !defined(EIGEN_SYCL_DEVICE_ONLY)
 #define EIGEN_LAMBDA_ALWAYS_INLINE __attribute__((always_inline))
 #else
 #define EIGEN_LAMBDA_ALWAYS_INLINE
@@ -975,7 +979,7 @@
 // GPU stuff
 
 // Disable some features when compiling with GPU compilers (SYCL/HIPCC)
-#if defined(SYCL_DEVICE_ONLY) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(__SYCL_DEVICE_ONLY__) || defined(EIGEN_HIP_DEVICE_COMPILE)
 // Do not try asserts on device code
 #ifndef EIGEN_NO_DEBUG
 #define EIGEN_NO_DEBUG
@@ -987,13 +991,13 @@
 #endif
 
 // No exceptions on device.
-#if defined(SYCL_DEVICE_ONLY) || defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(__SYCL_DEVICE_ONLY__) || defined(EIGEN_GPU_COMPILE_PHASE)
 #ifdef EIGEN_EXCEPTIONS
 #undef EIGEN_EXCEPTIONS
 #endif
 #endif
 
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_SYCL_DEVICE_ONLY) && !defined(EIGEN_GPUCC)
 #ifndef EIGEN_DONT_VECTORIZE
 #define EIGEN_DONT_VECTORIZE
 #endif
@@ -1365,7 +1369,7 @@ EIGEN_ALWAYS_INLINE void nvhpc_optimization_barrier(long double& x) {
 #elif EIGEN_ARCH_i386_OR_x86_64
 // General, SSE.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+g,x"(X));
-#elif !defined(SYCL_DEVICE_ONLY)
+#elif !defined(__SYCL_DEVICE_ONLY__)
 // Other architectures: a memory operand needs no target-specific register class.
 #define EIGEN_OPTIMIZATION_BARRIER(X) __asm__("" : "+m"(X));
 #else
@@ -1408,12 +1412,12 @@ namespace internal {
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(T& x) {
   EIGEN_UNUSED_VARIABLE(x);
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && \
     (EIGEN_COMP_GNUC || (defined(__clang__) && defined(_MSC_VER)))
   __asm__ __volatile__("" : "+m"(x));
 #endif
 }
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY) && \
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && \
     (EIGEN_COMP_GNUC || (defined(__clang__) && defined(_MSC_VER)))
 #if EIGEN_ARCH_i386_OR_x86_64 && EIGEN_COMP_NVHPC
 // nvc++ rejects a long double asm operand under every constraint, so its bytes go through memory instead.
@@ -1657,7 +1661,7 @@ EIGEN_DEVICE_FUNC constexpr bool all(T t, Ts... ts) {
 #define EIGEN_FINAL final
 
 // Wrapping #pragma unroll in a macro since it is required for SYCL
-#if defined(SYCL_DEVICE_ONLY)
+#if defined(__SYCL_DEVICE_ONLY__)
 #if defined(_MSC_VER)
 #define EIGEN_UNROLL_LOOP __pragma(unroll)
 #else

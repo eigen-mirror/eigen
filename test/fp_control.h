@@ -11,7 +11,7 @@
 
 #include <Eigen/Core>
 
-#if defined(EIGEN_GPU_COMPILE_PHASE) || defined(SYCL_DEVICE_ONLY)
+#if defined(EIGEN_GPU_COMPILE_PHASE) || defined(__SYCL_DEVICE_ONLY__)
 #define EIGEN_TEST_DEVICE_COMPILE 1
 #else
 #define EIGEN_TEST_DEVICE_COMPILE 0

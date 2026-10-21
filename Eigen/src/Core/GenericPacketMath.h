@@ -888,7 +888,7 @@ struct packet_bit_pattern_traits {
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pscalar_from_float_bits(numext::uint32_t bits) {
 #if EIGEN_COMP_GNUC_STRICT && defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__ && \
-    !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(SYCL_DEVICE_ONLY)
+    !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__)
   // GCC also needs the integer pattern hidden before bit_cast and widening. Use a memory operand so this works on
   // targets where EIGEN_OPTIMIZATION_BARRIER is intentionally unavailable.
   __asm__("" : "+m"(bits));
