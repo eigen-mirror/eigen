@@ -485,10 +485,21 @@ inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(TMatrix& matT, Index i
   return res;
 }
 
+// GCC 10 and 11 record on each vzeroupper the SSE registers live across it. Post-reload GCSE can extend a live range
+// across a vzeroupper without updating that record, and cprop_hardreg then deletes a copy that reads the unrecorded
+// register (#3196). GCC 12 dropped the record in the fix for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=82735.
+// Compile this helper out of line without that pass; to protect other code, build with -fno-gcse-after-reload.
+#if EIGEN_GNUC_STRICT_AT_LEAST(10, 0, 0) && EIGEN_GNUC_STRICT_LESS_THAN(12, 0, 0) && defined(__AVX__)
+#define EIGEN_REALSCHUR_SPLIT_INLINE EIGEN_DONT_INLINE __attribute__((optimize("no-gcse-after-reload")))
+#else
+#define EIGEN_REALSCHUR_SPLIT_INLINE inline
+#endif
+
 /** \internal Update T given that rows iu-1 and iu decouple from the rest. */
 template <typename MatrixType>
 template <typename TMatrix>
-inline void RealSchur<MatrixType>::splitOffTwoRows(TMatrix& matT, Index iu, bool computeU, const Scalar& exshift) {
+EIGEN_REALSCHUR_SPLIT_INLINE void RealSchur<MatrixType>::splitOffTwoRows(TMatrix& matT, Index iu, bool computeU,
+                                                                         const Scalar& exshift) {
   using std::abs;
   using std::sqrt;
   const Index size = matT.cols();
@@ -517,6 +528,8 @@ inline void RealSchur<MatrixType>::splitOffTwoRows(TMatrix& matT, Index iu, bool
 
   if (iu > 1) matT.coeffRef(iu - 1, iu - 2) = Scalar(0);
 }
+
+#undef EIGEN_REALSCHUR_SPLIT_INLINE
 
 /** \internal Form shift in shiftInfo, and update exshift if an exceptional shift is performed. */
 template <typename MatrixType>
