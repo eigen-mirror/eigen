@@ -637,12 +637,14 @@ struct TensorContractionEvaluatorBase {
   EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType dest, EvalSubExprsCallback done) {
     m_leftImpl.evalSubExprsIfNeededAsync(nullptr, [this, done, dest](bool) {
       m_rightImpl.evalSubExprsIfNeededAsync(nullptr, [this, done, dest](bool) {
-        if (dest) {
-          evalToAsync(dest, [done]() { done(false); });
-        } else {
+        const bool need_assign = (dest == nullptr);
+        EvaluatorPointerType buffer = dest;
+        if (need_assign) {
           m_result = static_cast<EvaluatorPointerType>(m_device.allocate(dimensions().TotalSize() * sizeof(Scalar)));
-          evalToAsync(m_result, [done]() { done(true); });
+          buffer = m_result;
         }
+        // One callback type for both branches: each distinct closure type instantiates the whole evalProductAsync tree.
+        evalToAsync(buffer, [done, need_assign]() { done(need_assign); });
       });
     });
   }

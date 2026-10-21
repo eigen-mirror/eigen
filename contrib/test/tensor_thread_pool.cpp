@@ -555,6 +555,106 @@ void test_async_multithread_contraction_agrees_with_singlethread() {
   }
 }
 
+template <typename Contraction>
+struct AsyncContractionEvalToProbe;
+
+namespace Eigen {
+namespace internal {
+template <typename Contraction>
+struct traits<AsyncContractionEvalToProbe<Contraction>> : traits<TensorEvaluator<const Contraction, ThreadPoolDevice>> {
+};
+}  // namespace internal
+}  // namespace Eigen
+
+template <typename Contraction>
+struct AsyncContractionEvalToProbe : Eigen::TensorContractionEvaluatorBase<AsyncContractionEvalToProbe<Contraction>> {
+  using Base = Eigen::TensorContractionEvaluatorBase<AsyncContractionEvalToProbe<Contraction>>;
+  using Scalar = typename Base::Scalar;
+
+  AsyncContractionEvalToProbe(const Contraction& op, const Eigen::ThreadPoolDevice& device) : Base(op, device) {}
+
+  template <int Alignment>
+  void evalProduct(Scalar*) const {}
+
+  template <typename EvalToCallback, int Alignment>
+  void evalProductAsync(Scalar* buffer, EvalToCallback done) const {
+    static int shared_instantiation_calls = 0;
+    last_instantiation_calls = ++shared_instantiation_calls;
+    last_buffer = buffer;
+    done();
+  }
+
+  mutable Scalar* last_buffer = nullptr;
+  mutable int last_instantiation_calls = 0;
+};
+
+template <int DataLayout>
+void test_async_contraction_eval_subexprs_dedup() {
+  using DimPair = typename Tensor<float, 1>::DimensionPair;
+  Eigen::ThreadPool tp(4);
+  Eigen::ThreadPoolDevice device(&tp, 4);
+
+  Tensor<float, 2, DataLayout> left(4, 4);
+  Tensor<float, 2, DataLayout> right(4, 4);
+  Tensor<float, 2, DataLayout> dest(4, 4);
+  left.setRandom();
+  right.setRandom();
+
+  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
+  auto expr = left.contract(right, dims);
+  AsyncContractionEvalToProbe<decltype(expr)> probe(expr, device);
+
+  bool need_assign = true;
+  auto on_done = [&need_assign](bool na) { need_assign = na; };
+
+  probe.evalSubExprsIfNeededAsync(dest.data(), on_done);
+  VERIFY_IS_EQUAL(need_assign, false);
+  VERIFY_IS_EQUAL(probe.last_buffer, dest.data());
+  VERIFY_IS_EQUAL(probe.data(), static_cast<float*>(nullptr));
+  VERIFY_IS_EQUAL(probe.last_instantiation_calls, 1);
+
+  probe.evalSubExprsIfNeededAsync(nullptr, on_done);
+  VERIFY_IS_EQUAL(need_assign, true);
+  VERIFY(probe.data() != nullptr);
+  VERIFY_IS_EQUAL(probe.last_buffer, probe.data());
+  VERIFY_IS_EQUAL(probe.last_instantiation_calls, 2);
+  probe.cleanup();
+  VERIFY_IS_EQUAL(probe.data(), static_cast<float*>(nullptr));
+
+  // Verify real ThreadPoolDevice evaluation along the dest == nullptr branch
+  // (nested contraction subexpression) across parallel GEMM, inner-dim sharded,
+  // and k = 0 shapes.
+  const int shapes[][3] = {{64, 64, 64}, {2, 2048, 10}, {10, 0, 20}};
+  for (const auto& shape : shapes) {
+    const int m = shape[0];
+    const int k = shape[1];
+    const int n = shape[2];
+    Tensor<float, 2, DataLayout> t_left(m, k);
+    Tensor<float, 2, DataLayout> t_right(k, n);
+    Tensor<float, 2, DataLayout> t_bias(m, n);
+    t_left.setRandom();
+    t_right.setRandom();
+    t_bias.setRandom();
+    t_left += t_left.constant(1.5f);
+    t_right += t_right.constant(1.5f);
+    t_bias += t_bias.constant(1.5f);
+
+    Tensor<float, 2, DataLayout> st_result(m, n);
+    Tensor<float, 2, DataLayout> tp_result(m, n);
+    tp_result.setZero();
+
+    st_result = t_left.contract(t_right, dims) + t_bias;
+
+    Eigen::Barrier barrier(1);
+    tp_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims) + t_bias;
+    barrier.Wait();
+
+    for (Index i = 0; i < st_result.size(); ++i) {
+      VERIFY_IS_APPROX(tp_result.data()[i], st_result.data()[i]);
+    }
+  }
+}
+
 // We are triggering 'evalShardedByInnerDim' optimization.
 template <int DataLayout>
 static void test_sharded_by_inner_dim_contraction() {
@@ -1344,6 +1444,8 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_6(test_async_multithread_contraction_agrees_with_singlethread<ColMajor>());
   CALL_SUBTEST_6(test_async_multithread_contraction_agrees_with_singlethread<RowMajor>());
+  CALL_SUBTEST_6(test_async_contraction_eval_subexprs_dedup<ColMajor>());
+  CALL_SUBTEST_6(test_async_contraction_eval_subexprs_dedup<RowMajor>());
 
   // Test EvalShardedByInnerDimContext parallelization strategy.
   CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction<ColMajor>());
