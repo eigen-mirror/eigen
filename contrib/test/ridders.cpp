@@ -238,7 +238,10 @@ void test_ridders_central_overflow() {
   using DiffType = Ridders<Functor>;
 
   const Scalar large = NumTraits<Scalar>::highest() * Scalar(0.75);
-  const Scalar tiny = (std::numeric_limits<Scalar>::denorm_min)();
+  // 32-bit ARM NEON flushes subnormal lanes; there, keep tiny and small * h for the steps h = 1, 1/2 normal.
+  constexpr bool kPacketsFlush = EIGEN_ARCH_ARM && internal::packet_traits<Scalar>::Vectorizable;
+  const Scalar small = Scalar(kPacketsFlush ? 2 : 1) * (std::numeric_limits<Scalar>::min)();
+  const Scalar tiny = kPacketsFlush ? small : (std::numeric_limits<Scalar>::denorm_min)();
 
   for (Index count : {1, 7, 17}) {
     Functor functor;
@@ -246,7 +249,7 @@ void test_ridders_central_overflow() {
     functor.offsets.setZero(count);
 
     for (Index i = 0; i < count; ++i) {
-      functor.slopes[i] = i % 3 == 0 ? large : (i % 3 == 1 ? Scalar(-8) : (std::numeric_limits<Scalar>::min)());
+      functor.slopes[i] = i % 3 == 0 ? large : (i % 3 == 1 ? Scalar(-8) : small);
       if (i % 6 == 3) functor.slopes[i] = -large;
     }
 
@@ -259,7 +262,8 @@ void test_ridders_central_overflow() {
     for (Index i = 0; i < count; ++i) VERIFY_IS_EQUAL(jac[i], functor.slopes[i]);
     VERIFY_IS_EQUAL(error[0], Scalar(0));
 
-    // A failed refinement must retain finite entries, including subnormals, from the initial stencil.
+    // A failed refinement must retain finite entries, including subnormals unless packets flush them, from the
+    // initial stencil.
     diff.functor().evaluations = 0;
     diff.functor().finiteEvaluations = 2;
     for (Index i = 2; i < count; i += 3) diff.functor().slopes[i] = tiny;
