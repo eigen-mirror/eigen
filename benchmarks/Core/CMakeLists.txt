@@ -11,6 +11,11 @@ else()
   eigen_add_benchmark(bench_gemm bench_gemm.cpp)
   eigen_add_benchmark(bench_gemm_double bench_gemm.cpp DEFINITIONS SCALAR=double)
 endif()
+# Keep -O2 visible: GCC's fixed-loop unrolling changes GEBP register allocation.
+eigen_add_benchmark(bench_gemm_o2 bench_gemm.cpp)
+eigen_add_benchmark(bench_gemm_double_o2 bench_gemm.cpp DEFINITIONS SCALAR=double)
+target_compile_options(bench_gemm_o2 PRIVATE $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O2>)
+target_compile_options(bench_gemm_double_o2 PRIVATE $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O2>)
 eigen_add_benchmark(bench_gemm_complex bench_gemm.cpp
     DEFINITIONS "SCALAR=std::complex<float>" EIGEN_BENCH_COMPLEX_SCALAR)
 eigen_add_benchmark(bench_gemm_complex_double bench_gemm.cpp
