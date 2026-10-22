@@ -54,10 +54,13 @@ limitations under the License.
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog2)                     \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog10)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, preciprocal)               \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, prsqrt)                    \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcbrt)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psqrt)                     \
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, ptanh)
+
+// psqrt and prsqrt through the float round trip, for backends without their own bfloat16 kernels.
+#define EIGEN_INSTANTIATE_GENERIC_SQRT_FUNCS_BF16(PACKET_F, PACKET_BF16) \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psqrt)                     \
+  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, prsqrt)
 
 // BF16 wrappers for contrib/SpecialFunctions.
 #define EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16(PACKET_F, PACKET_BF16) \

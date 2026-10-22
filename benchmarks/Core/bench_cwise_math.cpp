@@ -365,6 +365,8 @@ BENCHMARK(BM_Div<bfloat16>) CWISE_SIZES ->Name("Div_bfloat16");
 BENCHMARK(BM_Exp<bfloat16>) CWISE_SIZES ->Name("Exp_bfloat16");
 BENCHMARK(BM_Log<bfloat16>) CWISE_SIZES ->Name("Log_bfloat16");
 BENCHMARK(BM_Tanh<bfloat16>) CWISE_SIZES ->Name("Tanh_bfloat16");
+BENCHMARK(BM_Sqrt<bfloat16>) CWISE_SIZES ->Name("Sqrt_bfloat16");
+BENCHMARK(BM_Rsqrt<bfloat16>) CWISE_SIZES ->Name("Rsqrt_bfloat16");
 BENCHMARK(BM_LogSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})
     ->ArgNames({"size", "mode"})->Name("LogSpecialInputs_float");
 BENCHMARK(BM_Log1pSpecialInputs<float>)->ArgsProduct({{4096, 65536}, {0, 1, 2}})

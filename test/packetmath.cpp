@@ -3179,6 +3179,66 @@ void packetmath_bfloat16_arithmetic_rounding() {
     }
   }
 }
+
+// The nearest bfloat16 to a double, ties to even. Rounding through float first could tip a bfloat16 tie, so the
+// candidates are the truncation of float(value) and its neighbours, compared in double.
+numext::uint16_t round_to_bfloat16_bits(double value) {
+  float single = static_cast<float>(value);
+  numext::uint16_t truncated = static_cast<numext::uint16_t>(numext::bit_cast<numext::uint32_t>(single) >> 16);
+  if (!(numext::isfinite)(single) || single == 0.0f) return truncated;
+  numext::uint16_t best = truncated;
+  double best_error = NumTraits<double>::infinity();
+  for (int step = -1; step <= 1; ++step) {
+    numext::uint16_t candidate = static_cast<numext::uint16_t>(truncated + step);
+    double error = numext::abs(static_cast<double>(static_cast<float>(numext::bit_cast<bfloat16>(candidate))) - value);
+    if (error < best_error || (error == best_error && (candidate & 1) == 0)) {
+      best = candidate;
+      best_error = error;
+    }
+  }
+  return best;
+}
+
+// psqrt and prsqrt over every bfloat16 encoding against references rounded once from double: the backends that
+// enable this claim correctly rounded results. With flushed set, the FPU reads a subnormal input as a zero of its
+// sign, and so does the reference; a kernel that passes such a lane through unchanged, as the AVX-512 fast-math
+// psqrt does under DAZ, is accepted too.
+void packetmath_bfloat16_sqrt_exhaustive(bool flushed) {
+  using Packet = internal::packet_traits<bfloat16>::type;
+  constexpr int packet_size = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_MAX bfloat16 input[packet_size], sqrt_output[packet_size], rsqrt_output[packet_size];
+  for (unsigned first = 0; first < 65536; first += packet_size) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
+    }
+    internal::pstoreu(sqrt_output, internal::psqrt(internal::ploadu<Packet>(input)));
+    internal::pstoreu(rsqrt_output, internal::prsqrt(internal::ploadu<Packet>(input)));
+    for (int i = 0; i < packet_size; ++i) {
+      numext::uint16_t input_bits = static_cast<numext::uint16_t>(first + i);
+      bool flushed_subnormal = flushed && (input_bits & 0x7f80) == 0 && (input_bits & 0x7f) != 0;
+      numext::uint16_t bits = flushed_subnormal ? static_cast<numext::uint16_t>(input_bits & 0x8000) : input_bits;
+      numext::uint16_t sqrt_bits = numext::bit_cast<numext::uint16_t>(sqrt_output[i]);
+      numext::uint16_t rsqrt_bits = numext::bit_cast<numext::uint16_t>(rsqrt_output[i]);
+      if ((bits & 0x7fff) > 0x7f80 || bits > 0x8000) {
+        // NaN, or negative and not -0.
+        VERIFY((sqrt_bits & 0x7fff) > 0x7f80);
+        VERIFY((rsqrt_bits & 0x7fff) > 0x7f80);
+      } else {
+        double x = static_cast<double>(static_cast<float>(numext::bit_cast<bfloat16>(bits)));
+        numext::uint16_t sqrt_expected = round_to_bfloat16_bits(std::sqrt(x));
+        if (flushed_subnormal && sqrt_bits == input_bits) sqrt_expected = input_bits;
+        VERIFY_IS_EQUAL(sqrt_bits, sqrt_expected);
+        VERIFY_IS_EQUAL(rsqrt_bits, round_to_bfloat16_bits(1.0 / std::sqrt(x)));
+      }
+    }
+  }
+}
+
+void packetmath_bfloat16_sqrt_exhaustive_flushed() {
+  ScopedFlushToZero flush_to_zero(FlushToZeroMode::Both);
+  if (flush_to_zero.mode() != FlushToZeroMode::Both) return;
+  packetmath_bfloat16_sqrt_exhaustive(true);
+}
 #endif
 
 namespace Eigen {
@@ -3263,6 +3323,9 @@ EIGEN_DECLARE_TEST(packetmath) {
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
     defined(EIGEN_VECTORIZE_SME)
   CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding());
+  // 32-bit ARM NEON flushes subnormals whatever FPSCR says.
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive(EIGEN_ARCH_ARM != 0));
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive_flushed());
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)

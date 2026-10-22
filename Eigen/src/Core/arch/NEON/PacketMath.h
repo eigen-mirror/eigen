@@ -4780,7 +4780,8 @@ struct packet_traits<bfloat16> : default_packet_traits {
     HasCos = EIGEN_FAST_MATH,
     HasLog = 1,
     HasExp = 1,
-    HasSqrt = 0,
+    HasSqrt = 1,
+    HasRsqrt = 1,
     HasTanh = EIGEN_FAST_MATH,
     HasErf = EIGEN_FAST_MATH,
     HasBessel = 0,  // Issues with accuracy.
