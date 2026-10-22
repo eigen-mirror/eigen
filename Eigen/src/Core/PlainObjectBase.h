@@ -1005,17 +1005,25 @@ struct conservative_resize_like_impl {
   }
 };
 
-// Here, the specialization for vectors inherits from the general matrix case
-// to allow calling .conservativeResize(rows,cols) on vectors.
+// Vectors preserve their linear layout when their length changes.
 template <typename Derived, typename OtherDerived>
 struct conservative_resize_like_impl<Derived, OtherDerived, true>
     : conservative_resize_like_impl<Derived, OtherDerived, false> {
   using Base = conservative_resize_like_impl<Derived, OtherDerived, false>;
   using Base::IsRelocatable;
   using Base::MustInitializeAppended;
-  using Base::run;
+
+  static void run(DenseBase<Derived>& _this, Index rows, Index cols) {
+    EIGEN_STATIC_ASSERT_DYNAMIC_SIZE(Derived)
+    const Index size = Derived::RowsAtCompileTime == 1 ? cols : rows;
+    eigen_assert((Derived::RowsAtCompileTime == 1 ? rows == 1 : cols == 1) &&
+                 "Invalid sizes when resizing a vector.");
+    run(_this, size);
+  }
 
   static void run(DenseBase<Derived>& _this, Index size) {
+    eigen_assert(size >= 0 && "Invalid sizes when resizing a vector.");
+    if (_this.size() == size) return;
     const Index new_rows = Derived::RowsAtCompileTime == 1 ? 1 : size;
     const Index new_cols = Derived::RowsAtCompileTime == 1 ? size : 1;
     EIGEN_IF_CONSTEXPR (IsRelocatable) {
