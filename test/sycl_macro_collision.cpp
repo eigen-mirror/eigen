@@ -31,7 +31,8 @@
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_GPU_COMPILE_PHASE)
 #error SYCL device compilation alone must not select CUDA intrinsic paths
 #endif
-static_assert(sizeof(EIGEN_MAKESTRING(EIGEN_DEVICE_FUNC)) == 1,
+// Keep stringification nonempty for the MSVC traditional preprocessor.
+static_assert(sizeof(EIGEN_MAKESTRING((EIGEN_DEVICE_FUNC))) == 3,
               "Implicit SYCL use must not enable Eigen's flattening policy");
 #endif
 
