@@ -10,6 +10,58 @@
           },
           {
             "type": "command",
+            "if": "Edit(**/*.h)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Write(**/*.h)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Edit(**/*.cpp)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Write(**/*.cpp)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Edit(**/*.cu)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Write(**/*.cu)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Edit(**/*.inc)",
+            "asyncRewake": true,
+            "timeout": 300,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+          },
+          {
+            "type": "command",
+            "if": "Write(**/*.inc)",
+            "asyncRewake": true,
+            "timeout": 300,
             "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
           }
         ]

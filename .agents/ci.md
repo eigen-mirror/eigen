@@ -208,8 +208,11 @@ driver source file that includes the module's umbrella header and then the edite
 `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when clang-tidy is not installed, and shows
 the user a non-blocking notice when a file's translation unit does not compile.
 
-Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. After changing
-either script, run their unit tests, [`scripts/test_check_style.py`](../scripts/test_check_style.py) and
+Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. `check_style.py`
+runs after every Edit or Write. `clang_tidy_hook.py` runs only for `.h`, `.cpp`, `.cu` and `.inc` files, in the
+background, because parsing a module takes 10–30 s. Its findings arrive as a reminder after the edit has returned, and
+they name the file they apply to. After changing either script, run their unit tests,
+[`scripts/test_check_style.py`](../scripts/test_check_style.py) and
 [`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py); `checkformat:lint` runs them too.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely to
