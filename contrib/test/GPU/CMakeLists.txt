@@ -18,12 +18,13 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(EIGEN_GPU_TEST_CXX_FLAGS "-Werror=exceptions")
 endif()
 
-# ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...])
+# ei_add_gpu_test(<name> [EXTRA_LIBS <lib>...] [EXTRA_INCLUDES <dir>...] [EXTRA_DEFINES <def>...]
+#                 [EXTRA_FLAGS <flag>...])
 #
 # Thin wrapper around ei_add_test for GPU module tests. Delegates to
 # ei_add_test so CALL_SUBTEST_N splitting and EIGEN_TEST_MAX_SIZE handling
 # work the same way as the rest of the test suite, then layers on the
-# GPU-specific properties (EXTRA_{LIBS,INCLUDES,DEFINES}, the
+# GPU-specific properties (EXTRA_{LIBS,INCLUDES,DEFINES,FLAGS}, the
 # "Official;gpu" labels, SKIP_RETURN_CODE=77, buildtests_gpu dependency).
 #
 # GPU module tests are plain .cpp (host-compiled) by design: they
@@ -33,7 +34,7 @@ endif()
 # triggers on EIGEN_ADD_TEST_FILENAME_EXTENSION=cu), so we set the
 # SKIP_RETURN_CODE and labels ourselves.
 function(ei_add_gpu_test test_name)
-  cmake_parse_arguments(ARG "" "" "EXTRA_LIBS;EXTRA_INCLUDES;EXTRA_DEFINES" ${ARGN})
+  cmake_parse_arguments(ARG "" "" "EXTRA_LIBS;EXTRA_INCLUDES;EXTRA_DEFINES;EXTRA_FLAGS" ${ARGN})
 
   # Delegate to ei_add_test. The third arg is a semicolon-separated library
   # list; CUDA::cudart_static is always needed for any host test that
@@ -65,6 +66,9 @@ function(ei_add_gpu_test test_name)
     target_include_directories(${t} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     if(ARG_EXTRA_DEFINES)
       target_compile_definitions(${t} PRIVATE ${ARG_EXTRA_DEFINES})
+    endif()
+    if(ARG_EXTRA_FLAGS)
+      target_compile_options(${t} PRIVATE ${ARG_EXTRA_FLAGS})
     endif()
     add_dependencies(buildtests_gpu ${t})
     set_property(TEST ${t} APPEND PROPERTY LABELS "Official;gpu")
@@ -136,11 +140,18 @@ if(EIGEN_TEST_CUDSS)
     HINTS ${CUDSS_DIR}/lib ${CUDSS_DIR}/lib64 ${CUDA_TOOLKIT_ROOT_DIR}/lib64 /usr/lib/x86_64-linux-gnu)
   if(CUDSS_INCLUDE_DIR AND CUDSS_LIBRARY)
     message(STATUS "cuDSS found: ${CUDSS_LIBRARY}")
+    # cuDSS renames API types between releases (1.0 deprecated 0.8's
+    # cudssDataType_t), so a deprecated name in the module fails these builds.
+    set(_cudss_flags "")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      set(_cudss_flags "-Werror=deprecated-declarations")
+    endif()
     foreach(_cudss_test IN ITEMS cudss_llt cudss_ldlt cudss_lu)
       ei_add_gpu_test(${_cudss_test}
         EXTRA_LIBS CUDA::cusolver CUDA::cublas ${CUDSS_LIBRARY}
         EXTRA_INCLUDES ${CUDSS_INCLUDE_DIR}
-        EXTRA_DEFINES EIGEN_CUDSS=1)
+        EXTRA_DEFINES EIGEN_CUDSS=1
+        EXTRA_FLAGS ${_cudss_flags})
     endforeach()
   else()
     message(WARNING "EIGEN_TEST_CUDSS=ON but cuDSS not found. Set CUDSS_DIR.")

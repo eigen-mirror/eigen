@@ -43,10 +43,12 @@ namespace internal {
   } while (0)
 
 // cuDSS 0.8 changed cudssMatrixCreateDn/Csr from cudaDataType_t to the
-// value-compatible cudssDataType_t (CUDSS_R_32F == CUDA_R_32F, ...). Map the
-// module's cudaDataType_t traits through this alias so both API generations
-// compile.
-#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800
+// value-compatible cudssDataType_t (CUDSS_R_32F == CUDA_R_32F, ...); cuDSS 1.0
+// changed them back and kept cudssDataType_t only as a deprecated typedef of
+// cudaDataType_t. Map the module's cudaDataType_t traits through this alias so
+// all three API generations compile without deprecation warnings. CUDSS_VERSION
+// is major * 10000 + minor * 100 + patch: 0.8.0 is 800, 1.0.0 is 10000.
+#if defined(CUDSS_VERSION) && CUDSS_VERSION >= 800 && CUDSS_VERSION < 10000
 using cudss_value_type_t = cudssDataType_t;
 #else
 using cudss_value_type_t = cudaDataType_t;
