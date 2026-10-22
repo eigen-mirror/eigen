@@ -30,7 +30,6 @@ cmake -G Ninja                                    \
   "-DCMAKE_CXX_COMPILER=${EIGEN_CI_CXX_COMPILER}" \
   -DEIGEN_BUILD_TESTING=ON                        \
   -DEIGEN_BUILD_DOC=OFF                           \
-  -DEIGEN_BUILD_DEMOS=OFF                         \
   -DEIGEN_BUILD_BLAS=OFF                          \
   -DEIGEN_BUILD_LAPACK=OFF                        \
   ${EIGEN_CI_ADDITIONAL_ARGS} "${rootdir}"

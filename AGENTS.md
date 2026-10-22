@@ -113,7 +113,7 @@ The wording of a rule sets its strength:
 ## Repository essentials
 
 Eigen is a header-only expression-template library. Consumers include module headers under `Eigen/` or
-`contrib/Eigen/`. The top-level CMake project builds tests, documentation, demos, and BLAS/LAPACK shims rather than
+`contrib/Eigen/`. The top-level CMake project builds tests, documentation, and BLAS/LAPACK shims rather than
 a core Eigen library; benchmarks use separate CMake projects. `Eigen/Dense` aggregates the dense modules, while
 `Eigen/Eigen` includes `Dense` and `Sparse`. External backend support modules and `Eigen/ThreadPool` remain separate
 includes. The upstream project is on GitLab; its GitHub repository is a read-only mirror.

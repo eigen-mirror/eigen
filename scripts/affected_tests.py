@@ -119,7 +119,6 @@ IGNORED_PATTERNS = (
     "ci/tidy/*",
     "ci/lint/*",
     "debug/*",
-    "demos/*",
     "doc/*",
     "contrib/benchmarks/*",
     "contrib/doc/*",

@@ -211,7 +211,7 @@ struct transform_make_affine;
  * Note that there is zero overhead.
  *
  * Conversion methods from/to Qt's QMatrix and QTransform are available if the
- * preprocessor token EIGEN_QT_SUPPORT is defined.
+ * preprocessor token EIGEN_QT_SUPPORT is defined. They are deprecated and will be removed.
  *
  * This class can be extended with the help of the plugin mechanism described on the page
  * \ref TopicCustomizing_Plugins by defining the preprocessor symbol \c EIGEN_TRANSFORM_PLUGIN.
@@ -376,13 +376,14 @@ class Transform {
 
 #ifdef EIGEN_QT_SUPPORT
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-  inline Transform(const QMatrix& other);
-  inline Transform& operator=(const QMatrix& other);
-  inline QMatrix toQMatrix(void) const;
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.") inline Transform(const QMatrix& other);
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.") inline Transform& operator=(const QMatrix& other);
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.") inline QMatrix toQMatrix(void) const;
 #endif
-  inline Transform(const QTransform& other);
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.") inline Transform(const QTransform& other);
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.")
   inline Transform& operator=(const QTransform& other);
-  inline QTransform toQTransform(void) const;
+  EIGEN_DEPRECATED_WITH_REASON("Copy the coefficients explicitly.") inline QTransform toQTransform(void) const;
 #endif
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const noexcept {
@@ -723,10 +724,16 @@ using Projective3d = Transform<double, 3, Projective>;
 
 #ifdef EIGEN_QT_SUPPORT
 
+// The deprecated constructors call the deprecated assignment operators.
+EIGEN_DIAGNOSTICS(push)
+EIGEN_DIAGNOSTICS_OFF(disable : 4996, ignored "-Wdeprecated-declarations")
+
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 /** Initializes \c *this from a QMatrix assuming the dimension is 2.
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 Transform<Scalar, Dim, Mode, Options>::Transform(const QMatrix& other) {
@@ -737,6 +744,8 @@ Transform<Scalar, Dim, Mode, Options>::Transform(const QMatrix& other) {
 /** Set \c *this from a QMatrix assuming the dimension is 2.
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::operator=(const QMatrix& other) {
@@ -753,6 +762,8 @@ Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::op
  * \warning this conversion might lose data if \c *this is not affine
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 QMatrix Transform<Scalar, Dim, Mode, Options>::toQMatrix(void) const {
@@ -766,6 +777,8 @@ QMatrix Transform<Scalar, Dim, Mode, Options>::toQMatrix(void) const {
 /** Initializes \c *this from a QTransform assuming the dimension is 2.
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 Transform<Scalar, Dim, Mode, Options>::Transform(const QTransform& other) {
@@ -776,6 +789,8 @@ Transform<Scalar, Dim, Mode, Options>::Transform(const QTransform& other) {
 /** Set \c *this from a QTransform assuming the dimension is 2.
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::operator=(const QTransform& other) {
@@ -792,6 +807,8 @@ Transform<Scalar, Dim, Mode, Options>& Transform<Scalar, Dim, Mode, Options>::op
 /** \returns a QTransform from \c *this assuming the dimension is 2.
  *
  * This function is available only if the token EIGEN_QT_SUPPORT is defined.
+ *
+ * \deprecated Copy the coefficients explicitly.
  */
 template <typename Scalar, int Dim, int Mode, int Options>
 QTransform Transform<Scalar, Dim, Mode, Options>::toQTransform(void) const {
@@ -804,6 +821,8 @@ QTransform Transform<Scalar, Dim, Mode, Options>::toQTransform(void) const {
                       m_matrix.coeff(1, 1), m_matrix.coeff(2, 1), m_matrix.coeff(0, 2), m_matrix.coeff(1, 2),
                       m_matrix.coeff(2, 2));
 }
+
+EIGEN_DIAGNOSTICS(pop)
 #endif
 
 /*********************

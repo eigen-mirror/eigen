@@ -139,8 +139,6 @@ if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_CROSSCOMPILING)
 endif()
 option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" ${EIGEN_BUILD_DOC_DEFAULT})
 
-option(EIGEN_BUILD_DEMOS "Toggles the building of the Eigen demos" ${PROJECT_IS_TOP_LEVEL})
-
 # Disable pkgconfig only for native Windows builds
 if(NOT WIN32 OR NOT CMAKE_HOST_SYSTEM_NAME MATCHES Windows)
   option(EIGEN_BUILD_PKGCONFIG "Build pkg-config .pc file for Eigen" ${PROJECT_IS_TOP_LEVEL})
@@ -151,7 +149,7 @@ option(EIGEN_BUILD_CMAKE_PACKAGE "Enables the creation of EigenConfig.cmake and 
 # headers, eigen3.pc, the CMake package files, and the BLAS/LAPACK libraries.
 option(EIGEN_INSTALL "Enable Eigen's install rules" ON)
 
-if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC OR EIGEN_BUILD_DEMOS)
+if (EIGEN_BUILD_TESTING OR EIGEN_BUILD_BLAS OR EIGEN_BUILD_LAPACK OR EIGEN_BUILD_DOC)
   set(EIGEN_IS_BUILDING_ ON)
 endif()
 
@@ -824,10 +822,6 @@ endif()
 
 if(EIGEN_BUILD_DOC)
   add_subdirectory(doc EXCLUDE_FROM_ALL)
-endif()
-
-if (EIGEN_BUILD_DEMOS)
-  add_subdirectory(demos EXCLUDE_FROM_ALL)
 endif()
 
 if (PROJECT_IS_TOP_LEVEL)

@@ -49,7 +49,7 @@ from style_common import (REPO_ROOT, diff_added_lines, hook_edit_snippets,  # no
                           hook_post_image_and_added, is_cxx_path, line_filter_json)
 
 # Parsing an umbrella costs about a second, so keep the hook off trees whose
-# conventions these checks do not describe (bench/, demos/, doc/ examples).
+# conventions these checks do not describe (bench/, doc/ examples).
 # unsupported/Eigen/ is kept for the legacy umbrella shims that still live
 # there; the implementation tree itself is contrib/, which has no shims and
 # so needs the src-tree rules.

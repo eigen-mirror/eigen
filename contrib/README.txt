@@ -29,9 +29,7 @@ However, it:
  - should have some general purpose in the sense that it could
    potentially become a core Eigen module (or be merged into another one).
 
-In doubt feel free to contact us. For instance, if your addon is very
-specific but shows an interesting way of using Eigen, it could make for a
-nice demo.
+In doubt feel free to contact us.
 
 
 This directory is organized as follow:

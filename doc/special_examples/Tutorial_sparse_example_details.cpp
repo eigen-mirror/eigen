@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <Eigen/Sparse>
+#include <fstream>
 #include <vector>
-#include <QImage>
 
 typedef Eigen::SparseMatrix<double> SpMat;  // declares a column-major sparse matrix type of double
 typedef Eigen::Triplet<double> T;
@@ -36,10 +36,10 @@ void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n) {
   }
 }
 
+// Writes the n x n pixel values in x, which lie in [0,1], as a binary PGM (grayscale) image.
 void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename) {
   Eigen::Array<unsigned char, Eigen::Dynamic, Eigen::Dynamic> bits = (x * 255).cast<unsigned char>();
-  QImage img(bits.data(), n, n, QImage::Format_Indexed8);
-  img.setColorCount(256);
-  for (int i = 0; i < 256; i++) img.setColor(i, qRgb(i, i, i));
-  img.save(filename);
+  std::ofstream file(filename, std::ios::binary);
+  file << "P5\n" << n << ' ' << n << "\n255\n";
+  file.write(reinterpret_cast<const char*>(bits.data()), bits.size());
 }

@@ -101,7 +101,7 @@ Note that the elements of the list do not have to be sorted, and possible duplic
 The last step consists of effectively solving the assembled problem.
 Since the resulting matrix \c A is symmetric by construction, we can perform a direct Cholesky factorization via the SimplicialLDLT class which behaves like its LDLT counterpart for dense objects.
 
-The resulting vector \c x contains the pixel values as a 1D array which is saved to a jpeg file shown on the right of the code above.
+The resulting vector \c x contains the pixel values as a 1D array which is saved to a grayscale PGM image file.
 
 Describing the \a buildProblem and \a save functions is out of the scope of this tutorial. They are given \ref TutorialSparse_example_details "here" for the curious and reproducibility purpose.
 

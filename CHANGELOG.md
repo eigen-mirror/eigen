@@ -24,9 +24,11 @@ Bug fixes:
 
 Breaking changes:
 - The default `epsfcn` for central mode differences was changed to `cbrt(NumTraits<Scalar>::epsilon())` (used to be `sqrt(NumTraits<Scalar>::epsilon())`). The new default should reduce numerical error in most cases.
+- Removed `Eigen/QtAlignedMalloc`, which replaced Qt 4's `qMalloc`, `qFree` and `qRealloc` with aligned versions on platforms whose `malloc` is not already sufficiently aligned. Remove the include. [!3413]
 
 Deprecations:
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()`, in favour of `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` [!2816]
+- The `Transform` conversions from and to Qt's `QMatrix` and `QTransform`, which `EIGEN_QT_SUPPORT` enables, in favor of copying the coefficients explicitly [!3413]
 
 Other changes:
 - The top-level `unsupported/` directory was renamed to `contrib/`. Existing
@@ -34,6 +36,7 @@ Other changes:
   unchanged via forwarding header shims. The CMake subproject label and
   build-group target were renamed accordingly: `Unsupported` → `Contrib`,
   `BuildUnsupported` → `BuildContrib`.
+- Removed the `demos/` directory, including its two Qt GUI demos, and the `EIGEN_BUILD_DEMOS` and `EIGEN_TEST_NOQT` CMake options. The sparse tutorial example no longer needs Qt; it writes a PGM image. [!3413]
 
 ## [5.0.1] - 2025-11-11
 
