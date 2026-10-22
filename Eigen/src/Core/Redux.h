@@ -451,7 +451,7 @@ struct redux_impl<Func, Evaluator, LinearVectorizedTraversal, NoUnrolling> {
             ? int(packetAlignment)
             : int(Unaligned);
     constexpr int alignment = plain_enum_max(alignment0, Evaluator::Alignment);
-    const Index alignedStart = internal::first_default_aligned(xpr);
+    const Index alignedStart = internal::first_aligned<alignment>(xpr);
     const Index alignedSize4 = numext::round_down(size - alignedStart, 4 * packetSize);
     const Index alignedSize = numext::round_down(size - alignedStart, packetSize);
     const Index alignedEnd4 = alignedStart + alignedSize4;

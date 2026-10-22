@@ -256,6 +256,16 @@ void redux_vec_boundary() {
       Map<const Vec, Unaligned> mapped_for_prod(buf_for_prod.data() + offset, n);
       redux_vec_boundary_check(mapped, mapped_for_prod);
     }
+    {
+      using RealScalar = typename NumTraits<Scalar>::Real;
+      Matrix<RealScalar, Dynamic, 1> raw_buf(2 * n + 1);
+      Matrix<RealScalar, Dynamic, 1> raw_buf_for_prod(2 * n + 1);
+      Map<Vec, Unaligned> mapped(reinterpret_cast<Scalar*>(raw_buf.data() + 1), n);
+      Map<Vec, Unaligned> mapped_for_prod(reinterpret_cast<Scalar*>(raw_buf_for_prod.data() + 1), n);
+      mapped = v;
+      mapped_for_prod = v_for_prod;
+      redux_vec_boundary_check(mapped, mapped_for_prod);
+    }
   }
 }
 
@@ -715,6 +725,8 @@ EIGEN_DECLARE_TEST(redux) {
   // Integer reductions are already tested by matrixRedux/vectorRedux with clamped values.
   CALL_SUBTEST_12(redux_vec_boundary<float>());
   CALL_SUBTEST_12(redux_vec_boundary<double>());
+  CALL_SUBTEST_12(redux_vec_boundary<std::complex<float>>());
+  CALL_SUBTEST_12(redux_vec_boundary<std::complex<double>>());
   CALL_SUBTEST_12(redux_block_boundary<float>());
   CALL_SUBTEST_12(redux_block_boundary<double>());
   CALL_SUBTEST_12(redux_block_boundary<std::complex<float>>());

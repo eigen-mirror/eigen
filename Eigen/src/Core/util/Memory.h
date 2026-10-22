@@ -537,13 +537,13 @@ EIGEN_DEVICE_FUNC inline void conditional_aligned_delete_auto(T* ptr, std::size_
  * \param array the address of the start of the array
  * \param size the size of the array
  *
- * \note If no element of the array is well aligned or the requested alignment is not a multiple of a scalar,
- * the size of the array is returned. For example with SSE, the requested alignment is typically 16-bytes. If
- * packet size for the given scalar type is 1, then everything is considered well-aligned.
+ * \note Returns 0 if \a Alignment <= alignof(Scalar). If alignof(Scalar) < \a Alignment <= sizeof(Scalar), all
+ * elements share the alignment of the first one, so 0 or \a size is returned. Otherwise \a size is returned if no
+ * element is well aligned or \a Alignment is not a multiple of sizeof(Scalar).
  *
- * \note Otherwise, if the Alignment is larger that the scalar size, we rely on the assumptions that sizeof(Scalar) is a
- * power of 2. On the other hand, we do not assume that the array address is a multiple of sizeof(Scalar), as that fails
- * for example with Scalar=double on certain 32-bit platforms, see bug #79.
+ * \note We rely on the assumption that sizeof(Scalar) is a power of 2. On the other hand, we do not assume that the
+ * array address is a multiple of sizeof(Scalar), as that fails for example with Scalar=double on certain 32-bit
+ * platforms (see bug #79) or with Scalar=std::complex<double> when alignof(Scalar) < sizeof(Scalar).
  *
  * There is also the variant first_aligned(const MatrixBase&) defined in DenseCoeffsBase.h.
  * \sa first_default_aligned()
@@ -554,10 +554,12 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
   constexpr Index AlignmentSize = Alignment / ScalarSize;
   constexpr Index AlignmentMask = AlignmentSize - 1;
 
-  EIGEN_IF_CONSTEXPR (AlignmentSize <= 1) {
-    // Either the requested alignment if smaller than a scalar, or it exactly match a 1 scalar
-    // so that all elements of the array have the same alignment.
+  EIGEN_IF_CONSTEXPR (Alignment <= alignof(Scalar)) {
+    // A valid Scalar* is already aligned to at least alignof(Scalar).
     return 0;
+  } else EIGEN_IF_CONSTEXPR (Alignment <= ScalarSize) {
+    // Stepping by sizeof(Scalar) preserves address modulo Alignment, so either element 0 is aligned or none is.
+    return (std::uintptr_t(array) & (Alignment - 1)) ? size : 0;
   } else EIGEN_IF_CONSTEXPR ((Alignment % ScalarSize) != 0) {
     // The requested alignment is not a multiple of the scalar size. Consequently, no element of the array is well
     // aligned.

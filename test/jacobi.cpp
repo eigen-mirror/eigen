@@ -53,6 +53,27 @@ void jacobi(const MatrixType& m = MatrixType()) {
     b.applyOnTheRight(p, q, rot);
     VERIFY_IS_APPROX(b.col(p), c * a.col(p) - s * a.col(q));
     VERIFY_IS_APPROX(b.col(q), numext::conj(s) * a.col(p) + numext::conj(c) * a.col(q));
+
+    EIGEN_IF_CONSTEXPR (RowsAtCompileTime == Dynamic) {
+      using Scalar = typename MatrixType::Scalar;
+      using RealScalar = typename NumTraits<Scalar>::Real;
+      using Vec = Matrix<Scalar, Dynamic, 1>;
+      Matrix<RealScalar, Dynamic, 1> raw_x(2 * rows + 1);
+      Matrix<RealScalar, Dynamic, 1> raw_y(2 * rows + 1);
+      Map<Vec, Unaligned> ux(reinterpret_cast<Scalar*>(raw_x.data() + 1), rows);
+      Map<Vec, Unaligned> uy(reinterpret_cast<Scalar*>(raw_y.data() + 1), rows);
+      ux = a.col(p);
+      uy = a.col(q);
+      internal::apply_rotation_in_the_plane(ux, uy, rot.transpose());
+      VERIFY_IS_APPROX(ux, b.col(p));
+      VERIFY_IS_APPROX(uy, b.col(q));
+
+      ux = a.col(p);
+      Vec aligned_y = a.col(q);
+      internal::apply_rotation_in_the_plane(ux, aligned_y, rot.transpose());
+      VERIFY_IS_APPROX(ux, b.col(p));
+      VERIFY_IS_APPROX(aligned_y, b.col(q));
+    }
   }
 }
 
