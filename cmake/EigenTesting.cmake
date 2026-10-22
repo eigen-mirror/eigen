@@ -531,9 +531,6 @@ macro(ei_init_testing)
 
   set_property(GLOBAL PROPERTY EIGEN_FAILTEST_FAILURE_COUNT "0")
   set_property(GLOBAL PROPERTY EIGEN_FAILTEST_COUNT "0")
-
-  # uncomment anytime you change the ei_get_compilerver_from_cxx_version_string macro
-  # ei_test_get_compilerver_from_cxx_version_string()
 endmacro()
 
 macro(ei_set_sitename)
@@ -553,208 +550,127 @@ macro(ei_set_sitename)
   endif()
 endmacro()
 
-macro(ei_get_compilerver VAR)
-    if (NOT CMAKE_CXX_COMPILER_ID)
-      set(CMAKE_CXX_COMPILER_ID "<unknown>")
-    endif()
-    if(MSVC)
-      set(${VAR} "${CMAKE_CXX_COMPILER_VERSION}")
-    elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "PGI" OR ${CMAKE_CXX_COMPILER_ID} MATCHES "NVHPC")
-      set(${VAR} "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}")
-    else()
-    # on all other system we rely on ${CMAKE_CXX_COMPILER}
-    # supporting a "--version" or "/version" flag
-
-    if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} EQUAL "Intel")
-      set(EIGEN_CXX_FLAG_VERSION "/version")
-    else()
-      set(EIGEN_CXX_FLAG_VERSION "--version")
-    endif()
-
-    execute_process(COMMAND ${CMAKE_CXX_COMPILER} ${EIGEN_CXX_FLAG_VERSION}
-                    OUTPUT_VARIABLE eigen_cxx_compiler_version_string OUTPUT_STRIP_TRAILING_WHITESPACE)
-    string(REGEX REPLACE "^[ \n\r]+" "" eigen_cxx_compiler_version_string ${eigen_cxx_compiler_version_string})
-    string(REGEX REPLACE "[\n\r].*"  ""  eigen_cxx_compiler_version_string  ${eigen_cxx_compiler_version_string})
-
-    ei_get_compilerver_from_cxx_version_string("${eigen_cxx_compiler_version_string}" CNAME CVER)
-    set(${VAR} "${CNAME}-${CVER}")
-
+function(ei_get_compilerver VAR)
+  set(compiler "${CMAKE_CXX_COMPILER_ID}")
+  if(compiler STREQUAL "")
+    set(compiler "unknown")
   endif()
-endmacro()
-
-# Extract compiler name and version from a raw version string
-# WARNING: if you edit this macro, then please test it by uncommenting
-# the testing macro call in ei_init_testing() of the EigenTesting.cmake file.
-# See also the ei_test_get_compilerver_from_cxx_version_string macro at the end
-# of the file
-macro(ei_get_compilerver_from_cxx_version_string VERSTRING CNAME CVER)
-  # extract possible compiler names
-  string(REGEX MATCH "g\\+\\+"      ei_has_gpp    ${VERSTRING})
-  string(REGEX MATCH "llvm|LLVM"    ei_has_llvm   ${VERSTRING})
-  string(REGEX MATCH "gcc|GCC"      ei_has_gcc    ${VERSTRING})
-  string(REGEX MATCH "icpc|ICC"     ei_has_icpc   ${VERSTRING})
-  string(REGEX MATCH "clang|CLANG"  ei_has_clang  ${VERSTRING})
-  string(REGEX MATCH "mingw32"      ei_has_mingw  ${VERSTRING})
-
-  # combine them
-  if((ei_has_llvm) AND (ei_has_gpp OR ei_has_gcc))
-    set(${CNAME} "llvm-g++")
-  elseif((ei_has_llvm) AND (ei_has_clang))
-    set(${CNAME} "llvm-clang++")
-  elseif(ei_has_clang)
-    set(${CNAME} "clang++")
-  elseif ((ei_has_mingw) AND (ei_has_gpp OR ei_has_gcc))
-    set(${CNAME} "mingw32-g++")
-  elseif(ei_has_icpc)
-    set(${CNAME} "icpc")
-  elseif(ei_has_gpp OR ei_has_gcc)
-    set(${CNAME} "g++")
-  else()
-    set(${CNAME} "_")
+  string(TOLOWER "${compiler}" compiler)
+  if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC" AND
+     NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    string(APPEND compiler "-msvc")
   endif()
 
-  # extract possible version numbers
-  # first try to extract 3 isolated numbers:
-  string(REGEX MATCH " [0-9]+\\.[0-9]+\\.[0-9]+" eicver ${VERSTRING})
-  if(NOT eicver)
-    # try to extract 2 isolated ones:
-    string(REGEX MATCH " [0-9]+\\.[0-9]+" eicver ${VERSTRING})
-    if(NOT eicver)
-      # try to extract 3:
-      string(REGEX MATCH "[^0-9][0-9]+\\.[0-9]+\\.[0-9]+" eicver ${VERSTRING})
-      if(NOT eicver)
-        # try to extract 2:
-        string(REGEX MATCH "[^0-9][0-9]+\\.[0-9]+" eicver ${VERSTRING})
-        if (NOT eicver AND ei_has_mingw)
-          # try to extract 1 number plus suffix:
-          string(REGEX MATCH "[^0-9][0-9]+-win32" eicver ${VERSTRING})
-        endif()
+  set(version "${CMAKE_CXX_COMPILER_VERSION}")
+  if(version STREQUAL "")
+    set(version "unknown")
+  endif()
+  set(${VAR} "${compiler}-${version}" PARENT_SCOPE)
+endfunction()
+
+function(ei_get_cxxflags VAR)
+  set(flags "")
+  # Report requested test options, not an ISA inferred from pointer width or host.
+  foreach(feature IN ITEMS NEON NEON64 ZVECTOR Z14 VSX ALTIVEC MSA LSX SVE SME
+                           SSE2 SSE3 SSSE3 SSE4_1 SSE4_2 AVX AVX2 AVX512 AVX512DQ AVX512FP16 FMA F16C)
+    if(EIGEN_TEST_${feature})
+      if(feature STREQUAL "SVE" AND NOT "${EIGEN_TEST_SVE_VL}" STREQUAL "")
+        list(APPEND flags "SVE${EIGEN_TEST_SVE_VL}")
+      else()
+        list(APPEND flags "${feature}")
       endif()
     endif()
+  endforeach()
+  if(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION)
+    list(APPEND flags NOVEC)
   endif()
-
-  if (NOT eicver)
-    set(eicver " _")
-  endif()
-
-  string(REGEX REPLACE ".(.*)" "\\1" ${CVER} ${eicver})
-
-endmacro()
-
-macro(ei_get_cxxflags VAR)
-  set(${VAR} "")
-  ei_is_64bit_env(IS_64BIT_ENV)
-  if(EIGEN_TEST_NEON)
-    set(${VAR} NEON)
-  elseif(EIGEN_TEST_NEON64)
-    set(${VAR} NEON)
-  elseif(EIGEN_TEST_ZVECTOR)
-    set(${VAR} ZVECTOR)
-  elseif(EIGEN_TEST_VSX)
-    set(${VAR} VSX)
-  elseif(EIGEN_TEST_ALTIVEC)
-    set(${VAR} ALVEC)
-  elseif(EIGEN_TEST_FMA)
-    set(${VAR} FMA)
-  elseif(EIGEN_TEST_AVX)
-    set(${VAR} AVX)
-  elseif(EIGEN_TEST_SSE4_2)
-    set(${VAR} SSE42)
-  elseif(EIGEN_TEST_SSE4_1)
-    set(${VAR} SSE41)
-  elseif(EIGEN_TEST_SSSE3)
-    set(${VAR} SSSE3)
-  elseif(EIGEN_TEST_SSE3)
-    set(${VAR} SSE3)
-  elseif(EIGEN_TEST_SSE2 OR IS_64BIT_ENV)
-    set(${VAR} SSE2)
-  elseif(EIGEN_TEST_MSA)
-    set(${VAR} MSA)
+  if(NOT flags)
+    list(APPEND flags default)
   endif()
 
   if(EIGEN_TEST_OPENMP)
-    if (${VAR} STREQUAL "")
-      set(${VAR} OMP)
-    else()
-      set(${VAR} ${${VAR}}-OMP)
+    list(APPEND flags OMP)
+  endif()
+  if(EIGEN_DEFAULT_TO_ROW_MAJOR)
+    list(APPEND flags ROWMAJ)
+  endif()
+  list(JOIN flags "-" flags)
+  set(${VAR} "${flags}" PARENT_SCOPE)
+endfunction()
+
+function(ei_get_target_architecture VAR)
+  # Apple universal builds and Visual Studio targets may differ from the host.
+  if(APPLE AND NOT "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "")
+    set(architectures "${CMAKE_OSX_ARCHITECTURES}")
+  elseif(NOT "${CMAKE_CXX_COMPILER_TARGET}" STREQUAL "")
+    # Keep the full target: QCC selectors are not necessarily target triples.
+    set(architectures "${CMAKE_CXX_COMPILER_TARGET}")
+  elseif(NOT "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}" STREQUAL "")
+    set(architectures "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}")
+  elseif(NOT "${CMAKE_GENERATOR_PLATFORM}" STREQUAL "")
+    string(REGEX REPLACE ",.*$" "" architectures "${CMAKE_GENERATOR_PLATFORM}")
+    if(architectures STREQUAL "")
+      set(architectures "${CMAKE_SYSTEM_PROCESSOR}")
     endif()
+  else()
+    set(architectures "${CMAKE_SYSTEM_PROCESSOR}")
   endif()
 
-  if(EIGEN_DEFAULT_TO_ROW_MAJOR)
-    if (${VAR} STREQUAL "")
-      set(${VAR} ROW)
-    else()
-      set(${VAR} ${${VAR}}-ROWMAJ)
+  set(target_architectures "")
+  foreach(architecture IN LISTS architectures)
+    string(TOLOWER "${architecture}" architecture)
+    if(architecture MATCHES "^(amd64|x64|x86_64)$")
+      set(architecture x86_64)
+    elseif(architecture MATCHES "^(win32|x86|i[3-6]86)$")
+      set(architecture x86)
+    elseif(architecture MATCHES "^(arm64|aarch64)$")
+      set(architecture aarch64)
     endif()
+    # Match the GNU-only -m32 handling in the top-level test configuration.
+    if(EIGEN_TEST_32BIT AND CMAKE_COMPILER_IS_GNUCXX AND architecture STREQUAL "x86_64")
+      set(architecture x86)
+    endif()
+    list(APPEND target_architectures "${architecture}")
+  endforeach()
+  if(NOT target_architectures)
+    list(APPEND target_architectures unknown)
   endif()
-endmacro()
+  list(REMOVE_DUPLICATES target_architectures)
+  list(SORT target_architectures)
+  list(JOIN target_architectures "+" architecture)
+  set(${VAR} "${architecture}" PARENT_SCOPE)
+endfunction()
 
 macro(ei_set_build_string)
   ei_get_compilerver(LOCAL_COMPILER_VERSION)
   ei_get_cxxflags(LOCAL_COMPILER_FLAGS)
+  ei_get_target_architecture(LOCAL_TARGET_ARCHITECTURE)
 
-  set(TMP_BUILD_STRING ${CMAKE_SYSTEM}-${LOCAL_COMPILER_VERSION})
-
-  if (NOT ${LOCAL_COMPILER_FLAGS} STREQUAL  "")
-    set(TMP_BUILD_STRING ${TMP_BUILD_STRING}-${LOCAL_COMPILER_FLAGS})
+  set(TMP_BUILD_STRING "${CMAKE_SYSTEM}-${LOCAL_TARGET_ARCHITECTURE}-${LOCAL_COMPILER_VERSION}")
+  if(NOT "${LOCAL_COMPILER_FLAGS}" STREQUAL "")
+    string(APPEND TMP_BUILD_STRING "-${LOCAL_COMPILER_FLAGS}")
   endif()
 
   if(EIGEN_TEST_EXTERNAL_BLAS)
-    set(TMP_BUILD_STRING ${TMP_BUILD_STRING}-external_blas)
+    string(APPEND TMP_BUILD_STRING "-external_blas")
   endif()
 
-  ei_is_64bit_env(IS_64BIT_ENV)
-  if(NOT IS_64BIT_ENV)
-    set(TMP_BUILD_STRING ${TMP_BUILD_STRING}-32bit)
+  if(EIGEN_TEST_32BIT AND CMAKE_COMPILER_IS_GNUCXX)
+    string(APPEND TMP_BUILD_STRING "-32bit")
+  elseif("${CMAKE_SIZEOF_VOID_P}" MATCHES "^[1-9][0-9]*$")
+    math(EXPR LOCAL_POINTER_BITS "8 * ${CMAKE_SIZEOF_VOID_P}")
+    string(APPEND TMP_BUILD_STRING "-${LOCAL_POINTER_BITS}bit")
   else()
-    set(TMP_BUILD_STRING ${TMP_BUILD_STRING}-64bit)
+    string(APPEND TMP_BUILD_STRING "-unknown-bits")
   endif()
 
   if(EIGEN_BUILD_STRING_SUFFIX)
-    set(TMP_BUILD_STRING ${TMP_BUILD_STRING}-${EIGEN_BUILD_STRING_SUFFIX})
+    string(APPEND TMP_BUILD_STRING "-${EIGEN_BUILD_STRING_SUFFIX}")
   endif()
-
-  string(TOLOWER ${TMP_BUILD_STRING} BUILDNAME)
-endmacro()
-
-macro(ei_is_64bit_env VAR)
-  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    set(${VAR} 1)
-  elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(${VAR} 0)
-  else()
-    message(WARNING "Unsupported pointer size. Please contact the authors.")
-  endif()
+  string(TOLOWER "${TMP_BUILD_STRING}" BUILDNAME)
 endmacro()
 
 
-# helper macro for testing ei_get_compilerver_from_cxx_version_string
-# STR: raw version string
-# REFNAME: expected compiler name
-# REFVER: expected compiler version
-macro(ei_test1_get_compilerver_from_cxx_version_string STR REFNAME REFVER)
-  ei_get_compilerver_from_cxx_version_string(${STR} CNAME CVER)
-  if((NOT ${REFNAME} STREQUAL ${CNAME}) OR (NOT ${REFVER} STREQUAL ${CVER}))
-    message("STATUS ei_get_compilerver_from_cxx_version_string error:")
-    message("Expected \"${REFNAME}-${REFVER}\", got \"${CNAME}-${CVER}\"")
-  endif()
-endmacro()
-
-# macro for testing ei_get_compilerver_from_cxx_version_string
-# feel free to add more version strings
-macro(ei_test_get_compilerver_from_cxx_version_string)
-  ei_test1_get_compilerver_from_cxx_version_string("g++ (SUSE Linux) 4.5.3 20110428 [gcc-4_5-branch revision 173117]" "g++" "4.5.3")
-  ei_test1_get_compilerver_from_cxx_version_string("c++ (GCC) 4.5.1 20100924 (Red Hat 4.5.1-4)" "g++" "4.5.1")
-  ei_test1_get_compilerver_from_cxx_version_string("icpc (ICC) 11.0 20081105" "icpc" "11.0")
-  ei_test1_get_compilerver_from_cxx_version_string("g++-3.4 (GCC) 3.4.6" "g++" "3.4.6")
-  ei_test1_get_compilerver_from_cxx_version_string("SUSE Linux clang version 3.0 (branches/release_30 145598) (based on LLVM 3.0)" "llvm-clang++" "3.0")
-  ei_test1_get_compilerver_from_cxx_version_string("icpc (ICC) 12.0.5 20110719" "icpc" "12.0.5")
-  ei_test1_get_compilerver_from_cxx_version_string("Apple clang version 2.1 (tags/Apple/clang-163.7.1) (based on LLVM 3.0svn)" "llvm-clang++" "2.1")
-  ei_test1_get_compilerver_from_cxx_version_string("i686-apple-darwin11-llvm-g++-4.2 (GCC) 4.2.1 (Based on Apple Inc. build 5658) (LLVM build 2335.15.00)" "llvm-g++" "4.2.1")
-  ei_test1_get_compilerver_from_cxx_version_string("g++-mp-4.4 (GCC) 4.4.6" "g++" "4.4.6")
-  ei_test1_get_compilerver_from_cxx_version_string("g++-mp-4.4 (GCC) 2011" "g++" "4.4")
-  ei_test1_get_compilerver_from_cxx_version_string("x86_64-w64-mingw32-g++ (GCC) 10-win32 20210110" "mingw32-g++" "10-win32")
-endmacro()
 
 # Split all tests listed in EIGEN_TESTS_LIST into num_splits many targets
 # named buildtestspartN with N = { 0, ..., num_splits-1}.

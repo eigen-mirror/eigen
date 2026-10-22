@@ -20,6 +20,14 @@ if(NOT PROJECT_IS_TOP_LEVEL OR CMAKE_CROSSCOMPILING OR CMAKE_CROSSCOMPILING_EMUL
   return()
 endif()
 
+add_test(NAME buildsystem_compiler_version
+  COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/compiler_version.cmake")
+set_tests_properties(buildsystem_compiler_version PROPERTIES LABELS "buildsystem" TIMEOUT 30)
+
+add_test(NAME buildsystem_build_name
+  COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/build_name.cmake")
+set_tests_properties(buildsystem_build_name PROPERTIES LABELS "buildsystem" TIMEOUT 30)
+
 set(EIGEN_BUILDSYSTEM_SCENARIOS
     gpu_architectures
     gpu_compile_options
