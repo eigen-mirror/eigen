@@ -117,6 +117,43 @@ void trmv_negative_stride_destination_all() {
   trmv_negative_stride_destination_shapes<Scalar, RowMajor>();
 }
 
+// A real triangular matrix times a complex vector at a fixed size, through the column-major kernel (directly and as the
+// transpose of a row-vector product) and the row-major one. The unevaluated s * v.adjoint() reaches the kernel as a
+// conjugated vector and a scale factor, as in #3214. Without the workaround, GCC 15.2 at -O3 with AVX2 gets sizes 3 and
+// 4 wrong here; which sizes it miscompiles depends on every product in the translation unit.
+template <int Size, int Mode>
+void trmv_real_times_complex_fixed_size() {
+  using CD = std::complex<double>;
+  using RealMat = Matrix<double, Size, Size>;
+  using ComplexMat = Matrix<CD, Size, Size>;
+  using ComplexVec = Matrix<CD, Size, 1>;
+  using ComplexRowVec = Matrix<CD, 1, Size>;
+  const RealMat m = RealMat::Random();
+  const ComplexVec v = ComplexVec::Random();
+  const CD s = internal::random<CD>();
+  const ComplexMat dense = m.template triangularView<Mode>().toDenseMatrix().template cast<CD>();
+  const ComplexMat dense_of_transpose =
+      m.transpose().template triangularView<Mode>().toDenseMatrix().template cast<CD>();
+
+  const ComplexVec sv = s * v;
+  VERIFY(verifyProduct(ComplexVec(m.template triangularView<Mode>() * sv), ComplexVec(dense * sv), dense, sv));
+  VERIFY(verifyProduct(ComplexVec(m.transpose().template triangularView<Mode>() * sv),
+                       ComplexVec(dense_of_transpose * sv), dense_of_transpose, sv));
+  const ComplexRowVec svh = s * v.adjoint();
+  VERIFY(verifyProduct(ComplexRowVec(svh * m.transpose().template triangularView<Mode>()),
+                       ComplexRowVec(svh * dense_of_transpose), svh, dense_of_transpose));
+  VERIFY(verifyProduct(ComplexRowVec(s * v.adjoint() * m.transpose().template triangularView<Mode>()),
+                       ComplexRowVec(svh * dense_of_transpose), svh, dense_of_transpose));
+}
+
+template <int Size>
+void trmv_real_times_complex_fixed_size_all_modes() {
+  trmv_real_times_complex_fixed_size<Size, Lower>();
+  trmv_real_times_complex_fixed_size<Size, Upper>();
+  trmv_real_times_complex_fixed_size<Size, UnitLower>();
+  trmv_real_times_complex_fixed_size<Size, UnitUpper>();
+}
+
 EIGEN_DECLARE_TEST(product_trmv) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -132,6 +169,11 @@ EIGEN_DECLARE_TEST(product_trmv) {
     s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
     CALL_SUBTEST_6(trmv(Matrix<float, Dynamic, Dynamic, RowMajor>(s, s)));
     TEST_SET_BUT_UNUSED_VARIABLE(s);
+
+    CALL_SUBTEST_8(trmv_real_times_complex_fixed_size_all_modes<2>());
+    CALL_SUBTEST_8(trmv_real_times_complex_fixed_size_all_modes<3>());
+    CALL_SUBTEST_8(trmv_real_times_complex_fixed_size_all_modes<4>());
+    CALL_SUBTEST_8(trmv_real_times_complex_fixed_size_all_modes<5>());
   }
   CALL_SUBTEST_7(trmv_negative_stride_destination_all<float>());
   CALL_SUBTEST_7(trmv_negative_stride_destination_all<double>());

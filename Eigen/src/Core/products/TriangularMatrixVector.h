@@ -18,6 +18,16 @@ namespace Eigen {
 
 namespace internal {
 
+// GCC 15.1 and 15.2 at -O3 with AVX2 miscompile run() for a real matrix times a complex vector: the SLP vectorizer
+// breaks copies of it specialized for a constant size (#3214). GCC 15.3 is correct. MinGW's GCC 15.2 fails the same
+// way, but EIGEN_COMP_GNUC_STRICT leaves MinGW out.
+#if (EIGEN_COMP_GNUC_STRICT || (EIGEN_COMP_MINGW && !EIGEN_COMP_CLANG)) && EIGEN_COMP_GNUC >= 1500 && \
+    EIGEN_COMP_GNUC < 1530
+#define EIGEN_TRMV_DONT_INLINE EIGEN_DONT_INLINE __attribute__((optimize("no-tree-slp-vectorize")))
+#else
+#define EIGEN_TRMV_DONT_INLINE EIGEN_DONT_INLINE
+#endif
+
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs,
           int StorageOrder, int Version = Specialized>
 struct triangular_matrix_vector_product;
@@ -28,9 +38,9 @@ struct triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScal
   static constexpr bool IsLower = (Mode & Lower) == Lower;
   static constexpr bool HasUnitDiag = (Mode & UnitDiag) == UnitDiag;
   static constexpr bool HasZeroDiag = (Mode & ZeroDiag) == ZeroDiag;
-  static EIGEN_DONT_INLINE void run(Index _rows, Index _cols, const LhsScalar* lhs_, Index lhsStride,
-                                    const RhsScalar* rhs_, Index rhsIncr, ResScalar* res_, Index resIncr,
-                                    const RhsScalar& alpha);
+  static EIGEN_TRMV_DONT_INLINE void run(Index _rows, Index _cols, const LhsScalar* lhs_, Index lhsStride,
+                                         const RhsScalar* rhs_, Index rhsIncr, ResScalar* res_, Index resIncr,
+                                         const RhsScalar& alpha);
 };
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
@@ -151,9 +161,9 @@ struct triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScal
   static constexpr bool IsLower = (Mode & Lower) == Lower;
   static constexpr bool HasUnitDiag = (Mode & UnitDiag) == UnitDiag;
   static constexpr bool HasZeroDiag = (Mode & ZeroDiag) == ZeroDiag;
-  static EIGEN_DONT_INLINE void run(Index _rows, Index _cols, const LhsScalar* lhs_, Index lhsStride,
-                                    const RhsScalar* rhs_, Index rhsIncr, ResScalar* res_, Index resIncr,
-                                    const ResScalar& alpha);
+  static EIGEN_TRMV_DONT_INLINE void run(Index _rows, Index _cols, const LhsScalar* lhs_, Index lhsStride,
+                                         const RhsScalar* rhs_, Index rhsIncr, ResScalar* res_, Index resIncr,
+                                         const ResScalar& alpha);
 };
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs, int Version>
@@ -213,6 +223,8 @@ EIGEN_DONT_INLINE void triangular_matrix_vector_product<Index, Mode, LhsScalar, 
     }
   }
 }
+
+#undef EIGEN_TRMV_DONT_INLINE
 
 /***************************************************************************
  * Wrapper to product_triangular_vector
