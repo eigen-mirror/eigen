@@ -951,12 +951,34 @@ void transformations_computed_scaling_continuity() {
   VERIFY((s0 - s1).norm() < c * eps);
 }
 
+// Part of #2715: constructing or assigning from a (Dim+1)^2 matrix must respect Mode.
+template <typename Scalar, int Mode, int Options>
+void transform_from_full_matrix() {
+  using Transform3 = Transform<Scalar, 3, Mode, Options>;
+  using Matrix4 = Matrix<Scalar, 4, 4>;
+  Matrix4 m = Matrix4::Random();
+  Transform3 t1(m);
+  Transform3 t2;
+  t2 = m;
+  Matrix4 expected = m;
+  if (Mode != int(Projective)) expected.row(3) << 0, 0, 0, 1;
+  // AffineCompact stores only the top three rows.
+  const Index r = t1.matrix().rows();
+  VERIFY_IS_EQUAL(t1.matrix(), expected.topRows(r));
+  VERIFY_IS_EQUAL(t2.matrix(), expected.topRows(r));
+}
+
 EIGEN_DECLARE_TEST(geo_transformations) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((transformations<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((non_projective_only<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1((transformations_computed_scaling_continuity<double, Affine, AutoAlign>()));
     CALL_SUBTEST_1(custom_scalar_test<>());
+    CALL_SUBTEST_1((transform_from_full_matrix<double, Affine, AutoAlign>()));
+    CALL_SUBTEST_1((transform_from_full_matrix<double, Isometry, AutoAlign>()));
+    CALL_SUBTEST_1((transform_from_full_matrix<double, AffineCompact, AutoAlign>()));
+    CALL_SUBTEST_1((transform_from_full_matrix<double, Projective, AutoAlign>()));
+    CALL_SUBTEST_1((transform_from_full_matrix<float, Affine, RowMajor>()));
 
     CALL_SUBTEST_2((transformations<float, AffineCompact, AutoAlign>()));
     CALL_SUBTEST_2((non_projective_only<float, AffineCompact, AutoAlign>()));

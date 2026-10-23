@@ -296,7 +296,8 @@ class Transform {
 
   using take_affine_part = internal::transform_take_affine_part<Transform>;
 
-  /** Constructs and initializes a transformation from a Dim^2 or a (Dim+1)^2 matrix. */
+  /** Constructs and initializes a transformation from a Dim^2 or a (Dim+1)^2 matrix.
+   * If Mode==Affine or Mode==Isometry, then the last row is set to [0 ... 0 1] */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC inline explicit Transform(const EigenBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT(
@@ -307,7 +308,8 @@ class Transform {
     internal::transform_construct_from_matrix<OtherDerived, Mode, Options, Dim, HDim>::run(this, other.derived());
   }
 
-  /** Set \c *this from a Dim^2 or (Dim+1)^2 matrix. */
+  /** Set \c *this from a Dim^2 or (Dim+1)^2 matrix.
+   * If Mode==Affine or Mode==Isometry, then the last row is set to [0 ... 0 1] */
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC inline Transform& operator=(const EigenBase<OtherDerived>& other) {
     EIGEN_STATIC_ASSERT(
@@ -1362,6 +1364,9 @@ struct transform_construct_from_matrix<Other, Mode, Options, Dim, HDim, HDim, HD
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(
       Transform<typename Other::Scalar, Dim, Mode, Options>* transform, const Other& other) {
     transform->matrix() = other;
+    // Affine and Isometry transforms require the last row to be [0 ... 0 1]; Projective keeps it as given.
+    transform_make_affine<(int(Mode) == Affine || int(Mode) == Isometry) ? Affine : AffineCompact>::run(
+        transform->matrix());
   }
 };
 

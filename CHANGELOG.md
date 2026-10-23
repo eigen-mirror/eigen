@@ -21,6 +21,7 @@ Bug fixes:
 - `BDCSVD` with QR-only `Options`, such as `DisableQRDecomposition`, dropped runtime unitary requests for inputs below the switch size, so `matrixU()` asserted, or returned an empty `U` and `V` under `NDEBUG` [!3212]
 - `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
 - `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
+- Constructing or assigning an `Affine` or `Isometry` `Transform` from a (Dim+1)x(Dim+1) matrix copied its last row verbatim; the last row is now set to `[0 ... 0 1]`, as for Dim x Dim and Dim x (Dim+1) inputs [#2715, !3412]
 
 Breaking changes:
 - The default `epsfcn` for central mode differences was changed to `cbrt(NumTraits<Scalar>::epsilon())` (used to be `sqrt(NumTraits<Scalar>::epsilon())`). The new default should reduce numerical error in most cases.
