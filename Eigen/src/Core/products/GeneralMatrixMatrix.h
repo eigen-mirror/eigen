@@ -43,10 +43,11 @@ class gemm_packing_space {
     if (bytesA > max_bytes - (alignment - 1)) throw_std_bad_alloc();
     const std::size_t offsetB = first_multiple(bytesA, alignment);
     if (bytesB > max_bytes - offsetB) throw_std_bad_alloc();
-    unsigned char* storage = static_cast<unsigned char*>(scratch_malloc(offsetB + bytesB));
-    blockA = reinterpret_cast<LhsScalar*>(storage);
-    blockB = reinterpret_cast<RhsScalar*>(storage + offsetB);
-    return storage;
+    void* storage = scratch_malloc(offsetB + bytesB);
+    void* storageB = static_cast<unsigned char*>(storage) + offsetB;
+    blockA = static_cast<LhsScalar*>(storage);
+    blockB = static_cast<RhsScalar*>(storageB);
+    return static_cast<unsigned char*>(storage);
   }
 
   static unsigned char* allocate(std::size_t sizeA, std::size_t sizeB, LhsScalar*& blockA, RhsScalar*& blockB) {
