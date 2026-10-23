@@ -546,7 +546,19 @@ EIGEN_DONT_INLINE void triangular_solve_matrix<Scalar, Index, OnTheLeft, Mode, C
 
   using Traits = gebp_traits<Scalar, Scalar>;
 
-  enum { SmallPanelWidth = plain_enum_max(Traits::mr, Traits::nr), IsLower = (Mode & Lower) == Lower };
+  // The diagonal panels are updated by gebp with a depth of SmallPanelWidth. The DoublePacket kernel that FMA targets
+  // with 16 registers use is one packet tall; where that is narrower than nr (complex<double> with AVX2+FMA), such
+  // shallow updates run slowly, so its panels are twice as wide.
+#ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
+  constexpr bool WidePanels = is_double_packet<typename Traits::AccPacket>::value && Traits::NumberOfRegisters < 32 &&
+                              int(Traits::mr) < int(Traits::nr);
+#else
+  constexpr bool WidePanels = false;
+#endif
+  enum {
+    SmallPanelWidth = WidePanels ? 2 * Traits::nr : plain_enum_max(Traits::mr, Traits::nr),
+    IsLower = (Mode & Lower) == Lower
+  };
 
   // Every k-block updates the rows of the right-hand side beyond it through gebp, so a right-hand side
   // solved whole streams through the caches size/kc times (issue #3162); column panels that stay in
