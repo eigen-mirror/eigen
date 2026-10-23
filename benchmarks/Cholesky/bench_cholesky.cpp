@@ -15,20 +15,30 @@ typedef SCALAR Scalar;
 
 static void BM_LDLT(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> SquareMatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType a = MatrixType::Random(n, n);
-  SquareMatrixType covMat = a * a.adjoint();
+  MatrixType covMat = a * a.adjoint();
+  // In place: each compute() copies covMat into the bound storage once and allocates no factorization storage.
+  MatrixType storage = covMat;
+  LDLT<Ref<MatrixType> > cholnosqrt(storage);
   int r = internal::random<int>(0, n - 1);
   int c = internal::random<int>(0, n - 1);
   Scalar acc = 0;
   for (auto _ : state) {
-    LDLT<SquareMatrixType> cholnosqrt(covMat);
+    cholnosqrt.compute(covMat);
     acc += cholnosqrt.matrixL().coeff(r, c);
     benchmark::DoNotOptimize(acc);
   }
+  double cost = 0;
+  for (int j = 0; j < n; ++j) {
+    int rem = std::max(n - j - 1, 0);
+    cost += 2 * (rem * j + rem + j);
+  }
+  state.counters["GFLOPS"] =
+      benchmark::Counter(cost, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
-BENCHMARK(BM_LDLT)->RangeMultiplier(2)->Range(4, 1500);
+// 96 and 97 bracket the unblocked/blocked crossover.
+BENCHMARK(BM_LDLT)->RangeMultiplier(2)->Range(4, 1500)->Arg(96)->Arg(97);
 
 static void BM_LLT(benchmark::State& state) {
   int n = state.range(0);

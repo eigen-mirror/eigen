@@ -22,8 +22,10 @@ Bug fixes:
 - `JacobiSVD` with `FullPivHouseholderQRPreconditioner` accepted `ComputeThinV` and returned a non-orthogonal `V` for wide inputs; it now fails to compile, or asserts when requested at runtime [!3212]
 - `HouseholderQR` (and the decompositions and `SplineFitting` built on it) and `JacobiSVD` did not compile with `AutoDiffScalar` [#3192, !3265]
 - Constructing or assigning an `Affine` or `Isometry` `Transform` from a (Dim+1)x(Dim+1) matrix copied its last row verbatim; the last row is now set to `[0 ... 0 1]`, as for Dim x Dim and Dim x (Dim+1) inputs [#2715, !3412]
+- `LDLT` pivoted on the diagonal of its input rather than of the remaining Schur complement, so zero pivots of a semidefinite matrix could come before non-zero ones and report `NumericalIssue`, as for `[1 1 0; 1 1 0; 0 0 1]`; a NaN or infinite pivot reported `Success`. `LDLT` now also factors dynamic-size matrices larger than 96 in blocks, with a panel width that grows as sqrt(3 n): 1.7x faster at n = 128, 3.1x at n = 1024 and 6.2x at n = 3000 [!3423]
 
 Breaking changes:
+- `LDLT` picks a different pivot order for most inputs, which changes `transpositionsP()` and the order of `vectorD()`. A NaN or infinite pivot reports `NumericalIssue`. A preallocated `compute()` of a dynamic-size matrix larger than 96 can allocate the packing buffers of its matrix products, as those of `LLT`, `PartialPivLU` and `BunchKaufman` already do [!3423]
 - The default `epsfcn` for central mode differences was changed to `cbrt(NumTraits<Scalar>::epsilon())` (used to be `sqrt(NumTraits<Scalar>::epsilon())`). The new default should reduce numerical error in most cases.
 - Removed `Eigen/QtAlignedMalloc`, which replaced Qt 4's `qMalloc`, `qFree` and `qRealloc` with aligned versions on platforms whose `malloc` is not already sufficiently aligned. Remove the include. [!3413]
 

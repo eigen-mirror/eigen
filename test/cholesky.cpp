@@ -486,21 +486,27 @@ void cholesky_faillure_cases() {
     VERIFY_IS_NOT_APPROX(mat, ldlt.reconstructedMatrix());
     VERIFY(ldlt.info() == NumericalIssue);
   }
+
+  // Pivoting on the input's diagonal took a zero of the Schur complement as a pivot of each of the next three
+  // indefinite matrices, above a non-zero column, and failed. Pivoting on the Schur complement's diagonal passes over
+  // that zero: they factor, and D carries their inertia (Sylvester's law of inertia).
 #if (!EIGEN_ARCH_i386) || defined(EIGEN_VECTORIZE_SSE2)
   {
     mat.resize(3, 3);
     mat << -1, -3, 3, -3, -8.9999999999999999999, 1, 3, 1, 0;
     ldlt.compute(mat);
-    VERIFY(ldlt.info() == NumericalIssue);
-    VERIFY_IS_NOT_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY(ldlt.info() == Success);
+    VERIFY_IS_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY_IS_EQUAL((ldlt.vectorD().array() < 0).count(), Index(2));
   }
 #endif
   {
     mat.resize(3, 3);
     mat << 1, 2, 3, 2, 4, 1, 3, 1, 0;
     ldlt.compute(mat);
-    VERIFY(ldlt.info() == NumericalIssue);
-    VERIFY_IS_NOT_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY(ldlt.info() == Success);
+    VERIFY_IS_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY_IS_EQUAL((ldlt.vectorD().array() < 0).count(), Index(1));
   }
 
   {
@@ -509,8 +515,9 @@ void cholesky_faillure_cases() {
         0, 8.49333, 0, 2.00333, 0, 0, 0, 0, -0.1, 0, 0.1, 0, 0, 1, 0, 0, 0, 2.00333, 0, 4.24667, 0, 0, 1, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 1, 0, 0, 0;
     ldlt.compute(mat);
-    VERIFY(ldlt.info() == NumericalIssue);
-    VERIFY_IS_NOT_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY(ldlt.info() == Success);
+    VERIFY_IS_APPROX(mat, ldlt.reconstructedMatrix());
+    VERIFY_IS_EQUAL((ldlt.vectorD().array() < 0).count(), Index(2));
   }
 
   // bug 1479
@@ -521,6 +528,228 @@ void cholesky_faillure_cases() {
     VERIFY(ldlt.info() == NumericalIssue);
     VERIFY_IS_NOT_APPROX(mat, ldlt.reconstructedMatrix());
   }
+}
+
+// Semidefinite matrices of rank r whose arithmetic is exact, so that their zero pivots stay exactly zero. LDLT pivots
+// on the Schur complement's diagonal, so the n - r zeros of D come last. Pivoting on the input's diagonal took the zero
+// of [1 1 0; 1 1 0; 0 0 1] second, left it inside D, and reported NumericalIssue.
+template <typename MatrixType, int UpLo>
+void check_ldlt_zero_pivots_last(const MatrixType& A, Index r) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
+  const Index n = A.rows();
+  const MatrixType triangle = A.template triangularView<UpLo>();
+  LDLT<MatrixType, UpLo> ldlt(triangle);
+  VERIFY(ldlt.info() == Success);
+  VERIFY(ldlt.isPositive());
+  const RealVectorType d = ldlt.vectorD().real();
+  VERIFY_IS_CWISE_EQUAL(d.head(r), RealVectorType::Ones(r));
+  VERIFY_IS_CWISE_EQUAL(d.tail(n - r), RealVectorType::Zero(n - r));
+  VERIFY_IS_CWISE_EQUAL(ldlt.reconstructedMatrix(), A);
+}
+
+template <typename MatrixType>
+void cholesky_ldlt_zero_pivots_last(const MatrixType& A, Index r) {
+  check_ldlt_zero_pivots_last<MatrixType, Lower>(A, r);
+  check_ldlt_zero_pivots_last<MatrixType, Upper>(A, r);
+}
+
+// The panel width at the smallest size that LDLT factors in panels, or 0 if it factors none, as with
+// EIGEN_LDLT_BLOCKSIZE=0. The width grows with the size, so the blocked tests below take their sizes from this one.
+template <typename MatrixType>
+Index ldlt_smallest_blocksize() {
+  for (Index n = 1; n <= 4096; ++n)
+    if (internal::ldlt_blocksize<MatrixType>(n) > 0) return internal::ldlt_blocksize<MatrixType>(n);
+  return 0;
+}
+
+// P (I_m kron [1 1; 1 1]) P^T has rank m, at a size that takes the blocked factorization.
+template <typename MatrixType>
+void cholesky_ldlt_zero_pivots_last_blocked() {
+  const Index nb = ldlt_smallest_blocksize<MatrixType>();
+  if (nb == 0) return;
+  const Index m = 2 * nb + 1, n = 2 * m;
+  VERIFY(internal::ldlt_blocksize<MatrixType>(n) > 0);
+  MatrixType A = MatrixType::Zero(n, n);
+  for (Index i = 0; i < m; ++i) A.template block<2, 2>(2 * i, 2 * i).setOnes();
+  PermutationMatrix<Dynamic> perm(n);
+  perm.setIdentity();
+  for (Index i = n - 1; i > 0; --i)
+    std::swap(perm.indices().coeffRef(i), perm.indices().coeffRef(internal::random<Index>(0, i)));
+  cholesky_ldlt_zero_pivots_last(MatrixType(perm * A * perm.transpose()), m);
+}
+
+// For a positive semidefinite A of rank r, the trailing n - r pivots of complete diagonal pivoting are at rounding
+// level and the leading r are not (N. J. Higham, "Analysis of the Cholesky decomposition of a semi-definite matrix",
+// 1990, for LAPACK's xPSTRF).
+template <typename MatrixType, int UpLo>
+void check_ldlt_semidefinite(const MatrixType& A, Index r) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  const Index n = A.rows();
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const MatrixType triangle = A.template triangularView<UpLo>();
+  // info() is not checked: rounding can leave an exactly zero pivot above a column of rounding errors, which
+  // NumericalIssue reports as it would for an indefinite matrix.
+  LDLT<MatrixType, UpLo> ldlt(triangle);
+
+  // Complete pivoting keeps |L| <= 1 on a semidefinite matrix, so each trailing pivot is a sum of about n rounding
+  // errors of size eps d_0. Over 20 seeds and n <= 300, in single and double precision, they stayed below
+  // 1.2 n eps d_0, and the reconstruction error below 0.25 n eps |A|. With r = 1 or n/2 random columns in B, the
+  // leading pivots stay far above the tail bound.
+  const Matrix<RealScalar, Dynamic, 1> d = ldlt.vectorD().real().cwiseAbs();
+  const RealScalar tail_bound = RealScalar(8 * n) * eps * d(0);
+  if (r < n) VERIFY(d.tail(n - r).maxCoeff() <= tail_bound);
+  VERIFY(d.head(r).minCoeff() > tail_bound);
+  VERIFY((ldlt.reconstructedMatrix() - A).norm() <= RealScalar(2 * n) * eps * A.norm());
+}
+
+// The two rows of B of largest norm are parallel, so that pivoting by the input's diagonal takes a rounding-level pivot
+// second.
+template <typename MatrixType>
+void cholesky_ldlt_semidefinite(Index n, Index r) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  MatrixType B = MatrixType::Random(n, r);
+  if (n >= 2) {
+    B.row(0) *= RealScalar(4);
+    B.row(1) = RealScalar(0.5) * B.row(0);
+  }
+  const MatrixType A = B * B.adjoint();
+  check_ldlt_semidefinite<MatrixType, Lower>(A, r);
+  check_ldlt_semidefinite<MatrixType, Upper>(A, r);
+}
+
+// A = G M G with M = B B^* + I and G a shuffled diagonal over 2 * decades orders of magnitude. Complete diagonal
+// pivoting follows the grading, so the factorization is componentwise accurate,
+// |A - P^T L D L^* P|_ij <= c n eps sqrt(a_ii a_jj). Forming |L_ik|^2 before D_k |L_ik|^2 in the diagonal downdate
+// underflowed for |L_ik| < sqrt(min) and lost that accuracy.
+template <typename MatrixType, int UpLo>
+void check_ldlt_graded(const MatrixType& A) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
+  const Index n = A.rows();
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const MatrixType triangle = A.template triangularView<UpLo>();
+  LDLT<MatrixType, UpLo> ldlt(triangle);
+  VERIFY(ldlt.info() == Success);
+  const RealVectorType root = A.diagonal().real().cwiseSqrt();
+  const RealScalar error =
+      ((ldlt.reconstructedMatrix() - A).cwiseAbs().array() / (root * root.transpose()).array()).maxCoeff();
+  // Measured below 0.1 n eps, against above 1e10 n eps with the underflowing downdate.
+  VERIFY(error <= RealScalar(2 * n) * eps);
+}
+
+template <typename MatrixType>
+void cholesky_ldlt_graded(Index n, int decades) {
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  Matrix<RealScalar, Dynamic, 1> g(n);
+  for (Index i = 0; i < n; ++i)
+    g(i) = std::pow(RealScalar(10), RealScalar(decades) * (RealScalar(2 * i) / RealScalar(n - 1) - RealScalar(1)));
+  for (Index i = n - 1; i > 0; --i) std::swap(g(i), g(internal::random<Index>(0, i)));
+  const MatrixType B = MatrixType::Random(n, n);
+  const MatrixType A = g.asDiagonal() * (B * B.adjoint() + MatrixType::Identity(n, n)) * g.asDiagonal();
+  check_ldlt_graded<MatrixType, Lower>(A);
+  check_ldlt_graded<MatrixType, Upper>(A);
+}
+
+// Definite and KKT matrices of size n, which give pivots of both signs.
+template <typename MatrixType>
+void check_ldlt_blocked(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealMatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const MatrixType B = MatrixType::Random(n, n);
+  const MatrixType pd = B * B.adjoint() + MatrixType::Identity(n, n);
+  for (RealScalar sign : {RealScalar(1), RealScalar(-1)}) {
+    const MatrixType A = sign * pd;
+    LDLT<MatrixType> ldlt(A);
+    VERIFY(ldlt.info() == Success);
+    VERIFY(ldlt.isPositive() == (sign > 0) && ldlt.isNegative() == (sign < 0));
+    VERIFY((ldlt.reconstructedMatrix() - A).norm() <= RealScalar(2 * n) * eps * A.norm());
+  }
+
+  // [H J^*; J 0] with H positive definite and J of full row rank k has k negative eigenvalues. The matrix is
+  // indefinite, so the backward error is bounded by |L| |D| |L^*| rather than by |A|: |dA| <= c n eps |L| |D| |L^*|
+  // (Higham, ASNA 2nd ed., section 11.1). Measured below 0.01 n eps |A|, with |L| |D| |L^*| <= 3 |A|.
+  const Index k = n / 4;
+  MatrixType kkt = MatrixType::Zero(n, n);
+  kkt.topLeftCorner(n - k, n - k) = pd.topLeftCorner(n - k, n - k);
+  kkt.bottomLeftCorner(k, n - k) = MatrixType::Random(k, n - k);
+  kkt.topRightCorner(n - k, k) = kkt.bottomLeftCorner(k, n - k).adjoint();
+  LDLT<MatrixType, Upper> ldlt(kkt);
+  VERIFY(ldlt.info() == Success);
+  const RealMatrixType absL = MatrixType(ldlt.matrixL()).cwiseAbs();
+  const RealScalar growth = (absL * ldlt.vectorD().real().cwiseAbs().asDiagonal() * absL.transpose()).norm();
+  VERIFY((ldlt.reconstructedMatrix() - kkt).norm() <= RealScalar(2 * n) * eps * growth);
+  VERIFY_IS_EQUAL((ldlt.vectorD().real().array() < 0).count(), k);
+}
+
+// Above three panel widths, LDLT factors panels and applies each to the trailing Schur complement in one level-3
+// product. At the smallest panel width, the sizes leave a trailing panel of one column, none, and a partial one; a
+// fourth size is the first with a wider panel. Fixed-size and bounded matrices stay unblocked, so that they allocate
+// no panel workspace.
+template <typename MatrixType>
+void cholesky_ldlt_blocked() {
+  using Scalar = typename MatrixType::Scalar;
+  const Index nb = ldlt_smallest_blocksize<MatrixType>();
+  if (nb == 0) return;
+  VERIFY_IS_EQUAL(internal::ldlt_blocksize<MatrixType>(3 * nb), Index(0));
+  VERIFY_IS_EQUAL((internal::ldlt_blocksize<Matrix<Scalar, Dynamic, Dynamic, 0, 512, 512> >(4 * nb + 1)), Index(0));
+  for (Index n : {4 * nb + 1, 5 * nb, 5 * nb + nb / 2}) {
+    VERIFY_IS_EQUAL(internal::ldlt_blocksize<MatrixType>(n), nb);
+    check_ldlt_blocked<MatrixType>(n);
+  }
+#ifndef EIGEN_LDLT_BLOCKSIZE
+  Index n = 5 * nb + nb / 2;
+  while (internal::ldlt_blocksize<MatrixType>(n) == nb) ++n;
+  check_ldlt_blocked<MatrixType>(n);
+#endif
+}
+
+// A NaN or an infinity anywhere in the matrix reaches a pivot, so the factorization reports it instead of Success.
+template <typename MatrixType>
+void check_ldlt_nonfinite(Index n, const typename MatrixType::Scalar& value) {
+  const Index positions[][2] = {{0, 0}, {n / 2, n / 2}, {n - 1, n - 1}, {n - 1, 0}, {n - 1, n - 2}};
+  for (const auto& position : positions) {
+    const Index i = position[0], j = position[1];
+    if (j < 0 || (i == j && NumTraits<typename MatrixType::Scalar>::IsComplex && numext::real(value) == 0)) continue;
+    MatrixType A = MatrixType::Identity(n, n);
+    A(i, j) = value;
+    A(j, i) = numext::conj(value);
+    VERIFY((LDLT<MatrixType, Lower>(A).info() == NumericalIssue));
+    VERIFY((LDLT<MatrixType, Upper>(A).info() == NumericalIssue));
+  }
+}
+
+template <typename MatrixType>
+void cholesky_ldlt_nonfinite(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  check_ldlt_nonfinite<MatrixType>(n, Scalar(std::numeric_limits<RealScalar>::quiet_NaN()));
+  check_ldlt_nonfinite<MatrixType>(n, Scalar(std::numeric_limits<RealScalar>::infinity()));
+}
+
+// A NaN in the imaginary part of an off-diagonal entry; the diagonal of a Hermitian matrix has none to read.
+template <typename MatrixType>
+void cholesky_ldlt_imaginary_nan(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  check_ldlt_nonfinite<MatrixType>(n, Scalar(RealScalar(0), std::numeric_limits<RealScalar>::quiet_NaN()));
+}
+
+// The blocked factorization takes its panel workspace from the decomposition, so a preallocated one allocates nothing
+// at this size, where the trailing product still packs its operands on the stack.
+template <typename Scalar>
+void cholesky_ldlt_blocked_preallocated_no_malloc() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index size = 4 * numext::maxi(ldlt_smallest_blocksize<MatrixType>(), Index(32)) + 3;
+  const MatrixType A = MatrixType::Random(size, size);
+  const MatrixType spd = A * A.adjoint() + MatrixType::Identity(size, size);
+  LDLT<MatrixType> ldlt(size);
+  internal::set_is_malloc_allowed(false);
+  ldlt.compute(spd);
+  internal::set_is_malloc_allowed(true);
+  VERIFY_IS_EQUAL(ldlt.info(), Success);
 }
 
 // Accumulates I + sum_k w_k w_k^* out of rank-1 updates alone, which is the path rankUpdate() takes while the
@@ -997,6 +1226,40 @@ EIGEN_DECLARE_TEST(cholesky) {
   CALL_SUBTEST_9(LDLT<MatrixXf>(10));
 
   CALL_SUBTEST_2(cholesky_faillure_cases<void>());
+
+  CALL_SUBTEST_3(cholesky_ldlt_zero_pivots_last((Matrix3d() << 1, 1, 0, 1, 1, 0, 0, 0, 1).finished(), 2));
+  CALL_SUBTEST_2(cholesky_ldlt_zero_pivots_last(MatrixXd((Matrix3d() << 1, 1, 0, 1, 1, 0, 0, 0, 1).finished()), 2));
+  CALL_SUBTEST_6(cholesky_ldlt_zero_pivots_last(
+      (Matrix3cd() << 1, std::complex<double>(0, 1), 0, std::complex<double>(0, -1), 1, 0, 0, 0, 1).finished(), 2));
+  CALL_SUBTEST_2(cholesky_ldlt_zero_pivots_last_blocked<MatrixXd>());
+  CALL_SUBTEST_6(cholesky_ldlt_zero_pivots_last_blocked<MatrixXcd>());
+
+  CALL_SUBTEST_2(cholesky_ldlt_blocked<MatrixXd>());
+  CALL_SUBTEST_2((cholesky_ldlt_blocked<Matrix<double, Dynamic, Dynamic, RowMajor> >()));
+  CALL_SUBTEST_4(cholesky_ldlt_blocked<MatrixXf>());
+  CALL_SUBTEST_6(cholesky_ldlt_blocked<MatrixXcd>());
+  CALL_SUBTEST_1(cholesky_ldlt_blocked_preallocated_no_malloc<double>());
+  CALL_SUBTEST_1(cholesky_ldlt_blocked_preallocated_no_malloc<std::complex<double> >());
+
+  {
+    // Two unblocked sizes and two blocked ones, unless EIGEN_LDLT_BLOCKSIZE=0 disables blocking.
+    const Index nb = numext::maxi(ldlt_smallest_blocksize<MatrixXd>(), Index(32));
+    for (Index n : {Index(3), Index(17), 4 * nb + 1, 5 * nb + nb / 2}) {
+      CALL_SUBTEST_2(cholesky_ldlt_semidefinite<MatrixXd>(n, 1));
+      CALL_SUBTEST_2(cholesky_ldlt_semidefinite<MatrixXd>(n, n / 2));
+      CALL_SUBTEST_4(cholesky_ldlt_semidefinite<MatrixXf>(n, n / 2));
+      CALL_SUBTEST_6(cholesky_ldlt_semidefinite<MatrixXcd>(n, n / 2));
+      CALL_SUBTEST_2(cholesky_ldlt_graded<MatrixXd>(n, 80));
+      CALL_SUBTEST_4(cholesky_ldlt_graded<MatrixXf>(n, 12));
+      CALL_SUBTEST_6(cholesky_ldlt_graded<MatrixXcd>(n, 80));
+      CALL_SUBTEST_2(cholesky_ldlt_nonfinite<MatrixXd>(n));
+      CALL_SUBTEST_6(cholesky_ldlt_nonfinite<MatrixXcd>(n));
+      CALL_SUBTEST_6(cholesky_ldlt_imaginary_nan<MatrixXcd>(n));
+      TEST_SET_BUT_UNUSED_VARIABLE(n);
+    }
+    CALL_SUBTEST_2(cholesky_ldlt_nonfinite<MatrixXd>(1));
+    CALL_SUBTEST_5(cholesky_ldlt_nonfinite<Matrix4d>(4));
+  }
 
   // Blocking and vectorization boundary tests (deterministic, outside g_repeat).
   CALL_SUBTEST_2(cholesky_blocking_boundary<double>());

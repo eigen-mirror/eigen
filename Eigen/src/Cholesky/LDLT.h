@@ -33,6 +33,10 @@ struct LDLT_Traits;
 
 // PositiveSemiDef means positive semi-definite and non-zero; same for NegativeSemiDef
 enum SignMatrix { PositiveSemiDef, NegativeSemiDef, ZeroSign, Indefinite };
+
+// Panel width of the blocked factorization (defined below); declared here for the size constructor.
+template <typename MatrixType>
+inline Index ldlt_blocksize(Index size);
 }  // namespace internal
 
 /** \ingroup Cholesky_Module
@@ -49,17 +53,21 @@ enum SignMatrix { PositiveSemiDef, NegativeSemiDef, ZeroSign, Indefinite };
  * matrix \f$ A \f$ such that \f$ A =  P^TLDL^*P \f$, where P is a permutation matrix, L
  * is lower triangular with a unit diagonal and D is a diagonal matrix.
  *
- * The decomposition uses pivoting to ensure stability, so that D will have
- * zeros in the bottom right rank(A) - n submatrix. Avoiding the square root
- * on D also stabilizes the computation.
+ * Each step pivots on the diagonal entry of largest magnitude of the remaining Schur complement
+ * (complete diagonal pivoting, as in LAPACK's xPSTRF), so that for a semidefinite matrix of rank r
+ * the n - r entries of D that vanish in exact arithmetic come last, at the level of rounding errors
+ * and of either sign. Avoiding the square root on D also stabilizes the computation.
  *
- * Remember that Cholesky decompositions are not rank-revealing. Also, do not use a Cholesky
- * decomposition to determine whether a system of equations has a solution.
+ * LDLT does not determine a numerical rank, though. Also, do not use a Cholesky decomposition to
+ * determine whether a system of equations has a solution.
  *
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
- * D is purely diagonal, so this class cannot factor an indefinite matrix. For a self-adjoint matrix
- * that is indefinite, use BunchKaufman, which produces a block-diagonal D.
+ * D is purely diagonal, so this class is not backward stable on indefinite matrices: it can report
+ * \c Success for a factorization with a large backward error. If isPositive() and isNegative() both
+ * return false, D has pivots of both signs: unless that comes from the rounding-level pivots of a
+ * singular semidefinite matrix, the matrix is indefinite, and BunchKaufman, which produces a
+ * block-diagonal D, should be used instead.
  *
  * \sa MatrixBase::ldlt(), SelfAdjointView::ldlt(), class LLT, class BunchKaufman
  */
@@ -100,6 +108,10 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
    *
    * Like the default constructor but with preallocation of the internal data
    * according to the specified problem \a size.
+   *
+   * Above 96 rows, compute() factors a dynamic-size matrix in blocks, and the matrix products of the blocked
+   * factorization can allocate their packing buffers, as those of LLT and PartialPivLU do. Fixed-size and bounded
+   * matrices are factored unblocked and allocate nothing.
    * \sa LDLT()
    */
   explicit LDLT(Index size)
@@ -107,6 +119,8 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
         m_l1_norm(0),
         m_transpositions(size),
         m_temporary(size),
+        // The shape compute() gives the panel workspace, so that it does not reallocate it for this size.
+        m_workspace(size, internal::ldlt_blocksize<MatrixType>(size)),
         m_sign(internal::ZeroSign),
         m_isInitialized(false),
         m_info(InvalidInput) {}
@@ -311,7 +325,9 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the factorization failed because of a zero pivot.
+   *          \c NumericalIssue if the factorization failed: a pivot is not finite, or is zero above a
+   *          non-zero column. In exact arithmetic only an indefinite matrix has the latter, but rounding
+   *          errors can give it to a singular semidefinite matrix too.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "LDLT is not initialized.");
@@ -339,6 +355,8 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
   RealScalar m_l1_norm;
   TranspositionType m_transpositions;
   TmpMatrixType m_temporary;
+  // L21 D for the trailing update of the blocked factorization; it stays empty below the blocking threshold.
+  Matrix<Scalar, Dynamic, Dynamic> m_workspace;
   internal::SignMatrix m_sign;
   bool m_isInitialized;
   ComputationInfo m_info;
@@ -346,21 +364,45 @@ class LDLT : public SolverBase<LDLT<MatrixType_, UpLo_> > {
 
 namespace internal {
 
+/** \internal Panel width of the blocked factorization of a \a size x \a size matrix, or 0 where a single
+ * unblocked panel covers the whole matrix: up to three panel widths, below which the level-3 update does not pay
+ * off, and for fixed-size or bounded matrices, which must not allocate the panel workspace.
+ *
+ * The panel's level-2 updates run at a rate R, and the trailing update at P / (1 + kappa / nb), kappa being the
+ * fixed cost of a pass in steps of its depth. Then T(nb) = n^3 / (3 P) (1 + kappa / nb) + n^2 nb / (2 R) is least at
+ * nb = sqrt(c n), c = 2 kappa R / (3 P). Measured c ranges from about 0.7 to 4 with AVX2, AVX-512, NEON and SME
+ * products, and grows once the trailing matrix outgrows the last-level cache. c = 3, with nb rounded to a multiple
+ * of 16 and clamped to [32, 128], the range the measured optimum spans, loses about 2% to the best width on average.
+ * Can be overridden (mainly for testing the panel logic at small sizes) by defining EIGEN_LDLT_BLOCKSIZE. */
+template <typename MatrixType>
+inline Index ldlt_blocksize(Index size) {
+  if (int(MatrixType::MaxRowsAtCompileTime) != Dynamic || int(MatrixType::MaxColsAtCompileTime) != Dynamic) return 0;
+#ifdef EIGEN_LDLT_BLOCKSIZE
+  const Index nb = Index(EIGEN_LDLT_BLOCKSIZE);
+#else
+  constexpr Index kMinBlockSize = 32;
+  // Three of the narrowest panels are not blocked either, so small matrices skip the square root.
+  if (size <= 3 * kMinBlockSize) return 0;
+  const Index unclamped = 16 * Index(numext::round(numext::sqrt(3.0 * double(size)) / 16));
+  const Index nb = numext::mini(numext::maxi(unclamped, kMinBlockSize), Index(128));
+#endif
+  return nb > 0 && size > 3 * nb ? nb : 0;
+}
+
 template <int UpLo>
 struct ldlt_inplace;
 
 template <>
 struct ldlt_inplace<Lower> {
+  // Settles the cases that leave nothing to factor, and returns whether it did: an empty or 1x1 matrix, and a
+  // diagonal that is entirely zero, which offers no pivot and leaves the matrix either zero or indefinite. Otherwise
+  // it copies the diagonal into temp, where factor_panel() expects it.
   template <typename MatrixType, typename TranspositionType, typename Workspace>
-  static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
-    using std::abs;
+  static bool factor_trivial(const MatrixType& mat, TranspositionType& transpositions, Workspace& temp,
+                             SignMatrix& sign, bool& ret) {
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
-    using IndexType = typename TranspositionType::StorageIndex;
-    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
     const Index size = mat.rows();
-    bool found_zero_pivot = false;
-    bool ret = true;
 
     if (size <= 1) {
       transpositions.setIdentity();
@@ -372,62 +414,81 @@ struct ldlt_inplace<Lower> {
         sign = NegativeSemiDef;
       else
         sign = ZeroSign;
+      ret = size == 0 || (numext::isfinite)(numext::real(mat.coeff(0, 0)));
       return true;
     }
 
-    for (Index k = 0; k < size; ++k) {
+    temp = mat.diagonal().real().template cast<Scalar>();
+    if ((temp.array() == Scalar(0)).all()) {
+      transpositions.setIdentity();
+      sign = ZeroSign;
+      ret = true;
+      for (Index j = 0; ret && j < size; ++j) ret = (mat.col(j).tail(size - j - 1).array() == Scalar(0)).all();
+      return true;
+    }
+    return false;
+  }
+
+  // Factors columns [k0, k0 + kb) left-looking, column k pivoting on max |diag(S_k)|, S_k = A22 - L21 D L21^*
+  // (complete diagonal pivoting, as in LAPACK's xPSTF2). Invariant: mat(k0:n, k0:n) holds S_k0 off its diagonal and
+  // temp(k:n) holds diag(S_k). The caller interchanges the rows of the columns before k0.
+  template <typename MatrixType, typename TranspositionType, typename Workspace>
+  static bool factor_panel(MatrixType& mat, Index k0, Index kb, TranspositionType& transpositions, Workspace& temp,
+                           SignMatrix& sign) {
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
+    using IndexType = typename TranspositionType::StorageIndex;
+    const Index size = mat.rows();
+    bool ret = true;
+
+    for (Index k = k0; k < k0 + kb; ++k) {
       // Find largest diagonal element
       Index index_of_biggest_in_corner;
-      mat.diagonal().tail(size - k).cwiseAbs().maxCoeff(&index_of_biggest_in_corner);
+      temp.tail(size - k).real().cwiseAbs().maxCoeff(&index_of_biggest_in_corner);
       index_of_biggest_in_corner += k;
 
       transpositions.coeffRef(k) = IndexType(index_of_biggest_in_corner);
       if (k != index_of_biggest_in_corner) {
-        selfadjoint_swap_lower(mat, k, index_of_biggest_in_corner);
+        auto trailing = mat.bottomRightCorner(size - k0, size - k0);
+        selfadjoint_swap_lower(trailing, k - k0, index_of_biggest_in_corner - k0);
+        numext::swap(temp.coeffRef(k), temp.coeffRef(index_of_biggest_in_corner));
       }
 
       // partition the matrix:
       //       A00 |  -  |  -
       // lu  = A10 | A11 |  -
       //       A20 | A21 | A22
+      // where A10 and A20 span the panel columns [k0, k); those before k0 are already applied to A21. The
+      // product's operand D A10^* takes temp(k0:k), whose diagonal entries of S have all been used as pivots.
       Index rs = size - k - 1;
-      Block<MatrixType, Dynamic, 1> A21(mat, k + 1, k, rs, 1);
-      Block<MatrixType, 1, Dynamic> A10(mat, k, 0, 1, k);
-      Block<MatrixType, Dynamic, Dynamic> A20(mat, k + 1, 0, rs, k);
+      Index done = k - k0;
+      auto A21 = mat.block(k + 1, k, rs, fix<1>);
 
-      if (k > 0) {
-        temp.head(k) = mat.diagonal().real().head(k).asDiagonal() * A10.adjoint();
-        mat.coeffRef(k, k) -= (A10 * temp.head(k)).value();
-        if (rs > 0) A21.noalias() -= A20 * temp.head(k);
+      if (done > 0 && rs > 0) {
+        auto A10 = mat.block(k, k0, fix<1>, done);
+        auto A20 = mat.block(k + 1, k0, rs, done);
+        temp.segment(k0, done) = mat.diagonal().real().segment(k0, done).asDiagonal() * A10.adjoint();
+        A21.noalias() -= A20 * temp.segment(k0, done);
       }
 
       // In some previous versions of Eigen (e.g., 3.2.1), the scaling was omitted if the pivot
       // was smaller than the cutoff value. However, since LDLT is not rank-revealing
       // we should only make sure that we do not introduce INF or NaN values.
       // Remark that LAPACK also uses 0 as the cutoff value.
-      RealScalar realAkk = numext::real(mat.coeffRef(k, k));
-      bool pivot_is_valid = (abs(realAkk) > RealScalar(0));
+      RealScalar realAkk = numext::real(temp.coeff(k));
+      mat.coeffRef(k, k) = Scalar(realAkk);
+      bool pivot_is_valid = (numext::abs(realAkk) > RealScalar(0));
+      if (!(numext::isfinite)(realAkk)) ret = false;
 
-      if (k == 0 && !pivot_is_valid) {
-        // The entire diagonal is zero, there is nothing more to do
-        // except filling the transpositions, and checking whether the matrix is zero.
-        sign = ZeroSign;
-        for (Index j = 0; j < size; ++j) {
-          transpositions.coeffRef(j) = IndexType(j);
-          ret = ret && (mat.col(j).tail(size - j - 1).array() == Scalar(0)).all();
-        }
-        return ret;
-      }
-
-      if ((rs > 0) && pivot_is_valid)
+      // A zero pivot is the largest remaining, so the rest of D is zero too, and its column must be zero as well.
+      if ((rs > 0) && pivot_is_valid) {
         A21 /= realAkk;
-      else if (rs > 0)
+        // diag(S_{k+1}) = diag(S_k) - conj(L21) .* (D_k L21), where the next pivot is searched for. Squaring L21
+        // first would underflow for |L21| < sqrt(min) on a graded matrix, where D_k |L21|^2 is representable.
+        temp.tail(rs).real() -= A21.conjugate().cwiseProduct(realAkk * A21).real();
+      } else if (rs > 0) {
         ret = ret && (A21.array() == Scalar(0)).all();
-
-      if (found_zero_pivot && pivot_is_valid)
-        ret = false;  // factorization failed
-      else if (!pivot_is_valid)
-        found_zero_pivot = true;
+      }
 
       if (sign == PositiveSemiDef) {
         if (realAkk < static_cast<RealScalar>(0)) sign = Indefinite;
@@ -441,6 +502,59 @@ struct ldlt_inplace<Lower> {
       }
     }
 
+    return ret;
+  }
+
+  template <typename MatrixType, typename TranspositionType, typename Workspace>
+  static bool unblocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, SignMatrix& sign) {
+    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+    bool ret = true;
+    if (factor_trivial(mat, transpositions, temp, sign, ret)) return ret;
+    return factor_panel(mat, 0, mat.rows(), transpositions, temp, sign);
+  }
+
+  // Blocked (level-3) variant, with the panel/trailing-update structure of LAPACK's xPSTRF: each panel is factored
+  // by factor_panel(), then a single product applies it to the trailing Schur complement, A22 -= L21 D L21^*.
+  template <typename MatrixType, typename TranspositionType, typename Workspace, typename BlockWorkspace>
+  static bool blocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp, BlockWorkspace& workspace,
+                      SignMatrix& sign) {
+    EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+    const Index size = mat.rows();
+    const Index nb = ldlt_blocksize<MatrixType>(size);
+    if (nb == 0) return unblocked(mat, transpositions, temp, sign);
+    bool ret = true;
+    if (factor_trivial(mat, transpositions, temp, sign, ret)) return ret;
+
+    workspace.resize(size, nb);
+    for (Index k0 = 0; k0 < size; k0 += nb) {
+      const Index kb = numext::mini(nb, size - k0);
+      const Index k1 = k0 + kb;
+      if (!factor_panel(mat, k0, kb, transpositions, temp, sign)) ret = false;
+
+      // The panel's interchanges, applied to the rows of the columns before it. Column-major storage takes them a
+      // column at a time, where a row swap would stride through memory.
+      EIGEN_IF_CONSTEXPR (MatrixType::IsRowMajor) {
+        for (Index k = k0; k < k1; ++k) {
+          const Index p = transpositions.coeff(k);
+          if (p != k) mat.row(k).head(k0).swap(mat.row(p).head(k0));
+        }
+      } else {
+        for (Index c = 0; c < k0; ++c) {
+          for (Index k = k0; k < k1; ++k) {
+            const Index p = transpositions.coeff(k);
+            if (p != k) numext::swap(mat.coeffRef(k, c), mat.coeffRef(p, c));
+          }
+        }
+      }
+
+      const Index rs = size - k1;
+      if (rs > 0) {
+        auto L21 = mat.block(k1, k0, rs, kb);
+        auto W = workspace.topLeftCorner(rs, kb);
+        W.noalias() = L21 * mat.diagonal().real().segment(k0, kb).asDiagonal();
+        mat.block(k1, k1, rs, rs).template triangularView<Lower>() -= L21 * W.adjoint();
+      }
+    }
     return ret;
   }
 
@@ -512,6 +626,13 @@ struct ldlt_inplace<Upper> {
     return ldlt_inplace<Lower>::unblocked(matt, transpositions, temp, sign);
   }
 
+  template <typename MatrixType, typename TranspositionType, typename Workspace, typename BlockWorkspace>
+  static EIGEN_STRONG_INLINE bool blocked(MatrixType& mat, TranspositionType& transpositions, Workspace& temp,
+                                          BlockWorkspace& workspace, SignMatrix& sign) {
+    Transpose<MatrixType> matt(mat);
+    return ldlt_inplace<Lower>::blocked(matt, transpositions, temp, workspace, sign);
+  }
+
   template <typename MatrixType, typename TranspositionType, typename Workspace, typename WType>
   static EIGEN_STRONG_INLINE bool update(MatrixType& mat, TranspositionType& transpositions, Workspace& tmp, WType& w,
                                          const typename MatrixType::RealScalar& sigma = 1) {
@@ -556,8 +677,9 @@ LDLT<MatrixType, UpLo_>& LDLT<MatrixType, UpLo_>::compute(const EigenBase<InputT
   m_temporary.resize(size);
   m_sign = internal::ZeroSign;
 
-  m_info = internal::ldlt_inplace<UpLo>::unblocked(m_matrix, m_transpositions, m_temporary, m_sign) ? Success
-                                                                                                    : NumericalIssue;
+  m_info = internal::ldlt_inplace<UpLo>::blocked(m_matrix, m_transpositions, m_temporary, m_workspace, m_sign)
+               ? Success
+               : NumericalIssue;
 
   m_isInitialized = true;
   return *this;
