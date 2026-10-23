@@ -188,15 +188,25 @@ void forward_jacobian(const Func& f) {
   VERIFY_IS_APPROX(j, jref);
 }
 
-// TODO also check actual derivatives!
-template <int>
+template <typename Scalar>
 void test_autodiff_scalar() {
-  Vector2f p = Vector2f::Random();
-  typedef AutoDiffScalar<Vector2f> AD;
-  AD ax(p.x(), Vector2f::UnitX());
-  AD ay(p.y(), Vector2f::UnitY());
-  AD res = foo<AD>(ax, ay);
-  VERIFY_IS_APPROX(res.value(), foo(p.x(), p.y()));
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  using AD = AutoDiffScalar<Vector2>;
+  const Scalar x = internal::random<Scalar>(Scalar(-1), Scalar(1));
+  // sqrt(y*y) is not differentiable at zero.
+  const Scalar magnitude = internal::random<Scalar>(Scalar(0.25), Scalar(1));
+  for (Scalar sign : {Scalar(-1), Scalar(1)}) {
+    const Scalar y = sign * magnitude;
+    const AD ax(x, Vector2::UnitX()), ay(y, Vector2::UnitY());
+    const AD res = foo<AD>(ax, ay);
+    VERIFY_IS_APPROX(res.value(), foo(x, y));
+
+    // dfoo/dx = 4 + 2*x - 4*cos(x) + x*exp(-x*x/2), dfoo/dy = 2*sign(y) - 2*sin(y).
+    const Vector2 expected(Scalar(4) + Scalar(2) * x - Scalar(4) * std::cos(x) + x * std::exp(-x * x / Scalar(2)),
+                           Scalar(2) * sign - Scalar(2) * std::sin(y));
+    const Scalar tolerance = Scalar(32) * NumTraits<Scalar>::epsilon() * (Scalar(1) + expected.norm());
+    VERIFY((res.derivatives() - expected).norm() <= tolerance);
+  }
 }
 
 template <int>
@@ -499,7 +509,8 @@ void test_autodiff_spline_interpolate() {
 
 EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
-    CALL_SUBTEST_1(test_autodiff_scalar<1>());
+    CALL_SUBTEST_1(test_autodiff_scalar<float>());
+    CALL_SUBTEST_1(test_autodiff_scalar<double>());
     CALL_SUBTEST_2(test_autodiff_vector<1>());
     CALL_SUBTEST_2(test_autodiff_vector_derivative<1>());
     CALL_SUBTEST_3(test_autodiff_jacobian<1>());
