@@ -233,7 +233,35 @@ void check_global_interpolation_with_derivatives2d() {
   }
 }
 
+template <typename Scalar>
+void check_high_degree_basis_derivatives() {
+  using SplineType = Spline<Scalar, 1>;
+  // 13! exceeds signed 32-bit indices; 21! exceeds signed 64-bit indices.
+  for (DenseIndex degree : {DenseIndex(13), DenseIndex(21), DenseIndex(22)}) {
+    typename SplineType::KnotVectorType knots(2 * (degree + 1));
+    knots.head(degree + 1).setZero();
+    knots.tail(degree + 1).setOnes();
+    const auto derivatives = SplineType::BasisFunctionDerivatives(Scalar(0.5), degree, degree, knots);
+    long double factorial = 1;
+    for (DenseIndex k = 2; k <= degree; ++k) factorial *= static_cast<long double>(k);
+    long double binomial = 1;
+    for (DenseIndex j = 0; j <= degree; ++j) {
+      // Clamped knots give Bernstein polynomials: B_j^(p) = (-1)^(p-j) p! binomial(p,j).
+      const Scalar expected = static_cast<Scalar>(((degree - j) % 2 ? -factorial : factorial) * binomial);
+      const Scalar actual = derivatives(degree, j);
+      // At most p-1 factorial roundings, one final product, and reference rounding; 2p*eps leaves margin.
+      const Scalar bound = Scalar(2 * degree) * NumTraits<Scalar>::epsilon() * numext::abs(expected);
+      VERIFY((numext::isfinite)(actual));
+      VERIFY((numext::isfinite)(bound));
+      VERIFY(numext::abs(actual - expected) <= bound);
+      binomial = binomial * static_cast<long double>(degree - j) / static_cast<long double>(j + 1);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(splines) {
+  CALL_SUBTEST(check_high_degree_basis_derivatives<float>());
+  CALL_SUBTEST(check_high_degree_basis_derivatives<double>());
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST(eval_spline3d());
     CALL_SUBTEST(eval_spline3d_onbrks());

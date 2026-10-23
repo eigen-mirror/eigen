@@ -448,10 +448,10 @@ void Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivativesImpl(
 
   /* Multiply through by the correct factors */
   /* (Eq. [2.9])                             */
-  r = p;
+  Scalar factor = Scalar(1);
   for (DenseIndex k = 1; k <= static_cast<DenseIndex>(n); ++k) {
-    for (j = p; j >= 0; --j) N_(k, j) *= r;
-    r *= p - k;
+    factor *= Scalar(p - k + 1);
+    for (j = p; j >= 0; --j) N_(k, j) *= factor;
   }
 }
 
