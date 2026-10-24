@@ -155,10 +155,7 @@ class CompressedStorage {
     if (id >= m_size || m_indices[id] != key) {
       if (m_allocatedSize < m_size + 1) {
         Index newAllocatedSize = 2 * (m_size + 1);
-        m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, newAllocatedSize, m_allocatedSize);
-        m_indices =
-            conditional_aligned_realloc_new_auto<StorageIndex, true>(m_indices, newAllocatedSize, m_allocatedSize);
-        m_allocatedSize = newAllocatedSize;
+        reallocate(newAllocatedSize);
       }
       if (m_size > id) {
         internal::smart_memmove(m_values + id, m_values + m_size, m_values + id + 1);
@@ -183,8 +180,32 @@ class CompressedStorage {
     EIGEN_SPARSE_COMPRESSED_STORAGE_REALLOCATE_PLUGIN
 #endif
     eigen_internal_assert(size != m_allocatedSize);
-    m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, size, m_allocatedSize);
-    m_indices = conditional_aligned_realloc_new_auto<StorageIndex, true>(m_indices, size, m_allocatedSize);
+    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::RequireInitialization && !NumTraits<StorageIndex>::RequireInitialization &&
+                        std::is_trivially_copyable<Scalar>::value && std::is_trivially_copyable<StorageIndex>::value) {
+      const Index old_capacity = m_allocatedSize;
+      m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, size, old_capacity);
+      EIGEN_TRY { m_indices = conditional_aligned_realloc_new_auto<StorageIndex, true>(m_indices, size, old_capacity); }
+      EIGEN_CATCH(...) {
+        // The value buffer may have shrunk; never advertise more capacity than either buffer holds.
+        m_allocatedSize = (std::min)(old_capacity, size);
+        EIGEN_THROW;
+      }
+      m_allocatedSize = size;
+      return;
+    }
+    // Prepare indices first: once values have moved, no allocation may throw before committing the capacity.
+    StorageIndex* new_indices = conditional_aligned_new_auto<StorageIndex, true>(size);
+    EIGEN_TRY {
+      const Index copy_size = (std::min)(m_size, size);
+      if (copy_size > 0) internal::smart_copy(m_indices, m_indices + copy_size, new_indices);
+      m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, size, m_allocatedSize);
+    }
+    EIGEN_CATCH(...) {
+      conditional_aligned_delete_auto<StorageIndex, true>(new_indices, size);
+      EIGEN_THROW;
+    }
+    conditional_aligned_delete_auto<StorageIndex, true>(m_indices, m_allocatedSize);
+    m_indices = new_indices;
     m_allocatedSize = size;
   }
 

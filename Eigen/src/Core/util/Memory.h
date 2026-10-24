@@ -474,20 +474,22 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new(T* pts, std::size_t 
   // Otherwise, objects that contain internal pointers like mpfr or
   // AnnoyingScalar can be pointing to the wrong thing.
   T* result = static_cast<T*>(conditional_aligned_malloc<Align>(sizeof(T) * new_size));
+  const std::size_t copy_size = (std::min)(old_size, new_size);
+  bool tail_constructed = false;
   EIGEN_TRY {
-    // Move-construct initial elements.
-    std::size_t copy_size = (std::min)(old_size, new_size);
-    move_construct_elements_of_array(result, pts, copy_size);
-
-    // Default-construct remaining elements.
-    if (new_size > old_size) {
-      default_construct_elements_of_array(result + copy_size, new_size - old_size);
+    // A failing default constructor must not leave the source elements moved-from.
+    if (new_size > copy_size) {
+      default_construct_elements_of_array(result + copy_size, new_size - copy_size);
+      tail_constructed = true;
     }
+    move_construct_elements_of_array(result, pts, copy_size);
 
     // Delete old elements.
     conditional_aligned_delete<T, Align>(pts, old_size);
   }
   EIGEN_CATCH(...) {
+    // The construction helpers clean up their own partial ranges, but not the completed tail.
+    if (tail_constructed) destruct_elements_of_array(result + copy_size, new_size - copy_size);
     conditional_aligned_free<Align>(result);
     EIGEN_THROW;
   }
