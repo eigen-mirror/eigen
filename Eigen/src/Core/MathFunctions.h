@@ -1559,6 +1559,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T round_down(T a, U b) {
 }
 
 template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T log10(T x) {
+  EIGEN_USING_STD(log10);
+  return log10(x);
+}
+
+template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T log2(T x) {
   EIGEN_USING_STD(log2);
   return log2(x);

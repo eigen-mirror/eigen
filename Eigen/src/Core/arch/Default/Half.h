@@ -928,14 +928,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
   return half(hexp(::__half(a)));
 #else
-  return half(::expf(float(a)));
+  return half(numext::exp(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
   return half(hexp2(::__half(a)));
 #else
-  return half(::exp2f(float(a)));
+  return half(numext::exp2(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half expm1(const half& a) { return half(numext::expm1(float(a))); }
@@ -947,55 +947,61 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log(const half& a) {
 #if defined(EIGEN_GPU_COMPILE_PHASE)
   return half(hlog(::__half(a)));
 #else
-  return half(::logf(float(a)));
+  return half(numext::log(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log1p(const half& a) { return half(numext::log1p(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log10(const half& a) { return half(::log10f(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log10(const half& a) { return half(numext::log10(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log2(const half& a) {
-  return half(static_cast<float>(EIGEN_LOG2E) * ::logf(float(a)));
+  return half(static_cast<float>(EIGEN_LOG2E) * numext::log(float(a)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sqrt(const half& a) {
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
   return half(hsqrt(::__half(a)));
 #else
-  return half(::sqrtf(float(a)));
+  // numext::sqrt<float> would be instantiated here, before the SSE specialization is declared.
+  EIGEN_USING_STD(sqrt);
+  return half(sqrt(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half pow(const half& a, const half& b) {
-  return half(::powf(float(a), float(b)));
+  return half(numext::pow(float(a), float(b)));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atan2(const half& a, const half& b) {
-  return half(::atan2f(float(a), float(b)));
+  return half(numext::atan2(float(a), float(b)));
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sin(const half& a) { return half(::sinf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half cos(const half& a) { return half(::cosf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half tan(const half& a) { return half(::tanf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half tanh(const half& a) { return half(::tanhf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half asin(const half& a) { return half(::asinf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half acos(const half& a) { return half(::acosf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atan(const half& a) { return half(::atanf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atanh(const half& a) { return half(::atanhf(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sin(const half& a) { return half(numext::sin(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half cos(const half& a) { return half(numext::cos(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half tan(const half& a) { return half(numext::tan(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half tanh(const half& a) {
+  // numext::tanh(float) can select an approximation that changes half rounding.
+  EIGEN_USING_STD(tanh);
+  return half(tanh(float(a)));
+}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half asin(const half& a) { return half(numext::asin(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half acos(const half& a) { return half(numext::acos(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atan(const half& a) { return half(numext::atan(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atanh(const half& a) { return half(numext::atanh(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half floor(const half& a) {
 #if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
   return half(hfloor(::__half(a)));
 #else
-  return half(::floorf(float(a)));
+  return half(numext::floor(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ceil(const half& a) {
 #if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
   return half(hceil(::__half(a)));
 #else
-  return half(::ceilf(float(a)));
+  return half(numext::ceil(float(a)));
 #endif
 }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half rint(const half& a) { return half(::rintf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half round(const half& a) { return half(::roundf(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half trunc(const half& a) { return half(::truncf(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half rint(const half& a) { return half(numext::rint(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half round(const half& a) { return half(numext::round(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half trunc(const half& a) { return half(numext::trunc(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half fmod(const half& a, const half& b) {
-  return half(::fmodf(float(a), float(b)));
+  return half(numext::fmod(float(a), float(b)));
 }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half(min)(const half& a, const half& b) { return b < a ? b : a; }

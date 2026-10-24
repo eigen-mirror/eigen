@@ -1410,8 +1410,7 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexpm1(const Packet&
 /** \internal \returns the log of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog(const Packet& a) {
-  EIGEN_USING_STD(log);
-  return log(a);
+  return numext::log(a);
 }
 
 /** \internal \returns the log1p of \a a (coeff-wise) */
@@ -1423,8 +1422,7 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog1p(const Packet&
 /** \internal \returns the log10 of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet plog10(const Packet& a) {
-  EIGEN_USING_STD(log10);
-  return log10(a);
+  return numext::log10(a);
 }
 
 template <typename Packet, bool IsComplexPacket = NumTraits<typename unpacket_traits<Packet>::type>::IsComplex &&

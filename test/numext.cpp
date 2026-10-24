@@ -16,6 +16,13 @@
 #include <cfenv>
 #endif
 
+namespace log10_adl_test {
+struct Scalar {
+  double value;
+};
+inline Scalar log10(Scalar x) { return {std::log10(x.value)}; }
+}  // namespace log10_adl_test
+
 template <typename T, typename U>
 bool check_if_equal_or_nans(const T& actual, const U& expected) {
   return (numext::equal_strict(actual, expected) || ((numext::isnan)(actual) && (numext::isnan)(expected)));
@@ -1304,5 +1311,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_shift<uint64_t>());
 
     CALL_SUBTEST(check_scalar_tanh_saturation());
+    VERIFY_IS_EQUAL(numext::log10(log10_adl_test::Scalar{10.0}).value, 1.0);
+    VERIFY_IS_APPROX(numext::log10(std::complex<double>(2.0, 3.0)), std::log10(std::complex<double>(2.0, 3.0)));
   }
 }
