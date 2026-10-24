@@ -1691,7 +1691,8 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
   }
 
   //---------- Process 1 * LhsProgress rows at once ----------
-  EIGEN_IF_CONSTEXPR (mr >= 1 * Traits::LhsProgress) {
+  // With a wider mr, at most one row panel is left here.
+  EIGEN_IF_CONSTEXPR (mr > 1 * Traits::LhsProgress) {
     for (Index i = peeled_mc2; i < peeled_mc1; i += LhsProgress) {
       EIGEN_IF_CONSTEXPR (nr >= 8) {
         for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
@@ -1703,6 +1704,36 @@ EIGEN_DONT_INLINE void gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, 
       }
       for (Index j2 = packet_cols4; j2 < cols; j2++) {
         micro_panel(fix<1>, fix<1>, traits, i, j2);
+      }
+    }
+  } else EIGEN_IF_CONSTEXPR (mr == 1 * Traits::LhsProgress) {
+    // Every row comes here, blocked like the wider panels above: rows inside columns keep the rhs panel in cache
+    // and walk C down its columns.
+    const Index rhs_block1 = sizeof(ResScalar) * mr * nr + depth * nr * sizeof(RhsScalar);
+    const Index lhs_strip1 = depth * sizeof(LhsScalar) * LhsProgress;
+    const Index lhs_avail1 = (lhs_budget > rhs_block1) ? (lhs_budget - rhs_block1) : 0;
+    const Index mc1_range = peeled_mc1 - peeled_mc2;
+    const Index actual_panel_rows = (lhs_avail1 >= mc1_range * depth * static_cast<Index>(sizeof(LhsScalar)))
+                                        ? mc1_range
+                                        : LhsProgress * std::max<Index>(1, lhs_avail1 / lhs_strip1);
+    for (Index i1 = peeled_mc2; i1 < peeled_mc1; i1 += actual_panel_rows) {
+      const Index actual_panel_end = (std::min)(i1 + actual_panel_rows, peeled_mc1);
+      EIGEN_IF_CONSTEXPR (nr >= 8) {
+        for (Index j2 = 0; j2 < packet_cols8; j2 += 8) {
+          for (Index i = i1; i < actual_panel_end; i += LhsProgress) {
+            micro_panel(fix<1>, fix<8>, traits, i, j2);
+          }
+        }
+      }
+      for (Index j2 = packet_cols8; j2 < packet_cols4; j2 += 4) {
+        for (Index i = i1; i < actual_panel_end; i += LhsProgress) {
+          micro_panel(fix<1>, fix<4>, traits, i, j2);
+        }
+      }
+      for (Index j2 = packet_cols4; j2 < cols; j2++) {
+        for (Index i = i1; i < actual_panel_end; i += LhsProgress) {
+          micro_panel(fix<1>, fix<1>, traits, i, j2);
+        }
       }
     }
   }

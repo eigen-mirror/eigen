@@ -114,9 +114,14 @@ static void BM_EigenGemmRowMajorRhs(benchmark::State& state) { eigen_gemm<ColMaj
 #define TAIL_PANEL_SIZES \
     ->Args({15, 17, 1024})->Args({17, 15, 1024})->Args({31, 31, 1024}) \
     ->Args({60, 60, 1024})->Args({60, 64, 1024})->Args({64, 60, 1024})->Args({120, 120, 1024})->Args({252, 252, 252})
+
+// Shallow depth: loading and storing c costs about as much as the k multiply-adds, so these measure the order in which
+// gebp's micro panels walk c.
+#define SHALLOW_DEPTH_SIZES \
+    ->ArgsProduct({{256}, {256}, {4, 8, 16}})->Args({1024, 256, 8})->Args({1024, 1024, 4})
 // clang-format on
 
-BENCHMARK(BM_EigenGemm) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES;
+BENCHMARK(BM_EigenGemm) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES SHALLOW_DEPTH_SIZES;
 BENCHMARK(BM_EigenGemmRowMajorLhs)->Args({256, 256, 256})->Args({1024, 1024, 1024}) DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES;
 BENCHMARK(BM_EigenGemmRowMajorRhs)
     ->Args({64, 64, 1024})
