@@ -278,8 +278,16 @@ build:linux:cross:x86-64:clang-19:default:asan-ubsan:contrib:
     EIGEN_CI_CXX_COMPILER: nvc++
     EIGEN_CI_INSTALL: ""
     EIGEN_CI_CROSS_INSTALL: ""
-    # Override CMake's NVHPC -fast default at both compilation and linking.
+    # -tp=px: nvc++ otherwise targets the CPU it runs on, but the test runner,
+    # or the builder behind a compiler-cache hit, can have a different one;
+    # tests then die with SIGILL (nightly pipeline 2986047532). px, nvc++'s
+    # generic x86-64 target, enables AVX, which every x86-64 runner has, but
+    # not AVX2 or FMA. CMAKE_<LANG>_FLAGS reach every target, the BLAS library
+    # included, at compilation and linking.
+    # -Kieee overrides CMake's NVHPC -fast default at compilation and linking.
     EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_C_FLAGS=-tp=px
+      -DCMAKE_CXX_FLAGS=-tp=px
       -DEIGEN_TEST_CUSTOM_CXX_FLAGS=-Kieee
       -DEIGEN_TEST_CUSTOM_LINKER_FLAGS=-Kieee
     # NVHPC's compiler frontend is very memory-hungry with template-heavy code.
