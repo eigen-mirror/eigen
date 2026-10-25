@@ -577,12 +577,19 @@ void test_special_functions_edge_cases() {
   VERIFY((numext::isnan)(numext::betainc(nan, Scalar(0.5), Scalar(0))));
 
   if (sizeof(Scalar) < sizeof(double)) {
-    // MPFR-backed Boost.Math ibeta, 100 decimal digits. The log-domain evaluation at a ~= 38 amplifies rounding;
-    // 32 eps bounds the scalar error here, plus one subnormal ulp for the final conversion.
+    // MPFR-backed Boost.Math ibeta, 100 decimal digits. The result is exp(t) with
+    // t = b log(1 - x) + a' log(x) + lgamma(a' + b) - lgamma(a') - lgamma(b) + log(cf / a'), a' = a + 1, summed in
+    // Scalar: |t| ~ 90, but its first five terms add up to S ~ 330 in magnitude, so t carries an absolute rounding
+    // error of order S eps, which exp turns into relative error. How much of it is reached depends on the libm (the
+    // result is off by 62 eps with glibc 2.43), hence S eps rather than a measured constant, plus one subnormal ulp for
+    // the final rounding.
     const Scalar a = Scalar(38.325092315673828), b = Scalar(5.0568113327026367), x = Scalar(0.07500767707824707);
     const double ref = 6.17294757793914262e-40;
     const double actual = static_cast<double>(numext::betainc(a + Scalar(1), b, x));
-    VERIFY(std::abs(actual - ref) <= 32 * static_cast<double>(NumTraits<Scalar>::epsilon()) * ref +
+    const double ap = static_cast<double>(a) + 1, bd = static_cast<double>(b), xd = static_cast<double>(x);
+    const double S = bd * std::abs(std::log1p(-xd)) + ap * std::abs(std::log(xd)) + std::lgamma(ap + bd) +
+                     std::lgamma(ap) + std::abs(std::lgamma(bd));
+    VERIFY(std::abs(actual - ref) <= S * static_cast<double>(NumTraits<Scalar>::epsilon()) * ref +
                                          static_cast<double>((std::numeric_limits<Scalar>::denorm_min)()));
   }
 
