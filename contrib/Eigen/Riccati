@@ -1,0 +1,49 @@
+// This file is part of Eigen, a lightweight C++ template library
+// for linear algebra.
+//
+// This Source Code Form is subject to the terms of the Mozilla
+// Public License v. 2.0. If a copy of the MPL was not distributed
+// with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// SPDX-FileCopyrightText: The Eigen Authors
+// SPDX-License-Identifier: MPL-2.0
+
+#ifndef EIGEN_RICCATI_MODULE_H
+#define EIGEN_RICCATI_MODULE_H
+
+#include "../../Eigen/Core"
+#include "../../Eigen/LU"
+#include "../../Eigen/QR"
+#include "../../Eigen/Eigenvalues"
+
+#include <limits>
+
+namespace Eigen {
+
+/**
+ * \defgroup Riccati_Module Riccati module
+ *
+ * This module provides solvers for algebraic Riccati equations, as they arise in optimal control (LQR) and
+ * estimation (Kalman filtering):
+ *  - DiscreteAlgebraicRiccatiSolver for the (generalized) discrete-time algebraic Riccati equation.
+ *
+ * \code
+ * #include <contrib/Eigen/Riccati>
+ * \endcode
+ *
+ * \note DiscreteAlgebraicRiccatiSolver incorporates code adapted from SciPy (BSD-3-Clause) and LAPACK
+ * (BSD-3-Clause-Open-MPI). Binary redistributions of software that uses it must reproduce the copyright
+ * notices, conditions and disclaimers in contrib/Eigen/src/Riccati/DiscreteAlgebraicRiccatiSolver.h.
+ */
+
+}  // namespace Eigen
+
+#include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
+
+// IWYU pragma: begin_exports
+#include "src/Riccati/GeneralizedSchurReordering.h"
+#include "src/Riccati/DiscreteAlgebraicRiccatiSolver.h"
+// IWYU pragma: end_exports
+
+#include "../../Eigen/src/Core/util/ReenableStupidWarnings.h"
+
+#endif  // EIGEN_RICCATI_MODULE_H

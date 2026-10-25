@@ -38,6 +38,7 @@ add_subdirectory(Polynomials)
 add_subdirectory(KroneckerProduct)
 add_subdirectory(NumericalDiff)
 add_subdirectory(StructuredMatrices)
+add_subdirectory(Riccati)
 
 # GPU benchmarks have their own CMake project (needs CUDAToolkit).
 # They can also be built standalone: cmake -B build -S contrib/benchmarks/GPU

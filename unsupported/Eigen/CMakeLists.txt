@@ -23,6 +23,7 @@ set(Eigen_LegacyShim_HEADERS
   NumericalDiff
   OpenGLSupport
   Polynomials
+  Riccati
   SparseExtra
   SpecialFunctions
   Splines

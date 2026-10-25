@@ -10,6 +10,12 @@ CMake module BSD-style notice in cmake/MORSE-Copyright.txt, and the LAPACK
 license (BSD-3-Clause-Open-MPI) of the netlib BLAS test programs in
 blas/testing/ and the LAPACK timer stubs and test script in lapack/.
 
+The Riccati module (contrib/Eigen/Riccati) incorporates code adapted from
+SciPy (BSD-3-Clause) and LAPACK (BSD-3-Clause-Open-MPI). Binary
+redistributions of software that uses it must reproduce the copyright
+notices, conditions and disclaimers in
+contrib/Eigen/src/Riccati/DiscreteAlgebraicRiccatiSolver.h.
+
 Note that some optional external dependencies (e.g. FFTW, MPFR C++)
 are distributed under different licenses, including the GPL. Refer to
 the individual source files and their respective COPYING files for

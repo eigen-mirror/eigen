@@ -10,6 +10,7 @@ New features:
 - `PreconditionSquareMatrix` option, which applies JacobiSVD's QR preconditioners to square matrices. BDCSVD forwards this option to JacobiSVD for matrices smaller than the switch size [!3212]
 - `DenseBase::replicate` and `VectorwiseOp::replicate` accept `Eigen::fix<N>` factors [!3262, !3282]
 - `SelfAdjointView::applyPermutation()` and `SelfAdjointView::applyTransposition()`, which replace the viewed matrix `S` by `P S P^T` in place, reading and writing only the stored triangle [#3174, !3395]
+- `DiscreteAlgebraicRiccatiSolver` in the new contrib module `Riccati`, for the stabilizing solution of the (generalized) discrete-time algebraic Riccati equation with real or complex scalars [!3403]
 
 Bug fixes:
 - Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]
