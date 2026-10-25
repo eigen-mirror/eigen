@@ -653,6 +653,40 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
   }
 }
 
+// Oversized kernels cannot stage even one output's input footprint in shared memory.
+template <typename InputEvaluator, typename Index, typename InputDims>
+__global__ void EigenConvolutionKernel3DGlobal(
+    InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 3, InputEvaluator::Layout> indexMapper,
+    const float* kernel, Index total, Index numX, Index numY, Index numZ, Index kernelSizeX, Index kernelSizeY,
+    Index kernelSizeZ, float* buffer) {
+  const Index step = Index(blockDim.x) * gridDim.x;
+  for (Index output = Index(blockIdx.x) * blockDim.x + threadIdx.x; output < total;) {
+    Index remaining = output;
+    const Index x = remaining % numX;
+    remaining /= numX;
+    const Index y = remaining % numY;
+    remaining /= numY;
+    const Index z = remaining % numZ;
+    const Index plane = remaining / numZ;
+    const Index inputOffset = indexMapper.mapGpuInputPlaneToTensorInputOffset(plane);
+    float result = 0;
+    Index kernelIndex = 0;
+    for (Index k = 0; k < kernelSizeZ; ++k) {
+      for (Index j = 0; j < kernelSizeY; ++j) {
+        for (Index i = 0; i < kernelSizeX; ++i) {
+          result += eval.coeff(inputOffset + indexMapper.mapGpuInputKernelToTensorInputOffset(x + i, y + j, z + k)) *
+                    kernel[kernelIndex++];
+        }
+      }
+    }
+    buffer[indexMapper.mapGpuOutputPlaneToTensorOutputOffset(plane) +
+           indexMapper.mapGpuOutputKernelToTensorOutputOffset(x, y, z)] = result;
+    // Test the remaining distance before adding: even the final increment must not overflow Index.
+    if (step >= total - output) break;
+    output += step;
+  }
+}
+
 template <typename InputEvaluator, typename Index, typename InputDims>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 3, InputEvaluator::Layout> indexMapper,
@@ -1014,8 +1048,28 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const int numX = dimensions()[m_indices[idxX]];
         const int numY = dimensions()[m_indices[idxY]];
         const int numZ = dimensions()[m_indices[idxZ]];
-        const int numP = dimensions().TotalSize() / (numX * numY * numZ);
+        const Index total = dimensions().TotalSize();
+        if (total == 0) return;
 
+        const array<Index, 3> indices{m_indices[idxX], m_indices[idxY], m_indices[idxZ]};
+        const array<Index, 3> kernel_dims{m_kernelImpl.dimensions()[idxX], m_kernelImpl.dimensions()[idxY],
+                                          m_kernelImpl.dimensions()[idxZ]};
+        internal::IndexMapper<Index, InputDims, 3, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
+
+        if (m_kernelImpl.dimensions().TotalSize() > Index(maxSharedMem / sizeof(Scalar))) {
+          constexpr int preferredBlockSize = 256;
+          const int threads = numext::mini(preferredBlockSize, maxThreadsPerBlock);
+          const int maxBlocks = static_cast<int>(
+              numext::mini<int64_t>(int64_t(numMultiProcessors) * 32, NumTraits<Index>::highest() / threads));
+          const int blocks = static_cast<int>(numext::mini<Index>((total - 1) / threads + 1, Index(maxBlocks)));
+          LAUNCH_GPU_KERNEL(
+              (EigenConvolutionKernel3DGlobal<TensorEvaluator<InputArgType, GpuDevice>, Index, InputDims>), blocks,
+              threads, 0, m_device, m_inputImpl, indexMapper, m_kernel, total, Index(numX), Index(numY), Index(numZ),
+              Index(kernel_size_x), Index(kernel_size_y), Index(kernel_size_z), data);
+          break;
+        }
+
+        const int numP = total / (Index(numX) * numY * numZ);
         const int maxX = numext::mini<int>(
             128, numext::mini<int>(maxSharedMem / (sizeof(Scalar) * kernel_size_y * kernel_size_z) - kernel_size_x + 1,
                                    numX));
@@ -1038,11 +1092,6 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const int shared_mem =
             (maxX + kernel_size_x - 1) * (maxY + kernel_size_y - 1) * (maxZ + kernel_size_z - 1) * sizeof(Scalar);
         gpu_assert(shared_mem <= maxSharedMem);
-
-        const array<Index, 3> indices{m_indices[idxX], m_indices[idxY], m_indices[idxZ]};
-        const array<Index, 3> kernel_dims{m_kernelImpl.dimensions()[idxX], m_kernelImpl.dimensions()[idxY],
-                                          m_kernelImpl.dimensions()[idxZ]};
-        internal::IndexMapper<Index, InputDims, 3, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
 
         LAUNCH_GPU_KERNEL((EigenConvolutionKernel3D<TensorEvaluator<InputArgType, GpuDevice>, Index, InputDims>),
                           num_blocks, block_size, shared_mem, m_device, m_inputImpl, indexMapper, m_kernel, numP, numX,
