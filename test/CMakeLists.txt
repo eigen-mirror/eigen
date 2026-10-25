@@ -393,6 +393,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|C
   target_link_libraries(gemm_packing "-Wl,--wrap=malloc")
 endif()
 ei_add_test(blas_singleton_stride)
+ei_add_test(product_assign)
 ei_add_test(product_threshold)
 if(EIGEN_TEST_SME)
   # EIGEN_TEST_SME defines EIGEN_ARM64_USE_SME (root CMakeLists.txt), which turns

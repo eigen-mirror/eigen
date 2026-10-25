@@ -21,6 +21,11 @@ EIGEN_DONT_INLINE void gemm(const A& a, const B& b, C& c) {
   c.noalias() += a * b;
 }
 
+template <typename A, typename B, typename C>
+EIGEN_DONT_INLINE void gemm_assign(const A& a, const B& b, C& c) {
+  c.noalias() = a * b;
+}
+
 static void add_gflops_counter(benchmark::State& state) {
   const double m = state.range(0), n = state.range(1), p = state.range(2);
   state.counters["GFLOPS"] = benchmark::Counter(
@@ -44,8 +49,12 @@ static bool gemm_result_ok(const Lhs& a, const Rhs& b, const Mat& c) {
   return true;
 }
 
-// c += a * b with a stored in LhsOrder and b in RhsOrder; c is column-major.
-template <int LhsOrder, int RhsOrder = ColMajor>
+// How the timed loop forms c = a * b: zeroing c then accumulating (the cost assignment had before it could
+// overwrite), assigning, or accumulating onto c as it is.
+enum GemmMode { ZeroThenAdd, Assign, Accumulate };
+
+// c (op)= a * b with a stored in LhsOrder and b in RhsOrder; c is column-major.
+template <int LhsOrder, int RhsOrder = ColMajor, GemmMode Mode = ZeroThenAdd>
 static void eigen_gemm(benchmark::State& state) {
   int m = state.range(0);
   int n = state.range(1);
@@ -54,15 +63,23 @@ static void eigen_gemm(benchmark::State& state) {
   a.setRandom();
   Matrix<Scalar, Dynamic, Dynamic, RhsOrder> b(p, n);
   b.setRandom();
-  Mat c = Mat::Zero(m, n);
-  gemm(a, b, c);
+  // Validated through the timed operation, assignment from a nonzero c so that a coefficient it misses shows.
+  Mat c = Mat::Constant(m, n, Scalar(Mode == Assign ? 7 : 0));
+  if (Mode == Assign)
+    gemm_assign(a, b, c);
+  else
+    gemm(a, b, c);
   if (!gemm_result_ok(a, b, c)) {
     state.SkipWithError("GEMM result check failed");
     return;
   }
   for (auto _ : state) {
-    c.setZero();
-    gemm(a, b, c);
+    if (Mode == Assign) {
+      gemm_assign(a, b, c);
+    } else {
+      if (Mode == ZeroThenAdd) c.setZero();
+      gemm(a, b, c);
+    }
     benchmark::DoNotOptimize(c.data());
     benchmark::ClobberMemory();
   }
@@ -70,6 +87,8 @@ static void eigen_gemm(benchmark::State& state) {
 }
 
 static void BM_EigenGemm(benchmark::State& state) { eigen_gemm<ColMajor>(state); }
+static void BM_EigenGemmAssign(benchmark::State& state) { eigen_gemm<ColMajor, ColMajor, Assign>(state); }
+static void BM_EigenGemmAccumulate(benchmark::State& state) { eigen_gemm<ColMajor, ColMajor, Accumulate>(state); }
 static void BM_EigenGemmRowMajorLhs(benchmark::State& state) { eigen_gemm<RowMajor>(state); }
 static void BM_EigenGemmRowMajorRhs(benchmark::State& state) { eigen_gemm<ColMajor, RowMajor>(state); }
 
@@ -122,6 +141,8 @@ static void BM_EigenGemmRowMajorRhs(benchmark::State& state) { eigen_gemm<ColMaj
 // clang-format on
 
 BENCHMARK(BM_EigenGemm) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES SHALLOW_DEPTH_SIZES;
+BENCHMARK(BM_EigenGemmAssign) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES SHALLOW_DEPTH_SIZES;
+BENCHMARK(BM_EigenGemmAccumulate) GEMM_SIZES DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES SHALLOW_DEPTH_SIZES;
 BENCHMARK(BM_EigenGemmRowMajorLhs)->Args({256, 256, 256})->Args({1024, 1024, 1024}) DEPTH_SWEEP_SIZES TAIL_PANEL_SIZES;
 BENCHMARK(BM_EigenGemmRowMajorRhs)
     ->Args({64, 64, 1024})

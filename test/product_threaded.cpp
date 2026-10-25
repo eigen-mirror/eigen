@@ -316,6 +316,49 @@ void test_parallelize_gemm_parts_blocks() {
   VERIFY_IS_APPROX(fc, fr);
 }
 
+// Bitwise equality of every coefficient, so that +0 and -0 differ.
+template <typename Real>
+bool bits_equal(const Real& x, const Real& y) {
+  using Bits = typename numext::get_integer_by_size<sizeof(Real)>::unsigned_type;
+  return numext::bit_cast<Bits>(x) == numext::bit_cast<Bits>(y);
+}
+template <typename Real>
+bool bits_equal(const std::complex<Real>& x, const std::complex<Real>& y) {
+  return bits_equal(x.real(), y.real()) && bits_equal(x.imag(), y.imag());
+}
+
+// Threaded assignment, c = a * b, which the kernels overwrite on the first depth pass instead of zeroing c, against
+// zero-then-accumulate in the same pool: the same partition and the same summation order, so bitwise equal. c starts
+// out NaN, and the depth spans several depth blocks, so the later passes accumulate. The complex<double> result is at
+// most 128 KB, where the SME kernel overwrites rather than having the driver zero it.
+template <typename Scalar>
+void test_parallelize_gemm_assign() {
+  static ThreadPool pool(4);
+  Eigen::setGemmThreadPool(&pool);
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Real = typename NumTraits<Scalar>::Real;
+  const Index m = NumTraits<Scalar>::IsComplex ? 64 : 517, n = NumTraits<Scalar>::IsComplex ? 128 : 283, k = 2049;
+  internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(m, n, k, 1, true);
+  VERIFY(blocking.kc() < k);
+  blocking.initParallel(m, n, k, 4);
+  VERIFY(blocking.kc() < k);
+  const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
+  Mat expected = Mat::Zero(m, n);
+  expected.noalias() += a * b;
+  Mat c = Mat::Constant(m, n, Scalar(std::numeric_limits<Real>::quiet_NaN()));
+  c.noalias() = a * b;
+  bool equal = true;
+  for (Index j = 0; j < n; ++j)
+    for (Index i = 0; i < m; ++i) equal = equal && bits_equal(c(i, j), expected(i, j));
+  VERIFY(equal);
+  Mat serial(m, n);
+  {
+    ScopedSerialGemm guard;
+    serial.noalias() = a * b;
+  }
+  VERIFY_IS_APPROX(c, serial);
+}
+
 // Runs a test with the given SME unit count: a nonzero count splits products on the SME kernel into disjoint parts,
 // 0 keeps the shared parallel session, so both paths are covered on every host.
 template <typename Test>
@@ -344,6 +387,8 @@ EIGEN_DECLARE_TEST(product_threaded) {
     CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<float>>));
     CALL_SUBTEST_8(with_sme_units(units, test_parallelize_gemm_parts_types<std::complex<double>>));
     CALL_SUBTEST_9(with_sme_units(units, test_parallelize_gemm_parts_blocks<>));
+    CALL_SUBTEST_10(with_sme_units(units, test_parallelize_gemm_assign<float>));
+    CALL_SUBTEST_10(with_sme_units(units, test_parallelize_gemm_assign<std::complex<double>>));
   }
   CALL_SUBTEST_3(test_balanced_gemm_range<>());
   CALL_SUBTEST_5(test_parallelize_gemm_require_initialization<>());
