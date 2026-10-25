@@ -242,7 +242,9 @@ class ComplexQZ {
     return numext::abs(x) <= tol;
   }
 
-  void do_QZ_step(Index p, Index q, unsigned int iter);
+  void do_QZ_step(Index f, Index l, unsigned int iter);
+
+  Vec3 shiftColumn(Index p, Index l, unsigned int iter) const;
 
   JacobiRotation<Scalar> computeZk2(const Row2& b);
 
@@ -455,7 +457,7 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
       if (z >= f) {
         push_down_zero_ST(z, l);
       } else {
-        do_QZ_step(f, m_n - l - 1, local_iter);
+        do_QZ_step(f, l, local_iter);
         local_iter++;
         m_global_iter++;
       }
@@ -476,34 +478,57 @@ JacobiRotation<typename ComplexQZ<MatrixType_>::Scalar> ComplexQZ<MatrixType_>::
   return J.transpose();
 }
 
+/** \internal First column of the shift polynomial of the block (S, T)(p:l, p:l), up to a nonzero factor. */
 template <typename MatrixType_>
-void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q, unsigned int iter) {
-  // This is certainly not the most efficient way of doing this,
-  // but a readable one.
+typename ComplexQZ<MatrixType_>::Vec3 ComplexQZ<MatrixType_>::shiftColumn(Index p, Index l, unsigned int iter) const {
   const auto a = [p, this](Index i, Index j) { return m_S(p + i - 1, p + j - 1); };
   const auto b = [p, this](Index i, Index j) { return m_T(p + i - 1, p + j - 1); };
-  const Index m = m_n - p - q;  // Size of the inner block
-  Scalar x, y, z;
+  const Index m = l - p + 1;  // Size of the inner block
   if (iter > 0 && iter % 10 == 0) {
     // Break stalled double-shift iterations with a single shift displaced by the trailing subdiagonals.
     const RealScalar displacement =
         numext::abs(a(m, m - 1) / b(m - 1, m - 1)) + numext::abs(a(m - 1, m - 2) / b(m - 2, m - 2));
     const Scalar shift = a(m, m) / b(m, m) + displacement;
     // (S*T^-1 - shift*I)*e1 has only two nonzero entries.
-    x = a(1, 1) / b(1, 1) - shift;
-    y = a(2, 1) / b(1, 1);
-    z = Scalar(0);
-  } else {
-    Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
-           W3 = a(m, m - 1) / b(m - 1, m - 1);
-
-    x = (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
-        a(1, 2) / b(2, 2) - a(1, 1) / b(1, 1) * b(1, 2) / b(2, 2);
-    y = (a(2, 2) / b(2, 2) - a(1, 1) / b(1, 1)) - a(2, 1) / b(1, 1) * b(1, 2) / b(2, 2) - W1 - W2 +
-        W3 * (b(m - 1, m) / b(m, m));
-    z = a(3, 2) / b(2, 2);
+    return Vec3(a(1, 1) / b(1, 1) - shift, a(2, 1) / b(1, 1), Scalar(0));
   }
+  const Scalar W1 = a(m - 1, m - 1) / b(m - 1, m - 1) - a(1, 1) / b(1, 1), W2 = a(m, m) / b(m, m) - a(1, 1) / b(1, 1),
+               W3 = a(m, m - 1) / b(m - 1, m - 1);
+  return Vec3(
+      (W1 * W2 - a(m - 1, m) / b(m, m) * W3 + W3 * b(m - 1, m) / b(m, m) * a(1, 1) / b(1, 1)) * b(1, 1) / a(2, 1) +
+          a(1, 2) / b(2, 2) - a(1, 1) / b(1, 1) * b(1, 2) / b(2, 2),
+      (a(2, 2) / b(2, 2) - a(1, 1) / b(1, 1)) - a(2, 1) / b(1, 1) * b(1, 2) / b(2, 2) - W1 - W2 +
+          W3 * (b(m - 1, m) / b(m, m)),
+      a(3, 2) / b(2, 2));
+}
+
+/** \internal Performs one QZ sweep on the unreduced block (S, T)(f:l, f:l). */
+template <typename MatrixType_>
+void ComplexQZ<MatrixType_>::do_QZ_step(Index f, Index l, unsigned int iter) {
+  // Start at the lowest row p > f where the bulge v spreads S(p, p-1) only into negligible entries (the test of
+  // EISPACK's hqr and LAPACK's xLAHQR, applied to S, with v scaled to |v(0)| + |v(1)| + |v(2)| = 1; rows where that
+  // sum is 0 or not finite are skipped):
+  //   |S(p, p-1)| (|v(1)| + |v(2)|) <= eps |v(0)| (|S(p-1, p-1)| + |S(p, p)| + |S(p+1, p+1)|).
+  // From row f the bulge is proportional to S(f+1, f), and a tiny but not negligible entry, e.g. next to zero
+  // eigenvalues, can stall the iteration. A block of three rows has no such p, as in xLAHQR.
+  Index p = f;
   Vec3 X;
+  for (Index j = l - 2; j > f; --j) {
+    X = shiftColumn(j, l, iter);
+    const RealScalar scale = numext::abs(X(0)) + numext::abs(X(1)) + numext::abs(X(2));
+    if (!(numext::isfinite)(scale) || scale == RealScalar(0)) continue;
+    X /= scale;
+    const RealScalar diagonal =
+        numext::abs(m_S(j - 1, j - 1)) + numext::abs(m_S(j, j)) + numext::abs(m_S(j + 1, j + 1));
+    if (numext::abs(m_S(j, j - 1)) * (numext::abs(X(1)) + numext::abs(X(2))) <=
+        NumTraits<RealScalar>::epsilon() * numext::abs(X(0)) * diagonal) {
+      p = j;
+      break;
+    }
+  }
+  if (p == f) X = shiftColumn(f, l, iter);
+  const Index m = l - p + 1;  // Size of the inner block
+  Scalar x = X(0), y = X(1), z = X(2);
   const PermutationMatrix<3, 3, int> S3(Vector3i(2, 0, 1));
   for (Index k = p; k < p + m - 2; k++) {
     X << x, y, z;
@@ -517,6 +542,11 @@ void ComplexQZ<MatrixType_>::do_QZ_step(Index p, Index q, unsigned int iter) {
     m_S.template middleRows<3>(k)
         .rightCols((std::min)(m_n, m_n - k + 1))
         .applyHouseholderOnTheLeft(ess, tau, m_ws.data());
+    if (k > f && k == p) {
+      // The reflector spread the negligible S(p, p-1) into the entries below it, which are dropped.
+      m_S.coeffRef(k + 1, k - 1) = Scalar(0);
+      m_S.coeffRef(k + 2, k - 1) = Scalar(0);
+    }
     m_T.template middleRows<3>(k).rightCols(m_n - k).applyHouseholderOnTheLeft(ess, tau, m_ws.data());
     if (m_computeQZ) m_Q.template middleCols<3>(k).applyHouseholderOnTheRight(ess, numext::conj(tau), m_ws.data());
 
@@ -612,19 +642,73 @@ void ComplexQZ<MatrixType_>::reduceDiagonal2x2block(Index i) {
 
     if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G);
 
-    Mat2 tildeSi = m_S.template block<2, 2>(i, i), tildeTi = m_T.template block<2, 2>(i, i);
-    Mat2 C = tildeSi.norm() < (lambda * tildeTi).norm() ? tildeSi : lambda * tildeTi;
-    G.makeGivens(C(0, 0), C(1, 0));
+    // The left rotation from T's first column keeps T triangular; the residual ~eps (|S| + |lambda| |T|) of the null
+    // vector lands in S(i+1, i), where the refinement below removes it.
+    if (numext::abs(m_T(i, i)) + numext::abs(m_T(i + 1, i)) > tolT)
+      G.makeGivens(m_T(i, i), m_T(i + 1, i));
+    else
+      G.makeGivens(m_S(i, i), m_S(i + 1, i));
     m_S.applyOnTheLeft(i, i + 1, G.adjoint());
     m_T.applyOnTheLeft(i, i + 1, G.adjoint());
 
     if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
   }
 
-  if (!is_negligible(m_S(i + 1, i), m_normOfS * NumTraits<RealScalar>::epsilon())) {
+  // Rotations formed from lambda can leave S(i+1, i) well above eps (|S(i, i)| + |S(i+1, i+1)|), e.g. for graded T.
+  // Refine with single-shift QZ steps. With K = T^-1 S = [a b; c d], the Rayleigh quotient shift d = S(i+1, i+1) /
+  // T(i+1, i+1) maps |c| to |c|^2 |b| / (|a - d|^2 + |c|^2): quadratic for separated eigenvalues, but not monotone. Up
+  // to four steps run on a copy of the block. Of the prefixes that pass the final test |S(i+1, i)| <= eps m_normOfS, or
+  // of all if none does, the one with the smallest |S(i+1, i)| / (|S(i, i)| + |S(i+1, i+1)|) is applied.
+  const auto relativeSubdiagonal = [](const Mat2& s) {
+    const RealScalar subdiagonal = numext::abs(s(1, 0));
+    const RealScalar diagonal = numext::abs(s(0, 0)) + numext::abs(s(1, 1));
+    return subdiagonal <= NumTraits<RealScalar>::epsilon() * diagonal ? RealScalar(0) : subdiagonal / diagonal;
+  };
+  JacobiRotation<Scalar> left[4], right[4];
+  Mat2 Sstep = m_S.template block<2, 2>(i, i), Tstep = m_T.template block<2, 2>(i, i);
+  const RealScalar tolS = m_normOfS * NumTraits<RealScalar>::epsilon();
+  RealScalar current = relativeSubdiagonal(Sstep), best = current;
+  bool bestPasses = is_negligible(Sstep(1, 0), tolS);
+  int bestSteps = 0;
+  for (int k = 0; k < 4 && current > RealScalar(0); ++k) {
+    if (is_negligible(Tstep(1, 1), tolT)) {
+      // An infinite eigenvalue: deflate it with a rotation of the columns, as in the branch above.
+      left[k] = JacobiRotation<Scalar>(Scalar(1), Scalar(0));
+      right[k].makeGivens(Sstep(1, 1), Sstep(1, 0));
+      right[k] = right[k].adjoint();
+    } else {
+      const Scalar shift = Sstep(1, 1) / Tstep(1, 1);
+      left[k].makeGivens(Sstep(0, 0) - shift * Tstep(0, 0), Sstep(1, 0));
+      Sstep.applyOnTheLeft(0, 1, left[k].adjoint());
+      Tstep.applyOnTheLeft(0, 1, left[k].adjoint());
+      right[k] = computeZk2(Tstep.row(1));
+    }
+    Sstep.applyOnTheRight(0, 1, right[k]);
+    Tstep.applyOnTheRight(0, 1, right[k]);
+    Tstep(1, 0) = Scalar(0);
+    current = relativeSubdiagonal(Sstep);
+    const bool passes = is_negligible(Sstep(1, 0), tolS);
+    if ((passes && !bestPasses) || (passes == bestPasses && current < best)) {
+      best = current;
+      bestPasses = passes;
+      bestSteps = k + 1;
+    }
+  }
+  for (int k = 0; k < bestSteps; ++k) {
+    m_S.rightCols(m_n - i).applyOnTheLeft(i, i + 1, left[k].adjoint());
+    m_T.rightCols(m_n - i).applyOnTheLeft(i, i + 1, left[k].adjoint());
+    if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, left[k]);
+    m_S.topRows(i + 2).applyOnTheRight(i, i + 1, right[k]);
+    m_T.topRows(i + 2).applyOnTheRight(i, i + 1, right[k]);
+    m_T(i + 1, i) = Scalar(0);
+    if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, right[k].adjoint());
+  }
+
+  if (!is_negligible(m_S(i + 1, i), tolS)) {
     m_info = ComputationInfo::NumericalIssue;
   } else {
     m_S(i + 1, i) = Scalar(0);
+    m_T(i + 1, i) = Scalar(0);
   }
 }
 
