@@ -32,6 +32,25 @@ if (${EIGEN_CI_CTEST_REGEX_FILE}) {
 
 cd $EIGEN_CI_BUILDDIR
 
+# CTestTestfile.cmake and DartConfiguration.tcl name the build job's checkout by
+# absolute path.  The Windows host runs several runner registrations, each with
+# its own checkout directory, so a test job that lands on another one would look
+# for the test executables in a directory that does not exist -- or, when it
+# does, run whatever build another job left there.  Point them at this
+# checkout; -ne and -replace ignore case, as Windows paths do.
+$configured_root = Select-String -Path CMakeCache.txt -Pattern '^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$' |
+                   Select-Object -First 1 | ForEach-Object { $_.Matches[0].Groups[1].Value }
+$job_root = $rootdir.Path -replace '\\', '/'
+if ($configured_root -and $configured_root -ne $job_root) {
+  Write-Host "Relocating the CTest files from $configured_root to $job_root"
+  $pattern = [regex]::Escape($configured_root)
+  $replacement = $job_root.Replace('$', '$$')
+  Get-ChildItem -Recurse -File -Include CTestTestfile.cmake, DartConfiguration.tcl | ForEach-Object {
+    $text = [System.IO.File]::ReadAllText($_.FullName)
+    [System.IO.File]::WriteAllText($_.FullName, ($text -replace $pattern, $replacement))
+  }
+}
+
 # Determine number of processors for parallel tests.
 $NPROC=${Env:NUMBER_OF_PROCESSORS}
 
