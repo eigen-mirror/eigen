@@ -3127,20 +3127,26 @@ void packetmath_bfloat16_sign_bits_flushed() {
 // the float packet op, over every encoding of one operand and a fixed set for the other that puts sums and products
 // on exact midpoints: 1 and 3 against [256, 512), 1 + 2^-7 and 2^-7 against values near 1, plus the range ends and
 // the special values. NaN lanes compare as NaN, since a kernel may keep the operand's payload.
+template <typename Packet>
 void packetmath_bfloat16_arithmetic_rounding() {
-  using Packet = internal::packet_traits<bfloat16>::type;
-  using FloatPacket = internal::packet_traits<float>::type;
   constexpr int packet_size = internal::unpacket_traits<Packet>::size;
-  static_assert(internal::unpacket_traits<FloatPacket>::size == packet_size,
-                "the bfloat16 packet and the float packet must have the same size");
+  using FloatPacket =
+      typename internal::find_packet_by_size<float, internal::plain_enum_min(
+                                                        packet_size, internal::packet_traits<float>::size)>::type;
+  constexpr int float_size = internal::unpacket_traits<FloatPacket>::size;
+  static_assert(packet_size % float_size == 0, "the bfloat16 packet must span whole float packets");
   const numext::uint16_t others[] = {0x0000, 0x8000, 0x3f80, 0x4040, 0x3f81, 0x3c00, 0x4380, 0xbf81,
                                      0x7f7f, 0x0080, 0x0001, 0x7f80, 0xff80, 0x7fc0, 0x7f81, 0x3f7f};
   constexpr int count = sizeof(others) / sizeof(others[0]);
   EIGEN_ALIGN_MAX bfloat16 a[packet_size], b[packet_size], c[packet_size], out[packet_size];
   EIGEN_ALIGN_MAX float fa[packet_size], fb[packet_size], fc[packet_size], ref[packet_size];
-  auto verify = [&](const Packet& result, const FloatPacket& expected) {
+  // op is applied to the float operands one float packet at a time.
+  auto verify = [&](const Packet& result, auto op) {
     internal::pstore(out, result);
-    internal::pstore(ref, expected);
+    for (int k = 0; k < packet_size; k += float_size) {
+      internal::pstore(ref + k, op(internal::pload<FloatPacket>(fa + k), internal::pload<FloatPacket>(fb + k),
+                                   internal::pload<FloatPacket>(fc + k)));
+    }
     for (int i = 0; i < packet_size; ++i) {
       numext::uint16_t got = numext::bit_cast<numext::uint16_t>(out[i]);
       numext::uint16_t want = numext::bit_cast<numext::uint16_t>(static_cast<bfloat16>(ref[i]));
@@ -3159,23 +3165,22 @@ void packetmath_bfloat16_arithmetic_rounding() {
       fc[i] = static_cast<float>(c[i]);
     }
     Packet qb = internal::pload<Packet>(b), qc = internal::pload<Packet>(c);
-    FloatPacket pb = internal::pload<FloatPacket>(fb), pc = internal::pload<FloatPacket>(fc);
     for (unsigned first = 0; first < 65536; first += packet_size) {
       for (int i = 0; i < packet_size; ++i) {
         a[i] = numext::bit_cast<bfloat16>(static_cast<numext::uint16_t>(first + i));
         fa[i] = static_cast<float>(a[i]);
       }
       Packet qa = internal::pload<Packet>(a);
-      FloatPacket pa = internal::pload<FloatPacket>(fa);
-      verify(internal::padd(qa, qb), internal::padd(pa, pb));
-      verify(internal::psub(qa, qb), internal::psub(pa, pb));
-      verify(internal::pmul(qa, qb), internal::pmul(pa, pb));
-      verify(internal::pdiv(qa, qb), internal::pdiv(pa, pb));
-      verify(internal::pabsdiff(qa, qb), internal::pabsdiff(pa, pb));
-      verify(internal::pmadd(qa, qb, qc), internal::pmadd(pa, pb, pc));
-      verify(internal::pmsub(qa, qb, qc), internal::pmsub(pa, pb, pc));
-      verify(internal::pnmadd(qa, qb, qc), internal::pnmadd(pa, pb, pc));
-      verify(internal::pnmsub(qa, qb, qc), internal::pnmsub(pa, pb, pc));
+      using P = const FloatPacket&;
+      verify(internal::padd(qa, qb), [](P x, P y, P) { return internal::padd(x, y); });
+      verify(internal::psub(qa, qb), [](P x, P y, P) { return internal::psub(x, y); });
+      verify(internal::pmul(qa, qb), [](P x, P y, P) { return internal::pmul(x, y); });
+      verify(internal::pdiv(qa, qb), [](P x, P y, P) { return internal::pdiv(x, y); });
+      verify(internal::pabsdiff(qa, qb), [](P x, P y, P) { return internal::pabsdiff(x, y); });
+      verify(internal::pmadd(qa, qb, qc), [](P x, P y, P z) { return internal::pmadd(x, y, z); });
+      verify(internal::pmsub(qa, qb, qc), [](P x, P y, P z) { return internal::pmsub(x, y, z); });
+      verify(internal::pnmadd(qa, qb, qc), [](P x, P y, P z) { return internal::pnmadd(x, y, z); });
+      verify(internal::pnmsub(qa, qb, qc), [](P x, P y, P z) { return internal::pnmsub(x, y, z); });
     }
   }
 }
@@ -3203,8 +3208,8 @@ numext::uint16_t round_to_bfloat16_bits(double value) {
 // enable this claim correctly rounded results. With flushed set, the FPU reads a subnormal input as a zero of its
 // sign, and so does the reference; a kernel that passes such a lane through unchanged, as the AVX-512 fast-math
 // psqrt does under DAZ, is accepted too.
+template <typename Packet>
 void packetmath_bfloat16_sqrt_exhaustive(bool flushed) {
-  using Packet = internal::packet_traits<bfloat16>::type;
   constexpr int packet_size = internal::unpacket_traits<Packet>::size;
   EIGEN_ALIGN_MAX bfloat16 input[packet_size], sqrt_output[packet_size], rsqrt_output[packet_size];
   for (unsigned first = 0; first < 65536; first += packet_size) {
@@ -3234,10 +3239,11 @@ void packetmath_bfloat16_sqrt_exhaustive(bool flushed) {
   }
 }
 
+template <typename Packet>
 void packetmath_bfloat16_sqrt_exhaustive_flushed() {
   ScopedFlushToZero flush_to_zero(FlushToZeroMode::Both);
   if (flush_to_zero.mode() != FlushToZeroMode::Both) return;
-  packetmath_bfloat16_sqrt_exhaustive(true);
+  packetmath_bfloat16_sqrt_exhaustive<Packet>(true);
 }
 #endif
 
@@ -3322,10 +3328,15 @@ EIGEN_DECLARE_TEST(packetmath) {
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
     defined(EIGEN_VECTORIZE_SME)
-  CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding());
+  using Bf16Packet = internal::packet_traits<bfloat16>::type;
+  using Bf16HalfPacket = internal::packet_traits<bfloat16>::half;
+  CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding<Bf16Packet>());
+  CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding<Bf16HalfPacket>());
   // 32-bit ARM NEON flushes subnormals whatever FPSCR says.
-  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive(EIGEN_ARCH_ARM != 0));
-  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive_flushed());
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive<Bf16Packet>(EIGEN_ARCH_ARM != 0));
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive<Bf16HalfPacket>(EIGEN_ARCH_ARM != 0));
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive_flushed<Bf16Packet>());
+  CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive_flushed<Bf16HalfPacket>());
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10)

@@ -387,6 +387,7 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet2f>()));
   CALL_SUBTEST((verify_low_bit_mask_any_ftz<float, Eigen::internal::Packet2f>()));
   CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::bfloat16, Eigen::internal::Packet4bf>()));
+  CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::bfloat16, Eigen::internal::Packet8bf>()));
 #if EIGEN_ARCH_ARM64
   CALL_SUBTEST((verify_low_bit_mask_any_ftz<double, Eigen::internal::Packet2d>()));
 #endif

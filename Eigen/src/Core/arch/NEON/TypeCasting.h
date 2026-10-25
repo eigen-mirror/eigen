@@ -1740,21 +1740,6 @@ EIGEN_STRONG_INLINE Packet2d pcast<Packet2ul, Packet2d>(const Packet2ul& a) {
 
 #endif  // EIGEN_ARCH_ARM64
 
-template <>
-struct type_casting_traits<bfloat16, float> : vectorized_type_casting_traits<bfloat16, float> {};
-template <>
-struct type_casting_traits<float, bfloat16> : vectorized_type_casting_traits<float, bfloat16> {};
-
-template <>
-EIGEN_STRONG_INLINE Packet4f pcast<Packet4bf, Packet4f>(const Packet4bf& a) {
-  return Bf16ToF32(a);
-}
-
-template <>
-EIGEN_STRONG_INLINE Packet4bf pcast<Packet4f, Packet4bf>(const Packet4f& a) {
-  return F32ToBf16(a);
-}
-
 }  // end namespace internal
 
 }  // end namespace Eigen

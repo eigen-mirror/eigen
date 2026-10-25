@@ -93,6 +93,7 @@ void neon_erf_subnormals_float() {
 
 void neon_erf_subnormals_bfloat16() {
   packet_erf_subnormals<bfloat16, internal::Packet4bf>();
+  packet_erf_subnormals<bfloat16, internal::Packet8bf>();
   // Exhaustive bfloat16 subnormals, with both signs, checked without floating-point subnormal conversions.
   for (unsigned int n = 1; n < 128; ++n) {
     const numext::uint16_t expectedBits =

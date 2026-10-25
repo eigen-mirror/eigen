@@ -39,23 +39,40 @@ limitations under the License.
     return F32ToBf16(METHOD<PACKET_F>(Bf16ToF32(_x)));                                              \
   }
 
+// BF16_PACKET_FUNCTION for a bfloat16 packet that spans two PACKET_F, through the backend's
+// Bf16ToF32Low, Bf16ToF32High and two-argument F32ToBf16.
+// METHOD is a template name, which cannot be parenthesized.
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define BF16_PACKET_FUNCTION_HALVES(PACKET_F, PACKET_BF16, METHOD)                                  \
+  template <>                                                                                       \
+  EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS EIGEN_UNUSED PACKET_BF16 METHOD<PACKET_BF16>( \
+      const PACKET_BF16& _x) {                                                                      \
+    return F32ToBf16(METHOD<PACKET_F>(Bf16ToF32Low(_x)), METHOD<PACKET_F>(Bf16ToF32High(_x)));      \
+  }
+// NOLINTEND(bugprone-macro-parentheses)
+
+// The _WITH forms take the macro that defines each function, BF16_PACKET_FUNCTION or
+// BF16_PACKET_FUNCTION_HALVES, so that every backend instantiates the same list.
+#define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_BF16_WITH(FUNCTION, PACKET_F, PACKET_BF16) \
+  FUNCTION(PACKET_F, PACKET_BF16, pcos)                                                 \
+  FUNCTION(PACKET_F, PACKET_BF16, psin)                                                 \
+  FUNCTION(PACKET_F, PACKET_BF16, psinh)                                                \
+  FUNCTION(PACKET_F, PACKET_BF16, pcosh)                                                \
+  FUNCTION(PACKET_F, PACKET_BF16, pasinh)                                               \
+  FUNCTION(PACKET_F, PACKET_BF16, pacosh)                                               \
+  FUNCTION(PACKET_F, PACKET_BF16, pexp)                                                 \
+  FUNCTION(PACKET_F, PACKET_BF16, pexp2)                                                \
+  FUNCTION(PACKET_F, PACKET_BF16, pexpm1)                                               \
+  FUNCTION(PACKET_F, PACKET_BF16, plog)                                                 \
+  FUNCTION(PACKET_F, PACKET_BF16, plog1p)                                               \
+  FUNCTION(PACKET_F, PACKET_BF16, plog2)                                                \
+  FUNCTION(PACKET_F, PACKET_BF16, plog10)                                               \
+  FUNCTION(PACKET_F, PACKET_BF16, preciprocal)                                          \
+  FUNCTION(PACKET_F, PACKET_BF16, pcbrt)                                                \
+  FUNCTION(PACKET_F, PACKET_BF16, ptanh)
+
 #define EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_BF16(PACKET_F, PACKET_BF16) \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcos)                      \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psin)                      \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, psinh)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcosh)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pasinh)                    \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pacosh)                    \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexp)                      \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexp2)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pexpm1)                    \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog)                      \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog1p)                    \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog2)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, plog10)                    \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, preciprocal)               \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pcbrt)                     \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, ptanh)
+  EIGEN_INSTANTIATE_GENERIC_MATH_FUNCS_BF16_WITH(BF16_PACKET_FUNCTION, PACKET_F, PACKET_BF16)
 
 // psqrt and prsqrt through the float round trip, for backends without their own bfloat16 kernels.
 #define EIGEN_INSTANTIATE_GENERIC_SQRT_FUNCS_BF16(PACKET_F, PACKET_BF16) \
@@ -63,23 +80,29 @@ limitations under the License.
   BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, prsqrt)
 
 // BF16 wrappers for contrib/SpecialFunctions.
+#define EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16_WITH(FUNCTION, PACKET_F, PACKET_BF16) \
+  FUNCTION(PACKET_F, PACKET_BF16, perf)                                            \
+  FUNCTION(PACKET_F, PACKET_BF16, pndtri)
+
 #define EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16(PACKET_F, PACKET_BF16) \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, perf)                 \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pndtri)
+  EIGEN_INSTANTIATE_SPECIAL_FUNCS_BF16_WITH(BF16_PACKET_FUNCTION, PACKET_F, PACKET_BF16)
+
+#define EIGEN_INSTANTIATE_BESSEL_FUNCS_BF16_WITH(FUNCTION, PACKET_F, PACKET_BF16) \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_i0)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_i0e)                                    \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_i1)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_i1e)                                    \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_j0)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_j1)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_k0)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_k0e)                                    \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_k1)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_k1e)                                    \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_y0)                                     \
+  FUNCTION(PACKET_F, PACKET_BF16, pbessel_y1)
 
 #define EIGEN_INSTANTIATE_BESSEL_FUNCS_BF16(PACKET_F, PACKET_BF16) \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_i0)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_i0e)         \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_i1)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_i1e)         \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_j0)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_j1)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_k0)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_k0e)         \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_k1)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_k1e)         \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_y0)          \
-  BF16_PACKET_FUNCTION(PACKET_F, PACKET_BF16, pbessel_y1)
+  EIGEN_INSTANTIATE_BESSEL_FUNCS_BF16_WITH(BF16_PACKET_FUNCTION, PACKET_F, PACKET_BF16)
 
 // Only use HIP GPU bf16 in kernels
 #if defined(EIGEN_HAS_HIP_BF16) && defined(EIGEN_GPU_COMPILE_PHASE)
