@@ -156,10 +156,12 @@ __device__ inline void atomicReduce(float* output, float accum, SumReducer<float
   atomicAdd(output, accum);
 }
 
+#if !defined(EIGEN_CUDA_ARCH) || EIGEN_CUDA_ARCH >= 600
 template <>
 __device__ inline void atomicReduce(double* output, double accum, SumReducer<double>&) {
   atomicAdd(output, accum);
 }
+#endif
 
 template <typename CoeffType, typename Index>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernel(const CoeffType val, Index num_preserved_coeffs,

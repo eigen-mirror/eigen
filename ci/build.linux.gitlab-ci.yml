@@ -409,9 +409,9 @@ build:linux:cuda-11.8:clang-14:
     EIGEN_CI_CUDA_COMPUTE_ARCH: "75"
     EIGEN_CI_CUDA_CXX_FLAGS: "-Wno-unknown-cuda-version"
 
-# ---- Latest CUDA + newest compilers, sm_89;sm_90 ---------------------------
+# ---- CUDA 12.6 + newest compilers, sm_50;sm_53;sm_89;sm_90 -----------------
 # These jobs run natively on the L4 at sm_89 and retain compile-only coverage
-# for sm_90.
+# for sm_50, sm_53, and sm_90 (CUDA 13 dropped sm_50..sm_70).
 
 # GCC-13, CUDA-12.6 (nvcc)
 # CUDA 12.6 nvcc only supports gcc up to 13.
@@ -421,7 +421,7 @@ build:linux:cuda-12.6:gcc-13:
   variables:
     EIGEN_CI_C_COMPILER: gcc-13
     EIGEN_CI_CXX_COMPILER: g++-13
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "89;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "50;53;89;90"
 
 # Clang-19, CUDA-12.6 (clang as CUDA compiler)
 # Clang CUDA support lags behind nvcc; clang-19 supports up to CUDA 12.x.
@@ -433,7 +433,7 @@ build:linux:cuda-12.6:clang-19:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
-    EIGEN_CI_CUDA_COMPUTE_ARCH: "89;90"
+    EIGEN_CI_CUDA_COMPUTE_ARCH: "50;53;89;90"
 
 # ---- CUDA 13 ----------------------------------------------------------------
 # CUDA 13 dropped offline compilation for sm_70, relocated the CCCL headers and
