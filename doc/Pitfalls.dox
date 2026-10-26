@@ -146,5 +146,24 @@ MatrixXi C = A.cast<int>() * B.cast<int>() - A.cast<int>() * B.cast<int>(); // z
 For coefficient-wise Boolean negation use <tt>!A.array()</tt>; for coefficient-wise XOR use
 <tt>A.array() != B.array()</tt>.
 
+\section TopicPitfalls_reproducibility Bitwise reproducibility of products
+
+%Eigen does not promise bitwise identical floating-point results across machines, builds, or runs. Matrix
+products, triangular solves, and the decompositions built on them split the summation into blocks sized to the
+CPU caches, and floating-point addition is not associative, so a different blocking can change the last bits of
+the result. The cache sizes are queried once, on the thread that runs the first such operation, and are kept for
+the life of the process. On CPUs that mix core types with different caches, such as Intel processors with
+P-cores and E-cores, the results of a program can therefore depend on which kind of core happened to run its
+first product. The number of threads and the instruction set enabled at compile time change the results in the
+same way.
+
+Where bitwise reproducibility matters, either:
+  - pin the process to one core type, for example with \c taskset on Linux or <tt>start /affinity</tt> on Windows,
+    or
+  - call \c Eigen::setCpuCacheSizes() with fixed values before the first product, so that the blocking no longer
+    depends on the core that is running.
+
+In both cases, also fix the number of threads and the build configuration.
+
 */
 }

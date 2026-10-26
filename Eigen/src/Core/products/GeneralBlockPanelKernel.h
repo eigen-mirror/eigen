@@ -2733,7 +2733,7 @@ struct gemm_pack_rhs<Scalar, Index, DataMapper, nr, RowMajor, Conjugate, PanelMo
 }  // end namespace internal
 
 /** \returns the currently set level 1 cpu cache size (in bytes) used to estimate the ideal blocking size parameters.
- * \sa setCpuCacheSize */
+ * \sa setCpuCacheSizes */
 inline std::ptrdiff_t l1CacheSize() {
   std::ptrdiff_t l1, l2, l3;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);
@@ -2741,7 +2741,7 @@ inline std::ptrdiff_t l1CacheSize() {
 }
 
 /** \returns the currently set level 2 cpu cache size (in bytes) used to estimate the ideal blocking size parameters.
- * \sa setCpuCacheSize */
+ * \sa setCpuCacheSizes */
 inline std::ptrdiff_t l2CacheSize() {
   std::ptrdiff_t l1, l2, l3;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);
@@ -2749,7 +2749,7 @@ inline std::ptrdiff_t l2CacheSize() {
 }
 
 /** \returns the currently set level 3 cpu cache size (in bytes) used to estimate the ideal blocking size parameters.
- * \sa setCpuCacheSize */
+ * \sa setCpuCacheSizes */
 inline std::ptrdiff_t l3CacheSize() {
   std::ptrdiff_t l1, l2, l3;
   internal::manage_caching_sizes(GetAction, &l1, &l2, &l3);
@@ -2758,6 +2758,8 @@ inline std::ptrdiff_t l3CacheSize() {
 
 /** Set the cpu L1, L2 and L3 cache sizes (in bytes).
  * These values are used to adjust blocking sizes and, on some backends, the size crossovers between kernels.
+ * By default they are queried from the CPU that runs the first product. Setting them explicitly makes the
+ * blocking, and therefore the rounding of the results, independent of that CPU; see \ref TopicPitfalls_reproducibility.
  *
  * \sa computeProductBlockingSizes */
 inline void setCpuCacheSizes(std::ptrdiff_t l1, std::ptrdiff_t l2, std::ptrdiff_t l3) {
