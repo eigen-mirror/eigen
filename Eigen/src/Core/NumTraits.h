@@ -43,6 +43,31 @@ struct default_digits_impl<T, false, true>  // Integer
   EIGEN_DEVICE_FUNC constexpr static int run() { return 0; }
 };
 
+namespace precision_detail {
+using std::ceil;
+using std::log2;
+
+template <typename T, typename = void>
+struct has_epsilon_digits : std::false_type {};
+
+// Detect the complete calculation: ADL can return another custom expression type.
+template <typename T>
+struct has_epsilon_digits<T, void_t<decltype(int(ceil(-log2(NumTraits<typename NumTraits<T>::Real>::epsilon()))) + 1)>>
+    : std::true_type {};
+}  // namespace precision_detail
+
+// Only formatting tolerates unspecified precision; numerical users of digits() still require it.
+template <typename T, bool Known = std::numeric_limits<T>::is_specialized || NumTraits<T>::IsInteger ||
+                                   precision_detail::has_epsilon_digits<T>::value>
+struct decimal_digits_source {
+  EIGEN_DEVICE_FUNC constexpr static int run() { return default_digits_impl<T>::run(); }
+};
+
+template <typename T>
+struct decimal_digits_source<T, false> {
+  EIGEN_DEVICE_FUNC constexpr static int run() { return 0; }
+};
+
 // default implementation of digits10(), based on numeric_limits if specialized,
 // 0 for integer types, and floor((digits()-1)*log10(2)) otherwise.
 template <typename T, bool use_numeric_limits = std::numeric_limits<T>::is_specialized,
@@ -58,7 +83,8 @@ struct default_digits10_impl<T, false, false>  // Floating point
     using std::floor;
     using std::log10;
     using Real = typename NumTraits<T>::Real;
-    return int(floor((internal::default_digits_impl<Real>::run() - 1) * log10(2)));
+    const int digits = decimal_digits_source<Real>::run();
+    return digits > 0 ? int(floor((digits - 1) * log10(2))) : 0;
   }
 };
 
@@ -83,7 +109,8 @@ struct default_max_digits10_impl<T, false, false>  // Floating point
     using std::ceil;
     using std::log10;
     using Real = typename NumTraits<T>::Real;
-    return int(ceil(internal::default_digits_impl<Real>::run() * log10(2) + 1));
+    const int digits = decimal_digits_source<Real>::run();
+    return digits > 0 ? int(ceil(digits * log10(2) + 1)) : 0;
   }
 };
 
@@ -139,6 +166,11 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC Tgt bit_cast(const Src& src) {
  * \tparam T the numeric type at hand
  *
  * This class stores enums, typedefs and static methods giving information about a numeric type.
+ * The default precision queries use std::numeric_limits when specialized. Otherwise binary precision uses an
+ * epsilon-based calculation when available, and decimal precision is derived from the real type's binary precision.
+ * Decimal queries without usable precision information return zero (unspecified precision).
+ * The binary digits() query still requires usable precision information.
+ * Custom scalar types can specialize these methods when finite precision information is available.
  *
  * The provided data consists of:
  * \li A typedef \c Real, giving the "real part" type of \a T. If \a T is already real,
