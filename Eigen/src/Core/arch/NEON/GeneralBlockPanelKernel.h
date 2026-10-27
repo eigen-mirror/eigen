@@ -6,6 +6,17 @@
 namespace Eigen {
 namespace internal {
 
+#if EIGEN_ARCH_ARM
+template <>
+struct gebp_traits<double, double, false, false, Architecture::NEON, GEBPPacketFull>
+    : gebp_traits<double, double, false, false, Architecture::Generic, GEBPPacketFull> {
+  // AArch32 has 32 scalar double registers, enough for a 3x4 tile despite having only 16 NEON registers.
+  static constexpr int mr = 3;
+  // Keep scalar-aligned loads: pbroadcast4's unaligned memcpy loads spill through the stack on ARM32 GCC.
+  using RhsPacketx4 = RhsPacket;
+};
+#endif
+
 #if EIGEN_ARCH_ARM && EIGEN_COMP_CLANG
 
 // Clang seems to excessively spill registers in the GEBP kernel on 32-bit arm.
