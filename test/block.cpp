@@ -437,6 +437,65 @@ void unwind_inner_panel_test(const BaseXpr&) {
   VERIFY_IS_CWISE_EQUAL(inner_rows_ref, inner_rows_unwound);
 }
 
+template <typename Xpr, typename Reference>
+void check_inner_panel_like(const Xpr& xpr, const Reference& reference) {
+  VERIFY_IS_EQUAL(int(internal::evaluator<Xpr>::Flags), int(internal::evaluator<Reference>::Flags));
+  VERIFY_IS_EQUAL(int(internal::evaluator<Xpr>::Alignment), int(internal::evaluator<Reference>::Alignment));
+  VERIFY_IS_EQUAL(xpr.eval(), reference.eval());
+  VERIFY_IS_EQUAL(xpr.sum(), reference.sum());
+}
+
+// A fixed-size block spanning the whole fixed inner size of its parent is an inner
+// panel even when it is not built with InnerPanel = true.
+void inner_panel_inference_test() {
+  using ColMajor8 = Matrix<float, 8, 8, ColMajor>;
+  using RowMajor8 = Matrix<float, 8, 8, RowMajor>;
+  ColMajor8 a = ColMajor8::Random();
+  RowMajor8 b = RowMajor8::Random();
+  Index j = internal::random<Index>(0, 4);
+  VERIFY(internal::evaluator<decltype(a.block<8, 4>(0, j))>::Flags & LinearAccessBit);
+  check_inner_panel_like(a.block<8, 4>(0, j), a.middleCols<4>(j));
+  check_inner_panel_like(b.block<4, 8>(j, 0), b.middleRows<4>(j));
+  check_inner_panel_like((a + a).block<8, 4>(0, j), (a + a).middleCols<4>(j));
+  // The inferred alignment follows the parent's outer stride: 48-byte columns keep 16-byte
+  // alignment, 40-byte columns do not.
+  alignas(16) float buffer[8 * 12] = {};
+  Map<ColMajor8, Aligned16, OuterStride<12>> stride12(buffer);
+  Map<ColMajor8, Aligned16, OuterStride<10>> stride10(buffer);
+  stride12.setRandom();
+  check_inner_panel_like(stride12.block<8, 3>(0, j), stride12.middleCols<3>(j));
+  check_inner_panel_like(stride10.block<8, 3>(0, j), stride10.middleCols<3>(j));
+  // Not spanning the inner size, or spanning the outer one, is not an inner panel.
+  VERIFY(!(internal::evaluator<decltype(a.block<7, 4>(0, 0))>::Flags & LinearAccessBit));
+  VERIFY(!(internal::evaluator<decltype(a.block<4, 8>(0, 0))>::Flags & LinearAccessBit));
+}
+
+// An empty block has a null data pointer whichever constructor built it: its start can
+// lie past the end of the parent's storage.
+void empty_block_data_test() {
+  float buffer[16] = {};
+  Map<MatrixXf, 0, OuterStride<>> no_rows(buffer, 0, 3, OuterStride<>(100));
+  VERIFY(no_rows.col(2).data() == nullptr);
+  VERIFY(no_rows.block(0, 2, 0, 1).data() == nullptr);
+  Map<Matrix<float, Dynamic, Dynamic, RowMajor>, 0, OuterStride<>> no_cols(buffer, 3, 0, OuterStride<>(100));
+  VERIFY(no_cols.row(2).data() == nullptr);
+  VERIFY(no_cols.block(2, 0, 1, 0).data() == nullptr);
+}
+
+// A product evaluates into a temporary with direct access, but the product
+// expression itself has none, so its blocks forward packets to that temporary.
+void product_block_packet_access_test() {
+  using Matrix8 = Matrix<float, 8, 8>;
+  Matrix8 a = Matrix8::Random(), b = Matrix8::Random();
+  Matrix8 ab = a * b;
+  Index j = internal::random<Index>(0, 4);
+  VERIFY_IS_EQUAL(int(internal::evaluator<decltype((a * b).block<8, 4>(0, j))>::Flags & PacketAccessBit),
+                  int(internal::evaluator<Matrix8>::Flags & PacketAccessBit));
+  VERIFY(!(internal::evaluator<decltype((a * b).block<8, 4>(0, j))>::Flags & DirectAccessBit));
+  VERIFY_IS_APPROX((Matrix<float, 8, 4>((a * b).block<8, 4>(0, j))), (ab.block<8, 4>(0, j)));
+  VERIFY_IS_APPROX(MatrixXf((a * b).block(1, j, 6, 3)), MatrixXf(ab.block(1, j, 6, 3)));
+}
+
 EIGEN_DECLARE_TEST(block) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(block(Matrix<float, 1, 1>()));
@@ -453,6 +512,9 @@ EIGEN_DECLARE_TEST(block) {
     CALL_SUBTEST_9(unwind_test(MatrixXf()));
     CALL_SUBTEST_9(unwind_inner_panel_test(MatrixXf()));
     CALL_SUBTEST_9(unwind_inner_panel_test(Matrix<float, Dynamic, Dynamic, RowMajor>()));
+    CALL_SUBTEST_12(inner_panel_inference_test());
+    CALL_SUBTEST_12(empty_block_data_test());
+    CALL_SUBTEST_12(product_block_packet_access_test());
 
 #ifndef EIGEN_DEFAULT_TO_ROW_MAJOR
     CALL_SUBTEST_6(data_and_stride(MatrixXf(internal::random(5, 50), internal::random(5, 50))));

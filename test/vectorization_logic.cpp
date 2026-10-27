@@ -371,8 +371,10 @@ struct vectorization_logic_half {
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
     VERIFY(test_assign(Vector1(), Vector1(), InnerVectorizedTraversal, CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Vector1() + Vector1(), InnerVectorizedTraversal, CompleteUnrolling));
+    // A full-packet segment retains alignment when inferred as an inner panel.
     VERIFY(test_assign(Vector1(), Vector1().template segment<MinVSize>(0).derived(),
-                       EIGEN_UNALIGNED_VECTORIZE ? InnerVectorizedTraversal : LinearVectorizedTraversal,
+                       EIGEN_UNALIGNED_VECTORIZE || MinVSize == PacketTraits::size ? InnerVectorizedTraversal
+                                                                                   : LinearVectorizedTraversal,
                        CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Scalar(RealScalar(2.1)) * Vector1() - Vector1(), InnerVectorizedTraversal,
                        CompleteUnrolling));
@@ -380,7 +382,9 @@ struct vectorization_logic_half {
         Vector1(),
         (Scalar(RealScalar(2.1)) * Vector1().template segment<MinVSize>(0) - Vector1().template segment<MinVSize>(0))
             .derived(),
-        EIGEN_UNALIGNED_VECTORIZE ? InnerVectorizedTraversal : LinearVectorizedTraversal, CompleteUnrolling));
+        EIGEN_UNALIGNED_VECTORIZE || MinVSize == PacketTraits::size ? InnerVectorizedTraversal
+                                                                    : LinearVectorizedTraversal,
+        CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Vector1().cwiseProduct(Vector1()), InnerVectorizedTraversal, CompleteUnrolling));
     VERIFY(test_assign(Vector1(), Vector1().template cast<Scalar>(), InnerVectorizedTraversal, CompleteUnrolling));
 

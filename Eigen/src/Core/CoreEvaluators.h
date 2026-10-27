@@ -1450,22 +1450,27 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>>
                                                             : int(outer_stride_at_compile_time<ArgType>::value),
     OuterStrideAtCompileTime = HasSameStorageOrderAsArgType ? int(outer_stride_at_compile_time<ArgType>::value)
                                                             : int(inner_stride_at_compile_time<ArgType>::value),
-    // Direct-access blocks use mapbase_evaluator's contiguous loads, not the parent's packet method.
-    MaskPacketAccessBit = (InnerStrideAtCompileTime == 1 ||
-                           (!(evaluator<ArgType>::Flags & DirectAccessBit) && HasSameStorageOrderAsArgType))
-                              ? PacketAccessBit
-                              : 0,
+    // Matches block_evaluator's dispatch. Direct-access blocks use mapbase_evaluator's contiguous loads; the others
+    // forward to the parent's packet method, which only loads along the parent's inner direction.
+    ArgHasDirectAccess = bool(has_direct_access<ArgType>::value) && bool(evaluator<ArgType>::Flags & DirectAccessBit),
+    MaskPacketAccessBit =
+        (ArgHasDirectAccess ? InnerStrideAtCompileTime == 1 : bool(HasSameStorageOrderAsArgType)) ? PacketAccessBit : 0,
 
+    ArgInnerSize = ArgTypeIsRowMajor ? int(ArgType::ColsAtCompileTime) : int(ArgType::RowsAtCompileTime),
+    // InnerPanel is deduced from the parent's traits, so it only holds in the parent evaluator's storage order. A block
+    // spanning its parent's fixed inner size is an inner panel too, e.g. block<6, 4>(0, j) of a 6x6 matrix.
+    IsInnerPanel = HasSameStorageOrderAsArgType && (InnerPanel || (InnerSize != Dynamic && InnerSize == ArgInnerSize)),
     FlagsLinearAccessBit = (RowsAtCompileTime == 1 || ColsAtCompileTime == 1 ||
-                            (InnerPanel && (evaluator<ArgType>::Flags & LinearAccessBit)))
+                            (IsInnerPanel && (evaluator<ArgType>::Flags & LinearAccessBit)))
                                ? LinearAccessBit
                                : 0,
     FlagsRowMajorBit = XprType::Flags & RowMajorBit,
-    Flags0 = evaluator<ArgType>::Flags & ((HereditaryBits & ~RowMajorBit) | DirectAccessBit | MaskPacketAccessBit),
+    Flags0 = evaluator<ArgType>::Flags &
+             ((HereditaryBits & ~RowMajorBit) | (ArgHasDirectAccess ? DirectAccessBit : 0) | MaskPacketAccessBit),
     Flags = Flags0 | FlagsLinearAccessBit | FlagsRowMajorBit,
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
-    Alignment0 = (InnerPanel && (OuterStrideAtCompileTime != Dynamic) && (OuterStrideAtCompileTime != 0) &&
+    Alignment0 = (IsInnerPanel && (OuterStrideAtCompileTime != Dynamic) && (OuterStrideAtCompileTime != 0) &&
                   (((OuterStrideAtCompileTime * int(sizeof(Scalar))) % int(PacketAlignment)) == 0))
                      ? int(PacketAlignment)
                      : 0,

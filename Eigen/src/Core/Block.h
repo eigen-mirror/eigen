@@ -187,11 +187,22 @@ class BlockImpl<XprType, BlockRows, BlockCols, InnerPanel, Dense>
 
 namespace internal {
 
-/** \internal Internal implementation of dense Blocks in the general case. */
+/** \internal Start of the row or column taken by the Block(xpr, i) constructor: a row if and only if BlockRows == 1
+ * and BlockCols == XprType::ColsAtCompileTime, a column if and only if BlockRows == XprType::RowsAtCompileTime and
+ * BlockCols == 1. A 1x1 xpr is both, with i == 0. */
+template <typename XprType, int BlockRows, int BlockCols>
+struct block_vector_start {
+  static constexpr Index row(Index i) { return (BlockRows == 1) && (BlockCols == XprType::ColsAtCompileTime) ? i : 0; }
+  static constexpr Index col(Index i) { return (BlockRows == XprType::RowsAtCompileTime) && (BlockCols == 1) ? i : 0; }
+};
+
+/** \internal Internal implementation of dense Blocks in the general case. Coefficient and packet access go through
+ * DenseCoeffsBase and evaluator<Block>. */
 template <typename XprType, int BlockRows, int BlockCols, bool InnerPanel, bool HasDirectAccess>
 class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows, BlockCols, InnerPanel>>::type {
   using BlockType = Block<XprType, BlockRows, BlockCols, InnerPanel>;
   using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
+  using VectorStart = block_vector_start<XprType, BlockRows, BlockCols>;
 
  public:
   using Base = typename internal::dense_xpr_base<BlockType>::type;
@@ -202,12 +213,8 @@ class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows
    */
   EIGEN_DEVICE_FUNC constexpr BlockImpl_dense(XprType& xpr, Index i)
       : m_xpr(xpr),
-        // It is a row if and only if BlockRows==1 and BlockCols==XprType::ColsAtCompileTime,
-        // and it is a column if and only if BlockRows==XprType::RowsAtCompileTime and BlockCols==1,
-        // all other cases are invalid.
-        // The case a 1x1 matrix seems ambiguous, but the result is the same anyway.
-        m_startRow((BlockRows == 1) && (BlockCols == XprType::ColsAtCompileTime) ? i : 0),
-        m_startCol((BlockRows == XprType::RowsAtCompileTime) && (BlockCols == 1) ? i : 0),
+        m_startRow(VectorStart::row(i)),
+        m_startCol(VectorStart::col(i)),
         m_blockRows(BlockRows == 1 ? 1 : xpr.rows()),
         m_blockCols(BlockCols == 1 ? 1 : xpr.cols()) {}
 
@@ -224,57 +231,6 @@ class BlockImpl_dense : public internal::dense_xpr_base<Block<XprType, BlockRows
 
   EIGEN_DEVICE_FUNC constexpr Index rows() const { return m_blockRows.value(); }
   EIGEN_DEVICE_FUNC constexpr Index cols() const { return m_blockCols.value(); }
-
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index rowId, Index colId) {
-    EIGEN_STATIC_ASSERT_LVALUE(XprType)
-    return m_xpr.coeffRef(rowId + m_startRow.value(), colId + m_startCol.value());
-  }
-
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index rowId, Index colId) const {
-    return m_xpr.derived().coeffRef(rowId + m_startRow.value(), colId + m_startCol.value());
-  }
-
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const CoeffReturnType coeff(Index rowId, Index colId) const {
-    return m_xpr.coeff(rowId + m_startRow.value(), colId + m_startCol.value());
-  }
-
-  EIGEN_DEVICE_FUNC inline Scalar& coeffRef(Index index) {
-    EIGEN_STATIC_ASSERT_LVALUE(XprType)
-    return m_xpr.coeffRef(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
-                          m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
-  }
-
-  EIGEN_DEVICE_FUNC inline const Scalar& coeffRef(Index index) const {
-    return m_xpr.coeffRef(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
-                          m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
-  }
-
-  EIGEN_DEVICE_FUNC inline const CoeffReturnType coeff(Index index) const {
-    return m_xpr.coeff(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
-                       m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
-  }
-
-  template <int LoadMode>
-  EIGEN_DEVICE_FUNC inline PacketScalar packet(Index rowId, Index colId) const {
-    return m_xpr.template packet<Unaligned>(rowId + m_startRow.value(), colId + m_startCol.value());
-  }
-
-  template <int LoadMode>
-  EIGEN_DEVICE_FUNC inline void writePacket(Index rowId, Index colId, const PacketScalar& val) {
-    m_xpr.template writePacket<Unaligned>(rowId + m_startRow.value(), colId + m_startCol.value(), val);
-  }
-
-  template <int LoadMode>
-  EIGEN_DEVICE_FUNC inline PacketScalar packet(Index index) const {
-    return m_xpr.template packet<Unaligned>(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
-                                            m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0));
-  }
-
-  template <int LoadMode>
-  EIGEN_DEVICE_FUNC inline void writePacket(Index index, const PacketScalar& val) {
-    m_xpr.template writePacket<Unaligned>(m_startRow.value() + (RowsAtCompileTime == 1 ? 0 : index),
-                                          m_startCol.value() + (RowsAtCompileTime == 1 ? index : 0), val);
-  }
 
 #ifdef EIGEN_PARSED_BY_DOXYGEN
   /** \sa MapBase::data() */
@@ -309,14 +265,16 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
     : public MapBase<Block<XprType, BlockRows, BlockCols, InnerPanel>> {
   using BlockType = Block<XprType, BlockRows, BlockCols, InnerPanel>;
   using XprTypeNested = typename internal::ref_selector<XprType>::non_const_type;
-  enum { XprTypeIsRowMajor = (int(traits<XprType>::Flags) & RowMajorBit) != 0 };
+  using VectorStart = block_vector_start<XprType, BlockRows, BlockCols>;
 
-  /** \internal Returns base+offset (unless base is null, in which case returns null).
-   * Adding an offset to nullptr is undefined behavior, so we must avoid it.
-   */
-  template <typename Scalar>
-  EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE static Scalar* add_to_nullable_pointer(Scalar* base, Index offset) {
-    return base != nullptr ? base + offset : nullptr;
+  /** \internal An empty block gets a null pointer: its start can lie past the end of xpr's storage. So does a block of
+   * a null xpr, since offsetting nullptr is undefined behavior. */
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static auto block_data(XprType& xpr, Index startRow, Index startCol,
+                                                               Index blockRows, Index blockCols)
+      -> decltype(xpr.data()) {
+    return (blockRows == 0 || blockCols == 0 || xpr.data() == nullptr)
+               ? nullptr
+               : xpr.data() + startRow * xpr.rowStride() + startCol * xpr.colStride();
   }
 
  public:
@@ -327,51 +285,32 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   /** Column or Row constructor
    */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockImpl_dense(XprType& xpr, Index i)
-      : Base((BlockRows == 0 || BlockCols == 0)
-                 ? nullptr
-                 : add_to_nullable_pointer(
-                       xpr.data(),
-                       i * (((BlockRows == 1) && (BlockCols == XprType::ColsAtCompileTime) && (!XprTypeIsRowMajor)) ||
-                                    ((BlockRows == XprType::RowsAtCompileTime) && (BlockCols == 1) &&
-                                     (XprTypeIsRowMajor))
-                                ? xpr.innerStride()
-                                : xpr.outerStride())),
+      : Base(block_data(xpr, VectorStart::row(i), VectorStart::col(i), BlockRows == 1 ? 1 : xpr.rows(),
+                        BlockCols == 1 ? 1 : xpr.cols()),
              BlockRows == 1 ? 1 : xpr.rows(), BlockCols == 1 ? 1 : xpr.cols()),
         m_xpr(xpr),
-        m_startRow((BlockRows == 1) && (BlockCols == XprType::ColsAtCompileTime) ? i : 0),
-        m_startCol((BlockRows == XprType::RowsAtCompileTime) && (BlockCols == 1) ? i : 0) {
-    init();
-  }
+        m_startRow(VectorStart::row(i)),
+        m_startCol(VectorStart::col(i)),
+        m_outerStride(outer_stride(xpr)) {}
 
   /** Fixed-size constructor
    */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockImpl_dense(XprType& xpr, Index startRow, Index startCol)
-      : Base((BlockRows == 0 || BlockCols == 0)
-                 ? nullptr
-                 : add_to_nullable_pointer(xpr.data(),
-                                           xpr.innerStride() * (XprTypeIsRowMajor ? startCol : startRow) +
-                                               xpr.outerStride() * (XprTypeIsRowMajor ? startRow : startCol))),
+      : Base(block_data(xpr, startRow, startCol, BlockRows, BlockCols)),
         m_xpr(xpr),
         m_startRow(startRow),
-        m_startCol(startCol) {
-    init();
-  }
+        m_startCol(startCol),
+        m_outerStride(outer_stride(xpr)) {}
 
   /** Dynamic-size constructor
    */
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE BlockImpl_dense(XprType& xpr, Index startRow, Index startCol, Index blockRows,
                                                         Index blockCols)
-      : Base((blockRows == 0 || blockCols == 0)
-                 ? nullptr
-                 : add_to_nullable_pointer(xpr.data(),
-                                           xpr.innerStride() * (XprTypeIsRowMajor ? startCol : startRow) +
-                                               xpr.outerStride() * (XprTypeIsRowMajor ? startRow : startCol)),
-             blockRows, blockCols),
+      : Base(block_data(xpr, startRow, startCol, blockRows, blockCols), blockRows, blockCols),
         m_xpr(xpr),
         m_startRow(startRow),
-        m_startCol(startCol) {
-    init();
-  }
+        m_startCol(startCol),
+        m_outerStride(outer_stride(xpr)) {}
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const internal::remove_all_t<XprTypeNested>& nestedExpression() const noexcept {
     return m_xpr;
@@ -392,9 +331,8 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   EIGEN_DEVICE_FUNC constexpr StorageIndex startCol() const noexcept { return m_startCol.value(); }
 
  protected:
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void init() {
-    m_outerStride =
-        internal::traits<BlockType>::HasSameStorageOrderAsXprType ? m_xpr.outerStride() : m_xpr.innerStride();
+  EIGEN_DEVICE_FUNC static constexpr Index outer_stride(const XprType& xpr) {
+    return internal::traits<BlockType>::HasSameStorageOrderAsXprType ? xpr.outerStride() : xpr.innerStride();
   }
 
   XprTypeNested m_xpr;

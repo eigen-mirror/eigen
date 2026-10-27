@@ -72,6 +72,44 @@ static void BM_LeftCols(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * n * k * sizeof(Scalar));
 }
 
+// Copy and sum a fixed block spanning whole columns, which is contiguous like middleCols<4>.
+static void BM_FixedFullColumnsCopy(benchmark::State& state) {
+  Matrix<float, 6, 6> src = Matrix<float, 6, 6>::Random();
+  Matrix<float, 6, 4> dst;
+  Index j = 1;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(j);
+    dst = src.block<6, 4>(0, j);
+    benchmark::DoNotOptimize(dst.data());
+  }
+}
+
+static void BM_FixedFullColumnsSum(benchmark::State& state) {
+  Matrix<float, 6, 6> src = Matrix<float, 6, 6>::Random();
+  Index j = 1;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(j);
+    benchmark::DoNotOptimize(src.block<6, 4>(0, j).sum());
+  }
+}
+
+// Copy a block of a product, which forwards packets to the product's temporary.
+static void BM_ProductBlockCopy(benchmark::State& state) {
+  Matrix<float, 8, 8> a = Matrix<float, 8, 8>::Random(), b = Matrix<float, 8, 8>::Random();
+  Matrix<float, 8, 4> dst;
+  Index j = 1;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(j);
+    benchmark::DoNotOptimize(a.data());
+    dst = (a * b).block<8, 4>(0, j);
+    benchmark::DoNotOptimize(dst.data());
+  }
+}
+
+BENCHMARK(BM_FixedFullColumnsCopy);
+BENCHMARK(BM_FixedFullColumnsSum);
+BENCHMARK(BM_ProductBlockCopy);
+
 // (matrix_size, block_size)
 // clang-format off
 #define BLOCK_SIZES ->ArgsProduct({{256, 512, 1024}, {16, 64, 128}})
