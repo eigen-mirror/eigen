@@ -53,8 +53,16 @@ namespace Eigen {
                                                                                                                     \
     /*const RealScalar precision = RealScalar(2) * NumTraits<Scalar>::epsilon();*/                                  \
     m_nonzeroSingularValues = diagSize();                                                                           \
+    /* LAPACK rejects the zero leading dimensions of an empty input, and given valid ones it returns without */     \
+    /* writing U or VT. Set the identities the native path returns. */                                              \
+    if (diagSize() == 0) {                                                                                          \
+      if (computeU()) m_matrixU.setIdentity();                                                                      \
+      if (computeV()) m_matrixV.setIdentity();                                                                      \
+      m_isInitialized = true;                                                                                       \
+      return *this;                                                                                                 \
+    }                                                                                                               \
                                                                                                                     \
-    lapack_int lda = internal::convert_index<lapack_int>(matrix.outerStride()), ldu, ldvt;                          \
+    lapack_int ldu, ldvt;                                                                                           \
     lapack_int matrix_order = LAPACKE_COLROW;                                                                       \
     char jobu, jobvt;                                                                                               \
     LAPACKE_TYPE *u, *vt, dummy;                                                                                    \
@@ -83,6 +91,8 @@ namespace Eigen {
     superb.resize(diagSize(), 1);                                                                                   \
     MatrixType m_temp;                                                                                              \
     m_temp = matrix;                                                                                                \
+    /* LAPACK reads the copy, whose layout the input expression need not share. */                                  \
+    lapack_int lda = internal::convert_index<lapack_int>(m_temp.outerStride());                                     \
     lapack_int info = LAPACKE_##LAPACKE_PREFIX##gesvd(                                                              \
         matrix_order, jobu, jobvt, internal::convert_index<lapack_int>(rows()),                                     \
         internal::convert_index<lapack_int>(cols()), (LAPACKE_TYPE*)m_temp.data(), lda,                             \

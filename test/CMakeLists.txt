@@ -548,6 +548,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|C
 endif()
 ei_add_test(inplace_decomposition)
 ei_add_test(inplace_decomposition_lapacke)
+ei_add_test(svd_lapacke)
 ei_add_test(half_float)
 ei_add_test(bfloat16_float)
 ei_add_test(bfloat16_classification)
