@@ -8,6 +8,8 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+// Uninitialized workspace entries read by the solver show up as NaN in the solution.
+#define EIGEN_INITIALIZE_MATRICES_BY_NAN
 #include "sparse_solver.h"
 #include <Eigen/IterativeLinearSolvers>
 
@@ -38,8 +40,27 @@ void test_zero_rhs() {
   VERIFY_IS_EQUAL(solver.iterations(), Index(0));
 }
 
+// An exact zero residual with zero tolerance breaks down normalization in the first IDR step.
+void test_normalization_breakdown() {
+  const Index n = 10;
+  SparseMatrix<double> A(n, n);
+  for (Index i = 0; i < n; ++i) A.insert(i, i) = 1.0;
+  const VectorXd b = VectorXd::Unit(n, 0);
+  for (Index L = 1; L <= 3; ++L) {
+    IDRSTABL<SparseMatrix<double> > solver(A);
+    solver.setL(L);
+    solver.setS(2);
+    solver.setTolerance(0.0);
+    solver.setMaxIterations(2);
+    VectorXd x = solver.solve(b);
+    VERIFY(x.allFinite());
+    VERIFY_IS_EQUAL(x, b);
+  }
+}
+
 EIGEN_DECLARE_TEST(idrstabl) {
   CALL_SUBTEST_1((test_idrstabl_T<double>()));
   CALL_SUBTEST_2((test_idrstabl_T<std::complex<double> >()));
   CALL_SUBTEST_1(test_zero_rhs());
+  CALL_SUBTEST_1(test_normalization_breakdown());
 }
