@@ -31,7 +31,7 @@ template <typename MatrixType, typename Rhs, typename Dest, typename Preconditio
 EIGEN_DONT_INLINE void least_square_conjugate_gradient(const MatrixType& mat, const Rhs& rhs, Dest& x,
                                                        const Preconditioner& precond, Index& iters,
                                                        typename Dest::RealScalar& tol_error) {
-  using std::sqrt;
+  using numext::sqrt;
   using RealScalar = typename Dest::RealScalar;
   using Scalar = typename Dest::Scalar;
   using VectorType = Matrix<Scalar, Dynamic, 1>;

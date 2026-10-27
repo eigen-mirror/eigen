@@ -60,8 +60,8 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
            const Index& restart_, typename Dest::RealScalar& tol_error) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
 
   using RealScalar = typename Dest::RealScalar;
   using Scalar = typename Dest::Scalar;

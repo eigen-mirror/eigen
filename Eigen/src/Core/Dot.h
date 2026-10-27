@@ -478,8 +478,7 @@ template <typename Derived, int p>
 struct lpNorm_selector {
   using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
-    EIGEN_USING_STD(pow)
-    return pow(m.cwiseAbs().array().pow(p).sum(), RealScalar(1) / p);
+    return numext::pow(m.cwiseAbs().array().pow(p).sum(), RealScalar(1) / p);
   }
 };
 

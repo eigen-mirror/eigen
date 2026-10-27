@@ -671,6 +671,11 @@ void transformations() {
   Rotation2D<double> r2d1d = r2d1.template cast<double>();
   VERIFY_IS_APPROX(r2d1d.template cast<Scalar>(), r2d1);
 
+  Matrix2i quarter_turn;
+  quarter_turn << 0, -1, 1, 0;
+  const Scalar quarter_turn_angle = Rotation2D<Scalar>(quarter_turn).angle();
+  VERIFY(numext::abs(quarter_turn_angle - Scalar(EIGEN_PI) / Scalar(2)) <= Scalar(4) * NumTraits<Scalar>::epsilon());
+
   for (int k = 0; k < 100; ++k) {
     Scalar angle = internal::random<Scalar>(-100, 100);
     Rotation2D<Scalar> rot2(angle);

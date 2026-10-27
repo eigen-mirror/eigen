@@ -348,7 +348,7 @@ void bdcsvd_impl<RealScalar_>::divide(Index firstCol, Index lastCol, Index first
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& U, VectorType& singVals, MatrixXr& V) {
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
-  using std::abs;
+  using numext::abs;
   ArrayRef col0 = m_computed.col(firstCol).segment(firstCol, n);
   m_workspace.head(n) = m_computed.block(firstCol, firstCol, n, n).diagonal();
   ArrayRef diag = m_workspace.head(n);
@@ -448,7 +448,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
   // See Ren-Cang Li, "Solving Secular Equations Stably and Efficiently",
   // LAPACK Working Note 89 (1994), and LAPACK's xLASD4/xLASD5 for the
   // stability rationale behind pole-relative shifts and safeguarded steps.
-  using std::abs;
+  using numext::abs;
   using std::swap;
 
   Index n = col0.size();
@@ -637,7 +637,7 @@ template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
                                            const VectorType& singVals, const ArrayRef& shifts, const ArrayRef& mus,
                                            ArrayRef zhat) {
-  using std::abs;
+  using numext::abs;
   Index n = col0.size();
   Index m = perm.size();
   if (m == 0) {
@@ -784,7 +784,7 @@ void bdcsvd_impl<RealScalar_>::deflation44(Index firstColu, Index firstColm, Ind
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k, Index firstRowW, Index firstColW,
                                          Index shift) {
-  using std::abs;
+  using numext::abs;
   const Index length = lastCol + 1 - firstCol;
 
   Block<MatrixXr, Dynamic, 1> col0(m_computed, firstCol + shift, firstCol + shift, length, 1);

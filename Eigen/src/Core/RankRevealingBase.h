@@ -93,7 +93,7 @@ class RankRevealingBase {
    *       setThreshold(const RealScalar&).
    */
   inline Index rank() const {
-    using std::abs;
+    using numext::abs;
     eigen_assert(self().m_isInitialized && "Decomposition is not initialized.");
     RealScalar premultiplied_threshold = abs(m_maxpivot) * threshold();
     Index result = 0;

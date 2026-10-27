@@ -515,7 +515,7 @@ struct blas_traits<CwiseUnaryOp<scalar_conjugate_op<Scalar>, NestedXpr> > : blas
   enum { IsComplex = NumTraits<Scalar>::IsComplex, NeedToConjugate = Base::NeedToConjugate ? 0 : IsComplex };
   EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
-    return conj(Base::extractScalarFactor(x.nestedExpression()));
+    return numext::conj(Base::extractScalarFactor(x.nestedExpression()));
   }
 };
 

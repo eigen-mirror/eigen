@@ -732,10 +732,10 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
    * For numerical stability m.trace() should be near zero and to avoid over- or underflow m should be normalized.
    */
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    EIGEN_USING_STD(sqrt)
-    EIGEN_USING_STD(atan2)
-    EIGEN_USING_STD(cos)
-    EIGEN_USING_STD(sin)
+    using numext::atan2;
+    using numext::cos;
+    using numext::sin;
+    using numext::sqrt;
     const Scalar s_inv3 = Scalar(1) / Scalar(3);
     const Scalar s_sqrt3 = sqrt(Scalar(3));
 
@@ -772,8 +772,8 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
 
   EIGEN_DEVICE_FUNC static inline bool extract_kernel(PlainMatrixType& mat, Ref<VectorType> res,
                                                       Ref<VectorType> representative) {
-    EIGEN_USING_STD(abs);
-    EIGEN_USING_STD(sqrt);
+    using numext::abs;
+    using numext::sqrt;
     Index i0;
     // Find non-zero column i0 (by construction, there must exist a non zero coefficient on the diagonal):
     mat.diagonal().cwiseAbs().maxCoeff(&i0);
@@ -860,7 +860,7 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
   using PlainMatrixType = typename SolverType::PlainMatrixType;
 
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    EIGEN_USING_STD(sqrt);
+    using numext::sqrt;
     const Scalar t0 = Scalar(0.5) * sqrt(numext::abs2(m(0, 0) - m(1, 1)) + Scalar(4) * numext::abs2(m(1, 0)));
     const Scalar t1 = Scalar(0.5) * (m(0, 0) + m(1, 1));
     roots(0) = t1 - t0;
@@ -870,8 +870,8 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(PlainMatrixType& scaledMat, VectorType& eivals,
                                                         EigenvectorsType& eivecs, bool computeEigenvectors,
                                                         const Scalar&) {
-    EIGEN_USING_STD(sqrt);
-    EIGEN_USING_STD(abs);
+    using numext::abs;
+    using numext::sqrt;
 
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);

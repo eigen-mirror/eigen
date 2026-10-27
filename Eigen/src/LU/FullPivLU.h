@@ -336,7 +336,7 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
   RealScalar pivotCoeff(Index i) const {
-    using std::abs;
+    using numext::abs;
     return abs(m_lu.coeff(i, i));
   }
 

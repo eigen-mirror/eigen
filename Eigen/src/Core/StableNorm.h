@@ -157,7 +157,7 @@ typename Derived::RealScalar stable_norm_impl(const Derived&) {
 template <typename VectorType,
           std::enable_if_t<VectorType::IsVectorAtCompileTime && VectorType::MaxSizeAtCompileTime != 0, int> = 0>
 typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
-  using std::sqrt;
+  using numext::sqrt;
 
   Index n = vec.size();
   if (EIGEN_PREDICT_FALSE(n == 1)) return numext::abs(vec.coeff(0));
@@ -176,7 +176,7 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
 template <typename MatrixType,
           std::enable_if_t<!MatrixType::IsVectorAtCompileTime && MatrixType::MaxSizeAtCompileTime != 0, int> = 0>
 typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
-  using std::sqrt;
+  using numext::sqrt;
 
   using RealScalar = typename MatrixType::RealScalar;
   using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
@@ -233,8 +233,8 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
   using RealScalar = typename Derived::RealScalar;
   using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
   using Scalar = typename traits<Derived>::Scalar;
+  using numext::sqrt;
   using std::pow;
-  using std::sqrt;
 
   const Derived& vec(_vec.derived());
   if (vec.size() == 0) return RealScalar(0);

@@ -110,7 +110,7 @@ SelfAdjointView<MatrixType, UpLo>::eigenvalues() const {
  */
 template <typename Derived>
 inline typename MatrixBase<Derived>::RealScalar MatrixBase<Derived>::operatorNorm() const {
-  using std::sqrt;
+  using numext::sqrt;
   typename Derived::PlainObject m_eval(derived());
   // FIXME: if eigenvalues are guaranteed to be sorted, comparing the first and last is sufficient.
   return sqrt((m_eval * m_eval.adjoint()).eval().template selfadjointView<Lower>().eigenvalues().maxCoeff());

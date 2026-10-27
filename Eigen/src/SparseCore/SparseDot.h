@@ -86,7 +86,7 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Spar
 
 template <typename Derived>
 inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real SparseMatrixBase<Derived>::norm() const {
-  using std::sqrt;
+  using numext::sqrt;
   return sqrt(squaredNorm());
 }
 

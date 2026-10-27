@@ -301,7 +301,7 @@ inline void RealQZ<MatrixType>::computeNorms() {
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0) */
 template <typename MatrixType>
 inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
-  using std::abs;
+  using numext::abs;
   Index res = iu;
   while (res > 0) {
     Scalar s = abs(m_S.coeff(res - 1, res - 1)) + abs(m_S.coeff(res, res));
@@ -315,7 +315,7 @@ inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
 /** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1)  */
 template <typename MatrixType>
 inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
-  using std::abs;
+  using numext::abs;
   Index res = l;
   while (res >= f) {
     if (abs(m_T.coeff(res, res)) <= NumTraits<Scalar>::epsilon() * m_normOfT) break;
@@ -327,8 +327,8 @@ inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
 /** \internal decouple 2x2 diagonal block in rows i, i+1 if eigenvalues are real */
 template <typename MatrixType>
 inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   const Index dim = m_S.cols();
   if (numext::is_exactly_zero(abs(m_S.coeff(i + 1, i)))) return;
   Index j = findSmallDiagEntry(i, i + 1);
@@ -403,7 +403,7 @@ inline void RealQZ<MatrixType>::pushDownZero(Index z, Index f, Index l) {
 /** \internal QR-like iterative step for block f..l */
 template <typename MatrixType>
 inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
-  using std::abs;
+  using numext::abs;
   const Index dim = m_S.cols();
 
   // x, y, z

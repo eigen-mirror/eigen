@@ -288,7 +288,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
   RealScalar pivotCoeff(Index i) const {
-    using std::abs;
+    using numext::abs;
     return abs(m_qr.coeff(i, i));
   }
 
@@ -346,7 +346,7 @@ typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using std::abs;
+  using numext::abs;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
@@ -386,7 +386,7 @@ FullPivHouseholderQR<MatrixType, PermutationIndex>& FullPivHouseholderQR<MatrixT
 template <typename MatrixType, typename PermutationIndex>
 void FullPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
-  using std::abs;
+  using numext::abs;
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();
   Index size = (std::min)(rows, cols);

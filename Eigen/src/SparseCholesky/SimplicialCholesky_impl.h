@@ -321,7 +321,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
 template <typename Derived>
 template <bool DoLDLT, bool NonHermitian, bool UsePackets>
 void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrixType& ap) {
-  using std::sqrt;
+  using numext::sqrt;
   const StorageIndex size = StorageIndex(ap.rows());
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");

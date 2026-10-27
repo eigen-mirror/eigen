@@ -57,7 +57,7 @@ EIGEN_STRONG_INLINE std::enable_if_t<NumTraits<typename Derived::Scalar>::IsComp
 template <typename RealScalar, typename Scalar, typename RecomputeFn>
 EIGEN_STRONG_INLINE void lawn176_norm_downdate(RealScalar& norm_updated, RealScalar& norm_direct, Scalar pivot_entry,
                                                RealScalar downdate_threshold, RecomputeFn&& tail_norm_fn) {
-  using std::abs;
+  using numext::abs;
   if (numext::is_exactly_zero(norm_updated)) return;
   RealScalar t = abs(pivot_entry) / norm_updated;
   t = (RealScalar(1) + t) * (RealScalar(1) - t);
@@ -291,7 +291,7 @@ class RandColPivHouseholderQR : public SolverBase<RandColPivHouseholderQR<Matrix
   typename MatrixType::Scalar signDeterminant() const;
 
   RealScalar pivotCoeff(Index i) const {
-    using std::abs;
+    using numext::abs;
     return abs(m_qr.coeff(i, i));
   }
 
@@ -406,7 +406,7 @@ typename MatrixType::Scalar RandColPivHouseholderQR<MatrixType, PermutationIndex
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar RandColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using std::abs;
+  using numext::abs;
   eigen_assert(m_isInitialized && "RandColPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
@@ -440,7 +440,7 @@ RandColPivHouseholderQR<MatrixType, PermutationIndex>& RandColPivHouseholderQR<M
 template <typename MatrixType, typename PermutationIndex>
 Index RandColPivHouseholderQR<MatrixType, PermutationIndex>::unblocked_pivoted_qr(Index row0, Index col0, Index ncols,
                                                                                   RealScalar threshold_helper) {
-  using std::abs;
+  using numext::abs;
   const Index rows = m_qr.rows();
   const Index col_end = col0 + ncols;
   const Index sub_rows = rows - row0;
@@ -494,7 +494,7 @@ Index RandColPivHouseholderQR<MatrixType, PermutationIndex>::unblocked_pivoted_q
 
 template <typename MatrixType, typename PermutationIndex>
 void RandColPivHouseholderQR<MatrixType, PermutationIndex>::finalize_rank(RealScalar threshold_helper) {
-  using std::abs;
+  using numext::abs;
   const Index rows = m_qr.rows();
   const Index size = (std::min)(rows, m_qr.cols());
   // m_maxpivot is already up-to-date: the blocked path tracks it per
@@ -675,7 +675,7 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     // rank() applies to the final diagonal.
     Index panel_rank = b;
     {
-      using std::abs;
+      using numext::abs;
       const RealScalar relative_cutoff = this->m_maxpivot * NumTraits<RealScalar>::epsilon() * RealScalar(4 * size);
       for (Index i = 0; i < b; ++i) {
         RealScalar a = abs(m_qr.coeff(k + i, k + i));

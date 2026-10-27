@@ -93,8 +93,8 @@ class JacobiRotation {
  */
 template <typename Scalar>
 EIGEN_DEVICE_FUNC bool JacobiRotation<Scalar>::makeJacobi(const RealScalar& x, const Scalar& y, const RealScalar& z) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
 
   const RealScalar abs_y = abs(y);
   const RealScalar deno = RealScalar(2) * abs_y;
@@ -169,9 +169,9 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 // specialization for complexes
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type) {
+  using numext::abs;
   using numext::conj;
-  using std::abs;
-  using std::sqrt;
+  using numext::sqrt;
 
   if (q == Scalar(0)) {
     m_c = numext::real(p) < 0 ? Scalar(-1) : Scalar(1);
@@ -224,8 +224,13 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r,
                                                           std::false_type) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+#if defined(EIGEN_SYCL_DEVICE_ONLY)
+  using numext::sqrt;
+#else
+  // GCC does not fold the SSE numext::sqrt intrinsic for the constant range thresholds below.
+  EIGEN_USING_STD(sqrt);
+#endif
   if (numext::is_exactly_zero_no_flush(q)) {
     // DAZ can hide the sign; MSVC's non-intrinsic abs(float) can flush the
     // result through a float->double->float conversion even with FTZ alone.
@@ -266,6 +271,7 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
   const Scalar mn = numext::mini(abs_p, abs_q);
 
   if (EIGEN_PREDICT_TRUE(mx < rtmax && mn > rtmin)) {
+    using numext::sqrt;
     // Safe range: existing direct formulas are stable.
     if (abs_p > abs_q) {
       Scalar t = q / p;

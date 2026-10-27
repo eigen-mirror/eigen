@@ -60,7 +60,6 @@ namespace internal {
     static void run(Index rows, Index cols, Index depth, const EIGTYPE* lhs_, Index lhsStride, const EIGTYPE* rhs_,    \
                     Index rhsStride, Scalar* res, Index resIncr, Index resStride, EIGTYPE alpha,                       \
                     level3_blocking<EIGTYPE, EIGTYPE>& blocking, GemmParallelInfo<Index>* info) {                      \
-      using std::conj;                                                                                                 \
       if (rows == 0 || cols == 0 || depth == 0 || numext::is_exactly_zero(alpha)) return;                              \
       if (!blas_compatible_stride<LhsStorageOrder>(rows, depth, lhsStride) ||                                          \
           !blas_compatible_stride<RhsStorageOrder>(depth, cols, rhsStride) ||                                          \
@@ -148,7 +147,6 @@ struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, Co
                   const Eigen::bfloat16* rhs_, Index rhsStride, Eigen::bfloat16* res, Index resIncr, Index resStride,
                   Eigen::bfloat16 alpha, level3_blocking<Eigen::bfloat16, Eigen::bfloat16>& blocking,
                   GemmParallelInfo<Index>* info) {
-    using std::conj;
     if (rows == 0 || cols == 0 || depth == 0 || numext::is_exactly_zero(alpha)) return;
     if (!blas_compatible_stride<LhsStorageOrder>(rows, depth, lhsStride) ||
         !blas_compatible_stride<RhsStorageOrder>(depth, cols, rhsStride)) {

@@ -319,6 +319,8 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
  * held by m_realQZ. */
 template <typename MatrixType>
 GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(bool computeEigenvectors) {
+  using numext::conj;
+  using numext::real;
   const Index size = m_realQZ.matrixS().cols();
   if (m_realQZ.info() == Success) {
     // Resize storage

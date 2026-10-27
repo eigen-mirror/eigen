@@ -265,7 +265,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
   RealScalar pivotCoeff(Index i) const {
-    using std::abs;
+    using numext::abs;
     return abs(m_qr.coeff(i, i));
   }
 
@@ -336,7 +336,7 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::d
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using std::abs;
+  using numext::abs;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
@@ -377,7 +377,7 @@ template <typename MatrixType, typename PermutationIndex>
 void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
 
-  using std::abs;
+  using numext::abs;
 
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();

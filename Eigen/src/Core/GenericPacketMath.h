@@ -795,7 +795,7 @@ EIGEN_DEVICE_FUNC inline Packet pfrexp(const Packet& a, Packet& exponent) {
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) {
-  EIGEN_USING_STD(ldexp)
+  using numext::ldexp;
   return static_cast<Packet>(ldexp(a, static_cast<int>(exponent)));
 }
 
@@ -1308,85 +1308,73 @@ EIGEN_DEVICE_FUNC inline Packet pisfinite(const Packet& a) {
 /** \internal \returns the sine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psin(const Packet& a) {
-  EIGEN_USING_STD(sin);
-  return sin(a);
+  return numext::sin(a);
 }
 
 /** \internal \returns the cosine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcos(const Packet& a) {
-  EIGEN_USING_STD(cos);
-  return cos(a);
+  return numext::cos(a);
 }
 
 /** \internal \returns the tan of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptan(const Packet& a) {
-  EIGEN_USING_STD(tan);
-  return tan(a);
+  return numext::tan(a);
 }
 
 /** \internal \returns the arc sine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasin(const Packet& a) {
-  EIGEN_USING_STD(asin);
-  return asin(a);
+  return numext::asin(a);
 }
 
 /** \internal \returns the arc cosine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacos(const Packet& a) {
-  EIGEN_USING_STD(acos);
-  return acos(a);
+  return numext::acos(a);
 }
 
 /** \internal \returns the hyperbolic sine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh(const Packet& a) {
-  EIGEN_USING_STD(sinh);
-  return sinh(a);
+  return numext::sinh(a);
 }
 
 /** \internal \returns the hyperbolic cosine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh(const Packet& a) {
-  EIGEN_USING_STD(cosh);
-  return cosh(a);
+  return numext::cosh(a);
 }
 
 /** \internal \returns the arc tangent of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan(const Packet& a) {
-  EIGEN_USING_STD(atan);
-  return atan(a);
+  return numext::atan(a);
 }
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet ptanh(const Packet& a) {
-  EIGEN_USING_STD(tanh);
-  return tanh(a);
+  return numext::tanh(a);
 }
 
 /** \internal \returns the arc tangent of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh(const Packet& a) {
-  EIGEN_USING_STD(atanh);
-  return atanh(a);
+  return numext::atanh(a);
 }
 
 /** \internal \returns the inverse hyperbolic sine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh(const Packet& a) {
-  EIGEN_USING_STD(asinh);
-  return asinh(a);
+  return numext::asinh(a);
 }
 
 /** \internal \returns the inverse hyperbolic cosine of \a a (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh(const Packet& a) {
-  EIGEN_USING_STD(acosh);
-  return acosh(a);
+  return numext::acosh(a);
 }
 
 /** \internal \returns the exp of \a a (coeff-wise) */

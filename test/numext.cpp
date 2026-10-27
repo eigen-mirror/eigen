@@ -23,6 +23,37 @@ struct Scalar {
 inline Scalar log10(Scalar x) { return {std::log10(x.value)}; }
 }  // namespace log10_adl_test
 
+namespace numext_dispatch_test {
+// Only numext supplies math for this scalar; generic packet fallbacks must not bypass it.
+struct Scalar {
+  double value;
+};
+}  // namespace numext_dispatch_test
+
+namespace Eigen {
+namespace numext {
+template <>
+inline numext_dispatch_test::Scalar sin(const numext_dispatch_test::Scalar& x) {
+  return {std::sin(x.value)};
+}
+template <>
+inline numext_dispatch_test::Scalar acosh(const numext_dispatch_test::Scalar& x) {
+  return {std::acosh(x.value)};
+}
+template <>
+inline numext_dispatch_test::Scalar atanh(const numext_dispatch_test::Scalar& x) {
+  return {std::atanh(x.value)};
+}
+}  // namespace numext
+}  // namespace Eigen
+
+void check_generic_packet_numext_dispatch() {
+  const numext_dispatch_test::Scalar x{0.25}, y{2.0};
+  VERIFY_IS_EQUAL(internal::psin(x).value, std::sin(x.value));
+  VERIFY_IS_EQUAL(internal::pacosh(y).value, std::acosh(y.value));
+  VERIFY_IS_EQUAL(internal::patanh(x).value, std::atanh(x.value));
+}
+
 template <typename T, typename U>
 bool check_if_equal_or_nans(const T& actual, const U& expected) {
   return (numext::equal_strict(actual, expected) || ((numext::isnan)(actual) && (numext::isnan)(expected)));
@@ -1127,7 +1158,26 @@ void check_shift() {
   }
 }
 
+template <typename Scalar>
+void check_low_precision_math_rounding() {
+  for (unsigned int bits = 0; bits < 65536; ++bits) {
+    const Scalar x = numext::bit_cast<Scalar>(numext::uint16_t(bits));
+    const Scalar actual[] = {numext::tanh(x), numext::sqrt(x), numext::log2(x)};
+    const Scalar expected[] = {Scalar(std::tanh(float(x))), Scalar(std::sqrt(float(x))), Scalar(std::log2(float(x)))};
+    for (int operation = 0; operation < 3; ++operation) {
+      if ((numext::isnan)(expected[operation])) {
+        VERIFY((numext::isnan)(actual[operation]));
+      } else {
+        VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(actual[operation]),
+                        numext::bit_cast<numext::uint16_t>(expected[operation]));
+      }
+    }
+  }
+}
+
 void check_scalar_tanh_saturation() {
+  check_low_precision_math_rounding<half>();
+  check_low_precision_math_rounding<bfloat16>();
   VERIFY_IS_EQUAL(internal::ptanh_float(20.0f), 1.0f);
   VERIFY_IS_EQUAL(internal::ptanh_float(-20.0f), -1.0f);
   VERIFY_IS_EQUAL(internal::ptanh_double(20.0), 1.0);
@@ -1311,6 +1361,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_shift<uint64_t>());
 
     CALL_SUBTEST(check_scalar_tanh_saturation());
+    CALL_SUBTEST(check_generic_packet_numext_dispatch());
     VERIFY_IS_EQUAL(numext::log10(log10_adl_test::Scalar{10.0}).value, 1.0);
     VERIFY_IS_APPROX(numext::log10(std::complex<double>(2.0, 3.0)), std::log10(std::complex<double>(2.0, 3.0)));
   }

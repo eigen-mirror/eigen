@@ -389,7 +389,7 @@ void SparseQR<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
  */
 template <typename MatrixType, typename OrderingType>
 void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
-  using std::abs;
+  using numext::abs;
 
   eigen_assert(m_analysisIsok && "analyzePattern() should be called before this step");
 
@@ -579,7 +579,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
         beta = numext::real(c0);
         tval(Qidx(0)) = Scalar(1);
       } else {
-        using std::sqrt;
+        using numext::sqrt;
         beta = sqrt(numext::abs2(c0) + sqrNorm);
         if (numext::real(c0) >= RealScalar(0)) beta = -beta;
         tval(Qidx(0)) = Scalar(1);
@@ -609,7 +609,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     // *examined* (and never rejects a pivot that lacks a replacement). A threshold at
     // the residual's noise floor would otherwise make the pivoting decision -- and
     // hence the result -- depend on floating-point contraction.
-    using std::sqrt;
+    using numext::sqrt;
     const RealScalar weakPivotTolerance = sqrt(NumTraits<RealScalar>::epsilon());
     const RealScalar maxReplaceablePivotThreshold = max2Norm * weakPivotTolerance;
     if (nonzeroCol < diagSize && canRejectColumn && m_useDefaultThreshold && absBeta >= pivotThreshold &&

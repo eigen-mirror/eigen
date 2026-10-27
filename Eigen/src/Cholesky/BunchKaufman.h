@@ -394,7 +394,7 @@ namespace internal {
  * (Bunch & Kaufman, 1977). */
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC inline RealScalar bunch_kaufman_alpha() {
-  using std::sqrt;
+  using numext::sqrt;
   return (RealScalar(1) + sqrt(RealScalar(17))) / RealScalar(8);
 }
 

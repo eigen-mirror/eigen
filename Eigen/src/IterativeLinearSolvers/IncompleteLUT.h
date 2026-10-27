@@ -31,7 +31,7 @@ namespace internal {
 template <typename VectorV, typename VectorI>
 Index QuickSplit(VectorV& row, VectorI& ind, Index ncut) {
   using RealScalar = typename VectorV::RealScalar;
-  using std::abs;
+  using numext::abs;
   using std::swap;
   Index mid;
   Index n = row.size(); /* length of the vector */
@@ -429,8 +429,8 @@ template <typename Scalar, typename StorageIndex>
 template <typename MatrixType_>
 void IncompleteLUT<Scalar, StorageIndex>::factorize(const MatrixType_& amat) {
   using internal::convert_index;
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   using std::swap;
 
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(amat, "The factorization should be done on a square matrix");

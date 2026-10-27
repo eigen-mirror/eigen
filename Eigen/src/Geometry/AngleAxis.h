@@ -135,8 +135,8 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
    * without constructing the full rotation matrix. */
   template <typename OtherVectorType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Vector3 _transformVector(const OtherVectorType& v) const {
-    EIGEN_USING_STD(sin)
-    EIGEN_USING_STD(cos)
+    using numext::cos;
+    using numext::sin;
     EIGEN_INTERNAL_ASSERT_SAME_SIZE(v, m_axis);
 
     // Rodrigues' rotation formula: v' = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
@@ -192,8 +192,8 @@ using AngleAxisd = AngleAxis<double>;
 template <typename Scalar>
 template <typename QuatDerived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const QuaternionBase<QuatDerived>& q) {
-  EIGEN_USING_STD(atan2)
-  EIGEN_USING_STD(abs)
+  using numext::abs;
+  using numext::atan2;
   Scalar n = q.vec().norm();
   if (n < NumTraits<Scalar>::epsilon()) n = q.vec().stableNorm();
 
@@ -248,8 +248,8 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
  */
 template <typename Scalar>
 typename AngleAxis<Scalar>::Matrix3 EIGEN_DEVICE_FUNC AngleAxis<Scalar>::toRotationMatrix(void) const {
-  EIGEN_USING_STD(sin)
-  EIGEN_USING_STD(cos)
+  using numext::cos;
+  using numext::sin;
   Matrix3 res;
   Vector3 sin_axis = sin(m_angle) * m_axis;
   Scalar c = cos(m_angle);

@@ -362,7 +362,7 @@ template <typename MatrixType, int Options>
 template <typename Derived>
 EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(
     const MatrixBase<Derived>& matrix, unsigned int computationOptions, internal::false_type) {
-  using std::abs;
+  using numext::abs;
 
   allocate(matrix.rows(), matrix.cols(), computationOptions);
 
@@ -509,7 +509,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   EIGEN_STATIC_ASSERT((NumTraits<typename DerivedE::Scalar>::IsComplex == 0),
                       THIS_FUNCTION_IS_NOT_FOR_COMPLEX_VALUED_MATRICES);
 
-  using std::abs;
+  using numext::abs;
   const Index n = diagonal.size();
   eigen_assert((n == 0 || superdiagonal.size() == n - 1) && "superdiagonal must have size diagonal.size() - 1");
 

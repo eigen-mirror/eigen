@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include <Eigen/Geometry>
 #include <Eigen/Jacobi>
 #include <Eigen/QR>
 #include <Eigen/SVD>
@@ -507,6 +508,43 @@ void test_autodiff_spline_interpolate() {
   }
 }
 
+template <typename Derivatives>
+void test_autodiff_hypot() {
+  using AD = AutoDiffScalar<Derivatives>;
+  for (int swapped = 0; swapped < 2; ++swapped) {
+    AD x(swapped ? 4.0 : 3.0), y(swapped ? 3.0 : 4.0);
+    x.derivatives() = Vector2d::UnitX();
+    y.derivatives() = Vector2d::UnitY();
+    const AD result = numext::hypot(x, y);
+    const double tolerance = 8 * NumTraits<double>::epsilon();
+    VERIFY(numext::abs(result.value() - 5.0) <= tolerance * 5.0);
+    VERIFY(numext::abs(result.derivatives()(0) - x.value() / 5.0) <= tolerance);
+    VERIFY(numext::abs(result.derivatives()(1) - y.value() / 5.0) <= tolerance);
+  }
+}
+
+template <typename Derivatives>
+void test_autodiff_geometry_atan2() {
+  using AD = AutoDiffScalar<Derivatives>;
+  using Vec3 = Matrix<AD, 3, 1>;
+  AD angle(0.6);
+  angle.derivatives() = Vector2d(1, 2);
+  const Quaternion<AD> rotation(AngleAxis<AD>(angle, Vec3::UnitZ()));
+  const AD distance = rotation.angularDistance(Quaternion<AD>::Identity());
+  const Vec3 axis = rotation.toScaledAxis();
+  const Matrix<AD, 2, 2> matrix = Rotation2D<AD>(angle).toRotationMatrix();
+  const AD recovered = Rotation2D<AD>(matrix).angle();
+  const double tolerance = 64 * NumTraits<double>::epsilon();
+  for (const AD* result : {&distance, &axis(2), &recovered}) {
+    VERIFY(numext::abs(result->value() - angle.value()) <= tolerance);
+    VERIFY((result->derivatives() - angle.derivatives()).cwiseAbs().maxCoeff() <= tolerance);
+  }
+  for (Index i = 0; i < 2; ++i) {
+    VERIFY_IS_EQUAL(axis(i).value(), 0.0);
+    VERIFY(axis(i).derivatives().isZero());
+  }
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<float>());
@@ -526,6 +564,10 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
   CALL_SUBTEST_5(test_autodiff_padded_block_derivatives());
   CALL_SUBTEST_5(test_autodiff_atan2_constant());
+  CALL_SUBTEST_5(test_autodiff_hypot<Vector2d>());
+  CALL_SUBTEST_5(test_autodiff_hypot<VectorXd>());
+  CALL_SUBTEST_5(test_autodiff_geometry_atan2<Vector2d>());
+  CALL_SUBTEST_5(test_autodiff_geometry_atan2<VectorXd>());
   CALL_SUBTEST_6(test_autodiff_makegivens<Vector2d>());
   CALL_SUBTEST_6(test_autodiff_makegivens<VectorXd>());
   CALL_SUBTEST_7(test_autodiff_householder_qr<Vector4d>());

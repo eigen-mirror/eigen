@@ -157,10 +157,10 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
   if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
   if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
 
-  EIGEN_USING_STD(sqrt);
   RealScalar p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
   RealScalar qp = numext::mini(y, x) / p;
+  using numext::sqrt;
   return p * sqrt(RealScalar(1) + qp * qp);
 }
 
@@ -272,8 +272,7 @@ EIGEN_DEVICE_FUNC constexpr ComplexT complex_log(const ComplexT& z) {
   // Computes complex log.
   using T = typename NumTraits<ComplexT>::Real;
   T a = numext::abs(z);
-  EIGEN_USING_STD(atan2);
-  T b = atan2(z.imag(), z.real());
+  T b = numext::atan2(z.imag(), z.real());
   // log|z| is finite where |z| itself overflows or rounds to a subnormal: scale z exactly by a power of two first.
   if (EIGEN_PREDICT_FALSE((numext::isinf)(a) && (numext::isfinite)(z.real()) && (numext::isfinite)(z.imag()))) {
     const T half = T(0.5);
@@ -292,8 +291,7 @@ template <typename ComplexT>
 EIGEN_DEVICE_FUNC ComplexT complex_log2(const ComplexT& z) {
   using T = typename NumTraits<ComplexT>::Real;
   const T a = numext::abs(z);
-  EIGEN_USING_STD(atan2);
-  const T b = T(EIGEN_LOG2E) * atan2(z.imag(), z.real());
+  const T b = T(EIGEN_LOG2E) * numext::atan2(z.imag(), z.real());
   if (EIGEN_PREDICT_FALSE((numext::isinf)(a) && (numext::isfinite)(z.real()) && (numext::isfinite)(z.imag()))) {
     const T half = T(0.5);
     return ComplexT(numext::log2(numext::abs(ComplexT(z.real() * half, z.imag() * half))) + T(1), b);

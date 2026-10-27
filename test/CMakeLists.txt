@@ -683,6 +683,7 @@ if(EIGEN_TEST_SYCL)
   include(SyclConfigureTesting)
 
   ei_add_test(sycl_basic)
+  ei_add_test(sycl_math)
   ei_add_test(sycl_include_order)
   set(EIGEN_SYCL OFF)
 endif()

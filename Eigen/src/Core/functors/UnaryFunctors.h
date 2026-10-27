@@ -1469,8 +1469,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, false, false> {
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
-    EIGEN_USING_STD(pow);
-    return static_cast<Scalar>(pow(a, m_exponent));
+    return static_cast<Scalar>(numext::pow(a, m_exponent));
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet packetOp(const Packet& a) const {
@@ -1493,6 +1492,7 @@ struct scalar_unary_pow_op<Scalar, ExponentScalar, false, false, true, false> {
                                 unary_pow::use_repeated_squaring<Scalar>(exponent)) {}
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar operator()(const Scalar& a) const {
     if (m_use_repeated_squaring) return unary_pow::int_pow(a, m_exponent);
+    // std::pow can promote the complex component for a wider exponent before casting back to Scalar.
     EIGEN_USING_STD(pow);
     return static_cast<Scalar>(pow(a, m_exponent));
   }

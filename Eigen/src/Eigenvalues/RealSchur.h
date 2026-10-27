@@ -472,7 +472,7 @@ inline typename MatrixType::Scalar RealSchur<MatrixType>::computeNormOfT(TMatrix
 template <typename MatrixType>
 template <typename TMatrix>
 inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(TMatrix& matT, Index iu, const Scalar& considerAsZero) {
-  using std::abs;
+  using numext::abs;
   Index res = iu;
   while (res > 0) {
     Scalar s = abs(matT.coeff(res - 1, res - 1)) + abs(matT.coeff(res, res));
@@ -500,8 +500,8 @@ template <typename MatrixType>
 template <typename TMatrix>
 EIGEN_REALSCHUR_SPLIT_INLINE void RealSchur<MatrixType>::splitOffTwoRows(TMatrix& matT, Index iu, bool computeU,
                                                                          const Scalar& exshift) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   const Index size = matT.cols();
 
   // The eigenvalues of the 2x2 matrix [a b; c d] are
@@ -536,8 +536,8 @@ template <typename MatrixType>
 template <typename TMatrix>
 inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index iter, Scalar& exshift,
                                                 Vector3s& shiftInfo) {
-  using std::abs;
-  using std::sqrt;
+  using numext::abs;
+  using numext::sqrt;
   shiftInfo.coeffRef(0) = matT.coeff(iu, iu);
   shiftInfo.coeffRef(1) = matT.coeff(iu - 1, iu - 1);
   shiftInfo.coeffRef(2) = matT.coeff(iu, iu - 1) * matT.coeff(iu - 1, iu);
@@ -574,7 +574,7 @@ template <typename MatrixType>
 template <typename TMatrix>
 inline void RealSchur<MatrixType>::initFrancisQRStep(TMatrix& matT, Index il, Index iu, const Vector3s& shiftInfo,
                                                      Index& im, Vector3s& firstHouseholderVector) {
-  using std::abs;
+  using numext::abs;
   Vector3s& v = firstHouseholderVector;  // alias to save typing
 
   for (im = iu - 2; im >= il; --im) {

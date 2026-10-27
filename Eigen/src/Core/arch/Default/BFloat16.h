@@ -733,14 +733,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 ldexp(const bfloat16& a, int expo
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log(const bfloat16& a) { return bfloat16(numext::log(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log1p(const bfloat16& a) { return bfloat16(numext::log1p(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log10(const bfloat16& a) { return bfloat16(numext::log10(float(a))); }
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log2(const bfloat16& a) {
-  return bfloat16(static_cast<float>(EIGEN_LOG2E) * numext::log(float(a)));
-}
-EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 sqrt(const bfloat16& a) {
-  // numext::sqrt<float> would be instantiated here, before the SSE specialization is declared.
-  EIGEN_USING_STD(sqrt);
-  return bfloat16(sqrt(float(a)));
-}
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 log2(const bfloat16& a) { return bfloat16(numext::log2(float(a))); }
+EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 sqrt(const bfloat16& a) { return bfloat16(numext::sqrt(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 cbrt(const bfloat16& a) { return bfloat16(numext::cbrt(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 pow(const bfloat16& a, const bfloat16& b) {
   return bfloat16(numext::pow(float(a), float(b)));
@@ -757,9 +751,8 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 atan(const bfloat16& a) { return 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 sinh(const bfloat16& a) { return bfloat16(numext::sinh(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 cosh(const bfloat16& a) { return bfloat16(numext::cosh(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 tanh(const bfloat16& a) {
-  // numext::tanh(float) can select an approximation instead of the math-library implementation.
-  EIGEN_USING_STD(tanh);
-  return bfloat16(tanh(float(a)));
+  // Select the scalar template, not the host fast-math overload, to preserve bfloat16 rounding.
+  return bfloat16(numext::tanh<float>(float(a)));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 asinh(const bfloat16& a) { return bfloat16(numext::asinh(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bfloat16 acosh(const bfloat16& a) { return bfloat16(numext::acosh(float(a))); }
