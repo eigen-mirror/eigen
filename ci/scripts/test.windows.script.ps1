@@ -51,6 +51,20 @@ if ($configured_root -and $configured_root -ne $job_root) {
   }
 }
 
+# Verify GPU availability for GPU test suites. Never allow non-GPU runners
+# to silently skip tests and report false-positive success.
+if ($EIGEN_CI_CTEST_LABEL -eq "gpu" -or $Env:CI_JOB_NAME -like "*:cuda*") {
+  $has_gpu = $false
+  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+    & nvidia-smi > $null 2>&1
+    if ($LASTEXITCODE -eq 0) { $has_gpu = $true }
+  }
+  if (-not $has_gpu) {
+    Write-Error "ERROR: GPU test suite requested, but no functional NVIDIA device or driver was detected by nvidia-smi."
+    exit 1
+  }
+}
+
 # Determine number of processors for parallel tests.
 $NPROC=${Env:NUMBER_OF_PROCESSORS}
 
