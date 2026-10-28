@@ -38,6 +38,16 @@ fi
 
 cd ${EIGEN_CI_BUILDDIR}
 
+# Verify GPU availability for GPU test suites. Never allow non-GPU runners
+# to silently skip tests and report false-positive success.
+if [[ "${EIGEN_CI_CTEST_LABEL}" == "gpu" || "${CI_JOB_NAME:-}" == *":cuda"* ]]; then
+  if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi >/dev/null 2>&1; then
+    echo "ERROR: GPU test suite requested, but no functional NVIDIA device or driver was detected by nvidia-smi." >&2
+    echo "Refusing to report a false-positive pass without GPU hardware." >&2
+    exit 1
+  fi
+fi
+
 target=""
 if [[ ${EIGEN_CI_CTEST_REGEX} ]]; then
   target="-R ${EIGEN_CI_CTEST_REGEX}"
