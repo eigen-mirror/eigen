@@ -66,14 +66,18 @@ struct IOFormat {
         fill(_fill),
         precision(_precision),
         flags(_flags) {
-    // TODO: check if rowPrefix, rowSuffix or rowSeparator contains a newline
-    // don't add rowSpacer if columns are not to be aligned
     if ((flags & DontAlignCols)) return;
-    int i = int(matPrefix.length()) - 1;
-    while (i >= 0 && matPrefix[i] != '\n') {
-      rowSpacer += ' ';
-      i--;
-    }
+
+    // Find last newline between consecutive rows.
+    const std::string between{rowSuffix + rowSeparator};
+    const std::size_t nlLastPos{between.rfind('\n')};
+    if (nlLastPos == std::string::npos) return;
+
+    // Align subsequent rows, accounting for characters after last newline.
+    const std::size_t indent{matPrefix.length() - (matPrefix.rfind('\n') + 1)};
+    const std::size_t carried{between.length() - (nlLastPos + 1)};
+
+    if (indent > carried) rowSpacer.assign(indent - carried, ' ');
   }
   std::string matPrefix, matSuffix;
   std::string rowPrefix, rowSuffix, rowSeparator, rowSpacer;
