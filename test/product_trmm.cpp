@@ -174,6 +174,27 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
   trmm<Scalar, Mode, TriOrder, OtherOrder, ResOrder, Dynamic>(rows, cols, otherCols);
 }
 
+// Maps whose types fix or bound some dimensions. When every maximum size is finite, TRMM packs into inline
+// buffers sized by the operands, so only the partially fixed maps are large.
+template <int Mode, typename LhsType, typename RhsType, typename DstType>
+void trmm_maps(Index rows, Index depth, Index cols) {
+  using Scalar = typename DstType::Scalar;
+  using LhsX = Matrix<Scalar, Dynamic, Dynamic, LhsType::IsRowMajor ? RowMajor : ColMajor>;
+  using RhsX = Matrix<Scalar, Dynamic, Dynamic, RhsType::IsRowMajor ? RowMajor : ColMajor>;
+  using DstX = Matrix<Scalar, Dynamic, Dynamic, DstType::IsRowMajor ? RowMajor : ColMajor>;
+  const LhsX lhs = LhsX::Random(rows, depth);
+  const RhsX rhs = RhsX::Random(depth, cols);
+  DstX dst(rows, cols);
+  const Map<const LhsType> lhs_map(lhs.data(), rows, depth);
+  const Map<const RhsType> rhs_map(rhs.data(), depth, cols);
+  Map<DstType> dst_map(dst.data(), rows, cols);
+  const LhsX tri_lhs = lhs.template triangularView<Mode>();
+  const RhsX tri_rhs = rhs.template triangularView<Mode>();
+
+  VERIFY_IS_APPROX(dst_map.noalias() = lhs_map.template triangularView<Mode>() * rhs_map, tri_lhs * rhs);
+  VERIFY_IS_APPROX(dst_map.noalias() = lhs_map * rhs_map.template triangularView<Mode>(), lhs * tri_rhs);
+}
+
 #define CALL_ALL_ORDERS(NB, SCALAR, MODE)                                             \
   EIGEN_CAT(CALL_SUBTEST_, NB)((trmm<SCALAR, MODE, ColMajor, ColMajor, ColMajor>())); \
   EIGEN_CAT(CALL_SUBTEST_, NB)((trmm<SCALAR, MODE, ColMajor, ColMajor, RowMajor>())); \
@@ -206,4 +227,21 @@ EIGEN_DECLARE_TEST(product_trmm) {
   CALL_SUBTEST_11((trmm<float, Lower, ColMajor, ColMajor, ColMajor>(1, 1, 1)));
   CALL_SUBTEST_14((trmm<std::complex<double>, Upper, RowMajor, ColMajor, RowMajor>(1, 1, 1)));
   CALL_SUBTEST_12((trmm<double, Upper, ColMajor, ColMajor, ColMajor>(EIGEN_TEST_MAX_SIZE, EIGEN_TEST_MAX_SIZE, 1)));
+  // Trapezoids spanning several depth blocks, with partial diagonal panels and packet tails.
+  CALL_SUBTEST_11((trmm<float, Lower, ColMajor, ColMajor, ColMajor>(513, 521, 517)));
+  CALL_SUBTEST_12((trmm<double, Upper, RowMajor, RowMajor, RowMajor>(521, 513, 517)));
+  CALL_SUBTEST_21((trmm<float, UnitLower, ColMajor, RowMajor, RowMajor>(521, 513, 517)));
+  CALL_SUBTEST_22((trmm<double, UnitUpper, RowMajor, ColMajor, ColMajor>(513, 521, 517)));
+  CALL_SUBTEST_31((trmm<float, StrictlyUpper, ColMajor, ColMajor, ColMajor>(521, 513, 517)));
+  CALL_SUBTEST_32((trmm<double, StrictlyLower, RowMajor, RowMajor, RowMajor>(513, 521, 517)));
+  CALL_SUBTEST_11((trmm_maps<Lower, Matrix<float, 24, 20>, Matrix<float, 20, 16>, Matrix<float, 24, 16>>(24, 20, 16)));
+  CALL_SUBTEST_12(
+      (trmm_maps<UnitUpper, Matrix<double, 13, 17, RowMajor>, Matrix<double, 17, 11>, Matrix<double, 13, 11, RowMajor>>(
+          13, 17, 11)));
+  CALL_SUBTEST_21(
+      (trmm_maps<Lower, Matrix<float, 517, Dynamic>, MatrixXf, Matrix<float, 517, Dynamic>>(517, 521, 513)));
+  CALL_SUBTEST_22(
+      (trmm_maps<StrictlyUpper, Matrix<double, Dynamic, Dynamic, RowMajor, 528, Dynamic>,
+                 Matrix<double, Dynamic, Dynamic, RowMajor>, Matrix<double, Dynamic, Dynamic, RowMajor, 528, Dynamic>>(
+          521, 513, 517)));
 }
