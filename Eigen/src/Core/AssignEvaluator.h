@@ -943,11 +943,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void resize_if_allowed(DstXprTyp
   }
 }
 
+// The evaluator a dense assignment reads its source through. The assignment loops index the source by the
+// destination's storage order and use only the source evaluator's flags, so a source may be evaluated in another
+// storage order than its expression reports; see the coefficient-based product in ProductEvaluators.h.
+template <typename DstEvaluatorType, typename SrcXprType, typename Enable = void>
+struct dense_assignment_source_evaluator {
+  using type = evaluator<SrcXprType>;
+};
+
 template <typename DstXprType, typename SrcXprType, typename Functor>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr void call_dense_assignment_loop(DstXprType& dst, const SrcXprType& src,
                                                                                 const Functor& func) {
   using DstEvaluatorType = evaluator<DstXprType>;
-  using SrcEvaluatorType = evaluator<SrcXprType>;
+  using SrcEvaluatorType = typename dense_assignment_source_evaluator<DstEvaluatorType, SrcXprType>::type;
 
   SrcEvaluatorType srcEvaluator(src);
 
@@ -1057,7 +1065,7 @@ template <typename Dst, typename Src, typename Func>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void call_restricted_packet_assignment_no_alias(Dst& dst, const Src& src,
                                                                                       const Func& func) {
   using DstEvaluatorType = evaluator<Dst>;
-  using SrcEvaluatorType = evaluator<Src>;
+  using SrcEvaluatorType = typename dense_assignment_source_evaluator<DstEvaluatorType, Src>::type;
   using Kernel = restricted_packet_dense_assignment_kernel<DstEvaluatorType, SrcEvaluatorType, Func>;
 
   EIGEN_STATIC_ASSERT_LVALUE(Dst)

@@ -46,11 +46,19 @@ struct traits<Product<Lhs, Rhs, Option>> {
     // FIXME: only needed by GeneralMatrixMatrixTriangular
     InnerSize = min_size_prefer_fixed(LhsTraits::ColsAtCompileTime, RhsTraits::RowsAtCompileTime),
 
-    // The storage order is somewhat arbitrary here. The correct one will be determined through the evaluator.
+    // Products served by the coefficient-based evaluator are evaluated in the storage order reported below, which
+    // Reverse, Redux, Block, FindCoeff and others use to index their packets and coefficients. Row-major * row-major
+    // is row-major there, so that the rhs rows can be vectorized. A dense product of inner size 1 is served by it in
+    // LazyCoeffBasedProductMode, and materialized otherwise; unlike product_type, this test agrees between host and
+    // device code.
+    CoeffBasedEval = Option == LazyProduct || (std::is_same<StorageKind, Dense>::value && InnerSize == 1),
+
+    // For other products the storage order is somewhat arbitrary: their evaluators materialize a PlainObject of it.
     Flags = (MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1)   ? RowMajorBit
             : (MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1) ? 0
             : (((LhsTraits::Flags & NoPreferredStorageOrderBit) && (RhsTraits::Flags & RowMajorBit)) ||
-               ((RhsTraits::Flags & NoPreferredStorageOrderBit) && (LhsTraits::Flags & RowMajorBit)))
+               ((RhsTraits::Flags & NoPreferredStorageOrderBit) && (LhsTraits::Flags & RowMajorBit)) ||
+               (CoeffBasedEval && (LhsTraits::Flags & RowMajorBit) && (RhsTraits::Flags & RowMajorBit)))
                 ? RowMajorBit
                 : NoPreferredStorageOrderBit
   };

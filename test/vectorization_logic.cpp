@@ -35,12 +35,16 @@ using internal::demangle_flags;
 using internal::demangle_traversal;
 using internal::demangle_unrolling;
 
+// The traits of the kernel that `Dst = Src` runs, with the source evaluator the assignment uses.
+template <typename Dst, typename Src>
+using assign_traits = internal::copy_using_evaluator_traits<
+    internal::evaluator<Dst>, typename internal::dense_assignment_source_evaluator<internal::evaluator<Dst>, Src>::type,
+    internal::assign_op<typename Dst::Scalar, typename Src::Scalar>>;
+
 template <typename Dst, typename Src>
 bool test_assign(const Dst&, const Src&, int traversal, int unrolling) {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Dst, Src);
-  typedef internal::copy_using_evaluator_traits<internal::evaluator<Dst>, internal::evaluator<Src>,
-                                                internal::assign_op<typename Dst::Scalar, typename Src::Scalar> >
-      traits;
+  using traits = assign_traits<Dst, Src>;
   // If traversal or unrolling are negative, ignore.
   bool res = traversal > -1 ? traits::Traversal == traversal : true;
   if (unrolling > -1) {
@@ -67,9 +71,7 @@ bool test_assign(const Dst&, const Src&, int traversal, int unrolling) {
 template <typename Dst, typename Src>
 bool test_assign(int traversal, int unrolling) {
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Dst, Src);
-  typedef internal::copy_using_evaluator_traits<internal::evaluator<Dst>, internal::evaluator<Src>,
-                                                internal::assign_op<typename Dst::Scalar, typename Src::Scalar> >
-      traits;
+  using traits = assign_traits<Dst, Src>;
   bool res = traits::Traversal == traversal && traits::Unrolling == unrolling;
   if (!res) {
     std::cerr << "Src: " << demangle_flags(Src::Flags) << std::endl;
@@ -222,6 +224,17 @@ struct vectorization_logic {
                          int(Matrix11::SizeAtCompileTime) * CostP11 <= BudgetP11        ? CompleteUnrolling
                          : int(Matrix11::InnerSizeAtCompileTime) * CostP11 <= BudgetP11 ? InnerUnrolling
                                                                                         : NoUnrolling));
+
+      // An assignment evaluates a lazy product along the destination's storage order, so it vectorizes whenever the
+      // operand along that order is contiguous, whatever order the product expression reports.
+      using MatrixC = Matrix<Scalar, PacketSize, PacketSize, ColMajor>;
+      using MatrixR = Matrix<Scalar, PacketSize, PacketSize, RowMajor>;
+      VERIFY(test_assign(MatrixC(), MatrixC().lazyProduct(MatrixC()), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(MatrixC(), MatrixC().lazyProduct(MatrixR()), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(MatrixR(), MatrixC().lazyProduct(MatrixR()), InnerVectorizedTraversal, -1));
+      VERIFY(test_assign(MatrixR(), MatrixR().lazyProduct(MatrixR()), InnerVectorizedTraversal, -1));
+      // The strided column cannot vectorize the product, the contiguous row can.
+      VERIFY(test_assign(MatrixR(), MatrixR().col(0).lazyProduct(MatrixR().row(0)), InnerVectorizedTraversal, -1));
     }
 
     VERIFY(test_redux(Vector1(), LinearVectorizedTraversal, CompleteUnrolling));
