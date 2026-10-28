@@ -232,9 +232,12 @@ void check_complex_packet_arithmetic() {
   VERIFY_IS_APPROX(conjugate_product, expected_conjugate_product);
 
   // numext::divide guards against intermediate overflow (c^2 + d^2) near max representable bounds.
+  // The divisor stays below max_val / 4: above that its reciprocal is subnormal, and GCC's
+  // -ffast-math vector division (rcpps plus a Newton step) flushes it to zero.
   const RealScalar max_val = (std::numeric_limits<RealScalar>::max)();
-  const Scalar big_num(RealScalar(0.9) * max_val, RealScalar(0));
-  const Scalar big_denom(max_val, RealScalar(0));
+  const RealScalar big_val = max_val / RealScalar(16);
+  const Scalar big_num(RealScalar(0.9) * big_val, RealScalar(0));
+  const Scalar big_denom(big_val, RealScalar(0));
   const Scalar safe_div_result = numext::divide(big_num, big_denom);
   VERIFY((numext::isfinite)(safe_div_result.real()));
   VERIFY_IS_APPROX(safe_div_result, Scalar(RealScalar(0.9), RealScalar(0)));
