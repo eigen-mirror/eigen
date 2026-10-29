@@ -315,7 +315,8 @@ class indexed_based_stl_reverse_iterator_base {
 
 template <typename XprType>
 class pointer_based_stl_iterator {
-  enum { is_lvalue = internal::is_lvalue<XprType>::value };
+  static constexpr bool is_lvalue = internal::is_lvalue<XprType>::value;
+  static constexpr bool is_contiguous = XprType::InnerStrideAtCompileTime == 1;
   using non_const_iterator = pointer_based_stl_iterator<std::remove_const_t<XprType>>;
   using const_iterator = pointer_based_stl_iterator<std::add_const_t<XprType>>;
   using other_iterator = std::conditional_t<std::is_const<XprType>::value, non_const_iterator, const_iterator>;
@@ -327,8 +328,8 @@ class pointer_based_stl_iterator {
   using difference_type = Index;
   using value_type = typename XprType::Scalar;
 #if EIGEN_COMP_CXXVER >= 20 && defined(__cpp_lib_concepts) && __cpp_lib_concepts >= 202002L
-  using iterator_category = std::conditional_t<XprType::InnerStrideAtCompileTime == 1, std::contiguous_iterator_tag,
-                                               std::random_access_iterator_tag>;
+  using iterator_category =
+      std::conditional_t<is_contiguous, std::contiguous_iterator_tag, std::random_access_iterator_tag>;
 #else
   using iterator_category = std::random_access_iterator_tag;
 #endif
@@ -337,28 +338,26 @@ class pointer_based_stl_iterator {
 
   pointer_based_stl_iterator() noexcept = default;
   pointer_based_stl_iterator(XprType& xpr, Index index) noexcept
-      : m_ptr(xpr.data() + index * xpr.innerStride()), m_incr(xpr.innerStride()) {}
+      : m_ptr(is_contiguous && index != 0 ? xpr.data() + index : xpr.data()),
+        m_index(is_contiguous ? 0 : index),
+        m_incr(xpr.innerStride()) {}
 
-  pointer_based_stl_iterator(const non_const_iterator& other) noexcept : m_ptr(other.m_ptr), m_incr(other.m_incr) {}
+  pointer_based_stl_iterator(const non_const_iterator& other) noexcept
+      : m_ptr(other.m_ptr), m_index(other.m_index), m_incr(other.m_incr) {}
 
   pointer_based_stl_iterator& operator=(const non_const_iterator& other) noexcept {
     m_ptr = other.m_ptr;
+    m_index = other.m_index;
     m_incr.setValue(other.m_incr);
     return *this;
   }
 
-  reference operator*() const { return *m_ptr; }
-  reference operator[](Index i) const { return *(m_ptr + i * m_incr.value()); }
-  pointer operator->() const { return m_ptr; }
+  reference operator*() const { return m_ptr[m_index.value() * m_incr.value()]; }
+  reference operator[](Index i) const { return m_ptr[(m_index.value() + i) * m_incr.value()]; }
+  pointer operator->() const { return m_index.value() == 0 ? m_ptr : m_ptr + m_index.value() * m_incr.value(); }
 
-  pointer_based_stl_iterator& operator++() {
-    m_ptr += m_incr.value();
-    return *this;
-  }
-  pointer_based_stl_iterator& operator--() {
-    m_ptr -= m_incr.value();
-    return *this;
-  }
+  pointer_based_stl_iterator& operator++() { return *this += 1; }
+  pointer_based_stl_iterator& operator--() { return *this -= 1; }
 
   pointer_based_stl_iterator operator++(int) {
     pointer_based_stl_iterator prev(*this);
@@ -393,41 +392,64 @@ class pointer_based_stl_iterator {
   }
 
   pointer_based_stl_iterator& operator+=(Index b) {
-    m_ptr += b * m_incr.value();
+    EIGEN_IF_CONSTEXPR (is_contiguous) {
+      if (b != 0) m_ptr += b;
+    } else {
+      m_index.setValue(m_index.value() + b);
+    }
     return *this;
   }
   pointer_based_stl_iterator& operator-=(Index b) {
-    m_ptr -= b * m_incr.value();
+    EIGEN_IF_CONSTEXPR (is_contiguous) {
+      if (b != 0) m_ptr -= b;
+    } else {
+      m_index.setValue(m_index.value() - b);
+    }
     return *this;
   }
 
   difference_type operator-(const pointer_based_stl_iterator& other) const {
-    return (m_ptr - other.m_ptr) / m_incr.value();
+    EIGEN_IF_CONSTEXPR (is_contiguous) return m_ptr == other.m_ptr ? 0 : m_ptr - other.m_ptr;
+    eigen_assert(m_ptr == other.m_ptr);
+    return m_index.value() - other.m_index.value();
   }
 
-  difference_type operator-(const other_iterator& other) const { return (m_ptr - other.m_ptr) / m_incr.value(); }
+  difference_type operator-(const other_iterator& other) const {
+    EIGEN_IF_CONSTEXPR (is_contiguous) return m_ptr == other.m_ptr ? 0 : m_ptr - other.m_ptr;
+    eigen_assert(m_ptr == other.m_ptr);
+    return m_index.value() - other.m_index.value();
+  }
 
-  bool operator==(const pointer_based_stl_iterator& other) const { return m_ptr == other.m_ptr; }
-  bool operator!=(const pointer_based_stl_iterator& other) const { return m_ptr != other.m_ptr; }
+  bool operator==(const pointer_based_stl_iterator& other) const {
+    return m_ptr == other.m_ptr && m_index.value() == other.m_index.value();
+  }
+  bool operator!=(const pointer_based_stl_iterator& other) const { return !(*this == other); }
   bool operator<(const pointer_based_stl_iterator& other) const {
-    // Iterator order follows the stride, not necessarily increasing addresses.
-    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+    EIGEN_IF_CONSTEXPR (is_contiguous) return m_ptr < other.m_ptr;
+    eigen_assert(m_ptr == other.m_ptr);
+    return m_index.value() < other.m_index.value();
   }
   bool operator<=(const pointer_based_stl_iterator& other) const { return !(other < *this); }
   bool operator>(const pointer_based_stl_iterator& other) const { return other < *this; }
   bool operator>=(const pointer_based_stl_iterator& other) const { return !(*this < other); }
 
-  bool operator==(const other_iterator& other) const { return m_ptr == other.m_ptr; }
-  bool operator!=(const other_iterator& other) const { return m_ptr != other.m_ptr; }
+  bool operator==(const other_iterator& other) const {
+    return m_ptr == other.m_ptr && m_index.value() == other.m_index.value();
+  }
+  bool operator!=(const other_iterator& other) const { return !(*this == other); }
   bool operator<(const other_iterator& other) const {
-    return m_incr.value() < 0 ? m_ptr > other.m_ptr : m_ptr < other.m_ptr;
+    EIGEN_IF_CONSTEXPR (is_contiguous) return m_ptr < other.m_ptr;
+    eigen_assert(m_ptr == other.m_ptr);
+    return m_index.value() < other.m_index.value();
   }
   bool operator<=(const other_iterator& other) const { return !(other < *this); }
   bool operator>(const other_iterator& other) const { return other < *this; }
   bool operator>=(const other_iterator& other) const { return !(*this < other); }
 
  protected:
+  // Only unit stride guarantees a valid end pointer. Otherwise keep the base pointer and a logical index.
   pointer m_ptr = nullptr;
+  internal::variable_if_dynamic<Index, is_contiguous ? 0 : Dynamic> m_index{0};
   internal::variable_if_dynamic<Index, XprType::InnerStrideAtCompileTime> m_incr{XprType::InnerStrideAtCompileTime};
 };
 

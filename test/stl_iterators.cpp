@@ -147,9 +147,9 @@ template <int Stride, int Options>
 void test_strided_iterator_order(Index stride) {
   using VectorType = Matrix<int, Dynamic, 1>;
   using MappedVector = Matrix<int, Options == RowMajor ? 1 : Dynamic, Options == RowMajor ? Dynamic : 1, Options>;
-  VectorType storage = VectorType::Random(20);
-  // Keep both forward and reverse end pointers within the allocation, including with negative strides.
-  Map<MappedVector, Unaligned, InnerStride<Stride>> map(storage.data() + 9, 4, InnerStride<Stride>(stride));
+  VectorType storage = VectorType::Random(3 * numext::abs(stride) + 1);
+  Map<MappedVector, Unaligned, InnerStride<Stride>> map(storage.data() + (stride < 0 ? storage.size() - 1 : 0), 4,
+                                                        InnerStride<Stride>(stride));
   const auto& constMap = map;
   check_begin_end_for_loop(map);
   check_iterator_order(map.begin(), map.begin(), map.size());
@@ -199,6 +199,65 @@ template <typename VectorwiseType>
 void check_subvector_const_conversion(VectorwiseType xpr) {
   check_iterator_const_conversion(xpr.begin(), xpr.end(), xpr.cbegin());
   check_iterator_const_conversion(xpr.rbegin(), xpr.rend(), xpr.crbegin());
+}
+
+template <typename Xpr>
+void check_iterator_endpoints(Xpr& xpr) {
+  check_begin_end_for_loop(xpr);
+  check_iterator_const_conversion(xpr.begin(), xpr.end(), xpr.cbegin());
+  auto it = xpr.begin();
+  it += xpr.size();
+  VERIFY(it == xpr.end());
+  it -= xpr.size();
+  VERIFY(it == xpr.begin());
+  for (Index i = 0; i < xpr.size(); ++i) {
+    VERIFY(it.operator->() == &xpr[i]);
+    VERIFY_IS_EQUAL(*it++, xpr[i]);
+  }
+  VERIFY(it == xpr.end());
+  for (Index i = xpr.size(); i > 0; --i) {
+    VERIFY_IS_EQUAL(*--it, xpr[i - 1]);
+    VERIFY_IS_EQUAL(xpr.end()[-i], xpr[xpr.size() - i]);
+  }
+  VERIFY(it == xpr.begin());
+  auto reverse = make_reverse_iterator(xpr.end());
+  for (Index i = xpr.size(); i > 0; --i) VERIFY_IS_EQUAL(*reverse++, xpr[i - 1]);
+  VERIFY(reverse == make_reverse_iterator(xpr.begin()));
+}
+
+void test_strided_iterator_endpoints() {
+  // A singleton needs no padding, regardless of the stride. Forming its end pointer can overflow.
+  int value = 42;
+  const Index largeStride = (std::numeric_limits<Index>::max)();
+  for (Index stride : {Index(2), Index(-2), largeStride, -largeStride}) {
+    Map<VectorXi, Unaligned, InnerStride<Dynamic>> singleton(&value, 1, InnerStride<Dynamic>(stride));
+    check_iterator_endpoints(singleton);
+    Map<VectorXi, Unaligned, InnerStride<Dynamic>> empty(nullptr, 0, InnerStride<Dynamic>(stride));
+    check_iterator_endpoints(empty);
+  }
+
+  int storage[] = {0, 1, 2, 3, 4};
+  Map<VectorXi, Unaligned, InnerStride<2>> map(storage, 3);
+  check_iterator_endpoints(map);
+  for (int& coefficient : map) coefficient = 7;
+  for (Index i = 0; i < 5; ++i) VERIFY_IS_EQUAL(storage[i], i % 2 == 0 ? 7 : int(i));
+  Map<VectorXi, Unaligned, InnerStride<-2>> reverseMap(storage + 4, 3);
+  check_iterator_endpoints(reverseMap);
+
+  Matrix<int, 3, 4, ColMajor> columns = Matrix<int, 3, 4, ColMajor>::Random();
+  Matrix<int, 3, 4, RowMajor> rows = columns;
+  for (Index i = 0; i < columns.rows(); ++i) {
+    auto row = columns.row(i);
+    check_iterator_endpoints(row);
+    auto it = columns.row(i).begin();
+    VERIFY_IS_EQUAL(*it, columns(i, 0));
+  }
+  for (Index j = 0; j < rows.cols(); ++j) {
+    auto column = rows.col(j);
+    check_iterator_endpoints(column);
+    auto it = rows.col(j).begin();
+    VERIFY_IS_EQUAL(*it, rows(0, j));
+  }
 }
 
 template <typename Scalar, int Rows, int Cols>
@@ -713,6 +772,13 @@ void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
   static_assert(std::ranges::contiguous_range<DynVectorType>);
   static_assert(std::ranges::contiguous_range<const DynVectorType>);
 
+  using StridedVector = Map<DynVectorType, Unaligned, InnerStride<2>>;
+  using RuntimeStridedVector = Map<DynVectorType, Unaligned, InnerStride<Dynamic>>;
+  static_assert(std::random_access_iterator<typename StridedVector::iterator>);
+  static_assert(std::random_access_iterator<typename RuntimeStridedVector::iterator>);
+  static_assert(!std::contiguous_iterator<typename StridedVector::iterator>);
+  static_assert(!std::contiguous_iterator<typename RuntimeStridedVector::iterator>);
+
   // Sized range.
   static_assert(std::ranges::sized_range<VectorType>);
   static_assert(std::ranges::sized_range<DynVectorType>);
@@ -725,6 +791,10 @@ void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
   // ranges::data returns the same pointer as data().
   VERIFY(std::ranges::data(v) == v.data());
   VERIFY(static_cast<Index>(std::ranges::size(v)) == v.size());
+  VERIFY(std::to_address(v.end()) == v.data() + v.size());
+  DynVectorType empty;
+  VERIFY(std::to_address(empty.begin()) == empty.data());
+  VERIFY(std::to_address(empty.end()) == empty.data());
 
   // Column expression of a column-major matrix is contiguous.
   ColMatrixType A = ColMatrixType::Random(rows, cols);
@@ -736,6 +806,7 @@ void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
 #endif
 
 EIGEN_DECLARE_TEST(stl_iterators) {
+  CALL_SUBTEST_1(test_strided_iterator_endpoints());
   for (Index stride : {-2, -1, 1, 2}) {
     CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, ColMajor>(stride)));
     CALL_SUBTEST_1((test_strided_iterator_order<Dynamic, RowMajor>(stride)));
