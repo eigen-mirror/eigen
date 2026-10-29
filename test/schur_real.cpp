@@ -30,9 +30,10 @@ void verifyIsQuasiTriangular(const MatrixType& T) {
   for (int row = 1; row < size; ++row) {
     if (!numext::is_exactly_zero(T(row, row - 1))) {
       VERIFY(row == size - 1 || numext::is_exactly_zero(T(row + 1, row)));
-      Scalar tr = T(row - 1, row - 1) + T(row, row);
-      Scalar det = T(row - 1, row - 1) * T(row, row) - T(row - 1, row) * T(row, row - 1);
-      VERIFY(4 * det > tr * tr);
+      // The test RealSchur::splitOffTwoRows keeps a block on: q = p^2 + bc < 0 with p = (a-d)/2.
+      // tr^2 - 4*det would cancel the common diagonal shift.
+      const Scalar half_difference = (T(row - 1, row - 1) - T(row, row)) / Scalar(2);
+      VERIFY(half_difference * half_difference + T(row - 1, row) * T(row, row - 1) < Scalar(0));
     }
   }
 }
@@ -299,6 +300,14 @@ void schur_workspace_ref() {
 }
 
 EIGEN_DECLARE_TEST(schur_real) {
+  // RealSchur keeps these blocks (|c| > eps*(|a|+|d|)), but tr^2 and 4*det round to the same value.
+  Matrix2f small_imaginary_float;
+  small_imaginary_float << 1, 0.1f, -3e-7f, 1;
+  CALL_SUBTEST_1(verifyIsQuasiTriangular(RealSchur<Matrix2f>(small_imaginary_float).matrixT()));
+  Matrix2d small_imaginary_double;
+  small_imaginary_double << 1, 0.1, -5e-16, 1;
+  CALL_SUBTEST_2(verifyIsQuasiTriangular(RealSchur<Matrix2d>(small_imaginary_double).matrixT()));
+
   CALL_SUBTEST_1((schur<Matrix4f>()));
   CALL_SUBTEST_2((schur<MatrixXd>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE / 4))));
   CALL_SUBTEST_3((schur<Matrix<float, 1, 1> >()));

@@ -25,9 +25,11 @@ void matrixRedux(const MatrixType& m) {
 
   MatrixType m1 = MatrixType::Random(rows, cols);
 
-  // The entries of m1 are uniformly distributed in [-1,1), so m1.prod() is very small. This may lead to test
-  // failures if we underflow into denormals. Thus, we scale so that entries are close to 1.
-  MatrixType m1_for_prod = MatrixType::Ones(rows, cols) + RealScalar(0.2) * m1;
+  // With N = rows*cols <= 10000, the spread s = min(0.2, 20/N) keeps every partial product above
+  // (1 - s)^N >= 0.8^100 ~ e^-22, even for all-negative inputs, and s = 0.2 up to N = 100 keeps a dropped
+  // factor visible to VERIFY_IS_APPROX. A fixed spread can underflow: for real inputs E[log(prod)] ~ -N.
+  const RealScalar product_scale = numext::mini(RealScalar(0.2), RealScalar(20) / RealScalar(rows * cols));
+  MatrixType m1_for_prod = MatrixType::Ones(rows, cols) + product_scale * m1;
 
   Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> m2(rows, rows);
   m2.setRandom();
@@ -58,8 +60,26 @@ void matrixRedux(const MatrixType& m) {
   VERIFY_IS_APPROX(m1.real().maxCoeff(), numext::real(maxc));
 
   // test that partial reduction works if nested expressions is forced to evaluate early
-  VERIFY_IS_APPROX((m1.matrix() * m1.matrix().transpose()).cwiseProduct(m2.matrix()).rowwise().sum().sum(),
-                   (m1.matrix() * m1.matrix().transpose()).eval().cwiseProduct(m2.matrix()).rowwise().sum().sum());
+  const Scalar nested = (m1.matrix() * m1.matrix().transpose()).cwiseProduct(m2.matrix()).rowwise().sum().sum();
+  const Scalar evaluated =
+      (m1.matrix() * m1.matrix().transpose()).eval().cwiseProduct(m2.matrix()).rowwise().sum().sum();
+  double absolute_sum = 0;
+  for (Index i = 0; i < rows; ++i) {
+    for (Index j = 0; j < rows; ++j) {
+      double absolute_dot = 0;
+      for (Index k = 0; k < cols; ++k)
+        absolute_dot += static_cast<double>(numext::abs(m1(i, k))) * static_cast<double>(numext::abs(m1(j, k)));
+      absolute_sum += absolute_dot * static_cast<double>(numext::abs(m2(i, j)));
+    }
+  }
+  // Cancellation requires an absolute bound. Each evaluation has depth cols + 2*rows + 1;
+  // compare two rounding paths, allowing four real rounding stages per complex term.
+  const double bound = (NumTraits<Scalar>::IsComplex ? 8.0 : 2.0) * double(cols + 2 * rows + 1) *
+                       static_cast<double>(NumTraits<RealScalar>::epsilon()) * absolute_sum;
+  VERIFY((numext::isfinite)(bound));
+  const double error = static_cast<double>(numext::abs(nested - evaluated));
+  if (!(error <= bound)) std::cerr << "nested reduction: error " << error << " > bound " << bound << std::endl;
+  VERIFY(error <= bound);
 
   // test slice vectorization assuming assign is ok
   Index r0 = internal::random<Index>(0, rows - 1);
@@ -98,7 +118,8 @@ void vectorRedux(const VectorType& w) {
   Index size = w.size();
 
   VectorType v = VectorType::Random(size);
-  VectorType v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;  // see comment above declaration of m1_for_prod
+  // Vectors have at most 100 entries, so a fixed spread around 1 keeps their products normal.
+  VectorType v_for_prod = VectorType::Ones(size) + Scalar(0.2) * v;
   if (Eigen::NumTraits<Scalar>::IsInteger) {
     Scalar kMaxVal = Scalar(8);
     v.array() = v.array() - kMaxVal * (v.array() / kMaxVal);
