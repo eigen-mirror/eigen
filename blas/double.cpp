@@ -20,25 +20,29 @@
 #include "level2_real_impl.h"
 #include "level3_impl.h"
 
-extern "C" double EIGEN_BLAS_FUNC_NAME(sdot)(EIGEN_BLAS_INT* n, float* x, EIGEN_BLAS_INT* incx, float* y,
-                                             EIGEN_BLAS_INT* incy) {
-  if (*n <= 0) return 0;
+extern "C" double EIGEN_BLAS_FUNC_NAME(sdot)(EIGEN_BLAS_INT* n_in, float* x, EIGEN_BLAS_INT* incx_in, float* y,
+                                             EIGEN_BLAS_INT* incy_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
 
-  if (*incx == 1 && *incy == 1)
-    return (make_vector(x, *n).cast<double>().cwiseProduct(make_vector(y, *n).cast<double>())).sum();
-  else if (*incx >= 0 && *incy >= 0)
-    return (make_vector(x, *n, *incx).cast<double>().cwiseProduct(make_vector(y, *n, *incy).cast<double>())).sum();
-  else if (*incx < 0 && *incy >= 0)
-    return (make_vector(x, *n, -*incx).reverse().cast<double>().cwiseProduct(make_vector(y, *n, *incy).cast<double>()))
+  if (n <= 0) return 0;
+
+  if (incx == 1 && incy == 1)
+    return (make_vector(x, n).cast<double>().cwiseProduct(make_vector(y, n).cast<double>())).sum();
+  else if (incx >= 0 && incy >= 0)
+    return (make_vector(x, n, incx).cast<double>().cwiseProduct(make_vector(y, n, incy).cast<double>())).sum();
+  else if (incx < 0 && incy >= 0)
+    return (make_vector(x, n, -incx).reverse().cast<double>().cwiseProduct(make_vector(y, n, incy).cast<double>()))
         .sum();
-  else if (*incx >= 0 && *incy < 0)
-    return (make_vector(x, *n, *incx).cast<double>().cwiseProduct(make_vector(y, *n, -*incy).reverse().cast<double>()))
+  else if (incx >= 0 && incy < 0)
+    return (make_vector(x, n, incx).cast<double>().cwiseProduct(make_vector(y, n, -incy).reverse().cast<double>()))
         .sum();
-  else if (*incx < 0 && *incy < 0)
-    return (make_vector(x, *n, -*incx)
+  else if (incx < 0 && incy < 0)
+    return (make_vector(x, n, -incx)
                 .reverse()
                 .cast<double>()
-                .cwiseProduct(make_vector(y, *n, -*incy).reverse().cast<double>()))
+                .cwiseProduct(make_vector(y, n, -incy).reverse().cast<double>()))
         .sum();
   else
     return 0;

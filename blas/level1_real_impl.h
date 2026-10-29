@@ -12,100 +12,117 @@
 
 // computes the sum of magnitudes of all vector elements or, for a complex vector x, the sum
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
-extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
+extern "C" RealScalar EIGEN_BLAS_FUNC_NAME(asum)(EIGEN_BLAS_INT* n_in, Scalar* px, EIGEN_BLAS_INT* incx_in) {
   //   std::cerr << "_asum " << *n << " " << *incx << "\n";
+
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  if (*n <= 0 || *incx <= 0) return 0;
+  if (n <= 0 || incx <= 0) return 0;
 
-  if (*incx == 1)
-    return make_vector(x, *n).cwiseAbs().sum();
+  if (incx == 1)
+    return make_vector(x, n).cwiseAbs().sum();
   else
-    return make_vector(x, *n, std::abs(*incx)).cwiseAbs().sum();
+    return make_vector(x, n, std::abs(incx)).cwiseAbs().sum();
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n, Scalar *px,
-                                                                   EIGEN_BLAS_INT *incx) {
-  if (*n <= 0 || *incx <= 0) return 0;
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT* n_in, Scalar* px,
+                                                                   EIGEN_BLAS_INT* incx_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  if (n <= 0 || incx <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
   Eigen::DenseIndex ret;
-  if (*incx == 1)
-    make_vector(x, *n).cwiseAbs().maxCoeff(&ret);
+  if (incx == 1)
+    make_vector(x, n).cwiseAbs().maxCoeff(&ret);
   else
-    make_vector(x, *n, std::abs(*incx)).cwiseAbs().maxCoeff(&ret);
+    make_vector(x, n, std::abs(incx)).cwiseAbs().maxCoeff(&ret);
   return EIGEN_BLAS_INT(ret) + 1;
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n, Scalar *px,
-                                                                   EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT* n_in, Scalar* px,
+                                                                   EIGEN_BLAS_INT* incx_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  if (n <= 0) return 0;
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
   Eigen::DenseIndex ret;
-  if (*incx == 1)
-    make_vector(x, *n).cwiseAbs().minCoeff(&ret);
+  if (incx == 1)
+    make_vector(x, n).cwiseAbs().minCoeff(&ret);
   else
-    make_vector(x, *n, std::abs(*incx)).cwiseAbs().minCoeff(&ret);
+    make_vector(x, n, std::abs(incx)).cwiseAbs().minCoeff(&ret);
   return EIGEN_BLAS_INT(ret) + 1;
 }
 
 // computes a vector-vector dot product.
-extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py,
-                                            EIGEN_BLAS_INT *incy) {
+extern "C" Scalar EIGEN_BLAS_FUNC_NAME(dot)(EIGEN_BLAS_INT* n_in, Scalar* px, EIGEN_BLAS_INT* incx_in, Scalar* py,
+                                            EIGEN_BLAS_INT* incy_in) {
   //   std::cerr << "_dot " << *n << " " << *incx << " " << *incy << "\n";
 
-  if (*n <= 0) return 0;
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
+
+  if (n <= 0) return 0;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
-  if (*incx == 1 && *incy == 1)
-    return make_vector(x, *n).dot(make_vector(y, *n));
-  else if (*incx >= 0 && *incy >= 0)
-    return make_vector(x, *n, *incx).dot(make_vector(y, *n, *incy));
-  else if (*incx < 0 && *incy >= 0)
-    return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, *incy));
-  else if (*incx >= 0 && *incy < 0)
-    return make_vector(x, *n, *incx).dot(make_vector(y, *n, -*incy).reverse());
-  else if (*incx < 0 && *incy < 0)
-    return make_vector(x, *n, -*incx).reverse().dot(make_vector(y, *n, -*incy).reverse());
+  if (incx == 1 && incy == 1)
+    return make_vector(x, n).dot(make_vector(y, n));
+  else if (incx >= 0 && incy >= 0)
+    return make_vector(x, n, incx).dot(make_vector(y, n, incy));
+  else if (incx < 0 && incy >= 0)
+    return make_vector(x, n, -incx).reverse().dot(make_vector(y, n, incy));
+  else if (incx >= 0 && incy < 0)
+    return make_vector(x, n, incx).dot(make_vector(y, n, -incy).reverse());
+  else if (incx < 0 && incy < 0)
+    return make_vector(x, n, -incx).reverse().dot(make_vector(y, n, -incy).reverse());
   else
     return 0;
 }
 
 // computes the Euclidean norm of a vector.
-extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0) return 0;
+extern "C" Scalar EIGEN_BLAS_FUNC_NAME(nrm2)(EIGEN_BLAS_INT* n_in, Scalar* px, EIGEN_BLAS_INT* incx_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  if (n <= 0) return 0;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
 
-  if (*incx == 1)
-    return make_vector(x, *n).stableNorm();
+  if (incx == 1)
+    return make_vector(x, n).stableNorm();
   else
-    return make_vector(x, *n, std::abs(*incx)).stableNorm();
+    return make_vector(x, n, std::abs(incx)).stableNorm();
 }
 
 EIGEN_BLAS_FUNC(rot)
-(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *pc, Scalar *ps) {
+(EIGEN_BLAS_INT* n_in, Scalar* px, EIGEN_BLAS_INT* incx_in, Scalar* py, EIGEN_BLAS_INT* incy_in, Scalar* pc,
+ Scalar* ps) {
   //   std::cerr << "_rot " << *n << " " << *incx << " " << *incy << "\n";
-  if (*n <= 0) return;
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
+  if (n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar c = *reinterpret_cast<Scalar *>(pc);
   Scalar s = *reinterpret_cast<Scalar *>(ps);
 
-  StridedVectorType vx(make_vector(x, *n, std::abs(*incx)));
-  StridedVectorType vy(make_vector(y, *n, std::abs(*incy)));
+  StridedVectorType vx(make_vector(x, n, std::abs(incx)));
+  StridedVectorType vy(make_vector(y, n, std::abs(incy)));
 
   Eigen::Reverse<StridedVectorType> rvx(vx);
   Eigen::Reverse<StridedVectorType> rvy(vy);
 
-  if (*incx < 0 && *incy > 0)
+  if (incx < 0 && incy > 0)
     Eigen::internal::apply_rotation_in_the_plane(rvx, vy, Eigen::JacobiRotation<Scalar>(c, s));
-  else if (*incx > 0 && *incy < 0)
+  else if (incx > 0 && incy < 0)
     Eigen::internal::apply_rotation_in_the_plane(vx, rvy, Eigen::JacobiRotation<Scalar>(c, s));
   else
     Eigen::internal::apply_rotation_in_the_plane(vx, vy, Eigen::JacobiRotation<Scalar>(c, s));
@@ -119,12 +136,16 @@ EIGEN_BLAS_FUNC(rot)
 //     -2: H = identity                           (no-op)
 //   param[1..4] = h11, h21, h12, h22
 EIGEN_BLAS_FUNC(rotm)
-(EIGEN_BLAS_INT *n, Scalar *px, EIGEN_BLAS_INT *incx, Scalar *py, EIGEN_BLAS_INT *incy, Scalar *param) {
+(EIGEN_BLAS_INT* n_in, Scalar* px, EIGEN_BLAS_INT* incx_in, Scalar* py, EIGEN_BLAS_INT* incy_in, Scalar* param) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
+
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
   Scalar flag = param[0];
-  if (*n <= 0 || flag == Scalar(-2)) return;
+  if (n <= 0 || flag == Scalar(-2)) return;
 
   Scalar h11, h12, h21, h22;
   if (flag < Scalar(0)) {
@@ -144,16 +165,16 @@ EIGEN_BLAS_FUNC(rotm)
     h22 = param[4];
   }
 
-  EIGEN_BLAS_INT kx = *incx > 0 ? 0 : (1 - *n) * *incx;
-  EIGEN_BLAS_INT ky = *incy > 0 ? 0 : (1 - *n) * *incy;
+  Eigen::Index kx = incx > 0 ? 0 : (1 - n) * incx;
+  Eigen::Index ky = incy > 0 ? 0 : (1 - n) * incy;
 
-  for (EIGEN_BLAS_INT i = 0; i < *n; ++i) {
+  for (Eigen::Index i = 0; i < n; ++i) {
     Scalar w = x[kx];
     Scalar z = y[ky];
     x[kx] = h11 * w + h12 * z;
     y[ky] = h21 * w + h22 * z;
-    kx += *incx;
-    ky += *incy;
+    kx += incx;
+    ky += incy;
   }
 }
 

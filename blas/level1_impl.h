@@ -11,24 +11,28 @@
 #include "common.h"
 
 EIGEN_BLAS_FUNC(axpy)
-(const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx, RealScalar *py,
- const EIGEN_BLAS_INT *incy) {
+(const EIGEN_BLAS_INT *n_in, const RealScalar *palpha, const RealScalar *px, const EIGEN_BLAS_INT *incx_in,
+ RealScalar *py, const EIGEN_BLAS_INT *incy_in) {
   const Scalar *x = reinterpret_cast<const Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
 
-  if (*n <= 0) return;
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
 
-  if (*incx == 1 && *incy == 1)
-    make_vector(y, *n) += alpha * make_vector(x, *n);
-  else if (*incx >= 0 && *incy >= 0)
-    make_vector(y, *n, *incy) += alpha * make_vector(x, *n, *incx);
-  else if (*incx >= 0 && *incy < 0)
-    make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, *incx).reverse();
-  else if (*incx < 0 && *incy >= 0)
-    make_vector(y, *n, *incy) += alpha * make_vector(x, *n, -*incx).reverse();
-  else if (*incx < 0 && *incy < 0)
-    make_vector(y, *n, -*incy) += alpha * make_vector(x, *n, -*incx);
+  if (n <= 0) return;
+
+  if (incx == 1 && incy == 1)
+    make_vector(y, n) += alpha * make_vector(x, n);
+  else if (incx >= 0 && incy >= 0)
+    make_vector(y, n, incy) += alpha * make_vector(x, n, incx);
+  else if (incx >= 0 && incy < 0)
+    make_vector(y, n, -incy) += alpha * make_vector(x, n, incx).reverse();
+  else if (incx < 0 && incy >= 0)
+    make_vector(y, n, incy) += alpha * make_vector(x, n, -incx).reverse();
+  else if (incx < 0 && incy < 0)
+    make_vector(y, n, -incy) += alpha * make_vector(x, n, -incx);
 }
 
 EIGEN_BLAS_FUNC(axpby)
@@ -38,7 +42,7 @@ EIGEN_BLAS_FUNC(axpby)
   Scalar *y = reinterpret_cast<Scalar *>(py);
   const Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   const Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
-  const EIGEN_BLAS_INT n = *pn;
+  const Eigen::Index n = *pn;
 
   if (n <= 0) return;
 
@@ -47,8 +51,8 @@ EIGEN_BLAS_FUNC(axpby)
     return;
   }
 
-  const EIGEN_BLAS_INT incx = *pincx;
-  const EIGEN_BLAS_INT incy = *pincy;
+  const Eigen::Index incx = *pincx;
+  const Eigen::Index incy = *pincy;
 
   if (incx == 1 && incy == 1)
     make_vector(y, n) = alpha * make_vector(x, n) + beta * make_vector(y, n);
@@ -62,30 +66,35 @@ EIGEN_BLAS_FUNC(axpby)
     make_vector(y, n, -incy) = alpha * make_vector(x, n, -incx) + beta * make_vector(y, n, -incy);
 }
 
-EIGEN_BLAS_FUNC(copy)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy) {
-  if (*n <= 0) return;
+EIGEN_BLAS_FUNC(copy)
+(EIGEN_BLAS_INT *n_in, RealScalar *px, EIGEN_BLAS_INT *incx_in, RealScalar *py, EIGEN_BLAS_INT *incy_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
+
+  if (n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
   // be careful, *incx==0 is allowed !!
-  if (*incx == 1 && *incy == 1)
-    make_vector(y, *n) = make_vector(x, *n);
-  else if (*incx == 0) {
+  if (incx == 1 && incy == 1)
+    make_vector(y, n) = make_vector(x, n);
+  else if (incx == 0) {
     // Broadcast: copy x[0] to all elements of y.
-    if (*incy < 0) y = y - (*n - 1) * (*incy);
-    for (EIGEN_BLAS_INT i = 0; i < *n; ++i) {
+    if (incy < 0) y = y - (n - 1) * incy;
+    for (Eigen::Index i = 0; i < n; ++i) {
       *y = *x;
-      y += *incy;
+      y += incy;
     }
-  } else if (*incx > 0 && *incy > 0)
-    make_vector(y, *n, *incy) = make_vector(x, *n, *incx);
-  else if (*incx > 0 && *incy < 0)
-    make_vector(y, *n, -*incy).reverse() = make_vector(x, *n, *incx);
-  else if (*incx < 0 && *incy > 0)
-    make_vector(y, *n, *incy) = make_vector(x, *n, -*incx).reverse();
-  else if (*incx < 0 && *incy < 0)
-    make_vector(y, *n, -*incy) = make_vector(x, *n, -*incx);
+  } else if (incx > 0 && incy > 0)
+    make_vector(y, n, incy) = make_vector(x, n, incx);
+  else if (incx > 0 && incy < 0)
+    make_vector(y, n, -incy).reverse() = make_vector(x, n, incx);
+  else if (incx < 0 && incy > 0)
+    make_vector(y, n, incy) = make_vector(x, n, -incx).reverse();
+  else if (incx < 0 && incy < 0)
+    make_vector(y, n, -incy) = make_vector(x, n, -incx);
 }
 
 EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar *ps) {
@@ -141,32 +150,38 @@ EIGEN_BLAS_FUNC(rotg)(RealScalar *pa, RealScalar *pb, RealScalar *pc, RealScalar
   //   *s = r.s();
 }
 
-EIGEN_BLAS_FUNC(scal)(EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx) {
-  if (*n <= 0 || *incx <= 0) return;
+EIGEN_BLAS_FUNC(scal)(EIGEN_BLAS_INT *n_in, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  if (n <= 0 || incx <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar alpha = *reinterpret_cast<Scalar *>(palpha);
 
-  if (*incx == 1)
-    make_vector(x, *n) *= alpha;
+  if (incx == 1)
+    make_vector(x, n) *= alpha;
   else
-    make_vector(x, *n, std::abs(*incx)) *= alpha;
+    make_vector(x, n, std::abs(incx)) *= alpha;
 }
 
-EIGEN_BLAS_FUNC(swap)(EIGEN_BLAS_INT *n, RealScalar *px, EIGEN_BLAS_INT *incx, RealScalar *py, EIGEN_BLAS_INT *incy) {
-  if (*n <= 0) return;
+EIGEN_BLAS_FUNC(swap)
+(EIGEN_BLAS_INT *n_in, RealScalar *px, EIGEN_BLAS_INT *incx_in, RealScalar *py, EIGEN_BLAS_INT *incy_in) {
+  const Eigen::Index n = *n_in;
+  const Eigen::Index incx = *incx_in;
+  const Eigen::Index incy = *incy_in;
+  if (n <= 0) return;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
   Scalar *y = reinterpret_cast<Scalar *>(py);
 
-  if (*incx == 1 && *incy == 1)
-    make_vector(y, *n).swap(make_vector(x, *n));
-  else if (*incx > 0 && *incy > 0)
-    make_vector(y, *n, *incy).swap(make_vector(x, *n, *incx));
-  else if (*incx > 0 && *incy < 0)
-    make_vector(y, *n, -*incy).reverse().swap(make_vector(x, *n, *incx));
-  else if (*incx < 0 && *incy > 0)
-    make_vector(y, *n, *incy).swap(make_vector(x, *n, -*incx).reverse());
-  else if (*incx < 0 && *incy < 0)
-    make_vector(y, *n, -*incy).reverse().swap(make_vector(x, *n, -*incx).reverse());
+  if (incx == 1 && incy == 1)
+    make_vector(y, n).swap(make_vector(x, n));
+  else if (incx > 0 && incy > 0)
+    make_vector(y, n, incy).swap(make_vector(x, n, incx));
+  else if (incx > 0 && incy < 0)
+    make_vector(y, n, -incy).reverse().swap(make_vector(x, n, incx));
+  else if (incx < 0 && incy > 0)
+    make_vector(y, n, incy).swap(make_vector(x, n, -incx).reverse());
+  else if (incx < 0 && incy < 0)
+    make_vector(y, n, -incy).reverse().swap(make_vector(x, n, -incx).reverse());
 }

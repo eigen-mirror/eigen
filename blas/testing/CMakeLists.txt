@@ -10,6 +10,12 @@ else()
   set(EIGEN_Fortran_COMPILER_WORKS OFF)
 endif()
 
+if(TARGET eigen_blas)
+  set(eigen_blas_lib eigen_blas)
+else()
+  set(eigen_blas_lib eigen_blas_static)
+endif()
+
 if(EIGEN_BUILD_BLAS_ILP64)
   if(TARGET eigen_blas_ilp64)
     set(eigen_blas_ilp64_lib eigen_blas_ilp64)
@@ -140,4 +146,15 @@ if(EIGEN_BUILD_BLAS_ILP64)
   add_test(NAME blas_ilp64 COMMAND blas_ilp64)
   add_dependencies(buildtests blas_ilp64)
 endif()
+
+add_executable(blas_large_stride blas_large_stride.cpp)
+target_include_directories(blas_large_stride PRIVATE "${Eigen_SOURCE_DIR}" "${Eigen_SOURCE_DIR}/test")
+target_link_libraries(blas_large_stride ${eigen_blas_lib})
+if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
+  target_link_libraries(blas_large_stride ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
+endif()
+# Windows has no rpath: the loader finds the DLL only beside the executable or on PATH.
+set_target_properties(blas_large_stride PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<TARGET_FILE_DIR:${eigen_blas_lib}>")
+add_test(NAME blas_large_stride COMMAND blas_large_stride)
+add_dependencies(buildtests blas_large_stride)
 
