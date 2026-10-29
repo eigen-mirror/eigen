@@ -258,8 +258,8 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
       bool break_normalization = false;
       for (Index q = 1; q <= S; ++q) {
         if (q == 1) {
-          // u = r;
-          u.leftCols(j + 1) = r.leftCols(j + 1);
+          // u = [r_0, ..., r_{j-1}]; u_j is computed below.
+          u.leftCols(j) = r.leftCols(j);
         } else {
           // u=[u_1;u_2;...;u_j]
           u.leftCols(j) = u.middleCols(1, j);
@@ -303,7 +303,11 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
       }
 
       if (!break_normalization) {
-        U = V;
+        U.topRows(N * (j + 1)) = V.topRows(N * (j + 1));
+      } else {
+        // Zero block row j rather than leaving it uninitialized (k == 0) or keeping a stale
+        // block from the previous cycle (k >= 1), so the next step's sigma and alpha are zero.
+        U.middleRows(N * j, N).setZero();
       }
     }
     if (reset_while) {
