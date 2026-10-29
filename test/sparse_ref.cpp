@@ -25,6 +25,7 @@ inline void on_temporary_creation() {
 
 #include "main.h"
 #include <Eigen/SparseCore>
+#include "sparse_test_helpers.h"
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                                                   \
   {                                                                                       \
@@ -80,50 +81,11 @@ EIGEN_DONT_INLINE void call_ref_5(const Ref<const SparseVector<float>> &a, const
   VERIFY_IS_EQUAL(a.toDense(), b.toDense());
 }
 
-template <typename T>
-typename T::Map make_map(T &xpr) {
-  return typename T::Map(xpr.rows(), xpr.cols(), xpr.nonZeros(), xpr.outerIndexPtr(), xpr.innerIndexPtr(),
-                         xpr.valuePtr(), xpr.innerNonZeroPtr());
-}
-
-template <typename T>
-auto innerpanel(T &xpr, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(xpr.middleRows(start, size))> {
-  return xpr.middleRows(start, size);
-}
-
-template <typename T>
-auto innerpanel(T &xpr, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(xpr.middleCols(start, size))> {
-  return xpr.middleCols(start, size);
-}
-
-template <typename T>
-auto innervector(T &xpr, Index index)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(xpr.row(index))> {
-  return xpr.row(index);
-}
-
-template <typename T>
-auto innervector(T &xpr, Index index) -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(xpr.col(index))> {
-  return xpr.col(index);
-}
-
 template <typename XprType, typename ExpectedType>
 void verify_coeffs(const XprType &xpr, const ExpectedType &expected) {
   auto coeffs = xpr.coeffs();
   VERIFY_IS_EQUAL(coeffs.size(), expected.size());
   for (Index i = 0; i < expected.size(); ++i) VERIFY_IS_EQUAL(coeffs[i], expected[i]);
-}
-
-template <int Options>
-void init_diag(SparseMatrix<float, Options> &m) {
-  m.resize(4, 4);
-  m.insert(0, 0) = 10.f;
-  m.insert(1, 1) = 20.f;
-  m.insert(2, 2) = 30.f;
-  m.insert(3, 3) = 40.f;
-  m.makeCompressed();
 }
 
 template <typename MatrixType>
@@ -245,8 +207,8 @@ void verify_noncompressed_inner_vector_binding(XprType &xpr, MatrixType &storage
   Array<float, 2, 1> expected;
   expected << 20.f, 30.f;
 
-  Ref<SparseVector<float>> inner(innervector(xpr, 2));
-  Ref<const SparseVector<float>> const_inner(innervector(xpr, 2));
+  Ref<SparseVector<float>> inner(innervec(xpr, 2));
+  Ref<const SparseVector<float>> const_inner(innervec(xpr, 2));
   const float updated0 = 211.f + variant;
   const float updated1 = 221.f + variant;
 
@@ -270,10 +232,10 @@ void verify_noncompressed_inner_vector_binding(XprType &xpr, MatrixType &storage
 
 void check_ref_slice_coeffs() {
   verify_ref_and_map<SparseMatrix<float>>(
-      [](SparseMatrix<float> &matrix) { init_diag(matrix); },
+      [](SparseMatrix<float> &matrix) { init_sparse_diagonal(matrix); },
       [](auto &xpr, auto &matrix, int variant) { verify_slice_coeffs(xpr, matrix, variant); });
   verify_ref_and_map<SparseMatrix<float, RowMajor>>(
-      [](SparseMatrix<float, RowMajor> &matrix) { init_diag(matrix); },
+      [](SparseMatrix<float, RowMajor> &matrix) { init_sparse_diagonal(matrix); },
       [](auto &xpr, auto &matrix, int variant) { verify_slice_coeffs(xpr, matrix, variant); });
 }
 

@@ -21,6 +21,7 @@ static long g_dense_op_sparse_count = 0;
 #endif
 
 #include "sparse.h"
+#include "sparse_test_helpers.h"
 
 template <typename SparseMatrixType>
 void sparse_basic(const SparseMatrixType& ref) {
@@ -730,10 +731,8 @@ void sparse_basic(const SparseMatrixType& ref) {
     initSparse<Scalar>(density, refMat2, m2);
     initSparse<Scalar>(density, refMat3, m3);
     {
-      Map<SparseMatrixType> mapMat2(m2.rows(), m2.cols(), m2.nonZeros(), m2.outerIndexPtr(), m2.innerIndexPtr(),
-                                    m2.valuePtr(), m2.innerNonZeroPtr());
-      Map<SparseMatrixType> mapMat3(m3.rows(), m3.cols(), m3.nonZeros(), m3.outerIndexPtr(), m3.innerIndexPtr(),
-                                    m3.valuePtr(), m3.innerNonZeroPtr());
+      auto mapMat2 = make_map(m2);
+      auto mapMat3 = make_map(m3);
       VERIFY_IS_APPROX(mapMat2 + mapMat3, refMat2 + refMat3);
       VERIFY_IS_APPROX(mapMat2 + mapMat3, refMat2 + refMat3);
     }
@@ -742,8 +741,7 @@ void sparse_basic(const SparseMatrixType& ref) {
     Index j = internal::random<Index>(0, cols - 1);
     m2.coeffRef(i, j) = 123;
     if (internal::random<bool>()) m2.makeCompressed();
-    Map<SparseMatrixType> mapMat2(rows, cols, m2.nonZeros(), m2.outerIndexPtr(), m2.innerIndexPtr(), m2.valuePtr(),
-                                  m2.innerNonZeroPtr());
+    auto mapMat2 = make_map(m2);
     VERIFY_IS_EQUAL(m2.coeff(i, j), Scalar(123));
     VERIFY_IS_EQUAL(mapMat2.coeff(i, j), Scalar(123));
     mapMat2.coeffRef(i, j) = -123;
@@ -896,7 +894,7 @@ void sparse_basic(const SparseMatrixType& ref) {
     initSparse<Scalar>(density, refMat2, m2);
     m2.makeCompressed();
     VectorXi res(rows);
-    for (Index i = 0; i < rows; ++i) res(i) = internal::random<int>(0, 3);
+    setRandomInRange(res, 0, 3);
     m2.reserve(res);
     m2 -= d.asDiagonal();
     refMat2 -= d.asDiagonal();

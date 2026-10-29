@@ -15,6 +15,7 @@
 #include "sparse.h"
 #include <Eigen/SparseExtra>
 #include <Eigen/KroneckerProduct>
+#include "structured_test_helpers.h"
 
 template <typename MatrixType>
 void check_dimension(const MatrixType& ab, const int rows, const int cols) {
@@ -204,35 +205,43 @@ EIGEN_DECLARE_TEST(kronecker_product) {
     initSparse(density, dB, sB);
 
     sC = kroneckerProduct(sA, sB);
-    dC = kroneckerProduct(dA, dB);
+    dC = reference_kron<float>(dA, dB);
+    VERIFY_IS_APPROX(kroneckerProduct(dA, dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC), dC);
 
     sC = kroneckerProduct(sA.transpose(), sB);
-    dC = kroneckerProduct(dA.transpose(), dB);
+    dC = reference_kron<float>(dA.transpose(), dB);
+    VERIFY_IS_APPROX(kroneckerProduct(dA.transpose(), dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC), dC);
 
     sC = kroneckerProduct(sA.transpose(), sB.transpose());
-    dC = kroneckerProduct(dA.transpose(), dB.transpose());
+    dC = reference_kron<float>(dA.transpose(), dB.transpose());
+    VERIFY_IS_APPROX(kroneckerProduct(dA.transpose(), dB.transpose()).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC), dC);
 
     sC = kroneckerProduct(sA, sB.transpose());
-    dC = kroneckerProduct(dA, dB.transpose());
+    dC = reference_kron<float>(dA, dB.transpose());
+    VERIFY_IS_APPROX(kroneckerProduct(dA, dB.transpose()).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC), dC);
 
     sC2 = kroneckerProduct(sA, sB);
-    dC = kroneckerProduct(dA, dB);
+    dC = reference_kron<float>(dA, dB);
+    VERIFY_IS_APPROX(kroneckerProduct(dA, dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC2), dC);
 
     sC2 = kroneckerProduct(dA, sB);
-    dC = kroneckerProduct(dA, dB);
+    dC = reference_kron<float>(dA, dB);
+    VERIFY_IS_APPROX(kroneckerProduct(dA, dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC2), dC);
 
     sC2 = kroneckerProduct(sA, dB);
-    dC = kroneckerProduct(dA, dB);
+    dC = reference_kron<float>(dA, dB);
+    VERIFY_IS_APPROX(kroneckerProduct(dA, dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC2), dC);
 
     sC2 = kroneckerProduct(2 * sA, sB);
-    dC = kroneckerProduct(2 * dA, dB);
+    dC = reference_kron<float>(2 * dA, dB);
+    VERIFY_IS_APPROX(kroneckerProduct(2 * dA, dB).eval(), dC);
     VERIFY_IS_APPROX(MatrixXf(sC2), dC);
   }
 }

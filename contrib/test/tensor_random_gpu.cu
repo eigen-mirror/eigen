@@ -15,26 +15,19 @@
 #define EIGEN_USE_GPU
 
 #include "main.h"
-#include <Eigen/Tensor>
+#include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 void test_gpu_random_uniform() {
   Tensor<float, 2> out(72, 97);
   out.setZero();
 
-  std::size_t out_bytes = out.size() * sizeof(float);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_out = fixture.tensor<float, 2, Eigen::Unaligned>(72, 97);
 
-  float* d_out;
-  gpuMalloc((void**)(&d_out), out_bytes);
+  gpu_out.device(fixture.device()) = gpu_out.random();
 
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<float, 2> > gpu_out(d_out, 72, 97);
-
-  gpu_out.device(gpu_device) = gpu_out.random();
-
-  assert(gpuMemcpyAsync(out.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
-  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  out = fixture.toHost(gpu_out);
 
   // For now we just check this code doesn't crash.
   // TODO: come up with a valid test of randomness
@@ -44,21 +37,13 @@ void test_gpu_random_normal() {
   Tensor<float, 2> out(72, 97);
   out.setZero();
 
-  std::size_t out_bytes = out.size() * sizeof(float);
-
-  float* d_out;
-  gpuMalloc((void**)(&d_out), out_bytes);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<float, 2> > gpu_out(d_out, 72, 97);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_out = fixture.tensor<float, 2, Eigen::Unaligned>(72, 97);
 
   Eigen::internal::NormalRandomGenerator<float> gen(true);
-  gpu_out.device(gpu_device) = gpu_out.random(gen);
+  gpu_out.device(fixture.device()) = gpu_out.random(gen);
 
-  assert(gpuMemcpyAsync(out.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
-  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  out = fixture.toHost(gpu_out);
 }
 
 template <typename Scalar>
@@ -66,20 +51,12 @@ void test_gpu_random_uniform_range(int rows, int cols) {
   Tensor<Scalar, 2> out(rows, cols);
   out.setZero();
 
-  std::size_t out_bytes = out.size() * sizeof(Scalar);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_out = fixture.tensor<Scalar, 2, Eigen::Unaligned>(rows, cols);
 
-  Scalar* d_out;
-  gpuMalloc((void**)(&d_out), out_bytes);
+  gpu_out.device(fixture.device()) = gpu_out.random();
 
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 2> > gpu_out(d_out, rows, cols);
-
-  gpu_out.device(gpu_device) = gpu_out.random();
-
-  assert(gpuMemcpyAsync(out.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
-  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  out = fixture.toHost(gpu_out);
 
   // All uniform draws must lie in [0, 1).
   int num_out_of_range = 0;
@@ -94,21 +71,13 @@ void test_gpu_random_normal_all_finite(int rows, int cols) {
   Tensor<Scalar, 2> out(rows, cols);
   out.setZero();
 
-  std::size_t out_bytes = out.size() * sizeof(Scalar);
-
-  Scalar* d_out;
-  gpuMalloc((void**)(&d_out), out_bytes);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 2> > gpu_out(d_out, rows, cols);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_out = fixture.tensor<Scalar, 2, Eigen::Unaligned>(rows, cols);
 
   Eigen::internal::NormalRandomGenerator<Scalar> gen(true);
-  gpu_out.device(gpu_device) = gpu_out.random(gen);
+  gpu_out.device(fixture.device()) = gpu_out.random(gen);
 
-  assert(gpuMemcpyAsync(out.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) == gpuSuccess);
-  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  out = fixture.toHost(gpu_out);
 
   // Regression test for 16-bit types: the deviate must be computed in float,
   // otherwise log(0) in the rejection algorithm emits NaN/Inf.
@@ -123,17 +92,10 @@ void test_gpu_random_normal_all_finite(int rows, int cols) {
 // takes the packet path, Unaligned the scalar one.
 template <typename Scalar, int MapOptions, typename Generator>
 static Tensor<Scalar, 1> device_random_fill(int n, const Generator& gen) {
-  const std::size_t bytes = n * sizeof(Scalar);
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-  Scalar* d_out = static_cast<Scalar*>(gpu_device.allocate(bytes));
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 1>, MapOptions> gpu_out(d_out, n);
-  gpu_out.device(gpu_device) = gpu_out.random(gen);
-  Tensor<Scalar, 1> out(n);
-  gpu_device.memcpyDeviceToHost(out.data(), d_out, bytes);
-  gpu_device.synchronize();
-  gpu_device.deallocate(d_out);
-  return out;
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_out = fixture.tensor<Scalar, 1, MapOptions>(n);
+  gpu_out.device(fixture.device()) = gpu_out.random(gen);
+  return fixture.toHost(gpu_out);
 }
 
 // The generator travels into the kernel by value, so every thread starts from the same state, yet each element has

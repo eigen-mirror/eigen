@@ -644,9 +644,8 @@ void selfadjointeigensolver_diagonal(const MatrixType& m) {
 
   // Random diagonal matrix.
   MatrixType diag = MatrixType::Zero(n, n);
-  for (Index i = 0; i < n; ++i) {
-    diag(i, i) = internal::random<RealScalar>(-100, 100);
-  }
+  auto diagonal = diag.diagonal();
+  setRandomInRange(diagonal, RealScalar(-100), RealScalar(100));
   selfadjointeigensolver_essential_check(diag);
 
   // The eigenvalues should be the diagonal entries, sorted.

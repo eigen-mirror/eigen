@@ -13,6 +13,7 @@
 #include "main.h"
 
 #include <Eigen/Tensor>
+#include "tensor_test_helpers.h"
 #include "../Eigen/SpecialFunctions"
 
 using Eigen::ColMajor;
@@ -46,11 +47,7 @@ void DeviceAssign(Device& d, Dst& dst, Expr expr) {
 
 template <int NumDims>
 static array<Index, NumDims> RandomDims(int min_dim = 1, int max_dim = 20) {
-  array<Index, NumDims> dims;
-  for (int i = 0; i < NumDims; ++i) {
-    dims[i] = internal::random<int>(min_dim, max_dim);
-  }
-  return dims;
+  return randomTensorDims<NumDims, int>(min_dim, max_dim);
 }
 
 template <typename T, int NumDims, typename Device, bool Vectorizable, TiledEvaluation Tiling, int Layout>

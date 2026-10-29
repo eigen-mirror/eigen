@@ -9,45 +9,8 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "sparse.h"
+#include "sparse_test_helpers.h"
 #include "AnnoyingScalar.h"
-
-template <typename T>
-std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, typename T::RowXpr> innervec(T& A, Index i) {
-  return A.row(i);
-}
-
-template <typename T>
-std::enable_if_t<(T::Flags & RowMajorBit) == 0, typename T::ColXpr> innervec(T& A, Index i) {
-  return A.col(i);
-}
-
-template <typename T>
-typename T::Map make_map(T& A) {
-  return typename T::Map(A.rows(), A.cols(), A.nonZeros(), A.outerIndexPtr(), A.innerIndexPtr(), A.valuePtr(),
-                         A.innerNonZeroPtr());
-}
-
-template <typename T>
-auto innerpanel(T& A, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == RowMajorBit, decltype(A.middleRows(start, size))> {
-  return A.middleRows(start, size);
-}
-
-template <typename T>
-auto innerpanel(T& A, Index start, Index size)
-    -> std::enable_if_t<(T::Flags & RowMajorBit) == 0, decltype(A.middleCols(start, size))> {
-  return A.middleCols(start, size);
-}
-
-template <int Options>
-void init_inner_panel_diag(SparseMatrix<double, Options>& m) {
-  m.resize(4, 4);
-  m.insert(0, 0) = 10.0;
-  m.insert(1, 1) = 20.0;
-  m.insert(2, 2) = 30.0;
-  m.insert(3, 3) = 40.0;
-  m.makeCompressed();
-}
 
 template <typename MatrixType>
 std::enable_if_t<(MatrixType::Flags & RowMajorBit) == 0> init_inner_panel_offset(MatrixType& m) {
@@ -154,10 +117,10 @@ void verify_inner_vector_reverse_and_sortedness(XprType& xpr, MatrixType& storag
 
 void check_inner_panel_compressed_api() {
   verify_plain_ref_map<SparseMatrix<double>>(
-      [](SparseMatrix<double>& matrix) { init_inner_panel_diag(matrix); },
+      [](SparseMatrix<double>& matrix) { init_sparse_diagonal(matrix); },
       [](auto& xpr, auto& matrix, int variant) { verify_inner_panel_coeffs(xpr, matrix, variant); });
   verify_plain_ref_map<SparseMatrix<double, RowMajor>>(
-      [](SparseMatrix<double, RowMajor>& matrix) { init_inner_panel_diag(matrix); },
+      [](SparseMatrix<double, RowMajor>& matrix) { init_sparse_diagonal(matrix); },
       [](auto& xpr, auto& matrix, int variant) { verify_inner_panel_coeffs(xpr, matrix, variant); });
   verify_plain_ref_map<SparseMatrix<double>>(
       [](SparseMatrix<double>& matrix) { init_inner_panel_offset(matrix); },

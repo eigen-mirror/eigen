@@ -15,6 +15,7 @@
 #include <set>
 
 #include <Eigen/Tensor>
+#include "tensor_test_helpers.h"
 
 using Eigen::ColMajor;
 using Eigen::Index;
@@ -27,24 +28,6 @@ static TensorOpCost zeroCost() { return {0, 0, 0}; }
 template <typename T>
 static const T& choose(int layout, const T& col, const T& row) {
   return layout == ColMajor ? col : row;
-}
-
-static TensorBlockShapeType RandomShape() {
-  return internal::random<bool>() ? TensorBlockShapeType::kUniformAllDims : TensorBlockShapeType::kSkewedInnerDims;
-}
-
-template <int NumDims>
-static size_t RandomTargetSize(const DSizes<Index, NumDims>& dims) {
-  return internal::random<size_t>(1, dims.TotalSize());
-}
-
-template <int NumDims>
-static DSizes<Index, NumDims> RandomDims() {
-  array<Index, NumDims> dims;
-  for (int i = 0; i < NumDims; ++i) {
-    dims[i] = internal::random<int>(1, 20);
-  }
-  return DSizes<Index, NumDims>(dims);
 }
 
 template <typename T>
@@ -118,14 +101,14 @@ template <typename T, int NumDims, int Layout>
 static void test_block_mapper_maps_every_element() {
   typedef internal::TensorBlockMapper<NumDims, Layout> TensorBlockMapper;
 
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>();
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims, int>();
   DSizes<Index, NumDims> strides = internal::strides<Layout>(dims);
 
   // Keep track of elements indices available via block access.
   std::set<Index> coeff_set;
 
   // Try different combinations of block types and sizes.
-  TensorBlockMapper block_mapper(dims, {RandomShape(), RandomTargetSize(dims), zeroCost()});
+  TensorBlockMapper block_mapper(dims, {randomTensorBlockShape(), randomTensorBlockSize(dims), zeroCost()});
 
   for (int i = 0; i < block_mapper.blockCount(); ++i) {
     auto block = block_mapper.blockDescriptor(i);

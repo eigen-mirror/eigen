@@ -11,19 +11,9 @@
 #include "fp_control.h"
 
 #include <contrib/Eigen/StructuredMatrices>
+#include "structured_test_helpers.h"
 
 using namespace Eigen;
-
-// Reference dense Kronecker product, built entry-wise and independently of both
-// the operator under test and the KroneckerProduct module.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, Dynamic> reference_kron(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                const Matrix<Scalar, Dynamic, Dynamic>& B) {
-  Matrix<Scalar, Dynamic, Dynamic> K(A.rows() * B.rows(), A.cols() * B.cols());
-  for (Index i = 0; i < K.rows(); ++i)
-    for (Index j = 0; j < K.cols(); ++j) K(i, j) = A(i / B.rows(), j / B.cols()) * B(i % B.rows(), j % B.cols());
-  return K;
-}
 
 template <typename Scalar>
 void test_kron_product(Index m1, Index n1, Index m2, Index n2) {

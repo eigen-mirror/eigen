@@ -928,7 +928,7 @@ void cholesky_determinant(Index size) {
 
   MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
   RealVectorType d(size);
-  for (Index i = 0; i < size; ++i) d(i) = internal::random<RealScalar>(RealScalar(1.2), RealScalar(2.8));
+  setRandomInRange(d, RealScalar(1.2), RealScalar(2.8));
 
   const RealScalar absdet = d.prod();
   const RealScalar logabsdet = d.array().log().sum();

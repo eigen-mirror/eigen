@@ -98,7 +98,48 @@ void check_random_matrix(const MatrixType &m) {
   check_generateRandomMatrixSvs<MatrixType, RealScalar, RealVectorType>(rows, cols, diag_size, min_svs, max_svs);
 }
 
+template <typename DenseType>
+void check_random_range() {
+  using Scalar = typename DenseType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  DenseType matrix = DenseType::Constant(4, 5, Scalar(99));
+  auto block = matrix.template block<2, 3>(1, 1);
+  setRandomInRange(block, RealScalar(2), RealScalar(4));
+  for (Index i = 0; i < matrix.rows(); ++i) {
+    for (Index j = 0; j < matrix.cols(); ++j) {
+      if (i >= 1 && i < 3 && j >= 1 && j < 4) {
+        VERIFY_GE(numext::real(matrix(i, j)), RealScalar(2));
+        VERIFY_LE(numext::real(matrix(i, j)), RealScalar(4));
+        VERIFY_IS_EQUAL(numext::imag(matrix(i, j)), RealScalar(0));
+      } else {
+        VERIFY_IS_EQUAL(matrix(i, j), Scalar(99));
+      }
+    }
+  }
+
+  const DenseType generated = RandomMatrix<DenseType>(4, 5, RealScalar(2), RealScalar(4));
+  VERIFY_IS_EQUAL(generated.rows(), 4);
+  VERIFY_IS_EQUAL(generated.cols(), 5);
+  VERIFY((generated.real().array() >= RealScalar(2)).all());
+  VERIFY((generated.real().array() <= RealScalar(4)).all());
+  VERIFY(generated.imag().isZero());
+
+  setRandomDataInRange(matrix, Scalar(3), Scalar(3));
+  VERIFY_IS_CWISE_EQUAL(matrix, DenseType::Constant(4, 5, Scalar(3)));
+  auto empty = matrix.block(0, 0, 0, 0);
+  setRandomInRange(empty, RealScalar(2), RealScalar(4));
+  VERIFY_IS_CWISE_EQUAL(matrix, DenseType::Constant(4, 5, Scalar(3)));
+}
+
 EIGEN_DECLARE_TEST(random_matrix) {
+  CALL_SUBTEST_17((check_random_range<Array<float, 4, 5, ColMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Array<double, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Array<int, 4, 5, RowMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Array<unsigned char, Dynamic, Dynamic, ColMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Array<std::complex<float>, 4, 5, ColMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Array<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Matrix<float, 4, 5, RowMajor>>()));
+  CALL_SUBTEST_17((check_random_range<Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor>>()));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(check_random_matrix(Matrix<float, 1, 1>()));
     CALL_SUBTEST_2(check_random_matrix(Matrix<float, 4, 4>()));

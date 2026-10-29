@@ -11,6 +11,7 @@
 #include "main.h"
 #include <Eigen/StdVector>
 #include <Eigen/Geometry>
+#include "stl_container_test_helpers.h"
 
 template <typename MatrixType>
 void check_stdvector_matrix(const MatrixType& m) {
@@ -18,92 +19,23 @@ void check_stdvector_matrix(const MatrixType& m) {
   Index cols = m.cols();
   MatrixType x = MatrixType::Random(rows, cols), y = MatrixType::Random(rows, cols);
   std::vector<MatrixType, Eigen::aligned_allocator<MatrixType> > v(10, MatrixType::Zero(rows, cols)), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-  VERIFY((std::uintptr_t) & (v[22]) == (std::uintptr_t) & (v[21]) + sizeof(MatrixType));
-
-  // do a lot of push_back such that the vector gets internally resized
-  // (with memory reallocation)
-  MatrixType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i] == w[(i - 23) % w.size()]);
-  }
+  check_stl_container_indexed(v, w, x, y);
 }
 
 template <typename TransformType>
 void check_stdvector_transform(const TransformType&) {
-  typedef typename TransformType::MatrixType MatrixType;
+  using MatrixType = typename TransformType::MatrixType;
   TransformType x(MatrixType::Random()), y(MatrixType::Random());
   std::vector<TransformType, Eigen::aligned_allocator<TransformType> > v(10), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-  VERIFY((std::uintptr_t) & (v[22]) == (std::uintptr_t) & (v[21]) + sizeof(TransformType));
-
-  // do a lot of push_back such that the vector gets internally resized
-  // (with memory reallocation)
-  TransformType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i].matrix() == w[(i - 23) % w.size()].matrix());
-  }
+  check_stl_container_indexed(v, w, x, y);
 }
 
 template <typename QuaternionType>
 void check_stdvector_quaternion(const QuaternionType&) {
-  typedef typename QuaternionType::Coefficients Coefficients;
+  using Coefficients = typename QuaternionType::Coefficients;
   QuaternionType x(Coefficients::Random()), y(Coefficients::Random()), qi = QuaternionType::Identity();
   std::vector<QuaternionType, Eigen::aligned_allocator<QuaternionType> > v(10, qi), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-  VERIFY((std::uintptr_t) & (v[22]) == (std::uintptr_t) & (v[21]) + sizeof(QuaternionType));
-
-  // do a lot of push_back such that the vector gets internally resized
-  // (with memory reallocation)
-  QuaternionType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i].coeffs() == w[(i - 23) % w.size()].coeffs());
-  }
+  check_stl_container_indexed(v, w, x, y);
 }
 
 // the code below triggered an invalid warning with gcc >= 7

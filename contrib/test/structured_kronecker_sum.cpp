@@ -10,18 +10,11 @@
 #include "main.h"
 
 #include <contrib/Eigen/StructuredMatrices>
+#include "structured_test_helpers.h"
 
 using namespace Eigen;
 
 // Dense references built entry-wise, independently of the operators under test.
-template <typename Scalar>
-Matrix<Scalar, Dynamic, Dynamic> reference_kron(const Matrix<Scalar, Dynamic, Dynamic>& A,
-                                                const Matrix<Scalar, Dynamic, Dynamic>& B) {
-  Matrix<Scalar, Dynamic, Dynamic> K(A.rows() * B.rows(), A.cols() * B.cols());
-  for (Index i = 0; i < K.rows(); ++i)
-    for (Index j = 0; j < K.cols(); ++j) K(i, j) = A(i / B.rows(), j / B.cols()) * B(i % B.rows(), j % B.cols());
-  return K;
-}
 
 template <typename Scalar>
 Matrix<Scalar, Dynamic, Dynamic> reference_ksum(const Matrix<Scalar, Dynamic, Dynamic>& A,

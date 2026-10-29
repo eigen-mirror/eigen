@@ -13,6 +13,7 @@
 
 #include <Eigen/StdList>
 #include <Eigen/Geometry>
+#include "stl_container_test_helpers.h"
 
 EIGEN_DEFINE_STL_LIST_SPECIALIZATION(Vector4f)
 
@@ -26,127 +27,29 @@ EIGEN_DEFINE_STL_LIST_SPECIALIZATION(Affine3d)
 EIGEN_DEFINE_STL_LIST_SPECIALIZATION(Quaternionf)
 EIGEN_DEFINE_STL_LIST_SPECIALIZATION(Quaterniond)
 
-template <class Container, class Position>
-typename Container::iterator get(Container& c, Position position) {
-  typename Container::iterator it = c.begin();
-  std::advance(it, position);
-  return it;
-}
-
-template <class Container, class Position, class Value>
-void set(Container& c, Position position, const Value& value) {
-  typename Container::iterator it = c.begin();
-  std::advance(it, position);
-  *it = value;
-}
-
 template <typename MatrixType>
 void check_stdlist_matrix(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
   MatrixType x = MatrixType::Random(rows, cols), y = MatrixType::Random(rows, cols);
   std::list<MatrixType> v(10, MatrixType::Zero(rows, cols)), w(20, y);
-  typename std::list<MatrixType>::iterator itv = get(v, 5);
-  typename std::list<MatrixType>::iterator itw = get(w, 6);
-  *itv = x;
-  *itw = *itv;
-  VERIFY_IS_APPROX(*itw, *itv);
-  v = w;
-  itv = v.begin();
-  itw = w.begin();
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(*itw, *itv);
-    ++itv;
-    ++itw;
-  }
-
-  v.resize(21);
-  set(v, 20, x);
-  VERIFY_IS_APPROX(*get(v, 20), x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(*get(v, 21), y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(*get(v, 22), x);
-
-  // do a lot of push_back such that the list gets internally resized
-  // (with memory reallocation)
-  MatrixType* ref = &(*get(w, 0));
-  for (int i = 0; i < 30 || ((ref == &(*get(w, 0))) && i < 300); ++i) v.push_back(*get(w, i % w.size()));
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY((*get(v, i)) == (*get(w, (i - 23) % w.size())));
-  }
+  check_stl_container_indexed(v, w, x, y);
 }
 
 template <typename TransformType>
 void check_stdlist_transform(const TransformType&) {
-  typedef typename TransformType::MatrixType MatrixType;
+  using MatrixType = typename TransformType::MatrixType;
   TransformType x(MatrixType::Random()), y(MatrixType::Random()), ti = TransformType::Identity();
   std::list<TransformType> v(10, ti), w(20, y);
-  typename std::list<TransformType>::iterator itv = get(v, 5);
-  typename std::list<TransformType>::iterator itw = get(w, 6);
-  *itv = x;
-  *itw = *itv;
-  VERIFY_IS_APPROX(*itw, *itv);
-  v = w;
-  itv = v.begin();
-  itw = w.begin();
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(*itw, *itv);
-    ++itv;
-    ++itw;
-  }
-
-  v.resize(21, ti);
-  set(v, 20, x);
-  VERIFY_IS_APPROX(*get(v, 20), x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(*get(v, 21), y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(*get(v, 22), x);
-
-  // do a lot of push_back such that the list gets internally resized
-  // (with memory reallocation)
-  TransformType* ref = &(*get(w, 0));
-  for (int i = 0; i < 30 || ((ref == &(*get(w, 0))) && i < 300); ++i) v.push_back(*get(w, i % w.size()));
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(get(v, i)->matrix() == get(w, (i - 23) % w.size())->matrix());
-  }
+  check_stl_container_indexed(v, w, x, y, ti);
 }
 
 template <typename QuaternionType>
 void check_stdlist_quaternion(const QuaternionType&) {
-  typedef typename QuaternionType::Coefficients Coefficients;
+  using Coefficients = typename QuaternionType::Coefficients;
   QuaternionType x(Coefficients::Random()), y(Coefficients::Random()), qi = QuaternionType::Identity();
   std::list<QuaternionType> v(10, qi), w(20, y);
-  typename std::list<QuaternionType>::iterator itv = get(v, 5);
-  typename std::list<QuaternionType>::iterator itw = get(w, 6);
-  *itv = x;
-  *itw = *itv;
-  VERIFY_IS_APPROX(*itw, *itv);
-  v = w;
-  itv = v.begin();
-  itw = w.begin();
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(*itw, *itv);
-    ++itv;
-    ++itw;
-  }
-
-  v.resize(21, qi);
-  set(v, 20, x);
-  VERIFY_IS_APPROX(*get(v, 20), x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(*get(v, 21), y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(*get(v, 22), x);
-
-  // do a lot of push_back such that the list gets internally resized
-  // (with memory reallocation)
-  QuaternionType* ref = &(*get(w, 0));
-  for (int i = 0; i < 30 || ((ref == &(*get(w, 0))) && i < 300); ++i) v.push_back(*get(w, i % w.size()));
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(get(v, i)->coeffs() == get(w, (i - 23) % w.size())->coeffs());
-  }
+  check_stl_container_indexed(v, w, x, y, qi);
 }
 
 EIGEN_DECLARE_TEST(stdlist_overload) {

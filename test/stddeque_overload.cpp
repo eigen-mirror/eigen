@@ -13,6 +13,7 @@
 
 #include <Eigen/StdDeque>
 #include <Eigen/Geometry>
+#include "stl_container_test_helpers.h"
 
 EIGEN_DEFINE_STL_DEQUE_SPECIALIZATION(Vector4f)
 
@@ -32,89 +33,23 @@ void check_stddeque_matrix(const MatrixType& m) {
   Index cols = m.cols();
   MatrixType x = MatrixType::Random(rows, cols), y = MatrixType::Random(rows, cols);
   std::deque<MatrixType> v(10, MatrixType::Zero(rows, cols)), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-
-  // do a lot of push_back such that the deque gets internally resized
-  // (with memory reallocation)
-  MatrixType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i] == w[(i - 23) % w.size()]);
-  }
+  check_stl_container_indexed(v, w, x, y);
 }
 
 template <typename TransformType>
 void check_stddeque_transform(const TransformType&) {
-  typedef typename TransformType::MatrixType MatrixType;
+  using MatrixType = typename TransformType::MatrixType;
   TransformType x(MatrixType::Random()), y(MatrixType::Random()), ti = TransformType::Identity();
   std::deque<TransformType> v(10, ti), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21, ti);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-
-  // do a lot of push_back such that the deque gets internally resized
-  // (with memory reallocation)
-  TransformType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i].matrix() == w[(i - 23) % w.size()].matrix());
-  }
+  check_stl_container_indexed(v, w, x, y, ti);
 }
 
 template <typename QuaternionType>
 void check_stddeque_quaternion(const QuaternionType&) {
-  typedef typename QuaternionType::Coefficients Coefficients;
+  using Coefficients = typename QuaternionType::Coefficients;
   QuaternionType x(Coefficients::Random()), y(Coefficients::Random()), qi = QuaternionType::Identity();
   std::deque<QuaternionType> v(10, qi), w(20, y);
-  v[5] = x;
-  w[6] = v[5];
-  VERIFY_IS_APPROX(w[6], v[5]);
-  v = w;
-  for (int i = 0; i < 20; i++) {
-    VERIFY_IS_APPROX(w[i], v[i]);
-  }
-
-  v.resize(21, qi);
-  v[20] = x;
-  VERIFY_IS_APPROX(v[20], x);
-  v.resize(22, y);
-  VERIFY_IS_APPROX(v[21], y);
-  v.push_back(x);
-  VERIFY_IS_APPROX(v[22], x);
-
-  // do a lot of push_back such that the deque gets internally resized
-  // (with memory reallocation)
-  QuaternionType* ref = &w[0];
-  for (int i = 0; i < 30 || ((ref == &w[0]) && i < 300); ++i) v.push_back(w[i % w.size()]);
-  for (unsigned int i = 23; i < v.size(); ++i) {
-    VERIFY(v[i].coeffs() == w[(i - 23) % w.size()].coeffs());
-  }
+  check_stl_container_indexed(v, w, x, y, qi);
 }
 
 EIGEN_DECLARE_TEST(stddeque_overload) {

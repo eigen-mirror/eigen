@@ -272,22 +272,30 @@ void setRandomWellConditionedDiagonal(MatrixType& m) {
 
 }  // end namespace Eigen
 
+// Fill in row-major coefficient order, including non-contiguous dense views.
+// The range type determines the draws: real bounds produce real values even in a complex destination.
+template <typename Derived, typename Scalar>
+void setRandomInRange(Eigen::DenseBase<Derived>& matrix, Scalar min_value, Scalar max_value) {
+  for (Eigen::Index i = 0; i < matrix.rows(); ++i) {
+    for (Eigen::Index j = 0; j < matrix.cols(); ++j) {
+      matrix.derived().coeffRef(i, j) = Eigen::internal::random<Scalar>(min_value, max_value);
+    }
+  }
+}
+
+// Requires contiguous storage, as in Tensor and TensorMap.
 template <typename DataContainer>
 void setRandomDataInRange(DataContainer& data_container, typename DataContainer::Scalar min_value,
                           typename DataContainer::Scalar max_value) {
-  for (Eigen::Index i = 0; i < data_container.size(); ++i) {
-    data_container.data()[i] = Eigen::internal::random<typename DataContainer::Scalar>(min_value, max_value);
-  }
+  using Scalar = typename DataContainer::Scalar;
+  Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>> values(data_container.data(), data_container.size());
+  setRandomInRange(values, min_value, max_value);
 }
 
 template <typename MatrixType, typename Scalar = typename MatrixType::Scalar>
 MatrixType RandomMatrix(Eigen::Index rows, Eigen::Index cols, Scalar min, Scalar max) {
   MatrixType M(rows, cols);
-  for (Eigen::Index i = 0; i < rows; ++i) {
-    for (Eigen::Index j = 0; j < cols; ++j) {
-      M(i, j) = Eigen::internal::random<Scalar>(min, max);
-    }
-  }
+  setRandomInRange(M, min, max);
   return M;
 }
 

@@ -10,29 +10,11 @@
 // clang-format off
 #include "main.h"
 #include <Eigen/Tensor>
+#include "tensor_test_helpers.h"
 // clang-format on
 
 // -------------------------------------------------------------------------- //
 // A set of tests for TensorBlockIO: copying data between tensor blocks.
-
-template <int NumDims>
-static DSizes<Index, NumDims> RandomDims(Index min, Index max) {
-  DSizes<Index, NumDims> dims;
-  for (int i = 0; i < NumDims; ++i) {
-    dims[i] = internal::random<Index>(min, max);
-  }
-  return DSizes<Index, NumDims>(dims);
-}
-
-static internal::TensorBlockShapeType RandomBlockShape() {
-  return internal::random<bool>() ? internal::TensorBlockShapeType::kUniformAllDims
-                                  : internal::TensorBlockShapeType::kSkewedInnerDims;
-}
-
-template <int NumDims>
-static size_t RandomTargetBlockSize(const DSizes<Index, NumDims>& dims) {
-  return internal::random<size_t>(1, dims.TotalSize());
-}
 
 template <int Layout, int NumDims>
 static Index GetInputIndex(Index output_index, const array<Index, NumDims>& output_to_input_dim_map,
@@ -62,7 +44,7 @@ static void test_block_io_copy_data_from_source_to_target() {
   using IOSrc = typename TensorBlockIO::Src;
 
   // Generate a random input Tensor.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 30);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(1, 30);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -71,7 +53,7 @@ static void test_block_io_copy_data_from_source_to_target() {
 
   // Construct a tensor block mapper.
   using TensorBlockMapper = internal::TensorBlockMapper<NumDims, Layout, Index>;
-  TensorBlockMapper block_mapper(dims, {RandomBlockShape(), RandomTargetBlockSize(dims), {0, 0, 0}});
+  TensorBlockMapper block_mapper(dims, {randomTensorBlockShape(), randomTensorBlockSize(dims), {0, 0, 0}});
 
   // We will copy data from input to output through this buffer.
   Tensor<T, NumDims, Layout> block(block_mapper.blockDimensions());
@@ -115,7 +97,7 @@ static void test_block_io_copy_data_from_source_to_target() {
 template <typename T, int NumDims, int Layout>
 static void test_block_io_copy_using_reordered_dimensions() {
   // Generate a random input Tensor.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 30);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(1, 30);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -141,7 +123,7 @@ static void test_block_io_copy_using_reordered_dimensions() {
   // NOTE: Tensor block mapper works with shuffled dimensions.
   using TensorBlockMapper = internal::TensorBlockMapper<NumDims, Layout, Index>;
   TensorBlockMapper block_mapper(output_tensor_dims,
-                                 {RandomBlockShape(), RandomTargetBlockSize(output_tensor_dims), {0, 0, 0}});
+                                 {randomTensorBlockShape(), randomTensorBlockSize(output_tensor_dims), {0, 0, 0}});
 
   // We will copy data from input to output through this buffer.
   Tensor<T, NumDims, Layout> block(block_mapper.blockDimensions());
@@ -302,7 +284,7 @@ static void test_block_io_copy_using_reordered_dimensions_squeeze() {
 
 template <int Layout>
 static void test_block_io_zero_stride() {
-  DSizes<Index, 5> rnd_dims = RandomDims<5>(1, 30);
+  DSizes<Index, 5> rnd_dims = randomTensorDims<5>(1, 30);
 
   DSizes<Index, 5> input_tensor_dims = rnd_dims;
   input_tensor_dims[0] = 1;

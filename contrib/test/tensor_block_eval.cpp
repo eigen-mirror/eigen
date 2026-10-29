@@ -10,6 +10,7 @@
 // clang-format off
 #include "main.h"
 #include <Eigen/Tensor>
+#include "tensor_test_helpers.h"
 #include "../Eigen/SpecialFunctions"
 // clang-format on
 
@@ -28,15 +29,6 @@ static void setRandomForBinaryProduct(Tensor<T, NumDims, Layout>& tensor) {
 // -------------------------------------------------------------------------- //
 // Utility functions to generate random tensors, blocks, and evaluate them.
 
-template <int NumDims>
-static DSizes<Index, NumDims> RandomDims(Index min, Index max) {
-  DSizes<Index, NumDims> dims;
-  for (int i = 0; i < NumDims; ++i) {
-    dims[i] = internal::random<Index>(min, max);
-  }
-  return DSizes<Index, NumDims>(dims);
-}
-
 // Block offsets and extents allows to construct a TensorSlicingOp corresponding
 // to a TensorBlockDescriptor.
 template <int NumDims>
@@ -49,8 +41,8 @@ struct TensorBlockParams {
 template <int Layout, int NumDims>
 static TensorBlockParams<NumDims> RandomBlock(DSizes<Index, NumDims> dims, Index min, Index max) {
   // Choose random offsets and sizes along all tensor dimensions.
-  DSizes<Index, NumDims> offsets(RandomDims<NumDims>(min, max));
-  DSizes<Index, NumDims> sizes(RandomDims<NumDims>(min, max));
+  DSizes<Index, NumDims> offsets(randomTensorDims<NumDims>(min, max));
+  DSizes<Index, NumDims> sizes(randomTensorDims<NumDims>(min, max));
 
   // Make sure that offset + size do not overflow dims.
   for (int i = 0; i < NumDims; ++i) {
@@ -86,9 +78,8 @@ static std::enable_if_t<(NumDims > 0), void> SetSkewedInnerBlockInnerOffset(DSiz
 template <int Layout, int NumDims>
 static TensorBlockParams<NumDims> SkewedInnerBlock(DSizes<Index, NumDims> dims) {
   using BlockMapper = internal::TensorBlockMapper<NumDims, Layout, Index>;
-  BlockMapper block_mapper(
-      dims,
-      {internal::TensorBlockShapeType::kSkewedInnerDims, internal::random<size_t>(1, dims.TotalSize()), {0, 0, 0}});
+  BlockMapper block_mapper(dims,
+                           {internal::TensorBlockShapeType::kSkewedInnerDims, randomTensorBlockSize(dims), {0, 0, 0}});
 
   Index total_blocks = block_mapper.blockCount();
   Index block_index = internal::random<Index>(0, total_blocks - 1);
@@ -228,7 +219,7 @@ static void VerifyBlockEvaluator(const Expression& expr, GenBlockParams gen_bloc
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_block() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -238,7 +229,7 @@ static void test_eval_tensor_block() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_unary_expr_block() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -247,7 +238,7 @@ static void test_eval_tensor_unary_expr_block() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_binary_expr_block() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims), rhs(dims);
   setRandomForBinaryProduct(lhs);
   setRandomForBinaryProduct(rhs);
@@ -257,7 +248,7 @@ static void test_eval_tensor_binary_expr_block() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_binary_with_unary_expr_block() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims), rhs(dims);
   lhs.setRandom();
   rhs.setRandom();
@@ -268,11 +259,11 @@ static void test_eval_tensor_binary_with_unary_expr_block() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_broadcast() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(1, 10);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
-  DSizes<Index, NumDims> bcast = RandomDims<NumDims>(1, 5);
+  DSizes<Index, NumDims> bcast = randomTensorDims<NumDims>(1, 5);
 
   DSizes<Index, NumDims> bcasted_dims;
   for (int i = 0; i < NumDims; ++i) bcasted_dims[i] = dims[i] * bcast[i];
@@ -298,7 +289,7 @@ template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_scan() {
   // Scan eagerly materializes m_output during evalSubExprsIfNeeded; this
   // exercises the block() wrapper around that buffer.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(4, 12);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -315,7 +306,7 @@ static void test_eval_tensor_fft() {
   // exercises the block() wrapper around that buffer. Use RealPart so
   // the output type matches the input type and the harness's slice
   // comparison stays straightforward.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 12);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(4, 12);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -392,7 +383,7 @@ static void test_eval_tensor_layout_swap() {
   // the input with the opposite layout and assert the block evaluator on the
   // resulting expression matches the slice-based reference.
   constexpr int InputLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
-  DSizes<Index, NumDims> input_dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> input_dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, InputLayout> input(input_dims);
   setRandomForBinaryProduct(input);
 
@@ -442,7 +433,7 @@ static void test_eval_tensor_layout_swap() {
 // over the composed expressions exercises both sides of that compile path.
 template <typename T, int NumDims, int Layout>
 static void test_eval_composed_block_ops() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(4, 8);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(4, 8);
   array<std::pair<Index, Index>, NumDims> paddings;
   DSizes<Index, NumDims> padded_dims;
   for (int i = 0; i < NumDims; ++i) {
@@ -492,7 +483,7 @@ static void test_eval_contract_pad_composition() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_reshape() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(1, 10);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(1, 10);
 
   DSizes<Index, NumDims> shuffled = dims;
   std::shuffle(&shuffled[0], &shuffled[NumDims - 1], std::mt19937(g_seed));
@@ -509,7 +500,7 @@ static void test_eval_tensor_reshape() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_cast() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -519,7 +510,7 @@ static void test_eval_tensor_cast() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_ternary() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> a(dims);
   Tensor<T, NumDims, Layout> b(dims);
   Tensor<T, NumDims, Layout> x(dims);
@@ -538,7 +529,7 @@ static void test_eval_tensor_ternary() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_nullary() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -556,7 +547,7 @@ static void test_eval_tensor_random_nullary() {
   // Each draw is a pure function of the generator's seed and the coefficient's
   // tensor-linear index, so a block must reproduce the coefficient evaluation
   // of the same expression exactly.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   auto expr = input.random();
 
@@ -585,7 +576,7 @@ static void test_eval_tensor_indexed_nullary() {
     T operator()(Index i) const { return static_cast<T>(i); }
   };
 
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
 
   VerifyBlockEvaluator<T, NumDims, Layout>(input.nullaryExpr(BothOverloads()),
@@ -596,7 +587,7 @@ static void test_eval_tensor_indexed_nullary() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_select() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> lhs(dims);
   Tensor<T, NumDims, Layout> rhs(dims);
   Tensor<bool, NumDims, Layout> cond(dims);
@@ -612,12 +603,12 @@ template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_padding() {
   constexpr int inner_dim = Layout == static_cast<int>(ColMajor) ? 0 : NumDims - 1;
 
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
-  DSizes<Index, NumDims> pad_before = RandomDims<NumDims>(0, 4);
-  DSizes<Index, NumDims> pad_after = RandomDims<NumDims>(0, 4);
+  DSizes<Index, NumDims> pad_before = randomTensorDims<NumDims>(0, 4);
+  DSizes<Index, NumDims> pad_after = randomTensorDims<NumDims>(0, 4);
   array<std::pair<Index, Index>, NumDims> paddings;
   for (int i = 0; i < NumDims; ++i) {
     paddings[i] = std::make_pair(pad_before[i], pad_after[i]);
@@ -647,7 +638,7 @@ static void test_eval_tensor_padding() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_chipping() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -679,7 +670,7 @@ static void test_eval_tensor_chipping() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_concatenation() {
-  DSizes<Index, NumDims> lhs_dims = RandomDims<NumDims>(5, 12);
+  DSizes<Index, NumDims> lhs_dims = randomTensorDims<NumDims>(5, 12);
   DSizes<Index, NumDims> rhs_dims = lhs_dims;
 
   const Index axis = internal::random<int>(0, NumDims - 1);
@@ -728,7 +719,7 @@ struct SimpleTensorGenerator<bool, NumDims> {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_generator() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -742,7 +733,7 @@ static void test_eval_tensor_generator() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_reverse() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -758,13 +749,13 @@ static void test_eval_tensor_reverse() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_slice() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
   // Pick a random slice of an input tensor.
-  DSizes<Index, NumDims> slice_start = RandomDims<NumDims>(5, 10);
-  DSizes<Index, NumDims> slice_size = RandomDims<NumDims>(5, 10);
+  DSizes<Index, NumDims> slice_start = randomTensorDims<NumDims>(5, 10);
+  DSizes<Index, NumDims> slice_size = randomTensorDims<NumDims>(5, 10);
 
   // Make sure that slice start + size do not overflow tensor dims.
   for (int i = 0; i < NumDims; ++i) {
@@ -815,7 +806,7 @@ static void test_eval_tensor_slice_bool_composite() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_shuffle() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -840,14 +831,13 @@ static void test_eval_tensor_shuffle() {
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_inflation() {
   // Keep the input small: inflation multiplies every dimension by its stride.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(2, 5);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(2, 5);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
-  DSizes<Index, NumDims> strides;
+  DSizes<Index, NumDims> strides = randomTensorDims<NumDims>(1, 3);
   DSizes<Index, NumDims> inflated_dims;
   for (int i = 0; i < NumDims; ++i) {
-    strides[i] = internal::random<Index>(1, 3);
     inflated_dims[i] = (dims[i] - 1) * strides[i] + 1;
   }
 
@@ -863,7 +853,7 @@ static void test_eval_tensor_inflation() {
 
 template <typename T, int NumDims, int Layout>
 static void test_eval_tensor_strided_slice() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> input(dims);
   input.setRandom();
 
@@ -970,7 +960,7 @@ static void test_eval_tensor_chipping_of_bcast() {
 
 template <typename T, int Layout>
 static void test_eval_tensor_patch() {
-  DSizes<Index, 3> dims = RandomDims<3>(4, 10);
+  DSizes<Index, 3> dims = randomTensorDims<3>(4, 10);
   Tensor<T, 3, Layout> input(dims);
   input.setRandom();
 
@@ -1250,7 +1240,7 @@ static void VerifyBlockAssignment(Tensor<T, NumDims, TensorLayout>& tensor, Expr
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1261,7 +1251,7 @@ static void test_assign_to_tensor() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_reshape() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1281,7 +1271,7 @@ static void test_assign_to_tensor_reshape() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_chipping() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   Index chip_dim = internal::random<int>(0, NumDims - 1);
@@ -1309,12 +1299,12 @@ static void test_assign_to_tensor_chipping() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_slice() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   // Pick a random slice of tensor.
-  DSizes<Index, NumDims> slice_start = RandomDims<NumDims>(5, 10);
-  DSizes<Index, NumDims> slice_size = RandomDims<NumDims>(5, 10);
+  DSizes<Index, NumDims> slice_start = randomTensorDims<NumDims>(5, 10);
+  DSizes<Index, NumDims> slice_size = randomTensorDims<NumDims>(5, 10);
 
   // Make sure that slice start + size do not overflow tensor dims.
   for (int i = 0; i < NumDims; ++i) {
@@ -1336,7 +1326,7 @@ static void test_assign_to_tensor_slice() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_shuffle() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   DSizes<Index, NumDims> shuffle;
@@ -1363,7 +1353,7 @@ static void test_assign_to_tensor_layout_swap() {
   // static so the lambdas below can name it without capturing: MSVC 14.29
   // rejects an uncaptured non-static constexpr local there (error C3493).
   static constexpr int SwappedLayout = (Layout == ColMajor) ? RowMajor : ColMajor;
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   DSizes<Index, NumDims> swapped_dims;
@@ -1380,7 +1370,7 @@ static void test_assign_to_tensor_layout_swap() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_strided_slice() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1417,7 +1407,7 @@ static void test_assign_to_tensor_strided_slice() {
 // writeBlock a materialized block.
 template <typename T, int NumDims, int Layout>
 static void test_assign_expr_to_tensor_strided_slice() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(10, 20);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(10, 20);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1462,7 +1452,7 @@ static void test_assign_expr_to_tensor_strided_slice() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_reverse() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1484,7 +1474,7 @@ static void test_assign_to_tensor_reverse() {
 
 template <typename T, int NumDims, int Layout>
 static void test_assign_to_tensor_roll() {
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   Tensor<T, NumDims, Layout> tensor(dims);
 
   TensorMap<Tensor<T, NumDims, Layout>> map(tensor.data(), dims);
@@ -1508,7 +1498,7 @@ static void test_assign_to_tensor_concatenation() {
   // scalar reference instead. This is also the only place the RowMajor lvalue
   // evaluator is instantiated: its coeffRef/writePacket are ColMajor-only, so
   // a slice-assignment reference would not compile.
-  DSizes<Index, NumDims> dims = RandomDims<NumDims>(5, 15);
+  DSizes<Index, NumDims> dims = randomTensorDims<NumDims>(5, 15);
   const int axis = internal::random<int>(0, NumDims - 1);
   const Index left_axis_size = internal::random<Index>(1, dims[axis] - 1);
 
