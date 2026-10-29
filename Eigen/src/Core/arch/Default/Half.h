@@ -447,7 +447,7 @@ namespace Eigen {
 
 namespace half_impl {
 
-#if defined(EIGEN_GPU_COMPILE_PHASE)
+#if (defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530) || defined(EIGEN_HIP_DEVICE_COMPILE)
 // Note: We deliberately do *not* define this to 1 even if we have Arm's native
 // fp16 type since GPU half types are rather different from native CPU half types.
 #define EIGEN_HAS_NATIVE_GPU_FP16
@@ -907,7 +907,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC float half_to_float(__half_raw h) {
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isinf)(const half& a) { return (raw_half_as_uint16(a) & 0x7fff) == 0x7c00; }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool(isnan)(const half& a) {
-#if defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return __hisnan(a);
 #else
   return (raw_half_as_uint16(a) & 0x7fff) > 0x7c00;
@@ -925,14 +925,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half abs(const half& a) {
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp(const half& a) {
-#if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hexp(::__half(a)));
 #else
   return half(numext::exp(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half exp2(const half& a) {
-#if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hexp2(::__half(a)));
 #else
   return half(numext::exp2(float(a)));
@@ -944,7 +944,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ldexp(const half& a, int exponent) {
   return half(numext::ldexp(float(a), exponent));
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log(const half& a) {
-#if defined(EIGEN_GPU_COMPILE_PHASE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hlog(::__half(a)));
 #else
   return half(numext::log(float(a)));
@@ -955,7 +955,7 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log10(const half& a) { return half(nu
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half log2(const half& a) { return half(numext::log2(float(a))); }
 
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half sqrt(const half& a) {
-#if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hsqrt(::__half(a)));
 #else
   return half(numext::sqrt(float(a)));
@@ -979,14 +979,14 @@ EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half acos(const half& a) { return half(num
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atan(const half& a) { return half(numext::atan(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half atanh(const half& a) { return half(numext::atanh(float(a))); }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half floor(const half& a) {
-#if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hfloor(::__half(a)));
 #else
   return half(numext::floor(float(a)));
 #endif
 }
 EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC half ceil(const half& a) {
-#if (defined(EIGEN_CUDA_ARCH)) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   return half(hceil(::__half(a)));
 #else
   return half(numext::ceil(float(a)));
@@ -1026,7 +1026,7 @@ EIGEN_DEVICE_FUNC inline half fma(const half& a, const half& b, const half& c) {
 #if defined(EIGEN_HAS_NATIVE_GPU_FP16)
   // Rounded once in hardware.
   return __hfma(::__half(a), ::__half(b), ::__half(c));
-#elif defined(__SYCL_DEVICE_ONLY__)
+#elif defined(EIGEN_GPU_COMPILE_PHASE) || defined(__SYCL_DEVICE_ONLY__)
   // Rounds twice; see fma_round_to_odd.
   return half(numext::fma(static_cast<float>(a), static_cast<float>(b), static_cast<float>(c)));
 #elif defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)

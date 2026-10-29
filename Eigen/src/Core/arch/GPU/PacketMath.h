@@ -647,6 +647,10 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 // ---------------------------------------------------------------------------------------------------------------
 // half2, the native two-lane packet.
 
+#if (defined(EIGEN_CUDA_ARCH) && EIGEN_CUDA_ARCH >= 530) || defined(EIGEN_HIP_DEVICE_COMPILE)
+#define EIGEN_GPU_HAS_FP16_ARITHMETIC 1
+#endif
+
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pset1<half2>(const Eigen::half& from) {
   return __half2half2(from);
@@ -754,7 +758,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void ptranspose(PacketBlock<half2, 2>& ker
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 plset<half2>(const Eigen::half& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __halves2half2(a, __hadd(a, __float2half(1.0f)));
+#else
+  return __halves2half2(a, __float2half(__half2float(a) + 1.0f));
+#endif
 }
 
 template <>
@@ -802,32 +810,57 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pandnot<half2>(const half2& a, const
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 padd<half2>(const half2& a, const half2& b) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hadd2(a, b);
+#else
+  return __floats2half2_rn(__low2float(a) + __low2float(b), __high2float(a) + __high2float(b));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 psub<half2>(const half2& a, const half2& b) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hsub2(a, b);
+#else
+  return __floats2half2_rn(__low2float(a) - __low2float(b), __high2float(a) - __high2float(b));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pnegate(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hneg2(a);
+#else
+  return __floats2half2_rn(-__low2float(a), -__high2float(a));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmul<half2>(const half2& a, const half2& b) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hmul2(a, b);
+#else
+  return __floats2half2_rn(__low2float(a) * __low2float(b), __high2float(a) * __high2float(b));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmadd<half2>(const half2& a, const half2& b, const half2& c) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hfma2(a, b, c);
+#else
+  return __floats2half2_rn(fmaf(__low2float(a), __low2float(b), __low2float(c)),
+                           fmaf(__high2float(a), __high2float(b), __high2float(c)));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pdiv<half2>(const half2& a, const half2& b) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __h2div(a, b);
+#else
+  return __floats2half2_rn(__low2float(a) / __low2float(b), __high2float(a) / __high2float(b));
+#endif
 }
 
 // Compared through float, and every comparison against a NaN is false, so the result is b. This differs from
@@ -849,7 +882,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmax<half2>(const half2& a, const ha
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hadd(__low2half(a), __high2half(a));
+#else
+  return __float2half(__low2float(a) + __high2float(a));
+#endif
 }
 
 template <>
@@ -859,41 +896,69 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_any(const half2& a) {
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_max<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   const __half first = __low2half(a);
   const __half second = __high2half(a);
   return __hgt(first, second) ? first : second;
+#else
+  return __low2float(a) > __high2float(a) ? __low2half(a) : __high2half(a);
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_min<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   const __half first = __low2half(a);
   const __half second = __high2half(a);
   return __hlt(first, second) ? first : second;
+#else
+  return __low2float(a) < __high2float(a) ? __low2half(a) : __high2half(a);
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_mul<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hmul(__low2half(a), __high2half(a));
+#else
+  return __float2half(__low2float(a) * __high2float(a));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 plog<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return h2log(a);
+#else
+  return __floats2half2_rn(logf(__low2float(a)), logf(__high2float(a)));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pexp<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return h2exp(a);
+#else
+  return __floats2half2_rn(expf(__low2float(a)), expf(__high2float(a)));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 psqrt<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return h2sqrt(a);
+#else
+  return __floats2half2_rn(sqrtf(__low2float(a)), sqrtf(__high2float(a)));
+#endif
 }
 
 template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 prsqrt<half2>(const half2& a) {
+#if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return h2rsqrt(a);
+#else
+  return __floats2half2_rn(rsqrtf(__low2float(a)), rsqrtf(__high2float(a)));
+#endif
 }
 
 // No native h2log1p/h2expm1; both go through float.
@@ -1050,8 +1115,9 @@ template <>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 plset<Packet4h2>(const Eigen::half& a) {
   // Add each offset once: (a + 2*k) + 1 can round twice. Preserve a's sign in lane zero.
   const half2 base = pset1<half2>(a);
-  return make_packet4h2(plset<half2>(a), __hadd2(base, __floats2half2_rn(2.0f, 3.0f)),
-                        __hadd2(base, __floats2half2_rn(4.0f, 5.0f)), __hadd2(base, __floats2half2_rn(6.0f, 7.0f)));
+  return make_packet4h2(plset<half2>(a), padd<half2>(base, __floats2half2_rn(2.0f, 3.0f)),
+                        padd<half2>(base, __floats2half2_rn(4.0f, 5.0f)),
+                        padd<half2>(base, __floats2half2_rn(6.0f, 7.0f)));
 }
 
 template <>
@@ -1130,6 +1196,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Eigen::half predux_mul<Packet4h2>(const Pa
       pmul<half2>(pmul<half2>(lane_half2(a, 0), lane_half2(a, 1)), pmul<half2>(lane_half2(a, 2), lane_half2(a, 3)));
   return predux_mul<half2>(product);
 }
+
+#undef EIGEN_GPU_HAS_FP16_ARITHMETIC
 
 #endif  // defined(EIGEN_GPU_COMPILE_PHASE)
 
