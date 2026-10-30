@@ -362,8 +362,6 @@ template <typename MatrixType, int Options>
 template <typename Derived>
 EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(
     const MatrixBase<Derived>& matrix, unsigned int computationOptions, internal::false_type) {
-  using numext::abs;
-
   allocate(matrix.rows(), matrix.cols(), computationOptions);
 
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
@@ -432,7 +430,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
 
   //**** step 3 - Copy singular values and vectors
   for (int i = 0; i < diagSize(); i++) {
-    RealScalar a = abs(m_impl.computed().coeff(i, i));
+    RealScalar a = numext::abs(m_impl.computed().coeff(i, i));
     m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
       m_nonzeroSingularValues = i;
@@ -509,7 +507,6 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   EIGEN_STATIC_ASSERT((NumTraits<typename DerivedE::Scalar>::IsComplex == 0),
                       THIS_FUNCTION_IS_NOT_FOR_COMPLEX_VALUED_MATRICES);
 
-  using numext::abs;
   const Index n = diagonal.size();
   eigen_assert((n == 0 || superdiagonal.size() == n - 1) && "superdiagonal must have size diagonal.size() - 1");
 
@@ -590,7 +587,7 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
 
   //**** Extract singular values.
   for (int i = 0; i < diagSize(); i++) {
-    RealScalar a = abs(m_impl.computed().coeff(i, i));
+    RealScalar a = numext::abs(m_impl.computed().coeff(i, i));
     m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
       m_nonzeroSingularValues = i;

@@ -204,7 +204,6 @@ class IncompleteCholesky : public SparseSolverBase<IncompleteCholesky<Scalar, Up
 template <typename Scalar, int UpLo_, typename OrderingType>
 template <typename MatrixType_>
 void IncompleteCholesky<Scalar, UpLo_, OrderingType>::factorize(const MatrixType_& mat) {
-  using numext::sqrt;
   eigen_assert(m_analysisIsOk && "analyzePattern() should be called first");
 
   // Dropping strategy : Keep only the p largest elements per column, where p is the number of elements in the column of
@@ -342,7 +341,7 @@ void IncompleteCholesky<Scalar, UpLo_, OrderingType>::factorize(const MatrixType
         break;
       }
 
-      RealScalar rdiag = sqrt(numext::real(diag));
+      RealScalar rdiag = numext::sqrt(numext::real(diag));
       vals[colPtr[j]] = rdiag;
       for (Index k = 0; k < col_nnz; ++k) {
         Index i = col_irow[k];

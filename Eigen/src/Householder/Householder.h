@@ -138,8 +138,6 @@ template <typename Derived>
 template <typename EssentialPart>
 EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essential, Scalar& tau,
                                                             RealScalar& beta) const {
-  using numext::conj;
-
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(EssentialPart)
   const VectorBlock<const Derived, EssentialPart::SizeAtCompileTime> tail(derived(), 1, size() - 1);
 
@@ -227,13 +225,13 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     if (numext::real(c0) >= RealScalar(0)) scaledBeta = -scaledBeta;
     beta = RealScalar(scale * Accumulator(scaledBeta));
     internal::householder_rescale<Scalar, Accumulator>::run(essential, tailView, scale, scaledC0 - scaledBeta);
-    tau = conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
+    tau = numext::conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
     return;
   }
   beta = numext::sqrt<RealScalar>(numext::abs2(c0) + tailSqNorm);
   if (numext::real(c0) >= RealScalar(0)) beta = -beta;
   essential = tail.unwind() / (c0 - beta);
-  tau = conj((beta - c0) / beta);
+  tau = numext::conj((beta - c0) / beta);
 }
 
 namespace internal {

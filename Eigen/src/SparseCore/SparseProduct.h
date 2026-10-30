@@ -151,7 +151,6 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
   using Base = evaluator<PlainObject>;
 
   explicit unary_evaluator(const XprType& xpr) : m_result(xpr.rows(), xpr.cols()) {
-    using numext::abs;
     internal::construct_at<Base>(this, m_result);
     using LhsNested = typename nested_eval<Lhs, Dynamic>::type;
     using RhsNested = typename nested_eval<Rhs, Dynamic>::type;
@@ -160,7 +159,8 @@ struct unary_evaluator<SparseView<Product<Lhs, Rhs, Options> >, IteratorBased>
 
     internal::sparse_sparse_product_with_pruning_selector<remove_all_t<LhsNested>, remove_all_t<RhsNested>,
                                                           PlainObject>::run(lhsNested, rhsNested, m_result,
-                                                                            abs(xpr.reference()) * xpr.epsilon());
+                                                                            numext::abs(xpr.reference()) *
+                                                                                xpr.epsilon());
   }
 
  protected:

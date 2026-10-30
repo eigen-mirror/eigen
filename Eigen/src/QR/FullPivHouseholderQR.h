@@ -287,10 +287,7 @@ class FullPivHouseholderQR : public SolverBase<FullPivHouseholderQR<MatrixType_,
   typename MatrixType::Scalar signDeterminant() const;
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
-  RealScalar pivotCoeff(Index i) const {
-    using numext::abs;
-    return abs(m_qr.coeff(i, i));
-  }
+  RealScalar pivotCoeff(Index i) const { return numext::abs(m_qr.coeff(i, i)); }
 
   /** \returns the inverse of the matrix of which *this is the QR decomposition.
    *
@@ -346,10 +343,9 @@ typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar FullPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using numext::abs;
   eigen_assert(m_isInitialized && "FullPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
+  return isInjective() ? numext::abs(m_qr.diagonal().prod()) : RealScalar(0);
 }
 
 template <typename MatrixType, typename PermutationIndex>
@@ -386,7 +382,6 @@ FullPivHouseholderQR<MatrixType, PermutationIndex>& FullPivHouseholderQR<MatrixT
 template <typename MatrixType, typename PermutationIndex>
 void FullPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
-  using numext::abs;
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();
   Index size = (std::min)(rows, cols);
@@ -447,7 +442,7 @@ void FullPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     m_qr.coeffRef(k, k) = beta;
 
     // remember the maximum absolute value of diagonal coefficients
-    if (abs(beta) > this->m_maxpivot) this->m_maxpivot = abs(beta);
+    if (numext::abs(beta) > this->m_maxpivot) this->m_maxpivot = numext::abs(beta);
 
     m_qr.bottomRightCorner(rows - k, cols - k - 1)
         .applyHouseholderOnTheLeft(m_qr.col(k).tail(rows - k - 1), m_hCoeffs.coeffRef(k), &m_temp.coeffRef(k + 1));
@@ -567,7 +562,6 @@ struct FullPivHouseholderQRMatrixQReturnType
 
   template <typename ResultType>
   void evalTo(ResultType& result, WorkVectorType& workspace) const {
-    using numext::conj;
     // compute the product H'_0 H'_1 ... H'_n-1,
     // where H_k is the k-th Householder transformation I - h_k v_k v_k'
     // and v_k is the k-th Householder vector [1,m_qr(k+1,k), m_qr(k+2,k), ...]
@@ -578,7 +572,8 @@ struct FullPivHouseholderQRMatrixQReturnType
     result.setIdentity(rows, rows);
     for (Index k = size - 1; k >= 0; k--) {
       result.block(k, k, rows - k, rows - k)
-          .applyHouseholderOnTheLeft(m_qr.col(k).tail(rows - k - 1), conj(m_hCoeffs.coeff(k)), &workspace.coeffRef(k));
+          .applyHouseholderOnTheLeft(m_qr.col(k).tail(rows - k - 1), numext::conj(m_hCoeffs.coeff(k)),
+                                     &workspace.coeffRef(k));
       result.row(k).swap(result.row(m_rowsTranspositions.coeff(k)));
     }
   }

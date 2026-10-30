@@ -335,10 +335,7 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
   Scalar signDeterminant() const;
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
-  RealScalar pivotCoeff(Index i) const {
-    using numext::abs;
-    return abs(m_lu.coeff(i, i));
-  }
+  RealScalar pivotCoeff(Index i) const { return numext::abs(m_lu.coeff(i, i)); }
 
   /** \returns the inverse of the matrix of which *this is the LU decomposition.
    *

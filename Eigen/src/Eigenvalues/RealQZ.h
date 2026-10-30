@@ -301,12 +301,11 @@ inline void RealQZ<MatrixType>::computeNorms() {
 /** \internal Look for single small sub-diagonal element S(res, res-1) and return res (or 0) */
 template <typename MatrixType>
 inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
-  using numext::abs;
   Index res = iu;
   while (res > 0) {
-    Scalar s = abs(m_S.coeff(res - 1, res - 1)) + abs(m_S.coeff(res, res));
+    Scalar s = numext::abs(m_S.coeff(res - 1, res - 1)) + numext::abs(m_S.coeff(res, res));
     if (numext::is_exactly_zero(s)) s = m_normOfS;
-    if (abs(m_S.coeff(res, res - 1)) < NumTraits<Scalar>::epsilon() * s) break;
+    if (numext::abs(m_S.coeff(res, res - 1)) < NumTraits<Scalar>::epsilon() * s) break;
     res--;
   }
   return res;
@@ -315,10 +314,9 @@ inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
 /** \internal Look for single small diagonal element T(res, res) for res between f and l, and return res (or f-1)  */
 template <typename MatrixType>
 inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
-  using numext::abs;
   Index res = l;
   while (res >= f) {
-    if (abs(m_T.coeff(res, res)) <= NumTraits<Scalar>::epsilon() * m_normOfT) break;
+    if (numext::abs(m_T.coeff(res, res)) <= NumTraits<Scalar>::epsilon() * m_normOfT) break;
     res--;
   }
   return res;
@@ -327,10 +325,8 @@ inline Index RealQZ<MatrixType>::findSmallDiagEntry(Index f, Index l) {
 /** \internal decouple 2x2 diagonal block in rows i, i+1 if eigenvalues are real */
 template <typename MatrixType>
 inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
-  using numext::abs;
-  using numext::sqrt;
   const Index dim = m_S.cols();
-  if (numext::is_exactly_zero(abs(m_S.coeff(i + 1, i)))) return;
+  if (numext::is_exactly_zero(numext::abs(m_S.coeff(i + 1, i)))) return;
   Index j = findSmallDiagEntry(i, i + 1);
   if (j == i - 1) {
     // block of (S T^{-1})
@@ -339,7 +335,7 @@ inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
     Scalar p = Scalar(0.5) * (STi(0, 0) - STi(1, 1));
     Scalar q = p * p + STi(1, 0) * STi(0, 1);
     if (q >= 0) {
-      Scalar z = sqrt(q);
+      Scalar z = numext::sqrt(q);
       // one QR-like iteration for ABi - lambda I
       // is enough - when we know exact eigenvalue in advance,
       // convergence is immediate
@@ -403,7 +399,6 @@ inline void RealQZ<MatrixType>::pushDownZero(Index z, Index f, Index l) {
 /** \internal QR-like iterative step for block f..l */
 template <typename MatrixType>
 inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
-  using numext::abs;
   const Index dim = m_S.cols();
 
   // x, y, z
@@ -415,7 +410,7 @@ inline void RealQZ<MatrixType>::step(Index f, Index l, Index iter) {
                  b11i = Scalar(1.0) / m_T.coeff(f + 0, f + 0), b22i = Scalar(1.0) / m_T.coeff(f + 1, f + 1),
                  a87 = m_S.coeff(l - 1, l - 2), a98 = m_S.coeff(l - 0, l - 1),
                  b77i = Scalar(1.0) / m_T.coeff(l - 2, l - 2), b88i = Scalar(1.0) / m_T.coeff(l - 1, l - 1);
-    Scalar ss = abs(a87 * b77i) + abs(a98 * b88i), lpl = Scalar(1.5) * ss, ll = ss * ss;
+    Scalar ss = numext::abs(a87 * b77i) + numext::abs(a98 * b88i), lpl = Scalar(1.5) * ss, ll = ss * ss;
     x = ll + a11 * a11 * b11i * b11i - lpl * a11 * b11i + a12 * a21 * b11i * b22i -
         a11 * a21 * b12 * b11i * b11i * b22i;
     y = a11 * a21 * b11i * b11i - lpl * a21 * b11i + a21 * a22 * b11i * b22i - a21 * a21 * b12 * b11i * b11i * b22i;

@@ -70,7 +70,6 @@ class IterScaling {
    * \sa LeftScaling() RightScaling()
    */
   void compute(const MatrixType& mat) {
-    using numext::abs;
     int m = mat.rows();
     int n = mat.cols();
     eigen_assert((m > 0 && m == n) && "Please give a non - empty matrix");
@@ -89,9 +88,9 @@ class IterScaling {
       Dc.setZero();
       for (int k = 0; k < m_matrix.outerSize(); ++k) {
         for (typename MatrixType::InnerIterator it(m_matrix, k); it; ++it) {
-          if (Dr(it.row()) < abs(it.value())) Dr(it.row()) = abs(it.value());
+          if (Dr(it.row()) < numext::abs(it.value())) Dr(it.row()) = numext::abs(it.value());
 
-          if (Dc(it.col()) < abs(it.value())) Dc(it.col()) = abs(it.value());
+          if (Dc(it.col()) < numext::abs(it.value())) Dc(it.col()) = numext::abs(it.value());
         }
       }
       for (int i = 0; i < m; ++i) {
@@ -114,9 +113,9 @@ class IterScaling {
         for (typename MatrixType::InnerIterator it(m_matrix, k); it; ++it) {
           it.valueRef() = it.value() / (Dr(it.row()) * Dc(it.col()));
           // Accumulate the norms of the row and column vectors
-          if (DrRes(it.row()) < abs(it.value())) DrRes(it.row()) = abs(it.value());
+          if (DrRes(it.row()) < numext::abs(it.value())) DrRes(it.row()) = numext::abs(it.value());
 
-          if (DcRes(it.col()) < abs(it.value())) DcRes(it.col()) = abs(it.value());
+          if (DcRes(it.col()) < numext::abs(it.value())) DcRes(it.col()) = numext::abs(it.value());
         }
       }
       DrRes.array() = (1 - DrRes.array()).abs();

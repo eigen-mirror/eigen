@@ -35,12 +35,11 @@ namespace internal {
 */
 template <typename Vector, typename RealScalar>
 typename Vector::Scalar omega(const Vector& t, const Vector& s, RealScalar angle) {
-  using numext::abs;
   using Scalar = typename Vector::Scalar;
   const RealScalar ns = s.stableNorm();
   const RealScalar nt = t.stableNorm();
   const Scalar ts = t.dot(s);
-  const RealScalar rho = abs(ts / (nt * ns));
+  const RealScalar rho = numext::abs(ts / (nt * ns));
 
   if (rho < angle) {
     if (ts == Scalar(0)) {
@@ -50,7 +49,7 @@ typename Vector::Scalar omega(const Vector& t, const Vector& s, RealScalar angle
     // om = om * angle / rho;
     // To alleviate potential (near) division by zero this can be rewritten as
     // om = angle * (ns / nt) * (ts / abs(ts)) = angle * (ns / nt) * sgn(ts)
-    return angle * (ns / nt) * (ts / abs(ts));
+    return angle * (ns / nt) * (ts / numext::abs(ts));
   }
   return ts / (nt * nt);
 }

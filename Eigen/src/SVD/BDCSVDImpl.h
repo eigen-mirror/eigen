@@ -348,7 +348,6 @@ void bdcsvd_impl<RealScalar_>::divide(Index firstCol, Index lastCol, Index first
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& U, VectorType& singVals, MatrixXr& V) {
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
-  using numext::abs;
   ArrayRef col0 = m_computed.col(firstCol).segment(firstCol, n);
   m_workspace.head(n) = m_computed.block(firstCol, firstCol, n, n).diagonal();
   ArrayRef diag = m_workspace.head(n);
@@ -369,7 +368,7 @@ void bdcsvd_impl<RealScalar_>::computeSVDofM(Index firstCol, Index n, MatrixXr& 
   }
   Index m = 0;  // size of the deflated problem
   for (Index k = 0; k < actual_n; ++k)
-    if (abs(col0(k)) > considerZero) m_workspaceI(m++) = k;
+    if (numext::abs(col0(k)) > considerZero) m_workspaceI(m++) = k;
   Map<ArrayXi> perm(m_workspaceI.data(), m);
 
   Map<ArrayXr> shifts(m_workspace.data() + 1 * n, n);
@@ -448,7 +447,6 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
   // See Ren-Cang Li, "Solving Secular Equations Stably and Efficiently",
   // LAPACK Working Note 89 (1994), and LAPACK's xLASD4/xLASD5 for the
   // stability rationale behind pole-relative shifts and safeguarded steps.
-  using numext::abs;
   using std::swap;
 
   Index n = col0.size();
@@ -535,7 +533,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
 
     RealScalar fPrev = secularEq(muPrev, activeCol0, activeDiag, shiftedRef, shift);
     RealScalar fCur = secularEq(muCur, activeCol0, activeDiag, shiftedRef, shift);
-    if (abs(fPrev) < abs(fCur)) {
+    if (numext::abs(fPrev) < numext::abs(fCur)) {
       swap(fPrev, fCur);
       swap(muPrev, muCur);
     }
@@ -544,13 +542,14 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
     // samples whose reciprocals may overflow stay on bisection. The interval and residual checks below
     // safeguard each interpolation step.
     const RealScalar minNormal = (std::numeric_limits<RealScalar>::min)();
-    bool useBisection = fPrev * fCur > Literal(0) && !(abs(fCur - fPrev) > NumTraits<RealScalar>::epsilon() &&
-                                                       abs(fPrev) <= (std::numeric_limits<RealScalar>::max)() &&
-                                                       abs(muPrev) >= minNormal && abs(muCur) >= minNormal);
+    bool useBisection =
+        fPrev * fCur > Literal(0) && !(numext::abs(fCur - fPrev) > NumTraits<RealScalar>::epsilon() &&
+                                       numext::abs(fPrev) <= (std::numeric_limits<RealScalar>::max)() &&
+                                       numext::abs(muPrev) >= minNormal && numext::abs(muCur) >= minNormal);
     while (!numext::is_exactly_zero(fCur) &&
-           abs(muCur - muPrev) >
-               Literal(8) * NumTraits<RealScalar>::epsilon() * numext::maxi<RealScalar>(abs(muCur), abs(muPrev)) &&
-           abs(fCur - fPrev) > NumTraits<RealScalar>::epsilon() && !useBisection) {
+           numext::abs(muCur - muPrev) > Literal(8) * NumTraits<RealScalar>::epsilon() *
+                                             numext::maxi<RealScalar>(numext::abs(muCur), numext::abs(muPrev)) &&
+           numext::abs(fCur - fPrev) > NumTraits<RealScalar>::epsilon() && !useBisection) {
       ++m_numIters;
 
       // Find a and b such that the function f(mu) = a / mu + b matches the current and previous samples.
@@ -568,7 +567,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       // we can test exact equality here, because shift comes from `... ? left : right`
       if (numext::equal_strict(shift, left) && (muCur < Literal(0) || muCur > right - left)) useBisection = true;
       if (numext::equal_strict(shift, right) && (muCur < -(right - left) || muCur > Literal(0))) useBisection = true;
-      if (abs(fCur) > abs(fPrev)) useBisection = true;
+      if (numext::abs(fCur) > numext::abs(fPrev)) useBisection = true;
     }
 
     // fall back on bisection method if rational interpolation did not work
@@ -580,7 +579,7 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
         // the factor 2 is to be more conservative
         leftShifted = numext::maxi<RealScalar>(
             (std::numeric_limits<RealScalar>::min)(),
-            Literal(2) * abs(col0(k)) / numext::sqrt((std::numeric_limits<RealScalar>::max)()));
+            Literal(2) * numext::abs(col0(k)) / numext::sqrt((std::numeric_limits<RealScalar>::max)()));
 
         // check that we did it right:
         eigen_internal_assert(
@@ -591,9 +590,9 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       } else {
         leftShifted = -(right - left) * RealScalar(0.51);
         if (k + 1 < n)
-          rightShifted =
-              -numext::maxi<RealScalar>((std::numeric_limits<RealScalar>::min)(),
-                                        abs(col0(k + 1)) / numext::sqrt((std::numeric_limits<RealScalar>::max)()));
+          rightShifted = -numext::maxi<RealScalar>(
+              (std::numeric_limits<RealScalar>::min)(),
+              numext::abs(col0(k + 1)) / numext::sqrt((std::numeric_limits<RealScalar>::max)()));
         else
           rightShifted = -(std::numeric_limits<RealScalar>::min)();
       }
@@ -601,8 +600,9 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
       eigen_internal_assert(fLeft < Literal(0));
 
       if (fLeft < Literal(0)) {
-        while (rightShifted - leftShifted > Literal(2) * NumTraits<RealScalar>::epsilon() *
-                                                numext::maxi<RealScalar>(abs(leftShifted), abs(rightShifted))) {
+        while (rightShifted - leftShifted >
+               Literal(2) * NumTraits<RealScalar>::epsilon() *
+                   numext::maxi<RealScalar>(numext::abs(leftShifted), numext::abs(rightShifted))) {
           RealScalar midShifted = (leftShifted + rightShifted) / Literal(2);
           fMid = secularEq(midShifted, activeCol0, activeDiag, shiftedRef, shift);
           eigen_internal_assert((numext::isfinite)(fMid));
@@ -637,7 +637,6 @@ template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::perturbCol0(const ArrayRef& col0, const ArrayRef& diag, const IndicesRef& perm,
                                            const VectorType& singVals, const ArrayRef& shifts, const ArrayRef& mus,
                                            ArrayRef zhat) {
-  using numext::abs;
   Index n = col0.size();
   Index m = perm.size();
   if (m == 0) {
@@ -784,7 +783,6 @@ void bdcsvd_impl<RealScalar_>::deflation44(Index firstColu, Index firstColm, Ind
 template <typename RealScalar_>
 void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k, Index firstRowW, Index firstColW,
                                          Index shift) {
-  using numext::abs;
   const Index length = lastCol + 1 - firstCol;
 
   Block<MatrixXr, Dynamic, 1> col0(m_computed, firstCol + shift, firstCol + shift, length, 1);
@@ -804,7 +802,7 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
 
   // condition 4.2
   for (Index i = 1; i < length; ++i)
-    if (abs(col0(i)) < epsilon_strict) {
+    if (numext::abs(col0(i)) < epsilon_strict) {
       col0(i) = Literal(0);
     }
 
@@ -899,7 +897,7 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
   {
     Index i = length - 1;
     // Find last non-deflated entry.
-    while (i > 0 && (diag(i) < considerZero || abs(col0(i)) < considerZero)) --i;
+    while (i > 0 && (diag(i) < considerZero || numext::abs(col0(i)) < considerZero)) --i;
 
     for (; i > 1; --i)
       if ((diag(i) - diag(i - 1)) < epsilon_coarse) {

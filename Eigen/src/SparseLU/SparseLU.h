@@ -370,7 +370,6 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    * \sa logAbsDeterminant(), signDeterminant()
    */
   Scalar absDeterminant() const {
-    using numext::abs;
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
     // Initialize with the determinant of the row matrix
     Scalar det = Scalar(1.);
@@ -379,7 +378,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
     for (Index j = 0; j < this->cols(); ++j) {
       for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
         if (it.index() == j) {
-          det *= abs(it.value());
+          det *= numext::abs(it.value());
           break;
         }
       }
@@ -398,16 +397,13 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    * \sa absDeterminant(), signDeterminant()
    */
   Scalar logAbsDeterminant() const {
-    using numext::abs;
-    using numext::log;
-
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
     Scalar det = Scalar(0.);
     for (Index j = 0; j < this->cols(); ++j) {
       for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
         if (it.row() < j) continue;
         if (it.row() == j) {
-          det += log(abs(it.value()));
+          det += numext::log(numext::abs(it.value()));
           break;
         }
       }
@@ -898,7 +894,6 @@ struct SparseLUMatrixUReturnType : internal::no_assignment_operator {
 
   template <bool Conjugate, typename Dest>
   void solveTransposedInPlace(MatrixBase<Dest>& X) const {
-    using numext::conj;
     Index nrhs = X.cols();
     // Forward solve with U
     for (Index k = 0; k <= m_mapL.nsuper(); k++) {
@@ -912,13 +907,13 @@ struct SparseLUMatrixUReturnType : internal::no_assignment_operator {
           typename MatrixUType::InnerIterator it(m_mapU, jcol);
           for (; it; ++it) {
             Index irow = it.index();
-            X(jcol, j) -= X(irow, j) * (Conjugate ? conj(it.value()) : it.value());
+            X(jcol, j) -= X(irow, j) * (Conjugate ? numext::conj(it.value()) : it.value());
           }
         }
       }
       if (nsupc == 1) {
         for (Index j = 0; j < nrhs; j++) {
-          X(fsupc, j) /= (Conjugate ? conj(m_mapL.valuePtr()[luptr]) : m_mapL.valuePtr()[luptr]);
+          X(fsupc, j) /= (Conjugate ? numext::conj(m_mapL.valuePtr()[luptr]) : m_mapL.valuePtr()[luptr]);
         }
       } else {
         Map<const Matrix<Scalar, Dynamic, Dynamic, ColMajor>, 0, OuterStride<>> A(&(m_mapL.valuePtr()[luptr]), nsupc,

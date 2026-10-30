@@ -414,7 +414,6 @@ class CholmodBase : public SparseSolverBase<Derived> {
 
   /** \returns the log determinant of the underlying matrix from the current factorization */
   Scalar logDeterminant() const {
-    using numext::real;
     eigen_assert(m_factorizationIsOk &&
                  "The decomposition is not in a valid state for solving, you must first call either compute() or "
                  "symbolic()/numeric()");
@@ -444,7 +443,7 @@ class CholmodBase : public SparseSolverBase<Derived> {
       // Simplicial factorization stored as standard CSC matrix.
       StorageIndex* p = static_cast<StorageIndex*>(m_cholmodFactor->p);
       Index size = m_cholmodFactor->n;
-      for (Index k = 0; k < size; ++k) logDet += numext::log(real(x[p[k]]));
+      for (Index k = 0; k < size; ++k) logDet += numext::log(numext::real(x[p[k]]));
     }
     if (m_cholmodFactor->is_ll) logDet *= 2.0;
     return logDet;

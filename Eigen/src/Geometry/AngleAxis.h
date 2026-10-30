@@ -135,14 +135,12 @@ class AngleAxis : public RotationBase<AngleAxis<Scalar_>, 3> {
    * without constructing the full rotation matrix. */
   template <typename OtherVectorType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Vector3 _transformVector(const OtherVectorType& v) const {
-    using numext::cos;
-    using numext::sin;
     EIGEN_INTERNAL_ASSERT_SAME_SIZE(v, m_axis);
 
     // Rodrigues' rotation formula: v' = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
     const Vector3 v3(v);
-    const Scalar c = cos(m_angle);
-    const Scalar s = sin(m_angle);
+    const Scalar c = numext::cos(m_angle);
+    const Scalar s = numext::sin(m_angle);
     return v3 * c + m_axis.cross(v3) * s + m_axis * (m_axis.dot(v3) * (Scalar(1) - c));
   }
 
@@ -192,13 +190,11 @@ using AngleAxisd = AngleAxis<double>;
 template <typename Scalar>
 template <typename QuatDerived>
 EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::operator=(const QuaternionBase<QuatDerived>& q) {
-  using numext::abs;
-  using numext::atan2;
   Scalar n = q.vec().norm();
   if (n < NumTraits<Scalar>::epsilon()) n = q.vec().stableNorm();
 
   if (n != Scalar(0)) {
-    m_angle = Scalar(2) * atan2(n, abs(q.w()));
+    m_angle = Scalar(2) * numext::atan2(n, numext::abs(q.w()));
     if (q.w() < Scalar(0)) n = -n;
     m_axis = q.vec() / n;
   } else {
@@ -248,11 +244,9 @@ EIGEN_DEVICE_FUNC AngleAxis<Scalar>& AngleAxis<Scalar>::fromRotationMatrix(const
  */
 template <typename Scalar>
 typename AngleAxis<Scalar>::Matrix3 EIGEN_DEVICE_FUNC AngleAxis<Scalar>::toRotationMatrix(void) const {
-  using numext::cos;
-  using numext::sin;
   Matrix3 res;
-  Vector3 sin_axis = sin(m_angle) * m_axis;
-  Scalar c = cos(m_angle);
+  Vector3 sin_axis = numext::sin(m_angle) * m_axis;
+  Scalar c = numext::cos(m_angle);
   Vector3 cos1_axis = (Scalar(1) - c) * m_axis;
 
   Scalar tmp;

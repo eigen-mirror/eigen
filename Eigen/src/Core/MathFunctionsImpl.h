@@ -160,8 +160,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
   RealScalar p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
   RealScalar qp = numext::mini(y, x) / p;
-  using numext::sqrt;
-  return p * sqrt(RealScalar(1) + qp * qp);
+  return p * numext::sqrt<RealScalar>(RealScalar(1) + qp * qp);
 }
 
 template <typename Scalar>

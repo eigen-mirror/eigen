@@ -80,13 +80,11 @@ StorageIndex cs_tdfs(StorageIndex j, StorageIndex k, StorageIndex* head, const S
 template <typename Scalar, typename StorageIndex>
 void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
                              PermutationMatrix<Dynamic, Dynamic, StorageIndex>& perm) {
-  using numext::sqrt;
-
   StorageIndex d, dk, dext, lemax = 0, e, elenk, eln, i, j, k, k1, k2, k3, jlast, ln, dense, nzmax, mindeg = 0, nvi,
                             nvj, nvk, mark, wnvi, ok, nel = 0, p, p1, p2, p3, p4, pj, pk, pk1, pk2, pn, q, t, h;
 
   StorageIndex n = StorageIndex(C.cols());
-  dense = std::max<StorageIndex>(16, StorageIndex(10 * sqrt(double(n)))); /* find dense threshold */
+  dense = std::max<StorageIndex>(16, StorageIndex(10 * numext::sqrt(double(n)))); /* find dense threshold */
   dense = (std::min)(n - 2, dense);
 
   StorageIndex cnz = StorageIndex(C.nonZeros());

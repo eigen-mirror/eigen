@@ -346,10 +346,9 @@ typename MatrixType::Scalar HouseholderQR<MatrixType>::determinant() const {
 
 template <typename MatrixType>
 typename MatrixType::RealScalar HouseholderQR<MatrixType>::absDeterminant() const {
-  using numext::abs;
   eigen_assert(m_isInitialized && "HouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
-  return abs(m_qr.diagonal().prod());
+  return numext::abs(m_qr.diagonal().prod());
 }
 
 template <typename MatrixType>

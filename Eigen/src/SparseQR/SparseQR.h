@@ -389,8 +389,6 @@ void SparseQR<MatrixType, OrderingType>::analyzePattern(const MatrixType& mat) {
  */
 template <typename MatrixType, typename OrderingType>
 void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
-  using numext::abs;
-
   eigen_assert(m_analysisIsok && "analyzePattern() should be called before this step");
 
   // Reset state from any prior factorize() so info() and lastErrorMessage()
@@ -579,8 +577,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
         beta = numext::real(c0);
         tval(Qidx(0)) = Scalar(1);
       } else {
-        using numext::sqrt;
-        beta = sqrt(numext::abs2(c0) + sqrNorm);
+        beta = numext::sqrt<RealScalar>(numext::abs2(c0) + sqrNorm);
         if (numext::real(c0) >= RealScalar(0)) beta = -beta;
         tval(Qidx(0)) = Scalar(1);
         for (Index itq = 1; itq < nzcolQ; ++itq) tval(Qidx(itq)) /= (c0 - beta);
@@ -597,7 +594,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
       }
     }
 
-    const RealScalar absBeta = abs(beta);
+    const RealScalar absBeta = numext::abs(beta);
     bool hasReplacement = false;
     const bool canRejectColumn = nonzeroCol + (n - col - 1) >= diagSize;
     // Gate for examining a pivot as replaceable. The Householder pivot `beta` of a
@@ -609,8 +606,7 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
     // *examined* (and never rejects a pivot that lacks a replacement). A threshold at
     // the residual's noise floor would otherwise make the pivoting decision -- and
     // hence the result -- depend on floating-point contraction.
-    using numext::sqrt;
-    const RealScalar weakPivotTolerance = sqrt(NumTraits<RealScalar>::epsilon());
+    const RealScalar weakPivotTolerance = numext::sqrt(NumTraits<RealScalar>::epsilon());
     const RealScalar maxReplaceablePivotThreshold = max2Norm * weakPivotTolerance;
     if (nonzeroCol < diagSize && canRejectColumn && m_useDefaultThreshold && absBeta >= pivotThreshold &&
         absBeta < maxReplaceablePivotThreshold) {

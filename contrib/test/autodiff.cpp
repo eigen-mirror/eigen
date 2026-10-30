@@ -532,10 +532,13 @@ void test_autodiff_geometry_atan2() {
   const Quaternion<AD> rotation(AngleAxis<AD>(angle, Vec3::UnitZ()));
   const AD distance = rotation.angularDistance(Quaternion<AD>::Identity());
   const Vec3 axis = rotation.toScaledAxis();
+  AngleAxis<AD> aa_from_q;
+  aa_from_q = rotation;
+  const AD aa_angle = aa_from_q.angle();
   const Matrix<AD, 2, 2> matrix = Rotation2D<AD>(angle).toRotationMatrix();
   const AD recovered = Rotation2D<AD>(matrix).angle();
   const double tolerance = 64 * NumTraits<double>::epsilon();
-  for (const AD* result : {&distance, &axis(2), &recovered}) {
+  for (const AD* result : {&distance, &axis(2), &aa_angle, &recovered}) {
     VERIFY(numext::abs(result->value() - angle.value()) <= tolerance);
     VERIFY((result->derivatives() - angle.derivatives()).cwiseAbs().maxCoeff() <= tolerance);
   }

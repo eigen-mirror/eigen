@@ -405,8 +405,6 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::compute(const EigenBase<InputT
  * m_realSchur. */
 template <typename MatrixType>
 EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
-  using numext::isfinite;
-
   m_info = m_realSchur.info();
 
   if (m_info == Success) {
@@ -419,7 +417,7 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeE
     while (i < n) {
       if (i == n - 1 || matT.coeff(i + 1, i) == Scalar(0)) {
         m_eivalues.coeffRef(i) = matT.coeff(i, i);
-        if (!(isfinite)(m_eivalues.coeffRef(i))) {
+        if (!(numext::isfinite)(m_eivalues.coeffRef(i))) {
           m_isInitialized = true;
           m_eigenvectorsOk = false;
           m_info = NumericalIssue;
@@ -443,7 +441,7 @@ EigenSolver<MatrixType>& EigenSolver<MatrixType>::computeFromSchur(bool computeE
 
         m_eivalues.coeffRef(i) = ComplexScalar(matT.coeff(i + 1, i + 1) + p, z);
         m_eivalues.coeffRef(i + 1) = ComplexScalar(matT.coeff(i + 1, i + 1) + p, -z);
-        if (!((isfinite)(m_eivalues.coeffRef(i)) && (isfinite)(m_eivalues.coeffRef(i + 1)))) {
+        if (!((numext::isfinite)(m_eivalues.coeffRef(i)) && (numext::isfinite)(m_eivalues.coeffRef(i + 1)))) {
           m_isInitialized = true;
           m_eigenvectorsOk = false;
           m_info = NumericalIssue;

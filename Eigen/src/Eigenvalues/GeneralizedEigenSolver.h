@@ -319,8 +319,6 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::compute(
  * held by m_realQZ. */
 template <typename MatrixType>
 GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeFromQZ(bool computeEigenvectors) {
-  using numext::conj;
-  using numext::real;
   const Index size = m_realQZ.matrixS().cols();
   if (m_realQZ.info() == Success) {
     // Resize storage
@@ -349,7 +347,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
           // For singular eigenvalues do nothing more
           if (numext::abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
             // Non-singular eigenvalue
-            const Scalar alpha = real(m_alphas.coeffRef(i));
+            const Scalar alpha = numext::real(m_alphas.coeffRef(i));
             const Scalar beta = m_betas.coeffRef(i);
             for (Index j = i - 1; j >= 0; j--) {
               const Index st = j + 1;
@@ -393,7 +391,7 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
         Scalar p = Scalar(0.5) * (S2.coeff(0, 0) - S2.coeff(1, 1));
         Scalar z = numext::sqrt(numext::abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
         const ComplexScalar alpha = ComplexScalar(S2.coeff(1, 1) + p, (beta > 0) ? z : -z);
-        m_alphas.coeffRef(i) = conj(alpha);
+        m_alphas.coeffRef(i) = numext::conj(alpha);
         m_alphas.coeffRef(i + 1) = alpha;
 
         if (computeEigenvectors) {

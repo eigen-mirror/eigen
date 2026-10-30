@@ -218,7 +218,6 @@ class SVDBase : public SolverBase<SVDBase<Derived> > {
    *       setThreshold(const RealScalar&).
    */
   inline Index rank() const {
-    using numext::abs;
     _check_compute_assertions();
     if (m_singularValues.size() == 0) return 0;
     RealScalar premultiplied_threshold =

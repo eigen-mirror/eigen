@@ -310,12 +310,10 @@ inline bool ComplexSchur<MatrixType>::subdiagonalEntryIsNeglegible(Index i) {
 /** Compute the shift in the current QR iteration. */
 template <typename MatrixType>
 typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::computeShift(Index iu, Index iter) {
-  using numext::abs;
-  using numext::sqrt;
   if ((iter == 10 || iter == 20) && iu > 1) {
     // exceptional shift, taken from http://www.netlib.org/eispack/comqr.f
-    return ComplexSchur<MatrixType>::ComplexScalar(abs(numext::real(m_matT.coeff(iu, iu - 1))) +
-                                                   abs(numext::real(m_matT.coeff(iu - 1, iu - 2))));
+    return ComplexSchur<MatrixType>::ComplexScalar(numext::abs(numext::real(m_matT.coeff(iu, iu - 1))) +
+                                                   numext::abs(numext::real(m_matT.coeff(iu - 1, iu - 2))));
   }
 
   // compute the shift as one of the eigenvalues of t, the 2x2
@@ -326,7 +324,7 @@ typename ComplexSchur<MatrixType>::ComplexScalar ComplexSchur<MatrixType>::compu
 
   ComplexScalar b = t.coeff(0, 1) * t.coeff(1, 0);
   ComplexScalar c = t.coeff(0, 0) - t.coeff(1, 1);
-  ComplexScalar disc = sqrt(c * c + RealScalar(4) * b);
+  ComplexScalar disc = numext::sqrt(c * c + RealScalar(4) * b);
   ComplexScalar det = t.coeff(0, 0) * t.coeff(1, 1) - b;
   ComplexScalar trace = t.coeff(0, 0) + t.coeff(1, 1);
   ComplexScalar eival1 = (trace + disc) / RealScalar(2);
