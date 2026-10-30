@@ -14,7 +14,7 @@ if(EIGEN_ENABLE_LAPACK_TESTS)
     enable_language(Fortran)
     if("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
       if ("${CMAKE_Fortran_COMPILER_VERSION}" VERSION_GREATER_EQUAL 10.0)
-        # We use an old version of LAPACK with argument type mismatches.
+        # Reference LAPACK sources contain argument type mismatches.
         # Allow them to compile anyway with newer GNU versions.
         set(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -fallow-argument-mismatch")
       endif()
@@ -42,34 +42,18 @@ set(EIGEN_LAPACK_DEF "eigen_lapack.def")
 
 if(EIGEN_ENABLE_LAPACK_TESTS)
 
-  get_filename_component(eigen_full_path_to_reference_lapack "./reference/" ABSOLUTE)
-  if(NOT EXISTS ${eigen_full_path_to_reference_lapack})
-    # Download lapack and install sources and testing at the right place
-    message(STATUS "Download lapack_addons_3.4.1.tgz...")
-
-    file(DOWNLOAD "http://downloads.tuxfamily.org/eigen/lapack_addons_3.4.1.tgz"
-                  "${CMAKE_CURRENT_SOURCE_DIR}/lapack_addons_3.4.1.tgz"
-                  INACTIVITY_TIMEOUT 15
-                  TIMEOUT 240
-                  STATUS download_status
-                  EXPECTED_MD5 ab5742640617e3221a873aba44bbdc93
-                  SHOW_PROGRESS)
-
-    message(STATUS ${download_status})
-    list(GET download_status 0 download_status_num)
-    set(download_status_num 0)
-    if(download_status_num EQUAL 0)
-      message(STATUS "Setup lapack reference and lapack unit tests")
-      execute_process(COMMAND tar xzf  "lapack_addons_3.4.1.tgz" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-    else()
-      message(STATUS "Download of lapack_addons_3.4.1.tgz failed, LAPACK unit tests won't be enabled")
-      set(EIGEN_ENABLE_LAPACK_TESTS false)
-    endif()
-
+  include(FetchContent)
+  FetchContent_Declare(eigen_lapack_reference
+    URL https://codeload.github.com/Reference-LAPACK/lapack/tar.gz/refs/tags/v3.12.1
+    URL_HASH SHA256=2ca6407a001a474d4d4d35f3a61550156050c48016d949f0da0529c0aa052422
+    TLS_VERIFY ON)
+  FetchContent_GetProperties(eigen_lapack_reference)
+  if(NOT eigen_lapack_reference_POPULATED)
+    FetchContent_Populate(eigen_lapack_reference)
   endif()
+  set(LAPACK_SOURCE_DIR "${eigen_lapack_reference_SOURCE_DIR}")
+  set(LAPACK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
-  get_filename_component(eigen_full_path_to_reference_lapack "./reference/" ABSOLUTE)
-  if(EXISTS ${eigen_full_path_to_reference_lapack})
     set(EigenLapack_funcfilenames
         ssyev.f   dsyev.f   csyev.f   zsyev.f
         spotrf.f  dpotrf.f  cpotrf.f  zpotrf.f
@@ -88,18 +72,21 @@ if(EIGEN_ENABLE_LAPACK_TESTS)
         slamch.f  dlamch.f
         ilaver.f)
 
-    file(GLOB ReferenceLapack_SRCS0 RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "reference/*.f")
+    file(GLOB ReferenceLapack_SRCS0 "${LAPACK_SOURCE_DIR}/SRC/*.f"
+         "${LAPACK_SOURCE_DIR}/SRC/*.F" "${LAPACK_SOURCE_DIR}/SRC/*.f90"
+         "${LAPACK_SOURCE_DIR}/SRC/*.F90"
+         "${LAPACK_SOURCE_DIR}/SRC/DEPRECATED/*.f")
+    list(APPEND ReferenceLapack_SRCS0
+      "${LAPACK_SOURCE_DIR}/INSTALL/sroundup_lwork.f"
+      "${LAPACK_SOURCE_DIR}/INSTALL/droundup_lwork.f")
     foreach(filename1 IN LISTS ReferenceLapack_SRCS0)
-      string(REPLACE "reference/" "" filename ${filename1})
+      get_filename_component(filename "${filename1}" NAME)
       list(FIND EigenLapack_SRCS ${filename} id1)
       list(FIND EigenLapack_funcfilenames ${filename} id2)
       if((id1 EQUAL -1) AND (id2 EQUAL -1))
-        set(ReferenceLapack_SRCS ${ReferenceLapack_SRCS} reference/${filename})
+        list(APPEND ReferenceLapack_SRCS "${filename1}")
       endif()
     endforeach()
-  endif()
-
-
 endif()
 
 set(EIGEN_LAPACK_TARGETS "")
@@ -134,19 +121,8 @@ foreach(target IN LISTS EIGEN_LAPACK_TARGETS)
 endforeach()
 
 
-get_filename_component(eigen_full_path_to_testing_lapack "./testing/" ABSOLUTE)
-if(EIGEN_ENABLE_LAPACK_TESTS AND EXISTS ${eigen_full_path_to_testing_lapack})
+if(EIGEN_ENABLE_LAPACK_TESTS)
 
-  # The following comes from lapack/TESTING/CMakeLists.txt
-  # Get Python
-  find_package(PythonInterp)
-  message(STATUS "Looking for Python found - ${PYTHONINTERP_FOUND}")
-  if (PYTHONINTERP_FOUND)
-    message(STATUS "Using Python version ${PYTHON_VERSION_STRING}")
-  endif()
-
-  set(LAPACK_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-  set(LAPACK_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
   set(BUILD_SINGLE      true)
   set(BUILD_DOUBLE      true)
   set(BUILD_COMPLEX     true)
@@ -159,23 +135,39 @@ if(EIGEN_ENABLE_LAPACK_TESTS AND EXISTS ${eigen_full_path_to_testing_lapack})
     CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
   endif()
   file(MAKE_DIRECTORY "${LAPACK_BINARY_DIR}/TESTING")
-  add_subdirectory(testing/MATGEN)
-  add_subdirectory(testing/LIN)
-  add_subdirectory(testing/EIG)
+  set(LAPACK_LIBRARIES eigen_lapack_static)
+  set(BLAS_LIBRARIES eigen_blas_static)
+  set(TMGLIB tmglib)
+  set(LAPACK_VERSION 3.12.1)
+  set(LAPACK_MAJOR_VERSION 3)
+  # Upstream's test libraries are build-only dependencies.
+  function(lapack_install_library target)
+  endfunction()
+  add_subdirectory("${LAPACK_SOURCE_DIR}/TESTING/MATGEN" testing/MATGEN)
+  add_subdirectory("${LAPACK_SOURCE_DIR}/TESTING/LIN" testing/LIN)
+  add_subdirectory("${LAPACK_SOURCE_DIR}/TESTING/EIG" testing/EIG)
+  # Some LAPACK 3.12.1 checks are expected to fail: obsolete bitwise eigenvalue
+  # comparisons, unnormalized RFP errors, a balance-test denominator missing ABS,
+  # and a reference-CSTEIN orthogonality limitation. These are LAPACK-side issues;
+  # keep the tests enabled and let the summary report their failures.
+  set(EIGEN_LAPACK_TEST_NAMES "")
+  set(EIGEN_LAPACK_TEST_OUTPUTS "")
   macro(add_lapack_test output input target)
-    set(TEST_INPUT "${LAPACK_SOURCE_DIR}/testing/${input}")
+    set(TEST_INPUT "${LAPACK_SOURCE_DIR}/TESTING/${input}")
     set(TEST_OUTPUT "${LAPACK_BINARY_DIR}/TESTING/${output}")
     string(REPLACE "." "_" input_name ${input})
     set(testName "${target}_${input_name}")
     if(EXISTS "${TEST_INPUT}")
       add_dependencies(buildtests ${target})
+      list(APPEND EIGEN_LAPACK_TEST_NAMES "LAPACK-${testName}")
+      list(APPEND EIGEN_LAPACK_TEST_OUTPUTS "${TEST_OUTPUT}")
       add_test(NAME LAPACK-${testName}
         COMMAND "${CMAKE_COMMAND}"
         -DTEST=$<TARGET_FILE:${target}>
         -DINPUT=${TEST_INPUT}
         -DOUTPUT=${TEST_OUTPUT}
         -DINTDIR=${CMAKE_CFG_INTDIR}
-        -P "${LAPACK_SOURCE_DIR}/testing/runtest.cmake")
+        -P "${LAPACK_SOURCE_DIR}/TESTING/runtest.cmake")
     endif()
   endmacro()
 
@@ -465,16 +457,20 @@ if(EIGEN_ENABLE_LAPACK_TESTS AND EXISTS ${eigen_full_path_to_testing_lapack})
 
   # ==============================================================================
 
-  if(EXISTS "${LAPACK_SOURCE_DIR}/lapack_testing.py")
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy ${LAPACK_SOURCE_DIR}/lapack_testing.py ${LAPACK_BINARY_DIR})
-  else()
-    execute_process(COMMAND ${CMAKE_COMMAND} -E copy ${LAPACK_SOURCE_DIR}/testing/lapack_testing.py ${LAPACK_BINARY_DIR})
+  if(EIGEN_LAPACK_TEST_NAMES)
+    string(REPLACE ";" "\n" lapack_outputs "${EIGEN_LAPACK_TEST_OUTPUTS}")
+    file(WRITE "${LAPACK_BINARY_DIR}/lapack_test_outputs.txt" "${lapack_outputs}\n")
+    add_test(
+      NAME LAPACK_Test_Summary
+      WORKING_DIRECTORY ${LAPACK_BINARY_DIR}
+      COMMAND "${CMAKE_COMMAND}"
+              "-DOUTPUT_MANIFEST=${LAPACK_BINARY_DIR}/lapack_test_outputs.txt"
+              "-DREPORT_FILE=${LAPACK_BINARY_DIR}/TESTING/testing_results.txt"
+              -P "${CMAKE_CURRENT_SOURCE_DIR}/testing_summary.cmake"
+    )
+    set_tests_properties(${EIGEN_LAPACK_TEST_NAMES} PROPERTIES FIXTURES_SETUP lapack_outputs)
+    set_tests_properties(LAPACK_Test_Summary PROPERTIES FIXTURES_REQUIRED lapack_outputs)
   endif()
-  add_test(
-    NAME LAPACK_Test_Summary
-    WORKING_DIRECTORY ${LAPACK_BINARY_DIR}
-    COMMAND ${PYTHON_EXECUTABLE} "lapack_testing.py"
-  )
 
 endif()
 
