@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 New features:
+- `AutoDiffScalar` overloads of `atan`, `log1p`, `expm1`, `log2`, `log10`, `cbrt`, `asinh`, `acosh` and `atanh` [#234, !3448]
 - ComplexQZ implementation [!1962]
 - Generic clang vector extension backend [!2051]
 - `ArrayBase::logicalShiftRight<N>()`, a zero-filling right shift, alongside `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` as the spelled-out names for the existing shift operators [!2816]

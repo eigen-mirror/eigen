@@ -85,6 +85,7 @@ inline AutoDiffScalar<NewDerType> MakeAutoDiffScalar(const typename NewDerType::
  *  - std::abs, std::sqrt, std::pow, std::exp, std::log, std::sin, std::cos,
  *  - internal::abs, internal::sqrt, numext::pow, internal::exp, internal::log, internal::sin, internal::cos,
  *  - internal::conj, internal::real, internal::imag, numext::abs2.
+ *  - atan, log1p, expm1, log2, log10, cbrt, asinh, acosh, and atanh, through argument-dependent lookup or numext.
  *
  * AutoDiffScalar can be used as the scalar type of an Eigen::Matrix object. However,
  * in that case, the expression template mechanism only occurs at the top Matrix level,
@@ -530,6 +531,22 @@ inline AutoDiffScalar<Matrix<typename internal::traits<internal::remove_all_t<De
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(tan, using std::tan; using std::cos; return Eigen::MakeAutoDiffScalar(
                                         tan(x.value()), x.derivatives() * (Scalar(1) / numext::abs2(cos(x.value()))));)
 
+template <typename DerType>
+inline auto atan(const AutoDiffScalar<DerType>& x) {
+  using Scalar = typename AutoDiffScalar<DerType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Scalar& value = x.value();
+  Scalar scale(1), denominator;
+  if (numext::abs(value) > RealScalar(1)) {
+    // dx / x / (x + 1/x) avoids overflowing x*x or underflowing its reciprocal before multiplying dx.
+    scale = value;
+    denominator = value + Scalar(1) / value;
+  } else {
+    denominator = Scalar(1) + value * value;
+  }
+  return MakeAutoDiffScalar(numext::atan(value), (x.derivatives() / scale) / denominator);
+}
+
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(asin, using std::sqrt; using std::asin; return Eigen::MakeAutoDiffScalar(
                                         asin(x.value()),
                                         x.derivatives() * (Scalar(1) / sqrt(1 - numext::abs2(x.value()))));)
@@ -549,6 +566,74 @@ EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(sinh, using std::sinh; using std::cosh;
 EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cosh, using std::sinh; using std::cosh;
                                     return Eigen::MakeAutoDiffScalar(cosh(x.value()),
                                                                      x.derivatives() * sinh(x.value()));)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log1p, return MakeAutoDiffScalar(numext::log1p(x.value()),
+                                                                     x.derivatives() / (Scalar(1) + x.value()));)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(expm1, return MakeAutoDiffScalar(numext::expm1(x.value()),
+                                                                     x.derivatives() * numext::exp(x.value()));)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(log2,
+                                    return MakeAutoDiffScalar(numext::log2(x.value()),
+                                                              (x.derivatives() / x.value()) / numext::log(Scalar(2)));)
+
+template <typename DerType>
+inline auto log10(const AutoDiffScalar<DerType>& x) {
+  using Scalar = typename AutoDiffScalar<DerType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Scalar logarithm = numext::log(Scalar(10));
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+    const bool below_one = numext::abs(x.value()) < RealScalar(1);
+    const Scalar first = below_one ? logarithm : x.value();
+    const Scalar second = below_one ? x.value() : logarithm;
+    return MakeAutoDiffScalar(numext::log10(x.value()), (x.derivatives() / first) / second);
+  }
+  const RealScalar magnitude = numext::abs(x.value());
+  const bool subnormal = magnitude < RealScalar((numext::numeric_limits<RealScalar>::min)());
+  const bool combine = magnitude < RealScalar(1) && !subnormal;
+  // Combine normal small x with log(10) before dividing a tiny seed. For subnormal x,
+  // (x/eps)*(log(10)*eps) keeps both factors normal without rounding away the seed.
+  const Scalar scale = subnormal ? Scalar(NumTraits<Scalar>::epsilon()) : Scalar(1);
+  const Scalar first = (x.value() * (combine ? logarithm : Scalar(1))) / scale;
+  const Scalar second = (combine ? Scalar(1) : logarithm) * scale;
+  return MakeAutoDiffScalar(numext::log10(x.value()), (x.derivatives() / first) / second);
+}
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(cbrt, const Scalar root = numext::cbrt(x.value());
+                                    return MakeAutoDiffScalar(root, x.derivatives() / (Scalar(3) * root * root));)
+
+EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(asinh,
+                                    return MakeAutoDiffScalar(numext::asinh(x.value()),
+                                                              x.derivatives() / numext::hypot(Scalar(1), x.value()));)
+
+template <typename DerType>
+inline auto acosh(const AutoDiffScalar<DerType>& x) {
+  using Scalar = typename AutoDiffScalar<DerType>::Scalar;
+  // Separate square roots avoid overflowing x*x for large x.
+  const Scalar lower = numext::sqrt(Scalar(x.value() - Scalar(1)));
+  const Scalar upper = numext::sqrt(Scalar(x.value() + Scalar(1)));
+  return MakeAutoDiffScalar(numext::acosh(x.value()), (x.derivatives() / upper) / lower);
+}
+
+template <typename DerType>
+inline auto atanh(const AutoDiffScalar<DerType>& x) {
+  using Scalar = typename AutoDiffScalar<DerType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Scalar lower = Scalar(1) - x.value();
+  const Scalar upper = Scalar(1) + x.value();
+  const bool lower_first = numext::abs(lower) > numext::abs(upper);
+  const Scalar larger = lower_first ? lower : upper;
+  const Scalar smaller = lower_first ? upper : lower;
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+    return MakeAutoDiffScalar(numext::atanh(x.value()), (x.derivatives() / larger) / smaller);
+  }
+  // For real |x| <= 1 the product is in [0,1]: divide by it before rounding a tiny seed.
+  // Outside that interval, retain separate factors to avoid overflowing their product.
+  const bool combine = numext::abs(x.value()) <= RealScalar(1);
+  const Scalar first = larger * (combine ? smaller : Scalar(1));
+  const Scalar second = combine ? Scalar(1) : smaller;
+  return MakeAutoDiffScalar(numext::atanh(x.value()), (x.derivatives() / first) / second);
+}
 
 #undef EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY
 
