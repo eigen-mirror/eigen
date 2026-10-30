@@ -298,7 +298,7 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run(Dst& dst, const Lhs& lhs, cons
   // FIXME if cols is large enough, then it might be useful to make sure that lhs is sequentially stored
   // FIXME not very good if rhs is real and lhs complex while alpha is real too
   const Index cols = dst.cols();
-  for (Index j = 0; j < cols; ++j) func(dst.col(j), rhsEval.coeff(Index(0), j) * actual_lhs);
+  for (Index j = 0; j < cols; ++j) func(dst.col(j), actual_lhs * rhsEval.coeff(Index(0), j));
 }
 
 // Row major result
@@ -329,9 +329,9 @@ void EIGEN_DEVICE_FUNC outer_product_selector_run_small(Dst& dst, const Lhs& lhs
     const typename Rhs::Scalar rhs_j = rhsEval.coeff(Index(0), j);
     for (Index i = 0; i < rows; ++i) {
       EIGEN_IF_CONSTEXPR (ApplyScale) {
-        func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(rhs_j, actual_lhs.coeff(i, Index(0)))));
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(alpha, internal::mul(actual_lhs.coeff(i, Index(0)), rhs_j)));
       } else {
-        func.assignCoeff(dst.coeffRef(i, j), internal::mul(rhs_j, actual_lhs.coeff(i, Index(0))));
+        func.assignCoeff(dst.coeffRef(i, j), internal::mul(actual_lhs.coeff(i, Index(0)), rhs_j));
       }
     }
   }
@@ -464,6 +464,27 @@ struct generic_product_impl_base {
   }
 };
 
+template <typename Lhs, typename Rhs, typename Scalar>
+struct gemv_leading_constant : std::false_type {};
+
+template <typename Plain, typename Nested, typename Rhs, typename Scalar>
+struct gemv_leading_constant<
+    CwiseBinaryOp<scalar_product_op<Scalar>, const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain>, Nested>, Rhs,
+    Scalar> : std::is_same<typename Rhs::Scalar, Scalar> {
+  using Inner = remove_all_t<Nested>;
+};
+
+// Seed all sums from their first term without requiring a default-constructible scalar.
+// Inline initialization so the compiler can keep the accumulator array in registers.
+template <typename Scalar, int Count>
+struct gemv_ordered_accumulators {
+  Scalar values[Count];
+  template <typename Term, int... Indices>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit gemv_ordered_accumulators(const Term& term, Index offset,
+                                                                           std::integer_sequence<int, Indices...>)
+      : values{term(offset + Indices, 0)...} {}
+};
+
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>> {
@@ -476,6 +497,104 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
   template <typename Dest>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void scaleAndAddTo(Dest& dst, const Lhs& lhs, const Rhs& rhs,
                                                                   const Scalar& alpha) {
+    run(dst, lhs, rhs, alpha, blas_product_is_commutative<typename Lhs::Scalar, typename Rhs::Scalar>());
+  }
+
+ private:
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha,
+                                                        std::false_type) {
+    if (lhs.cols() == 0 || numext::is_exactly_zero(alpha) || blas_traits<Lhs>::hasZeroScalarFactor(lhs) ||
+        blas_traits<Rhs>::hasZeroScalarFactor(rhs))
+      return;
+    run_ordered(dst, lhs, rhs, alpha, gemv_leading_constant<Lhs, Rhs, Scalar>());
+  }
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_ordered(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                const Scalar& alpha, std::true_type) {
+    const Scalar scale = lhs.lhs().functor().m_other;
+    // A zero that is part of a constant expression must still multiply its coefficients and propagate NaNs.
+    if (numext::is_exactly_zero(scale)) return run_ordered(dst, lhs, rhs, alpha, std::false_type());
+    using Inner = typename gemv_leading_constant<Lhs, Rhs, Scalar>::Inner;
+    using Impl = generic_product_impl<Inner, Rhs, DenseShape, DenseShape, GemvProduct>;
+    if (numext::is_exactly_one(alpha)) return Impl::scaleAndAddTo(dst, lhs.rhs(), rhs, scale);
+    // Keep alpha * (scale * sum) separate: forming alpha * scale can underflow or overflow.
+    ei_declare_aligned_stack_constructed_variable(Scalar, buffer, dst.size(), nullptr);
+    Map<typename Product<Lhs, Rhs>::PlainObject> product(buffer, dst.rows(), dst.cols());
+    product.setZero();
+    Impl::scaleAndAddTo(product, lhs.rhs(), rhs, scale);
+    for (Index j = 0; j < dst.cols(); ++j)
+      for (Index i = 0; i < dst.rows(); ++i) dst.coeffRef(i, j) += alpha * product.coeff(i, j);
+  }
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run_ordered(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                const Scalar& alpha, std::false_type) {
+    // Factor extraction and alpha folding need not preserve the written scalar order.
+    LhsNested actual_lhs(lhs);
+    RhsNested actual_rhs(rhs);
+    const bool unit_alpha = numext::is_exactly_one(alpha);
+    constexpr bool OnRight = int(Side) == int(OnTheRight);
+    const Index size = OnRight ? lhs.rows() : rhs.cols();
+    const Index depth = lhs.cols();
+    const auto out = [&](Index i) -> decltype(auto) { return OnRight ? dst.coeffRef(i, 0) : dst.coeffRef(0, i); };
+    EIGEN_IF_CONSTEXPR (OnRight == !(MatrixType::Flags & RowMajorBit)) {
+      const auto accumulate = [&](const auto& at) {
+        for (Index k = 0; k < depth; ++k) {
+          EIGEN_IF_CONSTEXPR (OnRight) {
+            const typename Rhs::Scalar value = actual_rhs.coeff(k, 0);
+            for (Index i = 0; i < size; ++i) at(i) += actual_lhs.coeff(i, k) * value;
+          } else {
+            const typename Lhs::Scalar value = actual_lhs.coeff(0, k);
+            for (Index i = 0; i < size; ++i) at(i) += value * actual_rhs.coeff(k, i);
+          }
+        }
+      };
+      if (unit_alpha) {
+        accumulate(out);
+      } else {
+        ei_declare_aligned_stack_constructed_variable(Scalar, buffer, size, nullptr);
+        Map<Matrix<Scalar, Dynamic, 1>> product(buffer, size);
+        product.setZero();
+        accumulate([&](Index i) -> Scalar& { return product.coeffRef(i); });
+        for (Index i = 0; i < size; ++i) out(i) += alpha * product.coeff(i);
+      }
+      return;
+    }
+    const auto term = [&](Index i, Index k) -> Scalar {
+      return OnRight ? Scalar(actual_lhs.coeff(i, k) * actual_rhs.coeff(k, 0))
+                     : Scalar(actual_lhs.coeff(0, k) * actual_rhs.coeff(k, i));
+    };
+    // Keep independent ordered sums in flight, sharing each vector coefficient across the block.
+    constexpr int Block = sizeof(Scalar) <= 16 ? 8 : 4;
+    Index i = 0;
+    for (; size - i >= Block; i += Block) {
+      gemv_ordered_accumulators<Scalar, Block> sums(term, i, std::make_integer_sequence<int, Block>{});
+      for (Index k = 1; k < depth; ++k) {
+        EIGEN_IF_CONSTEXPR (OnRight) {
+          const typename Rhs::Scalar value = actual_rhs.coeff(k, 0);
+          EIGEN_UNROLL_LOOP
+          for (int r = 0; r < Block; ++r) sums.values[r] += actual_lhs.coeff(i + r, k) * value;
+        } else {
+          const typename Lhs::Scalar value = actual_lhs.coeff(0, k);
+          EIGEN_UNROLL_LOOP
+          for (int r = 0; r < Block; ++r) sums.values[r] += value * actual_rhs.coeff(k, i + r);
+        }
+      }
+      EIGEN_UNROLL_LOOP
+      for (int r = 0; r < Block; ++r) out(i + r) += unit_alpha ? sums.values[r] : alpha * sums.values[r];
+    }
+    for (; i < size; ++i) {
+      Scalar sum = term(i, 0);
+      for (Index k = 1; k < depth; ++k) sum += term(i, k);
+      out(i) += unit_alpha ? sum : alpha * sum;
+    }
+  }
+
+  template <typename Dest>
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha,
+                                                        std::true_type) {
     // Fallback to inner product if both the lhs and rhs is a runtime vector.
     if (lhs.rows() == 1 && rhs.cols() == 1) {
       dst.coeffRef(0, 0) += alpha * lhs.row(0).conjugate().dot(rhs.col(0));

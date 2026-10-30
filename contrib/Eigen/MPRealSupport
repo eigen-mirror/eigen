@@ -20,6 +20,12 @@
 
 namespace Eigen {
 
+template <>
+struct ScalarBinaryOpTraits<mpfr::mpreal, mpfr::mpreal, internal::scalar_product_op<mpfr::mpreal, mpfr::mpreal>> {
+  using ReturnType = mpfr::mpreal;
+  static constexpr bool IsCommutative = true;
+};
+
 /**
   * \defgroup MPRealSupport_Module MPFRC++ Support module
   * \code

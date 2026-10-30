@@ -603,6 +603,8 @@ struct blas_traits {
   EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC const Scalar extractScalarFactor(const XprType&) {
     return Scalar(1);
   }
+  // Inspect explicit factors without combining them across noncommuting coefficients.
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType&) { return false; }
 };
 
 // pop conjugate
@@ -616,6 +618,9 @@ struct blas_traits<CwiseUnaryOp<scalar_conjugate_op<Scalar>, NestedXpr> > : blas
   EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
     return numext::conj(Base::extractScalarFactor(x.nestedExpression()));
+  }
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
+    return Base::hasZeroScalarFactor(x.nestedExpression());
   }
 };
 
@@ -635,6 +640,9 @@ struct blas_traits<
   EIGEN_DEVICE_FUNC static inline EIGEN_DEVICE_FUNC Scalar extractScalarFactor(const XprType& x) {
     return x.lhs().functor().m_other * Base::extractScalarFactor(x.rhs());
   }
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
+    return numext::is_exactly_zero(x.lhs().functor().m_other) || Base::hasZeroScalarFactor(x.rhs());
+  }
 };
 template <typename Scalar, typename NestedXpr, typename Plain>
 struct blas_traits<
@@ -648,6 +656,9 @@ struct blas_traits<
   EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.lhs()); }
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
     return Base::extractScalarFactor(x.lhs()) * x.rhs().functor().m_other;
+  }
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
+    return numext::is_exactly_zero(x.rhs().functor().m_other) || Base::hasZeroScalarFactor(x.lhs());
   }
 };
 // Constant * Constant matches both specializations above; pop the left factor, as the first one does.
@@ -664,6 +675,8 @@ struct blas_traits<CwiseBinaryOp<scalar_product_op<Scalar>, const CwiseNullaryOp
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
     return x.lhs().functor().m_other * Base::extractScalarFactor(x.rhs());
   }
+  // Either constant can represent coefficients; preserve zero/NaN multiplication.
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType&) { return false; }
 };
 
 // pop opposite
@@ -676,6 +689,9 @@ struct blas_traits<CwiseUnaryOp<scalar_opposite_op<Scalar>, NestedXpr> > : blas_
   EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.nestedExpression()); }
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
     return -Base::extractScalarFactor(x.nestedExpression());
+  }
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
+    return Base::hasZeroScalarFactor(x.nestedExpression());
   }
 };
 
@@ -696,6 +712,9 @@ struct blas_traits<Transpose<NestedXpr> > : blas_traits<NestedXpr> {
   }
   EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
     return Base::extractScalarFactor(x.nestedExpression());
+  }
+  EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
+    return Base::hasZeroScalarFactor(x.nestedExpression());
   }
 };
 
@@ -718,6 +737,15 @@ template <typename T>
 EIGEN_DEVICE_FUNC constexpr EIGEN_ALWAYS_INLINE const typename T::Scalar* extract_data(const T& m) {
   return extract_data_selector<T>::run(m);
 }
+
+// Factor extraction can move scales through either input and the result.
+template <typename LhsScalar, typename RhsScalar>
+struct blas_product_is_commutative
+    : bool_constant<functor_is_commutative<scalar_product_op<LhsScalar, RhsScalar>>::value &&
+                    functor_is_commutative<scalar_product_op<LhsScalar>>::value &&
+                    functor_is_commutative<scalar_product_op<RhsScalar>>::value &&
+                    functor_is_commutative<
+                        scalar_product_op<typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType>>::value> {};
 
 /**
  * \c combine_scalar_factors extracts and multiplies factors from GEMM and GEMV products.

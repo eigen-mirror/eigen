@@ -679,10 +679,23 @@ class gebp_traits {
     EIGEN_UNUSED_VARIABLE(tmp);
     c = cj.pmadd(a, b, c);
 #else
+    madd_unfused(a, b, c, tmp, cj, bool_constant<std::is_same<RhsPacketType, decltype(cj.pmul(a, b))>::value>());
+#endif
+  }
+
+  template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename Conjugator>
+  EIGEN_STRONG_INLINE void madd_unfused(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                        RhsPacketType& tmp, const Conjugator& cj, std::true_type) const {
     tmp = b;
     tmp = cj.pmul(a, tmp);
     c = padd(c, tmp);
-#endif
+  }
+
+  template <typename LhsPacketType, typename RhsPacketType, typename AccPacketType, typename Conjugator>
+  EIGEN_STRONG_INLINE void madd_unfused(const LhsPacketType& a, const RhsPacketType& b, AccPacketType& c,
+                                        RhsPacketType& tmp, const Conjugator& cj, std::false_type) const {
+    EIGEN_UNUSED_VARIABLE(tmp);
+    c = padd(c, cj.pmul(a, b));
   }
 
   template <typename LhsPacketType, typename AccPacketType, typename LaneIdType>

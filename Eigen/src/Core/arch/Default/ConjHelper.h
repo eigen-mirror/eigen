@@ -102,9 +102,13 @@ struct conj_helper<LhsScalar, RhsScalar, true, true> {
     return this->pmul(x, y) + c;
   }
 
-  // We save a conjugation by using the identity conj(a)*conj(b) = conj(a*b).
+  // Conjugation can reverse multiplication for noncommutative scalars.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType pmul(const LhsScalar& x, const RhsScalar& y) const {
-    return numext::conj(x * y);
+    EIGEN_IF_CONSTEXPR ((functor_is_commutative<scalar_product_op<LhsScalar, RhsScalar>>::value)) {
+      return numext::conj(x * y);
+    } else {
+      return numext::conj(x) * numext::conj(y);
+    }
   }
 };
 
@@ -135,9 +139,12 @@ struct conj_helper<Packet, Packet, true, true> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pmsub(const Packet& x, const Packet& y, const Packet& c) const {
     return Eigen::internal::pmsub(pconj(x), pconj(y), c);
   }
-  // We save a conjugation by using the identity conj(a)*conj(b) = conj(a*b).
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pmul(const Packet& x, const Packet& y) const {
-    return pconj(Eigen::internal::pmul(x, y));
+    EIGEN_IF_CONSTEXPR ((functor_is_commutative<scalar_product_op<typename unpacket_traits<Packet>::type>>::value)) {
+      return pconj(Eigen::internal::pmul(x, y));
+    } else {
+      return Eigen::internal::pmul(pconj(x), pconj(y));
+    }
   }
 };
 

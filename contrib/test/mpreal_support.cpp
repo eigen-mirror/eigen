@@ -12,6 +12,7 @@ using namespace mpfr;
 using namespace Eigen;
 
 EIGEN_DECLARE_TEST(mpreal_support) {
+  STATIC_CHECK((Eigen::internal::blas_product_is_commutative<mpreal, mpreal>::value));
   // set precision to 256 bits (double has only 53 bits)
   mpreal::set_default_prec(256);
   using MatrixXmp = Matrix<mpreal, Eigen::Dynamic, Eigen::Dynamic>;
