@@ -469,9 +469,18 @@ def select(graph, changed_files, max_fraction=DEFAULT_MAX_FRACTION):
 
 
 def changed_files_from_git(source_dir, base_sha, head="HEAD"):
-    """Paths changed between ``base_sha`` and ``head``."""
+    """Paths changed between merge-base(``base_sha``, ``head``) and ``head``.
+
+    Falls back to ``base_sha`` itself when git cannot compute the merge-base, as
+    in CI's depth-1 checkout, which fetches only the merge request's diff base:
+    that commit already is the merge-base.  The same fallback as
+    style_common.diff_added_lines."""
+    merge_base = subprocess.run(
+        ["git", "merge-base", base_sha, head], cwd=source_dir, capture_output=True, text=True
+    )
+    base = merge_base.stdout.strip() if merge_base.returncode == 0 else base_sha
     result = subprocess.run(
-        ["git", "diff", "--no-renames", "--name-only", "%s...%s" % (base_sha, head)],
+        ["git", "diff", "--no-renames", "--name-only", base, head],
         cwd=source_dir,
         capture_output=True,
         text=True,

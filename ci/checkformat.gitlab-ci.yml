@@ -14,6 +14,7 @@ checkformat:lint:
     - merge_requests
   allow_failure:
     exit_codes: [ 3 ]
+  before_script: !reference [.fetch:diff-base, script]
   script:
     - sh ci/lint/lint.sh ${CI_MERGE_REQUEST_DIFF_BASE_SHA}
   artifacts:
@@ -36,6 +37,7 @@ checkformat:clangtidy:
   timeout: 1h
   tags:
     - saas-linux-medium-amd64
+  before_script: !reference [.fetch:diff-base, script]
   script:
     - mkdir -p .tidy-build
     - cmake -G Ninja -B .tidy-build

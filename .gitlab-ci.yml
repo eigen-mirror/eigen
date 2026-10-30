@@ -75,7 +75,7 @@ variables:
   EIGEN_CI_IMAGE_LINUX_RISCV64_SMOKETEST_RUN: "registry.gitlab.com/libeigen/eigen/ubuntu-26.04-riscv64-smoketest-run:latest"
   # clang and clang-tidy 18 for checkformat:clangtidy; see ci/tidy/.
   # Versioned: bump the tag with any change to ci/tidy/Dockerfile.
-  EIGEN_CI_IMAGE_LINUX_TIDY: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-tidy:1"
+  EIGEN_CI_IMAGE_LINUX_TIDY: "registry.gitlab.com/libeigen/eigen/ubuntu-24.04-tidy:2"
   # Lint tools for the checkformat jobs and select:tests; see ci/lint/.
   EIGEN_CI_IMAGE_LINUX_LINT: "registry.gitlab.com/libeigen/eigen/alpine-lint:latest"
   # CMake build directory.
@@ -104,6 +104,11 @@ variables:
   # settings; every non-GPU rule set that fires on "schedule" opens with
   # .rules:libeigen:gpu-schedule-guard.
   EIGEN_CI_SCHEDULE_SCOPE: ""
+  # Every job checks out the pipeline commit alone: none reads history, and the
+  # jobs that diff against the merge request base fetch that one commit through
+  # .fetch:diff-base (ci/common.gitlab-ci.yml).  This overrides the project's
+  # default depth of 50.
+  GIT_DEPTH: 1
 
 include:
   - "/ci/checkformat.gitlab-ci.yml"

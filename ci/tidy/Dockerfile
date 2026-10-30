@@ -33,7 +33,7 @@ FROM ubuntu:24.04
 #    cpack and ctest.
 RUN apt-get update -y \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      git cmake ninja-build clang-tidy clang python3 \
+      git ca-certificates cmake ninja-build clang-tidy clang python3 \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* \
     && find /usr/lib/llvm-18/bin -mindepth 1 \
       ! -name clang ! -name clang++ ! -name clang-18 ! -name clang-tidy \
@@ -52,6 +52,7 @@ RUN apt-get update -y \
 # something a tool needs.
 RUN clang-tidy --version | grep -q 'LLVM version 18\.1\.3' \
     && git --version && cmake --version \
+    && test -s /etc/ssl/certs/ca-certificates.crt \
     && for f in /usr/bin/* /usr/lib/llvm-18/bin/* /usr/lib/git-core/*; do \
          if ldd "$f" 2>/dev/null | grep -q 'not found'; then \
            echo "missing shared library: $f"; exit 1; fi; \

@@ -56,6 +56,10 @@ for cuda_root in "${CUDAToolkit_ROOT:-}" "${CUDA_HOME:-}" "${CUDA_PATH:-}" /usr/
   fi
 done
 
+# set -e does not see a failed git diff inside the process substitution below,
+# so a missing base would otherwise pass as "No changed files to check."
+git cat-file -e "${BASE_SHA}^{commit}" || { echo "Diff base ${BASE_SHA} is not in the checkout."; exit 1; }
+
 # Get changed files (Added, Modified, Renamed) without losing whitespace in
 # repository paths.
 mapfile -d '' -t CHANGED_FILES < <(git diff --name-only -z --diff-filter=AMR "${BASE_SHA}" HEAD)

@@ -298,6 +298,19 @@
   before_script:
      - . ci/scripts/common.windows.before_script.ps1
 
+######## Checkout #############################################################
+# Adds the merge request's diff base, the merge-base with the target branch, to
+# the depth-1 checkout, for jobs that diff against it:
+#   before_script: !reference [.fetch:diff-base, script]
+# Two shallow commits suffice for a two-dot `git diff BASE HEAD`; a three-dot
+# diff would need the history between them.  A failed fetch is left to the job:
+# the lint checks then fail as advisory, and the selector widens to the full
+# suite.
+.fetch:diff-base:
+  script:
+    - git fetch --quiet --depth=1 origin "${CI_MERGE_REQUEST_DIFF_BASE_SHA}"
+        || echo "Could not fetch the diff base ${CI_MERGE_REQUEST_DIFF_BASE_SHA}." >&2
+
 ######## Artifacts #############################################################
 # Kept out of the .common:* bases so that publishing is a choice a job makes
 # rather than something it inherits.

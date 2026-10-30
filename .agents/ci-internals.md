@@ -15,6 +15,16 @@ python3 scripts/test_affected_tests.py
 python3 ci/scripts/test_test_cache.py
 ```
 
+## Checkout Depth
+
+`.gitlab-ci.yml` sets `GIT_DEPTH: 1`, so every job checks out the pipeline commit alone. A full clone is about 120 MiB
+and a depth-1 checkout about 5 MiB. When a job diffs against the merge request base, give it
+`before_script: !reference [.fetch:diff-base, script]`, which fetches `CI_MERGE_REQUEST_DIFF_BASE_SHA` alone. Diff
+two-dot, `git diff BASE HEAD`. A three-dot diff needs the history between the two commits and fails with `no merge
+base` in this checkout. Do not raise `GIT_DEPTH` for one job instead: no fixed depth is sure to reach the base of a
+long-lived merge request. Keep the default `GIT_STRATEGY` even for a job that reads nothing from the checkout: on runners
+that reuse their working tree, the checkout's `git clean -ffdx` is what removes the files an earlier job left behind.
+
 ## Artifacts And Test Reports
 
 Build jobs publish the configured build directory as an artifact. Their paired test jobs consume that artifact and
