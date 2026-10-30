@@ -756,8 +756,7 @@ EIGEN_DEVICE_FUNC inline Packet paddsub(const Packet& a, const Packet& b) {
 /** \internal \returns the phase angle of \a a */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet parg(const Packet& a) {
-  using numext::arg;
-  return arg(a);
+  return numext::arg(a);
 }
 
 /** \internal \returns \a a arithmetically shifted by N bits to the right */
@@ -795,8 +794,7 @@ EIGEN_DEVICE_FUNC inline Packet pfrexp(const Packet& a, Packet& exponent) {
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pldexp(const Packet& a, const Packet& exponent) {
-  using numext::ldexp;
-  return static_cast<Packet>(ldexp(a, static_cast<int>(exponent)));
+  return static_cast<Packet>(numext::ldexp(a, static_cast<int>(exponent)));
 }
 
 /** \internal \returns the absolute difference of \a a and \a b  (coeff-wise) */

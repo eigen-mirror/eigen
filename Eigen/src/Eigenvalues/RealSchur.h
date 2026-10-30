@@ -472,14 +472,13 @@ inline typename MatrixType::Scalar RealSchur<MatrixType>::computeNormOfT(TMatrix
 template <typename MatrixType>
 template <typename TMatrix>
 inline Index RealSchur<MatrixType>::findSmallSubdiagEntry(TMatrix& matT, Index iu, const Scalar& considerAsZero) {
-  using numext::abs;
   Index res = iu;
   while (res > 0) {
-    Scalar s = abs(matT.coeff(res - 1, res - 1)) + abs(matT.coeff(res, res));
+    Scalar s = numext::abs(matT.coeff(res - 1, res - 1)) + numext::abs(matT.coeff(res, res));
 
     s = numext::maxi<Scalar>(s * NumTraits<Scalar>::epsilon(), considerAsZero);
 
-    if (abs(matT.coeff(res, res - 1)) <= s) break;
+    if (numext::abs(matT.coeff(res, res - 1)) <= s) break;
     res--;
   }
   return res;
@@ -500,8 +499,6 @@ template <typename MatrixType>
 template <typename TMatrix>
 EIGEN_REALSCHUR_SPLIT_INLINE void RealSchur<MatrixType>::splitOffTwoRows(TMatrix& matT, Index iu, bool computeU,
                                                                          const Scalar& exshift) {
-  using numext::abs;
-  using numext::sqrt;
   const Index size = matT.cols();
 
   // The eigenvalues of the 2x2 matrix [a b; c d] are
@@ -513,7 +510,7 @@ EIGEN_REALSCHUR_SPLIT_INLINE void RealSchur<MatrixType>::splitOffTwoRows(TMatrix
 
   if (q >= Scalar(0))  // Two real eigenvalues
   {
-    Scalar z = sqrt(abs(q));
+    Scalar z = numext::sqrt(numext::abs(q));
     JacobiRotation<Scalar> rot;
     if (p >= Scalar(0))
       rot.makeGivens(p + z, matT.coeff(iu, iu - 1));
@@ -536,8 +533,6 @@ template <typename MatrixType>
 template <typename TMatrix>
 inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index iter, Scalar& exshift,
                                                 Vector3s& shiftInfo) {
-  using numext::abs;
-  using numext::sqrt;
   shiftInfo.coeffRef(0) = matT.coeff(iu, iu);
   shiftInfo.coeffRef(1) = matT.coeff(iu - 1, iu - 1);
   shiftInfo.coeffRef(2) = matT.coeff(iu, iu - 1) * matT.coeff(iu - 1, iu);
@@ -548,7 +543,7 @@ inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index i
     if (iter % 32 != 0) {
       exshift += shiftInfo.coeff(0);
       matT.diagonal().head(iu + 1).array() -= shiftInfo.coeff(0);
-      Scalar s = abs(matT.coeff(iu, iu - 1)) + abs(matT.coeff(iu - 1, iu - 2));
+      Scalar s = numext::abs(matT.coeff(iu, iu - 1)) + numext::abs(matT.coeff(iu - 1, iu - 2));
       shiftInfo.coeffRef(0) = Scalar(0.75) * s;
       shiftInfo.coeffRef(1) = Scalar(0.75) * s;
       shiftInfo.coeffRef(2) = Scalar(-0.4375) * s * s;
@@ -557,7 +552,7 @@ inline void RealSchur<MatrixType>::computeShift(TMatrix& matT, Index iu, Index i
       Scalar s = (shiftInfo.coeff(1) - shiftInfo.coeff(0)) / Scalar(2.0);
       s = s * s + shiftInfo.coeff(2);
       if (s > Scalar(0)) {
-        s = sqrt(s);
+        s = numext::sqrt(s);
         if (shiftInfo.coeff(1) < shiftInfo.coeff(0)) s = -s;
         s = s + (shiftInfo.coeff(1) - shiftInfo.coeff(0)) / Scalar(2.0);
         s = shiftInfo.coeff(0) - shiftInfo.coeff(2) / s;
@@ -574,7 +569,6 @@ template <typename MatrixType>
 template <typename TMatrix>
 inline void RealSchur<MatrixType>::initFrancisQRStep(TMatrix& matT, Index il, Index iu, const Vector3s& shiftInfo,
                                                      Index& im, Vector3s& firstHouseholderVector) {
-  using numext::abs;
   Vector3s& v = firstHouseholderVector;  // alias to save typing
 
   for (im = iu - 2; im >= il; --im) {
@@ -587,9 +581,10 @@ inline void RealSchur<MatrixType>::initFrancisQRStep(TMatrix& matT, Index il, In
     if (im == il) {
       break;
     }
-    const Scalar lhs = matT.coeff(im, im - 1) * (abs(v.coeff(1)) + abs(v.coeff(2)));
-    const Scalar rhs = v.coeff(0) * (abs(matT.coeff(im - 1, im - 1)) + abs(Tmm) + abs(matT.coeff(im + 1, im + 1)));
-    if (abs(lhs) < NumTraits<Scalar>::epsilon() * rhs) break;
+    const Scalar lhs = matT.coeff(im, im - 1) * (numext::abs(v.coeff(1)) + numext::abs(v.coeff(2)));
+    const Scalar rhs = v.coeff(0) * (numext::abs(matT.coeff(im - 1, im - 1)) + numext::abs(Tmm) +
+                                     numext::abs(matT.coeff(im + 1, im + 1)));
+    if (numext::abs(lhs) < NumTraits<Scalar>::epsilon() * rhs) break;
   }
 }
 

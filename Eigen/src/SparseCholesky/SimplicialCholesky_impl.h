@@ -321,7 +321,6 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered(const CholMatrixType&
 template <typename Derived>
 template <bool DoLDLT, bool NonHermitian, bool UsePackets>
 void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrixType& ap) {
-  using numext::sqrt;
   const StorageIndex size = StorageIndex(ap.rows());
 
   eigen_assert(m_analysisIsOk && "You must first call analyzePattern()");
@@ -395,7 +394,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrix
       }
     } else {
       Index p = internal::convert_index<Index>(Lp[k] + nonZerosPerCol[k]++);
-      Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
+      Li[p] = k; /* store L(k,k) = numext::sqrt(d) in column k */
       bool failed;
       EIGEN_IF_CONSTEXPR (NonHermitian) {
         failed = d == RealScalar(0);
@@ -406,7 +405,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrix
         ok = false; /* failure, matrix is not positive definite */
         break;
       }
-      Lx[p] = sqrt(d);
+      Lx[p] = numext::sqrt(d);
     }
   }
 

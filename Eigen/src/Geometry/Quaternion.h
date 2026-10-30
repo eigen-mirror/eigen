@@ -621,11 +621,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& QuaternionBase<Derived>::operator
  */
 template <class Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& QuaternionBase<Derived>::operator=(const AngleAxisType& aa) {
-  using numext::cos;
-  using numext::sin;
   Scalar ha = Scalar(0.5) * aa.angle();  // Scalar(0.5) to suppress precision loss warnings
-  this->w() = cos(ha);
-  this->vec() = sin(ha) * aa.axis();
+  this->w() = numext::cos(ha);
+  this->vec() = numext::sin(ha) * aa.axis();
   return derived();
 }
 
@@ -694,7 +692,6 @@ template <class Derived>
 template <typename Derived1, typename Derived2>
 EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(const MatrixBase<Derived1>& a,
                                                                              const MatrixBase<Derived2>& b) {
-  using numext::sqrt;
   Vector3 v0 = a.normalized();
   Vector3 v1 = b.normalized();
   Scalar c = v1.dot(v0);
@@ -708,7 +705,7 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(con
     return derived();
   }
   Vector3 axis = v0.cross(v1);
-  Scalar s = sqrt((Scalar(1) + c) * Scalar(2));
+  Scalar s = numext::sqrt<Scalar>((Scalar(1) + c) * Scalar(2));
   Scalar invs = Scalar(1) / s;
   this->vec() = axis * invs;
   this->w() = s * Scalar(0.5);
@@ -731,8 +728,6 @@ template <class Derived>
 template <typename OtherDerived>
 EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
     const MatrixBase<OtherDerived>& scaled_axis) {
-  using numext::cos;
-  using numext::sin;
   EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(OtherDerived, 3)
 
   // Materialise the input once so the caller's expression (e.g. omega*dt) is not
@@ -751,8 +746,8 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
   }
 
   const Scalar half_angle = Scalar(0.5) * angle;
-  this->w() = cos(half_angle);
-  this->vec() = (sin(half_angle) / angle) * v;
+  this->w() = numext::cos(half_angle);
+  this->vec() = (numext::sin(half_angle) / angle) * v;
   return derived();
 }
 
@@ -793,13 +788,10 @@ EIGEN_DEVICE_FUNC inline typename QuaternionBase<Derived>::Vector3 QuaternionBas
  */
 template <typename Scalar, int Options>
 EIGEN_DEVICE_FUNC Quaternion<Scalar, Options> Quaternion<Scalar, Options>::UnitRandom() {
-  using numext::cos;
-  using numext::sin;
-  using numext::sqrt;
   const Scalar u1 = internal::random<Scalar>(0, 1), u2 = internal::random<Scalar>(0, 2 * EIGEN_PI),
                u3 = internal::random<Scalar>(0, 2 * EIGEN_PI);
-  const Scalar a = sqrt(Scalar(1) - u1), b = sqrt(u1);
-  return Quaternion(a * sin(u2), a * cos(u2), b * sin(u3), b * cos(u3));
+  const Scalar a = numext::sqrt<Scalar>(Scalar(1) - u1), b = numext::sqrt(u1);
+  return Quaternion(a * numext::sin(u2), a * numext::cos(u2), b * numext::sin(u3), b * numext::cos(u3));
 }
 
 /** Constructs a quaternion from its coefficients in the order [\c x, \c y, \c z, \c w], i.e. vector part [\c x, \c y,
@@ -927,8 +919,6 @@ template <class Derived>
 template <class OtherDerived>
 EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> QuaternionBase<Derived>::slerp(
     const Scalar& t, const QuaternionBase<OtherDerived>& other) const {
-  using numext::acos;
-  using numext::sin;
   const Scalar one = Scalar(1) - NumTraits<Scalar>::epsilon();
   Scalar d = this->dot(other);
   Scalar absD = numext::abs(d);
@@ -942,11 +932,11 @@ EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> Quatern
     scale1 = t;
   } else {
     // theta is the angle between the 2 quaternions
-    Scalar theta = acos(absD);
-    Scalar sinTheta = numext::sqrt(Scalar(1) - absD * absD);
+    Scalar theta = numext::acos(absD);
+    Scalar sinTheta = numext::sqrt<Scalar>(Scalar(1) - absD * absD);
 
-    scale0 = sin((Scalar(1) - t) * theta) / sinTheta;
-    scale1 = sin(t * theta) / sinTheta;
+    scale0 = numext::sin<Scalar>((Scalar(1) - t) * theta) / sinTheta;
+    scale1 = numext::sin<Scalar>(t * theta) / sinTheta;
   }
   if (d < Scalar(0)) scale1 = -scale1;
 

@@ -52,7 +52,6 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   /*
     Setup and type definitions.
   */
-  using numext::abs;
   using Scalar = typename Dest::Scalar;
   using RealScalar = typename Dest::RealScalar;
   using VectorType = Matrix<Scalar, Dynamic, 1>;
@@ -134,7 +133,7 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
       u.col(0) = w;
       h_FOM(col_index, col_index - 1) = u.col(0).stableNorm();
 
-      if (abs(h_FOM(col_index, col_index - 1)) != RealScalar(0)) {
+      if (numext::abs(h_FOM(col_index, col_index - 1)) != RealScalar(0)) {
         /*
         This only happens if u is NOT exactly zero. In case it is exactly zero
         it would imply that that this u has no component in the direction of the

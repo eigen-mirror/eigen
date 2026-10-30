@@ -53,9 +53,8 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 1> {
                                            const typename MatrixType::RealScalar& absDeterminantThreshold,
                                            ResultType& result, typename ResultType::Scalar& determinant,
                                            bool& invertible) {
-    using numext::abs;
     determinant = matrix.coeff(0, 0);
-    invertible = abs(determinant) > absDeterminantThreshold;
+    invertible = numext::abs(determinant) > absDeterminantThreshold;
     if (invertible) result.coeffRef(0, 0) = typename ResultType::Scalar(1) / determinant;
   }
 };
@@ -90,10 +89,9 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 2> {
                                            const typename MatrixType::RealScalar& absDeterminantThreshold,
                                            ResultType& inverse, typename ResultType::Scalar& determinant,
                                            bool& invertible) {
-    using numext::abs;
     using Scalar = typename ResultType::Scalar;
     determinant = matrix.determinant();
-    invertible = abs(determinant) > absDeterminantThreshold;
+    invertible = numext::abs(determinant) > absDeterminantThreshold;
     if (!invertible) return;
     const Scalar invdet = Scalar(1) / determinant;
     compute_inverse_size2_helper(matrix, invdet, inverse);
@@ -212,9 +210,8 @@ struct compute_inverse_and_det_with_check<MatrixType, ResultType, 4> {
                                            const typename MatrixType::RealScalar& absDeterminantThreshold,
                                            ResultType& inverse, typename ResultType::Scalar& determinant,
                                            bool& invertible) {
-    using numext::abs;
     determinant = matrix.determinant();
-    invertible = abs(determinant) > absDeterminantThreshold;
+    invertible = numext::abs(determinant) > absDeterminantThreshold;
     if (invertible && extract_data(matrix) != extract_data(inverse)) {
       compute_inverse<MatrixType, ResultType>::run(matrix, inverse);
     } else if (invertible) {

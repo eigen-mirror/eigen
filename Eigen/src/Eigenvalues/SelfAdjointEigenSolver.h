@@ -732,12 +732,8 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
    * For numerical stability m.trace() should be near zero and to avoid over- or underflow m should be normalized.
    */
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    using numext::atan2;
-    using numext::cos;
-    using numext::sin;
-    using numext::sqrt;
     const Scalar s_inv3 = Scalar(1) / Scalar(3);
-    const Scalar s_sqrt3 = sqrt(Scalar(3));
+    const Scalar s_sqrt3 = numext::sqrt(Scalar(3));
 
     // The characteristic equation is x^3 - c2*x^2 + c1*x - c0 = 0.  The
     // eigenvalues are the roots to this equation, all guaranteed to be
@@ -760,20 +756,19 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
     q = numext::maxi(q, Scalar(0));
 
     // Compute the eigenvalues by solving for the roots of the polynomial.
-    Scalar rho = sqrt(a_over_3);
-    Scalar theta = atan2(sqrt(q), half_b) * s_inv3;  // since sqrt(q) > 0, atan2 is in [0, pi] and theta is in [0, pi/3]
-    Scalar cos_theta = cos(theta);
-    Scalar sin_theta = sin(theta);
+    Scalar rho = numext::sqrt(a_over_3);
+    Scalar theta = numext::atan2(numext::sqrt(q), half_b) *
+                   s_inv3;  // since numext::sqrt(q) > 0, atan2 is in [0, pi] and theta is in [0, pi/3]
+    Scalar cos_theta = numext::cos(theta);
+    Scalar sin_theta = numext::sin(theta);
     // roots are already sorted, since cos is monotonically decreasing on [0, pi]
-    roots(0) = c2_over_3 - rho * (cos_theta + s_sqrt3 * sin_theta);  // == 2*rho*cos(theta+2pi/3)
-    roots(1) = c2_over_3 - rho * (cos_theta - s_sqrt3 * sin_theta);  // == 2*rho*cos(theta+ pi/3)
+    roots(0) = c2_over_3 - rho * (cos_theta + s_sqrt3 * sin_theta);  // == 2*rho*numext::cos(theta+2pi/3)
+    roots(1) = c2_over_3 - rho * (cos_theta - s_sqrt3 * sin_theta);  // == 2*rho*numext::cos(theta+ pi/3)
     roots(2) = c2_over_3 + Scalar(2) * rho * cos_theta;
   }
 
   EIGEN_DEVICE_FUNC static inline bool extract_kernel(PlainMatrixType& mat, Ref<VectorType> res,
                                                       Ref<VectorType> representative) {
-    using numext::abs;
-    using numext::sqrt;
     Index i0;
     // Find non-zero column i0 (by construction, there must exist a non zero coefficient on the diagonal):
     mat.diagonal().cwiseAbs().maxCoeff(&i0);
@@ -785,9 +780,9 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 3> {
     n0 = (c0 = representative.cross(mat.col((i0 + 1) % 3))).squaredNorm();
     n1 = (c1 = representative.cross(mat.col((i0 + 2) % 3))).squaredNorm();
     if (n0 > n1)
-      res = c0 / sqrt(n0);
+      res = c0 / numext::sqrt(n0);
     else
-      res = c1 / sqrt(n1);
+      res = c1 / numext::sqrt(n1);
 
     return true;
   }
@@ -860,8 +855,8 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
   using PlainMatrixType = typename SolverType::PlainMatrixType;
 
   EIGEN_DEVICE_FUNC static inline void computeRoots(const MatrixType& m, VectorType& roots) {
-    using numext::sqrt;
-    const Scalar t0 = Scalar(0.5) * sqrt(numext::abs2(m(0, 0) - m(1, 1)) + Scalar(4) * numext::abs2(m(1, 0)));
+    const Scalar t0 =
+        Scalar(0.5) * numext::sqrt<Scalar>(numext::abs2(m(0, 0) - m(1, 1)) + Scalar(4) * numext::abs2(m(1, 0)));
     const Scalar t1 = Scalar(0.5) * (m(0, 0) + m(1, 1));
     roots(0) = t1 - t0;
     roots(1) = t1 + t0;
@@ -870,15 +865,12 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static void run(PlainMatrixType& scaledMat, VectorType& eivals,
                                                         EigenvectorsType& eivecs, bool computeEigenvectors,
                                                         const Scalar&) {
-    using numext::abs;
-    using numext::sqrt;
-
     // Compute the eigenvalues
     computeRoots(scaledMat, eivals);
 
     // compute the eigen vectors
     if (computeEigenvectors) {
-      if ((eivals(1) - eivals(0)) <= abs(eivals(1)) * Eigen::NumTraits<Scalar>::epsilon()) {
+      if ((eivals(1) - eivals(0)) <= numext::abs(eivals(1)) * Eigen::NumTraits<Scalar>::epsilon()) {
         eivecs.setIdentity();
       } else {
         scaledMat.diagonal().array() -= eivals(1);
@@ -887,10 +879,10 @@ struct direct_selfadjoint_eigensolver_kernel<SolverType, 2> {
         Scalar b2 = numext::abs2(scaledMat(1, 0));
         if (a2 > c2) {
           eivecs.col(1) << -scaledMat(1, 0), scaledMat(0, 0);
-          eivecs.col(1) /= sqrt(a2 + b2);
+          eivecs.col(1) /= numext::sqrt<Scalar>(a2 + b2);
         } else {
           eivecs.col(1) << -scaledMat(1, 1), scaledMat(1, 0);
-          eivecs.col(1) /= sqrt(c2 + b2);
+          eivecs.col(1) /= numext::sqrt<Scalar>(c2 + b2);
         }
 
         // The partner is already normalized; this rotation preserves its norm.

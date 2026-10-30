@@ -692,8 +692,7 @@ struct safe_scaling<long double, true> : safe_scaling_operations<long double, tr
     if (exponent < kMinScaleExponent) exponent = kMinScaleExponent;
     if (exponent > kMaxScaleExponent) exponent = kMaxScaleExponent;
 
-    using numext::ldexp;
-    const long double scale = ldexp(1.0L, exponent);
+    const long double scale = numext::ldexp(1.0L, exponent);
     return {scale, 1.0L / scale};
   }
 };

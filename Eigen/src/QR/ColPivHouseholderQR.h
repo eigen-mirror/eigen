@@ -264,10 +264,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
   typename MatrixType::Scalar signDeterminant() const;
 
   /** \returns the absolute value of the i-th pivot coefficient (for RankRevealingBase). */
-  RealScalar pivotCoeff(Index i) const {
-    using numext::abs;
-    return abs(m_qr.coeff(i, i));
-  }
+  RealScalar pivotCoeff(Index i) const { return numext::abs(m_qr.coeff(i, i)); }
 
   /** \returns the inverse of the matrix of which *this is the QR decomposition.
    *
@@ -336,10 +333,9 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::d
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
-  using numext::abs;
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? abs(m_qr.diagonal().prod()) : RealScalar(0);
+  return isInjective() ? numext::abs(m_qr.diagonal().prod()) : RealScalar(0);
 }
 
 template <typename MatrixType, typename PermutationIndex>
@@ -376,8 +372,6 @@ ColPivHouseholderQR<MatrixType, PermutationIndex>& ColPivHouseholderQR<MatrixTyp
 template <typename MatrixType, typename PermutationIndex>
 void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
-
-  using numext::abs;
 
   Index rows = m_qr.rows();
   Index cols = m_qr.cols();
@@ -431,7 +425,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
     m_qr.coeffRef(k, k) = beta;
 
     // remember the maximum absolute value of diagonal coefficients
-    if (abs(beta) > this->m_maxpivot) this->m_maxpivot = abs(beta);
+    if (numext::abs(beta) > this->m_maxpivot) this->m_maxpivot = numext::abs(beta);
 
     // apply the householder transformation
     m_qr.bottomRightCorner(rows - k, cols - k - 1)
@@ -444,7 +438,7 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
       // and used in LAPACK routines xGEQPF and xGEQP3.
       // See lines 278-297 in http://www.netlib.org/lapack/explore-html/dc/df4/sgeqpf_8f_source.html
       if (!numext::is_exactly_zero(m_colNormsUpdated.coeffRef(j))) {
-        RealScalar temp = abs(m_qr.coeffRef(k, j)) / m_colNormsUpdated.coeffRef(j);
+        RealScalar temp = numext::abs(m_qr.coeffRef(k, j)) / m_colNormsUpdated.coeffRef(j);
         temp = (RealScalar(1) + temp) * (RealScalar(1) - temp);
         temp = temp < RealScalar(0) ? RealScalar(0) : temp;
         RealScalar temp2 =

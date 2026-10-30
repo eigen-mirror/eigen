@@ -78,8 +78,6 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
                              Index& iters, typename Dest::RealScalar& tol_error, const typename Dest::RealScalar& atol,
                              const typename Dest::RealScalar& btol, const typename Dest::RealScalar& lambda,
                              const typename Dest::RealScalar& conlim) {
-  using numext::abs;
-  using numext::sqrt;
   using RealScalar = typename Dest::RealScalar;
   using Scalar = typename Dest::Scalar;
   using VectorType = Matrix<Scalar, Dynamic, 1>;
@@ -215,11 +213,11 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
     tautildeold = (zetaold - thetatildeold * tautildeold) / rhotildeold;
     const RealScalar taud = (zeta - thetatilde * tautildeold) / rhodold;
     d += betacheck * betacheck;
-    const RealScalar normr = sqrt(d + numext::abs2(betad - taud) + numext::abs2(betadd));
+    const RealScalar normr = numext::sqrt<RealScalar>(d + numext::abs2(betad - taud) + numext::abs2(betadd));
 
     // Estimate ||A||.
     normA2 += beta * beta;
-    const RealScalar normA = sqrt(normA2);
+    const RealScalar normA = numext::sqrt(normA2);
     normA2 += alpha * alpha;
 
     // Estimate cond(A).
@@ -228,7 +226,7 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
     const RealScalar condA = numext::maxi(maxrbar, rhotemp) / numext::mini(minrbar, rhotemp);
 
     // Compute the norms needed for the stopping rules.
-    const RealScalar normAr = abs(zetabar);
+    const RealScalar normAr = numext::abs(zetabar);
     const RealScalar normx = dx.stableNorm();
 
     const RealScalar test1 = normr / normb;

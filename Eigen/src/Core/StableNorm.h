@@ -157,8 +157,6 @@ typename Derived::RealScalar stable_norm_impl(const Derived&) {
 template <typename VectorType,
           std::enable_if_t<VectorType::IsVectorAtCompileTime && VectorType::MaxSizeAtCompileTime != 0, int> = 0>
 typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
-  using numext::sqrt;
-
   Index n = vec.size();
   if (EIGEN_PREDICT_FALSE(n == 1)) return numext::abs(vec.coeff(0));
 
@@ -170,14 +168,12 @@ typename VectorType::RealScalar stable_norm_impl(const VectorType& vec) {
 
   stable_norm_vector_dispatch<VectorType, Accumulator>::run(vec, ssq, scale, invScale);
 
-  return RealScalar(scale * sqrt(ssq));
+  return RealScalar(scale * numext::sqrt(ssq));
 }
 
 template <typename MatrixType,
           std::enable_if_t<!MatrixType::IsVectorAtCompileTime && MatrixType::MaxSizeAtCompileTime != 0, int> = 0>
 typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
-  using numext::sqrt;
-
   using RealScalar = typename MatrixType::RealScalar;
   using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
   Accumulator scale(0);
@@ -185,7 +181,7 @@ typename MatrixType::RealScalar stable_norm_impl(const MatrixType& mat) {
   Accumulator ssq(0);  // sum of squares
 
   stable_norm_matrix_dispatch<MatrixType, Accumulator>::run(mat, ssq, scale, invScale);
-  return RealScalar(scale * sqrt(ssq));
+  return RealScalar(scale * numext::sqrt(ssq));
 }
 
 inline int stable_norm_floor_div2(int value) { return value / 2 - ((value < 0 && value % 2 != 0) ? 1 : 0); }
@@ -233,7 +229,6 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
   using RealScalar = typename Derived::RealScalar;
   using Accumulator = typename stable_norm_accumulator<RealScalar>::type;
   using Scalar = typename traits<Derived>::Scalar;
-  using numext::sqrt;
   using std::pow;
 
   const Derived& vec(_vec.derived());
@@ -276,8 +271,8 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
     sumsq = abig;
   } else if (asml > Accumulator(0)) {
     if (amed > Accumulator(0) || amed > NumTraits<Accumulator>::highest() || amed != amed) {
-      amed = sqrt(amed);
-      asml = sqrt(asml) / ssml;
+      amed = numext::sqrt(amed);
+      asml = numext::sqrt(asml) / ssml;
       // Spell this as in xNRM2 rather than with min/max: when amed is NaN,
       // it must become ymax so that the final result remains NaN.
       const bool smallIsLarger = asml > amed;
@@ -291,7 +286,7 @@ inline typename NumTraits<typename traits<Derived>::Scalar>::Real blueNorm_impl(
   } else {
     sumsq = amed;
   }
-  return RealScalar(scale * sqrt(sumsq));
+  return RealScalar(scale * numext::sqrt(sumsq));
 }
 
 }  // end namespace internal

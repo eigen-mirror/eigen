@@ -81,8 +81,7 @@ Index SparseLUImpl<Scalar, StorageIndex>::pivotL(const Index jcol, const RealSca
   RealScalar rtemp;
   Index isub, icol, itemp, k;
   for (isub = nsupc; isub < nsupr; ++isub) {
-    using numext::abs;
-    rtemp = abs(lu_col_ptr[isub]);
+    rtemp = numext::abs(lu_col_ptr[isub]);
     if (rtemp > pivmax) {
       pivmax = rtemp;
       pivptr = isub;
@@ -106,8 +105,7 @@ Index SparseLUImpl<Scalar, StorageIndex>::pivotL(const Index jcol, const RealSca
     // Test if the diagonal element can be used as a pivot (given the threshold value)
     if (diag >= 0) {
       // Diagonal element exists
-      using numext::abs;
-      rtemp = abs(lu_col_ptr[diag]);
+      rtemp = numext::abs(lu_col_ptr[diag]);
       if (rtemp != RealScalar(0.0) && rtemp >= thresh) pivptr = diag;
     }
     pivrow = lsub_ptr[pivptr];

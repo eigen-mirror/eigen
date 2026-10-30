@@ -9,6 +9,12 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include <Eigen/Cholesky>
+#include <Eigen/Eigenvalues>
+#include <Eigen/Geometry>
+#include <Eigen/LU>
+#include <Eigen/QR>
+#include <Eigen/SVD>
 #include "twoprod_helpers.h"
 #include "fp_control.h"
 
@@ -52,6 +58,223 @@ void check_generic_packet_numext_dispatch() {
   VERIFY_IS_EQUAL(internal::psin(x).value, std::sin(x.value));
   VERIFY_IS_EQUAL(internal::pacosh(y).value, std::acosh(y.value));
   VERIFY_IS_EQUAL(internal::patanh(x).value, std::atanh(x.value));
+}
+
+namespace adl_template_math_test {
+struct Scalar {
+  double v;
+  Scalar() : v(0.0) {}
+  template <typename U, std::enable_if_t<std::is_arithmetic<U>::value, int> = 0>
+  Scalar(U x) : v(static_cast<double>(x)) {}
+  explicit operator double() const { return v; }
+  Scalar operator-() const { return Scalar(-v); }
+  friend Scalar operator+(const Scalar& a, const Scalar& b) { return Scalar(a.v + b.v); }
+  friend Scalar operator-(const Scalar& a, const Scalar& b) { return Scalar(a.v - b.v); }
+  friend Scalar operator*(const Scalar& a, const Scalar& b) { return Scalar(a.v * b.v); }
+  friend Scalar operator/(const Scalar& a, const Scalar& b) { return Scalar(a.v / b.v); }
+  Scalar& operator+=(const Scalar& b) {
+    v += b.v;
+    return *this;
+  }
+  Scalar& operator-=(const Scalar& b) {
+    v -= b.v;
+    return *this;
+  }
+  Scalar& operator*=(const Scalar& b) {
+    v *= b.v;
+    return *this;
+  }
+  Scalar& operator/=(const Scalar& b) {
+    v /= b.v;
+    return *this;
+  }
+  friend bool operator==(const Scalar& a, const Scalar& b) { return a.v == b.v; }
+  friend bool operator!=(const Scalar& a, const Scalar& b) { return a.v != b.v; }
+  friend bool operator<(const Scalar& a, const Scalar& b) { return a.v < b.v; }
+  friend bool operator<=(const Scalar& a, const Scalar& b) { return a.v <= b.v; }
+  friend bool operator>(const Scalar& a, const Scalar& b) { return a.v > b.v; }
+  friend bool operator>=(const Scalar& a, const Scalar& b) { return a.v >= b.v; }
+};
+
+// Unconstrained function templates in the scalar's namespace (like CGAL::abs / CGAL::sqrt).
+// Unqualified calls after `using numext::...;` would be ambiguous with Eigen::numext templates.
+template <typename T>
+inline T abs(const T& x) {
+  return Scalar(std::abs(x.v));
+}
+template <typename T>
+inline T sqrt(const T& x) {
+  return Scalar(std::sqrt(x.v));
+}
+template <typename T>
+inline T sin(const T& x) {
+  return Scalar(std::sin(x.v));
+}
+template <typename T>
+inline T cos(const T& x) {
+  return Scalar(std::cos(x.v));
+}
+template <typename T>
+inline T acos(const T& x) {
+  return Scalar(std::acos(x.v));
+}
+template <typename T>
+inline T atan2(const T& y, const T& x) {
+  return Scalar(std::atan2(y.v, x.v));
+}
+template <typename T>
+inline T log(const T& x) {
+  return Scalar(std::log(x.v));
+}
+template <typename T>
+inline bool(isfinite)(const T& x) {
+  return (std::isfinite)(x.v);
+}
+template <typename T>
+inline bool(isnan)(const T& x) {
+  return (std::isnan)(x.v);
+}
+template <typename T>
+inline bool(isinf)(const T& x) {
+  return (std::isinf)(x.v);
+}
+}  // namespace adl_template_math_test
+
+namespace adl_non_template_math_test {
+struct Scalar {
+  double v = 0.0;
+  Scalar() = default;
+  Scalar(double x) : v(x) {}
+  Scalar operator-() const { return Scalar(-v); }
+  friend Scalar operator+(const Scalar& a, const Scalar& b) { return Scalar(a.v + b.v); }
+  friend Scalar operator-(const Scalar& a, const Scalar& b) { return Scalar(a.v - b.v); }
+  friend Scalar operator*(const Scalar& a, const Scalar& b) { return Scalar(a.v * b.v); }
+  friend Scalar operator/(const Scalar& a, const Scalar& b) { return Scalar(a.v / b.v); }
+  Scalar& operator+=(const Scalar& b) {
+    v += b.v;
+    return *this;
+  }
+  Scalar& operator-=(const Scalar& b) {
+    v -= b.v;
+    return *this;
+  }
+  Scalar& operator*=(const Scalar& b) {
+    v *= b.v;
+    return *this;
+  }
+  Scalar& operator/=(const Scalar& b) {
+    v /= b.v;
+    return *this;
+  }
+  friend bool operator==(const Scalar& a, const Scalar& b) { return a.v == b.v; }
+  friend bool operator!=(const Scalar& a, const Scalar& b) { return a.v != b.v; }
+  friend bool operator<(const Scalar& a, const Scalar& b) { return a.v < b.v; }
+  friend bool operator<=(const Scalar& a, const Scalar& b) { return a.v <= b.v; }
+  friend bool operator>(const Scalar& a, const Scalar& b) { return a.v > b.v; }
+  friend bool operator>=(const Scalar& a, const Scalar& b) { return a.v >= b.v; }
+};
+
+inline Scalar abs(const Scalar& x) { return Scalar(std::abs(x.v)); }
+inline Scalar sqrt(const Scalar& x) { return Scalar(std::sqrt(x.v)); }
+}  // namespace adl_non_template_math_test
+
+namespace std {
+template <>
+class numeric_limits<adl_template_math_test::Scalar> : public numeric_limits<double> {};
+}  // namespace std
+
+namespace Eigen {
+template <>
+struct NumTraits<adl_template_math_test::Scalar> : GenericNumTraits<adl_template_math_test::Scalar> {
+  static inline Real epsilon() { return Real(NumTraits<double>::epsilon()); }
+  static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
+  static inline Real highest() { return Real(NumTraits<double>::highest()); }
+  static inline Real lowest() { return Real(NumTraits<double>::lowest()); }
+};
+
+template <>
+struct NumTraits<adl_non_template_math_test::Scalar> : GenericNumTraits<adl_non_template_math_test::Scalar> {
+  static constexpr int IsSigned = 1;
+  static inline Real epsilon() { return Real(NumTraits<double>::epsilon()); }
+  static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
+  static inline Real highest() { return Real(NumTraits<double>::highest()); }
+  static inline Real lowest() { return Real(NumTraits<double>::lowest()); }
+};
+}  // namespace Eigen
+
+void check_adl_template_math_dispatch() {
+  using S = adl_template_math_test::Scalar;
+  using CS = std::complex<S>;
+  using Mat2 = Matrix<S, 2, 2>;
+  using CMat2 = Matrix<CS, 2, 2>;
+  using Vec2 = Matrix<S, 2, 1>;
+  using Vec3 = Matrix<S, 3, 1>;
+
+  Mat2 a;
+  a << S(4.0), S(1.0), S(1.0), S(3.0);
+  Vec2 b(S(1.0), S(2.0));
+
+  LDLT<Mat2> ldlt(a);
+  ldlt.rankUpdate(b, S(1.0));
+  Vec2 x_ldlt = ldlt.solve(b);
+  VERIFY_IS_APPROX((a + b * b.transpose() != Mat2::Zero()) ? (ldlt.reconstructedMatrix() * x_ldlt)(0).v : 0.0, b(0).v);
+
+  LLT<Mat2> llt(a);
+  llt.rankUpdate(b, S(1.0));
+  BunchKaufman<Mat2> bk(a);
+  Vec2 x_bk = bk.solve(b);
+  VERIFY_IS_APPROX((a * x_bk)(0).v, b(0).v);
+
+  FullPivLU<Mat2> lu(a);
+  VERIFY_IS_EQUAL(lu.rank(), 2);
+  Vec2 x_lu = lu.solve(b);
+  Mat2 a_inv = a.inverse();
+  VERIFY_IS_APPROX((a * x_lu)(0).v, b(0).v);
+  VERIFY_IS_APPROX((a * a_inv)(0, 0).v, 1.0);
+
+  HouseholderQR<Mat2> hqr(a);
+  ColPivHouseholderQR<Mat2> cpqr(a);
+  FullPivHouseholderQR<Mat2> fpqr(a);
+  VERIFY_IS_APPROX(hqr.absDeterminant().v, 11.0);
+  VERIFY_IS_APPROX(cpqr.absDeterminant().v, 11.0);
+  VERIFY_IS_APPROX(fpqr.absDeterminant().v, 11.0);
+  VERIFY_IS_EQUAL(cpqr.rank(), 2);
+  VERIFY_IS_EQUAL(fpqr.rank(), 2);
+
+  JacobiSVD<Mat2, ComputeFullU | ComputeFullV> jsvd(a);
+  VERIFY_IS_EQUAL(jsvd.rank(), 2);
+
+  SelfAdjointEigenSolver<Mat2> eig2;
+  eig2.computeDirect(a);
+  VERIFY_IS_EQUAL(eig2.info(), Success);
+
+  ComplexSchur<Mat2> cschur_real(a);
+  VERIFY_IS_EQUAL(cschur_real.info(), Success);
+
+  CMat2 ca;
+  ca << CS(S(2.0), S(1.0)), CS(S(0.5), S(-0.5)), CS(S(0.5), S(0.5)), CS(S(3.0), S(-1.0));
+  ComplexSchur<CMat2> cschur_cplx(ca);
+  VERIFY_IS_EQUAL(cschur_cplx.info(), Success);
+
+  using PlainS = adl_non_template_math_test::Scalar;
+  using PlainCS = std::complex<PlainS>;
+  Matrix<PlainS, 2, 2> pa;
+  pa << PlainS(4.0), PlainS(1.0), PlainS(1.0), PlainS(3.0);
+  ComplexSchur<Matrix<PlainS, 2, 2>> plain_cschur_real(pa);
+  VERIFY_IS_EQUAL(plain_cschur_real.info(), Success);
+  Matrix<PlainCS, 2, 2> pca;
+  pca << PlainCS(PlainS(2.0), PlainS(1.0)), PlainCS(PlainS(0.5), PlainS(-0.5)), PlainCS(PlainS(0.5), PlainS(0.5)),
+      PlainCS(PlainS(3.0), PlainS(-1.0));
+  ComplexSchur<Matrix<PlainCS, 2, 2>> plain_cschur_cplx(pca);
+  VERIFY_IS_EQUAL(plain_cschur_cplx.info(), Success);
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(2.0), PlainS(-1.0)).v, -2.0);
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(-2.0), PlainS(1.0)).v, 2.0);
+
+  Quaternion<S> q(AngleAxis<S>(S(0.5), Vec3::UnitZ()));
+  AngleAxis<S> aa;
+  aa = q;
+  VERIFY_IS_APPROX(aa.angle().v, 0.5);
+  VERIFY_IS_APPROX(b.stableNorm().v, std::sqrt(5.0));
 }
 
 template <typename T, typename U>
@@ -1362,6 +1585,7 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST(check_scalar_tanh_saturation());
     CALL_SUBTEST(check_generic_packet_numext_dispatch());
+    CALL_SUBTEST(check_adl_template_math_dispatch());
     VERIFY_IS_EQUAL(numext::log10(log10_adl_test::Scalar{10.0}).value, 1.0);
     VERIFY_IS_APPROX(numext::log10(std::complex<double>(2.0, 3.0)), std::log10(std::complex<double>(2.0, 3.0)));
   }
