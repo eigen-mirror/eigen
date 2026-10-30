@@ -443,9 +443,119 @@ void test_runtime_axis_block_chips() {
   test_runtime_axis_block_chip<4, Layout, 3>();
 }
 
+template <typename Scalar, int Layout>
+void test_chip_packet_boundary_for_stride(Index inner_dim) {
+  const Index chip_axis = (Layout == ColMajor) ? 1 : 2;
+  DSizes<Index, 4> dims;
+  if (Layout == ColMajor) {
+    dims = DSizes<Index, 4>(inner_dim, 3, 5, 7);
+  } else {
+    dims = DSizes<Index, 4>(7, 5, 3, inner_dim);
+  }
+
+  Tensor<Scalar, 4, Layout> tensor(dims);
+  for (Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<Scalar>((i % 29) - 14);
+  }
+
+  DefaultDevice device;
+  for (Index chip_offset = 0; chip_offset < 3; ++chip_offset) {
+    auto raw_chip_op = tensor.chip(chip_offset, chip_axis);
+    using RawEval = TensorEvaluator<const decltype(raw_chip_op), DefaultDevice>;
+    using Packet = typename RawEval::PacketReturnType;
+    constexpr int packet_size = RawEval::PacketSize;
+    RawEval raw_eval(raw_chip_op, device);
+    const Index total_size = raw_eval.dimensions().TotalSize();
+
+    if (packet_size > 1) {
+      EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar unpacked[packet_size];
+
+      // 1. Raw storage evaluator (m_impl.data() != nullptr).
+      for (Index idx = 0; idx + packet_size <= total_size; ++idx) {
+        auto pkt = raw_eval.template packet<Unaligned>(idx);
+        internal::pstore<Scalar>(unpacked, pkt);
+        for (int lane = 0; lane < packet_size; ++lane) {
+          VERIFY_IS_EQUAL(unpacked[lane], raw_eval.coeff(idx + lane));
+        }
+      }
+
+      // 2. Non-raw nested expression evaluator (m_impl.data() == nullptr).
+      auto expr_chip_op = (tensor + tensor).chip(chip_offset, chip_axis);
+      TensorEvaluator<const decltype(expr_chip_op), DefaultDevice> expr_eval(expr_chip_op, device);
+      expr_eval.evalSubExprsIfNeeded(nullptr);
+      for (Index idx = 0; idx + packet_size <= total_size; ++idx) {
+        auto pkt = expr_eval.template packet<Unaligned>(idx);
+        internal::pstore<Scalar>(unpacked, pkt);
+        for (int lane = 0; lane < packet_size; ++lane) {
+          VERIFY_IS_EQUAL(unpacked[lane], expr_eval.coeff(idx + lane));
+        }
+      }
+      expr_eval.cleanup();
+
+      // 3. Lvalue writePacket across stride boundaries (raw and nested non-raw lvalue chips).
+      for (Index start_phase = 0; start_phase < numext::mini<Index>(packet_size, total_size); ++start_phase) {
+        Tensor<Scalar, 4, Layout> dst = tensor;
+        Tensor<Scalar, 4, Layout> expected = tensor;
+        auto lval_op = dst.chip(chip_offset, chip_axis);
+        TensorEvaluator<decltype(lval_op), DefaultDevice> lval_eval(lval_op, device);
+        auto ref_op = expected.chip(chip_offset, chip_axis);
+        TensorEvaluator<decltype(ref_op), DefaultDevice> ref_eval(ref_op, device);
+
+        for (Index idx = start_phase; idx + packet_size <= total_size; idx += packet_size) {
+          for (int lane = 0; lane < packet_size; ++lane) {
+            unpacked[lane] = static_cast<Scalar>(((idx + lane) % 19) + 3);
+            ref_eval.coeffRef(idx + lane) = unpacked[lane];
+          }
+          auto pkt = internal::pload<Packet>(unpacked);
+          lval_eval.template writePacket<Unaligned>(idx, pkt);
+        }
+        for (Index i = 0; i < dst.size(); ++i) {
+          VERIFY_IS_EQUAL(dst.data()[i], expected.data()[i]);
+        }
+      }
+
+      // 4. Nested lvalue chip (m_impl.data() == nullptr).
+      const Index outer_chip_axis = (Layout == ColMajor) ? 2 : 1;
+      Tensor<Scalar, 4, Layout> nested_dst = tensor;
+      Tensor<Scalar, 4, Layout> nested_expected = tensor;
+      auto nested_lval_op = nested_dst.chip(1, outer_chip_axis).chip(chip_offset, 1);
+      TensorEvaluator<decltype(nested_lval_op), DefaultDevice> nested_lval_eval(nested_lval_op, device);
+      auto nested_ref_op = nested_expected.chip(1, outer_chip_axis).chip(chip_offset, 1);
+      TensorEvaluator<decltype(nested_ref_op), DefaultDevice> nested_ref_eval(nested_ref_op, device);
+      const Index nested_total = nested_lval_eval.dimensions().TotalSize();
+      for (Index idx = 0; idx + packet_size <= nested_total; idx += packet_size) {
+        for (int lane = 0; lane < packet_size; ++lane) {
+          unpacked[lane] = static_cast<Scalar>(((idx + lane) % 17) + 5);
+          nested_ref_eval.coeffRef(idx + lane) = unpacked[lane];
+        }
+        auto pkt = internal::pload<Packet>(unpacked);
+        nested_lval_eval.template writePacket<Unaligned>(idx, pkt);
+      }
+      for (Index i = 0; i < nested_dst.size(); ++i) {
+        VERIFY_IS_EQUAL(nested_dst.data()[i], nested_expected.data()[i]);
+      }
+    }
+  }
+}
+
+template <int Layout>
+void test_chip_packet_boundaries() {
+  for (Index stride : {Index(1), Index(2), Index(3), Index(4), Index(5), Index(6), Index(7), Index(8), Index(12),
+                       Index(15), Index(16), Index(18), Index(24)}) {
+    test_chip_packet_boundary_for_stride<float, Layout>(stride);
+    test_chip_packet_boundary_for_stride<double, Layout>(stride);
+    test_chip_packet_boundary_for_stride<Eigen::half, Layout>(stride);
+    test_chip_packet_boundary_for_stride<Eigen::bfloat16, Layout>(stride);
+    test_chip_packet_boundary_for_stride<std::complex<float>, Layout>(stride);
+    test_chip_packet_boundary_for_stride<std::complex<double>, Layout>(stride);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_chipping) {
   CALL_SUBTEST(test_runtime_axis_block_chips<ColMajor>());
   CALL_SUBTEST(test_runtime_axis_block_chips<RowMajor>());
+  CALL_SUBTEST(test_chip_packet_boundaries<ColMajor>());
+  CALL_SUBTEST(test_chip_packet_boundaries<RowMajor>());
   CALL_SUBTEST(test_simple_chip<ColMajor>());
   CALL_SUBTEST(test_simple_chip<RowMajor>());
   CALL_SUBTEST(test_dynamic_chip<ColMajor>());

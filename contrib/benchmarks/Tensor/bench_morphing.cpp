@@ -68,6 +68,68 @@ static void BM_Chip(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * D1 * D2 * sizeof(Scalar));
 }
 
+// Middle-dimension chip feeding a full reduction (BlockAccess = false, so
+// InnerMostDimReducer evaluates TensorChippingOp::packet() across boundaries
+// whenever Cg < PacketSize or Cg is not a multiple of PacketSize).
+static void BM_ChipReduceRead(benchmark::State& state) {
+  const Index Cg = state.range(0);
+  const Index G = 16;
+  const Index M = 8192;
+
+  Tensor<Scalar, 3> A(Cg, G, M);
+  A.setRandom();
+  Tensor<Scalar, 0> B;
+
+  for (auto _ : state) {
+    B = A.chip(1, 1).sum();
+    benchmark::DoNotOptimize(B.data());
+    benchmark::ClobberMemory();
+  }
+
+  Tensor<Scalar, 2> chip_ref = A.chip(1, 1);
+  Tensor<Scalar, 0> expected = chip_ref.sum();
+  if (std::abs(B(0) - expected(0)) > 1e-2f * (1.0f + std::abs(expected(0)))) {
+    state.SkipWithError("validation failed");
+    return;
+  }
+  state.SetBytesProcessed(state.iterations() * Cg * M * sizeof(Scalar));
+}
+
+// Middle-dimension lvalue chip assigned from a contraction (BlockAccess =
+// false, as in grouped convolution output.chip(g, 1) = convolved, exercising
+// TensorEvaluator<TensorChippingOp>::writePacket() across stride boundaries).
+static void BM_ChipContractWrite(benchmark::State& state) {
+  const Index Cg = state.range(0);
+  const Index G = 16;
+  const Index K = 2;
+  const Index M = 4096;
+
+  Tensor<Scalar, 2> lhs(Cg, K);
+  Tensor<Scalar, 2> rhs(K, M);
+  lhs.setRandom();
+  rhs.setRandom();
+  Tensor<Scalar, 3> dst(Cg, G, M);
+  dst.setZero();
+  const Eigen::array<IndexPair<Index>, 1> contract_dims = {IndexPair<Index>(1, 0)};
+
+  for (auto _ : state) {
+    dst.chip(1, 1) = lhs.contract(rhs, contract_dims);
+    benchmark::DoNotOptimize(dst.data());
+    benchmark::ClobberMemory();
+  }
+
+  Tensor<Scalar, 2> expected = lhs.contract(rhs, contract_dims);
+  for (Index m = 0; m < M; ++m) {
+    for (Index c = 0; c < Cg; ++c) {
+      if (std::abs(dst(c, 1, m) - expected(c, m)) > 1e-4f) {
+        state.SkipWithError("validation failed");
+        return;
+      }
+    }
+  }
+  state.SetBytesProcessed(state.iterations() * Cg * M * sizeof(Scalar));
+}
+
 // --- Pad ---
 static void BM_Pad(benchmark::State& state) {
   const int M = state.range(0);
@@ -297,6 +359,9 @@ static void BM_Pad_ThreadPool(benchmark::State& state) {
 #define CHIP_SIZES \
   ->Args({32, 256, 256})->Args({64, 128, 128})->Args({8, 512, 512})
 
+#define CHIP_BOUNDARY_SIZES \
+  ->Arg(2)->Arg(4)->Arg(6)->Arg(8)->Arg(12)->Arg(16)
+
 #define PAD_SIZES \
   ->Args({256, 256, 1})->Args({256, 256, 4})->Args({256, 256, 16}) \
   ->Args({1024, 1024, 1})->Args({1024, 1024, 4})->Args({1024, 1024, 16})
@@ -316,6 +381,8 @@ static void BM_Pad_ThreadPool(benchmark::State& state) {
 BENCHMARK(BM_Reshape) MORPH_SIZES;
 BENCHMARK(BM_Slice) MORPH_SIZES;
 BENCHMARK(BM_Chip) CHIP_SIZES;
+BENCHMARK(BM_ChipReduceRead) CHIP_BOUNDARY_SIZES;
+BENCHMARK(BM_ChipContractWrite) CHIP_BOUNDARY_SIZES;
 BENCHMARK(BM_Pad) PAD_SIZES;
 BENCHMARK(BM_StridedSliceRead) STRIDED_SLICE_SIZES;
 BENCHMARK(BM_StridedSliceExp) STRIDED_SLICE_SIZES;

@@ -204,7 +204,7 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
   }
 
   template <int LoadMode>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
+  EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
     EIGEN_IF_CONSTEXPR (IsInnerChipping) {
@@ -218,20 +218,25 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     } else {
       const Index idx = index / m_stride;
       const Index rem = index - idx * m_stride;
-      if (rem + PacketSize <= m_stride) {
-        Index inputIndex = idx * m_inputStride + m_inputOffset + rem;
+      Index inputIndex = idx * m_inputStride + m_inputOffset + rem;
+      if (EIGEN_PREDICT_TRUE(rem + PacketSize <= m_stride)) {
         return m_impl.template packet<LoadMode>(inputIndex);
       } else {
-        // Cross the stride boundary. Fallback to slow path.
+        // Cross the stride boundary: gather lanes with division-free index stepping.
         EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
         std::remove_const_t<CoeffReturnType> values[PacketSize];
+        const Index strideDelta = m_inputStride - m_stride;
+        Index lane_in_slice = rem;
         EIGEN_UNROLL_LOOP
         for (int i = 0; i < PacketSize; ++i) {
-          values[i] = coeff(index);
-          ++index;
+          values[i] = m_impl.coeff(inputIndex);
+          ++inputIndex;
+          if (++lane_in_slice == m_stride) {
+            lane_in_slice = 0;
+            inputIndex += strideDelta;
+          }
         }
-        PacketReturnType rslt = internal::pload<PacketReturnType>(values);
-        return rslt;
+        return internal::pload<PacketReturnType>(values);
       }
     }
   }
@@ -444,18 +449,24 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
     } else {
       const Index idx = index / this->m_stride;
       const Index rem = index - idx * this->m_stride;
-      if (rem + PacketSize <= this->m_stride) {
-        const Index inputIndex = idx * this->m_inputStride + this->m_inputOffset + rem;
+      Index inputIndex = idx * this->m_inputStride + this->m_inputOffset + rem;
+      if (EIGEN_PREDICT_TRUE(rem + PacketSize <= this->m_stride)) {
         this->m_impl.template writePacket<StoreMode>(inputIndex, x);
       } else {
-        // Cross stride boundary. Fallback to slow path.
+        // Cross stride boundary: scatter lanes with division-free index stepping.
         EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
         std::remove_const_t<CoeffReturnType> values[PacketSize];
         internal::pstore<CoeffReturnType, PacketReturnType>(values, x);
+        const Index strideDelta = this->m_inputStride - this->m_stride;
+        Index lane_in_slice = rem;
         EIGEN_UNROLL_LOOP
         for (int i = 0; i < PacketSize; ++i) {
-          this->coeffRef(index) = values[i];
-          ++index;
+          this->m_impl.coeffRef(inputIndex) = values[i];
+          ++inputIndex;
+          if (++lane_in_slice == this->m_stride) {
+            lane_in_slice = 0;
+            inputIndex += strideDelta;
+          }
         }
       }
     }
