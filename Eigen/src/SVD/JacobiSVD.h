@@ -395,16 +395,16 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
         // computing n
         z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
         work_matrix.row(p) *= z;
-        if (svd.computeU()) svd.m_matrixU.col(p) *= conj(z);
+        if (svd.computeU()) svd.m_matrixU.col(p) *= numext::conj(z);
       }
       if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
         z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
         work_matrix.row(q) *= z;
-        if (svd.computeU()) svd.m_matrixU.col(q) *= conj(z);
+        if (svd.computeU()) svd.m_matrixU.col(q) *= numext::conj(z);
       }
       // otherwise the second row is already zero, so we have nothing to do.
     } else {
-      rot.c() = conj(work_matrix.coeff(p, p)) / n;
+      rot.c() = numext::conj(work_matrix.coeff(p, p)) / n;
       rot.s() = work_matrix.coeff(q, p) / n;
       work_matrix.applyOnTheLeft(p, q, rot);
       if (svd.computeU()) svd.m_matrixU.applyOnTheRight(p, q, rot.adjoint());
@@ -416,7 +416,7 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
       if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
         z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
         work_matrix.row(q) *= z;
-        if (svd.computeU()) svd.m_matrixU.col(q) *= conj(z);
+        if (svd.computeU()) svd.m_matrixU.col(q) *= numext::conj(z);
       }
     }
 

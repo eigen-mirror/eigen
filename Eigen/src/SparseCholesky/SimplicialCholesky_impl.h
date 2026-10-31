@@ -394,7 +394,7 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrix
       }
     } else {
       Index p = internal::convert_index<Index>(Lp[k] + nonZerosPerCol[k]++);
-      Li[p] = k; /* store L(k,k) = numext::sqrt(d) in column k */
+      Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
       bool failed;
       EIGEN_IF_CONSTEXPR (NonHermitian) {
         failed = d == RealScalar(0);

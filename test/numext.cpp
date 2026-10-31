@@ -15,6 +15,7 @@
 #include <Eigen/LU>
 #include <Eigen/QR>
 #include <Eigen/SVD>
+#include <Eigen/Sparse>
 #include "twoprod_helpers.h"
 #include "fp_control.h"
 
@@ -126,6 +127,10 @@ template <typename T>
 inline T log(const T& x) {
   return Scalar(std::log(x.v));
 }
+template <typename T>
+inline T ldexp(const T& x, int exp) {
+  return Scalar(std::ldexp(x.v, exp));
+}
 // Not templates: the UCRT declares unconstrained isfinite, isnan and isinf templates.
 inline bool(isfinite)(const Scalar& x) { return (std::isfinite)(x.v); }
 inline bool(isnan)(const Scalar& x) { return (std::isnan)(x.v); }
@@ -184,9 +189,9 @@ struct NumTraits<adl_template_math_test::Scalar> : GenericNumTraits<adl_template
   static inline Real lowest() { return Real(NumTraits<double>::lowest()); }
 };
 
+// Intentionally omits std::numeric_limits and IsSigned so GenericNumTraits::IsSigned defaults to 0.
 template <>
 struct NumTraits<adl_non_template_math_test::Scalar> : GenericNumTraits<adl_non_template_math_test::Scalar> {
-  static constexpr int IsSigned = 1;
   static inline Real epsilon() { return Real(NumTraits<double>::epsilon()); }
   static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
   static inline Real highest() { return Real(NumTraits<double>::highest()); }
@@ -198,31 +203,43 @@ void check_adl_template_math_dispatch() {
   using S = adl_template_math_test::Scalar;
   using CS = std::complex<S>;
   using Mat2 = Matrix<S, 2, 2>;
+  using Mat3 = Matrix<S, 3, 3>;
+  using Mat4 = Matrix<S, 4, 4>;
+  using MatX = Matrix<S, Dynamic, Dynamic>;
   using CMat2 = Matrix<CS, 2, 2>;
   using Vec2 = Matrix<S, 2, 1>;
   using Vec3 = Matrix<S, 3, 1>;
+  using Vec4 = Matrix<S, 4, 1>;
+
+  const double kTol = 1e-11;
+  auto max_abs = [](const auto& m) { return m.cwiseAbs().maxCoeff().v; };
 
   Mat2 a;
   a << S(4.0), S(1.0), S(1.0), S(3.0);
   Vec2 b(S(1.0), S(2.0));
+  const Mat2 a_upd = a + b * b.transpose();
 
   LDLT<Mat2> ldlt(a);
   ldlt.rankUpdate(b, S(1.0));
   Vec2 x_ldlt = ldlt.solve(b);
-  VERIFY_IS_APPROX((a + b * b.transpose() != Mat2::Zero()) ? (ldlt.reconstructedMatrix() * x_ldlt)(0).v : 0.0, b(0).v);
+  VERIFY_LE(max_abs(ldlt.reconstructedMatrix() - a_upd), kTol);
+  VERIFY_LE(max_abs(a_upd * x_ldlt - b), kTol);
 
   LLT<Mat2> llt(a);
   llt.rankUpdate(b, S(1.0));
+  VERIFY_LE(max_abs(llt.reconstructedMatrix() - a_upd), kTol);
+  VERIFY_LE(max_abs(a_upd * llt.solve(b) - b), kTol);
+
   BunchKaufman<Mat2> bk(a);
   Vec2 x_bk = bk.solve(b);
-  VERIFY_IS_APPROX((a * x_bk)(0).v, b(0).v);
+  VERIFY_LE(max_abs(a * x_bk - b), kTol);
 
   FullPivLU<Mat2> lu(a);
   VERIFY_IS_EQUAL(lu.rank(), 2);
   Vec2 x_lu = lu.solve(b);
   Mat2 a_inv = a.inverse();
-  VERIFY_IS_APPROX((a * x_lu)(0).v, b(0).v);
-  VERIFY_IS_APPROX((a * a_inv)(0, 0).v, 1.0);
+  VERIFY_LE(max_abs(a * x_lu - b), kTol);
+  VERIFY_LE(max_abs(a * a_inv - Mat2::Identity()), kTol);
 
   HouseholderQR<Mat2> hqr(a);
   ColPivHouseholderQR<Mat2> cpqr(a);
@@ -232,43 +249,208 @@ void check_adl_template_math_dispatch() {
   VERIFY_IS_APPROX(fpqr.absDeterminant().v, 11.0);
   VERIFY_IS_EQUAL(cpqr.rank(), 2);
   VERIFY_IS_EQUAL(fpqr.rank(), 2);
+  VERIFY_LE(max_abs(a * hqr.solve(b) - b), kTol);
+  VERIFY_LE(max_abs(a * cpqr.solve(b) - b), kTol);
+  VERIFY_LE(max_abs(a * fpqr.solve(b) - b), kTol);
 
   JacobiSVD<Mat2, ComputeFullU | ComputeFullV> jsvd(a);
   VERIFY_IS_EQUAL(jsvd.rank(), 2);
+  VERIFY_LE(max_abs(jsvd.matrixU() * jsvd.singularValues().asDiagonal() * jsvd.matrixV().transpose() - a), kTol);
+  VERIFY_LE(max_abs(a * jsvd.solve(b) - b), kTol);
+
+  Mat4 ns4;
+  ns4 << S(0.0), S(2.0), S(-3.0), S(1.0), S(-4.0), S(1.0), S(2.0), S(-1.0), S(1.0), S(-7.0), S(0.5), S(2.0), S(3.0),
+      S(1.0), S(-2.0), S(-6.0);
+  Vec4 b4(S(1.0), S(-2.0), S(3.0), S(-1.0));
+  const Mat4 spd4 = ns4.transpose() * ns4 + Mat4::Identity();
+
+  const MatX xns4 = ns4;
+  BDCSVD<MatX, ComputeFullU | ComputeFullV> bdcsvd(xns4);
+  VERIFY_IS_EQUAL(bdcsvd.rank(), 4);
+  VERIFY_LE(max_abs(bdcsvd.matrixU() * bdcsvd.singularValues().asDiagonal() * bdcsvd.matrixV().transpose() - xns4),
+            kTol);
 
   SelfAdjointEigenSolver<Mat2> eig2;
   eig2.computeDirect(a);
   VERIFY_IS_EQUAL(eig2.info(), Success);
+  VERIFY_LE(max_abs(eig2.eigenvectors() * eig2.eigenvalues().asDiagonal() * eig2.eigenvectors().transpose() - a), kTol);
+
+  Mat3 spd3;
+  spd3 << S(5.0), S(1.0), S(0.5), S(1.0), S(4.0), S(-0.5), S(0.5), S(-0.5), S(3.0);
+  SelfAdjointEigenSolver<Mat3> eig3;
+  eig3.computeDirect(spd3);
+  VERIFY_IS_EQUAL(eig3.info(), Success);
+  VERIFY_LE(max_abs(eig3.eigenvectors() * eig3.eigenvalues().asDiagonal() * eig3.eigenvectors().transpose() - spd3),
+            kTol);
+
+  SelfAdjointEigenSolver<MatX> eigx{MatX(spd4)};
+  VERIFY_IS_EQUAL(eigx.info(), Success);
+  VERIFY_LE(
+      max_abs(eigx.eigenvectors() * eigx.eigenvalues().asDiagonal() * eigx.eigenvectors().transpose() - MatX(spd4)),
+      kTol);
+
+  Tridiagonalization<Mat4> tridiag(spd4);
+  VERIFY_LE(max_abs(tridiag.matrixQ() * tridiag.matrixT() * tridiag.matrixQ().transpose() - spd4), kTol);
+
+  RealSchur<Mat4> rschur(ns4);
+  VERIFY_IS_EQUAL(rschur.info(), Success);
+  VERIFY_LE(max_abs(rschur.matrixU() * rschur.matrixT() * rschur.matrixU().transpose() - ns4), kTol);
+
+  RealQZ<Mat4> rqz(ns4, spd4);
+  VERIFY_IS_EQUAL(rqz.info(), Success);
+  VERIFY_LE(max_abs(rqz.matrixQ() * rqz.matrixS() * rqz.matrixZ() - ns4), kTol);
+  VERIFY_LE(max_abs(rqz.matrixQ() * rqz.matrixT() * rqz.matrixZ() - spd4), kTol);
 
   using PlainS = adl_non_template_math_test::Scalar;
+  Matrix<PlainS, 4, 4> pns4;
+  pns4 << PlainS(0.0), PlainS(2.0), PlainS(-3.0), PlainS(1.0), PlainS(-4.0), PlainS(1.0), PlainS(2.0), PlainS(-1.0),
+      PlainS(1.0), PlainS(-7.0), PlainS(0.5), PlainS(2.0), PlainS(3.0), PlainS(1.0), PlainS(-2.0), PlainS(-6.0);
+  Matrix<PlainS, 4, 1> pb4(PlainS(1.0), PlainS(-2.0), PlainS(3.0), PlainS(-1.0));
+  const Matrix<PlainS, 4, 4> pspd4 = pns4.transpose() * pns4 + Matrix<PlainS, 4, 4>::Identity();
+
+  HouseholderQR<Matrix<PlainS, 4, 4>> phqr(pns4);
+  VERIFY_IS_APPROX(phqr.absDeterminant().v, 469.5);
+  FullPivLU<Matrix<PlainS, 4, 4>> plu(pns4);
+  VERIFY_IS_EQUAL(plu.rank(), 4);
+  VERIFY_LE(max_abs(pns4 * plu.solve(pb4) - pb4), kTol);
+  ColPivHouseholderQR<Matrix<PlainS, 4, 4>> pcpqr(pns4);
+  FullPivHouseholderQR<Matrix<PlainS, 4, 4>> pfpqr(pns4);
+  VERIFY_IS_EQUAL(pcpqr.rank(), 4);
+  VERIFY_IS_EQUAL(pfpqr.rank(), 4);
+  RealSchur<Matrix<PlainS, 4, 4>> prschur(pns4);
+  VERIFY_IS_EQUAL(prschur.info(), Success);
+  VERIFY_LE(max_abs(prschur.matrixU() * prschur.matrixT() * prschur.matrixU().transpose() - pns4), kTol);
+  SelfAdjointEigenSolver<Matrix<PlainS, 4, 4>> peig4(pspd4);
+  VERIFY_IS_EQUAL(peig4.info(), Success);
+  VERIFY_LE(max_abs(peig4.eigenvectors() * peig4.eigenvalues().asDiagonal() * peig4.eigenvectors().transpose() - pspd4),
+            kTol);
+  JacobiSVD<Matrix<PlainS, 4, 4>, ComputeFullU | ComputeFullV> pjsvd(pns4);
+  VERIFY_LE(max_abs(pjsvd.matrixU() * pjsvd.singularValues().asDiagonal() * pjsvd.matrixV().transpose() - pns4), kTol);
+
 #ifndef _MSC_VER  // MSVC's std::complex<T> needs unary + and a conversion to double from T.
+  EigenSolver<Mat4> esolver(ns4);
+  VERIFY_IS_EQUAL(esolver.info(), Success);
+  VERIFY_LE(
+      max_abs((ns4.cast<CS>() * esolver.eigenvectors() - esolver.eigenvectors() * esolver.eigenvalues().asDiagonal())
+                  .cwiseAbs()),
+      kTol);
+
+  GeneralizedEigenSolver<Mat4> gesolver(ns4, spd4);
+  VERIFY_IS_EQUAL(gesolver.info(), Success);
+
   ComplexSchur<Mat2> cschur_real(a);
   VERIFY_IS_EQUAL(cschur_real.info(), Success);
+  VERIFY_LE(
+      max_abs(
+          (cschur_real.matrixU() * cschur_real.matrixT() * cschur_real.matrixU().adjoint() - a.cast<CS>()).cwiseAbs()),
+      kTol);
 
   CMat2 ca;
   ca << CS(S(2.0), S(1.0)), CS(S(0.5), S(-0.5)), CS(S(0.5), S(0.5)), CS(S(3.0), S(-1.0));
   ComplexSchur<CMat2> cschur_cplx(ca);
   VERIFY_IS_EQUAL(cschur_cplx.info(), Success);
+  VERIFY_LE(max_abs((cschur_cplx.matrixU() * cschur_cplx.matrixT() * cschur_cplx.matrixU().adjoint() - ca).cwiseAbs()),
+            kTol);
 
   using PlainCS = std::complex<PlainS>;
-  Matrix<PlainS, 2, 2> pa;
-  pa << PlainS(4.0), PlainS(1.0), PlainS(1.0), PlainS(3.0);
-  ComplexSchur<Matrix<PlainS, 2, 2>> plain_cschur_real(pa);
+  ComplexSchur<Matrix<PlainS, 4, 4>> plain_cschur_real(pns4);
   VERIFY_IS_EQUAL(plain_cschur_real.info(), Success);
+  VERIFY_LE(max_abs((plain_cschur_real.matrixU() * plain_cschur_real.matrixT() * plain_cschur_real.matrixU().adjoint() -
+                     pns4.cast<PlainCS>())
+                        .cwiseAbs()),
+            kTol);
+
   Matrix<PlainCS, 2, 2> pca;
   pca << PlainCS(PlainS(2.0), PlainS(1.0)), PlainCS(PlainS(0.5), PlainS(-0.5)), PlainCS(PlainS(0.5), PlainS(0.5)),
       PlainCS(PlainS(3.0), PlainS(-1.0));
   ComplexSchur<Matrix<PlainCS, 2, 2>> plain_cschur_cplx(pca);
   VERIFY_IS_EQUAL(plain_cschur_cplx.info(), Success);
+  VERIFY_LE(
+      max_abs((plain_cschur_cplx.matrixU() * plain_cschur_cplx.matrixT() * plain_cschur_cplx.matrixU().adjoint() - pca)
+                  .cwiseAbs()),
+      kTol);
+
+  const PlainCS csqrt_neg = numext::sqrt(PlainCS(PlainS(-3.0), PlainS(-4.0)));
+  VERIFY_IS_APPROX(csqrt_neg.real().v, 1.0);
+  VERIFY_IS_APPROX(csqrt_neg.imag().v, -2.0);
+
+  // Pin fallback behavior on negative zero: `< Scalar(0)` cannot see -0, so sqrt(-1 - 0i) yields +i.
+  const PlainCS csqrt_neg_zero = numext::sqrt(PlainCS(PlainS(-1.0), PlainS(-0.0)));
+  VERIFY_IS_APPROX(csqrt_neg_zero.real().v, 0.0);
+  VERIFY_IS_APPROX(csqrt_neg_zero.imag().v, 1.0);
 #endif
+
   VERIFY_IS_EQUAL(numext::copysign(PlainS(2.0), PlainS(-1.0)).v, -2.0);
   VERIFY_IS_EQUAL(numext::copysign(PlainS(-2.0), PlainS(1.0)).v, 2.0);
+  // Pin the `< Scalar(0)` fallback limitation on signed zero and NaN when copysign is unavailable.
+  VERIFY((std::signbit)(numext::copysign(PlainS(-0.0), PlainS(1.0)).v));
+  VERIFY(!(std::signbit)(numext::copysign(PlainS(1.0), PlainS(-0.0)).v));
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-0.0)).v, 1.0);
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-std::numeric_limits<double>::quiet_NaN())).v, 1.0);
 
   Quaternion<S> q(AngleAxis<S>(S(0.5), Vec3::UnitZ()));
   AngleAxis<S> aa;
   aa = q;
   VERIFY_IS_APPROX(aa.angle().v, 0.5);
+  Rotation2D<S> rot2(S(0.25));
+  Rotation2D<S> rot2_from_mat(rot2.toRotationMatrix());
+  VERIFY_IS_APPROX(rot2_from_mat.angle().v, 0.25);
+  AlignedBox<S, 3> box(Vec3(S(0.0), S(0.0), S(0.0)), Vec3(S(1.0), S(1.0), S(1.0)));
+  VERIFY_IS_APPROX(box.exteriorDistance(Vec3(S(4.0), S(5.0), S(1.0))).v, 5.0);
+  ParametrizedLine<S, 3> line = ParametrizedLine<S, 3>::Through(Vec3::Zero(), Vec3(S(3.0), S(4.0), S(0.0)));
+  VERIFY_IS_APPROX(line.distance(Vec3(S(0.0), S(0.0), S(2.0))).v, 2.0);
   VERIFY_IS_APPROX(b.stableNorm().v, std::sqrt(5.0));
+
+  SparseMatrix<S> sp_spd = spd4.sparseView();
+  sp_spd.makeCompressed();
+  SparseMatrix<S> sp_ns = ns4.sparseView();
+  sp_ns.makeCompressed();
+  SparseMatrix<S> sp_pruned = (sp_spd * sp_spd).pruned(S(1e-6));
+  VERIFY(sp_pruned.nonZeros() > Index(0));
+
+  SimplicialLLT<SparseMatrix<S>> sllt(sp_spd);
+  VERIFY_IS_EQUAL(sllt.info(), Success);
+  VERIFY_LE(max_abs(spd4 * sllt.solve(b4) - b4), kTol);
+
+  SimplicialLDLT<SparseMatrix<S>> sldlt(sp_spd);
+  VERIFY_IS_EQUAL(sldlt.info(), Success);
+  VERIFY_LE(max_abs(spd4 * sldlt.solve(b4) - b4), kTol);
+
+  SparseLU<SparseMatrix<S>> splu(sp_ns);
+  VERIFY_IS_EQUAL(splu.info(), Success);
+  VERIFY_LE(max_abs(ns4 * splu.solve(b4) - b4), kTol);
+
+  SparseQR<SparseMatrix<S>, COLAMDOrdering<int>> spqr(sp_ns);
+  VERIFY_IS_EQUAL(spqr.info(), Success);
+  VERIFY_LE(max_abs(ns4 * spqr.solve(b4) - b4), kTol);
+
+  IncompleteCholesky<S> ichol(sp_spd);
+  VERIFY_IS_EQUAL(ichol.info(), Success);
+  ConjugateGradient<SparseMatrix<S>, Lower | Upper, IncompleteCholesky<S>> cg(sp_spd);
+  VERIFY_LE(max_abs(spd4 * cg.solve(b4) - b4), 1e-8);
+
+  IncompleteLUT<S> ilut(sp_ns);
+  VERIFY_IS_EQUAL(ilut.info(), Success);
+  BiCGSTAB<SparseMatrix<S>, IncompleteLUT<S>> bicg(sp_ns);
+  VERIFY_LE(max_abs(ns4 * bicg.solve(b4) - b4), 1e-8);
+
+  LeastSquaresConjugateGradient<SparseMatrix<S>> lscg(sp_ns);
+  VERIFY_LE(max_abs(ns4 * lscg.solve(b4) - b4), 1e-8);
+
+  GMRES<SparseMatrix<S>> gmres(sp_ns);
+  VERIFY_LE(max_abs(ns4 * gmres.solve(b4) - b4), 1e-8);
+
+  MINRES<SparseMatrix<S>> minres(sp_spd);
+  VERIFY_LE(max_abs(spd4 * minres.solve(b4) - b4), 1e-8);
+
+  IDRS<SparseMatrix<S>> idrs(sp_ns);
+  VERIFY_LE(max_abs(ns4 * idrs.solve(b4) - b4), 1e-8);
+
+  IDRSTABL<SparseMatrix<S>> idrstabl(sp_ns);
+  VERIFY_LE(max_abs(ns4 * idrstabl.solve(b4) - b4), 1e-8);
+
+  LSMR<SparseMatrix<S>> lsmr(sp_ns);
+  VERIFY_LE(max_abs(ns4 * lsmr.solve(b4) - b4), 1e-8);
 }
 
 template <typename T, typename U>

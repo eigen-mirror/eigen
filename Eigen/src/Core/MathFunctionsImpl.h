@@ -179,7 +179,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE ComplexT complex_sqrt_extreme(const ComplexT
   const T zero = T(0);
   const T inf = NumTraits<T>::infinity();
   EIGEN_IF_CONSTEXPR (Reciprocal) {
-    if ((numext::isinf)(x) || (numext::isinf)(y)) return ComplexT(zero, numext::copysign(zero, -y));
+    if ((numext::isinf)(x) || (numext::isinf)(y)) return ComplexT(zero, numext::copysign<T>(zero, -y));
   } else {
     if ((numext::isinf)(y)) return ComplexT(inf, y);
     if ((numext::isinf)(x)) {
