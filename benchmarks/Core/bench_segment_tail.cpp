@@ -318,6 +318,30 @@ void BM_PrimScalarLoad(benchmark::State& state) {
   state.SetItemsProcessed(state.iterations() * count);
 }
 
+#ifdef EIGEN_VECTORIZE_AVX
+void BM_ComplexHalfSegmentLoad(benchmark::State& state) {
+  using Packet = typename internal::find_packet_by_size<std::complex<float>, 2>::type;
+  const Index begin = state.range(0), count = state.range(1);
+  Buffers<std::complex<float>> buf;
+  const std::complex<float>* input = buf.src + 1;
+  std::complex<float> output[2];
+  internal::pstoreu(output, internal::ploaduSegment<Packet>(input, begin, count));
+  for (Index i = 0; i < 2; ++i) {
+    const std::complex<float> expected = i >= begin && i < begin + count ? input[i] : std::complex<float>(0);
+    if (output[i] != expected) {
+      state.SkipWithError("complex half-packet segment differs from scalar reference");
+      return;
+    }
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(buf.src);
+    Packet packet = internal::ploaduSegment<Packet>(input, begin, count);
+    benchmark::DoNotOptimize(packet);
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+#endif
+
 // --- compile-time-count store: matches the completely-unrolled tail --------
 // Here the scalar alternative is itself fully unrolled (no loop), which is why
 // it can beat a masked store for tiny tails.
@@ -650,6 +674,15 @@ int RegisterAll() {
   add_prim<int64_t>();
   add_prim<std::complex<float>>();
   add_prim<std::complex<double>>();
+#ifdef EIGEN_VECTORIZE_AVX
+  benchmark::RegisterBenchmark("Prim/Load/seg/half_cf32", &BM_ComplexHalfSegmentLoad)
+      ->Args({0, 0})
+      ->Args({0, 1})
+      ->Args({0, 2})
+      ->Args({1, 0})
+      ->Args({1, 1})
+      ->Args({2, 0});
+#endif
 
   add_all_prim_ct<float>();
   add_all_prim_ct<double>();

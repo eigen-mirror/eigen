@@ -543,7 +543,13 @@ struct has_packet_segment<Packet2cd> : std::true_type {};
 
 template <>
 inline Packet2cf ploaduSegment<Packet2cf>(const std::complex<float>* from, Index begin, Index count) {
-  return (Packet2cf)_mm_maskload_ps(&numext::real_ref(*from), segment_mask_2x64(begin, count));
+  eigen_assert(begin >= 0 && begin <= 2 && count >= 0 && count <= 2 - begin);
+  if (count == 2) return ploadu<Packet2cf>(from);
+  if (count == 0) return Packet2cf(_mm_setzero_ps());
+  // A single complex<float> needs only a 64-bit load, not a masked 128-bit load.
+  const void* address = from + begin;
+  const __m128 value = _mm_castsi128_ps(_mm_loadl_epi64(static_cast<const __m128i*>(address)));
+  return Packet2cf(begin == 0 ? value : _mm_movelh_ps(_mm_setzero_ps(), value));
 }
 
 template <>

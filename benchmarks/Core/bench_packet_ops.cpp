@@ -1,5 +1,5 @@
 // Benchmarks for the PacketMath implementations of `plset`, `ploaddup`,
-// `ploadquad`, `psign`, `predux_mul`, `ptranspose`, and `pldexp`, at the packet-op
+// `ploadquad`, `psign`, `predux`, `predux_mul`, `ptranspose`, and `pldexp`, at the packet-op
 // level and shared across whichever architecture backend the build targets. To
 // compare against a prior implementation, build and run this same file
 // against the Eigen checkout in question -- it only calls the public
@@ -12,6 +12,7 @@
 #include <Eigen/Core>
 
 #include <cmath>
+#include <complex>
 #include <cstdint>
 #include <type_traits>
 
@@ -225,6 +226,34 @@ void BM_ReduxMul(benchmark::State& state) {
 BENCHMARK(BM_ReduxMul<numext::int32_t>)->Name("ReduxMul_int32");
 BENCHMARK(BM_ReduxMul<float>)->Name("ReduxMul_float");
 BENCHMARK(BM_ReduxMul<double>)->Name("ReduxMul_double");
+
+template <typename Scalar, bool Half>
+void BM_ComplexRedux(benchmark::State& state) {
+  using FullPacket = typename packet_traits<Scalar>::type;
+  using Packet = std::conditional_t<Half, typename internal::unpacket_traits<FullPacket>::half, FullPacket>;
+  constexpr int size = internal::unpacket_traits<Packet>::size;
+  Scalar input[size];
+  Scalar expected(0);
+  for (int i = 0; i < size; ++i) {
+    input[i] = Scalar(i + 1, 2 * i - 1);
+    expected += input[i];
+  }
+  Packet packet = ploadu<Packet>(input);
+  if (internal::predux(packet) != expected) {
+    state.SkipWithError("complex predux differs from scalar reference");
+    return;
+  }
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(packet);
+    Scalar result = internal::predux(packet);
+    benchmark::DoNotOptimize(result);
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+BENCHMARK(BM_ComplexRedux<std::complex<float>, false>)->Name("Redux_complex_float");
+BENCHMARK(BM_ComplexRedux<std::complex<float>, true>)->Name("Redux_complex_float_half");
+BENCHMARK(BM_ComplexRedux<std::complex<double>, false>)->Name("Redux_complex_double");
+BENCHMARK(BM_ComplexRedux<std::complex<double>, true>)->Name("Redux_complex_double_half");
 
 // ---- ptranspose ----
 // Benchmarked at N == the type's packet width, i.e. a full square transpose,

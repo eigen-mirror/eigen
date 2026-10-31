@@ -186,9 +186,7 @@ EIGEN_STRONG_INLINE void prefetch<std::complex<float> >(const std::complex<float
 
 template <>
 EIGEN_STRONG_INLINE std::complex<float> pfirst<Packet2cf>(const Packet2cf& a) {
-  alignas(alignof(__m64)) std::complex<float> res;
-  _mm_storel_pi((__m64*)&res, a.v);
-  return res;
+  return std::complex<float>(_mm_cvtss_f32(a.v), _mm_cvtss_f32(_mm_shuffle_ps(a.v, a.v, _MM_SHUFFLE(1, 1, 1, 1))));
 }
 
 template <>

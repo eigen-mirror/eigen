@@ -197,6 +197,14 @@ void test_packet_segment() {
 }
 
 EIGEN_DECLARE_TEST(packet_segment) {
+#if defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX512VL)
+  std::complex<float> data[2] = {};
+  VERIFY_RAISES_ASSERT(internal::ploaduSegment<internal::Packet2cf>(data, 0, 3));
+  VERIFY_RAISES_ASSERT(internal::ploaduSegment<internal::Packet2cf>(data, 0, -1));
+  VERIFY_RAISES_ASSERT(internal::ploaduSegment<internal::Packet2cf>(data, -1, 0));
+  VERIFY_RAISES_ASSERT(internal::ploaduSegment<internal::Packet2cf>(data, 3, 0));
+  VERIFY_RAISES_ASSERT(internal::ploaduSegment<internal::Packet2cf>(data, (std::numeric_limits<Index>::max)(), 1));
+#endif
   for (int i = 0; i < g_repeat; i++) {
     test_packet_segment<bool>();
     test_packet_segment<int8_t>();
