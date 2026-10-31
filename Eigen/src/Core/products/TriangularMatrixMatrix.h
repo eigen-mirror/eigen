@@ -218,7 +218,9 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   Index mc = (std::min)(rows, blocking.mc());  // cache block size along the M direction
 
   std::size_t sizeA = kc * mc;
-  std::size_t sizeB = kc * cols + EIGEN_MAX_ALIGN_BYTES / sizeof(Scalar);
+  // Room for realigning geb below, which moves it by less than one packet: more than EIGEN_MAX_ALIGN_BYTES when
+  // packets are wider than the allocation alignment (RVV with LMUL > 1, or a lowered EIGEN_MAX_ALIGN_BYTES).
+  std::size_t sizeB = kc * cols + PacketBytes / sizeof(Scalar);
 
   ei_declare_aligned_stack_constructed_variable(Scalar, blockA, sizeA, blocking.blockA());
   ei_declare_aligned_stack_constructed_variable(Scalar, blockB, sizeB, blocking.blockB());
