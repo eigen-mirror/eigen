@@ -126,18 +126,10 @@ template <typename T>
 inline T log(const T& x) {
   return Scalar(std::log(x.v));
 }
-template <typename T>
-inline bool(isfinite)(const T& x) {
-  return (std::isfinite)(x.v);
-}
-template <typename T>
-inline bool(isnan)(const T& x) {
-  return (std::isnan)(x.v);
-}
-template <typename T>
-inline bool(isinf)(const T& x) {
-  return (std::isinf)(x.v);
-}
+// Not templates: the UCRT declares unconstrained isfinite, isnan and isinf templates.
+inline bool(isfinite)(const Scalar& x) { return (std::isfinite)(x.v); }
+inline bool(isnan)(const Scalar& x) { return (std::isnan)(x.v); }
+inline bool(isinf)(const Scalar& x) { return (std::isinf)(x.v); }
 }  // namespace adl_template_math_test
 
 namespace adl_non_template_math_test {
@@ -248,6 +240,8 @@ void check_adl_template_math_dispatch() {
   eig2.computeDirect(a);
   VERIFY_IS_EQUAL(eig2.info(), Success);
 
+  using PlainS = adl_non_template_math_test::Scalar;
+#ifndef _MSC_VER  // MSVC's std::complex<T> needs unary + and a conversion to double from T.
   ComplexSchur<Mat2> cschur_real(a);
   VERIFY_IS_EQUAL(cschur_real.info(), Success);
 
@@ -256,7 +250,6 @@ void check_adl_template_math_dispatch() {
   ComplexSchur<CMat2> cschur_cplx(ca);
   VERIFY_IS_EQUAL(cschur_cplx.info(), Success);
 
-  using PlainS = adl_non_template_math_test::Scalar;
   using PlainCS = std::complex<PlainS>;
   Matrix<PlainS, 2, 2> pa;
   pa << PlainS(4.0), PlainS(1.0), PlainS(1.0), PlainS(3.0);
@@ -267,6 +260,7 @@ void check_adl_template_math_dispatch() {
       PlainCS(PlainS(3.0), PlainS(-1.0));
   ComplexSchur<Matrix<PlainCS, 2, 2>> plain_cschur_cplx(pca);
   VERIFY_IS_EQUAL(plain_cschur_cplx.info(), Success);
+#endif
   VERIFY_IS_EQUAL(numext::copysign(PlainS(2.0), PlainS(-1.0)).v, -2.0);
   VERIFY_IS_EQUAL(numext::copysign(PlainS(-2.0), PlainS(1.0)).v, 2.0);
 
