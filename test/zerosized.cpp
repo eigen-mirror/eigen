@@ -53,6 +53,8 @@ void reductionIdentityArguments() {
 
   Matrix<Scalar, 2, 1> fixed;
   fixed << Scalar(2), Scalar(3);
+  struct UnusedIdentity {};
+  VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixed, sum, UnusedIdentity{})), 5.0);
   dynamic = fixed;
   VERIFY_IS_EQUAL(double(internal::redux_with_identity(fixed, sum, identity)), 5.0);
   VERIFY_IS_EQUAL(double(internal::redux_with_identity(

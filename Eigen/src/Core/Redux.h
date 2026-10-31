@@ -741,7 +741,7 @@ struct redux_dispatch<Func, Evaluator, XprType, true> {
 };
 
 // Convert identity to Scalar only for empty inputs; otherwise reduce without inserting it.
-// Tag dispatch avoids instantiating redux for statically empty inputs in C++14.
+// Tag dispatch avoids instantiating redux for statically empty inputs or converting an unused identity in C++14.
 // TODO(C++17): replace tag dispatch with if constexpr.
 template <typename Derived, typename Func, typename Identity>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>&,
@@ -751,14 +751,21 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identi
   return typename Derived::Scalar(std::forward<Identity>(identity));
 }
 
-template <typename Derived, typename Func, typename Identity>
+template <typename Derived, typename Func, typename Identity,
+          std::enable_if_t<Derived::SizeAtCompileTime == Dynamic, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>& xpr,
                                                                                         const Func& func,
                                                                                         Identity&& identity,
                                                                                         false_type) {
-  EIGEN_IF_CONSTEXPR (Derived::SizeAtCompileTime == Dynamic) {
-    if (xpr.size() == 0) return typename Derived::Scalar(std::forward<Identity>(identity));
-  }
+  if (xpr.size() == 0) return typename Derived::Scalar(std::forward<Identity>(identity));
+  return xpr.derived().redux(func);
+}
+
+template <typename Derived, typename Func, typename Identity,
+          std::enable_if_t<Derived::SizeAtCompileTime != Dynamic, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>& xpr,
+                                                                                        const Func& func, Identity&&,
+                                                                                        false_type) {
   return xpr.derived().redux(func);
 }
 

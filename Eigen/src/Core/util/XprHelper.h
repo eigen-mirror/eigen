@@ -69,6 +69,12 @@ template <typename RowIndices, typename ColIndices>
 struct valid_indexed_view_overload : bool_constant<!(internal::is_valid_index_type<RowIndices>::value &&
                                                      internal::is_valid_index_type<ColIndices>::value)> {};
 
+template <typename T, typename = void>
+struct is_eigen_expression : std::false_type {};
+template <typename T>
+struct is_eigen_expression<T, void_t<decltype(std::declval<const T&>().derived())>>
+    : std::is_convertible<const remove_all_t<T>*, const EigenBase<typename shape_expression<T>::type>*> {};
+
 // promote_scalar_arg is an helper used in operation between an expression and a scalar, like:
 //    expression * scalar
 // Its role is to determine how the type T of the scalar operand should be promoted given the scalar type ExprScalar of
@@ -416,16 +422,6 @@ constexpr unsigned compute_matrix_flags(int Options) {
   // and then propagate this information to the evaluator's flags.
   // However, I (Gael) think that DirectAccessBit should only matter at the evaluation stage.
   return DirectAccessBit | LvalueBit | NestByRefBit | row_major_bit;
-}
-
-/** \internal Compile-time product of two dimensions: Dynamic when either factor is unknown, and also when the
- * product would not fit in \c int -- no fixed-size dimension or size that large is usable anyway, and the
- * overflowing multiplication would be ill-formed in a constant expression. */
-constexpr int size_at_compile_time(int rows, int cols) {
-  if (rows == 0 || cols == 0) return 0;
-  if (rows == Dynamic || cols == Dynamic) return Dynamic;
-  if (rows > (std::numeric_limits<int>::max)() / cols) return Dynamic;
-  return rows * cols;
 }
 
 template <typename XprType>
@@ -1102,6 +1098,136 @@ struct ScalarBinaryOpTraits<void, void, BinaryOp> {
   EIGEN_STATIC_ASSERT(                                                                 \
       (Eigen::internal::has_ReturnType<ScalarBinaryOpTraits<LHS, RHS, BINOP>>::value), \
       YOU_MIXED_DIFFERENT_NUMERIC_TYPES__YOU_NEED_TO_USE_THE_CAST_METHOD_OF_MATRIXBASE_TO_CAST_NUMERIC_TYPES_EXPLICITLY)
+
+namespace internal {
+
+// EigenBase alone does not supply the generic scalar operators used here.
+template <typename T, typename Derived, typename XprKind>
+struct has_generic_scalar_binary_ops
+    : bool_constant<std::is_same<XprKind, ArrayXpr>::value
+                        ? std::is_convertible<const remove_all_t<T>*, const ArrayBase<Derived>*>::value
+                        : (std::is_convertible<const remove_all_t<T>*, const MatrixBase<Derived>*>::value ||
+                           std::is_convertible<const remove_all_t<T>*, const SparseMatrixBase<Derived>*>::value)> {};
+
+namespace scalar_pow_adl {
+using std::pow;
+
+template <bool Inspect, typename Lhs, typename Rhs, typename = void>
+struct is_supported : std::false_type {};
+template <typename Lhs, typename Rhs>
+struct is_supported<true, Lhs, Rhs,
+                    void_t<typename ScalarBinaryOpTraits<Lhs, Rhs, scalar_pow_op<Lhs, Rhs>>::ReturnType,
+                           decltype(pow(std::declval<const Lhs&>(), std::declval<const Rhs&>()))>>
+    : std::is_convertible<decltype(pow(std::declval<const Lhs&>(), std::declval<const Rhs&>())),
+                          typename ScalarBinaryOpTraits<Lhs, Rhs, scalar_pow_op<Lhs, Rhs>>::ReturnType> {};
+}  // namespace scalar_pow_adl
+
+template <typename Scalar, typename T, template <typename, typename> class BinaryOp, bool ScalarOnLeft>
+using scalar_expression_binary_traits =
+    std::conditional_t<ScalarOnLeft, ScalarBinaryOpTraits<T, Scalar, BinaryOp<T, Scalar>>,
+                       ScalarBinaryOpTraits<Scalar, T, BinaryOp<Scalar, T>>>;
+
+template <typename Expr, typename T, template <typename, typename> class BinaryOp, bool ScalarOnLeft, typename = void>
+struct has_competing_expression_binary_op : std::false_type {};
+
+template <typename Expr, typename T, template <typename, typename> class BinaryOp, bool ScalarOnLeft>
+struct has_competing_expression_binary_op<
+    Expr, T, BinaryOp, ScalarOnLeft,
+    void_t<decltype(std::declval<const T&>().derived()), typename traits<typename shape_expression<T>::type>::Scalar,
+           typename traits<typename shape_expression<T>::type>::XprKind,
+           decltype(traits<typename shape_expression<T>::type>::RowsAtCompileTime),
+           decltype(traits<typename shape_expression<T>::type>::ColsAtCompileTime),
+           typename scalar_expression_binary_traits<typename traits<Expr>::Scalar, T, BinaryOp,
+                                                    ScalarOnLeft>::ReturnType>> {
+  using Other = typename shape_expression<T>::type;
+  using Scalar = typename traits<Expr>::Scalar;
+  using XprKind = typename traits<Expr>::XprKind;
+  using Lhs = std::conditional_t<ScalarOnLeft, Other, Expr>;
+  using Rhs = std::conditional_t<ScalarOnLeft, Expr, Other>;
+  using LhsScalar = typename traits<Lhs>::Scalar;
+  using RhsScalar = typename traits<Rhs>::Scalar;
+  using LhsShape = compile_time_shape<Lhs>;
+  using RhsShape = compile_time_shape<Rhs>;
+  using Op = BinaryOp<LhsScalar, RhsScalar>;
+  static constexpr bool IsArray = std::is_same<XprKind, ArrayXpr>::value;
+  static constexpr bool HasExpressionOverload = has_generic_scalar_binary_ops<Expr, Expr, XprKind>::value &&
+                                                has_generic_scalar_binary_ops<T, Other, XprKind>::value;
+  static constexpr bool ProductSizeMatches =
+      dimension_relation<LhsShape::Cols, RhsShape::Rows, LhsShape::MaxCols, RhsShape::MaxRows>::Compatible;
+  static constexpr bool ArraySizeMatches =
+      dimension_relation<LhsShape::Rows, RhsShape::Rows, LhsShape::MaxRows, RhsShape::MaxRows>::Compatible &&
+      dimension_relation<LhsShape::Cols, RhsShape::Cols, LhsShape::MaxCols, RhsShape::MaxCols>::Compatible;
+  using OppositeLhs = std::conditional_t<ScalarOnLeft, typename traits<Other>::Scalar, Expr>;
+  using OppositeRhs = std::conditional_t<ScalarOnLeft, Expr, typename traits<Other>::Scalar>;
+  // Preserve a one-sided scalar registration. Only broad traits admitting both
+  // expression-as-scalar interpretations need to give way to an expression operation.
+  static constexpr bool HasOppositeScalarOverload =
+      has_ReturnType<ScalarBinaryOpTraits<OppositeLhs, OppositeRhs, BinaryOp<OppositeLhs, OppositeRhs>>>::value;
+  // Matrix division has no expression overload; matrix products also require compatible coefficient types.
+  static constexpr bool Competing = HasExpressionOverload && !is_eigen_expression<Scalar>::value &&
+                                    std::is_same<XprKind, typename traits<Other>::XprKind>::value &&
+                                    (IsArray ? ArraySizeMatches : ProductSizeMatches) &&
+                                    (IsArray || std::is_same<Op, scalar_product_op<LhsScalar, RhsScalar>>::value) &&
+                                    has_ReturnType<ScalarBinaryOpTraits<LhsScalar, RhsScalar, Op>>::value;
+  static constexpr bool IsPow = std::is_same<Op, scalar_pow_op<LhsScalar, RhsScalar>>::value;
+  using ScalarLhs = std::conditional_t<ScalarOnLeft, T, Scalar>;
+  using ScalarRhs = std::conditional_t<ScalarOnLeft, Scalar, T>;
+  using ScalarPower = scalar_pow_adl::is_supported<(Competing && IsPow), ScalarLhs, ScalarRhs>;
+  static constexpr bool value = Competing && (IsPow ? !ScalarPower::value : HasOppositeScalarOverload);
+};
+
+template <typename T>
+using expression_binary_base_t = typename shape_expression<T>::type::StorageBaseType;
+
+// Preserve base-reference bindings; only concrete operands get a better match
+// when broad traits admit both expression-as-scalar interpretations.
+template <typename Lhs, typename Rhs, template <typename, typename> class BinaryOp, typename OwnerBase, typename = void>
+struct has_ambiguous_expression_binary_op : std::false_type {};
+
+template <typename Lhs, typename Rhs, template <typename, typename> class BinaryOp, typename OwnerBase>
+struct has_ambiguous_expression_binary_op<Lhs, Rhs, BinaryOp, OwnerBase,
+                                          void_t<expression_binary_base_t<Lhs>, expression_binary_base_t<Rhs>>>
+    : bool_constant<
+          std::is_same<OwnerBase, expression_binary_base_t<Rhs>>::value &&
+          std::is_convertible<const Rhs*, const OwnerBase*>::value &&
+          !std::is_same<remove_all_t<Lhs>, expression_binary_base_t<Lhs>>::value &&
+          !std::is_same<remove_all_t<Rhs>, expression_binary_base_t<Rhs>>::value &&
+          has_competing_expression_binary_op<typename shape_expression<Lhs>::type, Rhs, BinaryOp, false>::value &&
+          has_competing_expression_binary_op<typename shape_expression<Rhs>::type, Lhs, BinaryOp, true>::value> {
+  static constexpr bool DenseSparse =
+      std::is_same<typename traits<typename shape_expression<Lhs>::type>::StorageKind, Dense>::value &&
+      std::is_same<typename traits<typename shape_expression<Rhs>::type>::StorageKind, Sparse>::value;
+};
+
+template <template <typename, typename> class BinaryOp, bool DenseSparse>
+struct expression_binary_op {
+  template <typename Lhs, typename Rhs>
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE auto run(const Lhs& lhs, const Rhs& rhs)
+      -> CwiseBinaryOp<BinaryOp<typename Lhs::Scalar, typename Rhs::Scalar>, const typename shape_expression<Lhs>::type,
+                       const typename shape_expression<Rhs>::type> {
+    return {lhs.derived(), rhs.derived()};
+  }
+};
+
+template <>
+struct expression_binary_op<scalar_product_op, false> {
+  template <typename Lhs, typename Rhs>
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE auto run(const Lhs& lhs, const Rhs& rhs)
+      -> decltype(lhs.operator*(rhs)) {
+    return lhs.operator*(rhs);
+  }
+};
+
+template <>
+struct expression_binary_op<scalar_product_op, true> {
+  template <typename Lhs, typename Rhs>
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE auto run(const Lhs& lhs, const Rhs& rhs)
+      -> decltype(operator*(lhs, rhs)) {
+    return operator*(lhs, rhs);
+  }
+};
+
+}  // namespace internal
 
 }  // end namespace Eigen
 

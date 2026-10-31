@@ -18,6 +18,17 @@
 namespace Eigen {
 
 namespace internal {
+template <typename BinaryOp>
+struct binary_op_compatibility {
+  using type = BinaryOp;
+};
+
+// The optimized multiply has the same scalar contract as scalar_product_op.
+template <typename LhsScalar, typename RhsScalar>
+struct binary_op_compatibility<fast_mult_op<LhsScalar, RhsScalar>> {
+  using type = scalar_product_op<LhsScalar, RhsScalar>;
+};
+
 template <typename BinaryOp, typename Lhs, typename Rhs>
 struct traits<CwiseBinaryOp<BinaryOp, Lhs, Rhs>> {
   // we must not inherit from traits<Lhs> since it has
@@ -89,7 +100,8 @@ class CwiseBinaryOp : public CwiseBinaryOpImpl<BinaryOp, LhsType, RhsType,
                                                     typename internal::traits<Rhs>::StorageKind, BinaryOp>::ret>::Base;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CwiseBinaryOp)
 
-  EIGEN_CHECK_BINARY_COMPATIBILITY(BinaryOp, typename Lhs::Scalar, typename Rhs::Scalar)
+  EIGEN_CHECK_BINARY_COMPATIBILITY(typename internal::binary_op_compatibility<BinaryOp>::type, typename Lhs::Scalar,
+                                   typename Rhs::Scalar)
   EIGEN_STATIC_ASSERT_SAME_MATRIX_SIZE(Lhs, Rhs)
 
   using LhsNested = typename internal::ref_selector<LhsType>::type;

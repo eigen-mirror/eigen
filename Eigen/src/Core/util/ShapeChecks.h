@@ -10,6 +10,16 @@
 namespace Eigen {
 namespace internal {
 
+/** \internal Compile-time product of two dimensions: Dynamic when either factor is unknown, and also when the
+ * product would not fit in \c int -- no fixed-size dimension or size that large is usable anyway, and the
+ * overflowing multiplication would be ill-formed in a constant expression. */
+constexpr int size_at_compile_time(int rows, int cols) {
+  if (rows == 0 || cols == 0) return 0;
+  if (rows == Dynamic || cols == Dynamic) return Dynamic;
+  if (rows > (std::numeric_limits<int>::max)() / cols) return Dynamic;
+  return rows * cols;
+}
+
 template <typename T, typename = void>
 struct shape_expression {
   using type = T;
@@ -32,17 +42,35 @@ template <typename T>
 struct shape_cols<T, void_t<decltype(traits<remove_all_t<T>>::ColsAtCompileTime)>>
     : std::integral_constant<int, traits<remove_all_t<T>>::ColsAtCompileTime> {};
 
+template <typename Expr, typename = void>
+struct shape_max_dimensions {
+  static constexpr int Rows = Dynamic;
+  static constexpr int Cols = Dynamic;
+};
+
+template <typename Expr>
+struct shape_max_dimensions<Expr, void_t<decltype(traits<remove_all_t<Expr>>::MaxRowsAtCompileTime),
+                                         decltype(traits<remove_all_t<Expr>>::MaxColsAtCompileTime)>> {
+  static constexpr int Rows = traits<remove_all_t<Expr>>::MaxRowsAtCompileTime;
+  static constexpr int Cols = traits<remove_all_t<Expr>>::MaxColsAtCompileTime;
+};
+
 template <typename T>
 struct compile_time_shape {
   static constexpr int Rows = shape_rows<T>::value;
   static constexpr int Cols = shape_cols<T>::value;
   static constexpr int Size = size_at_compile_time(Rows, Cols);
+  static constexpr int MaxRows = shape_max_dimensions<T>::Rows;
+  static constexpr int MaxCols = shape_max_dimensions<T>::Cols;
 };
 
-template <int Left, int Right>
+template <int Left, int Right, int LeftMax = Dynamic, int RightMax = Dynamic>
 struct dimension_relation {
   static constexpr bool Known = Left != Dynamic && Right != Dynamic;
-  static constexpr bool Compatible = !Known || Left == Right;
+  // Bounds can disprove equality, but do not establish the actual dimensions.
+  static constexpr bool Compatible = (!Known || Left == Right) &&
+                                     (Left == Dynamic || RightMax == Dynamic || Left <= RightMax) &&
+                                     (Right == Dynamic || LeftMax == Dynamic || Right <= LeftMax);
   static constexpr bool Proven = Known && Compatible;
 };
 

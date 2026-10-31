@@ -13,6 +13,34 @@
 
 using namespace Eigen;
 
+struct VandermondeMatrixScalar : Matrix2d {};
+
+double operator*(const VandermondeMatrixScalar& scale, double coefficient) { return scale.sum() * coefficient; }
+
+namespace Eigen {
+template <>
+struct ScalarBinaryOpTraits<VandermondeMatrixScalar, double,
+                            internal::scalar_product_op<VandermondeMatrixScalar, double>> {
+  using ReturnType = double;
+};
+}  // namespace Eigen
+
+template <typename = void>
+void test_vandermonde_matrix_scalar() {
+  static_assert(!internal::has_competing_expression_binary_op<Vandermonde<double, 2, 2>, VandermondeMatrixScalar,
+                                                              internal::scalar_product_op, true>::HasExpressionOverload,
+                "a matrix operand alone does not provide left multiplication of a Vandermonde");
+  Vector2d nodes;
+  nodes << 2, 3;
+  const Vandermonde<double, 2, 2> matrix(nodes);
+  VandermondeMatrixScalar scale;
+  scale.setIdentity();
+  const Matrix2d result = scale * matrix;
+  Matrix2d expected;
+  expected << 2, 4, 2, 6;
+  VERIFY_IS_EQUAL(result, expected);
+}
+
 // Reference dense Vandermonde built entry-wise from the nodes.
 template <typename Scalar>
 Matrix<Scalar, Dynamic, Dynamic> reference_vandermonde(const Matrix<Scalar, Dynamic, 1>& x, Index n) {
@@ -644,6 +672,7 @@ void test_vandermonde_fixed_heap_expressions() {
 }
 
 EIGEN_DECLARE_TEST(structured_vandermonde) {
+  CALL_SUBTEST_3(test_vandermonde_matrix_scalar<>());
   for (int i = 0; i < g_repeat; ++i) {
     // Horner products, dense assignment, coefficient access.
     CALL_SUBTEST_1((test_vandermonde_product<double>(1, 1)));

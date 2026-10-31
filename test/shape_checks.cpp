@@ -277,6 +277,12 @@ EIGEN_DECLARE_TEST(shape_checks) {
   STATIC_CHECK((!dimension_relation<3, 2>::Compatible));
   STATIC_CHECK((dimension_relation<Dynamic, 3>::Compatible));
   STATIC_CHECK((!dimension_relation<Dynamic, 3>::Known));
+  STATIC_CHECK((!dimension_relation<3, Dynamic, 3, 2>::Compatible));
+  STATIC_CHECK((!dimension_relation<Dynamic, 3, 2, 3>::Compatible));
+  STATIC_CHECK((dimension_relation<Dynamic, 3, 4, 3>::Compatible));
+  STATIC_CHECK((!dimension_relation<Dynamic, 3, 4, 3>::Proven));
+  STATIC_CHECK((compile_time_shape<const Matrix<double, Dynamic, Dynamic, 0, 2, 3>&>::MaxRows == 2));
+  STATIC_CHECK((compile_time_shape<const Matrix<double, Dynamic, Dynamic, 0, 2, 3>&>::MaxCols == 3));
   STATIC_CHECK((compile_time_shape<MissingShape>::Rows == Dynamic));
   STATIC_CHECK((compile_time_shape<PartialShape>::Rows == 3));
   STATIC_CHECK((compile_time_shape<PartialShape>::Cols == Dynamic));

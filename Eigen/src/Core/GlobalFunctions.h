@@ -176,7 +176,10 @@ template <typename Scalar, typename Derived>
 inline const CwiseBinaryOp<internal::scalar_pow_op<Scalar, Derived::Scalar>, Constant<Scalar>, Derived> pow(
     const Scalar& x, const Eigen::ArrayBase<Derived>& exponents);
 #else
-template <typename Scalar, typename Derived>
+template <
+    typename Scalar, typename Derived,
+    std::enable_if_t<
+        !internal::has_competing_expression_binary_op<Derived, Scalar, internal::scalar_pow_op, true>::value, int> = 0>
 EIGEN_DEVICE_FUNC inline const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(
     typename internal::promote_scalar_arg<typename Derived::Scalar EIGEN_COMMA Scalar EIGEN_COMMA
                                               EIGEN_SCALAR_BINARY_SUPPORTED(internal::scalar_pow_op, Scalar,
@@ -235,6 +238,29 @@ EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(real, scalar_real_op)
 EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(imag, scalar_imag_op)
 EIGEN_ARRAY_DECLARE_GLOBAL_EIGEN_UNARY(abs2, scalar_abs2_op)
 }  // namespace internal
+
+#ifndef EIGEN_PARSED_BY_DOXYGEN
+// A namespace-scope overload avoids one ADL candidate per associated expression class.
+#define EIGEN_MAKE_EXPRESSION_BINARY_OP(METHOD, FUNCTOR)                                                               \
+  template <typename ActualLhs, typename ActualRhs,                                                                    \
+            std::enable_if_t<internal::has_ambiguous_expression_binary_op<                                             \
+                                 ActualLhs, ActualRhs, FUNCTOR, internal::expression_binary_base_t<ActualRhs>>::value, \
+                             int> = 0>                                                                                 \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto METHOD(const ActualLhs& lhs, const ActualRhs& rhs) {            \
+    using Dispatch = internal::expression_binary_op<                                                                   \
+        FUNCTOR, internal::has_ambiguous_expression_binary_op<                                                         \
+                     ActualLhs, ActualRhs, FUNCTOR, internal::expression_binary_base_t<ActualRhs>>::DenseSparse>;      \
+    return Dispatch::run(static_cast<const internal::expression_binary_base_t<ActualLhs>&>(lhs),                       \
+                         static_cast<const internal::expression_binary_base_t<ActualRhs>&>(rhs));                      \
+  }
+
+EIGEN_MAKE_EXPRESSION_BINARY_OP(operator*, internal::scalar_product_op)
+EIGEN_MAKE_EXPRESSION_BINARY_OP(operator+, internal::scalar_sum_op)
+EIGEN_MAKE_EXPRESSION_BINARY_OP(operator-, internal::scalar_difference_op)
+EIGEN_MAKE_EXPRESSION_BINARY_OP(operator/, internal::scalar_quotient_op)
+EIGEN_MAKE_EXPRESSION_BINARY_OP(operator%, internal::scalar_modulus_op)
+#undef EIGEN_MAKE_EXPRESSION_BINARY_OP
+#endif
 }  // namespace Eigen
 
 // TODO: cleanly disable those functions that are not supported on Array (numext::real_ref, internal::random,
