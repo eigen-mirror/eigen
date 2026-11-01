@@ -314,7 +314,12 @@ template <typename Derivatives>
 void check_subnormal_math_derivatives() {
   using Scalar = typename Derivatives::Scalar;
   using AD = AutoDiffScalar<Derivatives>;
-  if (!(subnormalInputProbe<Scalar>() > Scalar(0)) || !(underflowProbe<Scalar>() > Scalar(0))) return;
+  // The scalar probes pass on ARMv7, whose VFP keeps gradual underflow, but derivatives divide in packets and its NEON
+  // flushes subnormals in float.
+  if (!(subnormalInputProbe<Scalar>() > Scalar(0)) || !(underflowProbe<Scalar>() > Scalar(0)) ||
+      !subnormalDivisionIsExact<Scalar>()) {
+    return;
+  }
   const Scalar denorm = std::numeric_limits<Scalar>::denorm_min();
   const Scalar normal = (std::numeric_limits<Scalar>::min)();
   const Scalar boundary = numext::nextafter(Scalar(1), Scalar(0));

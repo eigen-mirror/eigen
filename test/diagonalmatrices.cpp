@@ -801,8 +801,12 @@ void check_unaligned_diagonal_product_size(Index n = Size) {
     rm_res.noalias() -= rm * umap.asDiagonal();
     VERIFY_IS_APPROX(rm_res, rm_sub_ref);
 
-    VERIFY_IS_APPROX((umap.asDiagonal() * cm).sum(), dm_cm_ref.sum());
-    VERIFY_IS_APPROX((rm * umap.asDiagonal()).sum(), rm_dm_ref.sum());
+    // Random signed sums can nearly cancel, so bound the difference relative to the summed magnitudes, not to the sum.
+    // Each of two differently associated sums of N = n^2 products rounds by (N - 1 + sqrt(5)) u, with u = eps / 2.
+    using RealScalar = typename NumTraits<Scalar>::Real;
+    const RealScalar sum_tolerance = RealScalar(n * n + 2) * NumTraits<RealScalar>::epsilon();
+    VERIFY(numext::abs((umap.asDiagonal() * cm).sum() - dm_cm_ref.sum()) <= sum_tolerance * dm_cm_ref.cwiseAbs().sum());
+    VERIFY(numext::abs((rm * umap.asDiagonal()).sum() - rm_dm_ref.sum()) <= sum_tolerance * rm_dm_ref.cwiseAbs().sum());
     internal::set_is_malloc_allowed(true);
   }
 }
