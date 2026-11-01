@@ -12,6 +12,10 @@
 
 #include <Eigen/Tensor>
 
+#if defined __GNUC__ && __GNUC__ >= 6
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
+
 using Eigen::Tensor;
 
 template <int DataLayout>
@@ -443,9 +447,315 @@ void test_runtime_axis_block_chips() {
   test_runtime_axis_block_chip<4, Layout, 3>();
 }
 
+template <typename Scalar, int Layout>
+void test_chip_packet_boundary_for_stride(Index inner_dim) {
+  const Index chip_axis = (Layout == ColMajor) ? 1 : 2;
+  DSizes<Index, 4> dims;
+  if (Layout == ColMajor) {
+    dims = DSizes<Index, 4>(inner_dim, 3, 5, 7);
+  } else {
+    dims = DSizes<Index, 4>(7, 5, 3, inner_dim);
+  }
+
+  Tensor<Scalar, 4, Layout> tensor(dims);
+  for (Index i = 0; i < tensor.size(); ++i) {
+    tensor.data()[i] = static_cast<Scalar>((i % 29) - 14);
+  }
+
+  DefaultDevice device;
+  for (Index chip_offset = 0; chip_offset < 3; ++chip_offset) {
+    // 1. Raw storage evaluator (m_impl.data() != nullptr).
+    auto raw_chip_op = tensor.chip(chip_offset, chip_axis);
+    TensorEvaluator<const decltype(raw_chip_op), DefaultDevice> raw_eval(raw_chip_op, device);
+    const int packet_size = TensorEvaluator<const decltype(raw_chip_op), DefaultDevice>::PacketSize;
+    const Index total_size = raw_eval.dimensions().TotalSize();
+
+    EIGEN_ALIGN_MAX Scalar unpacked[64];
+    for (Index idx = 0; idx + packet_size <= total_size; ++idx) {
+      auto pkt = raw_eval.template packet<Unaligned>(idx);
+      internal::pstore<Scalar>(unpacked, pkt);
+      for (int lane = 0; lane < packet_size; ++lane) {
+        VERIFY_IS_EQUAL(unpacked[lane], raw_eval.coeff(idx + lane));
+      }
+    }
+
+    // 2. Non-raw nested expression evaluator (m_impl.data() == nullptr) - exercises division-free stepping.
+    auto expr_chip_op = (tensor + tensor).chip(chip_offset, chip_axis);
+    TensorEvaluator<const decltype(expr_chip_op), DefaultDevice> expr_eval(expr_chip_op, device);
+    expr_eval.evalSubExprsIfNeeded(nullptr);
+    for (Index idx = 0; idx + packet_size <= total_size; ++idx) {
+      auto pkt = expr_eval.template packet<Unaligned>(idx);
+      internal::pstore<Scalar>(unpacked, pkt);
+      for (int lane = 0; lane < packet_size; ++lane) {
+        VERIFY_IS_EQUAL(unpacked[lane], expr_eval.coeff(idx + lane));
+      }
+    }
+    expr_eval.cleanup();
+
+    // 3. Lvalue writePacket across stride boundaries.
+    for (Index start_phase = 0; start_phase < numext::mini<Index>(packet_size, total_size); ++start_phase) {
+      Tensor<Scalar, 4, Layout> dst = tensor;
+      Tensor<Scalar, 4, Layout> expected = tensor;
+      auto lval_op = dst.chip(chip_offset, chip_axis);
+      TensorEvaluator<decltype(lval_op), DefaultDevice> lval_eval(lval_op, device);
+      auto ref_op = expected.chip(chip_offset, chip_axis);
+      TensorEvaluator<decltype(ref_op), DefaultDevice> ref_eval(ref_op, device);
+
+      for (Index idx = start_phase; idx + packet_size <= total_size; idx += packet_size) {
+        for (int lane = 0; lane < packet_size; ++lane) {
+          unpacked[lane] = static_cast<Scalar>(((idx + lane) % 19) + 3);
+          ref_eval.coeffRef(idx + lane) = unpacked[lane];
+        }
+        auto pkt =
+            internal::pload<typename TensorEvaluator<decltype(lval_op), DefaultDevice>::PacketReturnType>(unpacked);
+        lval_eval.template writePacket<Unaligned>(idx, pkt);
+      }
+      for (Index i = 0; i < dst.size(); ++i) {
+        VERIFY_IS_EQUAL(dst.data()[i], expected.data()[i]);
+      }
+    }
+  }
+}
+
+template <int Layout>
+void test_chip_packet_boundaries() {
+  for (Index stride : {Index(2), Index(3), Index(4), Index(6), Index(8), Index(12), Index(18), Index(24)}) {
+    test_chip_packet_boundary_for_stride<float, Layout>(stride);
+    test_chip_packet_boundary_for_stride<double, Layout>(stride);
+    test_chip_packet_boundary_for_stride<Eigen::half, Layout>(stride);
+    test_chip_packet_boundary_for_stride<Eigen::bfloat16, Layout>(stride);
+    test_chip_packet_boundary_for_stride<std::complex<float>, Layout>(stride);
+  }
+}
+
+template <typename EvalT, typename PacketT,
+          std::enable_if_t<internal::unpacket_traits<PacketT>::masked_load_available, int> = 0>
+void verify_partial_packets_for_eval(const EvalT& eval) {
+  using Scalar = typename internal::unpacket_traits<PacketT>::type;
+  using MaskT = typename internal::unpacket_traits<PacketT>::mask_t;
+  constexpr int kPacketSize = internal::unpacket_traits<PacketT>::size;
+  const Index total_size = eval.dimensions().TotalSize();
+  EIGEN_ALIGN_MAX Scalar unpacked[64];
+
+  const MaskT full_mask = kPacketSize < static_cast<int>(CHAR_BIT * sizeof(MaskT))
+                              ? static_cast<MaskT>((MaskT(1) << kPacketSize) - 1)
+                              : (std::numeric_limits<MaskT>::max)();
+  const MaskT sparse_mask = static_cast<MaskT>(0xA5A5u) & full_mask;
+  const MaskT upper_half_mask = static_cast<MaskT>(full_mask ^ ((MaskT(1) << (kPacketSize / 2)) - 1));
+
+  // Zero mask never touches underlying memory, even at boundary indices.
+  {
+    PacketT zero_pkt = eval.template partialPacket<PacketT>(0, MaskT(0));
+    internal::pstore<Scalar>(unpacked, zero_pkt);
+    for (int lane = 0; lane < kPacketSize; ++lane) {
+      VERIFY_IS_EQUAL(unpacked[lane], Scalar(0));
+    }
+  }
+
+  // Negative starting index with upper lanes active (exercised by spatial convolution mappers).
+  if (total_size >= kPacketSize / 2) {
+    const Index neg_idx = -(kPacketSize / 2);
+    PacketT pkt = eval.template partialPacket<PacketT>(neg_idx, upper_half_mask);
+    internal::pstore<Scalar>(unpacked, pkt);
+    for (int lane = 0; lane < kPacketSize; ++lane) {
+      const Scalar expected = ((upper_half_mask >> lane) & MaskT(1)) ? eval.coeff(neg_idx + lane) : Scalar(0);
+      VERIFY_IS_EQUAL(unpacked[lane], expected);
+    }
+  }
+
+  // Sweep contiguous prefix/suffix masks and non-contiguous masks across the chipped tensor.
+  for (Index idx = 0; idx < total_size; ++idx) {
+    const int avail = static_cast<int>(numext::mini<Index>(kPacketSize, total_size - idx));
+    const MaskT prefix_mask =
+        avail == static_cast<int>(CHAR_BIT * sizeof(MaskT)) ? full_mask : static_cast<MaskT>((MaskT(1) << avail) - 1);
+    const MaskT masks_to_check[2] = {prefix_mask, static_cast<MaskT>(sparse_mask & prefix_mask)};
+    for (MaskT m : masks_to_check) {
+      PacketT pkt = eval.template partialPacket<PacketT>(idx, m);
+      internal::pstore<Scalar>(unpacked, pkt);
+      for (int lane = 0; lane < kPacketSize; ++lane) {
+        const Scalar expected = ((m >> lane) & MaskT(1)) ? eval.coeff(idx + lane) : Scalar(0);
+        VERIFY_IS_EQUAL(unpacked[lane], expected);
+      }
+    }
+  }
+}
+
+template <typename EvalT, typename PacketT,
+          std::enable_if_t<!internal::unpacket_traits<PacketT>::masked_load_available, int> = 0>
+void verify_partial_packets_for_eval(const EvalT&) {}
+
+template <typename Scalar, int Layout>
+void test_chip_partial_packets_for_type() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using HalfPacket = typename internal::unpacket_traits<Packet>::half;
+  DefaultDevice device;
+
+  for (Index inner_dim : {Index(3), Index(4), Index(8), Index(12)}) {
+    DSizes<Index, 4> dims =
+        (Layout == ColMajor) ? DSizes<Index, 4>(inner_dim, 3, 5, 2) : DSizes<Index, 4>(2, 5, 3, inner_dim);
+    Tensor<Scalar, 4, Layout> tensor(dims);
+    for (Index i = 0; i < tensor.size(); ++i) {
+      tensor.data()[i] = static_cast<Scalar>((i % 31) + 1);
+    }
+
+    for (int axis = 0; axis < 4; ++axis) {
+      const Index extent = tensor.dimension(axis);
+      for (Index offset = 0; offset < numext::mini<Index>(extent, 2); ++offset) {
+        auto raw_op = tensor.chip(offset, axis);
+        TensorEvaluator<const decltype(raw_op), DefaultDevice> raw_eval(raw_op, device);
+        verify_partial_packets_for_eval<decltype(raw_eval), Packet>(raw_eval);
+        if (!std::is_same<HalfPacket, Packet>::value) {
+          verify_partial_packets_for_eval<decltype(raw_eval), HalfPacket>(raw_eval);
+        }
+
+        auto expr_op = (tensor + tensor).chip(offset, axis);
+        TensorEvaluator<const decltype(expr_op), DefaultDevice> expr_eval(expr_op, device);
+        expr_eval.evalSubExprsIfNeeded(nullptr);
+        verify_partial_packets_for_eval<decltype(expr_eval), Packet>(expr_eval);
+        expr_eval.cleanup();
+      }
+    }
+
+    // Nested middle-dimension chipping.
+    auto nested_op = tensor.chip(1, Layout == ColMajor ? 2 : 1).chip(1, 1);
+    TensorEvaluator<const decltype(nested_op), DefaultDevice> nested_eval(nested_op, device);
+    verify_partial_packets_for_eval<decltype(nested_eval), Packet>(nested_eval);
+  }
+}
+
+template <int Layout>
+void test_chip_partial_packets() {
+  test_chip_partial_packets_for_type<float, Layout>();
+  test_chip_partial_packets_for_type<double, Layout>();
+}
+
+template <int Layout>
+void test_chip_trivial_size_one_dim() {
+  DefaultDevice device;
+  for (int singleton_axis = 0; singleton_axis < 4; ++singleton_axis) {
+    DSizes<Index, 4> dims(5, 3, 7, 4);
+    dims[singleton_axis] = 1;
+    Tensor<float, 4, Layout> src(dims);
+    for (Index i = 0; i < src.size(); ++i) {
+      src.data()[i] = static_cast<float>(i + 1);
+    }
+
+    auto chip_op = src.chip(0, singleton_axis);
+    TensorEvaluator<const decltype(chip_op), DefaultDevice> eval(chip_op, device);
+    VERIFY(eval.data() == src.data());
+
+    Tensor<float, 3, Layout> out = chip_op;
+    VERIFY_IS_EQUAL(out.size(), src.size());
+    for (Index i = 0; i < out.size(); ++i) {
+      VERIFY_IS_EQUAL(out.data()[i], src.data()[i]);
+    }
+
+    Tensor<float, 4, Layout> dst(dims);
+    dst.setZero();
+    dst.chip(0, singleton_axis) = out * out.constant(2.0f);
+    for (Index i = 0; i < dst.size(); ++i) {
+      VERIFY_IS_EQUAL(dst.data()[i], 2.0f * src.data()[i]);
+    }
+  }
+
+  // Static inner axis with runtime extent 1 is also contiguous.
+  DSizes<Index, 3> static_dims = (Layout == ColMajor) ? DSizes<Index, 3>(1, 9, 5) : DSizes<Index, 3>(5, 9, 1);
+  Tensor<float, 3, Layout> static_src(static_dims);
+  static_src.setRandom();
+  constexpr int kInnerAxis = (Layout == ColMajor) ? 0 : 2;
+  auto static_chip = static_src.template chip<kInnerAxis>(0);
+  TensorEvaluator<const decltype(static_chip), DefaultDevice> static_eval(static_chip, device);
+  VERIFY(static_eval.data() == static_src.data());
+  Tensor<float, 2, Layout> static_out = static_chip + static_chip;
+  for (Index i = 0; i < static_src.size(); ++i) {
+    VERIFY_IS_APPROX(static_out.data()[i], 2.0f * static_src.data()[i]);
+  }
+}
+
+template <typename EvalT, typename SubPacket>
+void verify_subpackets_for_eval(const EvalT& eval) {
+  using Scalar = std::remove_const_t<typename EvalT::CoeffReturnType>;
+  constexpr int kSubSize = internal::unpacket_traits<SubPacket>::size;
+  const Index total_size = eval.dimensions().TotalSize();
+  if (total_size < kSubSize) return;
+
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<SubPacket>::alignment) Scalar unpacked[kSubSize];
+  for (Index idx = 0; idx + kSubSize <= total_size; ++idx) {
+    SubPacket pkt = eval.template packet<Unaligned, SubPacket>(idx);
+    internal::pstore<Scalar>(unpacked, pkt);
+    for (int lane = 0; lane < kSubSize; ++lane) {
+      VERIFY_IS_EQUAL(unpacked[lane], eval.coeff(idx + lane));
+    }
+  }
+}
+
+template <typename Scalar, int Layout>
+void test_chip_subpackets_and_empty_for_type() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using HalfPacket = typename internal::unpacket_traits<Packet>::half;
+  using QuarterPacket = typename internal::unpacket_traits<HalfPacket>::half;
+  DefaultDevice device;
+
+  // Zero-sized unchipped dimension exercises m_stride == 0 initialization.
+  DSizes<Index, 3> empty_dims = (Layout == ColMajor) ? DSizes<Index, 3>(0, 4, 5) : DSizes<Index, 3>(5, 4, 0);
+  Tensor<Scalar, 3, Layout> empty_src(empty_dims);
+  Tensor<Scalar, 2, Layout> empty_out = empty_src.chip(1, 1);
+  VERIFY_IS_EQUAL(empty_out.size(), Index(0));
+
+  for (Index inner_dim : {Index(3), Index(4), Index(8), Index(12)}) {
+    DSizes<Index, 4> dims =
+        (Layout == ColMajor) ? DSizes<Index, 4>(inner_dim, 3, 5, 2) : DSizes<Index, 4>(2, 5, 3, inner_dim);
+    Tensor<Scalar, 4, Layout> tensor(dims);
+    for (Index i = 0; i < tensor.size(); ++i) {
+      tensor.data()[i] = static_cast<Scalar>((i % 29) + 1);
+    }
+
+    for (int axis = 0; axis < 4; ++axis) {
+      auto raw_op = tensor.chip(0, axis);
+      TensorEvaluator<const decltype(raw_op), DefaultDevice> raw_eval(raw_op, device);
+      verify_subpackets_for_eval<decltype(raw_eval), Packet>(raw_eval);
+      if (!std::is_same<HalfPacket, Packet>::value) {
+        verify_subpackets_for_eval<decltype(raw_eval), HalfPacket>(raw_eval);
+      }
+      if (!std::is_same<QuarterPacket, HalfPacket>::value) {
+        verify_subpackets_for_eval<decltype(raw_eval), QuarterPacket>(raw_eval);
+      }
+
+      auto expr_op = (tensor + tensor).chip(0, axis);
+      TensorEvaluator<const decltype(expr_op), DefaultDevice> expr_eval(expr_op, device);
+      expr_eval.evalSubExprsIfNeeded(nullptr);
+      if (!std::is_same<HalfPacket, Packet>::value) {
+        verify_subpackets_for_eval<decltype(expr_eval), HalfPacket>(expr_eval);
+      }
+      expr_eval.cleanup();
+    }
+
+    auto nested_op = tensor.chip(1, Layout == ColMajor ? 2 : 1).chip(1, 1);
+    TensorEvaluator<const decltype(nested_op), DefaultDevice> nested_eval(nested_op, device);
+    if (!std::is_same<HalfPacket, Packet>::value) {
+      verify_subpackets_for_eval<decltype(nested_eval), HalfPacket>(nested_eval);
+    }
+  }
+}
+
+template <int Layout>
+void test_chip_subpackets_and_empty() {
+  test_chip_subpackets_and_empty_for_type<float, Layout>();
+  test_chip_subpackets_and_empty_for_type<double, Layout>();
+  test_chip_subpackets_and_empty_for_type<int, Layout>();
+}
+
 EIGEN_DECLARE_TEST(tensor_chipping) {
   CALL_SUBTEST(test_runtime_axis_block_chips<ColMajor>());
   CALL_SUBTEST(test_runtime_axis_block_chips<RowMajor>());
+  CALL_SUBTEST(test_chip_packet_boundaries<ColMajor>());
+  CALL_SUBTEST(test_chip_packet_boundaries<RowMajor>());
+  CALL_SUBTEST(test_chip_partial_packets<ColMajor>());
+  CALL_SUBTEST(test_chip_partial_packets<RowMajor>());
+  CALL_SUBTEST(test_chip_subpackets_and_empty<ColMajor>());
+  CALL_SUBTEST(test_chip_subpackets_and_empty<RowMajor>());
+  CALL_SUBTEST(test_chip_trivial_size_one_dim<ColMajor>());
+  CALL_SUBTEST(test_chip_trivial_size_one_dim<RowMajor>());
   CALL_SUBTEST(test_simple_chip<ColMajor>());
   CALL_SUBTEST(test_simple_chip<RowMajor>());
   CALL_SUBTEST(test_dynamic_chip<ColMajor>());
