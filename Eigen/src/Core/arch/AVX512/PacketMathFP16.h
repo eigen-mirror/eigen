@@ -1451,32 +1451,36 @@ struct has_packet_segment<Packet8h> : std::true_type {};
 
 template <>
 inline Packet32h ploaduSegment<Packet32h>(const Eigen::half* from, Index begin, Index count) {
-  return _mm512_castsi512_ph(_mm512_maskz_loadu_epi16(static_cast<__mmask32>(segment_kmask(begin, count)), from));
+  return _mm512_castsi512_ph(
+      _mm512_maskz_loadu_epi16(static_cast<__mmask32>(segment_kmask<Packet32h>(begin, count)), from));
 }
 
 template <>
 inline void pstoreuSegment<Eigen::half, Packet32h>(Eigen::half* to, const Packet32h& from, Index begin, Index count) {
-  _mm512_mask_storeu_epi16(to, static_cast<__mmask32>(segment_kmask(begin, count)), _mm512_castph_si512(from));
+  _mm512_mask_storeu_epi16(to, static_cast<__mmask32>(segment_kmask<Packet32h>(begin, count)),
+                           _mm512_castph_si512(from));
 }
 
 template <>
 inline Packet16h ploaduSegment<Packet16h>(const Eigen::half* from, Index begin, Index count) {
-  return _mm256_castsi256_ph(_mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask(begin, count)), from));
+  return _mm256_castsi256_ph(
+      _mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask<Packet16h>(begin, count)), from));
 }
 
 template <>
 inline void pstoreuSegment<Eigen::half, Packet16h>(Eigen::half* to, const Packet16h& from, Index begin, Index count) {
-  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask(begin, count)), _mm256_castph_si256(from));
+  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask<Packet16h>(begin, count)),
+                           _mm256_castph_si256(from));
 }
 
 template <>
 inline Packet8h ploaduSegment<Packet8h>(const Eigen::half* from, Index begin, Index count) {
-  return _mm_castsi128_ph(_mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask(begin, count)), from));
+  return _mm_castsi128_ph(_mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask<Packet8h>(begin, count)), from));
 }
 
 template <>
 inline void pstoreuSegment<Eigen::half, Packet8h>(Eigen::half* to, const Packet8h& from, Index begin, Index count) {
-  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask(begin, count)), _mm_castph_si128(from));
+  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask<Packet8h>(begin, count)), _mm_castph_si128(from));
 }
 
 /*---------------- end load/store segment support ----------------*/

@@ -150,11 +150,26 @@ struct packet_segment_test_impl {
       }
     }
   }
+  static void verify_invalid_range(Index begin, Index count) {
+    VectorX<Scalar> data = VectorX<Scalar>::Zero(PacketSize);
+    const Packet a = internal::pset1<Packet>(Scalar(0));
+    VERIFY_RAISES_ASSERT(internal::ploaduSegment<Packet>(data.data(), begin, count));
+    VERIFY_RAISES_ASSERT((internal::pstoreuSegment<Scalar, Packet>(data.data(), a, begin, count)));
+  }
+  static void test_invalid_ranges() {
+    // Every specialization asserts 0 <= begin, 0 <= count, begin + count <= PacketSize.
+    verify_invalid_range(-1, 1);
+    verify_invalid_range(0, -1);
+    verify_invalid_range(0, PacketSize + 1);
+    verify_invalid_range(1, PacketSize);
+    verify_invalid_range(PacketSize + 1, 0);
+  }
   static void run() {
     test_unaligned();
     test_aligned();
     test_all_ranges();
     test_zero_fill();
+    test_invalid_ranges();
   }
 };
 

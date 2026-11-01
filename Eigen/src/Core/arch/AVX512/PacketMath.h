@@ -3212,10 +3212,11 @@ EIGEN_STRONG_INLINE Packet8s plogical_shift_right(const Packet8s& a) {
 
 /*---------------- load/store segment support ----------------*/
 
-// Returns a k-mask with bits [begin, begin + count) set. 64-bit arithmetic lets count reach the lane
-// count of the widest AVX-512 packet (32) without shifting a 1 past the top bit.
+// Returns a k-mask with bits [begin, begin + count) set over the lanes of Packet. 64-bit arithmetic lets count
+// reach the lane count of the widest AVX-512 packet (32) without shifting a 1 past the top bit.
+template <typename Packet>
 EIGEN_STRONG_INLINE uint64_t segment_kmask(Index begin, Index count) {
-  eigen_assert(begin >= 0 && count >= 0 && begin + count <= 32);
+  eigen_assert(begin >= 0 && count >= 0 && begin + count <= unpacket_traits<Packet>::size);
   return ((uint64_t(1) << count) - 1) << begin;
 }
 
@@ -3226,12 +3227,12 @@ struct has_packet_segment<Packet16f> : std::true_type {};
 
 template <>
 inline Packet16f ploaduSegment<Packet16f>(const float* from, Index begin, Index count) {
-  return _mm512_maskz_loadu_ps(static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  return _mm512_maskz_loadu_ps(static_cast<__mmask16>(segment_kmask<Packet16f>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<float, Packet16f>(float* to, const Packet16f& from, Index begin, Index count) {
-  _mm512_mask_storeu_ps(to, static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  _mm512_mask_storeu_ps(to, static_cast<__mmask16>(segment_kmask<Packet16f>(begin, count)), from);
 }
 
 /*---------------- double ----------------*/
@@ -3241,12 +3242,12 @@ struct has_packet_segment<Packet8d> : std::true_type {};
 
 template <>
 inline Packet8d ploaduSegment<Packet8d>(const double* from, Index begin, Index count) {
-  return _mm512_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm512_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask<Packet8d>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<double, Packet8d>(double* to, const Packet8d& from, Index begin, Index count) {
-  _mm512_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm512_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask<Packet8d>(begin, count)), from);
 }
 
 /*---------------- int32 ----------------*/
@@ -3256,12 +3257,12 @@ struct has_packet_segment<Packet16i> : std::true_type {};
 
 template <>
 inline Packet16i ploaduSegment<Packet16i>(const int* from, Index begin, Index count) {
-  return _mm512_maskz_loadu_epi32(static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  return _mm512_maskz_loadu_epi32(static_cast<__mmask16>(segment_kmask<Packet16i>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int, Packet16i>(int* to, const Packet16i& from, Index begin, Index count) {
-  _mm512_mask_storeu_epi32(to, static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  _mm512_mask_storeu_epi32(to, static_cast<__mmask16>(segment_kmask<Packet16i>(begin, count)), from);
 }
 
 /*---------------- int64_t ----------------*/
@@ -3271,12 +3272,12 @@ struct has_packet_segment<Packet8l> : std::true_type {};
 
 template <>
 inline Packet8l ploaduSegment<Packet8l>(const int64_t* from, Index begin, Index count) {
-  return _mm512_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm512_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask<Packet8l>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int64_t, Packet8l>(int64_t* to, const Packet8l& from, Index begin, Index count) {
-  _mm512_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm512_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask<Packet8l>(begin, count)), from);
 }
 
 #ifdef EIGEN_VECTORIZE_AVX512VL
@@ -3288,66 +3289,66 @@ inline void pstoreuSegment<int64_t, Packet8l>(int64_t* to, const Packet8l& from,
 
 template <>
 inline Packet8f ploaduSegment<Packet8f>(const float* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask<Packet8f>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<float, Packet8f>(float* to, const Packet8f& from, Index begin, Index count) {
-  _mm256_mask_storeu_ps(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_ps(to, static_cast<__mmask8>(segment_kmask<Packet8f>(begin, count)), from);
 }
 
 template <>
 inline Packet4f ploaduSegment<Packet4f>(const float* from, Index begin, Index count) {
-  return _mm_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_ps(static_cast<__mmask8>(segment_kmask<Packet4f>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<float, Packet4f>(float* to, const Packet4f& from, Index begin, Index count) {
-  _mm_mask_storeu_ps(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_ps(to, static_cast<__mmask8>(segment_kmask<Packet4f>(begin, count)), from);
 }
 
 /*---------------- double ----------------*/
 
 template <>
 inline Packet4d ploaduSegment<Packet4d>(const double* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask<Packet4d>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<double, Packet4d>(double* to, const Packet4d& from, Index begin, Index count) {
-  _mm256_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask<Packet4d>(begin, count)), from);
 }
 
 template <>
 inline Packet2d ploaduSegment<Packet2d>(const double* from, Index begin, Index count) {
-  return _mm_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_pd(static_cast<__mmask8>(segment_kmask<Packet2d>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<double, Packet2d>(double* to, const Packet2d& from, Index begin, Index count) {
-  _mm_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_pd(to, static_cast<__mmask8>(segment_kmask<Packet2d>(begin, count)), from);
 }
 
 /*---------------- int32 ----------------*/
 
 template <>
 inline Packet8i ploaduSegment<Packet8i>(const int* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_epi32(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_epi32(static_cast<__mmask8>(segment_kmask<Packet8i>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int, Packet8i>(int* to, const Packet8i& from, Index begin, Index count) {
-  _mm256_mask_storeu_epi32(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_epi32(to, static_cast<__mmask8>(segment_kmask<Packet8i>(begin, count)), from);
 }
 
 template <>
 inline Packet4i ploaduSegment<Packet4i>(const int* from, Index begin, Index count) {
-  return _mm_maskz_loadu_epi32(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_epi32(static_cast<__mmask8>(segment_kmask<Packet4i>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int, Packet4i>(int* to, const Packet4i& from, Index begin, Index count) {
-  _mm_mask_storeu_epi32(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_epi32(to, static_cast<__mmask8>(segment_kmask<Packet4i>(begin, count)), from);
 }
 
 /*---------------- uint32 ----------------*/
@@ -3376,22 +3377,22 @@ inline void pstoreuSegment<uint32_t, Packet4ui>(uint32_t* to, const Packet4ui& f
 
 template <>
 inline Packet4l ploaduSegment<Packet4l>(const int64_t* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask<Packet4l>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int64_t, Packet4l>(int64_t* to, const Packet4l& from, Index begin, Index count) {
-  _mm256_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask<Packet4l>(begin, count)), from);
 }
 
 template <>
 inline Packet2l ploaduSegment<Packet2l>(const int64_t* from, Index begin, Index count) {
-  return _mm_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_epi64(static_cast<__mmask8>(segment_kmask<Packet2l>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<int64_t, Packet2l>(int64_t* to, const Packet2l& from, Index begin, Index count) {
-  _mm_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_epi64(to, static_cast<__mmask8>(segment_kmask<Packet2l>(begin, count)), from);
 }
 
 /*---------------- uint64_t ----------------*/
@@ -3420,22 +3421,22 @@ struct has_packet_segment<Packet8bf> : std::true_type {};
 
 template <>
 inline Packet16bf ploaduSegment<Packet16bf>(const bfloat16* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask<Packet16bf>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<bfloat16, Packet16bf>(bfloat16* to, const Packet16bf& from, Index begin, Index count) {
-  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask<Packet16bf>(begin, count)), from);
 }
 
 template <>
 inline Packet8bf ploaduSegment<Packet8bf>(const bfloat16* from, Index begin, Index count) {
-  return _mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask<Packet8bf>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<bfloat16, Packet8bf>(bfloat16* to, const Packet8bf& from, Index begin, Index count) {
-  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask<Packet8bf>(begin, count)), from);
 }
 
 #ifndef EIGEN_VECTORIZE_AVX512FP16
@@ -3450,22 +3451,22 @@ struct has_packet_segment<Packet8h> : std::true_type {};
 
 template <>
 inline Packet16h ploaduSegment<Packet16h>(const Eigen::half* from, Index begin, Index count) {
-  return _mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  return _mm256_maskz_loadu_epi16(static_cast<__mmask16>(segment_kmask<Packet16h>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<Eigen::half, Packet16h>(Eigen::half* to, const Packet16h& from, Index begin, Index count) {
-  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask(begin, count)), from);
+  _mm256_mask_storeu_epi16(to, static_cast<__mmask16>(segment_kmask<Packet16h>(begin, count)), from);
 }
 
 template <>
 inline Packet8h ploaduSegment<Packet8h>(const Eigen::half* from, Index begin, Index count) {
-  return _mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  return _mm_maskz_loadu_epi16(static_cast<__mmask8>(segment_kmask<Packet8h>(begin, count)), from);
 }
 
 template <>
 inline void pstoreuSegment<Eigen::half, Packet8h>(Eigen::half* to, const Packet8h& from, Index begin, Index count) {
-  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask(begin, count)), from);
+  _mm_mask_storeu_epi16(to, static_cast<__mmask8>(segment_kmask<Packet8h>(begin, count)), from);
 }
 
 #endif  // EIGEN_VECTORIZE_AVX512FP16

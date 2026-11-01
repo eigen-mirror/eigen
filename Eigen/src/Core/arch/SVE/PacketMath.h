@@ -1400,13 +1400,13 @@ EIGEN_STRONG_INLINE PacketXd prsqrt<PacketXd>(const PacketXd& a) {
 // Predicates with lanes [begin, begin + count) active. begin is a literal 0 at the assignment
 // call sites, so that branch folds and the common case is a single whilelt.
 EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b32(Index begin, Index count) {
-  eigen_assert(begin >= 0 && count >= 0);
+  eigen_assert(begin >= 0 && count >= 0 && begin + count <= EIGEN_ARM64_SVE_VL / 32);
   if (begin == 0) return svwhilelt_b32(uint64_t(0), uint64_t(count));
   return svnot_b_z(svwhilelt_b32(uint64_t(0), uint64_t(begin + count)), svwhilelt_b32(uint64_t(0), uint64_t(begin)));
 }
 
 EIGEN_STRONG_INLINE svbool_t sve_segment_predicate_b64(Index begin, Index count) {
-  eigen_assert(begin >= 0 && count >= 0);
+  eigen_assert(begin >= 0 && count >= 0 && begin + count <= EIGEN_ARM64_SVE_VL / 64);
   if (begin == 0) return svwhilelt_b64(uint64_t(0), uint64_t(count));
   return svnot_b_z(svwhilelt_b64(uint64_t(0), uint64_t(begin + count)), svwhilelt_b64(uint64_t(0), uint64_t(begin)));
 }
