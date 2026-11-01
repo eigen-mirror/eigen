@@ -177,28 +177,29 @@ else()
 endif()
 
 
-find_package(PASTIX QUIET COMPONENTS METIS SEQ)
-# check that the PASTIX found is a version without MPI
-find_path(PASTIX_pastix_nompi.h_INCLUDE_DIRS
-  NAMES pastix_nompi.h
-  HINTS ${PASTIX_INCLUDE_DIRS}
-)
-if (NOT PASTIX_pastix_nompi.h_INCLUDE_DIRS)
-  message(STATUS "A version of Pastix has been found but pastix_nompi.h does not exist in the include directory."
-                 " Because Eigen tests require a version without MPI, we disable the Pastix backend.")
+find_package(PASTIX QUIET)
+set(PASTIX_NO_MPI FALSE)
+if(PASTIX_FOUND)
+  include(CMakePushCheckState)
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_INCLUDES ${PASTIX_INCLUDE_DIRS_DEP})
+  unset(EIGEN_PASTIX_NO_MPI CACHE)
+  check_cxx_source_compiles("
+    #include <pastix/config.h>
+    #ifdef PASTIX_WITH_MPI
+    #error Eigen tests require PaStiX without MPI
+    #endif
+    int main() { return 0; }
+  " EIGEN_PASTIX_NO_MPI)
+  set(PASTIX_NO_MPI ${EIGEN_PASTIX_NO_MPI})
+  cmake_pop_check_state()
 endif()
-if(PASTIX_FOUND AND PASTIX_pastix_nompi.h_INCLUDE_DIRS)
+if(PASTIX_FOUND AND NOT PASTIX_NO_MPI)
+  message(STATUS "Eigen tests require PaStiX compiled without MPI; disabling the PaStiX backend.")
+endif()
+if(PASTIX_FOUND AND PASTIX_NO_MPI)
   add_definitions("-DEIGEN_PASTIX_SUPPORT")
   include_directories(${PASTIX_INCLUDE_DIRS_DEP})
-  if(SCOTCH_FOUND)
-    include_directories(${SCOTCH_INCLUDE_DIRS})
-    set(PASTIX_LIBRARIES ${PASTIX_LIBRARIES} ${SCOTCH_LIBRARIES})
-  elseif(METIS_FOUND)
-    include_directories(${METIS_INCLUDE_DIRS})
-    set(PASTIX_LIBRARIES ${PASTIX_LIBRARIES} ${METIS_LIBRARIES})
-  else()
-    ei_add_property(EIGEN_MISSING_BACKENDS  "PaStiX, ")
-  endif()
   set(SPARSE_LIBS ${SPARSE_LIBS} ${PASTIX_LIBRARIES_DEP} ${ORDERING_LIBRARIES})
   set(PASTIX_ALL_LIBS ${PASTIX_LIBRARIES_DEP})
   ei_add_property(EIGEN_TESTED_BACKENDS  "PaStiX, ")
@@ -206,6 +207,7 @@ else()
   ei_add_property(EIGEN_MISSING_BACKENDS  "PaStiX, ")
 endif()
 
+find_package(METIS QUIET)
 if(METIS_FOUND)
   add_definitions("-DEIGEN_METIS_SUPPORT")
   include_directories(${METIS_INCLUDE_DIRS})
@@ -625,7 +627,7 @@ if(PARDISO_FOUND)
   ei_add_test(pardiso_support "" "${PARDISO_ALL_LIBS}")
 endif()
 
-if(PASTIX_FOUND AND (SCOTCH_FOUND OR METIS_FOUND))
+if(PASTIX_FOUND AND PASTIX_NO_MPI)
   ei_add_test(pastix_support "" "${PASTIX_ALL_LIBS}")
 endif()
 

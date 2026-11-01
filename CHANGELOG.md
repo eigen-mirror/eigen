@@ -29,6 +29,9 @@ Bug fixes:
 - `IOFormat` could insert unwanted spaces between matrix rows when using custom row separators or prefixes.
 
 Breaking changes:
+- `PaStiXSupport` now requires PaStiX 6.x; version 5 is no longer supported. `FindPASTIX.cmake` uses pkg-config metadata
+  instead of dependency-selection components. Removed the unused `FindBLASEXT`, `FindHWLOC`, `FindSCOTCH` and
+  `FindPTSCOTCH` modules. Renamed `FindMetis.cmake` to `FindMETIS.cmake` to match `find_package(METIS)` [#2256, !3467]
 - `LDLT` picks a different pivot order for most inputs, which changes `transpositionsP()` and the order of `vectorD()`. A NaN or infinite pivot reports `NumericalIssue`. A preallocated `compute()` of a dynamic-size matrix larger than 96 can allocate the packing buffers of its matrix products, as those of `LLT`, `PartialPivLU` and `BunchKaufman` already do [!3423]
 - The default `epsfcn` for central mode differences was changed to `cbrt(NumTraits<Scalar>::epsilon())` (used to be `sqrt(NumTraits<Scalar>::epsilon())`). The new default should reduce numerical error in most cases.
 - Removed `Eigen/QtAlignedMalloc`, which replaced Qt 4's `qMalloc`, `qFree` and `qRealloc` with aligned versions on platforms whose `malloc` is not already sufficiently aligned. Remove the include. [!3413]

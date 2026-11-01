@@ -15,9 +15,12 @@
 #include "src/Core/util/DisableStupidWarnings.h"
 
 extern "C" {
-#include <pastix_nompi.h>
 #include <pastix.h>
 }
+
+#if !defined(PASTIX_VERSION_MAJOR) || PASTIX_VERSION_MAJOR != 6
+#error Eigen PaStiXSupport requires PaStiX 6.x
+#endif
 
 #ifdef complex
 #undef complex
@@ -26,11 +29,11 @@ extern "C" {
 /** \ingroup Support_modules
  * \defgroup PaStiXSupport_Module PaStiXSupport module
  *
- * This module provides an interface to the <a href="http://pastix.gforge.inria.fr/">PaSTiX</a> library.
+ * This module provides an interface to the <a href="https://solverstack.gitlabpages.inria.fr/pastix/">PaSTiX</a> library.
  * PaSTiX is a general \b supernodal, \b parallel and \b opensource sparse solver.
- * It provides the two following main factorization classes:
- * - class PastixLLT : a supernodal, parallel LLt Cholesky factorization.
- * - class PastixLDLT: a supernodal, parallel LDLt Cholesky factorization.
+ * It provides the following factorization classes:
+ * - class PastixLLT : a supernodal, parallel LLT (real) or LL* (complex) Cholesky factorization.
+ * - class PastixLDLT: a supernodal, parallel LDLT (real) or LDL* (complex) factorization.
  * - class PastixLU : a supernodal, parallel LU factorization (optimized for a symmetric pattern).
  *
  * \code
@@ -38,9 +41,9 @@ extern "C" {
  * \endcode
  *
  * In order to use this module, the PaSTiX headers must be accessible from the include paths, and your binary must be
- * linked to the PaSTiX library and its dependencies. This wrapper requires PaStiX version 5.x compiled without MPI
- * support. The dependencies depend on how PaSTiX has been compiled. For a cmake based project, you can use our
- * FindPaSTiX.cmake module to help you in this task.
+ * linked to the PaSTiX library and its dependencies. This wrapper supports PaStiX 6.x compiled
+ * without MPI support. The dependencies depend on how PaSTiX has been compiled. For a cmake based project, you can use our
+ * FindPASTIX.cmake module to help you in this task.
  *
  */
 

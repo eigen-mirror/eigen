@@ -122,8 +122,7 @@ run says nothing about any of them. The full set is `cholmod_support`, `umfpack_
 `superlu_support`, `pastix_support`, `spqr_support`, `accelerate_support`, `metis_support` (an ordering backend rather
 than a solver), and `pardiso_support`. Most are registered only if a `find_package` call finds the library; otherwise
 the backend is added to `EIGEN_MISSING_BACKENDS`. Several also require `EIGEN_BUILD_BLAS` or `EIGEN_BUILD_LAPACK`.
-`metis_support` and `pastix_support` depend on variables that the PaStiX search sets when the `METIS` component is
-requested.
+`metis_support` is discovered independently through `FindMETIS.cmake`; it does not require PaStiX.
 
 `pardiso_support` is the exception to know about. The tree contains no `find_package(PARDISO)` and no
 `EIGEN_MISSING_BACKENDS` entry for it. So it is registered only when `PARDISO_FOUND` is set from outside the project,
