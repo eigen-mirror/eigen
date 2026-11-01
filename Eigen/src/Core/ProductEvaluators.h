@@ -1585,7 +1585,7 @@ struct generic_product_impl<Lhs, Rhs, SelfAdjointShape, SelfAdjointShape, Produc
 
 template <typename MatrixType, typename DiagonalType, typename Derived, int ProductOrder>
 struct diagonal_product_evaluator_base : evaluator_base<Derived> {
-  using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
+  using Scalar = typename Derived::Scalar;
 
  public:
   enum {
@@ -1630,13 +1630,27 @@ struct diagonal_product_evaluator_base : evaluator_base<Derived> {
   }
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const Scalar coeff(Index idx) const {
+    using DiagonalFirst = bool_constant<
+        ProductOrder == OnTheLeft ||
+        functor_is_commutative<scalar_product_op<typename MatrixType::Scalar, typename DiagonalType::Scalar>>::value>;
+    return coeff_impl(idx, DiagonalFirst());
+  }
+
+ protected:
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar coeff_impl(Index idx, std::true_type) const {
     EIGEN_IF_CONSTEXPR (AsScalarProduct)
       return m_diagImpl.coeff(0) * m_matImpl.coeff(idx);
     else
       return m_diagImpl.coeff(idx) * m_matImpl.coeff(idx);
   }
 
- protected:
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Scalar coeff_impl(Index idx, std::false_type) const {
+    EIGEN_IF_CONSTEXPR (AsScalarProduct)
+      return m_matImpl.coeff(idx) * m_diagImpl.coeff(0);
+    else
+      return m_matImpl.coeff(idx) * m_diagImpl.coeff(idx);
+  }
+
   template <int LoadMode, typename PacketType>
   EIGEN_STRONG_INLINE PacketType packet_impl(Index row, Index col, Index id, std::true_type) const {
     return internal::pmul(m_matImpl.template packet<LoadMode, PacketType>(row, col),
@@ -1770,6 +1784,20 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 #endif
 };
 
+template <typename MatrixScalar, typename DiagonalScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto diagonal_product_coeff(const MatrixScalar& matrix,
+                                                                  const DiagonalScalar& diagonal, true_type)
+    -> decltype(diagonal * matrix) {
+  return diagonal * matrix;
+}
+
+template <typename MatrixScalar, typename DiagonalScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE auto diagonal_product_coeff(const MatrixScalar& matrix,
+                                                                  const DiagonalScalar& diagonal, false_type)
+    -> decltype(matrix * diagonal) {
+  return matrix * diagonal;
+}
+
 // Lazy evaluators for triangular/selfadjoint × diagonal products.
 //
 // The triangular-assignment dispatcher in TriangularMatrix.h routes
@@ -1781,9 +1809,10 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DenseShape,
 // triangle one coefficient at a time, so a coeff()-only evaluator avoids the
 // temporary at no loss in functionality.
 
-template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename Derived>
-struct triangular_diagonal_product_lazy_evaluator_base : evaluator_base<Derived> {
-  using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
+template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType, typename ProductXpr>
+struct triangular_diagonal_product_lazy_evaluator_base : evaluator_base<ProductXpr> {
+  using Scalar = typename ProductXpr::Scalar;
+  using DiagonalOnLeft = bool_constant<ProductOrder == OnTheLeft>;
   using MatrixScalar = typename MatrixType::Scalar;
 
   enum {
@@ -1801,13 +1830,12 @@ struct triangular_diagonal_product_lazy_evaluator_base : evaluator_base<Derived>
     if (!inActive) return Scalar(0);
     if (row == col) {
       EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
-        return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * MatrixScalar(1))
-                                         : Scalar(MatrixScalar(1) * m_diagImpl.coeff(col));
+        return Scalar(diagonal_product_coeff(MatrixScalar(1), m_diagImpl.coeff(row), DiagonalOnLeft()));
       }
       EIGEN_IF_CONSTEXPR ((Mode & ZeroDiag) == ZeroDiag) return Scalar(0);
     }
-    return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * m_matImpl.coeff(row, col))
-                                     : Scalar(m_matImpl.coeff(row, col) * m_diagImpl.coeff(col));
+    return Scalar(diagonal_product_coeff(m_matImpl.coeff(row, col),
+                                         m_diagImpl.coeff(ProductOrder == OnTheLeft ? row : col), DiagonalOnLeft()));
   }
 
  protected:
@@ -1818,13 +1846,12 @@ struct triangular_diagonal_product_lazy_evaluator_base : evaluator_base<Derived>
 // Triangular × Diagonal
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, TriangularShape, DiagonalShape>
-    : triangular_diagonal_product_lazy_evaluator_base<
-          Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, TriangularShape, DiagonalShape>> {
+    : triangular_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                      typename Rhs::DiagonalVectorType,
+                                                      Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = triangular_diagonal_product_lazy_evaluator_base<
-      Lhs::Mode, OnTheRight, typename Lhs::MatrixType, typename Rhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, TriangularShape, DiagonalShape>>;
+  using Base = triangular_diagonal_product_lazy_evaluator_base<Lhs::Mode, OnTheRight, typename Lhs::MatrixType,
+                                                               typename Rhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
       : Base(xpr.lhs().nestedExpression(), xpr.rhs().diagonal()) {}
@@ -1833,13 +1860,12 @@ struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, TriangularS
 // Diagonal × Triangular
 template <typename Lhs, typename Rhs, int ProductKind, int ProductTag>
 struct product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, TriangularShape>
-    : triangular_diagonal_product_lazy_evaluator_base<
-          Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-          product_evaluator<Product<Lhs, Rhs, ProductKind>, ProductTag, DiagonalShape, TriangularShape>> {
+    : triangular_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                      typename Lhs::DiagonalVectorType,
+                                                      Product<Lhs, Rhs, ProductKind>> {
   using XprType = Product<Lhs, Rhs, ProductKind>;
-  using Base = triangular_diagonal_product_lazy_evaluator_base<
-      Rhs::Mode, OnTheLeft, typename Rhs::MatrixType, typename Lhs::DiagonalVectorType,
-      product_evaluator<XprType, ProductTag, DiagonalShape, TriangularShape>>;
+  using Base = triangular_diagonal_product_lazy_evaluator_base<Rhs::Mode, OnTheLeft, typename Rhs::MatrixType,
+                                                               typename Lhs::DiagonalVectorType, XprType>;
 
   EIGEN_DEVICE_FUNC explicit product_evaluator(const XprType& xpr)
       : Base(xpr.rhs().nestedExpression(), xpr.lhs().diagonal()) {}
@@ -1851,7 +1877,9 @@ template <int Mode, int ProductOrder, typename MatrixType, typename DiagonalType
           bool Materialize =
               NumTraits<typename MatrixType::Scalar>::IsComplex && blas_traits<MatrixType>::HasScalarFactor>
 struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<ProductXpr> {
-  using Scalar = typename ScalarBinaryOpTraits<typename MatrixType::Scalar, typename DiagonalType::Scalar>::ReturnType;
+  using Scalar = typename ProductXpr::Scalar;
+  using MatrixScalar = typename MatrixType::Scalar;
+  using DiagonalOnLeft = bool_constant<ProductOrder == OnTheLeft>;
 
   enum {
     CoeffReadCost = int(NumTraits<Scalar>::MulCost) + int(evaluator<MatrixType>::CoeffReadCost) +
@@ -1866,10 +1894,10 @@ struct selfadjoint_diagonal_product_lazy_evaluator_base : evaluator_base<Product
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar coeff(Index row, Index col) const {
     const bool storedHere = ((Mode & Upper) == Upper) ? (row <= col) : (row >= col);
-    const Scalar matCoeff =
-        storedHere ? Scalar(m_matImpl.coeff(row, col)) : Scalar(numext::conj(m_matImpl.coeff(col, row)));
-    return ProductOrder == OnTheLeft ? Scalar(m_diagImpl.coeff(row) * matCoeff)
-                                     : Scalar(matCoeff * m_diagImpl.coeff(col));
+    const MatrixScalar matCoeff =
+        storedHere ? MatrixScalar(m_matImpl.coeff(row, col)) : MatrixScalar(numext::conj(m_matImpl.coeff(col, row)));
+    return Scalar(
+        diagonal_product_coeff(matCoeff, m_diagImpl.coeff(ProductOrder == OnTheLeft ? row : col), DiagonalOnLeft()));
   }
 
  protected:

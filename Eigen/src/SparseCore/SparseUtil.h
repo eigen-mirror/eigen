@@ -59,6 +59,31 @@ class SparseSymmetricPermutationProduct;
 
 namespace internal {
 
+// Retain the existing evaluation order for products declared commutative.
+template <typename LhsScalar, typename RhsScalar, bool Reverse,
+          bool Commutative = functor_is_commutative<scalar_product_op<LhsScalar, RhsScalar>>::value>
+struct sparse_scalar_product_op {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto operator()(const LhsScalar& lhs, const RhsScalar& rhs) const {
+    return lhs * rhs;
+  }
+  // Keep multiply and addition in one expression for -ffp-contract=on.
+  template <typename Acc>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void accumulate(Acc& acc, const LhsScalar& lhs, const RhsScalar& rhs) const {
+    acc += lhs * rhs;
+  }
+};
+
+template <typename LhsScalar, typename RhsScalar>
+struct sparse_scalar_product_op<LhsScalar, RhsScalar, true, false> {
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE auto operator()(const LhsScalar& lhs, const RhsScalar& rhs) const {
+    return rhs * lhs;
+  }
+  template <typename Acc>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void accumulate(Acc& acc, const LhsScalar& lhs, const RhsScalar& rhs) const {
+    acc += rhs * lhs;
+  }
+};
+
 /** \internal
  * Compile-time test for whether a sparse expression exposes its storage directly
  * through outerIndexPtr() / innerIndexPtr() / valuePtr() / innerNonZeroPtr()

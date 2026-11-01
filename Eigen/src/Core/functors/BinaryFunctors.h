@@ -106,11 +106,37 @@ struct functor_traits<scalar_product_op<LhsScalar, RhsScalar>> {
   };
 };
 
-// Multiplication commutes for arithmetic and complex scalars, but not for every user-defined
-// Scalar (e.g. quaternion-like or matrix-like types).
-template <typename Scalar>
-struct functor_is_commutative<scalar_product_op<Scalar, Scalar>>
-    : bool_constant<is_arithmetic<Scalar>::value || NumTraits<Scalar>::IsComplex> {};
+template <typename LhsScalar, typename RhsScalar, typename = void>
+struct scalar_product_commutativity
+    : bool_constant<is_arithmetic<LhsScalar>::value && is_arithmetic<RhsScalar>::value> {};
+
+template <typename LhsScalar, typename RhsScalar>
+struct scalar_product_commutativity<
+    LhsScalar, RhsScalar,
+    void_t<
+        decltype(ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op<LhsScalar, RhsScalar>>::IsCommutative)>>
+    : bool_constant<
+          ScalarBinaryOpTraits<LhsScalar, RhsScalar, scalar_product_op<LhsScalar, RhsScalar>>::IsCommutative> {};
+
+// IsComplex does not imply commutativity; custom scalars opt in through ScalarBinaryOpTraits.
+template <typename LhsScalar, typename RhsScalar>
+struct functor_is_commutative<scalar_product_op<LhsScalar, RhsScalar>>
+    : scalar_product_commutativity<LhsScalar, RhsScalar> {};
+
+template <typename RealScalar>
+struct functor_is_commutative<scalar_product_op<std::complex<RealScalar>, std::complex<RealScalar>>>
+    : bool_constant<is_arithmetic<RealScalar>::value ||
+                    scalar_product_commutativity<std::complex<RealScalar>, std::complex<RealScalar>>::value> {};
+
+template <typename RealScalar>
+struct functor_is_commutative<scalar_product_op<std::complex<RealScalar>, RealScalar>>
+    : bool_constant<is_arithmetic<RealScalar>::value ||
+                    scalar_product_commutativity<std::complex<RealScalar>, RealScalar>::value> {};
+
+template <typename RealScalar>
+struct functor_is_commutative<scalar_product_op<RealScalar, std::complex<RealScalar>>>
+    : bool_constant<is_arithmetic<RealScalar>::value ||
+                    scalar_product_commutativity<RealScalar, std::complex<RealScalar>>::value> {};
 
 // Same as scalar_product_op, but its scalar path uses pmul instead of operator*. For complex scalars
 // pmul is Eigen's explicit (non-Annex-G) complex multiply, so this avoids std::complex::operator*,

@@ -104,9 +104,11 @@ struct hseq_side_dependent_impl<VectorsType, CoeffsType, OnTheRight> {
   }
 };
 
-template <typename OtherScalarType, typename MatrixType>
+template <typename OtherScalarType, typename MatrixType, bool ScalarOnLeft = true>
 struct matrix_type_times_scalar_type {
-  using ResultScalar = typename ScalarBinaryOpTraits<OtherScalarType, typename MatrixType::Scalar>::ReturnType;
+  using ResultScalar =
+      typename std::conditional_t<ScalarOnLeft, ScalarBinaryOpTraits<OtherScalarType, typename MatrixType::Scalar>,
+                                  ScalarBinaryOpTraits<typename MatrixType::Scalar, OtherScalarType>>::ReturnType;
   using Type =
       Matrix<ResultScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime,
              (MatrixType::MaxRowsAtCompileTime == 1 && MatrixType::MaxColsAtCompileTime != 1) ? RowMajor : ColMajor,
@@ -591,11 +593,11 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
  * Householder sequence represented by \p h.
  */
 template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
-typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type operator*(
     const MatrixBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
-  typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type res(
-      other.template cast<typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar,
-                                                                           OtherDerived>::ResultScalar>());
+  typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type res(
+      other.template cast<typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived,
+                                                                           false>::ResultScalar>());
   h.applyThisOnTheRight(res);
   return res;
 }
@@ -605,9 +607,10 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, O
  * \f$ DH \f$ is \f$ H \f$ with its rows scaled: the sequence is evaluated and scaled in place.
  */
 template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
-typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type operator*(
     const DiagonalBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
-  using ResultType = typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type;
+  using ResultType =
+      typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type;
   EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(other, h);
   ResultType res = ResultType::Identity(h.rows(), h.rows());
   h.applyThisOnTheLeft(res, true);
@@ -623,9 +626,10 @@ typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, O
  * structured path.
  */
 template <typename OtherDerived, typename VectorsType, typename CoeffsType, int Side>
-typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type operator*(
+typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type operator*(
     const TriangularBase<OtherDerived>& other, const HouseholderSequence<VectorsType, CoeffsType, Side>& h) {
-  using ResultType = typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived>::Type;
+  using ResultType =
+      typename internal::matrix_type_times_scalar_type<typename VectorsType::Scalar, OtherDerived, false>::Type;
   ResultType res;
   internal::assign_householder_operand(res, other);
   h.applyThisOnTheRight(res);

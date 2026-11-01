@@ -19,11 +19,13 @@ namespace Eigen {
 namespace internal {
 
 // perform a pseudo in-place sparse * sparse product assuming all matrices are col major
-template <typename Lhs, typename Rhs, typename ResultType>
+template <typename Lhs, typename Rhs, typename ResultType, bool ReverseProduct = false>
 static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res,
                                                     const typename ResultType::RealScalar& tolerance) {
+  using LhsScalar = typename remove_all_t<Lhs>::Scalar;
   using RhsScalar = typename remove_all_t<Rhs>::Scalar;
   using ResScalar = typename remove_all_t<ResultType>::Scalar;
+  const sparse_scalar_product_op<LhsScalar, RhsScalar, ReverseProduct> product;
   using StorageIndex = typename remove_all_t<Lhs>::StorageIndex;
 
   // make sure to call innerSize/outerSize since we fake the storage order.
@@ -63,7 +65,7 @@ static void sparse_sparse_product_with_pruning_impl(const Lhs& lhs, const Rhs& r
       tempVector.restart();
       RhsScalar x = rhsIt.value();
       for (typename evaluator<Lhs>::InnerIterator lhsIt(lhsEval, rhsIt.index()); lhsIt; ++lhsIt) {
-        tempVector.coeffRef(lhsIt.index()) += lhsIt.value() * x;
+        product.accumulate(tempVector.coeffRef(lhsIt.index()), lhsIt.value(), x);
       }
     }
     res.startVec(j);
@@ -107,7 +109,7 @@ struct sparse_sparse_product_with_pruning_selector<Lhs, Rhs, ResultType, RowMajo
   static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res, const RealScalar& tolerance) {
     // let's transpose the product to get a column x column product
     remove_all_t<ResultType> res_{res.rows(), res.cols()};
-    internal::sparse_sparse_product_with_pruning_impl<Rhs, Lhs, ResultType>(rhs, lhs, res_, tolerance);
+    internal::sparse_sparse_product_with_pruning_impl<Rhs, Lhs, ResultType, true>(rhs, lhs, res_, tolerance);
     res.swap(res_);
   }
 };

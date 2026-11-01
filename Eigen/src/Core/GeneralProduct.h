@@ -396,15 +396,34 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void gemv_prepare_rhs(
   }
 }
 
-// The vector is on the left => transposition
+// Transposing a left-vector GEMV is valid only for commutative coefficient multiplication.
 template <int StorageOrder, bool BlasCompatible>
 struct gemv_dense_selector<OnTheLeft, StorageOrder, BlasCompatible> {
   template <typename Lhs, typename Rhs, typename Dest>
   static void run(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha) {
+    run_impl(lhs, rhs, dest, alpha,
+             functor_is_commutative<scalar_product_op<typename Lhs::Scalar, typename Rhs::Scalar>>());
+  }
+
+ private:
+  template <typename Lhs, typename Rhs, typename Dest>
+  static void run_impl(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha, true_type) {
     Transpose<Dest> destT(dest);
     enum { OtherStorageOrder = StorageOrder == RowMajor ? ColMajor : RowMajor };
     gemv_dense_selector<OnTheRight, OtherStorageOrder, BlasCompatible>::run(rhs.transpose(), lhs.transpose(), destT,
                                                                             alpha);
+  }
+
+  template <typename Lhs, typename Rhs, typename Dest>
+  static void run_impl(const Lhs& lhs, const Rhs& rhs, Dest& dest, const typename Dest::Scalar& alpha, false_type) {
+    if (numext::is_exactly_zero(alpha)) return;
+    evaluator<Lhs> lhsEval(lhs);
+    evaluator<Rhs> rhsEval(rhs);
+    for (Index col = 0; col < rhs.cols(); ++col) {
+      typename Product<Lhs, Rhs>::Scalar sum(0);
+      for (Index k = 0; k < rhs.rows(); ++k) sum += lhsEval.coeff(k) * rhsEval.coeff(k, col);
+      dest.coeffRef(col) += alpha * sum;
+    }
   }
 };
 

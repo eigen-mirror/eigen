@@ -88,11 +88,11 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, Iterat
         ++m_rhsIter;
       } else if (m_lhsIter && (!m_rhsIter || (m_lhsIter.index() < m_rhsIter.index()))) {
         m_id = convert_index<StorageIndex>(m_lhsIter.index());
-        m_value = m_functor(m_lhsIter.value(), Scalar(0));
+        m_value = m_functor(m_lhsIter.value(), typename Rhs::Scalar(0));
         ++m_lhsIter;
       } else if (m_rhsIter && (!m_lhsIter || (m_lhsIter.index() > m_rhsIter.index()))) {
         m_id = convert_index<StorageIndex>(m_rhsIter.index());
-        m_value = m_functor(Scalar(0), m_rhsIter.value());
+        m_value = m_functor(typename Lhs::Scalar(0), m_rhsIter.value());
         ++m_rhsIter;
       } else {
         m_id = -1;
@@ -164,12 +164,13 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IndexBased, IteratorB
     EIGEN_STRONG_INLINE InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
-        Scalar lhsVal = m_lhsEval.coeff(IsRowMajor ? m_rhsIter.outer() : m_id, IsRowMajor ? m_id : m_rhsIter.outer());
+        typename Lhs::Scalar lhsVal =
+            m_lhsEval.coeff(IsRowMajor ? m_rhsIter.outer() : m_id, IsRowMajor ? m_id : m_rhsIter.outer());
         if (m_rhsIter && m_rhsIter.index() == m_id) {
           m_value = m_functor(lhsVal, m_rhsIter.value());
           ++m_rhsIter;
         } else
-          m_value = m_functor(lhsVal, Scalar(0));
+          m_value = m_functor(lhsVal, typename Rhs::Scalar(0));
       }
 
       return *this;
@@ -245,12 +246,13 @@ struct binary_evaluator<CwiseBinaryOp<BinaryOp, Lhs, Rhs>, IteratorBased, IndexB
     EIGEN_STRONG_INLINE InnerIterator& operator++() {
       ++m_id;
       if (m_id < m_innerSize) {
-        Scalar rhsVal = m_rhsEval.coeff(IsRowMajor ? m_lhsIter.outer() : m_id, IsRowMajor ? m_id : m_lhsIter.outer());
+        typename Rhs::Scalar rhsVal =
+            m_rhsEval.coeff(IsRowMajor ? m_lhsIter.outer() : m_id, IsRowMajor ? m_id : m_lhsIter.outer());
         if (m_lhsIter && m_lhsIter.index() == m_id) {
           m_value = m_functor(m_lhsIter.value(), rhsVal);
           ++m_lhsIter;
         } else
-          m_value = m_functor(Scalar(0), rhsVal);
+          m_value = m_functor(typename Lhs::Scalar(0), rhsVal);
       }
 
       return *this;

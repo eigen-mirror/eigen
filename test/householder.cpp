@@ -13,6 +13,44 @@
 #include "NonCommutativeScalar.h"
 #include <Eigen/QR>
 
+template <int Tag>
+struct HouseholderResultScalar {};
+
+namespace Eigen {
+template <>
+struct ScalarBinaryOpTraits<HouseholderResultScalar<0>, HouseholderResultScalar<1>> {
+  using ReturnType = HouseholderResultScalar<2>;
+};
+template <>
+struct ScalarBinaryOpTraits<HouseholderResultScalar<1>, HouseholderResultScalar<0>> {
+  using ReturnType = HouseholderResultScalar<3>;
+};
+}  // namespace Eigen
+
+template <int Side>
+void householder_ordered_result_types() {
+  using Vectors = Matrix<HouseholderResultScalar<0>, 2, 2>;
+  using Coefficients = Matrix<HouseholderResultScalar<0>, 2, 1>;
+  using Sequence = HouseholderSequence<Vectors, Coefficients, Side>;
+  using Dense = Matrix<HouseholderResultScalar<1>, 2, 2>;
+  using Diagonal = DiagonalMatrix<HouseholderResultScalar<1>, 2>;
+  using Triangular = TriangularView<Dense, Upper>;
+  using Left = decltype(std::declval<const Sequence&>() * std::declval<const Dense&>());
+  using Right = decltype(std::declval<const Dense&>() * std::declval<const Sequence&>());
+  using DiagonalLeft = decltype(std::declval<const Sequence&>() * std::declval<const Diagonal&>());
+  using DiagonalRight = decltype(std::declval<const Diagonal&>() * std::declval<const Sequence&>());
+  using TriangularLeft = decltype(std::declval<const Sequence&>() * std::declval<const Triangular&>());
+  using TriangularRight = decltype(std::declval<const Triangular&>() * std::declval<const Sequence&>());
+  static_assert(std::is_same<typename Left::Scalar, HouseholderResultScalar<2>>::value, "sequence * dense");
+  static_assert(std::is_same<typename Right::Scalar, HouseholderResultScalar<3>>::value, "dense * sequence");
+  static_assert(std::is_same<typename DiagonalLeft::Scalar, HouseholderResultScalar<2>>::value, "sequence * diagonal");
+  static_assert(std::is_same<typename DiagonalRight::Scalar, HouseholderResultScalar<3>>::value, "diagonal * sequence");
+  static_assert(std::is_same<typename TriangularLeft::Scalar, HouseholderResultScalar<2>>::value,
+                "sequence * triangular");
+  static_assert(std::is_same<typename TriangularRight::Scalar, HouseholderResultScalar<3>>::value,
+                "triangular * sequence");
+}
+
 namespace reordered_complex {
 
 template <typename Real>
@@ -1225,6 +1263,8 @@ void householder_structured_products_noncommutative() {
 }
 
 EIGEN_DECLARE_TEST(householder) {
+  CALL_SUBTEST_26(householder_ordered_result_types<OnTheLeft>());
+  CALL_SUBTEST_26(householder_ordered_result_types<OnTheRight>());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
     CALL_SUBTEST_2(householder(Matrix<float, 2, 3>()));

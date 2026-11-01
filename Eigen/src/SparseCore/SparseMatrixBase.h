@@ -331,10 +331,9 @@ class SparseMatrixBase : public EigenBase<Derived> {
 
   template <typename OtherDerived>
   struct CwiseProductDenseReturnType {
-    using Type = CwiseBinaryOp<
-        internal::scalar_product_op<typename ScalarBinaryOpTraits<
-            typename internal::traits<Derived>::Scalar, typename internal::traits<OtherDerived>::Scalar>::ReturnType>,
-        const Derived, const OtherDerived>;
+    using Type = CwiseBinaryOp<internal::scalar_product_op<typename internal::traits<Derived>::Scalar,
+                                                           typename internal::traits<OtherDerived>::Scalar>,
+                               const Derived, const OtherDerived>;
   };
 
   template <typename OtherDerived>

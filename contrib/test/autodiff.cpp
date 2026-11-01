@@ -13,8 +13,10 @@
 #include <Eigen/Jacobi>
 #include <Eigen/QR>
 #include <Eigen/SVD>
+#include <Eigen/SparseCore>
 #include <contrib/Eigen/AutoDiff>
 #include <contrib/Eigen/Splines>
+#include "NonCommutativeScalar.h"
 
 template <typename Scalar>
 EIGEN_DONT_INLINE Scalar foo(const Scalar& x, const Scalar& y) {
@@ -545,7 +547,56 @@ void test_autodiff_geometry_atan2() {
   }
 }
 
+template <typename Derivatives, int Order>
+void test_autodiff_sparse_product_commutativity() {
+  using AD = AutoDiffScalar<Derivatives>;
+  using ADExpression = decltype(std::declval<AD>() * std::declval<AD>());
+  using NoncommutativeAD = AutoDiffScalar<Matrix<noncommutative_scalar::Quaternion, 4, 1>>;
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<AD>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<AD, ADExpression>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<AD, double>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<double, AD>>::value));
+  STATIC_CHECK((!internal::functor_is_commutative<internal::scalar_product_op<NoncommutativeAD>>::value));
+  using Dense = Matrix<AD, Dynamic, Dynamic>;
+  SparseMatrix<AD, Order> sparse(3, 3);
+  Dense matrix(3, 3);
+  for (Index j = 0; j < 3; ++j)
+    for (Index i = 0; i < 3; ++i) {
+      AD value(double(i + 2 * j + 1));
+      value.derivatives() = Derivatives::Constant(4, double(i - j + 1));
+      matrix(i, j) = value;
+      if (i == j || (i + j) % 2) sparse.insert(i, j) = value;
+    }
+  AD alpha(2);
+  alpha.derivatives() = Derivatives::Constant(4, 1);
+  for (bool compressed : {false, true}) {
+    if (compressed) sparse.makeCompressed();
+    Dense left = Dense::Zero(3, 3), right = Dense::Zero(3, 3);
+    left.noalias() += alpha * (sparse * matrix);
+    right.noalias() += alpha * (matrix * sparse);
+    for (Index j = 0; j < 3; ++j)
+      for (Index i = 0; i < 3; ++i) {
+        AD expectedLeft(0), expectedRight(0);
+        expectedLeft.derivatives() = Derivatives::Zero(4);
+        expectedRight.derivatives() = Derivatives::Zero(4);
+        for (Index k = 0; k < 3; ++k) {
+          expectedLeft += sparse.coeff(i, k) * matrix(k, j);
+          expectedRight += matrix(i, k) * sparse.coeff(k, j);
+        }
+        const AD scaledLeft = alpha * expectedLeft, scaledRight = alpha * expectedRight;
+        VERIFY_IS_EQUAL(left(i, j).value(), scaledLeft.value());
+        VERIFY_IS_EQUAL(right(i, j).value(), scaledRight.value());
+        VERIFY((left(i, j).derivatives() - scaledLeft.derivatives()).isZero(0));
+        VERIFY((right(i, j).derivatives() - scaledRight.derivatives()).isZero(0));
+      }
+  }
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
+  CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<Vector4d, ColMajor>()));
+  CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<Vector4d, RowMajor>()));
+  CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<VectorXd, ColMajor>()));
+  CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<VectorXd, RowMajor>()));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test_autodiff_scalar<float>());
     CALL_SUBTEST_1(test_autodiff_scalar<double>());

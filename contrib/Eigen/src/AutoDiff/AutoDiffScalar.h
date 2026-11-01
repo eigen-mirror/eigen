@@ -652,6 +652,21 @@ struct NumTraits<AutoDiffScalar<DerType>>
 };
 
 namespace internal {
+template <typename LhsDerivatives, typename RhsDerivatives>
+struct functor_is_commutative<scalar_product_op<AutoDiffScalar<LhsDerivatives>, AutoDiffScalar<RhsDerivatives>>>
+    : functor_is_commutative<scalar_product_op<typename remove_all_t<LhsDerivatives>::Scalar,
+                                               typename remove_all_t<RhsDerivatives>::Scalar>> {};
+
+template <typename Derivatives>
+struct functor_is_commutative<
+    scalar_product_op<AutoDiffScalar<Derivatives>, typename remove_all_t<Derivatives>::Scalar>>
+    : functor_is_commutative<scalar_product_op<typename remove_all_t<Derivatives>::Scalar>> {};
+
+template <typename Derivatives>
+struct functor_is_commutative<
+    scalar_product_op<typename remove_all_t<Derivatives>::Scalar, AutoDiffScalar<Derivatives>>>
+    : functor_is_commutative<scalar_product_op<typename remove_all_t<Derivatives>::Scalar>> {};
+
 template <typename DerivativeType>
 struct is_identically_zero_impl<AutoDiffScalar<DerivativeType>> {
   static inline bool run(const AutoDiffScalar<DerivativeType>& s) {

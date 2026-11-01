@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "NonCommutativeScalar.h"
 
 #include <array>
 #include <Eigen/src/Core/util/Meta.h>
@@ -16,6 +17,16 @@
 struct FooReturnType {
   typedef int ReturnType;
 };
+
+struct CommutativeScalarOptIn {};
+struct UnannotatedScalar {};
+namespace Eigen {
+template <>
+struct ScalarBinaryOpTraits<CommutativeScalarOptIn, CommutativeScalarOptIn> {
+  using ReturnType = CommutativeScalarOptIn;
+  static constexpr bool IsCommutative = true;
+};
+}  // namespace Eigen
 
 using Eigen::internal::apply_op_from_left;
 using Eigen::internal::apply_op_from_right;
@@ -253,6 +264,19 @@ static void test_array_reductions() {
 }
 
 EIGEN_DECLARE_TEST(meta) {
+  using Quaternion = noncommutative_scalar::Quaternion;
+  STATIC_CHECK(NumTraits<Quaternion>::IsComplex);
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<double>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<std::complex<double>>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<double, float>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<double, std::complex<double>>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<std::complex<double>, double>>::value));
+  STATIC_CHECK((!internal::functor_is_commutative<internal::scalar_product_op<Quaternion>>::value));
+  STATIC_CHECK((!internal::functor_is_commutative<internal::scalar_product_op<Quaternion, double>>::value));
+  STATIC_CHECK((!internal::functor_is_commutative<internal::scalar_product_op<double, Quaternion>>::value));
+  STATIC_CHECK((internal::functor_is_commutative<internal::scalar_product_op<CommutativeScalarOptIn>>::value));
+  STATIC_CHECK((!internal::functor_is_commutative<internal::scalar_product_op<UnannotatedScalar>>::value));
+
   VERIFY((std::is_same<float, float>::value));
   VERIFY((!std::is_same<float, double>::value));
   VERIFY((!std::is_same<float, float&>::value));

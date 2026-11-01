@@ -18,12 +18,13 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename Lhs, typename Rhs, typename ResultType>
+template <typename Lhs, typename Rhs, typename ResultType, bool ReverseProduct = false>
 static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res,
                                                     bool sortedInsertion = false) {
   using LhsScalar = typename remove_all_t<Lhs>::Scalar;
   using RhsScalar = typename remove_all_t<Rhs>::Scalar;
   using ResScalar = typename remove_all_t<ResultType>::Scalar;
+  const sparse_scalar_product_op<LhsScalar, RhsScalar, ReverseProduct> product;
 
   // make sure to call innerSize/outerSize since we fake the storage order.
   Index rows = lhs.innerSize();
@@ -61,11 +62,11 @@ static void conservative_sparse_sparse_product_impl(const Lhs& lhs, const Rhs& r
         LhsScalar x = lhsIt.value();
         if (!mask[i]) {
           mask[i] = true;
-          values[i] = x * y;
+          values[i] = product(x, y);
           indices[nnz] = i;
           ++nnz;
         } else
-          values[i] += x * y;
+          product.accumulate(values[i], x, y);
       }
     }
     if (!sortedInsertion) {
@@ -149,7 +150,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRhs rhsRow = rhs;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
-    internal::conservative_sparse_sparse_product_impl<RowMajorRhs, Lhs, RowMajorRes>(rhsRow, lhs, resRow);
+    internal::conservative_sparse_sparse_product_impl<RowMajorRhs, Lhs, RowMajorRes, true>(rhsRow, lhs, resRow);
     res = resRow;
   }
 };
@@ -161,7 +162,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, ColMajo
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorLhs lhsRow = lhs;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
-    internal::conservative_sparse_sparse_product_impl<Rhs, RowMajorLhs, RowMajorRes>(rhs, lhsRow, resRow);
+    internal::conservative_sparse_sparse_product_impl<Rhs, RowMajorLhs, RowMajorRes, true>(rhs, lhsRow, resRow);
     res = resRow;
   }
 };
@@ -171,7 +172,7 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
   static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
-    internal::conservative_sparse_sparse_product_impl<Rhs, Lhs, RowMajorRes>(rhs, lhs, resRow);
+    internal::conservative_sparse_sparse_product_impl<Rhs, Lhs, RowMajorRes, true>(rhs, lhs, resRow);
     res = resRow;
   }
 };
@@ -216,17 +217,18 @@ struct conservative_sparse_sparse_product_selector<Lhs, Rhs, ResultType, RowMajo
     using ColMajorRes = WithStorageOrder<ResultType, ColMajor>;
     using RowMajorRes = WithStorageOrder<ResultType, RowMajor>;
     RowMajorRes resRow(lhs.rows(), rhs.cols());
-    internal::conservative_sparse_sparse_product_impl<Rhs, Lhs, RowMajorRes>(rhs, lhs, resRow);
+    internal::conservative_sparse_sparse_product_impl<Rhs, Lhs, RowMajorRes, true>(rhs, lhs, resRow);
     // sort the non zeros:
     ColMajorRes resCol(resRow);
     res = resCol;
   }
 };
 
-template <typename Lhs, typename Rhs, typename ResultType>
+template <typename Lhs, typename Rhs, typename ResultType, bool ReverseProduct = false>
 static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
   using LhsScalar = typename remove_all_t<Lhs>::Scalar;
   using RhsScalar = typename remove_all_t<Rhs>::Scalar;
+  const sparse_scalar_product_op<LhsScalar, RhsScalar, ReverseProduct> product;
   Index cols = rhs.outerSize();
   eigen_assert(lhs.outerSize() == rhs.innerSize());
 
@@ -240,7 +242,7 @@ static void sparse_sparse_to_dense_product_impl(const Lhs& lhs, const Rhs& rhs, 
       for (typename evaluator<Lhs>::InnerIterator lhsIt(lhsEval, k); lhsIt; ++lhsIt) {
         Index i = lhsIt.index();
         LhsScalar x = lhsIt.value();
-        res.coeffRef(i, j) += x * y;
+        product.accumulate(res.coeffRef(i, j), x, y);
       }
     }
   }
@@ -284,7 +286,7 @@ template <typename Lhs, typename Rhs, typename ResultType>
 struct sparse_sparse_to_dense_product_selector<Lhs, Rhs, ResultType, RowMajor, RowMajor> {
   static void run(const Lhs& lhs, const Rhs& rhs, ResultType& res) {
     Transpose<ResultType> trRes(res);
-    internal::sparse_sparse_to_dense_product_impl<Rhs, Lhs, Transpose<ResultType>>(rhs, lhs, trRes);
+    internal::sparse_sparse_to_dense_product_impl<Rhs, Lhs, Transpose<ResultType>, true>(rhs, lhs, trRes);
   }
 };
 

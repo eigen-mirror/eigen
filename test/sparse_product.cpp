@@ -22,6 +22,7 @@ inline void on_temporary_creation() {
 
 #define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 #include "AnnoyingScalar.h"
+#include "NonCommutativeScalar.h"
 
 #define VERIFY_EVALUATION_COUNT(XPR, N)                                                   \
   {                                                                                       \
@@ -970,6 +971,361 @@ void test_sparse_product_mul_assign() {
   VERIFY_IS_APPROX(MatrixXd(A.toDense()), ref);
 }
 
+template <int Tag>
+struct SparseCwiseScalar {
+  explicit SparseCwiseScalar(int v = 0) : value(v) {}
+  int value;
+};
+
+SparseCwiseScalar<2> operator*(const SparseCwiseScalar<0>& lhs, const SparseCwiseScalar<1>& rhs) {
+  return SparseCwiseScalar<2>(lhs.value * rhs.value);
+}
+
+SparseCwiseScalar<2> operator+(const SparseCwiseScalar<0>& lhs, const SparseCwiseScalar<1>& rhs) {
+  return SparseCwiseScalar<2>(lhs.value + rhs.value);
+}
+
+SparseCwiseScalar<3> operator*(const SparseCwiseScalar<1>& lhs, const SparseCwiseScalar<0>& rhs) {
+  return SparseCwiseScalar<3>(lhs.value * rhs.value);
+}
+
+namespace Eigen {
+template <>
+struct ScalarBinaryOpTraits<SparseCwiseScalar<0>, SparseCwiseScalar<1>,
+                            internal::scalar_product_op<SparseCwiseScalar<0>, SparseCwiseScalar<1>>> {
+  using ReturnType = SparseCwiseScalar<2>;
+};
+
+template <>
+struct ScalarBinaryOpTraits<SparseCwiseScalar<0>, SparseCwiseScalar<1>,
+                            internal::scalar_sum_op<SparseCwiseScalar<0>, SparseCwiseScalar<1>>> {
+  using ReturnType = SparseCwiseScalar<2>;
+};
+
+template <>
+struct ScalarBinaryOpTraits<SparseCwiseScalar<1>, SparseCwiseScalar<0>,
+                            internal::scalar_product_op<SparseCwiseScalar<1>, SparseCwiseScalar<0>>> {
+  using ReturnType = SparseCwiseScalar<3>;
+};
+}  // namespace Eigen
+
+template <int Order>
+void test_sparse_cwise_product_operand_types() {
+  using Left = SparseCwiseScalar<0>;
+  using Right = SparseCwiseScalar<1>;
+  using Result = SparseCwiseScalar<2>;
+  SparseMatrix<Left, Order> lhs(3, 3);
+  lhs.reserve(VectorXi::Constant(3, 3));
+  lhs.insert(0, 1) = Left(2);
+  lhs.insert(2, 0) = Left(-3);
+  Matrix<Right, Dynamic, Dynamic, Order> rhs(3, 3);
+  for (Index j = 0; j < 3; ++j)
+    for (Index i = 0; i < 3; ++i) rhs(i, j) = Right(int(i + 2 * j + 1));
+
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    SparseMatrix<Result, Order> result = lhs.cwiseProduct(rhs);
+    VERIFY_IS_EQUAL(result.nonZeros(), 2);
+    for (Index j = 0; j < 3; ++j)
+      for (Index i = 0; i < 3; ++i) VERIFY_IS_EQUAL(result.coeff(i, j).value, lhs.coeff(i, j).value * rhs(i, j).value);
+    lhs.makeCompressed();
+  }
+
+  Matrix<Left, Dynamic, Dynamic, Order> denseLeft(3, 3);
+  SparseMatrix<Right, Order> sparseRight(3, 3);
+  sparseRight.reserve(VectorXi::Constant(3, 3));
+  sparseRight.insert(0, 1) = Right(4);
+  sparseRight.insert(2, 0) = Right(5);
+  for (Index j = 0; j < 3; ++j)
+    for (Index i = 0; i < 3; ++i) denseLeft(i, j) = Left(int(i + 2 * j + 1));
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const SparseMatrix<Result, Order> result = denseLeft.cwiseProduct(sparseRight);
+    VERIFY_IS_EQUAL(result.nonZeros(), 2);
+    for (Index j = 0; j < 3; ++j)
+      for (Index i = 0; i < 3; ++i)
+        VERIFY_IS_EQUAL(result.coeff(i, j).value, denseLeft(i, j).value * sparseRight.coeff(i, j).value);
+    sparseRight.makeCompressed();
+  }
+}
+
+template <int Order>
+void test_sparse_cwise_sum_operand_types() {
+  using Left = SparseCwiseScalar<0>;
+  using Right = SparseCwiseScalar<1>;
+  using Result = SparseCwiseScalar<2>;
+  SparseMatrix<Left, Order> lhs(3, 3);
+  SparseMatrix<Right, Order> rhs(3, 3);
+  lhs.reserve(VectorXi::Constant(3, 3));
+  rhs.reserve(VectorXi::Constant(3, 3));
+  lhs.insert(0, 1) = Left(2);
+  lhs.insert(2, 0) = Left(-3);
+  rhs.insert(0, 1) = Right(4);
+  rhs.insert(1, 2) = Right(5);
+  Matrix<Left, Dynamic, Dynamic, Order> denseLhs(3, 3);
+  Matrix<Right, Dynamic, Dynamic, Order> denseRhs(3, 3);
+  for (Index j = 0; j < 3; ++j)
+    for (Index i = 0; i < 3; ++i) {
+      denseLhs(i, j) = Left(int(i + j + 1));
+      denseRhs(i, j) = Right(int(i - j - 1));
+    }
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const SparseMatrix<Result, Order> sparse = lhs + rhs;
+    const Matrix<Result, Dynamic, Dynamic, Order> denseSparse = denseLhs + rhs;
+    const Matrix<Result, Dynamic, Dynamic, Order> sparseDense = lhs + denseRhs;
+    for (Index j = 0; j < 3; ++j)
+      for (Index i = 0; i < 3; ++i) {
+        VERIFY_IS_EQUAL(sparse.coeff(i, j).value, lhs.coeff(i, j).value + rhs.coeff(i, j).value);
+        VERIFY_IS_EQUAL(denseSparse(i, j).value, denseLhs(i, j).value + rhs.coeff(i, j).value);
+        VERIFY_IS_EQUAL(sparseDense(i, j).value, lhs.coeff(i, j).value + denseRhs(i, j).value);
+      }
+    lhs.makeCompressed();
+    rhs.makeCompressed();
+  }
+
+  Matrix<double, 2, 2, Order> real = Matrix<double, 2, 2, Order>::Ones();
+  SparseMatrix<std::complex<double>, Order> complex(2, 2);
+  complex.insert(0, 1) = std::complex<double>(2, 3);
+  const Matrix<std::complex<double>, 2, 2, Order> result = real + complex;
+  for (Index j = 0; j < 2; ++j)
+    for (Index i = 0; i < 2; ++i) VERIFY_IS_EQUAL(result(i, j), std::complex<double>(real(i, j)) + complex.coeff(i, j));
+}
+
+struct SparseNoncommutingScalar {
+  explicit SparseNoncommutingScalar(int diagonal = 0) : values{{diagonal, 0, 0, diagonal}} {}
+  SparseNoncommutingScalar& operator=(int diagonal) {
+    values = {{diagonal, 0, 0, diagonal}};
+    return *this;
+  }
+  std::array<int, 4> values;
+};
+
+double abs(const SparseNoncommutingScalar& scalar) {
+  double result = 0;
+  for (int value : scalar.values) result += numext::abs(value);
+  return result;
+}
+
+namespace Eigen {
+template <>
+struct NumTraits<SparseNoncommutingScalar> : GenericNumTraits<SparseNoncommutingScalar> {
+  using Real = double;
+  static constexpr bool IsSigned = true;
+  static constexpr bool RequireInitialization = true;
+};
+}  // namespace Eigen
+
+SparseNoncommutingScalar operator*(const SparseNoncommutingScalar& lhs, const SparseNoncommutingScalar& rhs) {
+  SparseNoncommutingScalar result;
+  for (int i = 0; i < 2; ++i)
+    for (int j = 0; j < 2; ++j)
+      for (int k = 0; k < 2; ++k) result.values[2 * i + j] += lhs.values[2 * i + k] * rhs.values[2 * k + j];
+  return result;
+}
+
+template <int Order>
+void test_sparse_diagonal_products() {
+  using DiagonalScalar = SparseCwiseScalar<0>;
+  using MatrixScalar = SparseCwiseScalar<1>;
+  using Scalar = SparseNoncommutingScalar;
+  DiagonalMatrix<DiagonalScalar, 3> diagonal;
+  DiagonalMatrix<Scalar, 3> blockDiagonal;
+  for (Index i = 0; i < 3; ++i) {
+    diagonal.diagonal()(i) = DiagonalScalar(int(i) + 2);
+    blockDiagonal.diagonal()(i).values = {{1, 0, int(i) + 2, 1}};
+  }
+  SparseMatrix<MatrixScalar, Order> matrix(3, 3);
+  SparseMatrix<Scalar, Order> blocks(3, 3);
+  matrix.reserve(VectorXi::Constant(3, 3));
+  blocks.reserve(VectorXi::Constant(3, 3));
+  matrix.insert(0, 1) = MatrixScalar(5);
+  matrix.insert(2, 0) = MatrixScalar(-2);
+  blocks.insert(0, 1).values = {{1, 2, 0, 1}};
+  blocks.insert(2, 0).values = {{2, 1, 0, 1}};
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const SparseMatrix<SparseCwiseScalar<2>, Order> left = diagonal * matrix;
+    const SparseMatrix<SparseCwiseScalar<3>, Order> right = matrix * diagonal;
+    const SparseMatrix<Scalar, Order> blockLeft = blockDiagonal * blocks;
+    const SparseMatrix<Scalar, Order> blockRight = blocks * blockDiagonal;
+    VERIFY_IS_EQUAL(left.nonZeros(), matrix.nonZeros());
+    VERIFY_IS_EQUAL(right.nonZeros(), matrix.nonZeros());
+    for (Index j = 0; j < 3; ++j)
+      for (Index i = 0; i < 3; ++i) {
+        VERIFY_IS_EQUAL(left.coeff(i, j).value, diagonal.diagonal()(i).value * matrix.coeff(i, j).value);
+        VERIFY_IS_EQUAL(right.coeff(i, j).value, matrix.coeff(i, j).value * diagonal.diagonal()(j).value);
+        const Scalar expectedLeft = blockDiagonal.diagonal()(i) * blocks.coeff(i, j);
+        const Scalar expectedRight = blocks.coeff(i, j) * blockDiagonal.diagonal()(j);
+        VERIFY(blockLeft.coeff(i, j).values == expectedLeft.values);
+        VERIFY(blockRight.coeff(i, j).values == expectedRight.values);
+      }
+    matrix.makeCompressed();
+    blocks.makeCompressed();
+  }
+}
+
+SparseNoncommutingScalar& operator+=(SparseNoncommutingScalar& lhs, const SparseNoncommutingScalar& rhs) {
+  for (int i = 0; i < 4; ++i) lhs.values[i] += rhs.values[i];
+  return lhs;
+}
+
+template <int LOrder, int ROrder, int DOrder>
+void test_sparse_product_operand_order() {
+  using Scalar = SparseNoncommutingScalar;
+  SparseMatrix<Scalar, LOrder> lhs(2, 3);
+  SparseMatrix<Scalar, ROrder> rhs(3, 2);
+  lhs.reserve(VectorXi::Constant(lhs.outerSize(), 3));
+  rhs.reserve(VectorXi::Constant(rhs.outerSize(), 3));
+  lhs.insert(0, 0).values = {{1, 2, 0, 1}};
+  lhs.insert(0, 2).values = {{2, 1, 0, 1}};
+  lhs.insert(1, 1).values = {{1, -1, 1, 1}};
+  rhs.insert(0, 1).values = {{1, 0, 3, 1}};
+  rhs.insert(2, 1).values = {{2, 0, 1, 1}};
+  rhs.insert(1, 0).values = {{1, 1, 2, 1}};
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const SparseMatrix<Scalar, DOrder> sparse = lhs * rhs;
+    const Matrix<Scalar, Dynamic, Dynamic, DOrder> dense = lhs * rhs;
+    VERIFY(sparse.innerIndicesAreSorted());
+    VERIFY_IS_EQUAL(sparse.nonZeros(), 2);
+    for (Index j = 0; j < 2; ++j)
+      for (Index i = 0; i < 2; ++i) {
+        Scalar expected;
+        for (Index k = 0; k < 3; ++k) expected += lhs.coeff(i, k) * rhs.coeff(k, j);
+        VERIFY(sparse.coeff(i, j).values == expected.values);
+        VERIFY(dense(i, j).values == expected.values);
+      }
+    lhs.makeCompressed();
+    rhs.makeCompressed();
+  }
+}
+
+template <int LOrder, int ROrder, int DOrder>
+void test_sparse_pruned_operand_order() {
+  using Scalar = SparseNoncommutingScalar;
+  SparseMatrix<Scalar, LOrder> lhs(2, 3);
+  SparseMatrix<Scalar, ROrder> rhs(3, 2);
+  lhs.reserve(VectorXi::Constant(lhs.outerSize(), 3));
+  rhs.reserve(VectorXi::Constant(rhs.outerSize(), 3));
+  lhs.insert(0, 0).values = {{1, 2, 0, 1}};
+  lhs.insert(0, 2).values = {{2, 1, 0, 1}};
+  rhs.insert(0, 1).values = {{1, 0, 3, 1}};
+  rhs.insert(2, 1).values = {{2, 0, 1, 1}};
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    SparseMatrix<Scalar, DOrder> result(2, 2);
+    internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(result)>::run(
+        lhs, rhs, result, 0.0);
+    const SparseMatrix<Scalar, DOrder> publicResult = (lhs * rhs).pruned(Scalar(0), 0.0);
+    VERIFY(result.innerIndicesAreSorted());
+    VERIFY_IS_EQUAL(result.nonZeros(), 1);
+    for (Index j = 0; j < 2; ++j)
+      for (Index i = 0; i < 2; ++i) {
+        Scalar expected;
+        for (Index k = 0; k < 3; ++k) expected += lhs.coeff(i, k) * rhs.coeff(k, j);
+        VERIFY(result.coeff(i, j).values == expected.values);
+        VERIFY(publicResult.coeff(i, j).values == expected.values);
+      }
+    lhs.makeCompressed();
+    rhs.makeCompressed();
+  }
+}
+
+template <typename = void>
+void test_sparse_outer_operand_types() {
+  SparseVector<SparseCwiseScalar<0>> column(2);
+  column.insert(1) = SparseCwiseScalar<0>(3);
+  Matrix<SparseCwiseScalar<1>, 1, Dynamic> row(3);
+  for (Index i = 0; i < row.size(); ++i) row(i) = SparseCwiseScalar<1>(int(i + 2));
+  using LeftEval = internal::sparse_dense_outer_product_evaluator<decltype(column), decltype(row), false>;
+  const LeftEval left(column, row);
+  for (Index j = 0; j < row.size(); ++j) {
+    typename LeftEval::InnerIterator it(left, j);
+    VERIFY(it);
+    VERIFY_IS_EQUAL(it.row(), 1);
+    VERIFY_IS_EQUAL(it.value().value, 3 * row(j).value);
+    ++it;
+    VERIFY(!it);
+  }
+
+  SparseVector<SparseCwiseScalar<1>, RowMajor> sparseRow(3);
+  sparseRow.insert(2) = SparseCwiseScalar<1>(5);
+  Matrix<SparseCwiseScalar<0>, Dynamic, 1> denseColumn(2);
+  denseColumn(0) = SparseCwiseScalar<0>(2);
+  denseColumn(1) = SparseCwiseScalar<0>(4);
+  using RightEval = internal::sparse_dense_outer_product_evaluator<decltype(denseColumn), decltype(sparseRow), true>;
+  const RightEval right(denseColumn, sparseRow);
+  for (Index i = 0; i < denseColumn.size(); ++i) {
+    typename RightEval::InnerIterator it(right, i);
+    VERIFY(it);
+    VERIFY_IS_EQUAL(it.col(), 2);
+    VERIFY_IS_EQUAL(it.value().value, denseColumn(i).value * 5);
+  }
+}
+
+template <int Order>
+void test_sparse_quaternion_product_order() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  const Scalar i(0, 1, 0, 0), j(0, 0, 1, 0), k(0, 0, 0, 1);
+  SparseMatrix<Scalar, Order> lhs(1, 1), rhs(1, 1), pruned(1, 1);
+  lhs.insert(0, 0) = i;
+  rhs.insert(0, 0) = j;
+  DiagonalMatrix<Scalar, 1> diagonal;
+  diagonal.diagonal()(0) = j;
+  Matrix<Scalar, 1, 1> dense;
+  SparseVector<Scalar, RowMajor> row(1);
+  row.insert(0) = j;
+  dense(0) = i;
+  using Outer = internal::sparse_dense_outer_product_evaluator<decltype(dense), decltype(row), true>;
+  const Outer outer(dense, row);
+  VERIFY(typename Outer::InnerIterator(outer, 0).value() == k);
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const SparseMatrix<Scalar, Order> left = diagonal * lhs, right = lhs * diagonal, product = lhs * rhs;
+    const Matrix<Scalar, 1, 1, Order> denseProduct = lhs * rhs;
+    VERIFY(left.coeff(0, 0) == -k);
+    VERIFY(right.coeff(0, 0) == k);
+    VERIFY(product.coeff(0, 0) == k);
+    VERIFY(denseProduct(0) == k);
+    internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(pruned)>::run(
+        lhs, rhs, pruned, 0.0);
+    VERIFY(pruned.coeff(0, 0) == k);
+    lhs.makeCompressed();
+    rhs.makeCompressed();
+  }
+}
+
+template <int Order>
+void test_dense_sparse_quaternion_order() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  const Scalar i(0, 1, 0, 0), j(0, 0, 1, 0);
+  Matrix<Scalar, Dynamic, Dynamic, Order> dense = Matrix<Scalar, Dynamic, Dynamic, Order>::Constant(3, 3, i);
+  Matrix<Scalar, 1, Dynamic> row = Matrix<Scalar, 1, Dynamic>::Constant(3, i);
+  SparseMatrix<Scalar, Order> sparse(3, 3);
+  sparse.reserve(VectorXi::Constant(sparse.outerSize(), 3));
+  sparse.insert(0, 0) = j;
+  sparse.insert(1, 2) = j;
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    const Matrix<Scalar, Dynamic, Dynamic> product = dense * sparse;
+    Matrix<Scalar, Dynamic, Dynamic> scaled = Matrix<Scalar, Dynamic, Dynamic>::Zero(3, 3);
+    scaled.noalias() += j * (dense * sparse);
+    Matrix<Scalar, Dynamic, Dynamic> sparseLeft = Matrix<Scalar, Dynamic, Dynamic>::Zero(3, 3);
+    sparseLeft.noalias() += i * (sparse * dense);
+    const Matrix<Scalar, 1, Dynamic> rowSparse = row * sparse;
+    const SparseMatrix<Scalar, Order> cwise = dense.cwiseProduct(sparse);
+    for (Index col = 0; col < sparse.cols(); ++col) {
+      Scalar expectedRow;
+      for (Index k = 0; k < row.size(); ++k) expectedRow += row(k) * sparse.coeff(k, col);
+      VERIFY(rowSparse(col) == expectedRow);
+      for (Index r = 0; r < dense.rows(); ++r) {
+        Scalar expected;
+        for (Index k = 0; k < dense.cols(); ++k) expected += dense(r, k) * sparse.coeff(k, col);
+        VERIFY(product(r, col) == expected);
+        VERIFY(scaled(r, col) == j * expected);
+        Scalar expectedLeft;
+        for (Index k = 0; k < dense.rows(); ++k) expectedLeft += sparse.coeff(r, k) * dense(k, col);
+        VERIFY(sparseLeft(r, col) == i * expectedLeft);
+        VERIFY(cwise.coeff(r, col) == dense(r, col) * sparse.coeff(r, col));
+      }
+    }
+    sparse.makeCompressed();
+  }
+}
+
 template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
@@ -1001,6 +1357,31 @@ EIGEN_DECLARE_TEST(sparse_product) {
 
     CALL_SUBTEST_5((test_mixing_types<float>()));
     CALL_SUBTEST_5((test_mixed_storage<>()));
+    CALL_SUBTEST_5((test_sparse_cwise_product_operand_types<ColMajor>()));
+    CALL_SUBTEST_7((test_sparse_cwise_sum_operand_types<RowMajor>()));
+    CALL_SUBTEST_8((test_sparse_diagonal_products<ColMajor>()));
+    CALL_SUBTEST_8((test_sparse_diagonal_products<RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_10((test_sparse_outer_operand_types<>()));
+    CALL_SUBTEST_12((test_sparse_quaternion_product_order<ColMajor>()));
+    CALL_SUBTEST_12((test_sparse_quaternion_product_order<RowMajor>()));
+    CALL_SUBTEST_14((test_dense_sparse_quaternion_order<ColMajor>()));
+    CALL_SUBTEST_14((test_dense_sparse_quaternion_order<RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, RowMajor, RowMajor>()));
 
     CALL_SUBTEST_6((test_pruned_product_custom_scalar<>()));
     CALL_SUBTEST_6((test_ambivector_discard_custom_scalar<>()));

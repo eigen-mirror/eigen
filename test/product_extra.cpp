@@ -9,6 +9,27 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "NonCommutativeScalar.h"
+
+template <int Order>
+void test_dense_quaternion_row_order() {
+  using Scalar = noncommutative_scalar::Quaternion;
+  const Scalar i(0, 1, 0, 0), j(0, 0, 1, 0);
+  Matrix<Scalar, Dynamic, Dynamic, Order> matrix = Matrix<Scalar, Dynamic, Dynamic, Order>::Constant(3, 4, j);
+  Matrix<Scalar, 1, Dynamic> row = Matrix<Scalar, 1, Dynamic>::Constant(3, i);
+  const Matrix<Scalar, 1, Dynamic> rowProduct = row * matrix;
+  const Matrix<Scalar, Dynamic, 1> column = row.transpose();
+  const Matrix<Scalar, 1, Dynamic> transposedProduct = column.transpose() * matrix;
+  Matrix<Scalar, 1, Dynamic> scaledRow = Matrix<Scalar, 1, Dynamic>::Zero(matrix.cols());
+  scaledRow.noalias() += j * (row * matrix);
+  for (Index col = 0; col < matrix.cols(); ++col) {
+    Scalar expected;
+    for (Index k = 0; k < row.size(); ++k) expected += row(k) * matrix(k, col);
+    VERIFY(rowProduct(col) == expected);
+    VERIFY(transposedProduct(col) == expected);
+    VERIFY(scaledRow(col) == j * expected);
+  }
+}
 
 template <typename MatrixType>
 void product_extra(const MatrixType& m) {
@@ -960,6 +981,8 @@ void small_outer_product_unscaled() {
 #endif
 
 EIGEN_DECLARE_TEST(product_extra) {
+  CALL_SUBTEST_17((test_dense_quaternion_row_order<ColMajor>()));
+  CALL_SUBTEST_17((test_dense_quaternion_row_order<RowMajor>()));
   CALL_SUBTEST_14(complex_outer_product_overflow<ColMajor>());
   CALL_SUBTEST_14(complex_outer_product_overflow<RowMajor>());
   CALL_SUBTEST_14(single_term_nullary_product<ColMajor>());

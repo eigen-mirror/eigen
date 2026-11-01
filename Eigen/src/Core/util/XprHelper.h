@@ -1037,6 +1037,20 @@ struct is_permutation_base_xpr : std::is_base_of<PermutationBase<remove_all_t<Xp
     template<>
     struct ScalarBinaryOpTraits<U1,U2,internal::scalar_sum_op<U1,U2> > { typedef U1 ReturnType; };
     \endcode
+  * Custom multiplication can opt into commutative product traversals and reductions by adding
+  * \c IsCommutative to its product specialization:
+    \code
+    template<>
+    struct ScalarBinaryOpTraits<MyScalar, MyScalar,
+                                internal::scalar_product_op<MyScalar, MyScalar>> {
+      using ReturnType = MyScalar;
+      static constexpr bool IsCommutative = true;
+    };
+    \endcode
+  * This promises that reversing the operands preserves the value and result type for all valid inputs.
+  * For mixed scalar types, opt in for both ordered pairs. Missing metadata keeps custom multiplication on the
+  * conservative path; built-in arithmetic and standard complex types with arithmetic components are recognized
+  * automatically. Commutative traversals may reorder and reassociate products, changing floating-point rounding.
   *
   * By default, the following generic combinations are supported:
   <table class="manual">

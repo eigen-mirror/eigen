@@ -26,6 +26,7 @@ struct Quaternion {
   bool operator!=(const Quaternion& b) const { return !(*this == b); }
 };
 
+inline double abs(const Quaternion& a) { return Eigen::numext::sqrt(a.r * a.r + a.i * a.i + a.j * a.j + a.k * a.k); }
 inline Quaternion conj(const Quaternion& a) { return Quaternion(a.r, -a.i, -a.j, -a.k); }
 inline double real(const Quaternion& a) { return a.r; }
 inline double imag(const Quaternion& a) { return a.i; }

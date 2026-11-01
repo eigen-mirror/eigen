@@ -455,9 +455,10 @@ class MatrixBase : public DenseBase<Derived> {
   ///////// SparseCore module /////////
 
   template <typename OtherDerived>
-  EIGEN_STRONG_INLINE const typename SparseMatrixBase<OtherDerived>::template CwiseProductDenseReturnType<Derived>::Type
+  EIGEN_STRONG_INLINE const CwiseBinaryOp<internal::scalar_product_op<Scalar, typename OtherDerived::Scalar>,
+                                          const Derived, const OtherDerived>
   cwiseProduct(const SparseMatrixBase<OtherDerived>& other) const {
-    return other.cwiseProduct(derived());
+    return {derived(), other.derived()};
   }
 
   ///////// MatrixFunctions module /////////
