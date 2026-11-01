@@ -71,8 +71,11 @@ struct valid_indexed_view_overload : bool_constant<!(internal::is_valid_index_ty
 
 template <typename T, typename = void>
 struct is_eigen_expression : std::false_type {};
+// The conversion check may instantiate EigenBase<X> (MSVC 14.29 does), which is a hard error unless
+// traits<X>::StorageKind exists. Every class derived from EigenBase<X> has it, so requiring it rejects no expression.
 template <typename T>
-struct is_eigen_expression<T, void_t<decltype(std::declval<const T&>().derived())>>
+struct is_eigen_expression<T, void_t<decltype(std::declval<const T&>().derived()),
+                                     typename traits<typename shape_expression<T>::type>::StorageKind>>
     : std::is_convertible<const remove_all_t<T>*, const EigenBase<typename shape_expression<T>::type>*> {};
 
 // promote_scalar_arg is an helper used in operation between an expression and a scalar, like:

@@ -1166,7 +1166,7 @@ SparseNoncommutingScalar& operator+=(SparseNoncommutingScalar& lhs, const Sparse
   return lhs;
 }
 
-template <int LOrder, int ROrder, int DOrder>
+template <int LOrder, int ROrder, int DstOrder>
 void test_sparse_product_operand_order() {
   using Scalar = SparseNoncommutingScalar;
   SparseMatrix<Scalar, LOrder> lhs(2, 3);
@@ -1180,8 +1180,8 @@ void test_sparse_product_operand_order() {
   rhs.insert(2, 1).values = {{2, 0, 1, 1}};
   rhs.insert(1, 0).values = {{1, 1, 2, 1}};
   for (int compressed = 0; compressed < 2; ++compressed) {
-    const SparseMatrix<Scalar, DOrder> sparse = lhs * rhs;
-    const Matrix<Scalar, Dynamic, Dynamic, DOrder> dense = lhs * rhs;
+    const SparseMatrix<Scalar, DstOrder> sparse = lhs * rhs;
+    const Matrix<Scalar, Dynamic, Dynamic, DstOrder> dense = lhs * rhs;
     VERIFY(sparse.innerIndicesAreSorted());
     VERIFY_IS_EQUAL(sparse.nonZeros(), 2);
     for (Index j = 0; j < 2; ++j)
@@ -1196,7 +1196,7 @@ void test_sparse_product_operand_order() {
   }
 }
 
-template <int LOrder, int ROrder, int DOrder>
+template <int LOrder, int ROrder, int DstOrder>
 void test_sparse_pruned_operand_order() {
   using Scalar = SparseNoncommutingScalar;
   SparseMatrix<Scalar, LOrder> lhs(2, 3);
@@ -1208,10 +1208,10 @@ void test_sparse_pruned_operand_order() {
   rhs.insert(0, 1).values = {{1, 0, 3, 1}};
   rhs.insert(2, 1).values = {{2, 0, 1, 1}};
   for (int compressed = 0; compressed < 2; ++compressed) {
-    SparseMatrix<Scalar, DOrder> result(2, 2);
+    SparseMatrix<Scalar, DstOrder> result(2, 2);
     internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(result)>::run(
         lhs, rhs, result, 0.0);
-    const SparseMatrix<Scalar, DOrder> publicResult = (lhs * rhs).pruned(Scalar(0), 0.0);
+    const SparseMatrix<Scalar, DstOrder> publicResult = (lhs * rhs).pruned(Scalar(0), 0.0);
     VERIFY(result.innerIndicesAreSorted());
     VERIFY_IS_EQUAL(result.nonZeros(), 1);
     for (Index j = 0; j < 2; ++j)
