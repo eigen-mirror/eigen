@@ -16,6 +16,21 @@ In order to add support for a custom type \c T you need:
 
 The math function should be defined in the same namespace than \c T, or in the \c std namespace though that second approach is not recommended.
 
+%Eigen calls these functions through \c Eigen::numext, which dispatches on \c NumTraits<T>. When \c NumTraits<T>::IsComplex is nonzero, \c numext::abs(x) computes <tt>hypot(real(x), imag(x))</tt> and \c numext::abs2(x) computes the sum of the squares of \c real(x) and \c imag(x). Neither calls an \c abs or \c abs2 defined in the namespace of \c T. If \c real and \c imag do not determine the magnitude of \c T, as for a quaternion, specialize both. Otherwise %Eigen sees the wrong magnitude: for example, pruning a sparse product silently drops a nonzero coefficient whose \c real and \c imag are zero.
+
+\code
+namespace Eigen {
+namespace numext {
+template <> inline double abs(const my::Quaternion& x) { return norm(x); }
+}
+namespace internal {
+template <> struct abs2_impl<my::Quaternion> {
+  static inline double run(const my::Quaternion& x) { return squaredNorm(x); }
+};
+}
+}
+\endcode
+
 Here is a concrete example adding support for the Adolc's \c adouble type. <a href="https://github.com/coin-or/ADOL-C">Adolc</a> is an automatic differentiation library. The type \c adouble is basically a real value tracking the values of any number of partial derivatives.
 
 \code
