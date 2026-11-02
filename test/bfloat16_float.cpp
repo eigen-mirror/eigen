@@ -12,6 +12,7 @@
 #include <math.h>
 
 #include "main.h"
+#include "product_test_helpers.h"
 
 #define VERIFY_BFLOAT16_BITS_EQUAL(h, bits) \
   VERIFY_IS_EQUAL((numext::bit_cast<numext::uint16_t>(h)), (static_cast<numext::uint16_t>(bits)))
@@ -391,7 +392,7 @@ void test_array() {
 }
 
 void test_product() {
-  typedef Matrix<bfloat16, Dynamic, Dynamic> MatrixXh;
+  using MatrixXh = Matrix<bfloat16, Dynamic, Dynamic>;
   Index rows = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   Index cols = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
   Index depth = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
@@ -402,6 +403,26 @@ void test_product() {
   MatrixXf Bf = Bh.cast<float>();
   MatrixXf Cf = Ch.cast<float>();
   VERIFY_IS_APPROX(Ch.noalias() += Ah * Bh, (Cf.noalias() += Af * Bf).cast<bfloat16>());
+}
+
+// The blocked GEMM sums in float and rounds each coefficient once; the sizes keep it off the GEMV and coefficient-based
+// paths, which still round in bfloat16.
+void test_gemm_float_accumulation() {
+  using MatrixXh = Matrix<bfloat16, Dynamic, Dynamic>;
+  Index rows = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
+  Index cols = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
+  Index depth = internal::random<Index>(20, EIGEN_TEST_MAX_SIZE);
+  MatrixXh A = MatrixXh::Random(rows, depth);
+  MatrixXh B = MatrixXh::Random(depth, cols);
+  MatrixXh C0 = MatrixXh::Random(rows, cols);
+  // References in double, whose rounding error is negligible next to the bound.
+  MatrixXd exact = A.cast<double>().eval() * B.cast<double>().eval();
+  MatrixXd exact_update = C0.cast<double>() + exact;
+  MatrixXh C = C0;
+  C.noalias() += A * B;
+  VERIFY(verifyProductUpdate<float>(C.cast<double>(), exact_update, bfloat16(1), A, B, C0, 1));
+  C.noalias() = A * B;
+  VERIFY(verifyProduct<float>(C.cast<double>(), exact, A, B, 1));
 }
 
 void test_nextafter() {
@@ -450,6 +471,7 @@ EIGEN_DECLARE_TEST(bfloat16_float) {
     CALL_SUBTEST(test_trigonometric_functions());
     CALL_SUBTEST(test_array());
     CALL_SUBTEST(test_product());
+    CALL_SUBTEST(test_gemm_float_accumulation());
     CALL_SUBTEST(test_nextafter());
   }
 }

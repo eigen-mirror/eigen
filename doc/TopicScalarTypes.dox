@@ -40,7 +40,15 @@ A few practical notes:
   - <b>\c Eigen::half and \c Eigen::bfloat16</b> are primarily storage and interchange formats:
     on hardware without native arithmetic, operations are emulated by converting to \c float and
     back. Both are vectorized on instruction sets with hardware support (see
-    \ref TopicVectorization).
+    \ref TopicVectorization). A matrix-matrix product of two \c half or two \c bfloat16 matrices
+    that runs on the general matrix-matrix kernel sums in \c float over the whole depth and rounds
+    each result coefficient once; products small enough for the coefficient-based path, products
+    with a vector operand or result, and triangular and self-adjoint products still round in the
+    operand type. On hardware with native \c half arithmetic, such as Armv8.2-A with FP16, this
+    makes a \c half product about twice as slow as the native \c half kernel it replaces. To keep a
+    \c float result, write <tt>A.cast<float>() * B.cast<float>()</tt>: the kernel converts the
+    operands while it reads them, without first copying them to \c float, except with
+    \c EIGEN_USE_BLAS and on SME, where the casts are materialized.
 
 The scalar types with vectorized kernels for a given instruction set are listed on the
 \ref TopicVectorization "vectorization page"; every supported scalar type also works through the
