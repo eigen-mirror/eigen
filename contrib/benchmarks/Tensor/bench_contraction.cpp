@@ -6,6 +6,7 @@
 #define EIGEN_USE_THREADS
 
 #include <benchmark/benchmark.h>
+#include <contrib/Eigen/AutoDiff>
 #include <contrib/Eigen/Tensor>
 #include <Eigen/ThreadPool>
 
@@ -122,6 +123,56 @@ static void BM_Contraction_RowMajor(benchmark::State& state) {
       benchmark::Counter(2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
 }
 
+// --- Scalar type and layout variants, on DefaultDevice (threads == 0) or ThreadPoolDevice ---
+// AutoDiffScalar requires initialization, so the contraction constructs its packed blocks and temporaries.
+template <typename T>
+static T make_scalar(float value, Index /*i*/) {
+  return T(value);
+}
+
+template <>
+AutoDiffScalar<VectorXf> make_scalar<AutoDiffScalar<VectorXf>>(float value, Index i) {
+  const int num_derivatives = 4;
+  return AutoDiffScalar<VectorXf>(value, num_derivatives, static_cast<int>(i % num_derivatives));
+}
+
+template <typename T, int Layout>
+static void BM_ContractionTyped(benchmark::State& state) {
+  const int M = state.range(0);
+  const int N = state.range(1);
+  const int K = state.range(2);
+  const int threads = state.range(3);
+
+  Tensor<float, 2, Layout> A_float(M, K);
+  Tensor<float, 2, Layout> B_float(K, N);
+  A_float.setRandom();
+  B_float.setRandom();
+  Tensor<T, 2, Layout> A(M, K);
+  Tensor<T, 2, Layout> B(K, N);
+  Tensor<T, 2, Layout> C(M, N);
+  for (Index i = 0; i < A.size(); ++i) A.data()[i] = make_scalar<T>(A_float.data()[i], i);
+  for (Index i = 0; i < B.size(); ++i) B.data()[i] = make_scalar<T>(B_float.data()[i], i);
+
+  ThreadPool tp(threads > 0 ? threads : 1);
+  ThreadPoolDevice dev(&tp, threads > 0 ? threads : 1);
+
+  using ContractDims = typename Tensor<T, 2, Layout>::DimensionPair;
+  Eigen::array<ContractDims, 1> contract_dims = {ContractDims(1, 0)};
+
+  for (auto _ : state) {
+    if (threads > 0) {
+      C.device(dev) = A.contract(B, contract_dims);
+    } else {
+      C = A.contract(B, contract_dims);
+    }
+    benchmark::DoNotOptimize(C.data());
+    benchmark::ClobberMemory();
+  }
+  state.counters["GFLOPS"] =
+      benchmark::Counter(2.0 * M * N * K, benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::kIs1000);
+  state.counters["threads"] = threads;
+}
+
 // clang-format off
 #define CONTRACTION_SIZES \
   ->Args({32, 32, 32})->Args({64, 64, 64})->Args({128, 128, 128}) \
@@ -138,6 +189,10 @@ static void BM_Contraction_RowMajor(benchmark::State& state) {
   ->Args({1024, 1024, 1024, 1})->Args({1024, 1024, 1024, 2})->Args({1024, 1024, 1024, 4}) \
   ->Args({1024, 1024, 1024, 8})->Args({1024, 1024, 1024, 16})
 
+#define TYPED_SIZES \
+  ->Args({64, 64, 64, 0})->Args({256, 256, 256, 0})->Args({256, 256, 256, 4}) \
+  ->Args({2, 10, 30000, 4})
+
 #define BATCH_SIZES \
   ->Args({1, 64, 64, 64})->Args({1, 256, 256, 256}) \
   ->Args({8, 64, 64, 64})->Args({8, 256, 256, 256}) \
@@ -148,3 +203,7 @@ BENCHMARK(BM_Contraction) CONTRACTION_SIZES;
 BENCHMARK(BM_Contraction_RowMajor) CONTRACTION_SIZES;
 BENCHMARK(BM_Contraction_ThreadPool) CONTRACTION_THREADPOOL_SIZES->UseRealTime();
 BENCHMARK(BM_BatchContraction) BATCH_SIZES;
+BENCHMARK_TEMPLATE(BM_ContractionTyped, float, ColMajor) TYPED_SIZES->UseRealTime();
+BENCHMARK_TEMPLATE(BM_ContractionTyped, float, RowMajor) TYPED_SIZES->UseRealTime();
+BENCHMARK_TEMPLATE(BM_ContractionTyped, AutoDiffScalar<VectorXf>, ColMajor) TYPED_SIZES->UseRealTime();
+BENCHMARK_TEMPLATE(BM_ContractionTyped, AutoDiffScalar<VectorXf>, RowMajor) TYPED_SIZES->UseRealTime();

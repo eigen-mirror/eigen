@@ -53,9 +53,17 @@ class TensorExecutor {
     TensorEvaluator<Expression, Device> evaluator(expr, device);
     const bool needs_assign = evaluator.evalSubExprsIfNeeded(nullptr);
     if (needs_assign) {
-      const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
-      for (StorageIndex i = 0; i < size; ++i) {
-        evaluator.evalScalar(i);
+      // Scalars that require initialization take this path, and their operations may throw. Release the temporaries
+      // that evalSubExprsIfNeeded allocated before the exception propagates.
+      EIGEN_TRY {
+        const StorageIndex size = static_cast<StorageIndex>(array_prod(evaluator.dimensions()));
+        for (StorageIndex i = 0; i < size; ++i) {
+          evaluator.evalScalar(i);
+        }
+      }
+      EIGEN_CATCH(...) {
+        evaluator.cleanup();
+        EIGEN_THROW;
       }
     }
     evaluator.cleanup();

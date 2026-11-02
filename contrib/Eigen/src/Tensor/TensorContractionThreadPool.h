@@ -434,41 +434,58 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         }
       }
 
-      // Allocate memory for packed rhs/lhs matrices.
-      packed_mem_ = kernel_.allocateSlices(            //
-          device_,                                     //
-          /*num_lhs=*/nm0_,                            //
-          /*num_rhs=*/nn0_,                            //
-          /*num_slices=*/std::min<Index>(nk_, P - 1),  //
-          packed_lhs_, packed_rhs_);
+      // Constructing the packed blocks can throw for scalars that require initialization. The destructor does not run
+      // then, so release what was allocated here, and notify a synchronous waiter so that its destructor accepts it.
+      bool packed_mem_allocated = false;
+      can_use_thread_local_packed_ = nullptr;
+      EIGEN_TRY {
+        // Allocate memory for packed rhs/lhs matrices.
+        packed_mem_ = kernel_.allocateSlices(            //
+            device_,                                     //
+            /*num_lhs=*/nm0_,                            //
+            /*num_rhs=*/nn0_,                            //
+            /*num_slices=*/std::min<Index>(nk_, P - 1),  //
+            packed_lhs_, packed_rhs_);
+        packed_mem_allocated = true;
 
-      if (parallelize_by_sharding_dim_only_) {
-        const int num_worker_threads = device_.numThreadsInPool();
+        if (parallelize_by_sharding_dim_only_) {
+          const int num_worker_threads = device_.numThreadsInPool();
 
-        if (shard_by_col) {
-          can_use_thread_local_packed_ = new std::atomic<bool>[nn_];
-          for (int i = 0; i < nn_; ++i) can_use_thread_local_packed_[i].store(true, std::memory_order_relaxed);
+          if (shard_by_col) {
+            can_use_thread_local_packed_ = new std::atomic<bool>[nn_];
+            for (int i = 0; i < nn_; ++i) can_use_thread_local_packed_[i].store(true, std::memory_order_relaxed);
 
-          Index num_blocks = num_worker_threads * gn_;
-          thread_local_pre_allocated_mem_ = kernel_.allocateSlices(  //
-              device_,                                               //
-              /*num_lhs=*/0,                                         //
-              /*num_rhs=*/num_blocks,                                //
-              /*num_slices=*/1,                                      //
-              /*lhs_blocks=*/nullptr, &rhs_thread_local_pre_allocated_);
+            Index num_blocks = num_worker_threads * gn_;
+            thread_local_pre_allocated_mem_ = kernel_.allocateSlices(  //
+                device_,                                               //
+                /*num_lhs=*/0,                                         //
+                /*num_rhs=*/num_blocks,                                //
+                /*num_slices=*/1,                                      //
+                /*lhs_blocks=*/nullptr, &rhs_thread_local_pre_allocated_);
 
-        } else {
-          can_use_thread_local_packed_ = new std::atomic<bool>[nm_];
-          for (int i = 0; i < nm_; ++i) can_use_thread_local_packed_[i].store(true, std::memory_order_relaxed);
+          } else {
+            can_use_thread_local_packed_ = new std::atomic<bool>[nm_];
+            for (int i = 0; i < nm_; ++i) can_use_thread_local_packed_[i].store(true, std::memory_order_relaxed);
 
-          Index num_blocks = num_worker_threads * gm_;
-          thread_local_pre_allocated_mem_ = kernel_.allocateSlices(  //
-              device_,                                               //
-              /*num_lhs=*/num_blocks,                                //
-              /*num_rhs=*/0,                                         //
-              /*num_slices=*/1, &lhs_thread_local_pre_allocated_,    //
-              /*rhs_blocks=*/nullptr);
+            Index num_blocks = num_worker_threads * gm_;
+            thread_local_pre_allocated_mem_ = kernel_.allocateSlices(  //
+                device_,                                               //
+                /*num_lhs=*/num_blocks,                                //
+                /*num_rhs=*/0,                                         //
+                /*num_slices=*/1, &lhs_thread_local_pre_allocated_,    //
+                /*rhs_blocks=*/nullptr);
+          }
         }
+      }
+      EIGEN_CATCH(...) {
+        if (packed_mem_allocated) kernel_.deallocate(device_, packed_mem_);
+        delete[] can_use_thread_local_packed_;
+        for (Index x = 0; x < P; x++) {
+          for (Index m = 0; m < nm_; m++) delete[] state_kernel_[x][m];
+          delete[] state_kernel_[x];
+        }
+        EIGEN_IF_CONSTEXPR (std::is_same<DoneCallback, NoCallback>::value) done_.Notify();
+        EIGEN_THROW;
       }
     }
 
@@ -484,7 +501,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       }
     }
 
-    void run() {
+    // The calling thread runs part of the work after tasks are enqueued, and those tasks use this context. A throw here
+    // cannot unwind safely, so it terminates, as a throw on a worker does.
+    void run() noexcept {
       // Kick off packing of the first slice.
       signal_switch(0, 1);
 
@@ -1064,15 +1083,37 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
         l0_state.emplace_back(internal::convert_index<int>(num_pending_tasks));
       }
 
-      // Allocate temporary buffers for each block.
-      for (Index block_idx = 0; block_idx < num_blocks; ++block_idx) {
-        Scalar* buf = block_idx == 0 ? result : static_cast<Scalar*>(evaluator->m_device.allocate(buffer_size_bytes));
-        block_buffers.emplace_back(buf);
+      // Allocate temporary buffers for each block. The destructor does not run if this throws, so release them here.
+      EIGEN_TRY {
+        for (Index block_idx = 0; block_idx < num_blocks; ++block_idx) {
+          block_buffers.emplace_back(block_idx == 0 ? result : allocateBlockBuffer());
+        }
+      }
+      EIGEN_CATCH(...) {
+        releaseBlockBuffers();
+        EIGEN_THROW;
       }
     }
 
-    ~EvalShardedByInnerDimContext() {
-      for (Index i = 1; i < num_blocks; ++i) {
+    ~EvalShardedByInnerDimContext() { releaseBlockBuffers(); }
+
+    Scalar* allocateBlockBuffer() const {
+      Scalar* buf = static_cast<Scalar*>(evaluator->m_device.allocate(buffer_size_bytes));
+      EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::RequireInitialization) {
+        EIGEN_TRY { internal::default_construct_elements_of_array(buf, m * n); }
+        EIGEN_CATCH(...) {
+          evaluator->m_device.deallocate(buf);
+          EIGEN_THROW;
+        }
+      }
+      return buf;
+    }
+
+    void releaseBlockBuffers() {
+      for (size_t i = 1; i < block_buffers.size(); ++i) {
+        EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::RequireInitialization) {
+          internal::destruct_elements_of_array(block_buffers[i], m * n);
+        }
         evaluator->m_device.deallocate(block_buffers[i]);
       }
     }
@@ -1080,8 +1121,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     template <int Alignment>
     void run() {
       Barrier barrier(internal::convert_index<int>(num_blocks));
-      eval<Alignment>(barrier, 0, num_blocks);
-      barrier.Wait();
+      evalBlocks<Alignment>(barrier);
 
       // Aggregate partial sums from l0 ranges.
       aggregateL0Blocks<Alignment>();
@@ -1090,8 +1130,16 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       applyOutputKernel();
     }
 
+    // The calling thread evaluates a block after tasks are enqueued, and those tasks use this context and the barrier.
+    // A throw here cannot unwind safely, so it terminates, as a throw on a worker does.
     template <int Alignment>
-    void runAsync() {
+    void evalBlocks(Barrier& barrier) noexcept {
+      eval<Alignment>(barrier, 0, num_blocks);
+      barrier.Wait();
+    }
+
+    template <int Alignment>
+    void runAsync() noexcept {
       evalAsync<Alignment>(0, num_blocks);
     }
 

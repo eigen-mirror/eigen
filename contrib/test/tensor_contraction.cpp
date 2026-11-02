@@ -8,9 +8,14 @@
 // with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 // SPDX-License-Identifier: MPL-2.0
 
+#define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
+
 #include "main.h"
 
 #include <Eigen/Tensor>
+#include <contrib/Eigen/AutoDiff>
+
+#include "AnnoyingScalar.h"
 
 using Eigen::DefaultDevice;
 using Eigen::Tensor;
@@ -976,11 +981,75 @@ static void test_zero_dim_contraction_output_kernel() {
   }
 }
 
+// Issue #2714: the packed blocks and the temporary result of a contraction hold scalars that require
+// initialization; they must be constructed before the packers and gebp assign into them, and destructed afterwards.
+template <int DataLayout>
+static void test_scalar_require_initialization() {
+  Tensor<float, 2, DataLayout> left(37, 53);
+  Tensor<float, 2, DataLayout> right(53, 41);
+  Tensor<float, 2, DataLayout> vec(53, 1);
+  left.setRandom();
+  right.setRandom();
+  vec.setRandom();
+  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+  const Tensor<float, 2, DataLayout> expected = left.contract(right, dims);
+  const Tensor<float, 2, DataLayout> expected_gemv = left.contract(vec, dims);
+
+  AnnoyingScalar::instances = 0;
+  {
+    const Tensor<AnnoyingScalar, 2, DataLayout> a_left = left.template cast<AnnoyingScalar>();
+    const Tensor<AnnoyingScalar, 2, DataLayout> a_right = right.template cast<AnnoyingScalar>();
+    const Tensor<AnnoyingScalar, 2, DataLayout> a_vec = vec.template cast<AnnoyingScalar>();
+    Tensor<AnnoyingScalar, 2, DataLayout> result = a_left.contract(a_right, dims);
+    Tensor<float, 2, DataLayout> actual = result.template cast<float>();
+    for (Index i = 0; i < actual.size(); ++i) VERIFY_IS_APPROX(actual.data()[i], expected.data()[i]);
+
+    // A contraction nested in another expression evaluates into a temporary result buffer.
+    result = a_left.contract(a_right, dims) + a_left.contract(a_right, dims);
+    actual = result.template cast<float>();
+    for (Index i = 0; i < actual.size(); ++i) VERIFY_IS_APPROX(actual.data()[i], 2 * expected.data()[i]);
+
+    Tensor<AnnoyingScalar, 2, DataLayout> result_gemv = a_left.contract(a_vec, dims) + a_left.contract(a_vec, dims);
+    actual = result_gemv.template cast<float>();
+    for (Index i = 0; i < actual.size(); ++i) VERIFY_IS_APPROX(actual.data()[i], 2 * expected_gemv.data()[i]);
+  }
+  VERIFY_IS_EQUAL(AnnoyingScalar::instances, 0);
+}
+
+// The reproducer from issue #2714.
+template <typename = void>
+static void test_autodiff_contraction() {
+  using AD = AutoDiffScalar<VectorXf>;
+  Tensor<AD, 2> x(2, 2);
+  Tensor<AD, 2> w(2, 2);
+  for (int i = 0; i < 4; ++i) {
+    x.data()[i] = AD(1.0f + i, 8, i);
+    w.data()[i] = AD(5.0f + i, 8, 4 + i);
+  }
+  Eigen::array<DimPair, 1> dims = {{DimPair(1, 0)}};
+  const Tensor<AD, 2> z = x.contract(w, dims);
+  for (Index i = 0; i < 2; ++i) {
+    for (Index j = 0; j < 2; ++j) {
+      VectorXf derivatives = VectorXf::Zero(8);
+      float value = 0;
+      for (Index l = 0; l < 2; ++l) {
+        value += x(i, l).value() * w(l, j).value();
+        derivatives += x(i, l).value() * w(l, j).derivatives() + w(l, j).value() * x(i, l).derivatives();
+      }
+      VERIFY_IS_APPROX(z(i, j).value(), value);
+      VERIFY_IS_APPROX(z(i, j).derivatives(), derivatives);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_1(test_evals<ColMajor>());
   CALL_SUBTEST_1(test_evals<RowMajor>());
   CALL_SUBTEST_1(test_scalar<ColMajor>());
   CALL_SUBTEST_1(test_scalar<RowMajor>());
+  CALL_SUBTEST_1(test_scalar_require_initialization<ColMajor>());
+  CALL_SUBTEST_1(test_scalar_require_initialization<RowMajor>());
+  CALL_SUBTEST_1(test_autodiff_contraction<>());
   CALL_SUBTEST_2(test_multidims<ColMajor>());
   CALL_SUBTEST_2(test_multidims<RowMajor>());
   CALL_SUBTEST_2(test_holes<ColMajor>());

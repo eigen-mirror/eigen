@@ -60,7 +60,9 @@ struct traits<
 };
 
 // Helper class to allocate and deallocate temporary memory for packed buffers.
-template <typename LhsScalar, typename RhsScalar>
+template <typename LhsScalar, typename RhsScalar,
+          bool RequireInitialization =
+              NumTraits<LhsScalar>::RequireInitialization || NumTraits<RhsScalar>::RequireInitialization>
 struct TensorContractionBlockMemAllocator {
   using BlockMemHandle = void*;
 
@@ -122,6 +124,87 @@ struct TensorContractionBlockMemAllocator {
     sz.lhs_size = numext::div_ceil<Index>(bm * bk * sizeof(LhsScalar), align) * align;
     sz.rhs_size = numext::div_ceil<Index>(bn * bk * sizeof(RhsScalar), align) * align;
     return sz;
+  }
+};
+
+// Packed blocks of scalars that require initialization (e.g. AutoDiffScalar) are constructed after allocation and
+// destructed before deallocation. The handle records the blocks so that deallocate() can destruct them.
+template <typename LhsScalar, typename RhsScalar>
+struct TensorContractionBlockMemAllocator<LhsScalar, RhsScalar, true> {
+  using RawAllocator = TensorContractionBlockMemAllocator<LhsScalar, RhsScalar, false>;
+
+  struct BlockMemHandle {
+    void* mem = nullptr;
+    Index lhs_block_size = 0;
+    Index rhs_block_size = 0;
+    std::vector<LhsScalar*> lhs_blocks;
+    std::vector<RhsScalar*> rhs_blocks;
+  };
+
+  template <typename Device>
+  static BlockMemHandle allocate(Device& d, const Index bm, const Index bk, const Index bn, LhsScalar** lhs_block,
+                                 RhsScalar** rhs_block) {
+    BlockMemHandle handle;
+    handle.mem = RawAllocator::allocate(d, bm, bk, bn, lhs_block, rhs_block);
+    EIGEN_TRY {
+      handle.lhs_blocks.push_back(*lhs_block);
+      handle.rhs_blocks.push_back(*rhs_block);
+      construct(handle, bm * bk, bn * bk);
+    }
+    EIGEN_CATCH(...) {
+      RawAllocator::deallocate(d, handle.mem);
+      EIGEN_THROW;
+    }
+    return handle;
+  }
+
+  template <typename Device>
+  static BlockMemHandle allocateSlices(Device& d, const Index bm, const Index bk, const Index bn, const Index num_lhs,
+                                       const Index num_rhs, const Index num_slices, std::vector<LhsScalar*>* lhs_blocks,
+                                       std::vector<RhsScalar*>* rhs_blocks) {
+    BlockMemHandle handle;
+    handle.mem = RawAllocator::allocateSlices(d, bm, bk, bn, num_lhs, num_rhs, num_slices, lhs_blocks, rhs_blocks);
+    EIGEN_TRY {
+      for (Index x = 0; x < num_slices; x++) {
+        if (num_lhs > 0) handle.lhs_blocks.insert(handle.lhs_blocks.end(), lhs_blocks[x].begin(), lhs_blocks[x].end());
+        if (num_rhs > 0) handle.rhs_blocks.insert(handle.rhs_blocks.end(), rhs_blocks[x].begin(), rhs_blocks[x].end());
+      }
+      construct(handle, bm * bk, bn * bk);
+    }
+    EIGEN_CATCH(...) {
+      RawAllocator::deallocate(d, handle.mem);
+      EIGEN_THROW;
+    }
+    return handle;
+  }
+
+  template <typename Device>
+  static void deallocate(Device& d, const BlockMemHandle& handle) {
+    for (LhsScalar* block : handle.lhs_blocks) destruct_elements_of_array(block, handle.lhs_block_size);
+    for (RhsScalar* block : handle.rhs_blocks) destruct_elements_of_array(block, handle.rhs_block_size);
+    RawAllocator::deallocate(d, handle.mem);
+  }
+
+ private:
+  // If a constructor throws, the blocks constructed so far are destructed before the exception propagates.
+  static void construct(BlockMemHandle& handle, const Index lhs_block_size, const Index rhs_block_size) {
+    std::size_t lhs_done = 0;
+    std::size_t rhs_done = 0;
+    EIGEN_TRY {
+      for (; lhs_done < handle.lhs_blocks.size(); ++lhs_done) {
+        default_construct_elements_of_array(handle.lhs_blocks[lhs_done], lhs_block_size);
+      }
+      for (; rhs_done < handle.rhs_blocks.size(); ++rhs_done) {
+        default_construct_elements_of_array(handle.rhs_blocks[rhs_done], rhs_block_size);
+      }
+    }
+    EIGEN_CATCH(...) {
+      while (rhs_done > 0) destruct_elements_of_array(handle.rhs_blocks[--rhs_done], rhs_block_size);
+      while (lhs_done > 0) destruct_elements_of_array(handle.lhs_blocks[--lhs_done], lhs_block_size);
+      EIGEN_THROW;
+    }
+    handle.lhs_block_size = lhs_block_size;
+    handle.rhs_block_size = rhs_block_size;
   }
 };
 
@@ -196,7 +279,7 @@ struct TensorContractionKernel {
   }
 
   template <typename Device>
-  EIGEN_DEVICE_FUNC static void deallocate(Device& d, BlockMemHandle handle) {
+  EIGEN_DEVICE_FUNC static void deallocate(Device& d, const BlockMemHandle& handle) {
     BlockMemAllocator::deallocate(d, handle);
   }
 
@@ -621,15 +704,26 @@ struct TensorContractionEvaluatorBase {
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) {
     m_leftImpl.evalSubExprsIfNeeded(nullptr);
-    m_rightImpl.evalSubExprsIfNeeded(nullptr);
-    if (data) {
-      evalTo(data);
-      return false;
-    } else {
-      m_result = static_cast<EvaluatorPointerType>(m_device.allocate(dimensions().TotalSize() * sizeof(Scalar)));
-      evalTo(m_result);
-      return true;
+    // The executor does not call cleanup() when evaluation throws, so release the operands and the result here.
+    EIGEN_TRY { m_rightImpl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_leftImpl.cleanup();
+      EIGEN_THROW;
     }
+    EIGEN_TRY {
+      if (data) {
+        evalTo(data);
+      } else {
+        m_result = static_cast<EvaluatorPointerType>(m_device.allocate(dimensions().TotalSize() * sizeof(Scalar)));
+        constructResult();
+        evalTo(m_result);
+      }
+    }
+    EIGEN_CATCH(...) {
+      cleanup();
+      EIGEN_THROW;
+    }
+    return data == nullptr;
   }
 
 #ifdef EIGEN_USE_THREADS
@@ -641,6 +735,7 @@ struct TensorContractionEvaluatorBase {
         EvaluatorPointerType buffer = dest;
         if (need_assign) {
           m_result = static_cast<EvaluatorPointerType>(m_device.allocate(dimensions().TotalSize() * sizeof(Scalar)));
+          constructResult();
           buffer = m_result;
         }
         // One callback type for both branches: each distinct closure type instantiates the whole evalProductAsync tree.
@@ -926,6 +1021,13 @@ struct TensorContractionEvaluatorBase {
 
     using BlockMemHandle = typename TensorContractionKernel::BlockMemHandle;
     const BlockMemHandle packed_mem = kernel.allocate(this->m_device, &blockA, &blockB);
+    // Releases the packed blocks also when packing, gebp or the output kernel throws.
+    struct PackedMemGuard {
+      TensorContractionKernel& kernel;
+      const Device& device;
+      const BlockMemHandle& mem;
+      EIGEN_DEVICE_FUNC ~PackedMemGuard() { kernel.deallocate(device, mem); }
+    } packed_mem_guard{kernel, this->m_device, packed_mem};
 
     // If a contraction kernel does not support beta, explicitly initialize
     // output buffer with zeroes.
@@ -963,18 +1065,12 @@ struct TensorContractionEvaluatorBase {
         }
       }
     }
-
-    kernel.deallocate(this->m_device, packed_mem);
   }
 
   EIGEN_STRONG_INLINE void cleanup() {
     m_leftImpl.cleanup();
     m_rightImpl.cleanup();
-
-    if (m_result != nullptr) {
-      m_device.deallocate(m_result);
-      m_result = nullptr;
-    }
+    releaseResult();
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const { return m_result[index]; }
@@ -1002,6 +1098,32 @@ struct TensorContractionEvaluatorBase {
   }
 
  protected:
+  // The temporary result is written by assignment (fill, gebp), so scalars that require initialization must be
+  // constructed first. The GPU evaluator allocates m_result itself without constructing it, so cleanup() destructs only
+  // what was constructed here.
+  EIGEN_STRONG_INLINE void constructResult() {
+    EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::RequireInitialization) {
+      EIGEN_TRY { internal::default_construct_elements_of_array(m_result, dimensions().TotalSize()); }
+      EIGEN_CATCH(...) {
+        m_device.deallocate(m_result);
+        m_result = nullptr;
+        EIGEN_THROW;
+      }
+      m_result_constructed = true;
+    }
+  }
+
+  EIGEN_STRONG_INLINE void releaseResult() {
+    if (m_result != nullptr) {
+      EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::RequireInitialization) {
+        if (m_result_constructed) internal::destruct_elements_of_array(m_result, dimensions().TotalSize());
+        m_result_constructed = false;
+      }
+      m_device.deallocate(m_result);
+      m_result = nullptr;
+    }
+  }
+
   Dimensions m_dimensions;
 
   contract_t m_k_strides{};
@@ -1034,6 +1156,7 @@ struct TensorContractionEvaluatorBase {
   const Device EIGEN_DEVICE_REF m_device;
   OutputKernelType m_output_kernel;
   EvaluatorPointerType m_result;
+  bool m_result_constructed = false;
 };
 
 // evaluator for default device

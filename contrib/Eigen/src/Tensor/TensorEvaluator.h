@@ -732,7 +732,12 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_leftImpl.evalSubExprsIfNeeded(nullptr);
-    m_rightImpl.evalSubExprsIfNeeded(nullptr);
+    // The executor does not call cleanup() when evaluation throws, so release the operand evaluated first.
+    EIGEN_TRY { m_rightImpl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_leftImpl.cleanup();
+      EIGEN_THROW;
+    }
     return true;
   }
 
@@ -882,8 +887,18 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_arg1Impl.evalSubExprsIfNeeded(nullptr);
-    m_arg2Impl.evalSubExprsIfNeeded(nullptr);
-    m_arg3Impl.evalSubExprsIfNeeded(nullptr);
+    // The executor does not call cleanup() when evaluation throws, so release the operands evaluated first.
+    EIGEN_TRY { m_arg2Impl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_arg1Impl.cleanup();
+      EIGEN_THROW;
+    }
+    EIGEN_TRY { m_arg3Impl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_arg1Impl.cleanup();
+      m_arg2Impl.cleanup();
+      EIGEN_THROW;
+    }
     return true;
   }
   EIGEN_STRONG_INLINE void cleanup() {
@@ -1036,8 +1051,18 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_condImpl.evalSubExprsIfNeeded(nullptr);
-    m_thenImpl.evalSubExprsIfNeeded(nullptr);
-    m_elseImpl.evalSubExprsIfNeeded(nullptr);
+    // The executor does not call cleanup() when evaluation throws, so release the operands evaluated first.
+    EIGEN_TRY { m_thenImpl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_condImpl.cleanup();
+      EIGEN_THROW;
+    }
+    EIGEN_TRY { m_elseImpl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_condImpl.cleanup();
+      m_thenImpl.cleanup();
+      EIGEN_THROW;
+    }
     return true;
   }
 

@@ -182,7 +182,12 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear.
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_leftImpl.evalSubExprsIfNeeded(nullptr);
-    m_rightImpl.evalSubExprsIfNeeded(nullptr);
+    // The executor does not call cleanup() when evaluation throws, so release the operand evaluated first.
+    EIGEN_TRY { m_rightImpl.evalSubExprsIfNeeded(nullptr); }
+    EIGEN_CATCH(...) {
+      m_leftImpl.cleanup();
+      EIGEN_THROW;
+    }
     return true;
   }
 
