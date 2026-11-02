@@ -317,8 +317,7 @@ class AlignedBox {
    */
   template <typename Derived>
   EIGEN_DEVICE_FUNC inline NonInteger exteriorDistance(const MatrixBase<Derived>& p) const {
-    using numext::sqrt;
-    return sqrt(NonInteger(squaredExteriorDistance(p)));
+    return numext::sqrt(NonInteger(squaredExteriorDistance(p)));
   }
 
   /** \returns the distance between the boxes \a b and \c *this,
@@ -326,8 +325,7 @@ class AlignedBox {
    * \sa squaredExteriorDistance(const AlignedBox&), exteriorDistance(const MatrixBase&)
    */
   EIGEN_DEVICE_FUNC inline NonInteger exteriorDistance(const AlignedBox& b) const {
-    using numext::sqrt;
-    return sqrt(NonInteger(squaredExteriorDistance(b)));
+    return numext::sqrt(NonInteger(squaredExteriorDistance(b)));
   }
 
   /**

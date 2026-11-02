@@ -189,10 +189,8 @@ EIGEN_DEVICE_FUNC Rotation2D<Scalar>& Rotation2D<Scalar>::fromRotationMatrix(con
  */
 template <typename Scalar>
 typename Rotation2D<Scalar>::Matrix2 EIGEN_DEVICE_FUNC Rotation2D<Scalar>::toRotationMatrix(void) const {
-  using numext::cos;
-  using numext::sin;
-  Scalar sinA = sin(m_angle);
-  Scalar cosA = cos(m_angle);
+  Scalar sinA = numext::sin(m_angle);
+  Scalar cosA = numext::cos(m_angle);
   return (Matrix2() << cosA, -sinA, sinA, cosA).finished();
 }
 

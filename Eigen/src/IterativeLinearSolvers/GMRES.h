@@ -60,9 +60,6 @@ namespace internal {
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
 bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner& precond, Index& iters,
            const Index& restart_, typename Dest::RealScalar& tol_error) {
-  using numext::abs;
-  using numext::sqrt;
-
   using RealScalar = typename Dest::RealScalar;
   using Scalar = typename Dest::Scalar;
   using VectorType = Matrix<Scalar, Dynamic, 1>;
@@ -166,7 +163,7 @@ bool gmres(const MatrixType& mat, const Rhs& rhs, Dest& x, const Preconditioner&
     // insert coefficients into upper matrix triangle
     H.col(k - 1).head(k) = v.head(k);
 
-    tol_error = abs(w(k)) / rhsNorm;
+    tol_error = numext::abs(w(k)) / rhsNorm;
     bool stop = (k == m || tol_error < tol || iters == maxIters);
 
     if (stop || k == restart) {

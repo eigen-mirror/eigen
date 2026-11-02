@@ -160,8 +160,7 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(c
   RealScalar p = numext::maxi(x, y);
   if (numext::is_exactly_zero(p)) return RealScalar(0);
   RealScalar qp = numext::mini(y, x) / p;
-  using numext::sqrt;
-  return p * sqrt(RealScalar(1) + qp * qp);
+  return p * numext::sqrt<RealScalar>(RealScalar(1) + qp * qp);
 }
 
 template <typename Scalar>
@@ -180,7 +179,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE ComplexT complex_sqrt_extreme(const ComplexT
   const T zero = T(0);
   const T inf = NumTraits<T>::infinity();
   EIGEN_IF_CONSTEXPR (Reciprocal) {
-    if ((numext::isinf)(x) || (numext::isinf)(y)) return ComplexT(zero, numext::copysign(zero, -y));
+    if ((numext::isinf)(x) || (numext::isinf)(y)) return ComplexT(zero, numext::copysign<T>(zero, -y));
   } else {
     if ((numext::isinf)(y)) return ComplexT(inf, y);
     if ((numext::isinf)(x)) {

@@ -568,7 +568,6 @@ struct ldlt_inplace<Lower> {
   template <typename MatrixType, typename WDerived>
   static bool updateInPlace(MatrixType& mat, MatrixBase<WDerived>& w,
                             const typename MatrixType::RealScalar& sigma = 1) {
-    using numext::isfinite;
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
 
@@ -581,7 +580,7 @@ struct ldlt_inplace<Lower> {
     // Apply the update
     for (Index j = 0; j < size; j++) {
       // Check for termination due to an original decomposition of low-rank
-      if (!(isfinite)(alpha)) break;
+      if (!(numext::isfinite)(alpha)) break;
 
       // Update the diagonal terms
       RealScalar dj = numext::real(mat.coeff(j, j));
@@ -779,7 +778,6 @@ void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstTyp
   // dst = D^-* (L^-1 P b)
   // dst = D^-1 (L^-*T P b)
   // more precisely, use pseudo-inverse of D (see bug 241)
-  using numext::abs;
   const typename Diagonal<const MatrixType>::RealReturnType vecD(vectorD());
   // In some previous versions, tolerance was set to the max of 1/highest (or rather numeric_limits::min())
   // and the maximal diagonal entry * epsilon as motivated by LAPACK's xGELSS:
@@ -789,7 +787,7 @@ void LDLT<MatrixType_, UpLo_>::_solve_impl_transposed(const RhsType& rhs, DstTyp
   // xSYTRS routines use 0 for the tolerance. Using numeric_limits::min() gives us more robustness to denormals.
   RealScalar tolerance = (std::numeric_limits<RealScalar>::min)();
   for (Index i = 0; i < vecD.size(); ++i) {
-    if (abs(vecD(i)) > tolerance)
+    if (numext::abs(vecD(i)) > tolerance)
       dst.row(i) /= vecD(i);
     else
       dst.row(i).setZero();

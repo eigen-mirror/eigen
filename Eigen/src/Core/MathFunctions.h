@@ -952,8 +952,31 @@ struct sign_impl<bool, false, true> {
   EIGEN_DEVICE_FUNC static inline bool run(const bool& a) { return a; }
 };
 
+// Extra namespace to prevent leaking std::copysign into Eigen::internal.
+namespace has_copysign_detail {
+
+template <typename T, typename EnableIf = void>
+struct has_copysign_impl : public std::false_type {};
+
+EIGEN_USING_STD(copysign)
+
+template <typename T>
+struct has_copysign_impl<T, std::enable_if_t<std::is_constructible<
+                                T, decltype(copysign(std::declval<const T&>(), std::declval<const T&>()))>::value>>
+    : public std::true_type {};
+
+}  // namespace has_copysign_detail
+
+// Detects whether copysign(T, T) is available via std:: or ADL. When unavailable,
+// copysign_impl falls back to `< Scalar(0)` comparisons, which cannot inspect the
+// sign bit of negative zero or NaN (e.g., copysign(-0, 1) returns -0, copysign(1, -0)
+// returns +1, and complex_sqrt(-1 - 0i) returns +i rather than -i).
+template <typename T>
+struct has_copysign : public has_copysign_detail::has_copysign_impl<T> {};
+
 template <typename Scalar, bool IsComplex = (NumTraits<Scalar>::IsComplex != 0),
-          bool IsInteger = (NumTraits<Scalar>::IsInteger != 0)>
+          bool IsInteger = (NumTraits<Scalar>::IsInteger != 0),
+          bool HasCopysign = (!IsComplex && !IsInteger && has_copysign<Scalar>::value)>
 struct copysign_impl {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
     EIGEN_USING_STD(copysign);
@@ -962,24 +985,25 @@ struct copysign_impl {
 };
 
 template <typename Scalar, bool IsInteger>
-struct copysign_impl<Scalar, true, IsInteger> {
+struct copysign_impl<Scalar, true, IsInteger, false> {
+  using RealScalar = typename NumTraits<Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
-    EIGEN_USING_STD(copysign);
-    return Scalar(copysign(numext::real(a), numext::real(b)), copysign(numext::imag(a), numext::imag(b)));
+    return Scalar(copysign_impl<RealScalar>::run(numext::real(a), numext::real(b)),
+                  copysign_impl<RealScalar>::run(numext::imag(a), numext::imag(b)));
   }
 };
 
-template <typename Scalar>
-struct copysign_impl<Scalar, false, true> {
+template <typename Scalar, bool IsInteger>
+struct copysign_impl<Scalar, false, IsInteger, false> {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a, const Scalar& b) {
-    EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsSigned) return a;
+    EIGEN_IF_CONSTEXPR (IsInteger && !NumTraits<Scalar>::IsSigned) return a;
     const Scalar abs_a = a < Scalar(0) ? -a : a;
     return b < Scalar(0) ? -abs_a : abs_a;
   }
 };
 
 template <>
-struct copysign_impl<bool, false, true> {
+struct copysign_impl<bool, false, true, false> {
   EIGEN_DEVICE_FUNC static inline bool run(const bool& a, const bool&) { return a; }
 };
 
@@ -1685,9 +1709,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE double log(const double& x) {
 #endif
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-    std::enable_if_t<NumTraits<T>::IsSigned && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
-    abs(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<
+    (NumTraits<T>::IsSigned || !NumTraits<T>::IsInteger) && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
+abs(const T& x) {
   EIGEN_USING_STD(abs);
   return abs(x);
 }
@@ -1699,9 +1723,9 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<NumTraits<T>::IsComplex, 
 }
 
 template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE
-    std::enable_if_t<!NumTraits<T>::IsSigned && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
-    abs(const T& x) {
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<
+    !NumTraits<T>::IsSigned && NumTraits<T>::IsInteger && !NumTraits<T>::IsComplex, typename NumTraits<T>::Real>
+abs(const T& x) {
   return x;
 }
 

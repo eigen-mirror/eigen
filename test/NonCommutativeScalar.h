@@ -41,6 +41,13 @@ struct NumTraits<noncommutative_scalar::Quaternion> : GenericNumTraits<noncommut
   static constexpr bool IsComplex = true;
   static constexpr bool RequireInitialization = true;
 };
+namespace numext {
+// The generic numext::abs of a complex scalar is hypot(real, imag), which would ignore the j and k components.
+template <>
+inline double abs(const noncommutative_scalar::Quaternion& a) {
+  return noncommutative_scalar::abs(a);
+}
+}  // namespace numext
 }  // namespace Eigen
 
 #endif

@@ -321,7 +321,6 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
    * are skipped.
    */
   explicit Iterator(const AmbiVector& vec, const RealScalar& epsilon = 0) : m_vector(vec) {
-    using numext::abs;
     m_epsilon = epsilon;
     m_isDense = m_vector.m_mode == IsDense;
     if (m_isDense) {
@@ -332,7 +331,7 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
     } else {
       const ListEl* EIGEN_RESTRICT llElements = m_vector.listElements();
       m_currentEl = m_vector.m_llStart;
-      while (m_currentEl >= 0 && abs(llElements[m_currentEl].value) <= m_epsilon)
+      while (m_currentEl >= 0 && numext::abs(llElements[m_currentEl].value) <= m_epsilon)
         m_currentEl = llElements[m_currentEl].next;
       if (m_currentEl < 0) {
         m_cachedValue = 0;  // this is to avoid a compilation warning
@@ -350,11 +349,10 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
   operator bool() const { return m_cachedIndex >= 0; }
 
   Iterator& operator++() {
-    using numext::abs;
     if (m_isDense) {
       do {
         ++m_cachedIndex;
-      } while (m_cachedIndex < m_vector.m_end && abs(m_vector.m_buffer[m_cachedIndex]) <= m_epsilon);
+      } while (m_cachedIndex < m_vector.m_end && numext::abs(m_vector.m_buffer[m_cachedIndex]) <= m_epsilon);
       if (m_cachedIndex < m_vector.m_end)
         m_cachedValue = m_vector.m_buffer[m_cachedIndex];
       else
@@ -363,7 +361,7 @@ class AmbiVector<Scalar_, StorageIndex_>::Iterator {
       const ListEl* EIGEN_RESTRICT llElements = m_vector.listElements();
       do {
         m_currentEl = llElements[m_currentEl].next;
-      } while (m_currentEl >= 0 && abs(llElements[m_currentEl].value) <= m_epsilon);
+      } while (m_currentEl >= 0 && numext::abs(llElements[m_currentEl].value) <= m_epsilon);
       if (m_currentEl < 0) {
         m_cachedIndex = -1;
       } else {

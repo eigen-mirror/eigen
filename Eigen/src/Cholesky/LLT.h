@@ -321,7 +321,6 @@ struct llt_inplace;
 template <typename MatrixType, typename VectorType>
 static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
                                    const typename MatrixType::RealScalar& sigma) {
-  using numext::sqrt;
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   using ColXpr = typename MatrixType::ColXpr;
@@ -340,7 +339,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
     // This version is based on Givens rotations.
     // It is faster than the other one below, but only works for updates,
     // i.e., for sigma > 0
-    temp = sqrt(sigma) * vec;
+    temp = numext::sqrt(sigma) * vec;
 
     for (Index i = 0; i < n; ++i) {
       JacobiRotation<Scalar> g;
@@ -365,7 +364,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
 
       RealScalar x = dj + swj2 / beta;
       if (x <= RealScalar(0)) return j;
-      RealScalar nLjj = sqrt(x);
+      RealScalar nLjj = numext::sqrt(x);
       mat.coeffRef(j, j) = nLjj;
       beta += swj2 / dj;
 
@@ -387,8 +386,6 @@ struct llt_inplace<Scalar, Lower> {
   using RealScalar = typename NumTraits<Scalar>::Real;
   template <typename MatrixType>
   static Index unblocked(MatrixType& mat) {
-    using numext::sqrt;
-
     EIGEN_INTERNAL_ASSERT_SQUARE(mat);
     const Index size = mat.rows();
     for (Index k = 0; k < size; ++k) {
@@ -401,7 +398,7 @@ struct llt_inplace<Scalar, Lower> {
       RealScalar x = numext::real(mat.coeff(k, k));
       if (k > 0) x -= A10.squaredNorm();
       if (x <= RealScalar(0)) return k;
-      mat.coeffRef(k, k) = x = sqrt(x);
+      mat.coeffRef(k, k) = x = numext::sqrt(x);
       if (k > 0 && rs > 0) A21.noalias() -= A20 * A10.adjoint();
       if (rs > 0) A21 /= x;
     }
