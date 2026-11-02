@@ -505,14 +505,15 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
     diagShifted = activeDiag - shift;
 
     if (k != actual_n - 1) {
-      // check that after the shift, f(mid) is still negative:
+      // mid rounds to working precision, but midShifted is exact relative to the pole. With close poles, fMid can
+      // therefore misplace the root, and the bisection below only reaches 0.51 * (right - left) from the shift.
       RealScalar midShifted = (right - left) / RealScalar(2);
       // we can test exact equality here, because shift comes from `... ? left : right`
       if (numext::equal_strict(shift, right)) midShifted = -midShifted;
       RealScalar fMidShifted = secularEq(midShifted, activeCol0, activeDiag, shiftedRef, shift);
-      if (fMidShifted > 0) {
-        // fMid was erroneous, fix it:
-        shift = fMidShifted > Literal(0) ? left : right;
+      const RealScalar rootSideShift = fMidShifted > Literal(0) ? left : right;
+      if (!numext::equal_strict(shift, rootSideShift)) {
+        shift = rootSideShift;
         diagShifted = activeDiag - shift;
       }
     }
@@ -606,6 +607,13 @@ void bdcsvd_impl<RealScalar_>::computeSingVals(const ArrayRef& col0, const Array
           RealScalar midShifted = (leftShifted + rightShifted) / Literal(2);
           fMid = secularEq(midShifted, activeCol0, activeDiag, shiftedRef, shift);
           eigen_internal_assert((numext::isfinite)(fMid));
+
+          // An exact root must end the search: with fLeft = 0, every later sign test would fail and drive the search to
+          // rightShifted.
+          if (numext::is_exactly_zero(fMid)) {
+            leftShifted = rightShifted = midShifted;
+            break;
+          }
 
           if (fLeft * fMid < Literal(0)) {
             rightShifted = midShifted;
