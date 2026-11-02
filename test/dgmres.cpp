@@ -146,6 +146,7 @@ void test_dgmres_iterations_T() {
 
 // The Arnoldi coefficient is h(i,j) = v_i^H A v_j; computing its conjugate broke the orthogonalization for complex
 // scalars, so restarted DGMRES needed about twice the iterations of the equivalent GMRES(30).
+template <typename = void>
 void test_dgmres_complex_arnoldi() {
   using T = std::complex<double>;
   const Index n = 60;
@@ -233,6 +234,7 @@ void test_dgmres_deflation(const T& imagPart) {
 
 // A real conjugate pair of Ritz values is deflated whole. The smallest eigenvalues here are about 0.002 +- 0.04i, so
 // setEigenv(1) with room for one update deflates a two-dimensional subspace.
+template <typename = void>
 void test_dgmres_deflation_conjugate_pair() {
   const Index g = 20, n = g * g;
   SparseMatrix<double> A(n, n);
@@ -265,6 +267,7 @@ void test_dgmres_deflation_conjugate_pair() {
 
 // The deflation subspace never exceeds the dimension: with n = 3 and restart 2 it reached four vectors, which made T
 // singular.
+template <typename = void>
 void test_dgmres_deflation_small() {
   const Index n = 3;
   SparseMatrix<double> A(n, n);
@@ -293,11 +296,11 @@ EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_4(test_dgmres_breakdown_T<std::complex<double> >());
   CALL_SUBTEST_5(test_dgmres_iterations_T<double>());
   CALL_SUBTEST_6(test_dgmres_iterations_T<std::complex<double> >());
-  CALL_SUBTEST_6(test_dgmres_complex_arnoldi());
+  CALL_SUBTEST_6(test_dgmres_complex_arnoldi<>());
   CALL_SUBTEST_7((test_dgmres_deflation<double, IdentityPreconditioner>(0.0)));
   CALL_SUBTEST_7((test_dgmres_deflation<double, DiagonalPreconditioner<double> >(0.0)));
-  CALL_SUBTEST_7(test_dgmres_deflation_conjugate_pair());
-  CALL_SUBTEST_7(test_dgmres_deflation_small());
+  CALL_SUBTEST_7(test_dgmres_deflation_conjugate_pair<>());
+  CALL_SUBTEST_7(test_dgmres_deflation_small<>());
   CALL_SUBTEST_8((test_dgmres_deflation<std::complex<double>, IdentityPreconditioner>(std::complex<double>(0, 1))));
   CALL_SUBTEST_8((test_dgmres_deflation<std::complex<double>, DiagonalPreconditioner<std::complex<double> > >(
       std::complex<double>(0, 1))));

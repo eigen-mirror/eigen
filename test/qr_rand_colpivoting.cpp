@@ -664,11 +664,11 @@ EIGEN_DECLARE_TEST(qr_rand_colpivoting) {
     CALL_SUBTEST_1(rcod<MatrixXf>());
     CALL_SUBTEST_2(rcod<MatrixXd>());
     CALL_SUBTEST_3(rcod<MatrixXcd>());
-    CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10>, 4>()));
+    CALL_SUBTEST_10((rcod_fixedsize<Matrix<float, 8, 10>, 4>()));
     CALL_SUBTEST_5((rcod_fixedsize<Matrix<double, 12, 6>, 3>()));
 
     CALL_SUBTEST_2((rcod<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
-    CALL_SUBTEST_4((rcod_fixedsize<Matrix<float, 8, 10, RowMajor>, 4>()));
+    CALL_SUBTEST_11((rcod_fixedsize<Matrix<float, 8, 10, RowMajor>, 4>()));
   }
 
   for (int i = 0; i < g_repeat; i++) {

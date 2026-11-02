@@ -213,6 +213,7 @@ void testMatrixLogarithmSingular() {
 
 // The loop could also create an infinite entry: the first square root divides A(0, 1) by 2 sqrt(A(0, 0)) = 2e-10,
 // which overflows, as log(A)(0, 1) = A(0, 1) / A(0, 0) does. The three eigenvalues form one atomic block.
+template <typename = void>
 void testMatrixLogarithmSquareRootOverflow() {
   MatrixXd A(3, 3);
   A << 1e-20, 1e300, 0, 0, 1e-20, 1, 0, 0, 1e-20;
@@ -243,7 +244,7 @@ EIGEN_DECLARE_TEST(matrix_function) {
 
   CALL_SUBTEST_3(testMatrixLogarithmSingular<MatrixXf>());
   CALL_SUBTEST_7(testMatrixLogarithmSingular<MatrixXd>());
-  CALL_SUBTEST_7(testMatrixLogarithmSquareRootOverflow());
+  CALL_SUBTEST_7(testMatrixLogarithmSquareRootOverflow<>());
   CALL_SUBTEST_3(testEmptyMatrix<MatrixXf>());
   CALL_SUBTEST_7(testEmptyMatrix<MatrixXcd>());
 }

@@ -137,6 +137,7 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
 }
 
 // Zero eigenvalues found below the leading 2x2 block of the Schur factor were not all split off.
+template <typename = void>
 void testSingularTrailingZero() {
   Matrix3d A;
   A << 1, 1, 1, 0, 4, 1, 0, 0, 0;
@@ -147,6 +148,7 @@ void testSingularTrailingZero() {
 }
 
 // A 2x2 base kept its zero eigenvalues in the atomic block, where a double one gave p * 0^(p-1) * 0 = NaN.
+template <typename = void>
 void testSingularTwoByTwo() {
   VERIFY(Matrix2d(Matrix2d::Zero().pow(0.5)).isZero());
   VERIFY(Matrix2d(Matrix2d::Zero().pow(1.5)).isZero());
@@ -159,6 +161,7 @@ void testSingularTwoByTwo() {
 // The coupling T11^(p-1) T12 of the nonsingular block T11 to the zero eigenvalues must not overflow or underflow when
 // the result does not. Forming T11^p T12 first failed for s = 1e300 and s = 1e-300, and forming T11^(p-1) first
 // failed for the tiny nonnormal T11 below.
+template <typename = void>
 void testSingularExtremeScale() {
   // The complex pow(t, p) = exp(p log t) of a diagonal entry t near 1e+-300 can lose |p log t| ~ 345 ulp.
   const double tol = 512 * NumTraits<double>::epsilon();
@@ -185,7 +188,8 @@ void testSingularExtremeScale() {
 }
 
 // MatrixPowerAtomic left the (1, 0) entry of a 2x2 result unset, and MatrixPower read it when it coupled a 2x2 block
-// to a zero eigenvalue, as for the first matrix of testSingularTrailingZero().
+// to a zero eigenvalue, as for the first matrix of testSingularTrailingZero<>().
+template <typename = void>
 void testAtomicTwoByTwoLowerPart() {
   Matrix2d T, expected, res = Matrix2d::Constant(std::numeric_limits<double>::quiet_NaN());
   T << 4, 1, 0, 9;
@@ -196,6 +200,7 @@ void testAtomicTwoByTwoLowerPart() {
 }
 
 // MatrixPower::compute() did not size the result for 0x0 and 1x1 bases.
+template <typename = void>
 void testComputeResultSize() {
   MatrixXd a = MatrixXd::Constant(1, 1, 4), r;
   MatrixPower<MatrixXd>(a).compute(r, 0.5);
@@ -207,6 +212,7 @@ void testComputeResultSize() {
 }
 
 // An infinite entry used to hang the square-rooting loop for atomic blocks larger than 2x2.
+template <typename = void>
 void testInfiniteEntry() {
   Matrix3d a = Matrix3d::Identity();
   a(0, 2) = std::numeric_limits<double>::infinity();
@@ -220,6 +226,7 @@ void testInfiniteEntry() {
 }
 
 // A nonfinite exponent used to hang the binary powering of the integral part.
+template <typename = void>
 void testNonFiniteExponent() {
   Matrix3d a;
   a << 1, 2, 3, 4, 5, 6, 7, 8, 10;
@@ -287,19 +294,19 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));
   CALL_SUBTEST_4(testSingular(MatrixXd(8, 8), 128 * NumTraits<double>::epsilon()));
-  CALL_SUBTEST_4(testComputeResultSize());
+  CALL_SUBTEST_4(testComputeResultSize<>());
   CALL_SUBTEST_1(testSingular(Matrix2f(), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_5(testSingular(Matrix3cf(), 8 * NumTraits<std::complex<float>>::epsilon()));
   CALL_SUBTEST_8(testSingular(Matrix4f(), 256 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_6(testSingular(MatrixXf(2, 2), 8 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_9(testSingular(MatrixXe(7, 7), 256 * NumTraits<long double>::epsilon()));
   CALL_SUBTEST_10(testSingular(Matrix3d(), 1024 * NumTraits<double>::epsilon()));
-  CALL_SUBTEST_10(testSingularTrailingZero());
-  CALL_SUBTEST_10(testSingularTwoByTwo());
-  CALL_SUBTEST_10(testSingularExtremeScale());
-  CALL_SUBTEST_10(testAtomicTwoByTwoLowerPart());
-  CALL_SUBTEST_10(testInfiniteEntry());
-  CALL_SUBTEST_10(testNonFiniteExponent());
+  CALL_SUBTEST_10(testSingularTrailingZero<>());
+  CALL_SUBTEST_10(testSingularTwoByTwo<>());
+  CALL_SUBTEST_10(testSingularExtremeScale<>());
+  CALL_SUBTEST_10(testAtomicTwoByTwoLowerPart<>());
+  CALL_SUBTEST_10(testInfiniteEntry<>());
+  CALL_SUBTEST_10(testNonFiniteExponent<>());
   CALL_SUBTEST_11(testSingular(Matrix3f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testSingular(Matrix3e(), 1024 * NumTraits<long double>::epsilon()));
 

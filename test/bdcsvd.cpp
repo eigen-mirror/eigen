@@ -535,9 +535,9 @@ void bdcsvd_qr_crossover() {
 
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
-  CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
+  CALL_SUBTEST_72((svd_normal_equation_roundoff<double, RowMajor>()));
   CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<float>, RowMajor>()));
-  CALL_SUBTEST_61((svd_normal_equation_roundoff<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_73((svd_normal_equation_roundoff<std::complex<double>, ColMajor>()));
 
   CALL_SUBTEST_2((bdcsvd_asserts<Matrix4d>()));
   CALL_SUBTEST_3((bdcsvd_asserts<Matrix<float, 10, 7>>()));
@@ -592,24 +592,24 @@ EIGEN_DECLARE_TEST(bdcsvd) {
     TEST_SET_BUT_UNUSED_VARIABLE(smallSize);
     CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<double>(smallSize)));
     CALL_SUBTEST_62((bdcsvd_precondition_square_matrix_bidiagonal<float>(smallSize)));
-    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
-    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
-    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
-    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
-    CALL_SUBTEST_62((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
+    CALL_SUBTEST_74((svd_precondition_square_matrix_accuracy<Matrix2f>(2)));
+    CALL_SUBTEST_75((svd_precondition_square_matrix_accuracy<Matrix4d>(4)));
+    CALL_SUBTEST_74((svd_precondition_square_matrix_accuracy<MatrixXf>(12)));
+    CALL_SUBTEST_75((svd_precondition_square_matrix_accuracy<MatrixXd>(12)));
+    CALL_SUBTEST_75((svd_precondition_square_matrix_accuracy<Matrix<double, Dynamic, Dynamic, RowMajor>>(12)));
     CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix2cd>(2)));
-    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
-    CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
+    CALL_SUBTEST_76((svd_precondition_square_matrix_accuracy<Matrix4cf>(4)));
+    CALL_SUBTEST_76((svd_precondition_square_matrix_accuracy<MatrixXcf>(12)));
     CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
     CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
-    CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
+    CALL_SUBTEST_77((svd_precondition_square_matrix_runtime_options<MatrixXcd>(internal::random<Index>(1, 30))));
     CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<Matrix2f>(2)));
-    CALL_SUBTEST_64((bdcsvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+    CALL_SUBTEST_78((bdcsvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
         Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
     // smallSvd keeps its QR preconditioner, so small non-square inputs work with DisableQRDecomposition too.
-    CALL_SUBTEST_64(
+    CALL_SUBTEST_79(
         (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(10, 5))));
-    CALL_SUBTEST_64(
+    CALL_SUBTEST_79(
         (svd_thin_full_option_checks<MatrixXd, DisableQRDecomposition | PreconditionSquareMatrix>(MatrixXd(5, 10))));
   }
 
@@ -622,10 +622,10 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
-  CALL_SUBTEST_45(bdcsvd_power_of_two_scaling<>());
-  CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
-  CALL_SUBTEST_45((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
-  CALL_SUBTEST_45((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
+  CALL_SUBTEST_70(bdcsvd_power_of_two_scaling<>());
+  CALL_SUBTEST_71((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
+  CALL_SUBTEST_80((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
+  CALL_SUBTEST_81((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
 
   // Without total deflation issues.
   CALL_SUBTEST_46((compare_bdc_jacobi_instance<>(true)));

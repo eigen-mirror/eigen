@@ -411,6 +411,7 @@ void test_kron_least_squares_scaling(Index m1, Index n1, Index m2, Index n2) {
 // so rank() is 3 -- matching the dense complete orthogonal decomposition.
 // leastSquaresSolve() decides rank per factor instead (it never forms the
 // pairwise products), so it applies A^+ (x) B^+ with both 1e-8 modes inverted.
+template <typename = void>
 void test_kron_product_level_rank() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -435,6 +436,7 @@ void test_kron_product_level_rank() {
 // det(A (x) B) = det(A)^n2 * det(B)^n1 must be accumulated with exponent
 // balancing: det(A)^n2 or det(B)^n1 can overflow or underflow on their own even
 // when the result is representable.
+template <typename = void>
 void test_kron_determinant_scaling() {
   typedef Matrix<double, Dynamic, Dynamic> Mat;
 
@@ -477,6 +479,7 @@ void test_kron_determinant_scaling() {
 // multiplication, so every pairwise singular-value product used to pass and
 // rank() returned 8 where the dense SVD says 1. The comparison must happen in
 // ratio space: (sa_i/sa_0) * (sb_j/sb_0) against min(rows,cols) * eps.
+template <typename = void>
 void test_kron_rank_ratio_threshold() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -518,6 +521,7 @@ void test_kron_rank_ratio_threshold() {
 // zero. A = [1], B = [DBL_MIN/2] has the singular value DBL_MIN/2: the dense
 // rank is 0, but without the clamp the structured rank was 1. The boundary
 // DBL_MIN itself stays rank one, matching SVDBase::rank()'s >= convention.
+template <typename = void>
 void test_kron_rank_min_normal_clamp() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -942,6 +946,7 @@ void test_kron_diag_least_squares(Index n1, Index n2) {
 
 // Through diagonal factors, the balanced determinant survives partial products
 // that overflow on their own.
+template <typename = void>
 void test_kron_diag_determinant_scaling() {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef DiagonalMatrix<double, Dynamic> Diag;
@@ -1003,6 +1008,7 @@ void test_kron_diag_fixed() {
 
 // Matrix-free CG through a diagonal-factor operator: a positive diagonal
 // tensored with an SPD dense factor is SPD.
+template <typename = void>
 void test_kron_diag_matrix_free_cg(Index n1, Index n2) {
   typedef Matrix<double, Dynamic, 1> Vec;
   typedef Matrix<double, Dynamic, Dynamic> Mat;
@@ -1367,6 +1373,7 @@ void test_kron_sparse_inverse_determinant(Index n1, Index n2) {
 // determinant is an exact zero. A NaN entry propagates through products, solves
 // and the determinant. An all-zero factor gives zero products, determinant and
 // rank, and an empty materialization.
+template <typename = void>
 void test_kron_sparse_degenerate(Index n1, Index n2) {
   using Vec = Matrix<double, Dynamic, 1>;
   using Mat = Matrix<double, Dynamic, Dynamic>;
@@ -1410,6 +1417,7 @@ void test_kron_sparse_degenerate(Index n1, Index n2) {
 // A factor handed over uncompressed (reserve + insert) is compressed on
 // construction, and its explicitly stored zeros count as stored entries of the
 // materialization, exactly as in kroneckerProduct().
+template <typename = void>
 void test_kron_sparse_stored_zeros(Index n1, Index n2) {
   using Vec = Matrix<double, Dynamic, 1>;
   using Mat = Matrix<double, Dynamic, Dynamic>;
@@ -1439,6 +1447,7 @@ void test_kron_sparse_stored_zeros(Index n1, Index n2) {
 // An ill-conditioned sparse factor: the tridiagonal Laplacian of order n has
 // condition number ~0.4 n^2, so I_p (x) L is judged by its backward error
 // ||b - K x|| <= n eps ||L||_2 ||x||, with ||L||_2 < 4, not entrywise.
+template <typename = void>
 void test_kron_sparse_solve_laplacian(Index n, Index p) {
   using Vec = Matrix<double, Dynamic, 1>;
   using Sparse = SparseMatrix<double>;
@@ -1519,6 +1528,7 @@ void test_kron_sparse_least_squares(Index n1, Index n2) {
 
 // The balanced SparseLU determinant survives partial products that overflow on
 // their own.
+template <typename = void>
 void test_kron_sparse_determinant_scaling() {
   using Vec = Matrix<double, Dynamic, 1>;
   using Mat = Matrix<double, Dynamic, Dynamic>;
@@ -1566,6 +1576,7 @@ void test_kron_sparse_mixed_scalar(Index n1, Index m2, Index n2) {
 
 // Matrix-free CG through a sparse-factor operator: an SPD sparse factor
 // tensored with an SPD dense factor is SPD.
+template <typename = void>
 void test_kron_sparse_matrix_free_cg(Index n1, Index n2) {
   using Vec = Matrix<double, Dynamic, 1>;
   using Mat = Matrix<double, Dynamic, Dynamic>;
@@ -2142,10 +2153,10 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
 
     // Numerical boundaries: product-level rank truncation, balanced determinant
     // and ratio-space rank thresholds.
-    CALL_SUBTEST_7(test_kron_product_level_rank());
-    CALL_SUBTEST_7(test_kron_determinant_scaling());
-    CALL_SUBTEST_7(test_kron_rank_ratio_threshold());
-    CALL_SUBTEST_7(test_kron_rank_min_normal_clamp());
+    CALL_SUBTEST_7(test_kron_product_level_rank<>());
+    CALL_SUBTEST_7(test_kron_determinant_scaling<>());
+    CALL_SUBTEST_7(test_kron_rank_ratio_threshold<>());
+    CALL_SUBTEST_7(test_kron_rank_min_normal_clamp<>());
 
     // Diagonal and identity factors: products, transposition family,
     // mixed-scalar promotion, fixed sizes.
@@ -2176,8 +2187,8 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_35((test_kron_diag_svd<std::complex<double>>(3, 4)));
     CALL_SUBTEST_36((test_kron_diag_rank<std::complex<double>>(3, 4)));
     CALL_SUBTEST_37((test_kron_diag_least_squares<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_9(test_kron_diag_determinant_scaling());
-    CALL_SUBTEST_9(test_kron_diag_matrix_free_cg(6, 7));
+    CALL_SUBTEST_9(test_kron_diag_determinant_scaling<>());
+    CALL_SUBTEST_9(test_kron_diag_matrix_free_cg<>(6, 7));
 
     // Sparse factors: products, materialization, the identity-Kronecker
     // operators, the transposition family, mixed-scalar promotion.
@@ -2193,7 +2204,7 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_40((test_kron_sparse_transpose<std::complex<double>>(3, 4, 2, 5)));
     CALL_SUBTEST_10((test_kron_sparse_mixed_scalar<double>(4, 3, 5)));
     CALL_SUBTEST_40((test_kron_sparse_mixed_scalar<float>(3, 4, 2)));
-    CALL_SUBTEST_10(test_kron_sparse_stored_zeros(4, 3));
+    CALL_SUBTEST_10(test_kron_sparse_stored_zeros<>(4, 3));
 
     // Sparse factors through the solvers, inverse/determinant, the
     // decomposition family and matrix-free CG.
@@ -2202,18 +2213,18 @@ EIGEN_DECLARE_TEST(structured_kronecker) {
     CALL_SUBTEST_22((test_kron_sparse_solve<std::complex<double>>(6, 4)));
     CALL_SUBTEST_11((test_kron_sparse_inverse_determinant<double>(4, 5)));
     CALL_SUBTEST_22((test_kron_sparse_inverse_determinant<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_11((test_kron_sparse_eigen<double>(4, 5)));
-    CALL_SUBTEST_11((test_kron_sparse_svd<double>(4, 5)));
-    CALL_SUBTEST_11((test_kron_sparse_rank<double>(4, 5)));
-    CALL_SUBTEST_11((test_kron_sparse_least_squares<double>(4, 5)));
+    CALL_SUBTEST_57((test_kron_sparse_eigen<double>(4, 5)));
+    CALL_SUBTEST_57((test_kron_sparse_svd<double>(4, 5)));
+    CALL_SUBTEST_57((test_kron_sparse_rank<double>(4, 5)));
+    CALL_SUBTEST_57((test_kron_sparse_least_squares<double>(4, 5)));
     CALL_SUBTEST_23((test_kron_sparse_eigen<std::complex<double>>(3, 4)));
     CALL_SUBTEST_41((test_kron_sparse_svd<std::complex<double>>(3, 4)));
     CALL_SUBTEST_42((test_kron_sparse_rank<std::complex<double>>(3, 4)));
     CALL_SUBTEST_43((test_kron_sparse_least_squares<std::complex<double>>(3, 4)));
-    CALL_SUBTEST_11(test_kron_sparse_solve_laplacian(64, 4));
-    CALL_SUBTEST_11(test_kron_sparse_degenerate(4, 3));
-    CALL_SUBTEST_11(test_kron_sparse_determinant_scaling());
-    CALL_SUBTEST_11(test_kron_sparse_matrix_free_cg(6, 7));
+    CALL_SUBTEST_11(test_kron_sparse_solve_laplacian<>(64, 4));
+    CALL_SUBTEST_11(test_kron_sparse_degenerate<>(4, 3));
+    CALL_SUBTEST_11(test_kron_sparse_determinant_scaling<>());
+    CALL_SUBTEST_11(test_kron_sparse_matrix_free_cg<>(6, 7));
 
     CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<float, ColMajor>(1)));
     CALL_SUBTEST_12((test_kron_sparse_determinant_subnormal<double, RowMajor>(1)));

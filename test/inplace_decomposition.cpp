@@ -403,8 +403,8 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, Dynamic, Dynamic, ColMajor>>()));
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_4((inplace_fullpivlu_subspaces<Matrix<double, 3, 3, RowMajor | DontAlign>>()));
-  CALL_SUBTEST_10((inplace_special_values<MatrixXd>(2)));
-  CALL_SUBTEST_10((inplace_special_values<MatrixXd>(1)));
+  CALL_SUBTEST_19((inplace_special_values<MatrixXd>(2)));
+  CALL_SUBTEST_19((inplace_special_values<MatrixXd>(1)));
   CALL_SUBTEST_11(inplace_plain_lower_triangle<>());
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(128)));
   CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(129)));
@@ -451,31 +451,31 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
     CALL_SUBTEST_10((inplace_schur<MatrixXd, RealSchur>(size)));
     CALL_SUBTEST_10((inplace_schur<MatrixXd, RealSchur>(1)));
     CALL_SUBTEST_10((inplace_schur<Matrix4f, RealSchur>(4)));
-    CALL_SUBTEST_10((inplace_schur<MatrixXcd, ComplexSchur>(size)));
-    CALL_SUBTEST_10((inplace_schur<MatrixXcd, ComplexSchur>(1)));
-    CALL_SUBTEST_10((inplace_schur<Matrix4cf, ComplexSchur>(4)));
-    CALL_SUBTEST_10((inplace_special_values<MatrixXd>(size)));
-    CALL_SUBTEST_10((inplace_special_values<Matrix4f>(4)));
+    CALL_SUBTEST_18((inplace_schur<MatrixXcd, ComplexSchur>(size)));
+    CALL_SUBTEST_18((inplace_schur<MatrixXcd, ComplexSchur>(1)));
+    CALL_SUBTEST_18((inplace_schur<Matrix4cf, ComplexSchur>(4)));
+    CALL_SUBTEST_19((inplace_special_values<MatrixXd>(size)));
+    CALL_SUBTEST_19((inplace_special_values<Matrix4f>(4)));
 
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<MatrixXd>(size)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<MatrixXcd>(size)));
+    CALL_SUBTEST_16((inplace_selfadjoint_eigensolver<MatrixXcd>(size)));
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<MatrixXd>(1)));
     // Fixed sizes whose columns are packet-aligned take the vectorized rotation kernel.
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix2d>(2)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix3d>(3)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix4f>(4)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix4d>(4)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(size)));
+    CALL_SUBTEST_15((inplace_selfadjoint_eigensolver<Matrix2d>(2)));
+    CALL_SUBTEST_15((inplace_selfadjoint_eigensolver<Matrix3d>(3)));
+    CALL_SUBTEST_17((inplace_selfadjoint_eigensolver<Matrix4f>(4)));
+    CALL_SUBTEST_15((inplace_selfadjoint_eigensolver<Matrix4d>(4)));
+    CALL_SUBTEST_17((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(size)));
     // Large enough for the blocked tridiagonalization, on strided and row-major storage.
     CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<MatrixXd>(100)));
-    CALL_SUBTEST_11((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(100)));
+    CALL_SUBTEST_17((inplace_selfadjoint_eigensolver<Matrix<float, Dynamic, Dynamic, RowMajor>>(100)));
 
     CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(size)));
     CALL_SUBTEST_12((inplace_eigensolver<MatrixXd, EigenSolver>(1)));
     CALL_SUBTEST_12((inplace_eigensolver<Matrix4f, EigenSolver>(4)));
-    CALL_SUBTEST_12((inplace_eigensolver<MatrixXcd, ComplexEigenSolver>(size)));
-    CALL_SUBTEST_12((inplace_eigensolver<MatrixXcd, ComplexEigenSolver>(1)));
-    CALL_SUBTEST_12((inplace_eigensolver<Matrix4cf, ComplexEigenSolver>(4)));
+    CALL_SUBTEST_20((inplace_eigensolver<MatrixXcd, ComplexEigenSolver>(size)));
+    CALL_SUBTEST_20((inplace_eigensolver<MatrixXcd, ComplexEigenSolver>(1)));
+    CALL_SUBTEST_20((inplace_eigensolver<Matrix4cf, ComplexEigenSolver>(4)));
 
     CALL_SUBTEST_13((inplace_qz<MatrixXd, RealQZ>(size)));
     CALL_SUBTEST_13((inplace_generalized_eigensolver<MatrixXd>(size)));

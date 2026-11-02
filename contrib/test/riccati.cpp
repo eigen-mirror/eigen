@@ -691,7 +691,8 @@ void generalized_schur_swap(Index n1, Index n2) {
   VERIFY((Z.adjoint() * Z - MatrixType::Identity(size, size)).norm() <= bound);
 }
 
-#if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_ALL)
+#if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_9) || defined(EIGEN_TEST_PART_10) || \
+    defined(EIGEN_TEST_PART_ALL)
 // A rejected swap leaves all matrices untouched, and the reordering then reports failure.
 void generalized_schur_rejected_swap() {
   // Equal 2x2 blocks make the generalized Sylvester equation singular.
@@ -732,7 +733,7 @@ EIGEN_DECLARE_TEST(riccati) {
   CALL_SUBTEST_6(generalized_schur_rejected_swap());
   for (Index n1 = 1; n1 <= 2; ++n1)
     for (Index n2 = 1; n2 <= 2; ++n2) CALL_SUBTEST_6(generalized_schur_swap<MatrixXd>(n1, n2));
-  CALL_SUBTEST_6(generalized_schur_swap<MatrixXcd>(1, 1));
+  CALL_SUBTEST_9(generalized_schur_swap<MatrixXcd>(1, 1));
   CALL_SUBTEST_4(dare_complex_qz_2x2_block());
   CALL_SUBTEST_7(dare_scipy_complex_cases());
   CALL_SUBTEST_7(dare_scipy_real_cases<MatrixXcd>());
@@ -740,11 +741,11 @@ EIGEN_DECLARE_TEST(riccati) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_2(dare_random<MatrixXd>(20, 6));
     CALL_SUBTEST_3(dare_random<MatrixXcd>(20, 6));
-    CALL_SUBTEST_4(dare_random<MatrixXf>(8, 4));
-    CALL_SUBTEST_4(dare_random<MatrixXcf>(8, 4));
+    CALL_SUBTEST_11(dare_random<MatrixXf>(8, 4));
+    CALL_SUBTEST_8(dare_random<MatrixXcf>(8, 4));
     CALL_SUBTEST_5((dare_random<Matrix<double, 4, 4>>(4, 4)));
     CALL_SUBTEST_6(generalized_schur_reordering<MatrixXd>(internal::random<Index>(1, 30)));
-    CALL_SUBTEST_6(generalized_schur_reordering<MatrixXcd>(internal::random<Index>(1, 30)));
-    CALL_SUBTEST_6(generalized_schur_reordering<MatrixXf>(internal::random<Index>(1, 30)));
+    CALL_SUBTEST_9(generalized_schur_reordering<MatrixXcd>(internal::random<Index>(1, 30)));
+    CALL_SUBTEST_10(generalized_schur_reordering<MatrixXf>(internal::random<Index>(1, 30)));
   }
 }

@@ -300,6 +300,7 @@ void test_block_sparse_dense_product(int bRows, int bCols) {
 // Non-square block product: A(BR x BC) * B(BC x BC2) -> C(BR x BC2)
 // ---------------------------------------------------------------------------
 
+template <typename = void>
 void test_nonsquare_block_product() {
   using Scalar = double;
   using StorageIndex = int;
@@ -673,6 +674,7 @@ void test_block_sparse_selfadjoint(int bN) {
 // ---------------------------------------------------------------------------
 
 // In-place division of an integer matrix must divide, not multiply by the integer 1/s.
+template <typename = void>
 void test_block_sparse_integer_division() {
   using BSM = BlockSparseMatrix<int, ColMajor, 2, 2>;
   std::vector<BSM::TripletType> trips;
@@ -716,6 +718,7 @@ void test_block_sparse_isapprox_extreme_scales() {
 }
 
 // Custom scalars keep the squared comparison, so isApprox() must not widen them to std::complex.
+template <typename = void>
 void test_block_sparse_isapprox_custom_complex() {
   using Scalar = CustomComplex<double>;
   using BSM = BlockSparseMatrix<Scalar, ColMajor, 2, 2>;
@@ -733,6 +736,7 @@ void test_block_sparse_isapprox_custom_complex() {
   VERIFY(!sparse.isApprox(-sparse));
 }
 
+template <typename = void>
 void test_block_triplet_traits() {
   // Flat scalar array means BlockTriplet should be trivially copyable and
   // standard-layout for any trivially-copyable Scalar and StorageIndex.
@@ -783,7 +787,7 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
   CALL_SUBTEST_10((test_block_sparse_product<3, RowMajor>(3, 4, 5)));
 
   // Non-square block product
-  CALL_SUBTEST_11(test_nonsquare_block_product());
+  CALL_SUBTEST_11(test_nonsquare_block_product<>());
 
   // Block-sparse * dense and dense * block-sparse (ColMajor)
   CALL_SUBTEST_12((test_block_sparse_dense_product<2, 2, ColMajor>(4, 5)));
@@ -812,17 +816,17 @@ EIGEN_DECLARE_TEST(block_sparse_matrix) {
   CALL_SUBTEST_16((test_block_sparse_selfadjoint<2, RowMajor>(5)));
 
   // BlockTriplet type traits
-  CALL_SUBTEST_17(test_block_triplet_traits());
+  CALL_SUBTEST_17(test_block_triplet_traits<>());
   CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<float, ColMajor>()));
   CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<double, RowMajor>()));
   CALL_SUBTEST_17((test_block_sparse_isapprox_extreme_scales<std::complex<double>, ColMajor>()));
-  CALL_SUBTEST_17(test_block_sparse_isapprox_custom_complex());
+  CALL_SUBTEST_17(test_block_sparse_isapprox_custom_complex<>());
 
   // Complex scalar coverage: conjugation paths in adjoint, selfadjoint, triangular products
   CALL_SUBTEST_18((test_block_sparse<2, 2, ColMajor, std::complex<double>>(4, 6)));
   CALL_SUBTEST_18((test_block_sparse<3, 3, ColMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse<2, 2, RowMajor, std::complex<double>>(4, 6)));
-  CALL_SUBTEST_18(test_block_sparse_integer_division());
+  CALL_SUBTEST_18(test_block_sparse_integer_division<>());
   CALL_SUBTEST_18((test_block_sparse_dense_product<2, 2, ColMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse_dense_product<2, 2, RowMajor, std::complex<double>>(4, 5)));
   CALL_SUBTEST_18((test_block_sparse_transpose<2, 2, ColMajor, std::complex<double>>(4, 5)));

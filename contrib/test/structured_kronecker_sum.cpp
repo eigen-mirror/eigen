@@ -687,6 +687,7 @@ void test_ksum_eigenvalues(Index n1, Index n2) {
 // u_t = (d_yy + d_xx) u on an n1 x n2 grid with D = tridiag(-1, 2, -1) the SPD
 // negated second difference, (I + tau (Dy (+) Dx)) u = b, against SparseLU of
 // the materialized matrix; and matrix-free CG on Dy (+) Dx.
+template <typename = void>
 void test_ksum_finite_difference(Index n1, Index n2) {
   using Sparse = SparseMatrix<double>;
   using Vec = VectorXd;
@@ -722,6 +723,7 @@ void test_ksum_finite_difference(Index n1, Index n2) {
 }
 
 // Fixed-size factors keep the compile-time size.
+template <typename = void>
 void test_ksum_fixed() {
   const Matrix3d A = Matrix3d::Random();
   const Matrix2d B = Matrix2d::Random();
@@ -739,7 +741,7 @@ EIGEN_DECLARE_TEST(structured_kronecker_sum) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_ksum_product<double>(3, 4)));
     CALL_SUBTEST_1((test_ksum_product<double>(1, 1)));
-    CALL_SUBTEST_1(test_ksum_fixed());
+    CALL_SUBTEST_1(test_ksum_fixed<>());
     CALL_SUBTEST_5((test_ksum_product<float>(4, 3)));
     CALL_SUBTEST_6((test_ksum_product<std::complex<double>>(3, 3)));
     CALL_SUBTEST_2((test_ksum_nested<double>(2, 3, 4)));
@@ -756,7 +758,7 @@ EIGEN_DECLARE_TEST(structured_kronecker_sum) {
     CALL_SUBTEST_9((test_ksum_hermitian_gate<std::complex<double>>(4, 3)));
     CALL_SUBTEST_11((test_ksum_hermitian_gate<std::complex<float>>(3, 4)));
     CALL_SUBTEST_4((test_ksum_eigenvalues<double>(3, 4)));
-    CALL_SUBTEST_4((test_ksum_eigenvalues<std::complex<float>>(3, 2)));
-    CALL_SUBTEST_4(test_ksum_finite_difference(12, 9));
+    CALL_SUBTEST_13((test_ksum_eigenvalues<std::complex<float>>(3, 2)));
+    CALL_SUBTEST_14(test_ksum_finite_difference<>(12, 9));
   }
 }

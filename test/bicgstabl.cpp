@@ -34,6 +34,7 @@ void test_bicgstabl_solve_with_guess_restart() {
 }
 
 // A zero right-hand side is solved by x = 0 without iterating; iterations() used to report the cap.
+template <typename = void>
 void test_zero_rhs() {
   SparseMatrix<double> A(4, 4);
   for (Index i = 0; i < 4; ++i) A.insert(i, i) = 2.0;
@@ -48,5 +49,5 @@ EIGEN_DECLARE_TEST(bicgstabl) {
   CALL_SUBTEST_1(test_bicgstabl_T<double>());
   CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
   CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart<>());
-  CALL_SUBTEST_3(test_zero_rhs());
+  CALL_SUBTEST_3(test_zero_rhs<>());
 }

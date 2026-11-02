@@ -368,9 +368,9 @@ EIGEN_DECLARE_TEST(jacobisvd) {
     CALL_SUBTEST_63((svd_precondition_square_matrix_accuracy<MatrixXcd>(12)));
     CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXf>(12)));
     CALL_SUBTEST_64((svd_precondition_square_matrix_runtime_options<MatrixXcd>(r)));
-    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
-    CALL_SUBTEST_64((jacobisvd_fullpiv_runtime_thin_asserts<PreconditionSquareMatrix>(6, 6)));
-    CALL_SUBTEST_64((jacobisvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
+    CALL_SUBTEST_68((jacobisvd_fullpiv_runtime_thin_asserts<0>(8, 5)));
+    CALL_SUBTEST_68((jacobisvd_fullpiv_runtime_thin_asserts<PreconditionSquareMatrix>(6, 6)));
+    CALL_SUBTEST_69((jacobisvd_thin_full_options<Matrix<double, Dynamic, Dynamic, RowMajor>>(
         Matrix<double, Dynamic, Dynamic, RowMajor>(8, 8))));
 
     MatrixXcd noQRTest = MatrixXcd(r, r);
@@ -424,18 +424,18 @@ EIGEN_DECLARE_TEST(jacobisvd) {
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
   CALL_SUBTEST_56(jacobisvd_power_of_two_scaling<>());
-  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
-  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));
-  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcf>(4, 4)));
-  CALL_SUBTEST_56((jacobisvd_flushed_subnormal_matrix<MatrixXcd>(3, 5)));
-  CALL_SUBTEST_56(jacobisvd_subnormal_diagonals<float>());
-  CALL_SUBTEST_56(jacobisvd_subnormal_diagonals<double>());
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(0, 0)));
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(0, 3)));
-  CALL_SUBTEST_56((svd_zero_matrix_solvers<MatrixXd>(3, 0)));
+  CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
+  CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));
+  CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXcf>(4, 4)));
+  CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXcd>(3, 5)));
+  CALL_SUBTEST_66(jacobisvd_subnormal_diagonals<float>());
+  CALL_SUBTEST_66(jacobisvd_subnormal_diagonals<double>());
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<MatrixXd>(0, 0)));
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<MatrixXd>(0, 3)));
+  CALL_SUBTEST_67((svd_zero_matrix_solvers<MatrixXd>(3, 0)));
 
   // Check that the TriangularBase constructor works
   CALL_SUBTEST_57((svd_triangular_matrix<Matrix3d>()));

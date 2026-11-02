@@ -1671,22 +1671,22 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_7((test_circulant_svd<double>(24)));
     CALL_SUBTEST_7((test_circulant_svd<std::complex<double>>(18)));
     CALL_SUBTEST_7((test_circulant_svd<float>(12)));
-    CALL_SUBTEST_7((test_circulant_minnorm_solve<double>(20)));
-    CALL_SUBTEST_7((test_circulant_minnorm_solve<std::complex<double>>(15)));
-    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<double>>(24, 3)));
-    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<double>>(50, 5)));
-    CALL_SUBTEST_7((test_circulant_rank_deficient<std::complex<float>>(16, 2)));
-    CALL_SUBTEST_7((test_circulant_zero<double>(12)));
-    CALL_SUBTEST_7((test_circulant_zero<std::complex<double>>(7)));
-    CALL_SUBTEST_7(test_circulant_nan_propagation<>(20));
-    CALL_SUBTEST_7((test_circulant_inverse<double>(1)));
-    CALL_SUBTEST_7((test_circulant_inverse<double>(50)));
-    CALL_SUBTEST_7((test_circulant_inverse<double>(97)));  // prime: inverse rebuilds the padded product symbol
-    CALL_SUBTEST_7((test_circulant_inverse<std::complex<double>>(20)));
-    CALL_SUBTEST_7((test_circulant_inverse<float>(16)));
-    CALL_SUBTEST_7((test_circulant_determinant<double>(1)));
-    CALL_SUBTEST_7((test_circulant_determinant<double>(12)));
-    CALL_SUBTEST_7((test_circulant_determinant<std::complex<double>>(9)));
+    CALL_SUBTEST_19((test_circulant_minnorm_solve<double>(20)));
+    CALL_SUBTEST_19((test_circulant_minnorm_solve<std::complex<double>>(15)));
+    CALL_SUBTEST_19((test_circulant_rank_deficient<std::complex<double>>(24, 3)));
+    CALL_SUBTEST_19((test_circulant_rank_deficient<std::complex<double>>(50, 5)));
+    CALL_SUBTEST_19((test_circulant_rank_deficient<std::complex<float>>(16, 2)));
+    CALL_SUBTEST_20((test_circulant_zero<double>(12)));
+    CALL_SUBTEST_20((test_circulant_zero<std::complex<double>>(7)));
+    CALL_SUBTEST_20(test_circulant_nan_propagation<>(20));
+    CALL_SUBTEST_20((test_circulant_inverse<double>(1)));
+    CALL_SUBTEST_20((test_circulant_inverse<double>(50)));
+    CALL_SUBTEST_20((test_circulant_inverse<double>(97)));  // prime: inverse rebuilds the padded product symbol
+    CALL_SUBTEST_20((test_circulant_inverse<std::complex<double>>(20)));
+    CALL_SUBTEST_20((test_circulant_inverse<float>(16)));
+    CALL_SUBTEST_20((test_circulant_determinant<double>(1)));
+    CALL_SUBTEST_20((test_circulant_determinant<double>(12)));
+    CALL_SUBTEST_20((test_circulant_determinant<std::complex<double>>(9)));
 
     // Numerical and lifetime boundaries: value-nested (owning) delayed products,
     // aliased products across the dispatch tiers (scalar, direct, FFT), the
@@ -1771,21 +1771,21 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_9((test_hankel_symmetry<double>(48)));
     CALL_SUBTEST_9((test_hankel_to_toeplitz<double>(12, 7)));
     CALL_SUBTEST_9((test_hankel_to_toeplitz<std::complex<double>>(40, 56)));
-    CALL_SUBTEST_9((test_hankel_solve<double>(1)));
-    CALL_SUBTEST_9((test_hankel_solve<double>(20)));
-    CALL_SUBTEST_9((test_hankel_solve<double>(45)));
-    CALL_SUBTEST_9((test_hankel_solve<std::complex<double>>(24)));
-    CALL_SUBTEST_9((test_hankel_solve<float>(16)));
-    CALL_SUBTEST_9((test_hankel_solve_lookahead<double>(20)));
-    CALL_SUBTEST_9((test_hankel_solve_lookahead<std::complex<double>>(15)));
-    CALL_SUBTEST_9(test_hankel_hilbert<>());
-    CALL_SUBTEST_9((test_hankel_least_squares<double>(60, 40)));
-    CALL_SUBTEST_9((test_hankel_least_squares<std::complex<double>>(48, 32)));
-    CALL_SUBTEST_9((test_hankel_fixed<double, 4, 6>()));
-    CALL_SUBTEST_9((test_hankel_fixed<double, 40, 24>()));
-    CALL_SUBTEST_9((test_hankel_fixed<std::complex<float>, 6, 4>()));
-    CALL_SUBTEST_9((test_hankel_fixed_solve<double, 8>()));
-    CALL_SUBTEST_9((test_hankel_fixed_solve<std::complex<double>, 12>()));
+    CALL_SUBTEST_17((test_hankel_solve<double>(1)));
+    CALL_SUBTEST_17((test_hankel_solve<double>(20)));
+    CALL_SUBTEST_17((test_hankel_solve<double>(45)));
+    CALL_SUBTEST_23((test_hankel_solve<std::complex<double>>(24)));
+    CALL_SUBTEST_23((test_hankel_solve<float>(16)));
+    CALL_SUBTEST_21((test_hankel_solve_lookahead<double>(20)));
+    CALL_SUBTEST_21((test_hankel_solve_lookahead<std::complex<double>>(15)));
+    CALL_SUBTEST_21(test_hankel_hilbert<>());
+    CALL_SUBTEST_22((test_hankel_least_squares<double>(60, 40)));
+    CALL_SUBTEST_22((test_hankel_least_squares<std::complex<double>>(48, 32)));
+    CALL_SUBTEST_18((test_hankel_fixed<double, 4, 6>()));
+    CALL_SUBTEST_18((test_hankel_fixed<double, 40, 24>()));
+    CALL_SUBTEST_18((test_hankel_fixed<std::complex<float>, 6, 4>()));
+    CALL_SUBTEST_18((test_hankel_fixed_solve<double, 8>()));
+    CALL_SUBTEST_18((test_hankel_fixed_solve<std::complex<double>, 12>()));
 
     // MR 2688 review regressions: delayed (value-nested) products, aliased right-hand sides across the
     // dispatch tiers, and mixed real/complex products.

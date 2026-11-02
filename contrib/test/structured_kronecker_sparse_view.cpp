@@ -143,6 +143,7 @@ void test_view_kronecker_sum(Index n1, Index n2) {
 
 // The finite-difference assembly the view exists for: I + tau L built in one
 // sparse expression, and the Jacobi preconditioner read through the view.
+template <typename = void>
 void test_view_finite_difference(Index n1, Index n2) {
   using Sparse = SparseMatrix<double>;
   using RowSparse = SparseMatrix<double, RowMajor>;
@@ -179,6 +180,7 @@ void test_view_finite_difference(Index n1, Index n2) {
 
 // Factors outside the common case: a compressed factor with unsorted inner
 // vectors, signed zeros in a Kronecker sum, and 64-bit sparse indices.
+template <typename = void>
 void test_view_factor_contracts() {
   using Sparse = SparseMatrix<double>;
   Sparse U(3, 3);
@@ -238,7 +240,7 @@ EIGEN_DECLARE_TEST(structured_kronecker_sparse_view) {
     CALL_SUBTEST_1((test_view_kronecker<double>(1, 1, 1, 1)));
     CALL_SUBTEST_2((test_view_kronecker_sum<double>(3, 4)));
     CALL_SUBTEST_2((test_view_kronecker_sum<std::complex<double>>(2, 3)));
-    CALL_SUBTEST_2(test_view_finite_difference(6, 5));
-    CALL_SUBTEST_3(test_view_factor_contracts());
+    CALL_SUBTEST_2(test_view_finite_difference<>(6, 5));
+    CALL_SUBTEST_3(test_view_factor_contracts<>());
   }
 }

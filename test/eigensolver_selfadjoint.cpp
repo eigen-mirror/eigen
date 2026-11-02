@@ -975,7 +975,8 @@ void generalizedselfadjointeigensolver_no_malloc() {
   }
 }
 
-#if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_ALL)
+#if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_22) || defined(EIGEN_TEST_PART_23) || \
+    defined(EIGEN_TEST_PART_ALL)
 template <typename = void>
 void selfadjoint_iterative_scaling_rounding() {
   Matrix4f matrix = Matrix4f::Zero();
@@ -1340,9 +1341,9 @@ void direct_selfadjoint_low_precision_boundary() {
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding<>());
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<float, ColMajor>()));
-  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
-  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));
-  CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<std::complex<double>, ColMajor>()));
+  CALL_SUBTEST_22((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
+  CALL_SUBTEST_23((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));
+  CALL_SUBTEST_23((selfadjoint_iterative_scaling_blocks<std::complex<double>, ColMajor>()));
   CALL_SUBTEST_21((direct_selfadjoint_clustered_boundary<float, ColMajor>()));
   CALL_SUBTEST_21((direct_selfadjoint_rotated_boundary<float, ColMajor>()));
   CALL_SUBTEST_21((direct_selfadjoint_rotated_boundary<double, RowMajor>()));

@@ -26,6 +26,7 @@ void test_idrstabl_T() {
 }
 
 // Neither a zero right-hand side nor the direct solve for n <= S iterates; iterations() used to report the cap.
+template <typename = void>
 void test_zero_rhs() {
   SparseMatrix<double> A(4, 4);
   for (Index i = 0; i < 4; ++i) A.insert(i, i) = 2.0;
@@ -41,6 +42,7 @@ void test_zero_rhs() {
 }
 
 // An exact zero residual with zero tolerance breaks down normalization in the first IDR step.
+template <typename = void>
 void test_normalization_breakdown() {
   const Index n = 10;
   SparseMatrix<double> A(n, n);
@@ -61,6 +63,6 @@ void test_normalization_breakdown() {
 EIGEN_DECLARE_TEST(idrstabl) {
   CALL_SUBTEST_1((test_idrstabl_T<double>()));
   CALL_SUBTEST_2((test_idrstabl_T<std::complex<double> >()));
-  CALL_SUBTEST_1(test_zero_rhs());
-  CALL_SUBTEST_1(test_normalization_breakdown());
+  CALL_SUBTEST_1(test_zero_rhs<>());
+  CALL_SUBTEST_1(test_normalization_breakdown<>());
 }
