@@ -754,8 +754,10 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identi
   return typename Derived::Scalar(std::forward<Identity>(identity));
 }
 
+// Compare against 0 rather than Dynamic: non-inline constexpr Dynamic has internal linkage in C++14,
+// which keeps Clang header modules from merging template redeclarations across textual inclusions.
 template <typename Derived, typename Func, typename Identity,
-          std::enable_if_t<Derived::SizeAtCompileTime == Dynamic, int> = 0>
+          std::enable_if_t<(Derived::SizeAtCompileTime < 0), int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>& xpr,
                                                                                         const Func& func,
                                                                                         Identity&& identity,
@@ -765,7 +767,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identi
 }
 
 template <typename Derived, typename Func, typename Identity,
-          std::enable_if_t<Derived::SizeAtCompileTime != Dynamic, int> = 0>
+          std::enable_if_t<(Derived::SizeAtCompileTime >= 0), int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identity_impl(const DenseBase<Derived>& xpr,
                                                                                         const Func& func, Identity&&,
                                                                                         false_type) {
