@@ -51,6 +51,13 @@
 #define EIGEN_ALIGNOF(x) alignof(x)
 #endif
 
+#if defined(__riscv)
+// Defines the default LMUL for RISC-V
+#ifndef EIGEN_RISCV64_DEFAULT_LMUL
+#define EIGEN_RISCV64_DEFAULT_LMUL 1
+#endif
+#endif
+
 // Align to the boundary that avoids false sharing.
 // Pinned to 128 bytes to preserve a stable ABI across architectures and standard libraries
 // and avoid GCC -Winterference-size warnings.
@@ -97,8 +104,8 @@
 #elif defined __HVX__ && (__HVX_LENGTH__ == 128)
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
 #elif defined(EIGEN_RISCV64_USE_RVV10)
-#if __riscv_v_fixed_vlen <= 512
-#define EIGEN_IDEAL_MAX_ALIGN_BYTES 64
+#if (__riscv_v_fixed_vlen * EIGEN_RISCV64_DEFAULT_LMUL / 8) <= 128
+#define EIGEN_IDEAL_MAX_ALIGN_BYTES (__riscv_v_fixed_vlen * EIGEN_RISCV64_DEFAULT_LMUL / 8)
 #else
 #define EIGEN_IDEAL_MAX_ALIGN_BYTES 128
 #endif
@@ -668,13 +675,6 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 #include <hip/hip_fp16.h>
 #define EIGEN_HAS_HIP_BF16
 #include <hip/hip_bfloat16.h>
-#endif
-
-#if defined(__riscv)
-// Defines the default LMUL for RISC-V
-#ifndef EIGEN_RISCV64_DEFAULT_LMUL
-#define EIGEN_RISCV64_DEFAULT_LMUL 1
-#endif
 #endif
 
 /** \brief Namespace containing all symbols from the %Eigen library. */
