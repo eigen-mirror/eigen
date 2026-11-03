@@ -784,6 +784,64 @@ void test_bit_count() {
 #endif
 }
 
+struct bit_cast_non_literal_bits16 {
+  EIGEN_DEVICE_FUNC explicit bit_cast_non_literal_bits16(numext::uint16_t v = 0) : bits(v) {}
+  numext::uint16_t bits;
+};
+
+struct bit_cast_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const numext::uint16_t* in, numext::uint16_t* out) const {
+    const numext::uint16_t raw = in[i];
+    const Eigen::half h = numext::bit_cast<Eigen::half>(raw);
+    const Eigen::bfloat16 bfloat = numext::bit_cast<Eigen::bfloat16>(h);
+    const Eigen::half h_from_bfloat = numext::bit_cast<Eigen::half>(bfloat);
+    const bit_cast_non_literal_bits16 non_literal = numext::bit_cast<bit_cast_non_literal_bits16>(h);
+    const Eigen::half h_from_non_literal = numext::bit_cast<Eigen::half>(non_literal);
+    const numext::uint32_t raw32 = (static_cast<numext::uint32_t>(raw & 0x8000u) << 16) | 0x3f800000u |
+                                   static_cast<numext::uint32_t>(raw & 0x7fffu);
+    const float f = numext::bit_cast<float>(raw32);
+    const numext::uint32_t f_bits = numext::bit_cast<numext::uint32_t>(f);
+
+    out[6 * i + 0] = numext::bit_cast<numext::uint16_t>(bfloat);
+    out[6 * i + 1] = numext::bit_cast<numext::uint16_t>(h_from_bfloat);
+    out[6 * i + 2] = non_literal.bits;
+    out[6 * i + 3] = numext::bit_cast<numext::uint16_t>(h_from_non_literal);
+    out[6 * i + 4] = static_cast<numext::uint16_t>(f_bits & 0xffffu);
+    out[6 * i + 5] = static_cast<numext::uint16_t>(f_bits >> 16);
+  }
+};
+
+void test_bit_cast() {
+  const numext::uint16_t patterns[] = {0x0000, 0x8000, 0x0001, 0x3c00, 0x3f80, 0x7c00, 0x7e00, 0xfbff};
+  constexpr int n = sizeof(patterns) / sizeof(patterns[0]);
+  Eigen::Array<numext::uint16_t, Eigen::Dynamic, 1> in(n), out_ref(6 * n), out_gpu(6 * n);
+  for (int i = 0; i < n; ++i) {
+    in(i) = patterns[i];
+  }
+  out_ref.setConstant(0xa5a5);
+  out_gpu.setConstant(0x5a5a);
+
+  run_on_cpu(bit_cast_test(), n, in, out_ref);
+  run_on_gpu(bit_cast_test(), n, in, out_gpu);
+
+#if !defined(EIGEN_GPU_COMPILE_PHASE)
+  VERIFY_IS_CWISE_EQUAL(out_ref, out_gpu);
+  for (int i = 0; i < n; ++i) {
+    const numext::uint16_t raw = patterns[i];
+    const numext::uint16_t expected[6] = {raw,
+                                          raw,
+                                          raw,
+                                          raw,
+                                          static_cast<numext::uint16_t>(raw & 0x7fffu),
+                                          static_cast<numext::uint16_t>((raw & 0x8000u) | 0x3f80u)};
+    for (int k = 0; k < 6; ++k) {
+      VERIFY_IS_EQUAL(out_ref(6 * i + k), expected[k]);
+      VERIFY_IS_EQUAL(out_gpu(6 * i + k), expected[k]);
+    }
+  }
+#endif
+}
+
 // Eigen::half != is true when either operand is NaN, on the device as on the host.
 struct half_nan_not_equal_test {
   EIGEN_DEVICE_FUNC void operator()(int i, const float* in, float* out) const {
@@ -1044,6 +1102,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(test_custom_less_scalar_minmax());
   CALL_SUBTEST(test_float_nan_minmax());
   CALL_SUBTEST(test_bit_count());
+  CALL_SUBTEST(test_bit_cast());
   CALL_SUBTEST(test_half_nan_not_equal());
   CALL_SUBTEST(test_complex_exp_overflow());
 

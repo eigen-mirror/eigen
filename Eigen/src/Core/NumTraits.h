@@ -125,7 +125,9 @@ struct default_max_digits10_impl<T, false, true>  // Integer
 namespace numext {
 
 /** \internal bit-wise cast without changing the underlying bit representation. */
-#if defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L
+// std::bit_cast has no __device__ qualifier; in GPU device passes it requires relaxed constexpr
+// and, for non-literal return types such as Eigen::half, stays host-only and miscompiles under NVCC.
+#if defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L && !defined(EIGEN_GPU_COMPILE_PHASE)
 template <typename Tgt, typename Src>
 EIGEN_DEVICE_FUNC constexpr Tgt bit_cast(const Src& src) {
   return std::bit_cast<Tgt>(src);
