@@ -1585,6 +1585,59 @@ void check_scalar_tanh_saturation() {
   VERIFY_IS_EQUAL(numext::tanh(-20.0f), -1.0f);
 }
 
+namespace bit_cast_test_detail {
+struct literal_pair16 {
+  numext::uint16_t low;
+  numext::uint16_t high;
+};
+
+struct non_literal_bits16 {
+  explicit non_literal_bits16(numext::uint16_t v = 0) : bits(v) {}
+  numext::uint16_t bits;
+};
+}  // namespace bit_cast_test_detail
+
+void check_bit_cast() {
+#if (defined(__cpp_lib_bit_cast) && __cpp_lib_bit_cast >= 201806L) || EIGEN_HAS_BUILTIN(__builtin_bit_cast)
+  static_assert(numext::bit_cast<numext::uint32_t>(1.0f) == 0x3f800000u, "constexpr float -> uint32 bit_cast");
+  static_assert(numext::bit_cast<numext::uint32_t>(numext::bit_cast<float>(0xbf800000u)) == 0xbf800000u,
+                "constexpr uint32 -> float bit_cast");
+  constexpr bit_cast_test_detail::literal_pair16 kPair = {/*low=*/0x1234u, /*high=*/0x5678u};
+  static_assert(
+      numext::bit_cast<bit_cast_test_detail::literal_pair16>(numext::bit_cast<numext::uint32_t>(kPair)).low ==
+              0x1234u &&
+          numext::bit_cast<bit_cast_test_detail::literal_pair16>(numext::bit_cast<numext::uint32_t>(kPair)).high ==
+              0x5678u,
+      "constexpr struct <-> uint32 bit_cast");
+#endif
+
+  const numext::uint16_t patterns16[] = {0x0000u, 0x8000u, 0x0001u, 0x3c00u, 0x3f80u, 0x7c00u, 0x7e2au, 0xfbffu};
+  for (numext::uint16_t raw : patterns16) {
+    const half h = numext::bit_cast<half>(raw);
+    const bfloat16 bfloat = numext::bit_cast<bfloat16>(h);
+    const half h_roundtrip = numext::bit_cast<half>(bfloat);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(bfloat), raw);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(h_roundtrip), raw);
+
+    const bit_cast_test_detail::non_literal_bits16 non_literal =
+        numext::bit_cast<bit_cast_test_detail::non_literal_bits16>(h);
+    VERIFY_IS_EQUAL(non_literal.bits, raw);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(numext::bit_cast<half>(non_literal)), raw);
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(numext::bit_cast<bfloat16>(non_literal)), raw);
+  }
+
+  const numext::uint32_t patterns32[] = {0x00000000u, 0x80000000u, 0x3f800000u, 0x7f800000u, 0x7fc01234u};
+  for (numext::uint32_t raw : patterns32) {
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint32_t>(numext::bit_cast<float>(raw)), raw);
+  }
+
+  const numext::uint64_t patterns64[] = {0x0000000000000000ull, 0x8000000000000000ull, 0x3ff0000000000000ull,
+                                         0x7ff0000000000000ull, 0x7ff8000012345678ull};
+  for (numext::uint64_t raw : patterns64) {
+    VERIFY_IS_EQUAL(numext::bit_cast<numext::uint64_t>(numext::bit_cast<double>(raw)), raw);
+  }
+}
+
 EIGEN_DECLARE_TEST(numext) {
   for (int k = 0; k < g_repeat; ++k) {
     CALL_SUBTEST(check_copysign<half>());
@@ -1760,6 +1813,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST(check_shift<uint64_t>());
 
     CALL_SUBTEST(check_scalar_tanh_saturation());
+    CALL_SUBTEST(check_bit_cast());
     CALL_SUBTEST(check_generic_packet_numext_dispatch());
     CALL_SUBTEST(check_adl_template_math_dispatch());
     VERIFY_IS_EQUAL(numext::log10(log10_adl_test::Scalar{10.0}).value, 1.0);
