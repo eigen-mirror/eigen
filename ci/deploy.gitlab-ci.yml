@@ -9,7 +9,7 @@ deploy:tag:weekly:
     - apk add git
   script:
     - git tag -f weekly $CI_COMMIT_SHORT_SHA
-    - git push -f $EIGEN_CI_GIT_PUSH_URL tag weekly
+    - git push -f "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" tag weekly
   tags:
     - saas-linux-small-amd64
   rules: !reference [.rules:libeigen:scheduled-or-web:default-branch, rules]
