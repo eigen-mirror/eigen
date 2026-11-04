@@ -650,10 +650,21 @@ struct blas_traits<
     return Base::extractScalarFactor(x.lhs()) * x.rhs().functor().m_other;
   }
 };
+// Constant * Constant matches both specializations above; pop the left factor, as the first one does.
 template <typename Scalar, typename Plain1, typename Plain2>
 struct blas_traits<CwiseBinaryOp<scalar_product_op<Scalar>, const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain1>,
-                                 const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain2> > >
-    : blas_traits<CwiseNullaryOp<scalar_constant_op<Scalar>, Plain1> > {};
+                                 const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain2>>>
+    : blas_traits<const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain2>> {
+  static constexpr bool HasScalarFactor = true;
+  using Base = blas_traits<const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain2>>;
+  using XprType = CwiseBinaryOp<scalar_product_op<Scalar>, const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain1>,
+                                const CwiseNullaryOp<scalar_constant_op<Scalar>, Plain2>>;
+  using ExtractType = typename Base::ExtractType;
+  EIGEN_DEVICE_FUNC static inline ExtractType extract(const XprType& x) { return Base::extract(x.rhs()); }
+  EIGEN_DEVICE_FUNC static inline Scalar extractScalarFactor(const XprType& x) {
+    return x.lhs().functor().m_other * Base::extractScalarFactor(x.rhs());
+  }
+};
 
 // pop opposite
 template <typename Scalar, typename NestedXpr>

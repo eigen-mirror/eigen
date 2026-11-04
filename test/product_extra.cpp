@@ -978,6 +978,39 @@ void small_outer_product_unscaled() {
   }
 }
 
+// s * M::Ones() is Constant * Constant; the GEMM and GEMV paths must unwrap its factor (#3226).
+template <typename Scalar, int Order>
+void scaled_constant_operands() {
+  using M = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  using V = Matrix<Scalar, Dynamic, 1>;
+  using RV = Matrix<Scalar, 1, Dynamic>;
+  const Scalar s = internal::random<Scalar>(), t = internal::random<Scalar>();
+  // 3 takes the coefficient-based product, 30 the GEMM kernel.
+  for (Index n : {3, 30}) {
+    const M b = M::Random(n, n);
+    const M sc = M::Constant(n, n, s), tc = M::Constant(n, n, t);
+    M r(n, n);
+    VERIFY_IS_APPROX(r = s * M::Ones(n, n) * b, sc * b);
+    VERIFY_IS_APPROX(r = b * (M::Ones(n, n) * t), b * tc);
+    VERIFY_IS_APPROX(r = (s * M::Ones(n, n)) * (M::Ones(n, n) * t), sc * tc);
+    VERIFY_IS_APPROX(r.noalias() = (s * M::Ones(n, n)).transpose() * b, sc.transpose() * b);
+    VERIFY_IS_APPROX(r.noalias() = b * (s * M::Ones(n, n)).adjoint(), b * sc.adjoint());
+    r = b;
+    r.noalias() += s * M::Ones(n, n) * b;
+    VERIFY_IS_APPROX(r, b + sc * b);
+    r.noalias() -= s * M::Ones(n, n) * b;
+    VERIFY_IS_APPROX(r, b);
+    V y(n);
+    VERIFY_IS_APPROX(y = b * (s * V::Ones(n)), b * V::Constant(n, s));
+    RV z(n);
+    VERIFY_IS_APPROX(z = (s * RV::Ones(n)) * b, RV::Constant(n, s) * b);
+  }
+  using Fixed = Matrix<Scalar, 30, 30, Order>;
+  const Fixed f = Fixed::Random();
+  Fixed g = s * Fixed::Ones() * f;
+  VERIFY_IS_APPROX(g, Fixed::Constant(s) * f);
+}
+
 #endif
 
 EIGEN_DECLARE_TEST(product_extra) {
@@ -989,6 +1022,9 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_14(single_term_nullary_product<RowMajor>());
   CALL_SUBTEST_14(small_outer_product_unscaled<ColMajor>());
   CALL_SUBTEST_14(small_outer_product_unscaled<RowMajor>());
+  CALL_SUBTEST_14((scaled_constant_operands<double, ColMajor>()));
+  CALL_SUBTEST_14((scaled_constant_operands<double, RowMajor>()));
+  CALL_SUBTEST_14((scaled_constant_operands<std::complex<double>, ColMajor>()));
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, ColMajor>()));
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<float, RowMajor>()));
   CALL_SUBTEST_13((complex_gemm_scalar_accumulation<double, ColMajor>()));
