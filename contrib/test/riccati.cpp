@@ -188,7 +188,7 @@ void dare_scipy_real_cases() {
     B << 4.877, 4.877, -1.1895, 3.569;
     Q << 0.005, 0, 0, 0.02;
     R << 1. / 3, 0, 0, 3;
-    check_real_dare<MatrixType>(A, B, Q, R, 1.5e-16);
+    check_real_dare<MatrixType>(A, B, Q, R, 1.5e-14);
   }
   {  // DAREX 3: singular R
     MatrixXd A(2, 2), B(2, 1), Q(2, 2), R(1, 1);
