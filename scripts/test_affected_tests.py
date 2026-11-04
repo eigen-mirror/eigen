@@ -20,6 +20,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from affected_tests import (
+    INCLUDE_RE,
     IncludeGraph,
     Selection,
     changed_files_from_git,
@@ -391,6 +392,49 @@ def test_foreach_registrations():
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_include_dirs():
+    """Includes resolve through the contrib tests' include path, and an ambiguous suffix keeps every match."""
+    root = tempfile.mkdtemp(prefix="eigen-affected-include-dirs-")
+    files = {
+        "Eigen/Core": "",
+        "Eigen/src/Core/Shared.h": "",
+        "contrib/Eigen/Tensor": '#include "src/Tensor/TensorFFT.h"\n',
+        "contrib/Eigen/src/Tensor/TensorFFT.h": "",
+        "contrib/Eigen/src/Tensor/Shared.h": "",
+        "unsupported/Eigen/Tensor": '#include "../../contrib/Eigen/Tensor"\n',
+        "test/main.h": "#include <Eigen/Core>\n",
+        "test/core.cpp": '#include "main.h"\n',
+        "test/shared.cpp": '#include "main.h"\n#include "Shared.h"\n',
+        "test/CMakeLists.txt": "ei_add_test(core)\nei_add_test(shared)\n",
+        "contrib/test/tensor_fft.cpp": '#include "main.h"\n#include <Eigen/Tensor>\n',
+        "contrib/test/CMakeLists.txt": "ei_add_test(tensor_fft)\n",
+    }
+    try:
+        for rel, content in files.items():
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as handle:
+                handle.write(content)
+        graph = IncludeGraph(root)
+        check(graph.resolve("contrib/test/tensor_fft.cpp", "Eigen/Tensor") == ["contrib/Eigen/Tensor"],
+              "<Eigen/Tensor> names contrib/Eigen/Tensor, got %s"
+              % graph.resolve("contrib/test/tensor_fft.cpp", "Eigen/Tensor"))
+        check(graph.resolve("contrib/test/tensor_fft.cpp", "main.h") == ["test/main.h"],
+              "contrib tests find main.h in test/, got %s"
+              % graph.resolve("contrib/test/tensor_fft.cpp", "main.h"))
+        sel = select(graph, ["contrib/Eigen/src/Tensor/TensorFFT.h"], max_fraction=1.0)
+        check(sel.mode == "targets" and targets_of(sel) == ["tensor_fft"],
+              "a Tensor header selects the test including <Eigen/Tensor>, got %s (%s)"
+              % (targets_of(sel), sel.mode))
+        for header in ("Eigen/src/Core/Shared.h", "contrib/Eigen/src/Tensor/Shared.h"):
+            sel = select(graph, [header], max_fraction=1.0)
+            check(sel.mode == "targets" and targets_of(sel) == ["shared"],
+                  "an ambiguous include keeps the edge to %s, got %s (%s)"
+                  % (header, targets_of(sel), sel.mode))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
 def test_output_encoding():
     sel = Selection("targets", ["adjoint", "bdcsvd"])
     check(sel.targets_file == "adjoint\nbdcsvd\n",
@@ -586,6 +630,18 @@ def test_real_tree():
     check(sel.mode == "targets" and sel.ctest_names,
           "a changed failtest selects CTest names, got %s (%s)" % (sel.mode, sel.reasons))
 
+    # Every include that names a file in the scanned roots resolves to one.
+    unresolved = sorted({(rel, spelling) for rel in graph.files
+                         for spelling in INCLUDE_RE.findall(graph.read_text(rel))
+                         if any(f == spelling or f.endswith("/" + spelling) for f in graph.files)
+                         and not graph.resolve(rel, spelling)})
+    check(not unresolved, "in-tree includes resolve, got %s" % unresolved[:10])
+    if "contrib/test/tensor_ifft.cpp" in graph.files:
+        sel = select(graph, ["contrib/Eigen/src/Tensor/TensorFFT.h"], max_fraction=1.0)
+        check(sel.mode == "targets" and "tensor_ifft" in sel.targets,
+              "TensorFFT.h reaches tensor_ifft through <Eigen/Tensor>, got %s (%s)"
+              % (sorted(sel.targets), sel.mode))
+
     # main.h is a hub: changing it must run everything.
     sel = select(graph, ["test/main.h"])
     check(sel.mode == "all", "test/main.h runs the full suite, got %s" % sel.mode)
@@ -622,6 +678,7 @@ def main():
     finally:
         shutil.rmtree(root, ignore_errors=True)
     test_foreach_registrations()
+    test_include_dirs()
     test_output_encoding()
     test_git_rename_paths()
     test_git_shallow_base()

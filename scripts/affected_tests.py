@@ -67,6 +67,11 @@ import sys
 # still headers a change can propagate through, so the graph keeps them.
 SCAN_ROOTS = ("Eigen", "contrib/Eigen", "unsupported/Eigen", "test", "contrib/test", "failtest")
 
+# Include directories besides the source root, from contrib/test/CMakeLists.txt.
+# Through contrib/, <Eigen/Tensor> names contrib/Eigen/Tensor, a path that
+# matches the unsupported/ shim's suffix as well.
+INCLUDE_DIRS = ("test", "contrib")
+
 # Directories whose .cpp files are test translation units.
 TEST_ROOTS = ("test", "contrib/test")
 
@@ -204,15 +209,14 @@ class IncludeGraph:
                     rel = os.path.relpath(os.path.join(dirpath, name), self.source_dir)
                     self.files.add(rel)
         # Index every path suffix so that an include spelled relative to a
-        # directory outside the scanned roots still resolves.  Ambiguous
-        # suffixes are dropped rather than guessed.
-        candidates = {}
-        for rel in self.files:
+        # directory outside the scanned roots still resolves.  An ambiguous
+        # suffix resolves to every match: a spurious edge widens the selection,
+        # a dropped one narrows it silently.
+        self._by_suffix = {}
+        for rel in sorted(self.files):
             parts = rel.split("/")
             for i in range(len(parts)):
-                candidates.setdefault("/".join(parts[i:]), []).append(rel)
-        self._by_suffix = {suffix: matches[0]
-                           for suffix, matches in candidates.items() if len(matches) == 1}
+                self._by_suffix.setdefault("/".join(parts[i:]), []).append(rel)
 
     def read_text(self, rel):
         """Contents of a file in the tree, or ``''`` if it cannot be read."""
@@ -222,6 +226,14 @@ class IncludeGraph:
         except OSError:
             return ""
 
+    def resolve(self, rel, spelling):
+        """Files that ``#include`` of ``spelling`` from ``rel`` can name."""
+        for directory in (os.path.dirname(rel), "") + INCLUDE_DIRS:
+            candidate = os.path.normpath(os.path.join(directory, spelling))
+            if candidate in self.files:
+                return [candidate]
+        return self._by_suffix.get(spelling, [])
+
     def direct_includes(self, rel):
         """Resolved includes of a single file."""
         cached = self._direct.get(rel)
@@ -229,15 +241,8 @@ class IncludeGraph:
             return cached
         resolved = set()
         self._direct[rel] = resolved  # placed first: the graph has cycles
-        directory = os.path.dirname(rel)
         for spelling in INCLUDE_RE.findall(self.read_text(rel)):
-            candidate = os.path.normpath(os.path.join(directory, spelling))
-            if candidate in self.files:
-                resolved.add(candidate)
-            elif spelling in self.files:
-                resolved.add(spelling)
-            elif spelling in self._by_suffix:
-                resolved.add(self._by_suffix[spelling])
+            resolved.update(self.resolve(rel, spelling))
         return resolved
 
     def closure(self, rel):
