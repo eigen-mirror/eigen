@@ -416,6 +416,29 @@ void array_special_functions() {
 }
 
 template <typename Scalar>
+void ndtri_tail_accuracy() {
+  const int exponents[] = {4, 20, 46, 52, 120, 1000};
+  // sqrt(2) * erfinv(2 * 2^-exponent - 1), evaluated with mpmath 1.3.0 at 340 decimal digits.
+  const long double reference[] = {-1.5341205443525463117084L,  -4.76300103426781395698855L,
+                                   -7.60531213194874895463731L, -8.12589066470190685850799L,
+                                   -12.6266965604913946489664L, -37.1110119371647914101147L};
+  const Index count = 2 * internal::packet_traits<Scalar>::size + 7;
+  Array<Scalar, Dynamic, 1> input(count), result;
+  for (Index i = 0; i < input.size(); ++i) input(i) = std::ldexp(Scalar(1), -exponents[i % 6]);
+  result = input.ndtri();
+  for (Index i = 0; i < input.size(); ++i) {
+    if (input(i) == Scalar(0)) {
+      VERIFY_IS_EQUAL(result(i), -NumTraits<Scalar>::infinity());
+    } else {
+      const Scalar expected = Scalar(reference[i % 6]);
+      const Scalar bound = Scalar(4) * NumTraits<Scalar>::epsilon() * numext::abs(expected);
+      VERIFY(numext::abs(result(i) - expected) <= bound);
+      VERIFY(numext::abs(numext::ndtri(input(i)) - expected) <= bound);
+    }
+  }
+}
+
+template <typename Scalar>
 void scalar_ndtri() {
   const Scalar sign_mask = internal::psignmask<Scalar>();
   VERIFY_IS_EQUAL(sign_mask, Scalar(0));
@@ -652,8 +675,10 @@ void test_special_functions_edge_cases() {
 }
 
 EIGEN_DECLARE_TEST(special_functions) {
+  CALL_SUBTEST_1(ndtri_tail_accuracy<float>());
   CALL_SUBTEST_1(array_special_functions<ArrayXf>());
   CALL_SUBTEST_1(test_special_functions_edge_cases<float>());
+  CALL_SUBTEST_2(ndtri_tail_accuracy<double>());
   CALL_SUBTEST_2(array_special_functions<ArrayXd>());
   CALL_SUBTEST_2(test_special_functions_edge_cases<double>());
   CALL_SUBTEST_3(scalar_ndtri<long double>());

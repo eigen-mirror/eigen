@@ -776,15 +776,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_ndtri_lt_exp_neg_two(const T& b,
                            ScalarType(6.79019408009981274425e-9)};
   const T eight = pset1<T>(ScalarType(8.0));
   const T neg_two = pset1<T>(ScalarType(-2));
-  T x, x0, x1, z;
+  T x, x0, correction, z;
 
   x = psqrt(pmul(neg_two, plog(b)));
   x0 = psub(x, pdiv(plog(x), x));
   z = preciprocal(x);
-  x1 =
-      pmul(z, pselect(pcmp_lt(x, eight), pdiv(internal::ppolevl<T, 8>::run(z, p1), internal::ppolevl<T, 8>::run(z, q1)),
-                      pdiv(internal::ppolevl<T, 8>::run(z, p2), internal::ppolevl<T, 8>::run(z, q2))));
-  return flipsign(should_flipsign, psub(x0, x1));
+  correction =
+      pselect(pcmp_lt(x, eight), pdiv(internal::ppolevl<T, 8>::run(z, p1), internal::ppolevl<T, 8>::run(z, q1)),
+              pdiv(internal::ppolevl<T, 8>::run(z, p2), internal::ppolevl<T, 8>::run(z, q2)));
+  return flipsign(should_flipsign, pnmadd(z, correction, x0));
 }
 
 template <typename T, typename ScalarType>

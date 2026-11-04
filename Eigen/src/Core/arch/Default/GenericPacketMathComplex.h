@@ -323,7 +323,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psqrt_complex_impl(co
   RealPacket a_min_zero_mask = pcmp_eq(a_min, pzero(a_min));
   RealPacket a_max_zero_mask = pcmp_eq(a_max, pzero(a_max));
   RealPacket r = pdiv(a_min, a_max);
-  RealPacket l = pmul(a_max, psqrt(padd(cst_one, pmul(r, r))));  // [l0, l0, l1, l1]
+  RealPacket l = pmul(a_max, psqrt(pmadd(r, r, cst_one)));  // [l0, l0, l1, l1]
   // Set l to a_max if a_min is zero.
   l = pselect(a_min_zero_mask, a_max, l);
 

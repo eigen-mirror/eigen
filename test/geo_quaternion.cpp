@@ -453,7 +453,28 @@ struct MovableClass {
   Quaternionf m_quat;
 };
 
+void quaternion_product_fma() {
+#if defined(EIGEN_VECTORIZE_FMA) && !defined(EIGEN_VECTORIZE_GENERIC) && \
+    (defined(EIGEN_VECTORIZE_SSE) || (defined(EIGEN_VECTORIZE_NEON) && EIGEN_ARCH_ARM64))
+  const double half_max = NumTraits<double>::highest() / 2;
+  const Quaterniond a(half_max, 0, -half_max, 0), b(0, 3, 0, 1);
+  const Quaterniond result = a * b;
+  // Pin fusion of these particular products; mirrored inputs can still overflow.
+  VERIFY_IS_EQUAL(result.x(), NumTraits<double>::highest());
+  const Quaterniond c(0, half_max, 0, half_max), d(0, 3, 0, 1);
+  const Quaterniond difference = c * d;
+  VERIFY_IS_EQUAL(difference.y(), NumTraits<double>::highest());
+  const float half_max_float = NumTraits<float>::highest() / 2;
+  const Quaternionf sum_a(half_max_float, 0, -half_max_float, 0), sum_b(0, 3, 0, 1);
+  VERIFY_IS_EQUAL((sum_a * sum_b).x(), NumTraits<float>::highest());
+  const Quaternionf e(0, half_max_float, 0, half_max_float), f(3, 0, 1, 0);
+  const Quaternionf difference_float = e * f;
+  VERIFY_IS_EQUAL(difference_float.x(), NumTraits<float>::highest());
+#endif
+}
+
 EIGEN_DECLARE_TEST(geo_quaternion) {
+  CALL_SUBTEST_2(quaternion_product_fma());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((quaternion<float, AutoAlign>()));
     CALL_SUBTEST_1(check_const_correctness(Quaternionf()));

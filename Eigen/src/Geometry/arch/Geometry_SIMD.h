@@ -36,11 +36,11 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, float> {
     Packet4f a = ae.template packet<AAlignment, Packet4f>(0);
     Packet4f b = be.template packet<BAlignment, Packet4f>(0);
     Packet4f s1 = pmul(vec4f_swizzle1(a, 1, 2, 0, 2), vec4f_swizzle1(b, 2, 0, 1, 2));
-    Packet4f s2 = pmul(vec4f_swizzle1(a, 3, 3, 3, 1), vec4f_swizzle1(b, 0, 1, 2, 1));
+    Packet4f sum = pmadd(vec4f_swizzle1(a, 3, 3, 3, 1), vec4f_swizzle1(b, 0, 1, 2, 1), s1);
     pstoret<float, Packet4f, ResAlignment>(
-        &res.x(), padd(psub(pmul(a, vec4f_swizzle1(b, 3, 3, 3, 3)),
-                            pmul(vec4f_swizzle1(a, 2, 0, 1, 0), vec4f_swizzle1(b, 1, 2, 0, 0))),
-                       pxor(mask, padd(s1, s2))));
+        &res.x(), padd(pmsub(a, vec4f_swizzle1(b, 3, 3, 3, 3),
+                             pmul(vec4f_swizzle1(a, 2, 0, 1, 0), vec4f_swizzle1(b, 1, 2, 0, 0))),
+                       pxor(mask, sum)));
 
     return res;
   }
@@ -110,8 +110,8 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, double> {
      * t2 = zz*xy - xx*zw
      * res.xy = t1 +/- swap(t2)
      */
-    t1 = padd(pmul(a_ww, b_xy), pmul(a_yy, b_zw));
-    t2 = psub(pmul(a_zz, b_xy), pmul(a_xx, b_zw));
+    t1 = pmadd(a_ww, b_xy, pmul(a_yy, b_zw));
+    t2 = pmsub(a_zz, b_xy, pmul(a_xx, b_zw));
     pstoret<double, Packet2d, ResAlignment>(&res.x(), paddsub(t1, preverse(t2)));
 
     /*
@@ -119,8 +119,8 @@ struct quat_product<Architecture::Target, Derived, OtherDerived, double> {
      * t2 = zz*zw + xx*xy
      * res.zw = t1 -/+ swap(t2) = swap( swap(t1) +/- t2)
      */
-    t1 = psub(pmul(a_ww, b_zw), pmul(a_yy, b_xy));
-    t2 = padd(pmul(a_zz, b_zw), pmul(a_xx, b_xy));
+    t1 = pmsub(a_ww, b_zw, pmul(a_yy, b_xy));
+    t2 = pmadd(a_zz, b_zw, pmul(a_xx, b_xy));
     pstoret<double, Packet2d, ResAlignment>(&res.z(), preverse(paddsub(preverse(t1), t2)));
 
     return res;

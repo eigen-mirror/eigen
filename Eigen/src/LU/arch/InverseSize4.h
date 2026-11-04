@@ -89,11 +89,11 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
 
     // AB = A# * B, where A# denotes the adjugate of A, and * denotes matrix product.
     AB = pmul(vec4f_swizzle2(A, A, 3, 3, 0, 0), B);
-    AB = psub(AB, pmul(vec4f_swizzle2(A, A, 1, 1, 2, 2), vec4f_swizzle2(B, B, 2, 3, 0, 1)));
+    AB = pnmadd(vec4f_swizzle2(A, A, 1, 1, 2, 2), vec4f_swizzle2(B, B, 2, 3, 0, 1), AB);
 
     // DC = D#*C
     DC = pmul(vec4f_swizzle2(D, D, 3, 3, 0, 0), C);
-    DC = psub(DC, pmul(vec4f_swizzle2(D, D, 1, 1, 2, 2), vec4f_swizzle2(C, C, 2, 3, 0, 1)));
+    DC = pnmadd(vec4f_swizzle2(D, D, 1, 1, 2, 2), vec4f_swizzle2(C, C, 2, 3, 0, 1), DC);
 
     // determinants of the sub-matrices
     Packet4f dA, dB, dC, dD;
@@ -129,23 +129,23 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
 
     // iD = D*|A| - C*A#*B
     iD = pmul(vec4f_swizzle2(C, C, 0, 0, 2, 2), vec4f_movelh(AB, AB));
-    iD = padd(iD, pmul(vec4f_swizzle2(C, C, 1, 1, 3, 3), vec4f_movehl(AB, AB)));
-    iD = psub(pmul(D, vec4f_duplane(dA, 0)), iD);
+    iD = pmadd(vec4f_swizzle2(C, C, 1, 1, 3, 3), vec4f_movehl(AB, AB), iD);
+    iD = pmsub(D, vec4f_duplane(dA, 0), iD);
 
     // iA = A*|D| - B*D#*C
     iA = pmul(vec4f_swizzle2(B, B, 0, 0, 2, 2), vec4f_movelh(DC, DC));
-    iA = padd(iA, pmul(vec4f_swizzle2(B, B, 1, 1, 3, 3), vec4f_movehl(DC, DC)));
-    iA = psub(pmul(A, vec4f_duplane(dD, 0)), iA);
+    iA = pmadd(vec4f_swizzle2(B, B, 1, 1, 3, 3), vec4f_movehl(DC, DC), iA);
+    iA = pmsub(A, vec4f_duplane(dD, 0), iA);
 
     // iB = C*|B| - D * (A#B)# = C*|B| - D*B#*A
     iB = pmul(D, vec4f_swizzle2(AB, AB, 3, 0, 3, 0));
-    iB = psub(iB, pmul(vec4f_swizzle2(D, D, 1, 0, 3, 2), vec4f_swizzle2(AB, AB, 2, 1, 2, 1)));
-    iB = psub(pmul(C, vec4f_duplane(dB, 0)), iB);
+    iB = pnmadd(vec4f_swizzle2(D, D, 1, 0, 3, 2), vec4f_swizzle2(AB, AB, 2, 1, 2, 1), iB);
+    iB = pmsub(C, vec4f_duplane(dB, 0), iB);
 
     // iC = B*|C| - A * (D#C)# = B*|C| - A*C#*D
     iC = pmul(A, vec4f_swizzle2(DC, DC, 3, 0, 3, 0));
-    iC = psub(iC, pmul(vec4f_swizzle2(A, A, 1, 0, 3, 2), vec4f_swizzle2(DC, DC, 2, 1, 2, 1)));
-    iC = psub(pmul(B, vec4f_duplane(dC, 0)), iC);
+    iC = pnmadd(vec4f_swizzle2(A, A, 1, 0, 3, 2), vec4f_swizzle2(DC, DC, 2, 1, 2, 1), iC);
+    iC = pmsub(B, vec4f_duplane(dC, 0), iC);
 
     // Built from integer bits: a -0.0f literal may be replaced by +0.0f under fast-math.
     const float neg_zero = numext::bit_cast<float>(0x80000000u);
@@ -256,14 +256,14 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
     // AB = A# * B, where A# denotes the adjugate of A, and * denotes matrix product.
     AB1 = pmul(B1, vec2d_duplane(A2, 1));
     AB2 = pmul(B2, vec2d_duplane(A1, 0));
-    AB1 = psub(AB1, pmul(B2, vec2d_duplane(A1, 1)));
-    AB2 = psub(AB2, pmul(B1, vec2d_duplane(A2, 0)));
+    AB1 = pnmadd(B2, vec2d_duplane(A1, 1), AB1);
+    AB2 = pnmadd(B1, vec2d_duplane(A2, 0), AB2);
 
     // DC = D#*C
     DC1 = pmul(C1, vec2d_duplane(D2, 1));
     DC2 = pmul(C2, vec2d_duplane(D1, 0));
-    DC1 = psub(DC1, pmul(C2, vec2d_duplane(D1, 1)));
-    DC2 = psub(DC2, pmul(C1, vec2d_duplane(D2, 0)));
+    DC1 = pnmadd(C2, vec2d_duplane(D1, 1), DC1);
+    DC2 = pnmadd(C1, vec2d_duplane(D2, 0), DC2);
 
     Packet2d d1, d2;
 
@@ -292,38 +292,38 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
     // iD = D*|A| - C*A#*B
     iD1 = pmul(AB1, vec2d_duplane(C1, 0));
     iD2 = pmul(AB1, vec2d_duplane(C2, 0));
-    iD1 = padd(iD1, pmul(AB2, vec2d_duplane(C1, 1)));
-    iD2 = padd(iD2, pmul(AB2, vec2d_duplane(C2, 1)));
+    iD1 = pmadd(AB2, vec2d_duplane(C1, 1), iD1);
+    iD2 = pmadd(AB2, vec2d_duplane(C2, 1), iD2);
     dA = vec2d_duplane(dA, 0);
-    iD1 = psub(pmul(D1, dA), iD1);
-    iD2 = psub(pmul(D2, dA), iD2);
+    iD1 = pmsub(D1, dA, iD1);
+    iD2 = pmsub(D2, dA, iD2);
 
     // iA = A*|D| - B*D#*C
     iA1 = pmul(DC1, vec2d_duplane(B1, 0));
     iA2 = pmul(DC1, vec2d_duplane(B2, 0));
-    iA1 = padd(iA1, pmul(DC2, vec2d_duplane(B1, 1)));
-    iA2 = padd(iA2, pmul(DC2, vec2d_duplane(B2, 1)));
+    iA1 = pmadd(DC2, vec2d_duplane(B1, 1), iA1);
+    iA2 = pmadd(DC2, vec2d_duplane(B2, 1), iA2);
     dD = vec2d_duplane(dD, 0);
-    iA1 = psub(pmul(A1, dD), iA1);
-    iA2 = psub(pmul(A2, dD), iA2);
+    iA1 = pmsub(A1, dD, iA1);
+    iA2 = pmsub(A2, dD, iA2);
 
     // iB = C*|B| - D * (A#B)# = C*|B| - D*B#*A
     iB1 = pmul(D1, vec2d_swizzle2(AB2, AB1, 1));
     iB2 = pmul(D2, vec2d_swizzle2(AB2, AB1, 1));
-    iB1 = psub(iB1, pmul(vec2d_swizzle2(D1, D1, 1), vec2d_swizzle2(AB2, AB1, 2)));
-    iB2 = psub(iB2, pmul(vec2d_swizzle2(D2, D2, 1), vec2d_swizzle2(AB2, AB1, 2)));
+    iB1 = pnmadd(vec2d_swizzle2(D1, D1, 1), vec2d_swizzle2(AB2, AB1, 2), iB1);
+    iB2 = pnmadd(vec2d_swizzle2(D2, D2, 1), vec2d_swizzle2(AB2, AB1, 2), iB2);
     dB = vec2d_duplane(dB, 0);
-    iB1 = psub(pmul(C1, dB), iB1);
-    iB2 = psub(pmul(C2, dB), iB2);
+    iB1 = pmsub(C1, dB, iB1);
+    iB2 = pmsub(C2, dB, iB2);
 
     // iC = B*|C| - A * (D#C)# = B*|C| - A*C#*D
     iC1 = pmul(A1, vec2d_swizzle2(DC2, DC1, 1));
     iC2 = pmul(A2, vec2d_swizzle2(DC2, DC1, 1));
-    iC1 = psub(iC1, pmul(vec2d_swizzle2(A1, A1, 1), vec2d_swizzle2(DC2, DC1, 2)));
-    iC2 = psub(iC2, pmul(vec2d_swizzle2(A2, A2, 1), vec2d_swizzle2(DC2, DC1, 2)));
+    iC1 = pnmadd(vec2d_swizzle2(A1, A1, 1), vec2d_swizzle2(DC2, DC1, 2), iC1);
+    iC2 = pnmadd(vec2d_swizzle2(A2, A2, 1), vec2d_swizzle2(DC2, DC1, 2), iC2);
     dC = vec2d_duplane(dC, 0);
-    iC1 = psub(pmul(B1, dC), iC1);
-    iC2 = psub(pmul(B2, dC), iC2);
+    iC1 = pmsub(B1, dC, iC1);
+    iC2 = pmsub(B2, dC, iC2);
 
     // Built from integer bits: a -0.0 literal may be replaced by +0.0 under fast-math.
     const double neg_zero = numext::bit_cast<double>(0x8000000000000000ull);

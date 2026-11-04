@@ -145,7 +145,35 @@ void complex_roots_finite() {
   }
 }
 
+template <typename T>
+void complex_roots_packets() {
+  using C = std::complex<T>;
+  constexpr Index count = 2 * internal::packet_traits<C>::size + 1;
+  Array<C, count, 1> input, roots, signs;
+  for (int exponent : {-32, 0, 32}) {
+    for (Index offset = 0; offset < 9; ++offset) {
+      for (Index i = 0; i < count; ++i) {
+        const T x = T((i + offset) % 9 - 4);
+        const T y = T((2 * i + offset) % 9 - 4);
+        input(i) = C(std::ldexp(x, exponent), std::ldexp(y, exponent));
+      }
+      roots = input.sqrt();
+      signs = input.sign();
+      for (Index i = 0; i < count; ++i) {
+        const auto z = std::complex<long double>(input(i).real(), input(i).imag());
+        const auto root = std::sqrt(z);
+        check_root_component(roots(i).real(), T(root.real()));
+        check_root_component(roots(i).imag(), T(root.imag()));
+        const C expected = z == std::complex<long double>(0) ? C(0) : C(z / std::abs(z));
+        VERIFY(numext::abs(signs(i) - expected) <= T(4) * NumTraits<T>::epsilon());
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(complex_sqrt) {
+  CALL_SUBTEST(complex_roots_packets<float>());
+  CALL_SUBTEST(complex_roots_packets<double>());
   CALL_SUBTEST(complex_roots_special_values<float>());
   CALL_SUBTEST(complex_roots_special_values<double>());
   CALL_SUBTEST(complex_roots_special_values<long double>());

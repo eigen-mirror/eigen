@@ -801,7 +801,7 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
     RealPacket a_max_zero_mask = pcmp_eq(a_max, pzero(a_max));
     RealPacket r = pdiv(a_min, a_max);
     const RealPacket cst_one = pset1<RealPacket>(RealScalar(1));
-    RealPacket l = pmul(a_max, psqrt(padd(cst_one, pmul(r, r))));  // [l0, l0, l1, l1]
+    RealPacket l = pmul(a_max, psqrt(pmadd(r, r, cst_one)));  // [l0, l0, l1, l1]
     // Set l to a_max if a_min is zero, since the roundtrip sqrt(a_max^2) may be
     // lossy.
     l = pselect(a_min_zero_mask, a_max, l);
