@@ -607,7 +607,7 @@ struct gemv_dense_selector<OnTheRight, ColMajor, false> {
     // otherwise use a temp
     typename nested_eval<Rhs, 1>::type actual_rhs(rhs);
     const Index size = rhs.rows();
-    for (Index k = 0; k < size; ++k) dest += (alpha * actual_rhs.coeff(k)) * lhs.col(k);
+    for (Index k = 0; k < size; ++k) dest.matrix() += (alpha * actual_rhs.coeff(k)) * lhs.col(k);
   }
 };
 

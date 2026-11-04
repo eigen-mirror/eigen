@@ -278,7 +278,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void trmv_correct_unit_diagonal(const Lhs&
   EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) == UnitDiag) {
     if (!numext::is_exactly_one(lhs_alpha)) {
       Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-      dest.head(diagSize) -= (alpha * (lhs_alpha - LhsScalar(1))) * rhs.head(diagSize);
+      dest.matrix().head(diagSize) -= (alpha * (lhs_alpha - LhsScalar(1))) * rhs.head(diagSize);
     }
   }
 }

@@ -387,6 +387,27 @@ void aliasing_with_resize() {
   VERIFY_IS_APPROX(a, b);
 }
 
+// Constructing an Array passes it to the product kernel itself, which must not add a Matrix expression to it (#3227).
+template <int>
+void array_destination_products() {
+  const Index n = 30;  // above the coefficient-based product threshold
+  const MatrixXd a = MatrixXd::Random(n, n), b = MatrixXd::Random(n, n);
+  const VectorXd v = VectorXd::Random(n);
+  const ArrayXXd gemm = (a + a) * b;
+  VERIFY_IS_APPROX(gemm.matrix(), (2.0 * a) * b);
+  // a + a has no direct access, which selects the column-by-column GEMV fallback.
+  const ArrayXd gemv = (a + a) * v;
+  VERIFY_IS_APPROX(gemv.matrix(), (2.0 * a) * v);
+  // A factor inside a unit triangle takes the diagonal correction, which also accumulates into the Array.
+  const MatrixXd upper = (2.0 * a).triangularView<UnitUpper>(), lower = (2.0 * a).triangularView<UnitLower>();
+  const ArrayXXd trmm = (2.0 * a).triangularView<UnitUpper>() * b;
+  VERIFY_IS_APPROX(trmm.matrix(), upper * b);
+  const ArrayXXd trmmRight = b * (2.0 * a).triangularView<UnitLower>();
+  VERIFY_IS_APPROX(trmmRight.matrix(), b * lower);
+  const ArrayXd trmv = (2.0 * a).triangularView<UnitUpper>() * v;
+  VERIFY_IS_APPROX(trmv.matrix(), upper * v);
+}
+
 template <int>
 void bug_1308() {
   int n = 10;
@@ -1050,6 +1071,7 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_5(triangular_product_assignment_size_mismatch<0>());
   CALL_SUBTEST_5(bug_817<0>());
   CALL_SUBTEST_5(bug_1308<0>());
+  CALL_SUBTEST_5(array_destination_products<0>());
   CALL_SUBTEST_6(unaligned_objects<0>());
   CALL_SUBTEST_7(compute_block_size<float>());
   CALL_SUBTEST_7(compute_block_size<double>());

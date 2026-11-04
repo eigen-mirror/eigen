@@ -460,12 +460,12 @@ struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
       EIGEN_IF_CONSTEXPR (LhsIsTriangular) {
         if (!numext::is_exactly_one(lhs_alpha)) {
           Index diagSize = (std::min)(lhs.rows(), lhs.cols());
-          dst.topRows(diagSize) -= ((alpha * (lhs_alpha - LhsScalar(1))) * a_rhs).topRows(diagSize);
+          dst.matrix().topRows(diagSize) -= ((alpha * (lhs_alpha - LhsScalar(1))) * a_rhs).topRows(diagSize);
         }
       } else {
         if (!numext::is_exactly_one(rhs_alpha)) {
           Index diagSize = (std::min)(rhs.rows(), rhs.cols());
-          dst.leftCols(diagSize) -= (alpha * (rhs_alpha - RhsScalar(1))) * a_lhs.leftCols(diagSize);
+          dst.matrix().leftCols(diagSize) -= (alpha * (rhs_alpha - RhsScalar(1))) * a_lhs.leftCols(diagSize);
         }
       }
     }

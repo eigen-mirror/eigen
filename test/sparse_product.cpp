@@ -1326,6 +1326,22 @@ void test_dense_sparse_quaternion_order() {
   }
 }
 
+// Constructing an Array passes it to the dense * sparse kernel, which must not add a Matrix expression to it (#3227).
+template <int Order>
+void test_dense_sparse_array_destination() {
+  const Index n = 6;
+  const MatrixXd dense = MatrixXd::Random(n, n);
+  const SparseMatrix<double, Order> sparse = MatrixXd::Random(n, n).sparseView(0.5, 1);
+  const MatrixXd sparseDense(sparse);
+  const ArrayXXd product = dense * sparse;
+  VERIFY_IS_APPROX(product.matrix(), dense * sparseDense);
+  // An expression without compressed storage takes the iterator kernel.
+  const ArrayXXd absProduct = dense * sparse.cwiseAbs();
+  VERIFY_IS_APPROX(absProduct.matrix(), dense * sparseDense.cwiseAbs());
+  const ArrayXXd sparseFirst = sparse * dense;
+  VERIFY_IS_APPROX(sparseFirst.matrix(), sparseDense * dense);
+}
+
 template <typename = void>
 void test_sparse_vector_dense_product() {
   SparseVector<double> sv(3);
@@ -1370,6 +1386,8 @@ EIGEN_DECLARE_TEST(sparse_product) {
     CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, ColMajor>()));
     CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, RowMajor>()));
     CALL_SUBTEST_10((test_sparse_outer_operand_types<>()));
+    CALL_SUBTEST_10((test_dense_sparse_array_destination<ColMajor>()));
+    CALL_SUBTEST_10((test_dense_sparse_array_destination<RowMajor>()));
     CALL_SUBTEST_12((test_sparse_quaternion_product_order<ColMajor>()));
     CALL_SUBTEST_12((test_sparse_quaternion_product_order<RowMajor>()));
     CALL_SUBTEST_14((test_dense_sparse_quaternion_order<ColMajor>()));

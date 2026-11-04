@@ -410,13 +410,13 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     const Index end =
         innerNnz ? start + innerNnz[i] : (mat.outerIndexPtr() ? mat.outerIndexPtr()[i + 1] : mat.nonZeros());
     typename Res::RowXpr res_i(res.row(i));
-    for (Index k = start; k < end; ++k) res_i += (alpha * vals[k]) * rhs.row(inds[k]);
+    for (Index k = start; k < end; ++k) res_i.matrix() += (alpha * vals[k]) * rhs.row(inds[k]);
   }
 
   static void processRow(const LhsEval& lhsEval, const SparseLhsType& /*lhs*/, const DenseRhsType& rhs, Res& res,
                          const typename Res::Scalar& alpha, Index i, std::false_type /* has_compressed_storage */) {
     typename Res::RowXpr res_i(res.row(i));
-    for (LhsInnerIterator it(lhsEval, i); it; ++it) res_i += (alpha * it.value()) * rhs.row(it.index());
+    for (LhsInnerIterator it(lhsEval, i); it; ++it) res_i.matrix() += (alpha * it.value()) * rhs.row(it.index());
   }
 };
 
@@ -449,7 +449,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
       typename Rhs::ConstRowXpr rhs_j(rhs.row(j));
       const Index start = outer ? outer[j] : 0;
       const Index end = innerNnz ? start + innerNnz[j] : (outer ? outer[j + 1] : mat.nonZeros());
-      for (Index k = start; k < end; ++k) res.row(inds[k]) += (alpha * vals[k]) * rhs_j;
+      for (Index k = start; k < end; ++k) res.row(inds[k]).matrix() += (alpha * vals[k]) * rhs_j;
     }
   }
 
@@ -458,7 +458,7 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     evaluator<Lhs> lhsEval(lhs);
     for (Index j = 0; j < lhs.outerSize(); ++j) {
       typename Rhs::ConstRowXpr rhs_j(rhs.row(j));
-      for (LhsInnerIterator it(lhsEval, j); it; ++it) res.row(it.index()) += (alpha * it.value()) * rhs_j;
+      for (LhsInnerIterator it(lhsEval, j); it; ++it) res.row(it.index()).matrix() += (alpha * it.value()) * rhs_j;
     }
   }
 };
