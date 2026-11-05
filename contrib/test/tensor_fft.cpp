@@ -289,6 +289,35 @@ static void test_fft_in_place_assign(int n) {
   }
 }
 
+template <typename RealScalar, int DataLayout>
+static void test_fft_large_impulse() {
+  constexpr int n = 65536;
+  constexpr int stages = 16;
+  using Complex = std::complex<RealScalar>;
+  using WideComplex = std::complex<long double>;
+  Tensor<RealScalar, 2, DataLayout> input(2, n);
+  input.setZero();
+  input(0, 1) = RealScalar(1);
+  input(1, 3) = RealScalar(-1);
+  const array<int, 1> axis = {{1}};
+  Tensor<Complex, 2, DataLayout> forward = input.template fft<BothParts, FFT_FORWARD>(axis);
+  Tensor<Complex, 2, DataLayout> reverse = input.template fft<BothParts, FFT_REVERSE>(axis);
+  // A shifted impulse has an analytic DFT; a round trip alone can hide errors shared by both directions.
+  // Allow 16 eps per butterfly stage, independently of the long twiddle recurrence's length.
+  const long double bound = 16 * stages * static_cast<long double>(NumTraits<RealScalar>::epsilon());
+  const long double two_pi = 2 * std::acos(-1.L);
+  for (int line = 0; line < 2; ++line) {
+    const int shift = line == 0 ? 1 : 3;
+    const long double amplitude = line == 0 ? 1.L : -1.L;
+    for (int k = 0; k < n; ++k) {
+      const long double phase = two_pi * ((shift * k) % n) / n;
+      const WideComplex expected = amplitude * WideComplex(std::cos(phase), -std::sin(phase));
+      VERIFY(std::abs(WideComplex(forward(line, k)) - expected) <= bound);
+      VERIFY(std::abs(static_cast<long double>(n) * WideComplex(reverse(line, k)) - std::conj(expected)) <= bound);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_fft) {
   test_fft_complex_input_golden();
   test_fft_real_input_golden();
@@ -350,4 +379,9 @@ EIGEN_DECLARE_TEST(tensor_fft) {
   test_fft_in_place_assign<float>(100);
   test_fft_in_place_assign<double>(64);
   test_fft_in_place_assign<double>(100);
+
+  test_fft_large_impulse<float, ColMajor>();
+  test_fft_large_impulse<double, ColMajor>();
+  test_fft_large_impulse<float, RowMajor>();
+  test_fft_large_impulse<double, RowMajor>();
 }

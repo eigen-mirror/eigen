@@ -506,15 +506,27 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   }
 
   template <int Dir>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_1D_merge(ComplexScalar* data, Index n, Index n_power_of_2) {
-    // Original code:
-    // RealScalar wtemp = std::sin(EIGEN_PI/n);
-    // RealScalar wpi =  -std::sin(2 * EIGEN_PI/n);
-    const RealScalar wtemp = m_sin_PI_div_n_LUT[n_power_of_2];
-    const RealScalar wpi =
-        (Dir == FFT_FORWARD) ? m_minus_sin_2_PI_div_n_LUT[n_power_of_2] : -m_minus_sin_2_PI_div_n_LUT[n_power_of_2];
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ComplexScalar twiddle_increment(Index log_period) const {
+    // exp(+/-2*pi*i / 2^log_period) - 1, retaining the small real correction.
+    return ComplexScalar(m_sin_PI_div_n_LUT[log_period], Dir == FFT_FORWARD ? m_minus_sin_2_PI_div_n_LUT[log_period]
+                                                                            : -m_minus_sin_2_PI_div_n_LUT[log_period]);
+  }
 
-    const ComplexScalar wp(wtemp, wpi);
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void advance_twiddle(ComplexScalar& w, const ComplexScalar& increment) const {
+    ComplexScalar correction = internal::pmul(w, increment);
+    // Reassociation into w*(1+increment) would round away the small real correction again.
+    // -funsafe-math-optimizations can reassociate without defining __FAST_MATH__.
+    RealScalar re = correction.real();
+    RealScalar im = correction.imag();
+    internal::pbarrier(re);
+    internal::pbarrier(im);
+    correction = ComplexScalar(re, im);
+    w += correction;
+  }
+
+  template <int Dir>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void butterfly_1D_merge(ComplexScalar* data, Index n, Index n_power_of_2) {
+    const ComplexScalar wp = twiddle_increment<Dir>(n_power_of_2);
     const ComplexScalar wp_one = wp + ComplexScalar(1, 0);
     const Index n2 = n / 2;
 
@@ -527,9 +539,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     // A batch's twiddles are a broadcast of the running factor times a
     // precomputed ramp wp_one^{0..kBatch-1}: one vector pmul per packet
     // instead of a scalar cmul per lane plus a round-trip through scratch. The
-    // running factor advances by wp_one^kBatch per batch; kBatch >= 4 keeps
-    // that recurrence at the same stride — and thus the same accumulated
-    // rounding — as the original scalar code.
+    // running factor advances by 2*kBatch twiddle steps per iteration.
     //
     // Two cases fall through to the scalar loop. A 1-wide complex packet
     // (CPacketSize == 1: Packet1cd, i.e. SSE2 std::complex<double>) carries no
@@ -538,6 +548,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     // kMaxBatch (e.g. RVV with VLEN >= 1024 gives CPacketSize == 16 for
     // std::complex<float>) overflow the ramp.
     constexpr Index kMaxBatch = 8;
+    // At least four twiddles amortize the scalar running-factor update over multiple packets.
     constexpr Index kBatch = (CPacketSize >= 4) ? CPacketSize : Index(4);
     if (CPacketSize >= 2 && CPacketSize <= kMaxBatch && kBatch <= n2) {
       // ramp[k] = wp_one^k — built once, reused for every batch and every line.
@@ -545,7 +556,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
       ramp[0] = ComplexScalar(1, 0);
       for (Index k = 1; k < kBatch; ++k) ramp[k] = internal::pmul(ramp[k - 1], wp_one);
       const ComplexScalar wp_one_batch = internal::pmul(ramp[kBatch - 1], wp_one);
-      const ComplexScalar wp_one_2batch = internal::pmul(wp_one_batch, wp_one_batch);
+      const ComplexScalar wp_2batch = twiddle_increment<Dir>(n_power_of_2 - getLog2(2 * kBatch));
 
       // Two batches are processed per iteration with two independent running
       // factors, so the w recurrence (one complex pmul of latency) is no
@@ -569,7 +580,8 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
           internal::pstoreu(data + i + kBatch + k, internal::padd(pa1, pt1));
           internal::pstoreu(data + i + kBatch + n2 + k, internal::psub(pa1, pt1));
         }
-        w = internal::pmul(w, wp_one_2batch);
+        // Keep cos(theta)-1 separate: rounding 1 + delta before a long recurrence causes radial drift.
+        advance_twiddle(w, wp_2batch);
       }
       // n2 is a power of two >= kBatch, so this tail runs at most once.
       for (; i < n2; i += kBatch) {
@@ -587,10 +599,10 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
     }
 #endif
 
-    // Scalar fallback (GPU build, or RVV with VLEN >= 1024 → CPacketSize > 8).
+    // Scalar fallback (including one-wide complex packets and GPU builds).
     const ComplexScalar wp_one_2 = internal::pmul(wp_one, wp_one);
     const ComplexScalar wp_one_3 = internal::pmul(wp_one_2, wp_one);
-    const ComplexScalar wp_one_4 = internal::pmul(wp_one_3, wp_one);
+    const ComplexScalar wp_4 = twiddle_increment<Dir>(n_power_of_2 - 2);
     ComplexScalar w(1.0, 0.0);
     for (Index i = 0; i < n2; i += 4) {
       const ComplexScalar w1 = internal::pmul(w, wp_one);
@@ -600,7 +612,7 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
       const ComplexScalar temp1 = internal::pmul(data[i + 1 + n2], w1);
       const ComplexScalar temp2 = internal::pmul(data[i + 2 + n2], w2);
       const ComplexScalar temp3 = internal::pmul(data[i + 3 + n2], w3);
-      w = internal::pmul(w, wp_one_4);
+      advance_twiddle(w, wp_4);
 
       data[i + n2] = data[i] - temp0;
       data[i] += temp0;

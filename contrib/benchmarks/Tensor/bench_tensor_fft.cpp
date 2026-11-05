@@ -154,7 +154,7 @@ static void BM_TensorFFT_Bluestein_Batched(benchmark::State& state) {
 }
 
 // clang-format off
-#define POW2_SIZES      ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)
+#define POW2_SIZES      ->Arg(64)->Arg(256)->Arg(1024)->Arg(4096)->Arg(16384)->Arg(65536)->Arg(1048576)
 #define POW2_2D         ->Arg(64)->Arg(256)->Arg(1024)
 #define BLUESTEIN       ->Arg(100)->Arg(1000)->Arg(4099)
 #define BATCH_SIZES     ->Args({64,64})->Args({256,64})->Args({1024,64})->Args({4096,64})
