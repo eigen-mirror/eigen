@@ -14,9 +14,9 @@ EIGEN_PROJECT_ID = 15462818  # Taken from the gitlab project page.
 
 
 def date(date_string: str):
-    """Convert a date YY-MM-DD string to a datetime object."""
+    """Convert a date YYYY-MM-DD string to a datetime object."""
     try:
-        return datetime.strptime(date_string, "%Y-%m-%d")
+        return datetime.datetime.strptime(date_string, "%Y-%m-%d")
     except ValueError:
         msg = f"Not a valid date: '{date_string}'. Expected format is YYYY-MM-DD."
         raise argparse.ArgumentTypeError(msg)
