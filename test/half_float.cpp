@@ -429,8 +429,27 @@ void test_nextafter() {
   VERIFY_HALF_BITS_EQUAL(numext::nextafter(half(-0.0f), half(-0.0f)), 0x8000);
 }
 
+// As in Eigen 5.0, half::x is a native fp16 type only with native fp16 arithmetic, and elsewhere holds the raw bits and
+// keeps half constants constexpr. Its type decides whether AAPCS64 passes half in a SIMD or a general-purpose register
+// (#3225).
+void test_storage() {
+#if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
+  VERIFY((std::is_same<decltype(half().x), __fp16>::value));
+#elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
+  VERIFY((std::is_same<decltype(half().x), _Float16>::value));
+#else
+  VERIFY((std::is_same<decltype(half().x), numext::uint16_t>::value));
+  half h;
+  h.x = 0x3c00;
+  VERIFY_IS_EQUAL(static_cast<float>(h), 1.0f);
+  constexpr half kHighest = NumTraits<half>::highest();
+  VERIFY_HALF_BITS_EQUAL(kHighest, 0x7bff);
+#endif
+}
+
 EIGEN_DECLARE_TEST(half_float) {
   CALL_SUBTEST(test_numtraits());
+  CALL_SUBTEST(test_storage());
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST(test_conversion());
     CALL_SUBTEST(test_arithmetic());

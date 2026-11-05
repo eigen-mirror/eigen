@@ -203,7 +203,9 @@ struct gebp_traits<half, half, false, false, Architecture::NEON>
 
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = *b; }
 
-  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const { dest = vld1_f16(&b->x); }
+  EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
+    dest = vld1_f16(reinterpret_cast<const float16_t*>(b));
+  }
 
   EIGEN_STRONG_INLINE void updateRhs(const RhsScalar* b, RhsPacket& dest) const { dest = *b; }
 
