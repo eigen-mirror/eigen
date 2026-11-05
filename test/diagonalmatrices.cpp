@@ -21,15 +21,15 @@
 using namespace std;
 template <typename MatrixType>
 void diagonalmatrices(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef Matrix<Scalar, Rows, 1> VectorType;
-  typedef Matrix<Scalar, 1, Cols> RowVectorType;
-  typedef Matrix<Scalar, Rows, Rows> SquareMatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DynMatrixType;
-  typedef DiagonalMatrix<Scalar, Rows> LeftDiagonalMatrix;
-  typedef DiagonalMatrix<Scalar, Cols> RightDiagonalMatrix;
-  typedef Matrix<Scalar, Rows == Dynamic ? Dynamic : 2 * Rows, Cols == Dynamic ? Dynamic : 2 * Cols> BigMatrix;
+  using VectorType = Matrix<Scalar, Rows, 1>;
+  using RowVectorType = Matrix<Scalar, 1, Cols>;
+  using SquareMatrixType = Matrix<Scalar, Rows, Rows>;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using LeftDiagonalMatrix = DiagonalMatrix<Scalar, Rows>;
+  using RightDiagonalMatrix = DiagonalMatrix<Scalar, Cols>;
+  using BigMatrix = Matrix<Scalar, Rows == Dynamic ? Dynamic : 2 * Rows, Cols == Dynamic ? Dynamic : 2 * Cols>;
   Index rows = m.rows();
   Index cols = m.cols();
 
@@ -276,11 +276,11 @@ void dense_diagonal_sum_assignment_regressions() {
 
 template <typename MatrixType>
 void as_scalar_product(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DynMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DynVectorType;
-  typedef Matrix<Scalar, 1, Dynamic> DynRowVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using DynVectorType = Matrix<Scalar, Dynamic, 1>;
+  using DynRowVectorType = Matrix<Scalar, 1, Dynamic>;
 
   Index rows = m.rows();
   Index depth = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
@@ -494,8 +494,8 @@ void selfadjoint_diagonal_products() {
 // overwrite path leaves no stale data when dst is pre-filled.
 template <typename Scalar>
 void selfadjoint_diagonal_products_at(Index n) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
-  typedef Matrix<Scalar, Dynamic, 1> VecType;
+  using MatType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VecType = Matrix<Scalar, Dynamic, 1>;
 
   MatType m = MatType::Random(n, n);
   m.diagonal() = m.diagonal().real().template cast<Scalar>();  // Hermitian diagonal

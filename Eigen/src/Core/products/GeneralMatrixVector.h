@@ -29,10 +29,11 @@ template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEBPPacketFu
 class gemv_traits {
   using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
-#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
-  typedef typename packet_conditional<                                                                     \
-      packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet##postfix
+#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                               \
+  using name##Packet##postfix =                                                            \
+      typename packet_conditional<packet_size, typename packet_traits<name##Scalar>::type, \
+                                  typename packet_traits<name##Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);

@@ -23,9 +23,8 @@ class circulant_functor {
 // [square]
 template <class ArgType>
 struct circulant_helper {
-  typedef Eigen::Matrix<typename ArgType::Scalar, ArgType::SizeAtCompileTime, ArgType::SizeAtCompileTime,
-                        Eigen::ColMajor, ArgType::MaxSizeAtCompileTime, ArgType::MaxSizeAtCompileTime>
-      MatrixType;
+  using MatrixType = Eigen::Matrix<typename ArgType::Scalar, ArgType::SizeAtCompileTime, ArgType::SizeAtCompileTime,
+                                   Eigen::ColMajor, ArgType::MaxSizeAtCompileTime, ArgType::MaxSizeAtCompileTime>;
 };
 // [square]
 
@@ -33,7 +32,7 @@ struct circulant_helper {
 template <class ArgType>
 Eigen::CwiseNullaryOp<circulant_functor<ArgType>, typename circulant_helper<ArgType>::MatrixType> makeCirculant(
     const Eigen::MatrixBase<ArgType>& arg) {
-  typedef typename circulant_helper<ArgType>::MatrixType MatrixType;
+  using MatrixType = typename circulant_helper<ArgType>::MatrixType;
   return MatrixType::NullaryExpr(arg.size(), arg.size(), circulant_functor<ArgType>(arg.derived()));
 }
 // [makeCirculant]

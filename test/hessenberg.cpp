@@ -14,7 +14,7 @@
 
 template <typename Scalar, int Size>
 void hessenberg(int size = Size) {
-  typedef Matrix<Scalar, Size, Size> MatrixType;
+  using MatrixType = Matrix<Scalar, Size, Size>;
 
   // Test basic functionality: A = U H U* and H is Hessenberg
   for (int counter = 0; counter < g_repeat; ++counter) {

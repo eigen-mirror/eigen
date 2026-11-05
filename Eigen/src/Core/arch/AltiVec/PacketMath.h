@@ -31,16 +31,16 @@ namespace internal {
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
 
-typedef __vector float Packet4f;
-typedef __vector int Packet4i;
-typedef __vector unsigned int Packet4ui;
-typedef __vector __bool int Packet4bi;
-typedef __vector short int Packet8s;
-typedef __vector unsigned short int Packet8us;
-typedef __vector __bool short Packet8bi;
-typedef __vector signed char Packet16c;
-typedef __vector unsigned char Packet16uc;
-typedef eigen_packet_wrapper<__vector unsigned short int, 0> Packet8bf;
+using Packet4f = __vector float;
+using Packet4i = __vector int;
+using Packet4ui = __vector unsigned int;
+using Packet4bi = __vector __bool int;
+using Packet8s = __vector short int;
+using Packet8us = __vector unsigned short int;
+using Packet8bi = __vector __bool short;
+using Packet16c = __vector signed char;
+using Packet16uc = __vector unsigned char;
+using Packet8bf = eigen_packet_wrapper<__vector unsigned short int, 0>;
 
 // To avoid repeating the same code, but we need to reuse the constants
 // and it doesn't really work to declare them global, so we define macros instead
@@ -163,8 +163,8 @@ static Packet16uc p16uc_COMPLEX32_REV =
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet4f type;
-  typedef Packet4f half;
+  using type = Packet4f;
+  using half = Packet4f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -212,8 +212,8 @@ struct packet_traits<float> : default_packet_traits {
 };
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {
-  typedef Packet8bf type;
-  typedef Packet8bf half;
+  using type = Packet8bf;
+  using half = Packet8bf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -249,8 +249,8 @@ struct packet_traits<bfloat16> : default_packet_traits {
 
 template <>
 struct packet_traits<int> : default_packet_traits {
-  typedef Packet4i type;
-  typedef Packet4i half;
+  using type = Packet4i;
+  using half = Packet4i;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -271,8 +271,8 @@ struct packet_traits<int> : default_packet_traits {
 
 template <>
 struct packet_traits<short int> : default_packet_traits {
-  typedef Packet8s type;
-  typedef Packet8s half;
+  using type = Packet8s;
+  using half = Packet8s;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -288,8 +288,8 @@ struct packet_traits<short int> : default_packet_traits {
 
 template <>
 struct packet_traits<unsigned short int> : default_packet_traits {
-  typedef Packet8us type;
-  typedef Packet8us half;
+  using type = Packet8us;
+  using half = Packet8us;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -305,8 +305,8 @@ struct packet_traits<unsigned short int> : default_packet_traits {
 
 template <>
 struct packet_traits<signed char> : default_packet_traits {
-  typedef Packet16c type;
-  typedef Packet16c half;
+  using type = Packet16c;
+  using half = Packet16c;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -322,8 +322,8 @@ struct packet_traits<signed char> : default_packet_traits {
 
 template <>
 struct packet_traits<unsigned char> : default_packet_traits {
-  typedef Packet16uc type;
-  typedef Packet16uc half;
+  using type = Packet16uc;
+  using half = Packet16uc;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -339,9 +339,9 @@ struct packet_traits<unsigned char> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4f> {
-  typedef float type;
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
+  using type = float;
+  using half = Packet4f;
+  using integer_packet = Packet4i;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -352,8 +352,8 @@ struct unpacket_traits<Packet4f> {
 };
 template <>
 struct unpacket_traits<Packet4i> {
-  typedef int type;
-  typedef Packet4i half;
+  using type = int;
+  using half = Packet4i;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -364,8 +364,8 @@ struct unpacket_traits<Packet4i> {
 };
 template <>
 struct unpacket_traits<Packet8s> {
-  typedef short int type;
-  typedef Packet8s half;
+  using type = short int;
+  using half = Packet8s;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -376,8 +376,8 @@ struct unpacket_traits<Packet8s> {
 };
 template <>
 struct unpacket_traits<Packet8us> {
-  typedef unsigned short int type;
-  typedef Packet8us half;
+  using type = unsigned short int;
+  using half = Packet8us;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -389,8 +389,8 @@ struct unpacket_traits<Packet8us> {
 
 template <>
 struct unpacket_traits<Packet16c> {
-  typedef signed char type;
-  typedef Packet16c half;
+  using type = signed char;
+  using half = Packet16c;
   enum {
     size = 16,
     alignment = Aligned16,
@@ -401,8 +401,8 @@ struct unpacket_traits<Packet16c> {
 };
 template <>
 struct unpacket_traits<Packet16uc> {
-  typedef unsigned char type;
-  typedef Packet16uc half;
+  using type = unsigned char;
+  using half = Packet16uc;
   enum {
     size = 16,
     alignment = Aligned16,
@@ -414,8 +414,8 @@ struct unpacket_traits<Packet16uc> {
 
 template <>
 struct unpacket_traits<Packet8bf> {
-  typedef bfloat16 type;
-  typedef Packet8bf half;
+  using type = bfloat16;
+  using half = Packet8bf;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -3111,13 +3111,13 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet16uc, 16>& kernel) {
 
 //---------- double ----------
 #ifdef EIGEN_VECTORIZE_VSX
-typedef __vector double Packet2d;
-typedef __vector unsigned long long Packet2ul;
-typedef __vector long long Packet2l;
+using Packet2d = __vector double;
+using Packet2ul = __vector unsigned long long;
+using Packet2l = __vector long long;
 #if EIGEN_COMP_CLANG
-typedef Packet2ul Packet2bl;
+using Packet2bl = Packet2ul;
 #else
-typedef __vector __bool long Packet2bl;
+using Packet2bl = __vector __bool long;
 #endif
 
 static Packet2l p2l_ZERO = reinterpret_cast<Packet2l>(p4i_ZERO);
@@ -3143,8 +3143,8 @@ Packet2d vec_splat_dbl(const Packet2d& a) {
 
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet2d type;
-  typedef Packet2d half;
+  using type = Packet2d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -3183,8 +3183,8 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet2d> {
-  typedef double type;
-  typedef Packet2l integer_packet;
+  using type = double;
+  using integer_packet = Packet2l;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -3192,12 +3192,12 @@ struct unpacket_traits<Packet2d> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet2d half;
+  using half = Packet2d;
 };
 template <>
 struct unpacket_traits<Packet2l> {
-  typedef int64_t type;
-  typedef Packet2l half;
+  using type = int64_t;
+  using half = Packet2l;
   enum {
     size = 2,
     alignment = Aligned16,

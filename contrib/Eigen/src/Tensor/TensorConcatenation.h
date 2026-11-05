@@ -20,22 +20,22 @@ namespace internal {
 template <typename Axis, typename LhsXprType, typename RhsXprType>
 struct traits<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>> {
   // Type promotion to handle the case where the types of the lhs and the rhs are different.
-  typedef typename promote_storage_type<typename LhsXprType::Scalar, typename RhsXprType::Scalar>::ret Scalar;
-  typedef typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
-                                        typename traits<RhsXprType>::StorageKind>::ret StorageKind;
-  typedef
-      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
+  using Scalar = typename promote_storage_type<typename LhsXprType::Scalar, typename RhsXprType::Scalar>::ret;
+  using StorageKind = typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
+                                                    typename traits<RhsXprType>::StorageKind>::ret;
+  using Index =
+      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type;
   static constexpr int NumDimensions = traits<LhsXprType>::NumDimensions;
   static constexpr int Layout = traits<LhsXprType>::Layout;
   enum { Flags = 0 };
-  typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
-                             typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>
-      PointerType;
+  using PointerType =
+      std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
+                         typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>;
 };
 
 template <typename Axis, typename LhsXprType, typename RhsXprType>
 struct eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, Eigen::Dense> {
-  typedef const TensorConcatenationOp<Axis, LhsXprType, RhsXprType>& type;
+  using type = const TensorConcatenationOp<Axis, LhsXprType, RhsXprType>&;
 };
 
 }  // end namespace internal
@@ -48,14 +48,14 @@ struct eval<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, Eigen::Dense> {
 template <typename Axis, typename LhsXprType, typename RhsXprType>
 class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, WriteAccessors> {
  public:
-  typedef TensorBase<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, WriteAccessors> Base;
-  typedef typename internal::traits<TensorConcatenationOp>::Scalar Scalar;
-  typedef typename internal::traits<TensorConcatenationOp>::StorageKind StorageKind;
-  typedef typename internal::traits<TensorConcatenationOp>::Index Index;
-  typedef typename internal::ref_selector<TensorConcatenationOp>::type Nested;
-  typedef typename internal::promote_storage_type<typename LhsXprType::CoeffReturnType,
-                                                  typename RhsXprType::CoeffReturnType>::ret CoeffReturnType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Base = TensorBase<TensorConcatenationOp<Axis, LhsXprType, RhsXprType>, WriteAccessors>;
+  using Scalar = typename internal::traits<TensorConcatenationOp>::Scalar;
+  using StorageKind = typename internal::traits<TensorConcatenationOp>::StorageKind;
+  using Index = typename internal::traits<TensorConcatenationOp>::Index;
+  using Nested = typename internal::ref_selector<TensorConcatenationOp>::type;
+  using CoeffReturnType = typename internal::promote_storage_type<typename LhsXprType::CoeffReturnType,
+                                                                  typename RhsXprType::CoeffReturnType>::ret;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorConcatenationOp(const LhsXprType& lhs, const RhsXprType& rhs, Axis axis)
       : m_lhs_xpr(lhs), m_rhs_xpr(rhs), m_axis(axis) {}
@@ -80,17 +80,17 @@ class TensorConcatenationOp : public TensorBase<TensorConcatenationOp<Axis, LhsX
 // Eval as rvalue
 template <typename Axis, typename LeftArgType, typename RightArgType, typename Device>
 struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> {
-  typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorConcatenationOp<Axis, LeftArgType, RightArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<LeftArgType, Device>::Dimensions>::value;
   static constexpr int RightNumDims =
       internal::array_size<typename TensorEvaluator<RightArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
     IsAligned = false,
@@ -109,13 +109,13 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -292,9 +292,9 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
       }
     }
 
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
-    typedef typename TensorBlockIO::Dst TensorBlockIODst;
-    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout>;
+    using TensorBlockIODst = typename TensorBlockIO::Dst;
+    using TensorBlockIOSrc = typename TensorBlockIO::Src;
 
     // Strided destination buffers are safe here because we only ever write
     // dense slabs into them; allowing strided storage lets a root-of-AST
@@ -538,9 +538,9 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
 template <typename Axis, typename LeftArgType, typename RightArgType, typename Device>
 struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device>
     : public TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> {
-  typedef TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device> Base;
-  typedef TensorConcatenationOp<Axis, LeftArgType, RightArgType> XprType;
-  typedef typename Base::Dimensions Dimensions;
+  using Base = TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgType>, Device>;
+  using XprType = TensorConcatenationOp<Axis, LeftArgType, RightArgType>;
+  using Dimensions = typename Base::Dimensions;
   static constexpr int NumDims = Base::NumDims;
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
@@ -557,10 +557,10 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     RawAccess = false
   };
 
-  typedef std::remove_const_t<typename XprType::Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<typename XprType::Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, typename XprType::Index> TensorBlockDesc;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, typename XprType::Index>;
   //===--------------------------------------------------------------------===//
 
   // The ColMajor-only static_assert lives in coeffRef/writePacket rather than
@@ -570,10 +570,10 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
   // assignments through a RowMajor concatenation are supported.
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType& coeffRef(Index index) const {
     EIGEN_STATIC_ASSERT((static_cast<int>(Layout) == static_cast<int>(ColMajor)), YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -633,8 +633,8 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
       mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
       ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
 
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
-          TensorBlockAssignment;
+      using TensorBlockAssignment =
+          internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>;
       TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 
       block_buffer = buf;
@@ -662,9 +662,9 @@ struct TensorEvaluator<TensorConcatenationOp<Axis, LeftArgType, RightArgType>, D
     const Index axis_end = axis_start + axis_size;
     const Index left_axis_size = this->m_leftAxisSize;
 
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
-    typedef typename TensorBlockIO::Dst TensorBlockIODst;
-    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout>;
+    using TensorBlockIODst = typename TensorBlockIO::Dst;
+    using TensorBlockIOSrc = typename TensorBlockIO::Src;
 
     if (axis_start < left_axis_size) {
       DSizes<Index, NumDims> left_sub_dims = desc.dimensions();

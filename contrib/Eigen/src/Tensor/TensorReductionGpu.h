@@ -239,7 +239,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitFullReduxKernelHalfFlo
                                                                                    Index num_coeffs, half* scratch) {
   eigen_assert(blockDim.x == 1);
   eigen_assert(gridDim.x == 1);
-  typedef packet_traits<Eigen::half>::type packet_type;
+  using packet_type = packet_traits<Eigen::half>::type;
   Index packet_remainder = num_coeffs % Index(unpacket_traits<packet_type>::size);
   if (packet_remainder != 0) {
     half2* h2scratch = reinterpret_cast<half2*>(scratch);
@@ -262,7 +262,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionInitKernelHalfFloat(Reduce
                                                                           Index num_coeffs, half* output) {
   const Index thread_id = blockIdx.x * blockDim.x + threadIdx.x;
   const Index num_threads = blockDim.x * gridDim.x;
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  using PacketType = typename packet_traits<Eigen::half>::type;
 
   const Index num_packets = num_coeffs / Index(unpacket_traits<PacketType>::size);
   PacketType* p_output = reinterpret_cast<PacketType*>(output);
@@ -279,7 +279,7 @@ template <int BlockSize, int NumPerThread, typename Self, typename Reducer, type
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernelHalfFloat(Reducer reducer, const Self input,
                                                                           Index num_coeffs, half* output,
                                                                           half* scratch) {
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  using PacketType = typename packet_traits<Eigen::half>::type;
   const int packet_width = unpacket_traits<PacketType>::size;
   eigen_assert(NumPerThread % packet_width == 0);
   const Index first_index = blockIdx.x * BlockSize * NumPerThread + packet_width * threadIdx.x;
@@ -371,7 +371,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void FullReductionKernelHalfFloat(Reduce
 template <typename Op>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void ReductionCleanupKernelHalfFloat(Op reducer, half* output, half* scratch) {
   eigen_assert(threadIdx.x == 1);
-  typedef packet_traits<Eigen::half>::type packet_type;
+  using packet_type = packet_traits<Eigen::half>::type;
   EIGEN_IF_CONSTEXPR (unpacket_traits<packet_type>::size == 1) {
     *output = *scratch;
   } else {
@@ -400,7 +400,7 @@ struct FullReductionLauncher<
     std::enable_if_t<std::is_same<float, OutputType>::value || std::is_same<double, OutputType>::value, void>> {
   static void run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
     const int block_size = 256;
     const int num_per_thread = 128;
     const int num_blocks = numext::div_ceil<int>(num_coeffs, block_size * num_per_thread);
@@ -427,7 +427,7 @@ template <typename Self, typename Op>
 struct FullReductionLauncher<Self, Op, Eigen::half, true> {
   static void run(const Self& self, Op& reducer, const GpuDevice& device, half* output,
                   typename Self::Index num_coeffs) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
 
     const int block_size = 256;
     const int num_per_thread = 128;
@@ -483,7 +483,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernel(Reducer reduce
                                                                   Index num_coeffs_to_reduce,
                                                                   Index num_preserved_coeffs,
                                                                   typename Self::CoeffReturnType* output) {
-  typedef typename Self::CoeffReturnType Type;
+  using Type = typename Self::CoeffReturnType;
   eigen_assert(blockDim.y == 1);
   eigen_assert(blockDim.z == 1);
   eigen_assert(gridDim.y == 1);
@@ -558,7 +558,7 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void InnerReductionKernelHalfFloat(Reduc
   eigen_assert(gridDim.y == 1);
   eigen_assert(gridDim.z == 1);
 
-  typedef typename packet_traits<Eigen::half>::type PacketType;
+  using PacketType = typename packet_traits<Eigen::half>::type;
   const int packet_width = unpacket_traits<PacketType>::size;
   const int unroll_times = 16 / packet_width;
   eigen_assert(NumPerThread % unroll_times == 0);
@@ -727,7 +727,7 @@ struct InnerReductionLauncher<
     std::enable_if_t<std::is_same<float, OutputType>::value || std::is_same<double, OutputType>::value, void>> {
   static bool run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs_to_reduce, typename Self::Index num_preserved_vals) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
 
     const Index num_coeffs = num_coeffs_to_reduce * num_preserved_vals;
     const int block_size = 256;
@@ -766,7 +766,7 @@ template <typename Self, typename Op>
 struct InnerReductionLauncher<Self, Op, Eigen::half, true> {
   static bool run(const Self& self, Op& reducer, const GpuDevice& device, half* output,
                   typename Self::Index num_coeffs_to_reduce, typename Self::Index num_preserved_vals) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
 
     if (num_preserved_vals % 2 != 0) {
       // Not supported yet, revert to the slower code path
@@ -891,7 +891,7 @@ struct OuterReducer<Self, Op, GpuDevice> {
   template <typename OutputType, EIGEN_SFINAE_ENABLE_IF(IsFloatOrDouble<OutputType>::value)>
   static bool run(const Self& self, Op& reducer, const GpuDevice& device, OutputType* output,
                   typename Self::Index num_coeffs_to_reduce, typename Self::Index num_preserved_vals) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
 
     // It's faster to use the usual code.
     if (num_coeffs_to_reduce <= 32) {

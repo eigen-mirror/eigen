@@ -59,23 +59,23 @@ struct PartOf<ImagPart> {
 namespace internal {
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
 struct traits<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>> : public traits<XprType> {
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef make_complex_t<Scalar> ComplexScalar;
-  typedef typename XprTraits::Scalar InputScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
-      OutputScalar;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using XprTraits = traits<XprType>;
+  using Scalar = typename XprTraits::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ComplexScalar = make_complex_t<Scalar>;
+  using InputScalar = typename XprTraits::Scalar;
+  using OutputScalar =
+      std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename traits<XprType>::PointerType PointerType;
+  using PointerType = typename traits<XprType>::PointerType;
 };
 
 template <typename FFT, typename XprType, int FFTResultType, int FFTDirection>
 struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense> {
-  typedef const TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>& type;
+  using type = const TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>&;
 };
 
 }  // end namespace internal
@@ -99,15 +99,15 @@ struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
 class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorFFTOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
-      OutputScalar;
-  typedef OutputScalar CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorFFTOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorFFTOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorFFTOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorFFTOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using OutputScalar =
+      std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>;
+  using CoeffReturnType = OutputScalar;
+  using Nested = typename Eigen::internal::ref_selector<TensorFFTOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorFFTOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorFFTOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFFTOp(const XprType& expr, const FFT& fft) : m_xpr(expr), m_fft(fft) {}
 
@@ -123,23 +123,23 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
 // Eval as rvalue
 template <typename FFT, typename ArgType, typename Device, int FFTResultType, int FFTDir>
 struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, Device> {
-  typedef TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions InputDimensions;
-  typedef internal::traits<XprType> XprTraits;
-  typedef typename XprTraits::Scalar InputScalar;
-  typedef std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>
-      OutputScalar;
-  typedef OutputScalar CoeffReturnType;
-  typedef typename PacketType<OutputScalar, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using InputDimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using XprTraits = internal::traits<XprType>;
+  using InputScalar = typename XprTraits::Scalar;
+  using OutputScalar =
+      std::conditional_t<FFTResultType == RealPart || FFTResultType == ImagPart, RealScalar, ComplexScalar>;
+  using CoeffReturnType = OutputScalar;
+  using PacketReturnType = typename PacketType<OutputScalar, Device>::type;
   static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -157,10 +157,10 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-  typedef typename internal::TensorMaterializedBlock<std::remove_const_t<CoeffReturnType>, NumDims, Layout, Index>
-      TensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
+  using TensorBlock =
+      typename internal::TensorMaterializedBlock<std::remove_const_t<CoeffReturnType>, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)

@@ -103,19 +103,19 @@ namespace Eigen {
 template <typename Scalar_, class _System>
 class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
  public:
-  typedef RotationBase<EulerAngles<Scalar_, _System>, 3> Base;
+  using Base = RotationBase<EulerAngles<Scalar_, _System>, 3>;
 
   /** the scalar type of the angles */
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   /** the EulerSystem to use, which represents the axes of rotation. */
-  typedef _System System;
+  using System = _System;
 
-  typedef Matrix<Scalar, 3, 3> Matrix3;      /*!< the equivalent rotation matrix type */
-  typedef Matrix<Scalar, 3, 1> Vector3;      /*!< the equivalent 3 dimension vector type */
-  typedef Quaternion<Scalar> QuaternionType; /*!< the equivalent quaternion type */
-  typedef AngleAxis<Scalar> AngleAxisType;   /*!< the equivalent angle-axis type */
+  using Matrix3 = Matrix<Scalar, 3, 3>;      /*!< the equivalent rotation matrix type */
+  using Vector3 = Matrix<Scalar, 3, 1>;      /*!< the equivalent 3 dimension vector type */
+  using QuaternionType = Quaternion<Scalar>; /*!< the equivalent quaternion type */
+  using AngleAxisType = AngleAxis<Scalar>;   /*!< the equivalent angle-axis type */
 
   /** \returns the axis vector of the first (alpha) rotation */
   static Vector3 AlphaAxisVector() {
@@ -302,7 +302,7 @@ class EulerAngles : public RotationBase<EulerAngles<Scalar_, _System>, 3> {
 
 #define EIGEN_EULER_ANGLES_SINGLE_TYPEDEF(AXES, SCALAR_TYPE, SCALAR_POSTFIX) \
   /** \ingroup EulerAngles_Module */                                         \
-  typedef EulerAngles<SCALAR_TYPE, EulerSystem##AXES> EulerAngles##AXES##SCALAR_POSTFIX;
+  using EulerAngles##AXES##SCALAR_POSTFIX = EulerAngles<SCALAR_TYPE, EulerSystem##AXES>;
 
 #define EIGEN_EULER_ANGLES_TYPEDEFS(SCALAR_TYPE, SCALAR_POSTFIX)      \
   EIGEN_EULER_ANGLES_SINGLE_TYPEDEF(XYZ, SCALAR_TYPE, SCALAR_POSTFIX) \
@@ -339,20 +339,20 @@ EIGEN_EULER_ANGLES_TYPEDEFS(double, d)
 namespace internal {
 template <typename Scalar_, class _System>
 struct traits<EulerAngles<Scalar_, _System> > {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
 };
 
 // set from a rotation matrix
 template <class System, class Other>
 struct eulerangles_assign_impl<System, Other, 3, 3> {
-  typedef typename Other::Scalar Scalar;
+  using Scalar = typename Other::Scalar;
   static void run(EulerAngles<Scalar, System>& e, const Other& m) { System::CalcEulerAngles(e, m); }
 };
 
 // set from a vector of Euler angles
 template <class System, class Other>
 struct eulerangles_assign_impl<System, Other, 3, 1> {
-  typedef typename Other::Scalar Scalar;
+  using Scalar = typename Other::Scalar;
   static void run(EulerAngles<Scalar, System>& e, const Other& vec) { e.angles() = vec; }
 };
 }  // namespace internal

@@ -93,7 +93,7 @@ EIGEN_BLAS_GEMV_SPECIALIZE(scomplex)
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, bool ConjugateRhs>                                 \
   struct general_matrix_vector_product_gemv<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, ConjugateRhs> {    \
     using Scalar = EIGTYPE;                                                                                            \
-    typedef Matrix<EIGTYPE, Dynamic, 1, ColMajor> GEMVVector;                                                          \
+    using GEMVVector = Matrix<EIGTYPE, Dynamic, 1, ColMajor>;                                                          \
                                                                                                                        \
     static void run(Index rows, Index cols, const EIGTYPE* lhs, Index lhsStride, const EIGTYPE* rhs, Index rhsIncr,    \
                     Scalar* res, Index resIncr, EIGTYPE alpha) {                                                       \

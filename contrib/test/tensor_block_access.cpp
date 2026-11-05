@@ -49,7 +49,7 @@ static void Debug(DSizes<Index, NumDims> dims) {
 
 template <int Layout>
 static void test_block_mapper_sanity() {
-  typedef internal::TensorBlockMapper<2, Layout> TensorBlockMapper;
+  using TensorBlockMapper = internal::TensorBlockMapper<2, Layout>;
 
   DSizes<Index, 2> tensor_dims(100, 100);
 
@@ -86,7 +86,7 @@ static void UpdateCoeffSet(const DSizes<Index, NumDims>& tensor_strides,
 
   for (int i = 0; i < block_sizes[dim_index]; ++i) {
     if (dim_index == choose(Layout, 0, NumDims - 1)) {
-      typedef std::pair<std::set<Index>::iterator, bool> ReturnType;
+      using ReturnType = std::pair<std::set<Index>::iterator, bool>;
       ReturnType inserted = visited_coeffs->insert(first_coeff_index + i);
       VERIFY_IS_EQUAL(inserted.second, true);
     } else {
@@ -99,7 +99,7 @@ static void UpdateCoeffSet(const DSizes<Index, NumDims>& tensor_strides,
 
 template <typename T, int NumDims, int Layout>
 static void test_block_mapper_maps_every_element() {
-  typedef internal::TensorBlockMapper<NumDims, Layout> TensorBlockMapper;
+  using TensorBlockMapper = internal::TensorBlockMapper<NumDims, Layout>;
 
   DSizes<Index, NumDims> dims = randomTensorDims<NumDims, int>();
   DSizes<Index, NumDims> strides = internal::strides<Layout>(dims);
@@ -154,8 +154,8 @@ class EqualityChecker {
 
 template <int Layout>
 static void test_uniform_block_shape() {
-  typedef internal::TensorBlockDescriptor<5> TensorBlock;
-  typedef internal::TensorBlockMapper<5, Layout> TensorBlockMapper;
+  using TensorBlock = internal::TensorBlockDescriptor<5>;
+  using TensorBlockMapper = internal::TensorBlockMapper<5, Layout>;
 
   {
     // Test shape 'UniformAllDims' with uniform 'max_coeff count'.
@@ -271,8 +271,8 @@ static void test_uniform_block_shape() {
 
 template <int Layout>
 static void test_skewed_inner_dim_block_shape() {
-  typedef internal::TensorBlockDescriptor<5> TensorBlock;
-  typedef internal::TensorBlockMapper<5, Layout> TensorBlockMapper;
+  using TensorBlock = internal::TensorBlockDescriptor<5>;
+  using TensorBlockMapper = internal::TensorBlockMapper<5, Layout>;
 
   // Test shape 'SkewedInnerDims' with partial allocation to inner-most dim.
   EIGEN_IF_CONSTEXPR (Layout == ColMajor) {
@@ -408,7 +408,7 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape) {
   //    (recipe for overflows/underflows, divisions by zero and NaNs later)
   //  - total block count must be zero
   {
-    typedef internal::TensorBlockMapper<1, Layout> TensorBlockMapper;
+    using TensorBlockMapper = internal::TensorBlockMapper<1, Layout>;
 
     DSizes<Index, 1> dims(0);
     for (size_t max_coeff_count = 0; max_coeff_count < 2; ++max_coeff_count) {
@@ -419,7 +419,7 @@ static void test_empty_dims(const internal::TensorBlockShapeType block_shape) {
   }
 
   {
-    typedef internal::TensorBlockMapper<2, Layout> TensorBlockMapper;
+    using TensorBlockMapper = internal::TensorBlockMapper<2, Layout>;
 
     for (int dim1 = 0; dim1 < 3; ++dim1) {
       for (int dim2 = 0; dim2 < 3; ++dim2) {

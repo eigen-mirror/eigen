@@ -240,13 +240,13 @@ template <typename T>
 struct complex_sqrt {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
-    typedef typename T::Scalar ComplexType;
-    typedef typename T::Scalar::value_type ValueType;
+    using ComplexType = typename T::Scalar;
+    using ValueType = typename T::Scalar::value_type;
     const int num_special_inputs = 18;
 
     if (i == 0) {
       const ValueType nan = std::numeric_limits<ValueType>::quiet_NaN();
-      typedef Eigen::Vector<ComplexType, num_special_inputs> SpecialInputs;
+      using SpecialInputs = Eigen::Vector<ComplexType, num_special_inputs>;
       SpecialInputs special_in;
       special_in.setZero();
       int idx = 0;
@@ -307,7 +307,7 @@ EIGEN_USING_STD_COMPLEX_OPERATORS
 
 template <typename ComplexType>
 EIGEN_DEVICE_FUNC void run(const ComplexType& a, const ComplexType& b, ComplexType* out, int& out_idx) {
-  typedef typename ComplexType::value_type ValueType;
+  using ValueType = typename ComplexType::value_type;
   const ValueType real_a = Eigen::numext::real(a);
   const ValueType real_b = Eigen::numext::real(b);
 
@@ -353,8 +353,8 @@ template <typename T>
 struct complex_operators {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
-    typedef typename T::Scalar ComplexType;
-    typedef typename T::Scalar::value_type ValueType;
+    using ComplexType = typename T::Scalar;
+    using ValueType = typename T::Scalar::value_type;
     const int num_scalar_operators = 24;
     const int num_vector_operators = 23;  // no unary + operator.
     int out_idx = i * (num_scalar_operators + num_vector_operators * T::MaxSizeAtCompileTime);
@@ -444,7 +444,7 @@ struct replicate {
     int step = x1.size() * 4;
     int stride = 3 * step;
 
-    typedef Map<Array<typename T::Scalar, Dynamic, Dynamic>> MapType;
+    using MapType = Map<Array<typename T::Scalar, Dynamic, Dynamic>>;
     MapType(out + i * stride + 0 * step, x1.rows() * 2, x1.cols() * 2) = x1.replicate(2, 2);
     MapType(out + i * stride + 1 * step, x1.rows() * 3, x1.cols()) = in[i] * x1.colwise().replicate(3);
     MapType(out + i * stride + 2 * step, x1.rows(), x1.cols() * 3) = in[i] * x1.rowwise().replicate(3);
@@ -491,7 +491,7 @@ template <typename T1, typename T2>
 struct prod_test {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T1::Scalar* in, typename T1::Scalar* out) const {
     using namespace Eigen;
-    typedef Matrix<typename T1::Scalar, T1::RowsAtCompileTime, T2::ColsAtCompileTime> T3;
+    using T3 = Matrix<typename T1::Scalar, T1::RowsAtCompileTime, T2::ColsAtCompileTime>;
     T1 x1(in + i);
     T2 x2(in + i + 1);
     Map<T3> res(out + i * T3::MaxSizeAtCompileTime);
@@ -600,7 +600,7 @@ template <typename T>
 struct eigenvalues_direct {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
-    typedef Matrix<typename T::Scalar, T::RowsAtCompileTime, 1> Vec;
+    using Vec = Matrix<typename T::Scalar, T::RowsAtCompileTime, 1>;
     T M(in + i);
     Map<Vec> res(out + i * Vec::MaxSizeAtCompileTime);
     T A = M * M.adjoint();
@@ -614,7 +614,7 @@ template <typename T>
 struct eigenvalues {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
-    typedef Matrix<typename T::Scalar, T::RowsAtCompileTime, 1> Vec;
+    using Vec = Matrix<typename T::Scalar, T::RowsAtCompileTime, 1>;
     T M(in + i);
     Map<Vec> res(out + i * Vec::MaxSizeAtCompileTime);
     T A = M * M.adjoint();
@@ -628,7 +628,7 @@ template <typename T, int UpLo>
 struct selfadjoint_rank2_update {
   EIGEN_DEVICE_FUNC void operator()(int i, const typename T::Scalar* in, typename T::Scalar* out) const {
     using namespace Eigen;
-    typedef Matrix<typename T::Scalar, T::RowsAtCompileTime, 1> Vec;
+    using Vec = Matrix<typename T::Scalar, T::RowsAtCompileTime, 1>;
     T M(in + i);
     Vec u(in + i + T::MaxSizeAtCompileTime);
     Vec v(in + i + T::MaxSizeAtCompileTime + Vec::MaxSizeAtCompileTime);
@@ -986,7 +986,7 @@ struct packet_any_test {
 
 template <typename T>
 void test_reverse() {
-  typedef typename T::Scalar Scalar;
+  using Scalar = typename T::Scalar;
   constexpr int size = T::SizeAtCompileTime;
   constexpr int n = 4;
 
@@ -1115,7 +1115,7 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<double>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<Eigen::half>(), nthreads, in, out));
 
-  typedef Matrix<float, 6, 6> Matrix6f;
+  using Matrix6f = Matrix<float, 6, 6>;
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Upper>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix6f, Lower>(), nthreads, in, out));

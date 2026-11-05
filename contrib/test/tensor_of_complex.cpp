@@ -83,13 +83,13 @@ static void test_contractions() {
   t_left.setRandom();
   t_right.setRandom();
 
-  typedef Map<Matrix<std::complex<float>, Dynamic, Dynamic>> MapXcf;
+  using MapXcf = Map<Matrix<std::complex<float>, Dynamic, Dynamic>>;
   MapXcf m_left(t_left.data(), 1500, 248);
   MapXcf m_right(t_right.data(), 248, 1400);
   Matrix<std::complex<float>, Dynamic, Dynamic> m_result(1500, 1400);
 
   // This contraction should be equivalent to a regular matrix multiplication
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 2> dims;
   dims[0] = DimPair(2, 0);
   dims[1] = DimPair(3, 1);

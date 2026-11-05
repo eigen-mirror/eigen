@@ -80,7 +80,7 @@ EIGEN_DOC_UNARY_ADDONS(conjugate, complex conjugate)
 /// \sa conjugate()
 template <bool Cond>
 EIGEN_DEVICE_FUNC constexpr inline std::conditional_t<Cond, ConjugateReturnType, const Derived&> conjugateIf() const {
-  typedef std::conditional_t<Cond, ConjugateReturnType, const Derived&> ReturnType;
+  using ReturnType = std::conditional_t<Cond, ConjugateReturnType, const Derived&>;
   return ReturnType(derived());
 }
 

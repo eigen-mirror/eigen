@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // A trivial custom op (scale by 2) with the same output dimensions as its
 // input. The interesting part is not the op itself but how its materialized

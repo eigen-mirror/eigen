@@ -25,8 +25,8 @@
 template <typename MatrixType>
 void jacobisvd_method() {
   enum { Size = MatrixType::RowsAtCompileTime };
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Size, 1> RealVecType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVecType = Matrix<RealScalar, Size, 1>;
   MatrixType m = MatrixType::Identity();
   VERIFY_IS_APPROX(m.jacobiSvd().singularValues(), RealVecType::Ones());
   VERIFY_RAISES_ASSERT(m.jacobiSvd().matrixU());
@@ -75,7 +75,7 @@ void jacobisvd_vector_asserts(const MatrixType& input = MatrixType()) {
 template <typename MatrixType>
 void jacobisvd_verify_inputs(const MatrixType& input = MatrixType()) {
   // check defaults
-  typedef JacobiSVD<MatrixType> DefaultSVD;
+  using DefaultSVD = JacobiSVD<MatrixType>;
   MatrixType m(input.rows(), input.cols());
   svd_fill_random(m);
   DefaultSVD defaultSvd(m);

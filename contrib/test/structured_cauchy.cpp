@@ -26,7 +26,7 @@ Matrix<Scalar, Dynamic, Dynamic> reference_cauchy(const Matrix<Scalar, Dynamic, 
 // Separated node sets: x in [2,3], y in [0,1], so all denominators are in [1,3].
 template <typename Scalar>
 void separated_nodes(Index m, Index n, Matrix<Scalar, Dynamic, 1>& x, Matrix<Scalar, Dynamic, 1>& y) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   x = Matrix<Scalar, Dynamic, 1>::Random(m);
   y = Matrix<Scalar, Dynamic, 1>::Random(n);
   x = (x * Scalar(RealScalar(0.5))).array() + Scalar(RealScalar(2.5));
@@ -35,8 +35,8 @@ void separated_nodes(Index m, Index n, Matrix<Scalar, Dynamic, 1>& x, Matrix<Sca
 
 template <typename Scalar>
 void test_cauchy_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x, y;
   separated_nodes<Scalar>(m, n, x, y);
@@ -79,8 +79,8 @@ void test_cauchy_product(Index m, Index n) {
 // multi-column product, so the rows split into a full and a ragged block.
 template <typename Scalar>
 void test_cauchy_product_row_blocks() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const Index m = 1100, n = 8, r = 100;
   Vec x, y;
   separated_nodes<Scalar>(m, n, x, y);
@@ -95,8 +95,8 @@ void test_cauchy_product_row_blocks() {
 
 template <typename Scalar>
 void test_cauchy_transpose(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x, y;
   separated_nodes<Scalar>(m, n, x, y);
@@ -120,9 +120,9 @@ void test_cauchy_transpose(Index m, Index n) {
 // between different algorithms would not be meaningful).
 template <typename Scalar>
 void test_cauchy_lu(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x, y;
   separated_nodes<Scalar>(n, n, x, y);
@@ -157,8 +157,8 @@ void test_cauchy_lu(Index n) {
 // forward-error test, plus the closed-form determinant against the dense LU one.
 template <typename = void>
 void test_cauchy_hilbert() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   auto residual = [](Index n) {
     Vec x(n), y(n);
@@ -194,8 +194,8 @@ void test_cauchy_hilbert() {
 // keep the factorization backward stable (residual check).
 template <typename = void>
 void test_cauchy_lu_pivoting(Index n) {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   Vec x(n), y(n);
   for (Index i = 0; i < n; ++i) {
@@ -216,7 +216,7 @@ void test_cauchy_lu_pivoting(Index n) {
 // singular; a zero pivot must survive partial pivoting and be reported.
 template <typename = void>
 void test_cauchy_lu_singular() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   Vec x(5), y(5);
   x << 2.0, 2.5, 2.0, 2.75, 2.25;  // x[2] duplicates x[0]
   y << 0.1, 0.3, 0.5, 0.7, 0.9;
@@ -228,8 +228,8 @@ void test_cauchy_lu_singular() {
 // Exactly singular and non-finite pivots are reported through info().
 template <typename Scalar>
 void test_cauchy_lu_issues() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   Vec xs(2), y(2);
   xs << Scalar(0), Scalar(0);
@@ -248,8 +248,8 @@ void test_cauchy_lu_issues() {
 // the symmetry closure of the transpose through the node identity C^T = C(-y,-x).
 template <typename Scalar>
 void test_cauchy_symmetric(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x(n);
   for (Index i = 0; i < n; ++i) x[i] = Scalar(1) + Scalar(i);
@@ -269,9 +269,9 @@ void test_cauchy_symmetric(Index n) {
 // the less accurate side of this comparison.
 template <typename Scalar>
 void test_cauchy_determinant(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x, y;
   separated_nodes<Scalar>(n, n, x, y);
@@ -294,8 +294,8 @@ void test_cauchy_determinant(Index n) {
 // with right-hand-side reads.
 template <typename Scalar>
 void test_cauchy_aliased_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x, y;
   separated_nodes<Scalar>(n, n, x, y);
@@ -327,8 +327,8 @@ void test_cauchy_aliased_product(Index n) {
 // destination is resized by the assignment.
 template <typename Scalar>
 void test_cauchy_aliased_expression(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec xn, yn;
   separated_nodes<Scalar>(n, n, xn, yn);
@@ -366,8 +366,8 @@ void test_cauchy_aliased_expression(Index n) {
 // the product held a reference instead.
 template <typename Scalar>
 void test_cauchy_delayed_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Cauchy<Scalar>>::type>::value);
 
@@ -390,10 +390,10 @@ void test_cauchy_delayed_product(Index m, Index n) {
 // the operator scalar.
 template <typename RealScalar>
 void test_cauchy_mixed_scalar(Index m, Index n) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec x, y;
   separated_nodes<RealScalar>(m, n, x, y);
@@ -429,8 +429,8 @@ void test_cauchy_mixed_scalar(Index m, Index n) {
 // m * 2^e accumulation must carry the exponent past the intermediate extremes.
 template <typename = void>
 void test_cauchy_determinant_range() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   // Reviewer repro: x = [2s, 3s], y = [0, s] with s = 1e160. The determinant is
   // -1/(12 s^2) ~ -8.35e-322, a subnormal, while the naive numerator product
@@ -503,7 +503,7 @@ void test_cauchy_determinant_range() {
 // exponent must saturate to a correctly signed infinity, in both signs.
 template <typename = void>
 void test_cauchy_determinant_saturation() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   const double t = std::ldexp(1.0, -537);
   {
     Vec x(2), y(2);
@@ -523,16 +523,16 @@ void test_cauchy_determinant_saturation() {
 
 template <typename Scalar, int M, int N>
 void test_cauchy_fixed() {
-  typedef Matrix<Scalar, M, 1> XVec;
-  typedef Matrix<Scalar, N, 1> YVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, M, N> MatMN;
+  using XVec = Matrix<Scalar, M, 1>;
+  using YVec = Matrix<Scalar, N, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatMN = Matrix<Scalar, M, N>;
 
   Vec xd, yd;
   separated_nodes<Scalar>(M, N, xd, yd);
   XVec x = xd;
   YVec y = yd;
-  typedef Cauchy<Scalar, M, N> CauchyType;
+  using CauchyType = Cauchy<Scalar, M, N>;
   CauchyType C(x, y);
   STATIC_CHECK((Cauchy<Scalar, M, N>::RowsAtCompileTime == M));
   STATIC_CHECK((Cauchy<Scalar, M, N>::ColsAtCompileTime == N));

@@ -17,9 +17,10 @@ EIGEN_BLAS_FUNC(gemm)
   using Eigen::DenseIndex;
   using Eigen::Dynamic;
   using Eigen::RowMajor;
-  typedef void (*functype)(DenseIndex, DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex,
-                           Scalar *, DenseIndex, DenseIndex, Scalar, Eigen::internal::level3_blocking<Scalar, Scalar> &,
-                           Eigen::internal::GemmParallelInfo<DenseIndex> *);
+  using functype =
+      void (*)(DenseIndex, DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+               DenseIndex, DenseIndex, Scalar, Eigen::internal::level3_blocking<Scalar, Scalar> &,
+               Eigen::internal::GemmParallelInfo<DenseIndex> *);
   static const functype func[12] = {
       // array index: NOTR  | (NOTR << 2)
       (Eigen::internal::general_matrix_matrix_product<DenseIndex, Scalar, ColMajor, false, Scalar, ColMajor, false,
@@ -105,8 +106,8 @@ EIGEN_BLAS_FUNC(gemmtr)
   using Eigen::Lower;
   using Eigen::RowMajor;
   using Eigen::Upper;
-  typedef void (*functype)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                           DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
   static const functype func[24] = {
       // Upper-triangular result.
       // array index: NOTR  | (NOTR << 2)
@@ -240,8 +241,8 @@ EIGEN_BLAS_FUNC(trsm)
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
-  typedef void (*functype)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, Scalar *, DenseIndex, DenseIndex,
-                           Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, Scalar *, DenseIndex, DenseIndex,
+                            Eigen::internal::level3_blocking<Scalar, Scalar> &);
   static const functype func[32] = {
       // array index: NOTR  | (LEFT  << 2) | (UP << 3) | (NUNIT << 4)
       (Eigen::internal::triangular_solve_matrix<Scalar, DenseIndex, OnTheLeft, Upper | 0, false, ColMajor, ColMajor,
@@ -382,9 +383,9 @@ EIGEN_BLAS_FUNC(trmm)
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
-  typedef void (*functype)(DenseIndex, DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex,
-                           Scalar *, DenseIndex, DenseIndex, const Scalar &,
-                           Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  using functype =
+      void (*)(DenseIndex, DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+               DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
   static const functype func[32] = {
       // array index: NOTR  | (LEFT  << 2) | (UP << 3) | (NUNIT << 4)
       (Eigen::internal::product_triangular_matrix_matrix<Scalar, DenseIndex, Upper | 0, true, ColMajor, false, ColMajor,
@@ -616,8 +617,8 @@ EIGEN_BLAS_FUNC(syrk)
   using Eigen::RowMajor;
   using Eigen::Upper;
 #if !ISCOMPLEX
-  typedef void (*functype)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                           DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
   static const functype func[8] = {
       // array index: NOTR  | (UP << 2)
       (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
@@ -858,8 +859,8 @@ EIGEN_BLAS_FUNC(herk)
   using Eigen::StrictlyLower;
   using Eigen::StrictlyUpper;
   using Eigen::Upper;
-  typedef void (*functype)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                           DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
   static const functype func[8] = {
       // array index: NOTR  | (UP << 2)
       (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,

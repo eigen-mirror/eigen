@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename PaddingDimensions, typename XprType>
 struct traits<TensorPaddingOp<PaddingDimensions, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename PaddingDimensions, typename XprType>
 struct eval<TensorPaddingOp<PaddingDimensions, XprType>, Eigen::Dense> {
-  typedef const TensorPaddingOp<PaddingDimensions, XprType>& type;
+  using type = const TensorPaddingOp<PaddingDimensions, XprType>&;
 };
 
 }  // end namespace internal
@@ -45,12 +45,12 @@ struct eval<TensorPaddingOp<PaddingDimensions, XprType>, Eigen::Dense> {
 template <typename PaddingDimensions, typename XprType>
 class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorPaddingOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorPaddingOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorPaddingOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorPaddingOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorPaddingOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorPaddingOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorPaddingOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorPaddingOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorPaddingOp(const XprType& expr, const PaddingDimensions& padding_dims,
                                                         const Scalar padding_value)
@@ -70,16 +70,16 @@ class TensorPaddingOp : public TensorBase<TensorPaddingOp<PaddingDimensions, Xpr
 // Eval as rvalue
 template <typename PaddingDimensions, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device> {
-  typedef TensorPaddingOp<PaddingDimensions, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorPaddingOp<PaddingDimensions, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<PaddingDimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -91,13 +91,13 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -317,7 +317,7 @@ struct TensorEvaluator<const TensorPaddingOp<PaddingDimensions, ArgType>, Device
       output_padded[dim] = isPaddingAtIndexForDim(output_coord[dim], dim);
     }
 
-    typedef internal::StridedLinearBufferCopy<ScalarNoConst, Index> LinCopy;
+    using LinCopy = internal::StridedLinearBufferCopy<ScalarNoConst, Index>;
 
     // Prepare storage for the materialized padding result.
     const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);

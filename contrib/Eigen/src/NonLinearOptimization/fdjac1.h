@@ -17,7 +17,7 @@ DenseIndex fdjac1(const FunctorType &Functor, Matrix<Scalar, Dynamic, 1> &x, Mat
   using std::abs;
   using std::sqrt;
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Scalar h;

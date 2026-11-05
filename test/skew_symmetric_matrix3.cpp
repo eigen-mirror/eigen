@@ -13,7 +13,7 @@
 namespace {
 template <typename Scalar>
 void constructors() {
-  typedef Matrix<Scalar, 3, 1> Vector;
+  using Vector = Matrix<Scalar, 3, 1>;
   const Vector v = Vector::Random();
   // l-value
   const SkewSymmetricMatrix3<Scalar> s1(v);
@@ -43,8 +43,8 @@ void constructors() {
 
 template <typename Scalar>
 void assignments() {
-  typedef Matrix<Scalar, 3, 1> Vector;
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
 
   const Vector v = Vector::Random();
 
@@ -67,8 +67,8 @@ void assignments() {
 
 template <typename Scalar>
 void plusMinus() {
-  typedef Matrix<Scalar, 3, 1> Vector;
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
 
   const Vector v1 = Vector::Random();
   const Vector v2 = Vector::Random();
@@ -151,8 +151,8 @@ void plusMinus() {
 
 template <typename Scalar>
 void multiplyScale() {
-  typedef Matrix<Scalar, 3, 1> Vector;
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
 
   const Vector v1 = Vector::Random();
   SquareMatrix sq1;
@@ -207,7 +207,7 @@ void skewSymmetricDiagonalProducts() {
 
 template <typename Matrix>
 void skewSymmetricMultiplication(const Matrix& m) {
-  typedef Eigen::Matrix<typename Matrix::Scalar, 3, 1> Vector;
+  using Vector = Eigen::Matrix<typename Matrix::Scalar, 3, 1>;
   const Vector v = Vector::Random();
   const Matrix m1 = Matrix::Random(m.rows(), m.cols());
   const SkewSymmetricMatrix3<typename Matrix::Scalar> sk = v.asSkewSymmetric();
@@ -217,7 +217,7 @@ void skewSymmetricMultiplication(const Matrix& m) {
 
 template <typename Scalar>
 void traceAndDet() {
-  typedef Matrix<Scalar, 3, 1> Vector;
+  using Vector = Matrix<Scalar, 3, 1>;
   const Vector v = Vector::Random();
   // this does not work, values larger than 1.e-08 can be seen
   // VERIFY_IS_APPROX(sq.determinant(), static_cast<Scalar>(0));
@@ -227,7 +227,7 @@ void traceAndDet() {
 
 template <typename Scalar>
 void transpose() {
-  typedef Matrix<Scalar, 3, 1> Vector;
+  using Vector = Matrix<Scalar, 3, 1>;
   const Vector v = Vector::Random();
   // By definition of a skew symmetric matrix: A^T = -A
   VERIFY_IS_APPROX(v.asSkewSymmetric().toDenseMatrix().transpose(), v.asSkewSymmetric().transpose().toDenseMatrix());
@@ -236,7 +236,7 @@ void transpose() {
 
 template <typename Scalar>
 void exponentialIdentity() {
-  typedef Matrix<Scalar, 3, 1> Vector;
+  using Vector = Matrix<Scalar, 3, 1>;
   const Vector v1 = Vector::Zero();
   VERIFY(v1.asSkewSymmetric().exponential().isIdentity());
 
@@ -250,7 +250,7 @@ void exponentialIdentity() {
   VERIFY(v3.asSkewSymmetric().exponential().isIdentity(precision));
 
   // a small rotation is I + K(v) + O(|v|^2), not the identity
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
   const Scalar angle = Scalar(0.5) * NumTraits<Scalar>::dummy_precision();
   const Vector v4(0, 0, angle);
   const SquareMatrix r4 = v4.asSkewSymmetric().exponential();
@@ -260,8 +260,8 @@ void exponentialIdentity() {
 
 template <typename Scalar>
 void exponentialOrthogonality() {
-  typedef Matrix<Scalar, 3, 1> Vector;
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
   const Vector v = Vector::Random();
   SquareMatrix sq = v.asSkewSymmetric().exponential();
   VERIFY(sq.isUnitary());
@@ -269,8 +269,8 @@ void exponentialOrthogonality() {
 
 template <typename Scalar>
 void exponentialRotation() {
-  typedef Matrix<Scalar, 3, 1> Vector;
-  typedef Matrix<Scalar, 3, 3> SquareMatrix;
+  using Vector = Matrix<Scalar, 3, 1>;
+  using SquareMatrix = Matrix<Scalar, 3, 3>;
 
   // rotation axis is invariant
   const Vector v1 = Vector::Random();

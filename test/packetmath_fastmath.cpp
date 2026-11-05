@@ -219,7 +219,7 @@ struct packetmath_fastmath_runner {
 template <typename Scalar>
 struct packetmath_fastmath_runner<Scalar, true> {
   static void run() {
-    typedef typename Eigen::internal::packet_traits<Scalar>::type Packet;
+    using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
     const int packet_size = Eigen::internal::packet_traits<Scalar>::size;
     Scalar output[packet_size];
     for (int i = 0; i < packet_size; ++i) {
@@ -296,7 +296,7 @@ EIGEN_DONT_INLINE void ldexp_packet(const Scalar* a, const Scalar* exponent, Sca
 // underflows for |e| beyond the exponent range although a * 2^e is normal, so they must not be reassociated.
 template <typename Scalar>
 void verify_ldexp_beyond_exponent_range() {
-  typedef typename Eigen::internal::packet_traits<Scalar>::type Packet;
+  using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
   constexpr int packet_size = Eigen::internal::packet_traits<Scalar>::size;
   constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
   Scalar a[packet_size], exponent[packet_size], output[packet_size];
@@ -328,7 +328,7 @@ struct extended_scalar_constant_runner<Scalar, false> {
 
     // Floating-point classification is optimized away under -ffinite-math-only. Narrow through a volatile pointer and
     // inspect the resulting integer bits instead; this also avoids indeterminate padding in x87 long double objects.
-    typedef Eigen::numext::uint32_t Bits;
+    using Bits = Eigen::numext::uint32_t;
     const Bits sign_bits = extended_to_float_bits(actual + 0);
     const Bits inf_bits = extended_to_float_bits(actual + 1);
     const Bits nan_bits = extended_to_float_bits(actual + 2);

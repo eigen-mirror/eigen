@@ -40,9 +40,9 @@ namespace internal {
 
 #define EIGEN_MSA_SHF_I8(a, b, c, d) (((d) << 6) | ((c) << 4) | ((b) << 2) | (a))
 
-typedef v4f32 Packet4f;
-typedef v4i32 Packet4i;
-typedef v4u32 Packet4ui;
+using Packet4f = v4f32;
+using Packet4i = v4i32;
+using Packet4ui = v4u32;
 
 #define EIGEN_DECLARE_CONST_Packet4f(NAME, X) const Packet4f p4f_##NAME = {X, X, X, X}
 #define EIGEN_DECLARE_CONST_Packet4i(NAME, X) const Packet4i p4i_##NAME = {X, X, X, X}
@@ -65,8 +65,8 @@ inline std::ostream& operator<<(std::ostream& os, const Packet4ui& value) {
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet4f type;
-  typedef Packet4f half;  // Packet2f intrinsics not implemented yet
+  using type = Packet4f;
+  using half = Packet4f;  // Packet2f intrinsics not implemented yet
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -86,8 +86,8 @@ struct packet_traits<float> : default_packet_traits {
 
 template <>
 struct packet_traits<int32_t> : default_packet_traits {
-  typedef Packet4i type;
-  typedef Packet4i half;  // Packet2i intrinsics not implemented yet
+  using type = Packet4i;
+  using half = Packet4i;  // Packet2i intrinsics not implemented yet
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -99,7 +99,7 @@ struct packet_traits<int32_t> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4f> {
-  typedef float type;
+  using type = float;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -107,13 +107,13 @@ struct unpacket_traits<Packet4f> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
+  using half = Packet4f;
+  using integer_packet = Packet4i;
 };
 
 template <>
 struct unpacket_traits<Packet4i> {
-  typedef int32_t type;
+  using type = int32_t;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -121,7 +121,7 @@ struct unpacket_traits<Packet4i> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet4i half;
+  using half = Packet4i;
 };
 
 template <>
@@ -827,9 +827,9 @@ EIGEN_STRONG_INLINE Packet4f pcmp_lt_or_nan<Packet4f>(const Packet4f& a, const P
 
 //---------- double ----------
 
-typedef v2f64 Packet2d;
-typedef v2i64 Packet2l;
-typedef v2u64 Packet2ul;
+using Packet2d = v2f64;
+using Packet2l = v2i64;
+using Packet2ul = v2u64;
 
 #define EIGEN_DECLARE_CONST_Packet2d(NAME, X) const Packet2d p2d_##NAME = {X, X}
 #define EIGEN_DECLARE_CONST_Packet2l(NAME, X) const Packet2l p2l_##NAME = {X, X}
@@ -852,8 +852,8 @@ inline std::ostream& operator<<(std::ostream& os, const Packet2ul& value) {
 
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet2d type;
-  typedef Packet2d half;
+  using type = Packet2d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -868,7 +868,7 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet2d> {
-  typedef double type;
+  using type = double;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -876,13 +876,13 @@ struct unpacket_traits<Packet2d> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet2d half;
-  typedef Packet2l integer_packet;
+  using half = Packet2d;
+  using integer_packet = Packet2l;
 };
 
 template <>
 struct unpacket_traits<Packet2l> {
-  typedef int64_t type;
+  using type = int64_t;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -890,7 +890,7 @@ struct unpacket_traits<Packet2l> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet2l half;
+  using half = Packet2l;
 };
 
 template <>

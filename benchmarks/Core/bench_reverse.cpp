@@ -8,7 +8,7 @@ using namespace Eigen;
 
 static void BM_MatrixReverse(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<double, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<double, Dynamic, Dynamic>;
   MatrixType a = MatrixType::Random(n, n);
   MatrixType b(n, n);
   for (auto _ : state) {
@@ -21,7 +21,7 @@ BENCHMARK(BM_MatrixReverse)->RangeMultiplier(2)->Range(4, 512);
 
 static void BM_VectorReverse(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<double, Dynamic, 1> VectorType;
+  using VectorType = Matrix<double, Dynamic, 1>;
   VectorType a = VectorType::Random(n);
   VectorType b(n);
   for (auto _ : state) {

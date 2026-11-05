@@ -155,8 +155,8 @@ inline bool getMarketHeader(const std::string& filename, int& sym, bool& iscompl
  */
 template <typename SparseMatrixType>
 bool loadMarket(SparseMatrixType& mat, const std::string& filename) {
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
   std::ifstream input(filename.c_str(), std::ios::in);
   if (!input) return false;
 
@@ -168,7 +168,7 @@ bool loadMarket(SparseMatrixType& mat, const std::string& filename) {
 
   bool readsizes = false;
 
-  typedef Triplet<Scalar, StorageIndex> T;
+  using T = Triplet<Scalar, StorageIndex>;
   std::vector<T> elements;
 
   Index M(-1), N(-1), NNZ(-1);
@@ -225,7 +225,7 @@ bool loadMarket(SparseMatrixType& mat, const std::string& filename) {
  */
 template <typename DenseType>
 bool loadMarketDense(DenseType& mat, const std::string& filename) {
-  typedef typename DenseType::Scalar Scalar;
+  using Scalar = typename DenseType::Scalar;
   std::ifstream in(filename.c_str(), std::ios::in);
   if (!in) return false;
 
@@ -298,8 +298,8 @@ bool loadMarketVector(VectorType& vec, const std::string& filename) {
  */
 template <typename SparseMatrixType>
 bool saveMarket(const SparseMatrixType& mat, const std::string& filename, int sym = 0) {
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::RealScalar RealScalar;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using RealScalar = typename SparseMatrixType::RealScalar;
   std::ofstream out(filename.c_str(), std::ios::out);
   if (!out) return false;
 
@@ -332,8 +332,8 @@ bool saveMarket(const SparseMatrixType& mat, const std::string& filename, int sy
 
 template <typename DenseType>
 bool saveMarketDense(const DenseType& mat, const std::string& filename) {
-  typedef typename DenseType::Scalar Scalar;
-  typedef typename DenseType::RealScalar RealScalar;
+  using Scalar = typename DenseType::Scalar;
+  using RealScalar = typename DenseType::RealScalar;
   std::ofstream out(filename.c_str(), std::ios::out);
   if (!out) return false;
 

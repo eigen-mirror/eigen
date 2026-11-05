@@ -89,8 +89,8 @@ bool test_assign(int traversal, int unrolling) {
 
 template <typename Xpr>
 bool test_redux(const Xpr&, int traversal, int unrolling) {
-  typedef typename Xpr::Scalar Scalar;
-  typedef internal::redux_traits<internal::scalar_sum_op<Scalar, Scalar>, internal::redux_evaluator<Xpr> > traits;
+  using Scalar = typename Xpr::Scalar;
+  using traits = internal::redux_traits<internal::scalar_sum_op<Scalar, Scalar>, internal::redux_evaluator<Xpr>>;
 
   bool res = traits::Traversal == traversal && traits::Unrolling == unrolling;
   if (!res) {
@@ -108,49 +108,44 @@ bool test_redux(const Xpr&, int traversal, int unrolling) {
 
 template <typename Scalar, bool Enable = internal::packet_traits<Scalar>::Vectorizable>
 struct vectorization_logic {
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
 
-  typedef typename internal::packet_traits<Scalar>::type PacketType;
-  typedef typename internal::unpacket_traits<PacketType>::half HalfPacketType;
+  using PacketType = typename internal::packet_traits<Scalar>::type;
+  using HalfPacketType = typename internal::unpacket_traits<PacketType>::half;
   enum {
     PacketSize = internal::unpacket_traits<PacketType>::size,
     HalfPacketSize = internal::unpacket_traits<HalfPacketType>::size
   };
   static void run() {
-    typedef Matrix<Scalar, PacketSize, 1> Vector1 EIGEN_UNUSED;
-    typedef Matrix<Scalar, Dynamic, 1> VectorX;
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixXX;
-    typedef Matrix<Scalar, PacketSize, PacketSize> Matrix11;
-    typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 8 : 2 * PacketSize,
-                   (Matrix11::Flags & RowMajorBit) ? 2 * PacketSize : 8>
-        Matrix22 EIGEN_UNUSED;
-    typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
-                   (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16>
-        Matrix44 EIGEN_UNUSED;
-    typedef Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
-                   (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16,
-                   DontAlign | EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION>
-        Matrix44u EIGEN_UNUSED;
-    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, ColMajor> Matrix44c EIGEN_UNUSED;
-    typedef Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, RowMajor> Matrix44r EIGEN_UNUSED;
+    using Vector1 EIGEN_UNUSED = Matrix<Scalar, PacketSize, 1>;
+    using VectorX = Matrix<Scalar, Dynamic, 1>;
+    using MatrixXX = Matrix<Scalar, Dynamic, Dynamic>;
+    using Matrix11 = Matrix<Scalar, PacketSize, PacketSize>;
+    using Matrix22 EIGEN_UNUSED = Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 8 : 2 * PacketSize,
+                                         (Matrix11::Flags & RowMajorBit) ? 2 * PacketSize : 8>;
+    using Matrix44 EIGEN_UNUSED = Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
+                                         (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16>;
+    using Matrix44u EIGEN_UNUSED = Matrix<Scalar, (Matrix11::Flags & RowMajorBit) ? 16 : 4 * PacketSize,
+                                          (Matrix11::Flags & RowMajorBit) ? 4 * PacketSize : 16,
+                                          DontAlign | EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION>;
+    using Matrix44c EIGEN_UNUSED = Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, ColMajor>;
+    using Matrix44r EIGEN_UNUSED = Matrix<Scalar, 4 * PacketSize, 4 * PacketSize, RowMajor>;
 
-    typedef Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1)> Matrix1;
+    using Matrix1 = Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1)>;
 
-    typedef Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1),
-                   DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>
-        Matrix1u EIGEN_UNUSED;
+    using Matrix1u EIGEN_UNUSED = Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1),
+                                         DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
-    typedef Matrix<Scalar,
-                   (PacketSize >= 8   ? 4
-                    : PacketSize == 4 ? 6
-                    : PacketSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 2 : 3)
-                                      : /*PacketSize==1 ?*/ 1),
-                   (PacketSize >= 8   ? 3 * PacketSize / 4
-                    : PacketSize == 4 ? 2
-                    : PacketSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
-                                      : /*PacketSize==1 ?*/ 3)>
-        Matrix3 EIGEN_UNUSED;
+    using Matrix3 EIGEN_UNUSED = Matrix<Scalar,
+                                        (PacketSize >= 8   ? 4
+                                         : PacketSize == 4 ? 6
+                                         : PacketSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 2 : 3)
+                                                           : /*PacketSize==1 ?*/ 1),
+                                        (PacketSize >= 8   ? 3 * PacketSize / 4
+                                         : PacketSize == 4 ? 2
+                                         : PacketSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
+                                                           : /*PacketSize==1 ?*/ 3)>;
 
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
     VERIFY(test_assign(Vector1(), Vector1(), InnerVectorizedTraversal, CompleteUnrolling));
@@ -183,8 +178,8 @@ struct vectorization_logic {
                        CompleteUnrolling));
 
     if (PacketSize > 1) {
-      typedef Matrix<Scalar, 3, 3, ColMajor> Matrix33c;
-      typedef Matrix<Scalar, 3, 1, ColMajor> Vector3;
+      using Matrix33c = Matrix<Scalar, 3, 3, ColMajor>;
+      using Vector3 = Matrix<Scalar, 3, 1, ColMajor>;
       VERIFY(
           test_assign(Matrix33c().row(2), Matrix33c().row(1) + Matrix33c().row(1), LinearTraversal, CompleteUnrolling));
       // Vectorization depends on too many factors - ignore.
@@ -342,8 +337,8 @@ template <typename Scalar,
                             typename internal::packet_traits<Scalar>::type>::value>
 struct vectorization_logic_half {
   using RealScalar = typename NumTraits<Scalar>::Real;
-  typedef internal::packet_traits<Scalar> PacketTraits;
-  typedef typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half PacketType;
+  using PacketTraits = internal::packet_traits<Scalar>;
+  using PacketType = typename internal::unpacket_traits<typename internal::packet_traits<Scalar>::type>::half;
   static constexpr int PacketSize = internal::unpacket_traits<PacketType>::size;
 
   static void run() {
@@ -357,29 +352,27 @@ struct vectorization_logic_half {
                                  ? PacketSize
                                  : (EIGEN_MIN_ALIGN_BYTES + sizeof(Scalar) - 1) / sizeof(Scalar);
 
-    typedef Matrix<Scalar, MinVSize, 1> Vector1 EIGEN_UNUSED;
-    typedef Matrix<Scalar, MinVSize, MinVSize> Matrix11;
-    typedef Matrix<Scalar, 5 * MinVSize, 7, ColMajor> Matrix57 EIGEN_UNUSED;
-    typedef Matrix<Scalar, 3 * MinVSize, 5, ColMajor> Matrix35 EIGEN_UNUSED;
-    typedef Matrix<Scalar, 5 * MinVSize, 7, DontAlign | ColMajor> Matrix57u EIGEN_UNUSED;
+    using Vector1 EIGEN_UNUSED = Matrix<Scalar, MinVSize, 1>;
+    using Matrix11 = Matrix<Scalar, MinVSize, MinVSize>;
+    using Matrix57 EIGEN_UNUSED = Matrix<Scalar, 5 * MinVSize, 7, ColMajor>;
+    using Matrix35 EIGEN_UNUSED = Matrix<Scalar, 3 * MinVSize, 5, ColMajor>;
+    using Matrix57u EIGEN_UNUSED = Matrix<Scalar, 5 * MinVSize, 7, DontAlign | ColMajor>;
 
-    typedef Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1)> Matrix1;
+    using Matrix1 = Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1)>;
 
-    typedef Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1),
-                   DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>
-        Matrix1u EIGEN_UNUSED;
+    using Matrix1u EIGEN_UNUSED = Matrix<Scalar, (PacketSize >= 2 ? PacketSize / 2 : 1), (PacketSize >= 2 ? 2 : 1),
+                                         DontAlign | ((Matrix1::Flags & RowMajorBit) ? RowMajor : ColMajor)>;
 
     // this type is made such that it can only be vectorized when viewed as a linear 1D vector
-    typedef Matrix<Scalar,
-                   (MinVSize >= 8   ? 4
-                    : MinVSize == 4 ? 6
-                    : MinVSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 2 : 3)
-                                    : /*MinVSize==1 ?*/ 1),
-                   (MinVSize >= 8   ? 3 * MinVSize / 4
-                    : MinVSize == 4 ? 2
-                    : MinVSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
-                                    : /*MinVSize==1 ?*/ 3)>
-        Matrix3 EIGEN_UNUSED;
+    using Matrix3 EIGEN_UNUSED = Matrix<Scalar,
+                                        (MinVSize >= 8   ? 4
+                                         : MinVSize == 4 ? 6
+                                         : MinVSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 2 : 3)
+                                                         : /*MinVSize==1 ?*/ 1),
+                                        (MinVSize >= 8   ? 3 * MinVSize / 4
+                                         : MinVSize == 4 ? 2
+                                         : MinVSize == 2 ? ((Matrix11::Flags & RowMajorBit) ? 3 : 2)
+                                                         : /*MinVSize==1 ?*/ 3)>;
 
 #if !EIGEN_GCC_AND_ARCH_DOESNT_WANT_STACK_ALIGNMENT
     VERIFY(test_assign(Vector1(), Vector1(), InnerVectorizedTraversal, CompleteUnrolling));

@@ -31,8 +31,8 @@
   }
 
 EIGEN_DECLARE_TEST(exceptions) {
-  typedef Eigen::Matrix<AnnoyingScalar, Dynamic, 1> VectorType;
-  typedef Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic> MatrixType;
+  using VectorType = Eigen::Matrix<AnnoyingScalar, Dynamic, 1>;
+  using MatrixType = Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic>;
 
   {
 #if defined(EIGEN_EXCEPTIONS) && !defined(EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW)

@@ -20,7 +20,7 @@ namespace internal {
 template <typename Scalar, typename Index, int UpLo>
 struct rank2_update_selector {
   static void run(Index size, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, Scalar alpha) {
-    typedef Map<const Matrix<Scalar, Dynamic, 1> > OtherMap;
+    using OtherMap = Map<const Matrix<Scalar, Dynamic, 1> >;
     for (Index i = 0; i < size; ++i) {
       Map<Matrix<Scalar, Dynamic, 1> >(mat + stride * i + (UpLo == Lower ? i : 0),
                                        UpLo == Lower ? size - i : (i + 1)) +=
@@ -37,7 +37,7 @@ struct rank2_update_selector {
 template <typename Scalar, typename Index, int UpLo>
 struct packed_rank2_update_selector {
   static void run(Index size, Scalar* mat, const Scalar* u, const Scalar* v, Scalar alpha) {
-    typedef Map<const Matrix<Scalar, Dynamic, 1> > OtherMap;
+    using OtherMap = Map<const Matrix<Scalar, Dynamic, 1> >;
     Index offset = 0;
     for (Index i = 0; i < size; ++i) {
       Map<Matrix<Scalar, Dynamic, 1> >(mat + offset, UpLo == Lower ? size - i : (i + 1)) +=

@@ -19,9 +19,9 @@
 
 template <typename DecType, typename MatrixType>
 void inplace(bool square = false, bool SPD = false) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> RhsType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> ResType;
+  using Scalar = typename MatrixType::Scalar;
+  using RhsType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using ResType = Matrix<Scalar, MatrixType::ColsAtCompileTime, 1>;
 
   Index rows = MatrixType::RowsAtCompileTime == Dynamic ? internal::random<Index>(2, EIGEN_TEST_MAX_SIZE / 2)
                                                         : Index(MatrixType::RowsAtCompileTime);
@@ -412,7 +412,7 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ, RowMajor>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, ColMajor>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, RowMajor>()));
-  EIGEN_UNUSED typedef Matrix<double, 4, 3> Matrix43d;
+  using Matrix43d EIGEN_UNUSED = Matrix<double, 4, 3>;
   for (int i = 0; i < g_repeat; i++) {
     EIGEN_UNUSED const Index size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE / 4);
 

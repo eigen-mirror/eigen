@@ -13,12 +13,12 @@ using namespace Eigen;
 #define SCALAR double
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 static void BM_MatrixExp(benchmark::State& state) {
   int n = state.range(0);
   Scalar scale = Scalar(state.range(1));
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   // The larger scale exercises the scale-and-square path, including the
   // coefficient-wise exact power-of-two scale-down.
@@ -35,7 +35,7 @@ static void BM_MatrixExp(benchmark::State& state) {
 // Fixed-size specializations for Lie group sizes.
 template <int N>
 static void BM_MatrixExp_Fixed(benchmark::State& state) {
-  typedef Matrix<Scalar, N, N> MatrixType;
+  using MatrixType = Matrix<Scalar, N, N>;
 
   MatrixType A = MatrixType::Random() / Scalar(N);
   MatrixType result;

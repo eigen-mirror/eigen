@@ -79,7 +79,7 @@ void verify_inner_vector_reverse_and_sortedness(XprType& xpr, MatrixType& storag
   auto inner = innervec(xpr, 2);
   VERIFY_IS_EQUAL(inner.innerIndicesAreSorted(), 1);
 
-  typedef decltype(inner) InnerType;
+  using InnerType = decltype(inner);
   typename InnerType::ReverseInnerIterator rit(inner);
   VERIFY(rit);
   VERIFY_IS_EQUAL(rit.index(), 2);
@@ -168,15 +168,15 @@ void sparse_block(const SparseMatrixType& ref) {
   const Index inner = ref.innerSize();
   const Index outer = ref.outerSize();
 
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::RealScalar RealScalar;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using RealScalar = typename SparseMatrixType::RealScalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
 
   double density = (std::max)(8. / (rows * cols), 0.01);
-  typedef Matrix<Scalar, Dynamic, Dynamic, SparseMatrixType::IsRowMajor ? RowMajor : ColMajor> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Matrix<Scalar, 1, Dynamic> RowDenseVector;
-  typedef SparseVector<Scalar> SparseVectorType;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic, SparseMatrixType::IsRowMajor ? RowMajor : ColMajor>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using RowDenseVector = Matrix<Scalar, 1, Dynamic>;
+  using SparseVectorType = SparseVector<Scalar>;
 
   Scalar s1 = internal::random<Scalar>();
   {

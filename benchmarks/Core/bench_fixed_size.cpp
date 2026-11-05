@@ -22,7 +22,7 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 #ifdef EIGEN_BENCH_FORCE_GEMM
 static_assert(internal::product_type<Matrix<Scalar, 16, 16>, Matrix<Scalar, 16, 16>>::value == GemmProduct,
               "the *_gemm targets must not leave any fixed-size product on the coeff-based path");
@@ -36,8 +36,8 @@ static constexpr double kFlopsPerMulAdd = NumTraits<Scalar>::IsComplex ? 8.0 : 2
 // --- Batch transform: Matrix4 * Matrix<4,N> ---
 static void BM_BatchTransform4xN(benchmark::State& state) {
   int N = state.range(0);
-  typedef Matrix<Scalar, 4, 4> Mat4;
-  typedef Matrix<Scalar, 4, Dynamic> MatXN;
+  using Mat4 = Matrix<Scalar, 4, 4>;
+  using MatXN = Matrix<Scalar, 4, Dynamic>;
 
   Mat4 transform = Mat4::Random();
   MatXN points = MatXN::Random(4, N);
@@ -55,7 +55,7 @@ static void BM_BatchTransform4xN(benchmark::State& state) {
 // --- Fixed 3x3 batch operations (common in point cloud processing) ---
 static void BM_Batch3x3Gemm(benchmark::State& state) {
   int count = state.range(0);
-  typedef Matrix<Scalar, 3, 3> Mat3;
+  using Mat3 = Matrix<Scalar, 3, 3>;
 
   std::vector<Mat3> a(count), b(count), c(count);
   for (int i = 0; i < count; ++i) {

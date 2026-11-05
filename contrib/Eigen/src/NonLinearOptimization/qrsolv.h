@@ -19,7 +19,7 @@ void qrsolv(Matrix<Scalar, Dynamic, Dynamic> &s,
             Matrix<Scalar, Dynamic, 1> &x, Matrix<Scalar, Dynamic, 1> &sdiag)
 
 {
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Index i, j, k, l;

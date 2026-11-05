@@ -43,27 +43,27 @@ namespace Eigen {
 template <typename Scalar_, int Dim_, int Degree_>
 class Spline {
  public:
-  typedef Scalar_ Scalar; /*!< The spline curve's scalar type. */
+  using Scalar = Scalar_; /*!< The spline curve's scalar type. */
   enum { Dimension = Dim_ /*!< The spline curve's dimension. */ };
   enum { Degree = Degree_ /*!< The spline curve's degree. */ };
 
   /** \brief The point type the spline is representing. */
-  typedef typename SplineTraits<Spline>::PointType PointType;
+  using PointType = typename SplineTraits<Spline>::PointType;
 
   /** \brief The data type used to store knot vectors. */
-  typedef typename SplineTraits<Spline>::KnotVectorType KnotVectorType;
+  using KnotVectorType = typename SplineTraits<Spline>::KnotVectorType;
 
   /** \brief The data type used to store parameter vectors. */
-  typedef typename SplineTraits<Spline>::ParameterVectorType ParameterVectorType;
+  using ParameterVectorType = typename SplineTraits<Spline>::ParameterVectorType;
 
   /** \brief The data type used to store non-zero basis functions. */
-  typedef typename SplineTraits<Spline>::BasisVectorType BasisVectorType;
+  using BasisVectorType = typename SplineTraits<Spline>::BasisVectorType;
 
   /** \brief The data type used to store the values of the basis function derivatives. */
-  typedef typename SplineTraits<Spline>::BasisDerivativeType BasisDerivativeType;
+  using BasisDerivativeType = typename SplineTraits<Spline>::BasisDerivativeType;
 
   /** \brief The data type representing the spline's control points. */
-  typedef typename SplineTraits<Spline>::ControlPointVectorType ControlPointVectorType;
+  using ControlPointVectorType = typename SplineTraits<Spline>::ControlPointVectorType;
 
   /**
    * \brief Creates a (constant) zero spline.
@@ -308,9 +308,9 @@ void derivativesImpl(const SplineType& spline, typename SplineType::Scalar u, De
   enum { Order = SplineTraits<SplineType>::OrderAtCompileTime };
   enum { DerivativeOrder = DerivativeType::ColsAtCompileTime };
 
-  typedef typename SplineTraits<SplineType>::ControlPointVectorType ControlPointVectorType;
-  typedef typename SplineTraits<SplineType, DerivativeOrder>::BasisDerivativeType BasisDerivativeType;
-  typedef typename BasisDerivativeType::ConstRowXpr BasisDerivativeRowXpr;
+  using ControlPointVectorType = typename SplineTraits<SplineType>::ControlPointVectorType;
+  using BasisDerivativeType = typename SplineTraits<SplineType, DerivativeOrder>::BasisDerivativeType;
+  using BasisDerivativeRowXpr = typename BasisDerivativeType::ConstRowXpr;
 
   const DenseIndex p = spline.degree();
   const DenseIndex span = spline.span(u);
@@ -360,7 +360,7 @@ template <typename DerivativeType>
 void Spline<Scalar_, Dim_, Degree_>::BasisFunctionDerivativesImpl(
     const typename Spline<Scalar_, Dim_, Degree_>::Scalar u, const DenseIndex order, const DenseIndex p,
     const typename Spline<Scalar_, Dim_, Degree_>::KnotVectorType& U, DerivativeType& N_) {
-  typedef Spline<Scalar_, Dim_, Degree_> SplineType;
+  using SplineType = Spline<Scalar_, Dim_, Degree_>;
   enum { Order = SplineTraits<SplineType>::OrderAtCompileTime };
 
   const DenseIndex span = SplineType::Span(u, p, U);

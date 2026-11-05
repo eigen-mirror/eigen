@@ -25,22 +25,22 @@ static long g_dense_op_sparse_count = 0;
 
 template <typename SparseMatrixType>
 void sparse_basic(const SparseMatrixType& ref) {
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef Matrix<StorageIndex, 2, 1> Vector2;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using Vector2 = Matrix<StorageIndex, 2, 1>;
 
   const Index rows = ref.rows();
   const Index cols = ref.cols();
   const Index inner = ref.innerSize();
   const Index outer = ref.outerSize();
 
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::RealScalar RealScalar;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using RealScalar = typename SparseMatrixType::RealScalar;
   enum { Flags = SparseMatrixType::Flags };
 
   double density = (std::max)(8. / (rows * cols), 0.01);
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Matrix<Scalar, Dynamic, Dynamic, SparseMatrixType::IsRowMajor ? RowMajor : ColMajor> CompatibleDenseMatrix;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using CompatibleDenseMatrix = Matrix<Scalar, Dynamic, Dynamic, SparseMatrixType::IsRowMajor ? RowMajor : ColMajor>;
   Scalar eps = Scalar(1e-6);
 
   Scalar s1 = internal::random<Scalar>();
@@ -445,7 +445,7 @@ void sparse_basic(const SparseMatrixType& ref) {
 
     // and/or
     {
-      typedef SparseMatrix<bool, SparseMatrixType::Options, typename SparseMatrixType::StorageIndex> SpBool;
+      using SpBool = SparseMatrix<bool, SparseMatrixType::Options, typename SparseMatrixType::StorageIndex>;
       SpBool mb1 = m1.real().template cast<bool>();
       SpBool mb2 = m2.real().template cast<bool>();
       VERIFY_IS_EQUAL(mb1.template cast<int>().sum(), refM1.real().template cast<bool>().count());
@@ -536,7 +536,7 @@ void sparse_basic(const SparseMatrixType& ref) {
 
   // test setFromTriplets / insertFromTriplets
   {
-    typedef Triplet<Scalar, StorageIndex> TripletType;
+    using TripletType = Triplet<Scalar, StorageIndex>;
     Index ntriplets = rows * cols;
 
     std::vector<TripletType> triplets;
@@ -998,7 +998,7 @@ void sparse_basic(const SparseMatrixType& ref) {
 
   // test array/vector of InnerIterator
   {
-    typedef typename SparseMatrixType::InnerIterator IteratorType;
+    using IteratorType = typename SparseMatrixType::InnerIterator;
 
     DenseMatrix refMat2 = DenseMatrix::Zero(rows, cols);
     SparseMatrixType m2(rows, cols);
@@ -1024,7 +1024,7 @@ void sparse_basic(const SparseMatrixType& ref) {
 
   // test InnerIterator equality (bug #1192)
   {
-    typedef typename SparseMatrixType::InnerIterator IteratorType;
+    using IteratorType = typename SparseMatrixType::InnerIterator;
     SparseMatrixType m2(rows, cols);
     DenseMatrix refMat2 = DenseMatrix::Zero(rows, cols);
     initSparse<Scalar>(density, refMat2, m2);
@@ -1080,9 +1080,9 @@ void sparse_basic(const SparseMatrixType& ref) {
 
 template <typename SparseMatrixType>
 void big_sparse_triplet(Index rows, Index cols, double density) {
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef Triplet<Scalar, Index> TripletType;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using TripletType = Triplet<Scalar, Index>;
   std::vector<TripletType> triplets;
   double nelements = density * static_cast<double>(rows * cols);
   VERIFY(nelements >= 0 && nelements < static_cast<double>(NumTraits<StorageIndex>::highest()));
@@ -1195,11 +1195,11 @@ void verify_sparsity_pattern_ref_matches(const Pattern& pattern, const SparseMat
 
 template <int>
 void sparsity_pattern_ref_sparse_expressions() {
-  typedef std::complex<double> Scalar;
-  typedef SparseMatrix<Scalar, ColMajor, int> SparseMatrixType;
-  typedef SparseMatrix<double, ColMajor, int> RealSparseMatrixType;
-  typedef SparseMatrix<double, RowMajor, int> RowMajorSparseMatrixType;
-  typedef Matrix<int, Dynamic, 1> VectorI;
+  using Scalar = std::complex<double>;
+  using SparseMatrixType = SparseMatrix<Scalar, ColMajor, int>;
+  using RealSparseMatrixType = SparseMatrix<double, ColMajor, int>;
+  using RowMajorSparseMatrixType = SparseMatrix<double, RowMajor, int>;
+  using VectorI = Matrix<int, Dynamic, 1>;
 
   SparseMatrixType a(3, 3);
   std::vector<Triplet<Scalar, int>> triplets;
@@ -1246,9 +1246,9 @@ void verify_same_pattern(const SparseA& got, const SparseB& expected) {
 
 template <int>
 void materialize_at_plus_a_pattern_basic() {
-  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
-  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
-  typedef Matrix<int, Dynamic, 1> VectorI;
+  using SparseMatrixType = SparseMatrix<double, ColMajor, int>;
+  using PatternMatrixType = SparseMatrix<signed char, ColMajor, int>;
+  using VectorI = Matrix<int, Dynamic, 1>;
 
   // Asymmetric pattern: (0,0), (1,0), (2,1), (0,2), (2,2). Its A^T+A pattern
   // adds (0,1), (1,2), (2,0).
@@ -1281,10 +1281,10 @@ void materialize_at_plus_a_pattern_basic() {
 
 template <int>
 void materialize_at_plus_a_pattern_random() {
-  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
-  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
-  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
-  typedef Matrix<int, Dynamic, 1> VectorI;
+  using SparseMatrixType = SparseMatrix<double, ColMajor, int>;
+  using PatternMatrixType = SparseMatrix<signed char, ColMajor, int>;
+  using DenseMatrixType = Matrix<double, Dynamic, Dynamic, ColMajor>;
+  using VectorI = Matrix<int, Dynamic, 1>;
 
   const int n = internal::random<int>(8, 64);
   DenseMatrixType ref(n, n);
@@ -1302,10 +1302,10 @@ void materialize_at_plus_a_pattern_random() {
 
 template <unsigned int UpLo>
 void materialize_selfadjoint_pattern_random_impl() {
-  typedef SparseMatrix<double, ColMajor, int> SparseMatrixType;
-  typedef SparseMatrix<signed char, ColMajor, int> PatternMatrixType;
-  typedef Matrix<double, Dynamic, Dynamic, ColMajor> DenseMatrixType;
-  typedef Matrix<int, Dynamic, 1> VectorI;
+  using SparseMatrixType = SparseMatrix<double, ColMajor, int>;
+  using PatternMatrixType = SparseMatrix<signed char, ColMajor, int>;
+  using DenseMatrixType = Matrix<double, Dynamic, Dynamic, ColMajor>;
+  using VectorI = Matrix<int, Dynamic, 1>;
 
   // Build a random sparse matrix that may have entries on both triangles; the
   // selfadjoint pattern must filter to only the requested triangle.

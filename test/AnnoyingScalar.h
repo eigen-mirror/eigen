@@ -157,10 +157,10 @@ struct NumTraits<AnnoyingScalar> : NumTraits<float> {
   enum {
     RequireInitialization = 1,
   };
-  typedef AnnoyingScalar Real;
-  typedef AnnoyingScalar Nested;
-  typedef AnnoyingScalar Literal;
-  typedef AnnoyingScalar NonInteger;
+  using Real = AnnoyingScalar;
+  using Nested = AnnoyingScalar;
+  using Literal = AnnoyingScalar;
+  using NonInteger = AnnoyingScalar;
 };
 
 template <>

@@ -84,8 +84,8 @@ struct fftw_plan {};
 
 template <>
 struct fftw_plan<float> {
-  typedef float scalar_type;
-  typedef fftwf_complex complex_type;
+  using scalar_type = float;
+  using complex_type = fftwf_complex;
   std::shared_ptr<fftwf_plan_s> m_plan;
   fftw_plan() = default;
 
@@ -135,8 +135,8 @@ struct fftw_plan<float> {
 };
 template <>
 struct fftw_plan<double> {
-  typedef double scalar_type;
-  typedef fftw_complex complex_type;
+  using scalar_type = double;
+  using complex_type = fftw_complex;
   std::shared_ptr<fftw_plan_s> m_plan;
   fftw_plan() = default;
 
@@ -185,8 +185,8 @@ struct fftw_plan<double> {
 };
 template <>
 struct fftw_plan<long double> {
-  typedef long double scalar_type;
-  typedef fftwl_complex complex_type;
+  using scalar_type = long double;
+  using complex_type = fftwl_complex;
   std::shared_ptr<fftwl_plan_s> m_plan;
   fftw_plan() = default;
 
@@ -236,8 +236,8 @@ struct fftw_plan<long double> {
 
 template <typename Scalar_>
 struct fftw_impl {
-  typedef Scalar_ Scalar;
-  typedef std::complex<Scalar> Complex;
+  using Scalar = Scalar_;
+  using Complex = std::complex<Scalar>;
 
   inline void clear() { m_plans.clear(); }
 
@@ -272,11 +272,11 @@ struct fftw_impl {
   }
 
  protected:
-  typedef fftw_plan<Scalar> PlanData;
+  using PlanData = fftw_plan<Scalar>;
 
-  typedef Eigen::numext::int64_t int64_t;
+  using int64_t = Eigen::numext::int64_t;
 
-  typedef std::map<int64_t, PlanData> PlanMap;
+  using PlanMap = std::map<int64_t, PlanData>;
 
   PlanMap m_plans;
 

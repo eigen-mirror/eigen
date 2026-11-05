@@ -336,7 +336,7 @@ BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::compute_impl(const Mat
                       Input matrix must have the same Scalar type as the BDCSVD object.);
 
   // setSwitchSize() enforces a minimum of 3, so these types can only use the JacobiSVD fallback.
-  typedef internal::bool_constant<(MaxColsAtCompileTime != Dynamic && MaxColsAtCompileTime < 3)> AlwaysUseSmallSvd;
+  using AlwaysUseSmallSvd = internal::bool_constant<(MaxColsAtCompileTime != Dynamic && MaxColsAtCompileTime < 3)>;
   return compute_impl(matrix, computationOptions, AlwaysUseSmallSvd());
 }
 

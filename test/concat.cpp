@@ -17,8 +17,8 @@ using namespace Eigen;
 // ============================================================================
 template <typename MatrixType>
 void test_concat_dynamic(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using Scalar = typename MatrixType::Scalar;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -72,8 +72,8 @@ void test_concat_dynamic(const MatrixType& m) {
 // ============================================================================
 template <typename MatrixType>
 void test_concat_with_expressions(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using Scalar = typename MatrixType::Scalar;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -123,8 +123,8 @@ void test_concat_with_expressions(const MatrixType& m) {
 // ============================================================================
 template <typename Scalar, int LhsRows, int CommonCols, int RhsRows>
 void test_vcat_fixed() {
-  typedef Matrix<Scalar, LhsRows, CommonCols> LhsType;
-  typedef Matrix<Scalar, RhsRows, CommonCols> RhsType;
+  using LhsType = Matrix<Scalar, LhsRows, CommonCols>;
+  using RhsType = Matrix<Scalar, RhsRows, CommonCols>;
 
   LhsType a = LhsType::Random();
   RhsType b = RhsType::Random();
@@ -133,13 +133,13 @@ void test_vcat_fixed() {
   VERIFY_IS_EQUAL(vc.rows(), a.rows() + b.rows());
   VERIFY_IS_EQUAL(vc.cols(), a.cols());
 
-  typedef Concat<Vertical, LhsType, RhsType> VConcatType;
+  using VConcatType = Concat<Vertical, LhsType, RhsType>;
   VERIFY((int(VConcatType::RowsAtCompileTime) == LhsRows + RhsRows));
   VERIFY((int(VConcatType::ColsAtCompileTime) == CommonCols));
   VERIFY((int(VConcatType::MaxRowsAtCompileTime) == LhsRows + RhsRows));
   VERIFY((int(VConcatType::MaxColsAtCompileTime) == CommonCols));
 
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixX expected(a.rows() + b.rows(), a.cols());
   expected.topRows(a.rows()) = a;
   expected.bottomRows(b.rows()) = b;
@@ -148,8 +148,8 @@ void test_vcat_fixed() {
 
 template <typename Scalar, int CommonRows, int LhsCols, int RhsCols>
 void test_hcat_fixed() {
-  typedef Matrix<Scalar, CommonRows, LhsCols> LhsType;
-  typedef Matrix<Scalar, CommonRows, RhsCols> RhsType;
+  using LhsType = Matrix<Scalar, CommonRows, LhsCols>;
+  using RhsType = Matrix<Scalar, CommonRows, RhsCols>;
 
   LhsType a = LhsType::Random();
   RhsType b = RhsType::Random();
@@ -158,13 +158,13 @@ void test_hcat_fixed() {
   VERIFY_IS_EQUAL(hc.rows(), a.rows());
   VERIFY_IS_EQUAL(hc.cols(), a.cols() + b.cols());
 
-  typedef Concat<Horizontal, LhsType, RhsType> HConcatType;
+  using HConcatType = Concat<Horizontal, LhsType, RhsType>;
   VERIFY((int(HConcatType::RowsAtCompileTime) == CommonRows));
   VERIFY((int(HConcatType::ColsAtCompileTime) == LhsCols + RhsCols));
   VERIFY((int(HConcatType::MaxRowsAtCompileTime) == CommonRows));
   VERIFY((int(HConcatType::MaxColsAtCompileTime) == LhsCols + RhsCols));
 
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixX expected(a.rows(), a.cols() + b.cols());
   expected.leftCols(a.cols()) = a;
   expected.rightCols(b.cols()) = b;
@@ -177,9 +177,9 @@ void test_hcat_fixed() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_mixed_fixed_dynamic() {
-  typedef Matrix<Scalar, 3, 3> Fixed33;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 3> MatrixX3;
+  using Fixed33 = Matrix<Scalar, 3, 3>;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixX3 = Matrix<Scalar, Dynamic, 3>;
 
   Fixed33 a = Fixed33::Random();
   MatrixX b = MatrixX::Random(4, 3);
@@ -191,7 +191,7 @@ void test_concat_mixed_fixed_dynamic() {
     VERIFY_IS_EQUAL(vc.cols(), 3);
 
     // Compile-time: rows should be Dynamic (fixed + dynamic = dynamic)
-    typedef decltype(vc) VCType;
+    using VCType = decltype(vc);
     VERIFY((int(VCType::RowsAtCompileTime) == Dynamic));
     // Cols: fixed 3 and dynamic => 3 (size_prefer_fixed picks the fixed one)
     VERIFY((int(VCType::ColsAtCompileTime) == 3));
@@ -209,7 +209,7 @@ void test_concat_mixed_fixed_dynamic() {
     VERIFY_IS_EQUAL(vc.rows(), 8);
     VERIFY_IS_EQUAL(vc.cols(), 3);
 
-    typedef decltype(vc) VCType;
+    using VCType = decltype(vc);
     VERIFY((int(VCType::RowsAtCompileTime) == Dynamic));
 
     MatrixX expected(8, 3);
@@ -225,7 +225,7 @@ void test_concat_mixed_fixed_dynamic() {
     VERIFY_IS_EQUAL(hc.rows(), 3);
     VERIFY_IS_EQUAL(hc.cols(), 8);
 
-    typedef decltype(hc) HCType;
+    using HCType = decltype(hc);
     VERIFY((int(HCType::ColsAtCompileTime) == Dynamic));
 
     MatrixX expected(3, 8);
@@ -254,7 +254,7 @@ void test_concat_mixed_fixed_dynamic() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_rvalue_temporaries() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatrixX a = MatrixX::Random(3, 3);
   MatrixX b = MatrixX::Random(3, 3);
@@ -312,7 +312,7 @@ void test_concat_rvalue_temporaries() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_chained() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatrixX a = MatrixX::Random(2, 3);
   MatrixX b = MatrixX::Random(2, 3);
@@ -379,12 +379,12 @@ void test_concat_chained() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_vectors() {
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorX;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 4, 1> Vector4;
-  typedef Matrix<Scalar, 1, 3> RowVector3;
-  typedef Matrix<Scalar, 1, 4> RowVector4;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
+  using RowVectorX = Matrix<Scalar, 1, Dynamic>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Vector4 = Matrix<Scalar, 4, 1>;
+  using RowVector3 = Matrix<Scalar, 1, 3>;
+  using RowVector4 = Matrix<Scalar, 1, 4>;
 
   // Column vectors: vcat
   {
@@ -418,11 +418,11 @@ void test_concat_vectors() {
     Vector4 b = Vector4::Random();
     auto result = vcat(a, b);
 
-    typedef Concat<Vertical, Vector3, Vector4> VConcatType;
+    using VConcatType = Concat<Vertical, Vector3, Vector4>;
     VERIFY((int(VConcatType::RowsAtCompileTime) == 7));
     VERIFY((int(VConcatType::ColsAtCompileTime) == 1));
 
-    typedef Matrix<Scalar, Dynamic, 1> VecX;
+    using VecX = Matrix<Scalar, Dynamic, 1>;
     VecX expected(7);
     expected.head(3) = a;
     expected.tail(4) = b;
@@ -436,11 +436,11 @@ void test_concat_vectors() {
     RowVector4 b = RowVector4::Random();
     auto result = hcat(a, b);
 
-    typedef Concat<Horizontal, RowVector3, RowVector4> HConcatType;
+    using HConcatType = Concat<Horizontal, RowVector3, RowVector4>;
     VERIFY((int(HConcatType::RowsAtCompileTime) == 1));
     VERIFY((int(HConcatType::ColsAtCompileTime) == 7));
 
-    typedef Matrix<Scalar, 1, Dynamic> RowVecX;
+    using RowVecX = Matrix<Scalar, 1, Dynamic>;
     RowVecX expected(7);
     expected.head(3) = a;
     expected.tail(4) = b;
@@ -454,8 +454,8 @@ void test_concat_vectors() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_array() {
-  typedef Array<Scalar, Dynamic, Dynamic> ArrayX;
-  typedef Array<Scalar, 2, 3> FixedArray23;
+  using ArrayX = Array<Scalar, Dynamic, Dynamic>;
+  using FixedArray23 = Array<Scalar, 2, 3>;
 
   // Dynamic arrays
   {
@@ -487,7 +487,7 @@ void test_concat_array() {
     FixedArray23 a = FixedArray23::Random();
     FixedArray23 b = FixedArray23::Random();
 
-    typedef Concat<Vertical, FixedArray23, FixedArray23> VConcatType;
+    using VConcatType = Concat<Vertical, FixedArray23, FixedArray23>;
     VERIFY((int(VConcatType::RowsAtCompileTime) == 4));
     VERIFY((int(VConcatType::ColsAtCompileTime) == 3));
 
@@ -517,7 +517,7 @@ void test_concat_array() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_coeff_access() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatrixX a = MatrixX::Random(3, 4);
   MatrixX b = MatrixX::Random(2, 4);
@@ -556,8 +556,8 @@ void test_concat_coeff_access() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_in_expressions() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   MatrixX a = MatrixX::Random(3, 3);
   MatrixX b = MatrixX::Random(3, 3);
@@ -606,9 +606,9 @@ void test_concat_in_expressions() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_single_row_col() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowVectorX = Matrix<Scalar, 1, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   // Single-row matrices: vcat
   {
@@ -664,10 +664,10 @@ void test_concat_single_row_col() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_row_major() {
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
+  using RowMajorMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
   // Explicit ColMajor so the mixed-order cases below stay mixed under EIGEN_DEFAULT_TO_ROW_MAJOR.
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMajorMatrix;
-  typedef Matrix<Scalar, 3, 3, RowMajor> FixedRowMajor33;
+  using ColMajorMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using FixedRowMajor33 = Matrix<Scalar, 3, 3, RowMajor>;
 
   // RowMajor + RowMajor
   {
@@ -774,8 +774,8 @@ void test_concat_row_major() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_self() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   // Self-concat: vcat(a, a)
   {
@@ -821,7 +821,7 @@ void test_concat_self() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_mismatched_dimensions() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatrixX a(3, 4);
   MatrixX b(3, 5);
@@ -847,9 +847,9 @@ void test_concat_mismatched_dimensions() {
 // ============================================================================
 template <typename Scalar>
 void test_concat_packet_segment() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMajorMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   // Sweep sizes chosen to exercise: inside-lhs, straddle-boundary, inside-rhs
   // for every packet-width scenario (float: 4/8/16, double: 2/4/8).

@@ -62,9 +62,9 @@ class TensorStorage {
 template <typename T, typename IndexType, int NumIndices_, int Options_>
 class TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_> {
  public:
-  typedef IndexType Index;
-  typedef DSizes<IndexType, NumIndices_> Dimensions;
-  typedef TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_> Self;
+  using Index = IndexType;
+  using Dimensions = DSizes<IndexType, NumIndices_>;
+  using Self = TensorStorage<T, DSizes<IndexType, NumIndices_>, Options_>;
 
   EIGEN_DEVICE_FUNC TensorStorage() : m_data(0), m_dimensions() {
     EIGEN_IF_CONSTEXPR (NumIndices_ == 0) {

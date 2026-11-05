@@ -224,7 +224,7 @@ struct SluMatrix : SuperMatrix {
 
 template <typename Scalar, int Rows, int Cols, int Options, int MRows, int MCols>
 struct SluMatrixMapHelper<Matrix<Scalar, Rows, Cols, Options, MRows, MCols> > {
-  typedef Matrix<Scalar, Rows, Cols, Options, MRows, MCols> MatrixType;
+  using MatrixType = Matrix<Scalar, Rows, Cols, Options, MRows, MCols>;
   static void run(MatrixType &mat, SluMatrix &res) {
     eigen_assert(((Options & RowMajor) != RowMajor) && "row-major dense matrices is not supported by SuperLU");
     res.setStorageType(SLU_DN);
@@ -241,7 +241,7 @@ struct SluMatrixMapHelper<Matrix<Scalar, Rows, Cols, Options, MRows, MCols> > {
 
 template <typename Derived>
 struct SluMatrixMapHelper<SparseMatrixBase<Derived> > {
-  typedef Derived MatrixType;
+  using MatrixType = Derived;
   static void run(MatrixType &mat, SluMatrix &res) {
     EIGEN_IF_CONSTEXPR ((MatrixType::Flags & RowMajorBit) == RowMajorBit) {
       res.setStorageType(SLU_NR);
@@ -299,20 +299,20 @@ Map<SparseMatrix<Scalar, Flags, Index> > map_superlu(SluMatrix &sluMat) {
 template <typename MatrixType_, typename Derived>
 class SuperLUBase : public SparseSolverBase<Derived> {
  protected:
-  typedef SparseSolverBase<Derived> Base;
+  using Base = SparseSolverBase<Derived>;
   using Base::derived;
   using Base::m_isInitialized;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
-  typedef Matrix<int, 1, MatrixType::ColsAtCompileTime> IntRowVectorType;
-  typedef Matrix<int, MatrixType::RowsAtCompileTime, 1> IntColVectorType;
-  typedef Map<PermutationMatrix<Dynamic, Dynamic, int> > PermutationMap;
-  typedef SparseMatrix<Scalar> LUMatrixType;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using IntRowVectorType = Matrix<int, 1, MatrixType::ColsAtCompileTime>;
+  using IntColVectorType = Matrix<int, MatrixType::RowsAtCompileTime, 1>;
+  using PermutationMap = Map<PermutationMatrix<Dynamic, Dynamic, int> >;
+  using LUMatrixType = SparseMatrix<Scalar>;
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:
@@ -452,17 +452,17 @@ class SuperLUBase : public SparseSolverBase<Derived> {
 template <typename MatrixType_>
 class SuperLU : public SuperLUBase<MatrixType_, SuperLU<MatrixType_> > {
  public:
-  typedef SuperLUBase<MatrixType_, SuperLU> Base;
-  typedef MatrixType_ MatrixType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
-  typedef typename Base::StorageIndex StorageIndex;
-  typedef typename Base::IntRowVectorType IntRowVectorType;
-  typedef typename Base::IntColVectorType IntColVectorType;
-  typedef typename Base::PermutationMap PermutationMap;
-  typedef typename Base::LUMatrixType LUMatrixType;
-  typedef TriangularView<LUMatrixType, Lower | UnitDiag> LMatrixType;
-  typedef TriangularView<LUMatrixType, Upper> UMatrixType;
+  using Base = SuperLUBase<MatrixType_, SuperLU>;
+  using MatrixType = MatrixType_;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
+  using StorageIndex = typename Base::StorageIndex;
+  using IntRowVectorType = typename Base::IntRowVectorType;
+  using IntColVectorType = typename Base::IntColVectorType;
+  using PermutationMap = typename Base::PermutationMap;
+  using LUMatrixType = typename Base::LUMatrixType;
+  using LMatrixType = TriangularView<LUMatrixType, Lower | UnitDiag>;
+  using UMatrixType = TriangularView<LUMatrixType, Upper>;
 
  public:
   using Base::_solve_impl;
@@ -766,10 +766,10 @@ typename SuperLU<MatrixType>::Scalar SuperLU<MatrixType>::determinant() const {
 template <typename MatrixType_>
 class SuperILU : public SuperLUBase<MatrixType_, SuperILU<MatrixType_> > {
  public:
-  typedef SuperLUBase<MatrixType_, SuperILU> Base;
-  typedef MatrixType_ MatrixType;
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
+  using Base = SuperLUBase<MatrixType_, SuperILU>;
+  using MatrixType = MatrixType_;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
 
  public:
   using Base::_solve_impl;

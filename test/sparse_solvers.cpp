@@ -29,8 +29,8 @@ void initSPD(double density, Matrix<Scalar, Dynamic, Dynamic>& refMat, SparseMat
 template <typename Scalar>
 void sparse_solvers(int rows, int cols) {
   double density = (std::max)(8. / (rows * cols), 0.01);
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
   // Scalar eps = 1e-6;
 
   DenseVector vec1 = DenseVector::Random(rows);
@@ -217,7 +217,7 @@ void sparse_solvers(int rows, int cols) {
       // For real Scalar this is the ordinary path; for complex Scalar it is the
       // real-factor / complex-data case that must both compile and be correct.
       {
-        typedef typename NumTraits<Scalar>::Real Real;
+        using Real = typename NumTraits<Scalar>::Real;
         SparseMatrix<Real> mr(rows, rows);
         Matrix<Real, Dynamic, Dynamic> refMatR = Matrix<Real, Dynamic, Dynamic>::Zero(rows, rows);
         initSparse<Real>(density, refMatR, mr, ForceNonZeroDiag);

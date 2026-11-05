@@ -32,19 +32,19 @@ namespace internal {
 #endif
 #endif
 
-typedef __m256 Packet8f;
-typedef eigen_packet_wrapper<__m256i, 0> Packet8i;
-typedef __m256d Packet4d;
+using Packet8f = __m256;
+using Packet8i = eigen_packet_wrapper<__m256i, 0>;
+using Packet4d = __m256d;
 #ifndef EIGEN_VECTORIZE_AVX512FP16
-typedef eigen_packet_wrapper<__m128i, 2> Packet8h;
+using Packet8h = eigen_packet_wrapper<__m128i, 2>;
 #endif
-typedef eigen_packet_wrapper<__m128i, 3> Packet8bf;
-typedef eigen_packet_wrapper<__m256i, 4> Packet8ui;
+using Packet8bf = eigen_packet_wrapper<__m128i, 3>;
+using Packet8ui = eigen_packet_wrapper<__m256i, 4>;
 
 #ifdef EIGEN_VECTORIZE_AVX2
 // Start from 3 to be compatible with AVX512
-typedef eigen_packet_wrapper<__m256i, 3> Packet4l;
-typedef eigen_packet_wrapper<__m256i, 5> Packet4ul;
+using Packet4l = eigen_packet_wrapper<__m256i, 3>;
+using Packet4ul = eigen_packet_wrapper<__m256i, 5>;
 #endif
 
 #define SIGN_MASK_I64 static_cast<int64_t>(0x8000000000000000ULL)
@@ -83,8 +83,8 @@ struct is_arithmetic<Packet4ul> : std::false_type {};
 #ifndef EIGEN_VECTORIZE_AVX512
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet8f type;
-  typedef Packet4f half;
+  using type = Packet8f;
+  using half = Packet4f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -122,8 +122,8 @@ struct packet_traits<float> : default_packet_traits {
 };
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet4d type;
-  typedef Packet2d half;
+  using type = Packet4d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -159,9 +159,9 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct packet_traits<Eigen::half> : default_packet_traits {
-  typedef Packet8h type;
+  using type = Packet8h;
   // There is no half-size packet for Packet8h.
-  typedef Packet8h half;
+  using half = Packet8h;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -195,10 +195,10 @@ struct packet_traits<Eigen::half> : default_packet_traits {
 
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {
-  typedef Packet8bf type;
+  using type = Packet8bf;
   // There is no half-size packet for current Packet8bf.
   // TODO: support as SSE path.
-  typedef Packet8bf half;
+  using half = Packet8bf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -232,14 +232,14 @@ struct packet_traits<bfloat16> : default_packet_traits {
 
 template <>
 struct packet_traits<int> : default_packet_traits {
-  typedef Packet8i type;
-  typedef Packet4i half;
+  using type = Packet8i;
+  using half = Packet4i;
   enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 8 };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
-  typedef Packet8ui type;
-  typedef Packet4ui half;
+  using type = Packet8ui;
+  using half = Packet4ui;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -258,16 +258,16 @@ struct packet_traits<uint32_t> : default_packet_traits {
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
-  typedef Packet4l type;
-  typedef Packet2l half;
+  using type = Packet4l;
+  using half = Packet2l;
   enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 4 };
 };
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
-  typedef Packet4ul type;
+  using type = Packet4ul;
   // There is no half-size packet for current Packet4ul.
   // TODO: support as SSE path.
-  typedef Packet4ul half;
+  using half = Packet4ul;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -291,10 +291,10 @@ struct scalar_div_cost<double, true> : std::integral_constant<int, 16> {};
 
 template <>
 struct unpacket_traits<Packet8f> {
-  typedef float type;
-  typedef Packet4f half;
-  typedef Packet8i integer_packet;
-  typedef uint8_t mask_t;
+  using type = float;
+  using half = Packet4f;
+  using integer_packet = Packet8i;
+  using mask_t = uint8_t;
   enum {
     size = 8,
     alignment = Aligned32,
@@ -309,10 +309,10 @@ struct unpacket_traits<Packet8f> {
 };
 template <>
 struct unpacket_traits<Packet4d> {
-  typedef double type;
-  typedef Packet2d half;
+  using type = double;
+  using half = Packet2d;
 #ifdef EIGEN_VECTORIZE_AVX2
-  typedef Packet4l integer_packet;
+  using integer_packet = Packet4l;
 #endif
   enum {
     size = 4,
@@ -324,8 +324,8 @@ struct unpacket_traits<Packet4d> {
 };
 template <>
 struct unpacket_traits<Packet8i> {
-  typedef int type;
-  typedef Packet4i half;
+  using type = int;
+  using half = Packet4i;
   enum {
     size = 8,
     alignment = Aligned32,
@@ -336,8 +336,8 @@ struct unpacket_traits<Packet8i> {
 };
 template <>
 struct unpacket_traits<Packet8ui> {
-  typedef uint32_t type;
-  typedef Packet4ui half;
+  using type = uint32_t;
+  using half = Packet4ui;
   enum {
     size = 8,
     alignment = Aligned32,
@@ -349,8 +349,8 @@ struct unpacket_traits<Packet8ui> {
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 struct unpacket_traits<Packet4l> {
-  typedef int64_t type;
-  typedef Packet2l half;
+  using type = int64_t;
+  using half = Packet2l;
   enum {
     size = 4,
     alignment = Aligned32,
@@ -361,8 +361,8 @@ struct unpacket_traits<Packet4l> {
 };
 template <>
 struct unpacket_traits<Packet4ul> {
-  typedef uint64_t type;
-  typedef Packet4ul half;
+  using type = uint64_t;
+  using half = Packet4ul;
   enum {
     size = 4,
     alignment = Aligned32,
@@ -374,8 +374,8 @@ struct unpacket_traits<Packet4ul> {
 #endif
 template <>
 struct unpacket_traits<Packet8bf> {
-  typedef bfloat16 type;
-  typedef Packet8bf half;
+  using type = bfloat16;
+  using half = Packet8bf;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -2091,7 +2091,7 @@ EIGEN_DEVICE_FUNC inline void ptranspose(PacketBlock<Packet4d, 4>& kernel) {
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 struct unpacket_traits<Packet8h> {
-  typedef Eigen::half type;
+  using type = Eigen::half;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -2099,7 +2099,7 @@ struct unpacket_traits<Packet8h> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet8h half;
+  using half = Packet8h;
 };
 
 template <>

@@ -11,7 +11,7 @@
 #include "main.h"
 
 EIGEN_DECLARE_TEST(array_of_string) {
-  typedef Array<std::string, 1, Dynamic> ArrayXs;
+  using ArrayXs = Array<std::string, 1, Dynamic>;
   ArrayXs a1(3), a2(3), a3(3), a3ref(3);
   a1 << "one", "two", "three";
   a2 << "1", "2", "3";

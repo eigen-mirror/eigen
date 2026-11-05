@@ -62,25 +62,25 @@ namespace internal {
  **************************/
 template <typename Scalar>
 struct quad_traits {
-  typedef typename packet_traits<Scalar>::type vectortype;
-  typedef PacketBlock<vectortype, 4> type;
-  typedef vectortype rhstype;
+  using vectortype = typename packet_traits<Scalar>::type;
+  using type = PacketBlock<vectortype, 4>;
+  using rhstype = vectortype;
   enum { vectorsize = packet_traits<Scalar>::size, size = 4, rows = 4 };
 };
 
 template <>
 struct quad_traits<double> {
-  typedef Packet2d vectortype;
-  typedef PacketBlock<vectortype, 4> type;
-  typedef PacketBlock<Packet2d, 2> rhstype;
+  using vectortype = Packet2d;
+  using type = PacketBlock<vectortype, 4>;
+  using rhstype = PacketBlock<Packet2d, 2>;
   enum { vectorsize = packet_traits<double>::size, size = 2, rows = 4 };
 };
 
 template <>
 struct quad_traits<bfloat16> {
-  typedef Packet8bf vectortype;
-  typedef PacketBlock<vectortype, 4> type;
-  typedef vectortype rhstype;
+  using vectortype = Packet8bf;
+  using type = PacketBlock<vectortype, 4>;
+  using rhstype = vectortype;
   enum { vectorsize = packet_traits<bfloat16>::size, size = 8, rows = 4 };
 };
 
@@ -3074,7 +3074,7 @@ EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float* result, Index rows, c
 
 template <typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float* result, Index cols, Index rows, const DataMapper& src) {
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using LinearMapper = typename DataMapper::LinearMapper;
   for (Index j = 0; j < cols; j++, result += rows) {
     const LinearMapper src2 = src.getLinearMapper(0, j);
     Index i = 0;
@@ -3442,8 +3442,8 @@ void gemm_pack_rhs<std::complex<double>, Index, DataMapper, nr, RowMajor, Conjug
 // ********* gebp specializations *********
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef typename quad_traits<float>::vectortype Packet;
-  typedef typename quad_traits<float>::rhstype RhsPacket;
+  using Packet = typename quad_traits<float>::vectortype;
+  using RhsPacket = typename quad_traits<float>::rhstype;
 
   void operator()(const DataMapper& res, const float* blockA, const float* blockB, Index rows, Index depth, Index cols,
                   float alpha, Index strideA = -1, Index strideB = -1, Index offsetA = 0, Index offsetB = 0);
@@ -3468,9 +3468,9 @@ void gebp_kernel<float, float, Index, DataMapper, mr, nr, ConjugateLhs, Conjugat
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<float>, std::complex<float>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef Packet4f Packet;
-  typedef Packet2cf Packetc;
-  typedef Packet4f RhsPacket;
+  using Packet = Packet4f;
+  using Packetc = Packet2cf;
+  using RhsPacket = Packet4f;
 
   void operator()(const DataMapper& res, const std::complex<float>* blockA, const std::complex<float>* blockB,
                   Index rows, Index depth, Index cols, std::complex<float> alpha, Index strideA = -1,
@@ -3502,9 +3502,9 @@ void gebp_kernel<std::complex<float>, std::complex<float>, Index, DataMapper, mr
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<float, std::complex<float>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef Packet4f Packet;
-  typedef Packet2cf Packetc;
-  typedef Packet4f RhsPacket;
+  using Packet = Packet4f;
+  using Packetc = Packet2cf;
+  using RhsPacket = Packet4f;
 
   void operator()(const DataMapper& res, const float* blockA, const std::complex<float>* blockB, Index rows,
                   Index depth, Index cols, std::complex<float> alpha, Index strideA = -1, Index strideB = -1,
@@ -3534,9 +3534,9 @@ void gebp_kernel<float, std::complex<float>, Index, DataMapper, mr, nr, Conjugat
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<float>, float, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef Packet4f Packet;
-  typedef Packet2cf Packetc;
-  typedef Packet4f RhsPacket;
+  using Packet = Packet4f;
+  using Packetc = Packet2cf;
+  using RhsPacket = Packet4f;
 
   void operator()(const DataMapper& res, const std::complex<float>* blockA, const float* blockB, Index rows,
                   Index depth, Index cols, std::complex<float> alpha, Index strideA = -1, Index strideB = -1,
@@ -3566,8 +3566,8 @@ void gebp_kernel<std::complex<float>, float, Index, DataMapper, mr, nr, Conjugat
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef typename quad_traits<double>::vectortype Packet;
-  typedef typename quad_traits<double>::rhstype RhsPacket;
+  using Packet = typename quad_traits<double>::vectortype;
+  using RhsPacket = typename quad_traits<double>::rhstype;
 
   void operator()(const DataMapper& res, const double* blockA, const double* blockB, Index rows, Index depth,
                   Index cols, double alpha, Index strideA = -1, Index strideB = -1, Index offsetA = 0,
@@ -3591,9 +3591,9 @@ void gebp_kernel<double, double, Index, DataMapper, mr, nr, ConjugateLhs, Conjug
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<double>, std::complex<double>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef quad_traits<double>::vectortype Packet;
-  typedef Packet1cd Packetc;
-  typedef quad_traits<double>::rhstype RhsPacket;
+  using Packet = quad_traits<double>::vectortype;
+  using Packetc = Packet1cd;
+  using RhsPacket = quad_traits<double>::rhstype;
 
   void operator()(const DataMapper& res, const std::complex<double>* blockA, const std::complex<double>* blockB,
                   Index rows, Index depth, Index cols, std::complex<double> alpha, Index strideA = -1,
@@ -3626,9 +3626,9 @@ void gebp_kernel<std::complex<double>, std::complex<double>, Index, DataMapper, 
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<std::complex<double>, double, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef quad_traits<double>::vectortype Packet;
-  typedef Packet1cd Packetc;
-  typedef quad_traits<double>::rhstype RhsPacket;
+  using Packet = quad_traits<double>::vectortype;
+  using Packetc = Packet1cd;
+  using RhsPacket = quad_traits<double>::rhstype;
 
   void operator()(const DataMapper& res, const std::complex<double>* blockA, const double* blockB, Index rows,
                   Index depth, Index cols, std::complex<double> alpha, Index strideA = -1, Index strideB = -1,
@@ -3658,9 +3658,9 @@ void gebp_kernel<std::complex<double>, double, Index, DataMapper, mr, nr, Conjug
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef quad_traits<double>::vectortype Packet;
-  typedef Packet1cd Packetc;
-  typedef quad_traits<double>::rhstype RhsPacket;
+  using Packet = quad_traits<double>::vectortype;
+  using Packetc = Packet1cd;
+  using RhsPacket = quad_traits<double>::rhstype;
 
   void operator()(const DataMapper& res, const double* blockA, const std::complex<double>* blockB, Index rows,
                   Index depth, Index cols, std::complex<double> alpha, Index strideA = -1, Index strideB = -1,
@@ -3690,8 +3690,8 @@ void gebp_kernel<double, std::complex<double>, Index, DataMapper, mr, nr, Conjug
 
 template <typename Index, typename DataMapper, int mr, int nr, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<bfloat16, bfloat16, Index, DataMapper, mr, nr, ConjugateLhs, ConjugateRhs> {
-  typedef typename quad_traits<bfloat16>::vectortype Packet;
-  typedef typename quad_traits<bfloat16>::rhstype RhsPacket;
+  using Packet = typename quad_traits<bfloat16>::vectortype;
+  using RhsPacket = typename quad_traits<bfloat16>::rhstype;
 
   void operator()(const DataMapper& res, const bfloat16* blockA, const bfloat16* blockB, Index rows, Index depth,
                   Index cols, bfloat16 alpha, Index strideA = -1, Index strideB = -1, Index offsetA = 0,

@@ -133,7 +133,7 @@ template <typename Derived>
 cholmod_dense viewAsCholmod(MatrixBase<Derived>& mat) {
   EIGEN_STATIC_ASSERT((internal::traits<Derived>::Flags & RowMajorBit) == 0,
                       THIS_METHOD_IS_ONLY_FOR_COLUMN_MAJOR_MATRICES);
-  typedef typename Derived::Scalar Scalar;
+  using Scalar = typename Derived::Scalar;
 
   cholmod_dense res;
   res.nrow = mat.rows();
@@ -245,17 +245,17 @@ enum CholmodMode { CholmodAuto, CholmodSimplicialLLt, CholmodSupernodalLLt, Chol
 template <typename MatrixType_, int UpLo_, typename Derived>
 class CholmodBase : public SparseSolverBase<Derived> {
  protected:
-  typedef SparseSolverBase<Derived> Base;
+  using Base = SparseSolverBase<Derived>;
   using Base::derived;
   using Base::m_isInitialized;
 
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
   enum { UpLo = UpLo_ };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef MatrixType CholMatrixType;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using CholMatrixType = MatrixType;
+  using StorageIndex = typename MatrixType::StorageIndex;
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:
@@ -486,16 +486,16 @@ class CholmodBase : public SparseSolverBase<Derived> {
  */
 template <typename MatrixType_, int UpLo_ = Lower>
 class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLLT<MatrixType_, UpLo_> > {
-  typedef CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLLT> Base;
+  using Base = CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLLT>;
   using Base::m_cholmod;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef TriangularView<const MatrixType, Eigen::Lower> MatrixL;
-  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::Upper> MatrixU;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using MatrixL = TriangularView<const MatrixType, Eigen::Lower>;
+  using MatrixU = TriangularView<const typename MatrixType::AdjointReturnType, Eigen::Upper>;
 
   CholmodSimplicialLLT() : Base() { init(); }
 
@@ -543,17 +543,17 @@ class CholmodSimplicialLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimpl
  */
 template <typename MatrixType_, int UpLo_ = Lower>
 class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLDLT<MatrixType_, UpLo_> > {
-  typedef CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLDLT> Base;
+  using Base = CholmodBase<MatrixType_, UpLo_, CholmodSimplicialLDLT>;
   using Base::m_cholmod;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef TriangularView<const MatrixType, Eigen::UnitLower> MatrixL;
-  typedef TriangularView<const typename MatrixType::AdjointReturnType, Eigen::UnitUpper> MatrixU;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixL = TriangularView<const MatrixType, Eigen::UnitLower>;
+  using MatrixU = TriangularView<const typename MatrixType::AdjointReturnType, Eigen::UnitUpper>;
 
   CholmodSimplicialLDLT() : Base() { init(); }
 
@@ -614,14 +614,14 @@ class CholmodSimplicialLDLT : public CholmodBase<MatrixType_, UpLo_, CholmodSimp
  */
 template <typename MatrixType_, int UpLo_ = Lower>
 class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSupernodalLLT<MatrixType_, UpLo_> > {
-  typedef CholmodBase<MatrixType_, UpLo_, CholmodSupernodalLLT> Base;
+  using Base = CholmodBase<MatrixType_, UpLo_, CholmodSupernodalLLT>;
   using Base::m_cholmod;
 
  public:
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
 
   CholmodSupernodalLLT() : Base() { init(); }
 
@@ -677,11 +677,11 @@ class CholmodSupernodalLLT : public CholmodBase<MatrixType_, UpLo_, CholmodSuper
  */
 template <typename MatrixType_, int UpLo_ = Lower>
 class CholmodDecomposition : public CholmodBase<MatrixType_, UpLo_, CholmodDecomposition<MatrixType_, UpLo_> > {
-  typedef CholmodBase<MatrixType_, UpLo_, CholmodDecomposition> Base;
+  using Base = CholmodBase<MatrixType_, UpLo_, CholmodDecomposition>;
   using Base::m_cholmod;
 
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
 
   CholmodDecomposition() : Base() { init(); }
 

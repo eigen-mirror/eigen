@@ -15,9 +15,9 @@
 
 template <typename EigType, typename MatType>
 void check_eigensolver_for_given_mat(const EigType& eig, const MatType& a) {
-  typedef typename NumTraits<typename MatType::Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, MatType::RowsAtCompileTime, 1> RealVectorType;
-  typedef std::complex<RealScalar> Complex;
+  using RealScalar = typename NumTraits<typename MatType::Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, MatType::RowsAtCompileTime, 1>;
+  using Complex = std::complex<RealScalar>;
   Index n = a.rows();
   VERIFY_IS_EQUAL(eig.info(), Success);
   VERIFY_IS_APPROX(a * eig.pseudoEigenvectors(), eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix());
@@ -35,9 +35,9 @@ void eigensolver(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
 
   MatrixType a = MatrixType::Random(rows, cols);
   MatrixType a1 = MatrixType::Random(rows, cols);
@@ -166,7 +166,7 @@ void eigensolver_generic_extra() {
       CALL_SUBTEST(check_eigensolver_for_given_mat(eig, C));
       Index n = C.rows();
       for (Index i = 0; i < n; ++i) {
-        typedef std::complex<double> Complex;
+        using Complex = std::complex<double>;
         MatrixXcd ac = C.cast<Complex>();
         ac.diagonal().array() -= eig.eigenvalues()(i);
         VectorXd sv = ac.jacobiSvd().singularValues();

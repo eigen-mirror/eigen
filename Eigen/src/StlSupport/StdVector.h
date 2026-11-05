@@ -28,13 +28,13 @@
   template <>                                                                                       \
   class vector<__VA_ARGS__, std::allocator<__VA_ARGS__> >                                           \
       : public vector<__VA_ARGS__, EIGEN_ALIGNED_ALLOCATOR<__VA_ARGS__> > {                         \
-    typedef vector<__VA_ARGS__, EIGEN_ALIGNED_ALLOCATOR<__VA_ARGS__> > vector_base;                 \
+    using vector_base = vector<__VA_ARGS__, EIGEN_ALIGNED_ALLOCATOR<__VA_ARGS__> >;                 \
                                                                                                     \
    public:                                                                                          \
-    typedef __VA_ARGS__ value_type;                                                                 \
-    typedef vector_base::allocator_type allocator_type;                                             \
-    typedef vector_base::size_type size_type;                                                       \
-    typedef vector_base::iterator iterator;                                                         \
+    using value_type = __VA_ARGS__;                                                                 \
+    using allocator_type = vector_base::allocator_type;                                             \
+    using size_type = vector_base::size_type;                                                       \
+    using iterator = vector_base::iterator;                                                         \
     explicit vector(const allocator_type& a = allocator_type()) : vector_base(a) {}                 \
     template <typename InputIterator>                                                               \
     vector(InputIterator first, InputIterator last, const allocator_type& a = allocator_type())     \

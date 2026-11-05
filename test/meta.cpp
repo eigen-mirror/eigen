@@ -15,7 +15,7 @@
 #include <Eigen/src/Core/util/Meta.h>
 
 struct FooReturnType {
-  typedef int ReturnType;
+  using ReturnType = int;
 };
 
 struct CommutativeScalarOptIn {};
@@ -66,39 +66,39 @@ template <typename A, typename B>
 struct dummy_op;
 template <>
 struct dummy_op<dummy_a, dummy_b> {
-  typedef dummy_c type;
+  using type = dummy_c;
 };
 template <>
 struct dummy_op<dummy_b, dummy_a> {
-  typedef dummy_d type;
+  using type = dummy_d;
 };
 template <>
 struct dummy_op<dummy_b, dummy_c> {
-  typedef dummy_a type;
+  using type = dummy_a;
 };
 template <>
 struct dummy_op<dummy_c, dummy_b> {
-  typedef dummy_d type;
+  using type = dummy_d;
 };
 template <>
 struct dummy_op<dummy_c, dummy_a> {
-  typedef dummy_b type;
+  using type = dummy_b;
 };
 template <>
 struct dummy_op<dummy_a, dummy_c> {
-  typedef dummy_d type;
+  using type = dummy_d;
 };
 template <>
 struct dummy_op<dummy_a, dummy_a> {
-  typedef dummy_e type;
+  using type = dummy_e;
 };
 template <>
 struct dummy_op<dummy_b, dummy_b> {
-  typedef dummy_e type;
+  using type = dummy_e;
 };
 template <>
 struct dummy_op<dummy_c, dummy_c> {
-  typedef dummy_e type;
+  using type = dummy_e;
 };
 
 template <typename A, typename B>
@@ -146,7 +146,7 @@ static void test_concat() {
 }
 
 static void test_slice() {
-  typedef type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c> tl;
+  using tl = type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>;
 
   VERIFY((std::is_same<typename take<0, tl>::type, type_list<>>::value));
   VERIFY((std::is_same<typename take<1, tl>::type, type_list<dummy_a>>::value));
@@ -172,8 +172,8 @@ static void test_slice() {
 }
 
 static void test_get() {
-  typedef type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c> tl;
-  typedef std::integer_sequence<int, 4, 8, 15, 16, 23, 42> il;
+  using tl = type_list<dummy_a, dummy_a, dummy_b, dummy_b, dummy_c, dummy_c>;
+  using il = std::integer_sequence<int, 4, 8, 15, 16, 23, 42>;
 
   VERIFY((std::is_same<typename Eigen::internal::get<0, tl>::type, dummy_a>::value));
   VERIFY((std::is_same<typename Eigen::internal::get<1, tl>::type, dummy_a>::value));
@@ -198,7 +198,7 @@ static void test_is_same_gf() {
 }
 
 static void test_apply_op() {
-  typedef type_list<dummy_a, dummy_b, dummy_c> tl;
+  using tl = type_list<dummy_a, dummy_b, dummy_c>;
   VERIFY((!!std::is_same<typename apply_op_from_left<dummy_op, dummy_a, tl>::type,
                          type_list<dummy_e, dummy_c, dummy_d>>::value));
   VERIFY((!!std::is_same<typename apply_op_from_right<dummy_op, dummy_a, tl>::type,
@@ -208,7 +208,7 @@ static void test_apply_op() {
 }
 
 static void test_contained_in_list() {
-  typedef type_list<dummy_a, dummy_b, dummy_c> tl;
+  using tl = type_list<dummy_a, dummy_b, dummy_c>;
 
   VERIFY((!!contained_in_list<std::is_same, dummy_a, tl>::value));
   VERIFY((!!contained_in_list<std::is_same, dummy_b, tl>::value));

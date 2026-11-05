@@ -39,8 +39,8 @@ void test_sparselu_T() {
 
 template <typename T>
 void test_sparselu_rowmajor_compressed_input() {
-  typedef SparseMatrix<T, RowMajor> RowMajorSparseMatrix;
-  typedef Matrix<T, Dynamic, 1> Vector;
+  using RowMajorSparseMatrix = SparseMatrix<T, RowMajor>;
+  using Vector = Matrix<T, Dynamic, 1>;
 
   Vector b(2);
   b << T(1.1), T(3.14);
@@ -78,8 +78,8 @@ void test_sparselu_rowmajor_compressed_input() {
 
 template <typename T>
 void test_sparselu_colmajor_uncompressed_input() {
-  typedef SparseMatrix<T, ColMajor> ColMajorSparseMatrix;
-  typedef Matrix<T, Dynamic, 1> Vector;
+  using ColMajorSparseMatrix = SparseMatrix<T, ColMajor>;
+  using Vector = Matrix<T, Dynamic, 1>;
 
   Vector b(2);
   b << T(1.1), T(3.14);
@@ -102,7 +102,7 @@ void test_sparselu_colmajor_uncompressed_input() {
 // previous failed factorize() once a subsequent factorize() succeeds.
 template <typename T>
 void test_sparselu_clear_error_state() {
-  typedef SparseMatrix<T, ColMajor> ColMajorSparseMatrix;
+  using ColMajorSparseMatrix = SparseMatrix<T, ColMajor>;
 
   ColMajorSparseMatrix singular(3, 3);  // structurally singular: no nonzeros
 

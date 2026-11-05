@@ -41,11 +41,11 @@ enum { SPD = 0x100, NonSymmetric = 0x0 };
  */
 template <typename Scalar>
 class MatrixMarketIterator {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
  public:
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
 
  public:
   MatrixMarketIterator(const std::string& folder)

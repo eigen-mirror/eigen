@@ -57,7 +57,7 @@ typename MatrixType::RealScalar matrix_l1_norm(const MatrixType& m) {
 // reference \a logabsdet = log|det| formed independently of it. Callers must keep \a det itself in range.
 template <typename SolverType, typename Scalar>
 void check_determinant(const SolverType& solver, const Scalar& det, const typename NumTraits<Scalar>::Real& logabsdet) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   VERIFY_IS_APPROX(solver.determinant(), det);
   VERIFY_IS_APPROX(solver.absDeterminant(), numext::abs(det));
   // log|det| passes through zero, where a relative comparison says nothing; bound the error absolutely.

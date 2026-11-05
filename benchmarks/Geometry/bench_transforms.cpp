@@ -9,8 +9,8 @@ using namespace Eigen;
 
 template <typename Scalar, int Mode, int VSize>
 static void BM_TransformVec(benchmark::State& state) {
-  typedef Transform<Scalar, 3, Mode> Trans;
-  typedef Matrix<Scalar, VSize, 1> Vec;
+  using Trans = Transform<Scalar, 3, Mode>;
+  using Vec = Matrix<Scalar, VSize, 1>;
   Trans t;
   t.setIdentity();
   Vec v;
@@ -23,7 +23,7 @@ static void BM_TransformVec(benchmark::State& state) {
 
 template <typename Scalar, int Mode>
 static void BM_TransformTransform(benchmark::State& state) {
-  typedef Transform<Scalar, 3, Mode> Trans;
+  using Trans = Transform<Scalar, 3, Mode>;
   Trans t1, t2;
   t1.setIdentity();
   t2.setIdentity();

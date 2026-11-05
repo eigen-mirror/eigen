@@ -291,7 +291,7 @@ typename NumTraits<typename Derived::Scalar>::Real max_abs_coeff(const DenseBase
 template <typename Type1, typename Type2>
 inline bool verifyIsApproxScaled(const Type1& a, const Type2& b,
                                  const typename NumTraits<typename Type1::Scalar>::Real& scale) {
-  typedef typename NumTraits<typename Type1::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename Type1::Scalar>::Real;
   const RealScalar error = max_abs_coeff((a - b).eval());
   const RealScalar tolerance = test_precision<typename Type1::Scalar>() * scale;
   // An infinite or NaN bound would admit any result, so treat it as a failure of the caller rather

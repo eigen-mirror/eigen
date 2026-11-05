@@ -26,7 +26,7 @@ template <int Dim>
 struct Ball {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(double, Dim)
 
-  typedef Matrix<double, Dim, 1> VectorType;
+  using VectorType = Matrix<double, Dim, 1>;
 
   Ball() {}
   Ball(const VectorType &c, double r) : center(c), radius(r) {}
@@ -45,10 +45,10 @@ template <int Dim>
 struct BallPointStuff  // this class provides functions to be both an intersector and a minimizer, both for a ball and a
                        // point and for two trees
 {
-  typedef double Scalar;
-  typedef Matrix<double, Dim, 1> VectorType;
-  typedef Ball<Dim> BallType;
-  typedef AlignedBox<double, Dim> BoxType;
+  using Scalar = double;
+  using VectorType = Matrix<double, Dim, 1>;
+  using BallType = Ball<Dim>;
+  using BoxType = AlignedBox<double, Dim>;
 
   BallPointStuff() : calls(0), count(0) {}
   BallPointStuff(const VectorType &inP) : p(inP), calls(0), count(0) {}
@@ -130,11 +130,11 @@ struct BallPointStuff  // this class provides functions to be both an intersecto
 
 template <int Dim>
 struct TreeTest {
-  typedef Matrix<double, Dim, 1> VectorType;
-  typedef std::vector<VectorType, aligned_allocator<VectorType> > VectorTypeList;
-  typedef Ball<Dim> BallType;
-  typedef std::vector<BallType, aligned_allocator<BallType> > BallTypeList;
-  typedef AlignedBox<double, Dim> BoxType;
+  using VectorType = Matrix<double, Dim, 1>;
+  using VectorTypeList = std::vector<VectorType, aligned_allocator<VectorType> >;
+  using BallType = Ball<Dim>;
+  using BallTypeList = std::vector<BallType, aligned_allocator<BallType> >;
+  using BoxType = AlignedBox<double, Dim>;
 
   void testIntersect1() {
     BallTypeList b;

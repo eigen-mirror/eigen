@@ -50,10 +50,10 @@ namespace lapacke_helpers {
 // defining a derived class to allow access to protected members
 template <typename MatrixType_, int Options>
 class BDCSVD_LAPACKE : public BDCSVD<MatrixType_, Options> {
-  typedef BDCSVD<MatrixType_, Options> SVD;
-  typedef typename SVD::MatrixType MatrixType;
-  typedef typename SVD::Scalar Scalar;
-  typedef typename SVD::RealScalar RealScalar;
+  using SVD = BDCSVD<MatrixType_, Options>;
+  using MatrixType = typename SVD::MatrixType;
+  using Scalar = typename SVD::Scalar;
+  using RealScalar = typename SVD::RealScalar;
 
  public:
   // construct this by moving from a parent object

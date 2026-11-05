@@ -16,8 +16,8 @@ using namespace std;
 
 template <typename MatrixType>
 void reverse(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -190,8 +190,8 @@ void reverseInPlace_boundary() {
   for (int si = 0; si < 13; ++si) {
     Index n = sizes[si];
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
-    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+    using Vec = Matrix<Scalar, Dynamic, 1>;
+    using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
     // Vector reverseInPlace
     Vec v1 = Vec::Random(n);

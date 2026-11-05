@@ -21,9 +21,9 @@ void inverse_for_fixed_size(const MatrixType& m1) {
 
   MatrixType m2, identity = MatrixType::Identity();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::ColsAtCompileTime, 1>;
 
   // computeInverseAndDetWithCheck tests
   // First: an invertible matrix
@@ -62,7 +62,7 @@ void inverse_for_fixed_size(const MatrixType& m1) {
 
   // check that computeInverseAndDetWithCheck resizes dynamic result matrix (issue #2917)
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    using DynamicMatrix = Matrix<Scalar, Dynamic, Dynamic>;
     DynamicMatrix m_dyn_inv;
     Scalar det_dyn;
     bool inv_dyn;
@@ -76,7 +76,7 @@ void inverse_for_fixed_size(const MatrixType& m1) {
 
   // check that computeInverseWithCheck resizes dynamic result matrix
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> DynamicMatrix;
+    using DynamicMatrix = Matrix<Scalar, Dynamic, Dynamic>;
     DynamicMatrix m_dyn_inv;
     bool inv_dyn;
     m1.computeInverseWithCheck(m_dyn_inv, inv_dyn);
@@ -95,7 +95,7 @@ void inverse(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   MatrixType m1(rows, cols), m2(rows, cols), identity = MatrixType::Identity(rows, rows);
   createRandomPIMatrixOfRank(rows, rows, rows, m1);

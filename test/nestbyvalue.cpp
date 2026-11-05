@@ -12,8 +12,8 @@
 
 #include "main.h"
 
-typedef NestByValue<MatrixXd> CpyMatrixXd;
-typedef CwiseBinaryOp<internal::scalar_sum_op<double, double>, const CpyMatrixXd, const CpyMatrixXd> XprType;
+using CpyMatrixXd = NestByValue<MatrixXd>;
+using XprType = CwiseBinaryOp<internal::scalar_sum_op<double, double>, const CpyMatrixXd, const CpyMatrixXd>;
 
 XprType get_xpr_with_temps(const MatrixXd& a) {
   MatrixXd t1 = a.rowwise().reverse();

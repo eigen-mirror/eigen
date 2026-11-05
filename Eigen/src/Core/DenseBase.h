@@ -245,6 +245,7 @@ class DenseBase
   using ConstantReturnType = CwiseNullaryOp<internal::scalar_constant_op<Scalar>, PlainObject>;
   /** \internal Represents a matrix with all coefficients equal to zero*/
   using ZeroReturnType = CwiseNullaryOp<internal::scalar_zero_op<Scalar>, PlainObject>;
+  // Keep typedef: EIGEN_DEPRECATED uses __declspec on MSVC, which cannot annotate a using declaration.
   /** \internal \deprecated Represents a vector with linearly spaced coefficients that allows sequential access only. */
   EIGEN_DEPRECATED typedef CwiseNullaryOp<internal::linspaced_op<Scalar>, PlainObject> SequentialLinSpacedReturnType;
   /** \internal Represents a vector with linearly spaced coefficients that allows random access. */
@@ -558,9 +559,9 @@ class DenseBase
   /** STL-like <a href="https://en.cppreference.com/w/cpp/named_req/RandomAccessIterator">RandomAccessIterator</a>
    * iterator type as returned by the begin() and end() methods.
    */
-  typedef random_access_iterator_type iterator;
+  using iterator = random_access_iterator_type;
   /** This is the const version of iterator (aka read-only) */
-  typedef random_access_iterator_type const_iterator;
+  using const_iterator = random_access_iterator_type;
 #else
   using iterator_type =
       std::conditional_t<(Flags & DirectAccessBit) == DirectAccessBit, internal::pointer_based_stl_iterator<Derived>,

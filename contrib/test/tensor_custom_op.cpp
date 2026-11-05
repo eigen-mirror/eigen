@@ -67,7 +67,7 @@ struct BatchMatMul {
   template <typename Output, typename Device>
   void eval(const Tensor<float, 3>& input1, const Tensor<float, 3>& input2, Output& output,
             const Device& device) const {
-    typedef Tensor<float, 3>::DimensionPair DimPair;
+    using DimPair = Tensor<float, 3>::DimensionPair;
     array<DimPair, 1> dims;
     dims[0] = DimPair(1, 0);
     for (int i = 0; i < output.dimension(2); ++i) {
@@ -84,7 +84,7 @@ static void test_custom_binary_op() {
 
   Tensor<float, 3> result = tensor1.customOp(tensor2, BatchMatMul());
   for (int i = 0; i < 5; ++i) {
-    typedef Tensor<float, 3>::DimensionPair DimPair;
+    using DimPair = Tensor<float, 3>::DimensionPair;
     array<DimPair, 1> dims;
     dims[0] = DimPair(1, 0);
     Tensor<float, 2> reference = tensor1.chip<2>(i).contract(tensor2.chip<2>(i), dims);
@@ -126,13 +126,13 @@ template <int DataLayout>
 static void test_custom_op_raw_access() {
   // The custom-op evaluators materialize into a dense buffer, so they must
   // advertise raw access like TensorForcedEvalOp.
-  typedef Tensor<float, 2, DataLayout> Tensor2;
+  using Tensor2 = Tensor<float, 2, DataLayout>;
 
   Tensor2 tensor(13, 17);
   tensor.setRandom();
 
   auto custom_expr = tensor.customOp(InsertZerosLayout<DataLayout>());
-  typedef TensorEvaluator<const decltype(custom_expr), DefaultDevice> CustomEval;
+  using CustomEval = TensorEvaluator<const decltype(custom_expr), DefaultDevice>;
   static_assert(CustomEval::RawAccess == 1, "custom op must expose its materialized buffer");
 
   // Padding consumes the custom op directly through data().
@@ -172,7 +172,7 @@ struct AddInputsLayout {
 
 template <int DataLayout>
 static void test_custom_op_block_access() {
-  typedef Tensor<float, 2, DataLayout> Tensor2;
+  using Tensor2 = Tensor<float, 2, DataLayout>;
 
   Tensor2 lhs(259, 263);
   Tensor2 rhs(259, 263);
@@ -187,7 +187,7 @@ static void test_custom_op_block_access() {
   extents[1] = DataLayout == ColMajor ? 257 : 129;
 
   auto unary_expr = lhs.customOp(InsertZerosLayout<DataLayout>());
-  typedef TensorEvaluator<const decltype(unary_expr), DefaultDevice> UnaryEval;
+  using UnaryEval = TensorEvaluator<const decltype(unary_expr), DefaultDevice>;
   static_assert(UnaryEval::BlockAccess == 1, "custom unary op must support block access");
   Tensor2 unary_result = unary_expr.slice(offsets, extents);
 
@@ -200,7 +200,7 @@ static void test_custom_op_block_access() {
   }
 
   auto binary_expr = lhs.customOp(rhs, AddInputsLayout<DataLayout>());
-  typedef TensorEvaluator<const decltype(binary_expr), DefaultDevice> BinaryEval;
+  using BinaryEval = TensorEvaluator<const decltype(binary_expr), DefaultDevice>;
   static_assert(BinaryEval::RawAccess == 1, "custom binary op must expose its materialized buffer");
   static_assert(BinaryEval::BlockAccess == 1, "custom binary op must support block access");
   Tensor2 binary_result = binary_expr.slice(offsets, extents);

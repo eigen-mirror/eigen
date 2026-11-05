@@ -17,7 +17,7 @@ void dogleg(const Matrix<Scalar, Dynamic, Dynamic> &qrfac, const Matrix<Scalar, 
   using std::abs;
   using std::sqrt;
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Index i, j;

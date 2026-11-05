@@ -14,8 +14,8 @@ template <typename Index, typename Scalar, int StorageOrder, bool ConjugateLhs, 
 struct general_matrix_vector_product_wrapper {
   static void run(Index rows, Index cols, const Scalar *lhs, Index lhsStride, const Scalar *rhs, Index rhsIncr,
                   Scalar *res, Index resIncr, Scalar alpha) {
-    typedef Eigen::internal::const_blas_data_mapper<Scalar, Index, StorageOrder> LhsMapper;
-    typedef Eigen::internal::const_blas_data_mapper<Scalar, Index, Eigen::RowMajor> RhsMapper;
+    using LhsMapper = Eigen::internal::const_blas_data_mapper<Scalar, Index, StorageOrder>;
+    using RhsMapper = Eigen::internal::const_blas_data_mapper<Scalar, Index, Eigen::RowMajor>;
 
     Eigen::internal::general_matrix_vector_product<Index, Scalar, LhsMapper, StorageOrder, ConjugateLhs, Scalar,
                                                    RhsMapper, ConjugateRhs>::run(rows, cols, LhsMapper(lhs, lhsStride),

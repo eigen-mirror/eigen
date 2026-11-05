@@ -10,8 +10,8 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+using Scalar = SCALAR;
+using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
 // A complex multiply-add is four real multiplies and four real adds.
 static constexpr double kFlopsPerMulAdd = NumTraits<Scalar>::IsComplex ? 8.0 : 2.0;

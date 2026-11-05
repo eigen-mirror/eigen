@@ -10,7 +10,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Reshape (zero-cost if no evaluation needed; force eval via assignment) ---
 static void BM_Reshape(benchmark::State& state) {

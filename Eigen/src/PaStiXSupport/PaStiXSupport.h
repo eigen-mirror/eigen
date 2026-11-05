@@ -39,26 +39,26 @@ struct pastix_traits;
 
 template <typename MatrixType_>
 struct pastix_traits<PastixLU<MatrixType_> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 template <typename MatrixType_, int Options>
 struct pastix_traits<PastixLLT<MatrixType_, Options> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 template <typename MatrixType_, int Options>
 struct pastix_traits<PastixLDLT<MatrixType_, Options> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 }  // namespace internal
@@ -234,10 +234,10 @@ class PastixBase : public SparseSolverBase<Derived> {
 template <typename MatrixType_, bool IsStrSym>
 class PastixLU : public PastixBase<PastixLU<MatrixType_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef PastixBase<PastixLU<MatrixType> > Base;
-  typedef typename Base::ColSpMatrix ColSpMatrix;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Base = PastixBase<PastixLU<MatrixType>>;
+  using ColSpMatrix = typename Base::ColSpMatrix;
+  using StorageIndex = typename MatrixType::StorageIndex;
 
  public:
   PastixLU() : Base() { init(); }
@@ -335,9 +335,9 @@ class PastixLU : public PastixBase<PastixLU<MatrixType_> > {
 template <typename MatrixType_, int UpLo_>
 class PastixLLT : public PastixBase<PastixLLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef PastixBase<PastixLLT<MatrixType, UpLo_> > Base;
-  typedef typename Base::ColSpMatrix ColSpMatrix;
+  using MatrixType = MatrixType_;
+  using Base = PastixBase<PastixLLT<MatrixType, UpLo_>>;
+  using ColSpMatrix = typename Base::ColSpMatrix;
 
  public:
   enum { UpLo = UpLo_ };
@@ -411,9 +411,9 @@ class PastixLLT : public PastixBase<PastixLLT<MatrixType_, UpLo_> > {
 template <typename MatrixType_, int UpLo_>
 class PastixLDLT : public PastixBase<PastixLDLT<MatrixType_, UpLo_> > {
  public:
-  typedef MatrixType_ MatrixType;
-  typedef PastixBase<PastixLDLT<MatrixType, UpLo_> > Base;
-  typedef typename Base::ColSpMatrix ColSpMatrix;
+  using MatrixType = MatrixType_;
+  using Base = PastixBase<PastixLDLT<MatrixType, UpLo_>>;
+  using ColSpMatrix = typename Base::ColSpMatrix;
 
  public:
   enum { UpLo = UpLo_ };

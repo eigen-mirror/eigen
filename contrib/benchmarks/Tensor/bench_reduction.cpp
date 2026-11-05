@@ -15,7 +15,7 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 // --- Full reduction (rank-2) ---
 template <typename ReduceOp>

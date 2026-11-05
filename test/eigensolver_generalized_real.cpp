@@ -22,9 +22,9 @@ void generalized_eigensolver_real(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef std::complex<Scalar> ComplexScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using ComplexScalar = std::complex<Scalar>;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   MatrixType a = MatrixType::Random(rows, cols);
   MatrixType b = MatrixType::Random(rows, cols);

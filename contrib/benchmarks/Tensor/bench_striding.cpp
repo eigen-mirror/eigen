@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Rank-2 read, outer dimension strided (inner runs stay contiguous) ---
 static void BM_StrideReadOuter2D(benchmark::State& state) {

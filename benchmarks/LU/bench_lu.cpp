@@ -9,8 +9,8 @@
 
 using namespace Eigen;
 
-typedef Matrix<float, Dynamic, Dynamic> Matf;
-typedef Matrix<double, Dynamic, Dynamic> Matd;
+using Matf = Matrix<float, Dynamic, Dynamic>;
+using Matd = Matrix<double, Dynamic, Dynamic>;
 
 // --- PartialPivLU ---
 

@@ -86,9 +86,9 @@ namespace Eigen {
 
 template <>
 struct NumTraits<adtl::adouble> : NumTraits<double> {
-  typedef adtl::adouble Real;
-  typedef adtl::adouble NonInteger;
-  typedef adtl::adouble Nested;
+  using Real = adtl::adouble;
+  using NonInteger = adtl::adouble;
+  using Nested = adtl::adouble;
   enum {
     IsComplex = 0,
     IsInteger = 0,
@@ -102,7 +102,7 @@ struct NumTraits<adtl::adouble> : NumTraits<double> {
 
 template <typename Functor>
 class AdolcForwardJacobian : public Functor {
-  typedef adtl::adouble ActiveScalar;
+  using ActiveScalar = adtl::adouble;
 
  public:
   AdolcForwardJacobian() : Functor() {}
@@ -116,12 +116,12 @@ class AdolcForwardJacobian : public Functor {
   template <typename T0, typename T1, typename T2>
   AdolcForwardJacobian(const T0& a0, const T1& a1, const T2& a2) : Functor(a0, a1, a2) {}
 
-  typedef typename Functor::InputType InputType;
-  typedef typename Functor::ValueType ValueType;
-  typedef typename Functor::JacobianType JacobianType;
+  using InputType = typename Functor::InputType;
+  using ValueType = typename Functor::ValueType;
+  using JacobianType = typename Functor::JacobianType;
 
-  typedef Matrix<ActiveScalar, InputType::SizeAtCompileTime, 1> ActiveInput;
-  typedef Matrix<ActiveScalar, ValueType::SizeAtCompileTime, 1> ActiveValue;
+  using ActiveInput = Matrix<ActiveScalar, InputType::SizeAtCompileTime, 1>;
+  using ActiveValue = Matrix<ActiveScalar, ValueType::SizeAtCompileTime, 1>;
 
   void operator()(const InputType& x, ValueType* v, JacobianType* _jac) const {
     eigen_assert(v != 0);

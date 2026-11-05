@@ -18,7 +18,7 @@ using namespace Eigen;
 // FFT implementation under test.
 template <typename RealScalar>
 Matrix<std::complex<RealScalar>, Dynamic, Dynamic> inverse_dft_matrix(Index n) {
-  typedef std::complex<RealScalar> Complex;
+  using Complex = std::complex<RealScalar>;
   Matrix<Complex, Dynamic, Dynamic> F(n, n);
   for (Index a = 0; a < n; ++a)
     for (Index c = 0; c < n; ++c)
@@ -47,8 +47,8 @@ Matrix<Scalar, Dynamic, Dynamic> reference_bccb(const Matrix<Scalar, Dynamic, Dy
 
 template <typename Scalar>
 void test_bccb_product(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -85,8 +85,8 @@ void test_bccb_product(Index n2, Index n1) {
 
 template <typename Scalar>
 void test_bccb_transpose(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -120,8 +120,8 @@ void test_bccb_transpose(Index n2, Index n1) {
 // the product held a reference instead.
 template <typename Scalar>
 void test_bccb_delayed_product(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Bccb<Scalar>>::type>::value);
 
@@ -143,8 +143,8 @@ void test_bccb_delayed_product(Index n2, Index n1) {
 // ordinary dense-product aliasing semantics.
 template <typename Scalar>
 void test_bccb_aliased_product(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -175,8 +175,8 @@ void test_bccb_aliased_product(Index n2, Index n1) {
 // overlapping views of one buffer, neither of which is_same_dense can see.
 template <typename Scalar>
 void test_bccb_aliased_expression(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -201,11 +201,11 @@ void test_bccb_aliased_expression(Index n2, Index n1) {
 // the operator scalar.
 template <typename RealScalar>
 void test_bccb_mixed_scalar(Index n2, Index n1) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RMat G = RMat::Random(n2, n1);
   Bccb<RealScalar> C(G);
@@ -238,9 +238,9 @@ void test_bccb_mixed_scalar(Index n2, Index n1) {
 // rebuilds the padded symbol for the inverse operator).
 template <typename Scalar>
 void test_bccb_prime_dimensions(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const Index N = n1 * n2;
 
   Mat G = Mat::Random(n2, n1);
@@ -280,8 +280,8 @@ void test_bccb_prime_dimensions(Index n2, Index n1) {
 // cannot exercise.)
 template <typename = void>
 void test_bccb_dimension_asserts() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(3, 4);
   Bccb<double> C(G);
@@ -292,9 +292,9 @@ void test_bccb_dimension_asserts() {
 
 template <typename Scalar>
 void test_bccb_solve(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Diagonal dominance (through the (0,0) generator entry) keeps the symbol away
   // from zero, so the direct 2-D FFT solve is exact up to roundoff.
@@ -317,11 +317,11 @@ void test_bccb_solve(Index n2, Index n1) {
 // the surviving entries and solve() matches the SVD pseudo-inverse.
 template <typename Scalar>
 void test_bccb_rank_deficient(Index n2, Index n1, Index defect) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   const Index N = n1 * n2;
   CMat S = CMat::Random(n2, n1);
@@ -341,8 +341,8 @@ void test_bccb_rank_deficient(Index n2, Index n1, Index defect) {
 
 template <typename Scalar>
 void test_bccb_zero(Index n2, Index n1) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Bccb<Scalar> C(Mat(Mat::Zero(n2, n1)));
   VERIFY_IS_EQUAL(C.rank(), 0);
@@ -353,8 +353,8 @@ void test_bccb_zero(Index n2, Index n1) {
 
 template <typename = void>
 void test_bccb_nan_propagation(Index n2, Index n1) {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   G(n2 / 2, n1 / 2) = std::numeric_limits<double>::quiet_NaN();
@@ -369,9 +369,9 @@ void test_bccb_nan_propagation(Index n2, Index n1) {
 // (see nonfinite_covers_reference()).
 template <typename Scalar>
 void test_bccb_nonfinite_product(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
   const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
   const Index N = n1 * n2;
@@ -421,8 +421,8 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
 // zero -- NaN under IEEE, not zero.
 template <typename = void>
 void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
   const Index N = n1 * n2;
 
   Mat G = Mat::Random(n2, n1);
@@ -447,8 +447,8 @@ void test_bccb_nonfinite_zero_rhs(Index n2, Index n1) {
 // in determinant().
 template <typename = void>
 void test_bccb_determinant_scaled() {
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<double>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   const Index n2 = 25, n1 = 40;  // N = 1000
 
@@ -487,7 +487,7 @@ void test_bccb_determinant_scaled() {
   }
   {
     // A genuinely overflowing determinant must still saturate to infinity.
-    typedef Matrix<double, Dynamic, Dynamic> Mat;
+    using Mat = Matrix<double, Dynamic, Dynamic>;
     Mat G = Mat::Zero(6, 6);
     G(0, 0) = 1e308;  // the symbol is 1e308 everywhere: det = 10^11088
     Bccb<double> C(G);
@@ -501,8 +501,8 @@ void test_bccb_determinant_scaled() {
 // is treated as an exact zero, and non-finite entries count as non-zero.
 template <typename = void>
 void test_bccb_rank_boundaries() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   const double mn = (std::numeric_limits<double>::min)();
   const Vec b = Vec::Ones(1);
@@ -527,10 +527,10 @@ void test_bccb_rank_boundaries() {
 
 template <typename Scalar>
 void test_bccb_eigen(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -545,10 +545,10 @@ void test_bccb_eigen(Index n2, Index n1) {
 
 template <typename Scalar>
 void test_bccb_svd(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
@@ -568,9 +568,9 @@ void test_bccb_svd(Index n2, Index n1) {
 
 template <typename Scalar>
 void test_bccb_inverse(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   G(0, 0) += Scalar(RealScalar(2 * n1 * n2));  // safely invertible, tame determinant scale
@@ -587,8 +587,8 @@ void test_bccb_inverse(Index n2, Index n1) {
 
 template <typename Scalar>
 void test_bccb_determinant(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat G = Mat::Random(n2, n1);
   G(0, 0) += Scalar(RealScalar(2 * n1 * n2));
@@ -599,9 +599,9 @@ void test_bccb_determinant(Index n2, Index n1) {
 
 template <typename Scalar>
 void test_bccb_matrix_free_cg(Index n2, Index n1) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Symmetrizing the generator under the two-dimensional index reversal makes
   // the BCCB matrix symmetric; diagonal dominance then makes it positive
@@ -626,8 +626,8 @@ void test_bccb_matrix_free_cg(Index n2, Index n1) {
 
 template <typename Scalar, int N2, int N1>
 void test_bccb_fixed() {
-  typedef Matrix<Scalar, N2, N1> GenMat;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using GenMat = Matrix<Scalar, N2, N1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   GenMat G = GenMat::Random();
   Bccb<Scalar, N2, N1> C(G);

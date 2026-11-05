@@ -23,8 +23,8 @@ namespace internal {
 
 template <typename Scalar_>
 struct kiss_cpx_fft {
-  typedef Scalar_ Scalar;
-  typedef std::complex<Scalar> Complex;
+  using Scalar = Scalar_;
+  using Complex = std::complex<Scalar>;
   std::vector<Complex> m_twiddles;
   std::vector<int> m_stageRadix;
   std::vector<int> m_stageRemainder;
@@ -293,8 +293,8 @@ const typename kiss_cpx_fft<_Scalar>::Scalar kiss_cpx_fft<_Scalar>::m_pi4 =
 
 template <typename Scalar_>
 struct kissfft_impl {
-  typedef Scalar_ Scalar;
-  typedef std::complex<Scalar> Complex;
+  using Scalar = Scalar_;
+  using Complex = std::complex<Scalar>;
 
   void clear() {
     m_plans.clear();
@@ -384,8 +384,8 @@ struct kissfft_impl {
   }
 
  protected:
-  typedef kiss_cpx_fft<Scalar> PlanData;
-  typedef std::map<int, PlanData> PlanMap;
+  using PlanData = kiss_cpx_fft<Scalar>;
+  using PlanMap = std::map<int, PlanData>;
 
   PlanMap m_plans;
   std::map<int, std::vector<Complex> > m_realTwiddles;

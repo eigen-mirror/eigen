@@ -27,7 +27,7 @@ namespace internal {
  */
 template <typename Derived, int N>
 struct Initializer {
-  typedef std::initializer_list<typename Initializer<Derived, N - 1>::InitList> InitList;
+  using InitList = std::initializer_list<typename Initializer<Derived, N - 1>::InitList>;
 
   static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
                   Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
@@ -42,7 +42,7 @@ struct Initializer {
 
 template <typename Derived>
 struct Initializer<Derived, 1> {
-  typedef std::initializer_list<typename traits<Derived>::Scalar> InitList;
+  using InitList = std::initializer_list<typename traits<Derived>::Scalar>;
 
   static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
                   Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>* indices,
@@ -58,7 +58,7 @@ struct Initializer<Derived, 1> {
 
 template <typename Derived>
 struct Initializer<Derived, 0> {
-  typedef typename traits<Derived>::Scalar InitList;
+  using InitList = typename traits<Derived>::Scalar;
 
   static void run(TensorEvaluator<Derived, DefaultDevice>& tensor,
                   Eigen::array<typename traits<Derived>::Index, traits<Derived>::NumDimensions>*, const InitList& v) {

@@ -85,13 +85,13 @@ template <typename DataType, typename Input, typename Output>
 void test_complex_sqrt(size_t num_elements, const Input& in, Output& out) {
   auto operation = [](size_t i, const typename DataType::Scalar* in, typename DataType::Scalar* out) {
     using namespace Eigen;
-    typedef typename DataType::Scalar ComplexType;
-    typedef typename DataType::Scalar::value_type ValueType;
+    using ComplexType = typename DataType::Scalar;
+    using ValueType = typename DataType::Scalar::value_type;
     const int num_special_inputs = 18;
 
     if (i == 0) {
       const ValueType nan = std::numeric_limits<ValueType>::quiet_NaN();
-      typedef Eigen::Vector<ComplexType, num_special_inputs> SpecialInputs;
+      using SpecialInputs = Eigen::Vector<ComplexType, num_special_inputs>;
       SpecialInputs special_in;
       special_in.setZero();
       int idx = 0;
@@ -130,8 +130,8 @@ template <typename DataType, typename Input, typename Output>
 void test_complex_operators(size_t num_elements, const Input& in, Output& out) {
   auto operation = [](size_t i, const typename DataType::Scalar* in, typename DataType::Scalar* out) {
     using namespace Eigen;
-    typedef typename DataType::Scalar ComplexType;
-    typedef typename DataType::Scalar::value_type ValueType;
+    using ComplexType = typename DataType::Scalar;
+    using ValueType = typename DataType::Scalar::value_type;
     const int num_scalar_operators = 24;
     const int num_vector_operators = 23;  // no unary + operator.
     size_t out_idx = i * (num_scalar_operators + num_vector_operators * DataType::MaxSizeAtCompileTime);
@@ -268,7 +268,7 @@ void test_replicate(size_t num_elements, const Input& in, Output& out) {
     int step = x1.size() * 4;
     int stride = 3 * step;
 
-    typedef Map<Array<typename DataType::Scalar, Dynamic, Dynamic>> MapType;
+    using MapType = Map<Array<typename DataType::Scalar, Dynamic, Dynamic>>;
     MapType(out + i * stride + 0 * step, x1.rows() * 2, x1.cols() * 2) = x1.replicate(2, 2);
     MapType(out + i * stride + 1 * step, x1.rows() * 3, x1.cols()) = in[i] * x1.colwise().replicate(3);
     MapType(out + i * stride + 2 * step, x1.rows(), x1.cols() * 3) = in[i] * x1.rowwise().replicate(3);
@@ -280,7 +280,7 @@ template <typename DataType1, typename DataType2, typename Input, typename Outpu
 void test_product(size_t num_elements, const Input& in, Output& out) {
   auto operation = [](size_t i, const typename DataType1::Scalar* in, typename DataType1::Scalar* out) {
     using namespace Eigen;
-    typedef Matrix<typename DataType1::Scalar, DataType1::RowsAtCompileTime, DataType2::ColsAtCompileTime> DataType3;
+    using DataType3 = Matrix<typename DataType1::Scalar, DataType1::RowsAtCompileTime, DataType2::ColsAtCompileTime>;
     DataType1 x1(in + i);
     DataType2 x2(in + i + 1);
     Map<DataType3> res(out + i * DataType3::MaxSizeAtCompileTime);
@@ -304,7 +304,7 @@ template <typename DataType, typename Input, typename Output>
 void test_eigenvalues_direct(size_t num_elements, const Input& in, Output& out) {
   auto operation = [](size_t i, const typename DataType::Scalar* in, typename DataType::Scalar* out) {
     using namespace Eigen;
-    typedef Matrix<typename DataType::Scalar, DataType::RowsAtCompileTime, 1> Vec;
+    using Vec = Matrix<typename DataType::Scalar, DataType::RowsAtCompileTime, 1>;
     DataType M(in + i);
     Map<Vec> res(out + i * Vec::MaxSizeAtCompileTime);
     DataType A = M * M.adjoint();

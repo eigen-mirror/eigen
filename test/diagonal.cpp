@@ -13,7 +13,7 @@
 
 template <typename MatrixType>
 void diagonal(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -118,8 +118,8 @@ template <typename Scalar>
 void diagonal_of_product() {
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1, 2, 3, PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1};
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   for (int si = 0; si < 11; ++si) {
     Index n = sizes[si];
@@ -151,7 +151,7 @@ template <typename Scalar>
 void select_boundary() {
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1, 2, 3, PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1};
-  typedef Array<Scalar, Dynamic, 1> Arr;
+  using Arr = Array<Scalar, Dynamic, 1>;
 
   for (int si = 0; si < 11; ++si) {
     Index n = sizes[si];

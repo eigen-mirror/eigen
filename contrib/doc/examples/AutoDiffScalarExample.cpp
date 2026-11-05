@@ -13,7 +13,7 @@ Scalar f(const Scalar& x, const Scalar& y) {
 }
 
 int main() {
-  typedef Eigen::AutoDiffScalar<Eigen::Vector2d> ADScalar;
+  using ADScalar = Eigen::AutoDiffScalar<Eigen::Vector2d>;
 
   ADScalar x(2.0, Eigen::Vector2d::UnitX());
   ADScalar y(0.5, Eigen::Vector2d::UnitY());

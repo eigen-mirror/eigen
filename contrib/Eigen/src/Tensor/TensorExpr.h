@@ -19,11 +19,11 @@ namespace Eigen {
 namespace internal {
 template <typename NullaryOp, typename XprType>
 struct traits<TensorCwiseNullaryOp<NullaryOp, XprType> > : traits<XprType> {
-  typedef traits<XprType> XprTraits;
-  typedef typename XprType::Scalar Scalar;
+  using XprTraits = traits<XprType>;
+  using Scalar = typename XprType::Scalar;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
   enum { Flags = 0 };
 };
 
@@ -40,12 +40,12 @@ struct traits<TensorCwiseNullaryOp<NullaryOp, XprType> > : traits<XprType> {
 template <typename NullaryOp, typename XprType>
 class TensorCwiseNullaryOp : public TensorBase<TensorCwiseNullaryOp<NullaryOp, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorCwiseNullaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorCwiseNullaryOp>::non_const_type Nested;
-  typedef typename Eigen::internal::traits<TensorCwiseNullaryOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorCwiseNullaryOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorCwiseNullaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorCwiseNullaryOp>::non_const_type;
+  using StorageKind = typename Eigen::internal::traits<TensorCwiseNullaryOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorCwiseNullaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseNullaryOp(const XprType& xpr, const NullaryOp& func = NullaryOp())
       : m_xpr(xpr), m_functor(func) {}
@@ -64,16 +64,16 @@ template <typename UnaryOp, typename XprType>
 struct traits<TensorCwiseUnaryOp<UnaryOp, XprType> > : traits<XprType> {
   // TODO(phli): Add InputScalar, InputPacket.  Check references to
   // current Scalar/Packet to see if the intent is Input or Output.
-  typedef typename result_of<UnaryOp(typename XprType::Scalar)>::type Scalar;
-  typedef traits<XprType> XprTraits;
+  using Scalar = typename result_of<UnaryOp(typename XprType::Scalar)>::type;
+  using XprTraits = traits<XprType>;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename TypeConversion<Scalar, typename XprTraits::PointerType>::type PointerType;
+  using PointerType = typename TypeConversion<Scalar, typename XprTraits::PointerType>::type;
 };
 
 template <typename UnaryOp, typename XprType>
 struct eval<TensorCwiseUnaryOp<UnaryOp, XprType>, Eigen::Dense> {
-  typedef const TensorCwiseUnaryOp<UnaryOp, XprType>& type;
+  using type = const TensorCwiseUnaryOp<UnaryOp, XprType>&;
 };
 
 }  // end namespace internal
@@ -91,12 +91,12 @@ class TensorCwiseUnaryOp : public TensorBase<TensorCwiseUnaryOp<UnaryOp, XprType
  public:
   // TODO(phli): Add InputScalar, InputPacket.  Check references to
   // current Scalar/Packet to see if the intent is Input or Output.
-  typedef typename Eigen::internal::traits<TensorCwiseUnaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef Scalar CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorCwiseUnaryOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorCwiseUnaryOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorCwiseUnaryOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorCwiseUnaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = Scalar;
+  using Nested = typename Eigen::internal::ref_selector<TensorCwiseUnaryOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorCwiseUnaryOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorCwiseUnaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseUnaryOp(const XprType& xpr, const UnaryOp& func = UnaryOp())
       : m_xpr(xpr), m_functor(func) {}
@@ -118,24 +118,24 @@ struct traits<TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType> > {
   // are different.
   // TODO(phli): Add Lhs/RhsScalar, Lhs/RhsPacket.  Check references to
   // current Scalar/Packet to see if the intent is Inputs or Output.
-  typedef typename result_of<BinaryOp(typename LhsXprType::Scalar, typename RhsXprType::Scalar)>::type Scalar;
-  typedef traits<LhsXprType> XprTraits;
-  typedef typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
-                                        typename traits<RhsXprType>::StorageKind>::ret StorageKind;
-  typedef
-      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
+  using Scalar = typename result_of<BinaryOp(typename LhsXprType::Scalar, typename RhsXprType::Scalar)>::type;
+  using XprTraits = traits<LhsXprType>;
+  using StorageKind = typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
+                                                    typename traits<RhsXprType>::StorageKind>::ret;
+  using Index =
+      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename TypeConversion<Scalar,
-                                  std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
-                                                     typename traits<LhsXprType>::PointerType,
-                                                     typename traits<RhsXprType>::PointerType> >::type PointerType;
+  using PointerType = typename TypeConversion<
+      Scalar,
+      std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
+                         typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType> >::type;
   enum { Flags = 0 };
 };
 
 template <typename BinaryOp, typename LhsXprType, typename RhsXprType>
 struct eval<TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType>, Eigen::Dense> {
-  typedef const TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType>& type;
+  using type = const TensorCwiseBinaryOp<BinaryOp, LhsXprType, RhsXprType>&;
 };
 
 }  // end namespace internal
@@ -154,12 +154,12 @@ class TensorCwiseBinaryOp
  public:
   // TODO(phli): Add Lhs/RhsScalar, Lhs/RhsPacket.  Check references to
   // current Scalar/Packet to see if the intent is Inputs or Output.
-  typedef typename Eigen::internal::traits<TensorCwiseBinaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef Scalar CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorCwiseBinaryOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorCwiseBinaryOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorCwiseBinaryOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorCwiseBinaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = Scalar;
+  using Nested = typename Eigen::internal::ref_selector<TensorCwiseBinaryOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorCwiseBinaryOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorCwiseBinaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
                                                             const BinaryOp& func = BinaryOp())
@@ -186,23 +186,23 @@ namespace internal {
 template <typename TernaryOp, typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
 struct traits<TensorCwiseTernaryOp<TernaryOp, Arg1XprType, Arg2XprType, Arg3XprType> > {
   // Type promotion to handle the case where the types of the args are different.
-  typedef typename result_of<TernaryOp(typename Arg1XprType::Scalar, typename Arg2XprType::Scalar,
-                                       typename Arg3XprType::Scalar)>::type Scalar;
-  typedef traits<Arg1XprType> XprTraits;
-  typedef typename traits<Arg1XprType>::StorageKind StorageKind;
-  typedef typename traits<Arg1XprType>::Index Index;
+  using Scalar = typename result_of<TernaryOp(typename Arg1XprType::Scalar, typename Arg2XprType::Scalar,
+                                              typename Arg3XprType::Scalar)>::type;
+  using XprTraits = traits<Arg1XprType>;
+  using StorageKind = typename traits<Arg1XprType>::StorageKind;
+  using Index = typename traits<Arg1XprType>::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename TypeConversion<Scalar,
-                                  std::conditional_t<Pointer_type_promotion<typename Arg2XprType::Scalar, Scalar>::val,
-                                                     typename traits<Arg2XprType>::PointerType,
-                                                     typename traits<Arg3XprType>::PointerType> >::type PointerType;
+  using PointerType = typename TypeConversion<
+      Scalar,
+      std::conditional_t<Pointer_type_promotion<typename Arg2XprType::Scalar, Scalar>::val,
+                         typename traits<Arg2XprType>::PointerType, typename traits<Arg3XprType>::PointerType> >::type;
   enum { Flags = 0 };
 };
 
 template <typename TernaryOp, typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
 struct eval<TensorCwiseTernaryOp<TernaryOp, Arg1XprType, Arg2XprType, Arg3XprType>, Eigen::Dense> {
-  typedef const TensorCwiseTernaryOp<TernaryOp, Arg1XprType, Arg2XprType, Arg3XprType>& type;
+  using type = const TensorCwiseTernaryOp<TernaryOp, Arg1XprType, Arg2XprType, Arg3XprType>&;
 };
 
 }  // end namespace internal
@@ -211,12 +211,12 @@ template <typename TernaryOp, typename Arg1XprType, typename Arg2XprType, typena
 class TensorCwiseTernaryOp
     : public TensorBase<TensorCwiseTernaryOp<TernaryOp, Arg1XprType, Arg2XprType, Arg3XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorCwiseTernaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef Scalar CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorCwiseTernaryOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorCwiseTernaryOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorCwiseTernaryOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorCwiseTernaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = Scalar;
+  using Nested = typename Eigen::internal::ref_selector<TensorCwiseTernaryOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorCwiseTernaryOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorCwiseTernaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCwiseTernaryOp(const Arg1XprType& arg1, const Arg2XprType& arg2,
                                                              const Arg3XprType& arg3,
@@ -248,22 +248,22 @@ class TensorCwiseTernaryOp
 namespace internal {
 template <typename IfXprType, typename ThenXprType, typename ElseXprType>
 struct traits<TensorSelectOp<IfXprType, ThenXprType, ElseXprType> > : traits<ThenXprType> {
-  typedef typename traits<ThenXprType>::Scalar Scalar;
-  typedef traits<ThenXprType> XprTraits;
-  typedef typename promote_storage_type<typename traits<ThenXprType>::StorageKind,
-                                        typename traits<ElseXprType>::StorageKind>::ret StorageKind;
-  typedef
-      typename promote_index_type<typename traits<ElseXprType>::Index, typename traits<ThenXprType>::Index>::type Index;
+  using Scalar = typename traits<ThenXprType>::Scalar;
+  using XprTraits = traits<ThenXprType>;
+  using StorageKind = typename promote_storage_type<typename traits<ThenXprType>::StorageKind,
+                                                    typename traits<ElseXprType>::StorageKind>::ret;
+  using Index =
+      typename promote_index_type<typename traits<ElseXprType>::Index, typename traits<ThenXprType>::Index>::type;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef std::conditional_t<Pointer_type_promotion<typename ThenXprType::Scalar, Scalar>::val,
-                             typename traits<ThenXprType>::PointerType, typename traits<ElseXprType>::PointerType>
-      PointerType;
+  using PointerType =
+      std::conditional_t<Pointer_type_promotion<typename ThenXprType::Scalar, Scalar>::val,
+                         typename traits<ThenXprType>::PointerType, typename traits<ElseXprType>::PointerType>;
 };
 
 template <typename IfXprType, typename ThenXprType, typename ElseXprType>
 struct eval<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, Eigen::Dense> {
-  typedef const TensorSelectOp<IfXprType, ThenXprType, ElseXprType>& type;
+  using type = const TensorSelectOp<IfXprType, ThenXprType, ElseXprType>&;
 };
 
 }  // end namespace internal
@@ -271,13 +271,13 @@ struct eval<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, Eigen::Dense> {
 template <typename IfXprType, typename ThenXprType, typename ElseXprType>
 class TensorSelectOp : public TensorBase<TensorSelectOp<IfXprType, ThenXprType, ElseXprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorSelectOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename internal::promote_storage_type<typename ThenXprType::CoeffReturnType,
-                                                  typename ElseXprType::CoeffReturnType>::ret CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorSelectOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorSelectOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorSelectOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorSelectOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename internal::promote_storage_type<typename ThenXprType::CoeffReturnType,
+                                                                  typename ElseXprType::CoeffReturnType>::ret;
+  using Nested = typename Eigen::internal::ref_selector<TensorSelectOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorSelectOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorSelectOp>::Index;
 
   EIGEN_DEVICE_FUNC TensorSelectOp(const IfXprType& a_condition, const ThenXprType& a_then, const ElseXprType& a_else)
       : m_condition(a_condition), m_then(a_then), m_else(a_else) {}

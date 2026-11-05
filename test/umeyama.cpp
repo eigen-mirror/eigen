@@ -22,8 +22,8 @@ using namespace Eigen;
 //  Constructs a random matrix from the unitary group U(size).
 template <typename T>
 Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixUnitary(int size) {
-  typedef T Scalar;
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixType;
+  using Scalar = T;
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
 
   // The Q factor of the QR decomposition of a random matrix is a random unitary matrix.
   // HouseholderQR is numerically stable and always succeeds, unlike Gram-Schmidt.
@@ -34,9 +34,9 @@ Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixUnitary(int size) {
 //  Constructs a random matrix from the special unitary group SU(size).
 template <typename T>
 Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixSpecialUnitary(int size) {
-  typedef T Scalar;
+  using Scalar = T;
 
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixType;
+  using MatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
 
   // initialize unitary matrix
   MatrixType Q = randMatrixUnitary<Scalar>(size);
@@ -50,9 +50,9 @@ Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic> randMatrixSpecialUnitary(int si
 template <typename MatrixType>
 void run_test(unsigned dim, int num_elements) {
   using std::abs;
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
-  typedef Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixX;
-  typedef Matrix<Scalar, Eigen::Dynamic, 1> VectorX;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
+  using MatrixX = Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>;
+  using VectorX = Matrix<Scalar, Eigen::Dynamic, 1>;
 
   // MUST be positive because in any other case det(cR_t) may become negative for
   // odd dimensions!
@@ -79,10 +79,10 @@ void run_test(unsigned dim, int num_elements) {
 template <typename Scalar, int Dimension>
 void run_fixed_size_test(int num_elements) {
   using std::abs;
-  typedef Matrix<Scalar, Dimension + 1, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dimension + 1, Dimension + 1> HomMatrix;
-  typedef Matrix<Scalar, Dimension, Dimension> FixedMatrix;
-  typedef Matrix<Scalar, Dimension, 1> FixedVector;
+  using MatrixX = Matrix<Scalar, Dimension + 1, Dynamic>;
+  using HomMatrix = Matrix<Scalar, Dimension + 1, Dimension + 1>;
+  using FixedMatrix = Matrix<Scalar, Dimension, Dimension>;
+  using FixedVector = Matrix<Scalar, Dimension, 1>;
 
   const int dim = Dimension;
 

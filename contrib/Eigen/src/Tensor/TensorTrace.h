@@ -20,10 +20,10 @@ namespace Eigen {
 namespace internal {
 template <typename Dims, typename XprType>
 struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
   enum {
@@ -34,7 +34,7 @@ struct traits<TensorTraceOp<Dims, XprType> > : public traits<XprType> {
 
 template <typename Dims, typename XprType>
 struct eval<TensorTraceOp<Dims, XprType>, Eigen::Dense> {
-  typedef const TensorTraceOp<Dims, XprType>& type;
+  using type = const TensorTraceOp<Dims, XprType>&;
 };
 
 }  // end namespace internal
@@ -47,12 +47,12 @@ struct eval<TensorTraceOp<Dims, XprType>, Eigen::Dense> {
 template <typename Dims, typename XprType>
 class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> > {
  public:
-  typedef typename Eigen::internal::traits<TensorTraceOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorTraceOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorTraceOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorTraceOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorTraceOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorTraceOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorTraceOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorTraceOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorTraceOp(const XprType& expr, const Dims& dims)
       : m_xpr(expr), m_dims(dims) {}
@@ -71,19 +71,19 @@ class TensorTraceOp : public TensorBase<TensorTraceOp<Dims, XprType> > {
 // Eval as rvalue
 template <typename Dims, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
-  typedef TensorTraceOp<Dims, ArgType> XprType;
+  using XprType = TensorTraceOp<Dims, ArgType>;
   static constexpr int NumInputDims =
       internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   static constexpr int NumReducedDims = internal::array_size<Dims>::value;
   static constexpr int NumOutputDims = NumInputDims - NumReducedDims;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumOutputDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumOutputDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -96,7 +96,7 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)

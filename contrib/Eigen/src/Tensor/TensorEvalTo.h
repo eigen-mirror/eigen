@@ -19,24 +19,24 @@ namespace Eigen {
 namespace internal {
 template <typename XprType, template <class> class MakePointer_>
 struct traits<TensorEvalToOp<XprType, MakePointer_> > {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename MakePointer_<Scalar>::Type PointerType;
+  using PointerType = typename MakePointer_<Scalar>::Type;
 
   enum { Flags = 0 };
   template <class T>
   struct MakePointer {
-    typedef typename MakePointer_<T>::Type Type;
+    using Type = typename MakePointer_<T>::Type;
   };
 };
 
 template <typename XprType, template <class> class MakePointer_>
 struct eval<TensorEvalToOp<XprType, MakePointer_>, Eigen::Dense> {
-  typedef const TensorEvalToOp<XprType, MakePointer_>& type;
+  using type = const TensorEvalToOp<XprType, MakePointer_>&;
 };
 
 }  // end namespace internal
@@ -44,13 +44,13 @@ struct eval<TensorEvalToOp<XprType, MakePointer_>, Eigen::Dense> {
 template <typename XprType, template <class> class MakePointer_>
 class TensorEvalToOp : public TensorBase<TensorEvalToOp<XprType, MakePointer_>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorEvalToOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename MakePointer_<CoeffReturnType>::Type PointerType;
-  typedef typename Eigen::internal::ref_selector<TensorEvalToOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorEvalToOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorEvalToOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorEvalToOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using PointerType = typename MakePointer_<CoeffReturnType>::Type;
+  using Nested = typename Eigen::internal::ref_selector<TensorEvalToOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorEvalToOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorEvalToOp>::Index;
 
   static constexpr int NumDims = Eigen::internal::traits<TensorEvalToOp>::NumDimensions;
 
@@ -68,16 +68,16 @@ class TensorEvalToOp : public TensorBase<TensorEvalToOp<XprType, MakePointer_>, 
 
 template <typename ArgType, typename Device, template <class> class MakePointer_>
 struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
-  typedef TensorEvalToOp<ArgType, MakePointer_> XprType;
-  typedef typename ArgType::Scalar Scalar;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
-  typedef typename XprType::Index Index;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using XprType = TensorEvalToOp<ArgType, MakePointer_>;
+  using Scalar = typename ArgType::Scalar;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using Index = typename XprType::Index;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename Eigen::internal::traits<XprType>::PointerType TensorPointerType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename Eigen::internal::traits<XprType>::PointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   enum {
     IsAligned = TensorEvaluator<ArgType, Device>::IsAligned,
     PacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess,
@@ -91,13 +91,13 @@ struct TensorEvaluator<const TensorEvalToOp<ArgType, MakePointer_>, Device> {
   static constexpr int NumDims = internal::traits<ArgType>::NumDimensions;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
 
-  typedef internal::TensorBlockAssignment<CoeffReturnType, NumDims, typename ArgTensorBlock::XprType, Index>
-      TensorBlockAssignment;
+  using TensorBlockAssignment =
+      internal::TensorBlockAssignment<CoeffReturnType, NumDims, typename ArgTensorBlock::XprType, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)

@@ -17,8 +17,8 @@ bool is_representable(const RealScalar& x) {
 // here.
 template <typename RealScalar>
 void householder_overflow(const Matrix<RealScalar, Dynamic, 1>& vector) {
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
   const Index size = vector.size();
 
   VectorType essential(size - 1);
@@ -50,7 +50,7 @@ void householder_overflow(const Matrix<RealScalar, Dynamic, 1>& vector) {
 
 template <typename RealScalar>
 void householder_overflow_cases() {
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
   const RealScalar huge = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(4);
 
   // The head alone squares out of range.

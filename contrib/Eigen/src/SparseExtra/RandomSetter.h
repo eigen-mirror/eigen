@@ -28,8 +28,8 @@ namespace Eigen {
  */
 template <typename Scalar>
 struct StdMapTraits {
-  typedef int KeyType;
-  typedef std::map<KeyType, Scalar> Type;
+  using KeyType = int;
+  using Type = std::map<KeyType, Scalar>;
   enum { IsSorted = 1 };
 
   static void setInvalidKey(Type&, const KeyType&) {}
@@ -40,8 +40,8 @@ struct StdMapTraits {
  */
 template <typename Scalar>
 struct StdUnorderedMapTraits {
-  typedef int KeyType;
-  typedef std::unordered_map<KeyType, Scalar> Type;
+  using KeyType = int;
+  using Type = std::unordered_map<KeyType, Scalar>;
   enum { IsSorted = 0 };
 
   static void setInvalidKey(Type&, const KeyType&) {}
@@ -57,12 +57,12 @@ using namespace ::google;
 
 template <typename KeyType, typename Scalar>
 struct DenseHashMap {
-  typedef dense_hash_map<KeyType, Scalar> type;
+  using type = dense_hash_map<KeyType, Scalar>;
 };
 
 template <typename KeyType, typename Scalar>
 struct SparseHashMap {
-  typedef sparse_hash_map<KeyType, Scalar> type;
+  using type = sparse_hash_map<KeyType, Scalar>;
 };
 
 }  // namespace google
@@ -73,8 +73,8 @@ struct SparseHashMap {
  */
 template <typename Scalar>
 struct GoogleDenseHashMapTraits {
-  typedef int KeyType;
-  typedef typename google::DenseHashMap<KeyType, Scalar>::type Type;
+  using KeyType = int;
+  using Type = typename google::DenseHashMap<KeyType, Scalar>::type;
   enum { IsSorted = 0 };
 
   static void setInvalidKey(Type& map, const KeyType& k) { map.set_empty_key(k); }
@@ -86,8 +86,8 @@ struct GoogleDenseHashMapTraits {
  */
 template <typename Scalar>
 struct GoogleSparseHashMapTraits {
-  typedef int KeyType;
-  typedef typename google::SparseHashMap<KeyType, Scalar>::type Type;
+  using KeyType = int;
+  using Type = typename google::SparseHashMap<KeyType, Scalar>::type;
   enum { IsSorted = 0 };
 
   static void setInvalidKey(Type&, const KeyType&) {}
@@ -155,14 +155,14 @@ template <typename SparseMatrixType,
           ,
           int OuterPacketBits = 6>
 class RandomSetter {
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
 
   struct ScalarWrapper {
     Scalar value = Scalar(0);
   };
-  typedef typename MapTraits<ScalarWrapper>::KeyType KeyType;
-  typedef typename MapTraits<ScalarWrapper>::Type HashMapType;
+  using KeyType = typename MapTraits<ScalarWrapper>::KeyType;
+  using HashMapType = typename MapTraits<ScalarWrapper>::Type;
   static constexpr int OuterPacketMask = (1 << OuterPacketBits) - 1;
   enum {
     SwapStorage = 1 - MapTraits<ScalarWrapper>::IsSorted,

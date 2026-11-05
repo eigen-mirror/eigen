@@ -15,7 +15,7 @@ using namespace Eigen;
 // 32-bit Index exponent even though the determinant has the unambiguous result
 // +Inf. The internal exponent type must not wrap.
 void test_vandermonde_determinant_int_index() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   const Index n = 2100;
   const double low = -9e307, high = 9e307;
   Vec x(n);

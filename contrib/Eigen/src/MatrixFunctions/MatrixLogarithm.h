@@ -26,7 +26,7 @@ struct matrix_log_min_pade_degree {
 
 template <typename Scalar>
 struct matrix_log_max_pade_degree {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   static const int value = std::numeric_limits<RealScalar>::digits <= 24 ? 5 :  // single precision
                                std::numeric_limits<RealScalar>::digits <= 53 ? 7
                                                                              :  // double precision
@@ -40,8 +40,8 @@ struct matrix_log_max_pade_degree {
 /** \brief Compute logarithm of 2x2 triangular matrix. */
 template <typename MatrixType>
 void matrix_log_compute_2x2(const MatrixType& A, MatrixType& result) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   using std::abs;
   using std::ceil;
   using std::imag;
@@ -132,7 +132,7 @@ inline int matrix_log_get_pade_degree(long double normTminusI) {
 /* \brief Compute Pade approximation to matrix logarithm */
 template <typename MatrixType>
 void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree) {
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
   const int minPadeDegree = 3;
   const int maxPadeDegree = 11;
   eigen_assert(degree >= minPadeDegree && degree <= maxPadeDegree);
@@ -225,8 +225,8 @@ void matrix_log_compute_pade(MatrixType& result, const MatrixType& T, int degree
  * \details This uses an inverse scale-and-square algorithm. */
 template <typename MatrixType>
 void matrix_log_compute_big(const MatrixType& A, MatrixType& result) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   using std::pow;
 
   int numberOfSquareRoots = 0;
@@ -324,11 +324,11 @@ MatrixType MatrixLogarithmAtomic<MatrixType>::compute(const MatrixType& A) {
 template <typename Derived>
 class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnValue<Derived> > {
  public:
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Index Index;
+  using Scalar = typename Derived::Scalar;
+  using Index = typename Derived::Index;
 
  protected:
-  typedef typename internal::ref_selector<Derived>::type DerivedNested;
+  using DerivedNested = typename internal::ref_selector<Derived>::type;
 
  public:
   /** \brief Constructor.
@@ -343,13 +343,13 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
    */
   template <typename ResultType>
   inline void evalTo(ResultType& result) const {
-    typedef typename internal::nested_eval<Derived, 10>::type DerivedEvalType;
-    typedef internal::remove_all_t<DerivedEvalType> DerivedEvalTypeClean;
-    typedef internal::traits<DerivedEvalTypeClean> Traits;
-    typedef internal::make_complex_t<Scalar> ComplexScalar;
-    typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>
-        DynMatrixType;
-    typedef internal::MatrixLogarithmAtomic<DynMatrixType> AtomicType;
+    using DerivedEvalType = typename internal::nested_eval<Derived, 10>::type;
+    using DerivedEvalTypeClean = internal::remove_all_t<DerivedEvalType>;
+    using Traits = internal::traits<DerivedEvalTypeClean>;
+    using ComplexScalar = internal::make_complex_t<Scalar>;
+    using DynMatrixType =
+        Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>;
+    using AtomicType = internal::MatrixLogarithmAtomic<DynMatrixType>;
     AtomicType atomic;
 
     internal::matrix_function_compute<typename DerivedEvalTypeClean::PlainObject>::run(m_A, atomic, result);
@@ -365,7 +365,7 @@ class MatrixLogarithmReturnValue : public ReturnByValue<MatrixLogarithmReturnVal
 namespace internal {
 template <typename Derived>
 struct traits<MatrixLogarithmReturnValue<Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 }  // namespace internal
 

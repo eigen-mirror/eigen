@@ -19,9 +19,9 @@
 
 template <typename Scalar>
 void verify_euler(const Matrix<Scalar, 3, 1>& ea, int i, int j, int k) {
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef AngleAxis<Scalar> AngleAxisx;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using AngleAxisx = AngleAxis<Scalar>;
   const Matrix3 m(AngleAxisx(ea[0], Vector3::Unit(i)) * AngleAxisx(ea[1], Vector3::Unit(j)) *
                   AngleAxisx(ea[2], Vector3::Unit(k)));
   const Scalar kPi = Scalar(EIGEN_PI);
@@ -96,11 +96,11 @@ void check_all_var(const Matrix<Scalar, 3, 1>& ea) {
 
 template <typename Scalar>
 void eulerangles() {
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Array<Scalar, 3, 1> Array3;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Array3 = Array<Scalar, 3, 1>;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisx = AngleAxis<Scalar>;
 
   const Scalar kPi = Scalar(EIGEN_PI);
   const Scalar smallVal = static_cast<Scalar>(0.001);

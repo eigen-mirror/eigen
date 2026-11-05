@@ -19,11 +19,11 @@
 
 template <typename Scalar>
 void orthomethods_3() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
 
-  typedef Matrix<Scalar, 4, 1> Vector4;
+  using Vector4 = Matrix<Scalar, 4, 1>;
 
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random(), v2 = Vector3::Random();
 
@@ -67,7 +67,7 @@ void orthomethods_3() {
   VERIFY_IS_MUCH_SMALLER_THAN(v40.cross3(Vector4::Random()).dot(v40), Scalar(1));
 
   // check mixed product
-  typedef Matrix<RealScalar, 3, 1> RealVector3;
+  using RealVector3 = Matrix<RealScalar, 3, 1>;
   RealVector3 rv1 = RealVector3::Random();
   v2 = rv1.template cast<Scalar>();
   VERIFY_IS_APPROX(v1.cross(v2), v1.cross(rv1));
@@ -76,9 +76,9 @@ void orthomethods_3() {
 
 template <typename Scalar>
 void orthomethods_2() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, 2, 1> Vector2;
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
 
   Vector3 v30 = Vector3::Random(), v31 = Vector3::Random();
   Vector2 v20 = v30.template head<2>();
@@ -96,7 +96,7 @@ void orthomethods_2() {
   VERIFY_IS_APPROX(v21.cross(-v21Rot90), -v21.squaredNorm());
 
   // check mixed product
-  typedef Matrix<RealScalar, 2, 1> RealVector2;
+  using RealVector2 = Matrix<RealScalar, 2, 1>;
   RealVector2 rv21 = RealVector2::Random();
   v21 = rv21.template cast<Scalar>();
   VERIFY_IS_APPROX(v20.cross(v21), v20.cross(rv21));
@@ -105,11 +105,11 @@ void orthomethods_2() {
 
 template <typename Scalar, int Size>
 void orthomethods(int size = Size) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Size, 1> VectorType;
-  typedef Matrix<Scalar, 3, Size> Matrix3N;
-  typedef Matrix<Scalar, Size, 3> MatrixN3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, Size, 1>;
+  using Matrix3N = Matrix<Scalar, 3, Size>;
+  using MatrixN3 = Matrix<Scalar, Size, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
 
   VectorType v0 = VectorType::Random(size);
 

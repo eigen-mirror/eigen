@@ -5,12 +5,12 @@ class Circulant : public Eigen::MatrixBase<Circulant<ArgType> > {
     EIGEN_STATIC_ASSERT(ArgType::ColsAtCompileTime == 1, YOU_TRIED_CALLING_A_VECTOR_METHOD_ON_A_MATRIX);
   }
 
-  typedef typename Eigen::internal::ref_selector<Circulant>::type Nested;
+  using Nested = typename Eigen::internal::ref_selector<Circulant>::type;
 
-  typedef Eigen::Index Index;
+  using Index = Eigen::Index;
   Index rows() const { return m_arg.rows(); }
   Index cols() const { return m_arg.rows(); }
 
-  typedef typename Eigen::internal::ref_selector<ArgType>::type ArgTypeNested;
+  using ArgTypeNested = typename Eigen::internal::ref_selector<ArgType>::type;
   ArgTypeNested m_arg;
 };

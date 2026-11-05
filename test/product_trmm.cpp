@@ -21,12 +21,12 @@ int get_random_size() {
 template <typename Scalar, int Mode, int TriOrder, int OtherOrder, int ResOrder, int OtherCols>
 void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scalar>(),
           int otherCols = OtherCols == Dynamic ? get_random_size<Scalar>() : OtherCols) {
-  typedef Matrix<Scalar, Dynamic, Dynamic, TriOrder> TriMatrix;
-  typedef Matrix<Scalar, Dynamic, OtherCols, OtherCols == 1 ? ColMajor : OtherOrder> OnTheRight;
-  typedef Matrix<Scalar, OtherCols, Dynamic, OtherCols == 1 ? RowMajor : OtherOrder> OnTheLeft;
+  using TriMatrix = Matrix<Scalar, Dynamic, Dynamic, TriOrder>;
+  using OnTheRight = Matrix<Scalar, Dynamic, OtherCols, OtherCols == 1 ? ColMajor : OtherOrder>;
+  using OnTheLeft = Matrix<Scalar, OtherCols, Dynamic, OtherCols == 1 ? RowMajor : OtherOrder>;
 
-  typedef Matrix<Scalar, Dynamic, OtherCols, OtherCols == 1 ? ColMajor : ResOrder> ResXS;
-  typedef Matrix<Scalar, OtherCols, Dynamic, OtherCols == 1 ? RowMajor : ResOrder> ResSX;
+  using ResXS = Matrix<Scalar, Dynamic, OtherCols, OtherCols == 1 ? ColMajor : ResOrder>;
+  using ResSX = Matrix<Scalar, OtherCols, Dynamic, OtherCols == 1 ? RowMajor : ResOrder>;
 
   TriMatrix mat(rows, cols), tri(rows, cols), triTr(cols, rows), s1tri(rows, cols), s1triTr(cols, rows);
 
@@ -105,8 +105,8 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
   // Triangular times triangular or self-adjoint view: the right factor is densified and the product
   // runs the TRMM kernel of the left one.
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-    typedef Matrix<Scalar, Dynamic, Dynamic, ResOrder> ResXX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+    using ResXX = Matrix<Scalar, Dynamic, Dynamic, ResOrder>;
     // Hermitian operands, so that the self-adjoint views below have the real diagonal the SYMM kernel assumes.
     TriMatrix mat2 = TriMatrix::Random(cols, cols), mat3 = TriMatrix::Random(rows, rows);
     mat2 = (mat2 + mat2.adjoint()).eval();
@@ -155,7 +155,7 @@ void trmm(int rows = get_random_size<Scalar>(), int cols = get_random_size<Scala
   // see bug 1741
   {
     VERIFY_IS_APPROX(ge_xs.noalias() = mat.template triangularView<Mode>() * ge_right, tri * ge_right);
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * ge_xs.rows(), 2 * ge_xs.cols());
     Map<ResXS, 0, Stride<Dynamic, 2> > map1(buffer.data(), ge_xs.rows(), ge_xs.cols(),
                                             Stride<Dynamic, 2>(2 * ge_xs.outerStride(), 2));

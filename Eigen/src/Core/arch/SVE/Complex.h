@@ -34,8 +34,8 @@ struct PacketXcd {
 
 template <>
 struct packet_traits<std::complex<float>> : default_packet_traits {
-  typedef PacketXcf type;
-  typedef PacketXcf half;
+  using type = PacketXcf;
+  using half = PacketXcf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -62,8 +62,8 @@ struct packet_traits<std::complex<float>> : default_packet_traits {
 
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
-  typedef PacketXcd type;
-  typedef PacketXcd half;
+  using type = PacketXcd;
+  using half = PacketXcd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -90,9 +90,9 @@ struct packet_traits<std::complex<double>> : default_packet_traits {
 
 template <>
 struct unpacket_traits<PacketXcf> {
-  typedef std::complex<float> type;
-  typedef PacketXcf half;
-  typedef PacketXf as_real;
+  using type = std::complex<float>;
+  using half = PacketXcf;
+  using as_real = PacketXf;
   enum {
     size = sve_packet_size_selector<std::complex<float>, EIGEN_ARM64_SVE_VL>::size,
     alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
@@ -104,9 +104,9 @@ struct unpacket_traits<PacketXcf> {
 
 template <>
 struct unpacket_traits<PacketXcd> {
-  typedef std::complex<double> type;
-  typedef PacketXcd half;
-  typedef PacketXd as_real;
+  using type = std::complex<double>;
+  using half = PacketXcd;
+  using as_real = PacketXd;
   enum {
     size = sve_packet_size_selector<std::complex<double>, EIGEN_ARM64_SVE_VL>::size,
     alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,

@@ -25,9 +25,9 @@ std::enable_if_t<!(MatrixType::RowsAtCompileTime == 1 || MatrixType::ColsAtCompi
 
 template <typename MatrixType>
 void basicStuff(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -166,9 +166,9 @@ void basicStuff(const MatrixType& m) {
 
 template <typename MatrixType>
 void basicStuffComplex(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime> RealMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -205,7 +205,7 @@ void basicStuffComplex(const MatrixType& m) {
 // overload must return the same read-only zero expression as the const one.
 template <typename MatrixType>
 void basicStuffRealImag(const MatrixType& m) {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   Index rows = m.rows();
   Index cols = m.cols();

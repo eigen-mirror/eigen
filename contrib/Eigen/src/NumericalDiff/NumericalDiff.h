@@ -35,11 +35,11 @@ enum NumericalDiffMode { Forward, Central };
 template <typename Functor_, NumericalDiffMode mode = Forward>
 class NumericalDiff : public Functor_ {
  public:
-  typedef Functor_ Functor;
-  typedef typename Functor::Scalar Scalar;
-  typedef typename Functor::InputType InputType;
-  typedef typename Functor::ValueType ValueType;
-  typedef typename Functor::JacobianType JacobianType;
+  using Functor = Functor_;
+  using Scalar = typename Functor::Scalar;
+  using InputType = typename Functor::InputType;
+  using ValueType = typename Functor::ValueType;
+  using JacobianType = typename Functor::JacobianType;
 
  private:
   // Fallback/Forward mode helper

@@ -24,7 +24,7 @@ struct increment_if_fixed_size : std::integral_constant<int, (Size == Dynamic) ?
 
 template <typename PolynomialType>
 PolynomialType polyder(const PolynomialType& p) {
-  typedef typename PolynomialType::Scalar Scalar;
+  using Scalar = typename PolynomialType::Scalar;
   PolynomialType res(p.size());
   for (Index i = 1; i < p.size(); ++i) res[i - 1] = p[i] * Scalar(i);
   res[p.size() - 1] = 0.;
@@ -33,11 +33,11 @@ PolynomialType polyder(const PolynomialType& p) {
 
 template <int Deg, typename POLYNOMIAL, typename SOLVER>
 bool aux_evalSolver(const POLYNOMIAL& pols, SOLVER& psolve) {
-  typedef typename POLYNOMIAL::Scalar Scalar;
-  typedef typename POLYNOMIAL::RealScalar RealScalar;
+  using Scalar = typename POLYNOMIAL::Scalar;
+  using RealScalar = typename POLYNOMIAL::RealScalar;
 
-  typedef typename SOLVER::RootsType RootsType;
-  typedef Matrix<RealScalar, Deg, 1> EvalRootsType;
+  using RootsType = typename SOLVER::RootsType;
+  using EvalRootsType = Matrix<RealScalar, Deg, 1>;
 
   const Index deg = pols.size() - 1;
 
@@ -83,9 +83,9 @@ bool aux_evalSolver(const POLYNOMIAL& pols, SOLVER& psolve) {
 
 template <int Deg, typename POLYNOMIAL>
 void evalSolver(const POLYNOMIAL& pols) {
-  typedef typename POLYNOMIAL::Scalar Scalar;
+  using Scalar = typename POLYNOMIAL::Scalar;
 
-  typedef PolynomialSolver<Scalar, Deg> PolynomialSolverType;
+  using PolynomialSolverType = PolynomialSolver<Scalar, Deg>;
 
   PolynomialSolverType psolve;
   aux_evalSolver<Deg, POLYNOMIAL, PolynomialSolverType>(pols, psolve);
@@ -198,11 +198,11 @@ void polynomialsolver_sugar_filtering() {
 
 template <typename Scalar_, int Deg_>
 void polynomialsolver(int deg) {
-  typedef typename NumTraits<Scalar_>::Real RealScalar;
-  typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
-  typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
-  typedef Matrix<RealScalar, Deg_, 1> RealRootsType;
+  using RealScalar = typename NumTraits<Scalar_>::Real;
+  using Dim = internal::increment_if_fixed_size<Deg_>;
+  using PolynomialType = Matrix<Scalar_, Dim::value, 1>;
+  using EvalRootsType = Matrix<Scalar_, Deg_, 1>;
+  using RealRootsType = Matrix<RealScalar, Deg_, 1>;
 
   cout << "Standard cases" << endl;
   PolynomialType pols = PolynomialType::Random(deg + 1);

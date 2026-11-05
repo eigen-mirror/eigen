@@ -12,9 +12,9 @@ using namespace Eigen;
 
 // --- Small functor: Rosenbrock-like (2 inputs -> 2 outputs) ---
 struct SmallFunctor {
-  typedef Matrix<double, 2, 1> InputType;
-  typedef Matrix<double, 2, 1> ValueType;
-  typedef Matrix<double, 2, 2> JacobianType;
+  using InputType = Matrix<double, 2, 1>;
+  using ValueType = Matrix<double, 2, 1>;
+  using JacobianType = Matrix<double, 2, 2>;
 
   enum { InputsAtCompileTime = 2, ValuesAtCompileTime = 2 };
 
@@ -27,9 +27,9 @@ struct SmallFunctor {
 
 // --- Medium functor: chain of operations (6 inputs -> 6 outputs) ---
 struct MediumFunctor {
-  typedef Matrix<double, 6, 1> InputType;
-  typedef Matrix<double, 6, 1> ValueType;
-  typedef Matrix<double, 6, 6> JacobianType;
+  using InputType = Matrix<double, 6, 1>;
+  using ValueType = Matrix<double, 6, 1>;
+  using JacobianType = Matrix<double, 6, 6>;
 
   enum { InputsAtCompileTime = 6, ValuesAtCompileTime = 6 };
 
@@ -46,9 +46,9 @@ struct MediumFunctor {
 
 // --- Dynamic-size functor (N inputs -> N outputs) ---
 struct DynamicFunctor {
-  typedef Matrix<double, Dynamic, 1> InputType;
-  typedef Matrix<double, Dynamic, 1> ValueType;
-  typedef Matrix<double, Dynamic, Dynamic> JacobianType;
+  using InputType = Matrix<double, Dynamic, 1>;
+  using ValueType = Matrix<double, Dynamic, 1>;
+  using JacobianType = Matrix<double, Dynamic, Dynamic>;
 
   const int n_;
   DynamicFunctor(int n) : n_(n) {}
@@ -70,7 +70,7 @@ struct DynamicFunctor {
 
 // Wrapper for NumericalDiff compatibility.
 struct SmallFunctorND : SmallFunctor {
-  typedef double Scalar;
+  using Scalar = double;
   int inputs() const { return 2; }
   int values() const { return 2; }
   int operator()(const InputType& x, ValueType& v) const {
@@ -80,7 +80,7 @@ struct SmallFunctorND : SmallFunctor {
 };
 
 struct MediumFunctorND : MediumFunctor {
-  typedef double Scalar;
+  using Scalar = double;
   int inputs() const { return 6; }
   int values() const { return 6; }
   int operator()(const InputType& x, ValueType& v) const {

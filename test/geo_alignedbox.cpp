@@ -30,10 +30,10 @@ void alignedbox(const BoxType& box) {
   /* this test covers the following files:
      AlignedBox.h
   */
-  typedef typename BoxType::Scalar Scalar;
-  typedef NumTraits<Scalar> ScalarTraits;
-  typedef typename ScalarTraits::Real RealScalar;
-  typedef Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1> VectorType;
+  using Scalar = typename BoxType::Scalar;
+  using ScalarTraits = NumTraits<Scalar>;
+  using RealScalar = typename ScalarTraits::Real;
+  using VectorType = Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1>;
 
   const Index dim = box.dim();
 
@@ -89,10 +89,10 @@ void alignedbox(const BoxType& box) {
 
 template <typename BoxType>
 void alignedboxTranslatable(const BoxType& box) {
-  typedef typename BoxType::Scalar Scalar;
-  typedef Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1> VectorType;
-  typedef Transform<Scalar, BoxType::AmbientDimAtCompileTime, Isometry> IsometryTransform;
-  typedef Transform<Scalar, BoxType::AmbientDimAtCompileTime, Affine> AffineTransform;
+  using Scalar = typename BoxType::Scalar;
+  using VectorType = Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1>;
+  using IsometryTransform = Transform<Scalar, BoxType::AmbientDimAtCompileTime, Isometry>;
+  using AffineTransform = Transform<Scalar, BoxType::AmbientDimAtCompileTime, Affine>;
 
   alignedbox(box);
 
@@ -184,7 +184,7 @@ Rotation rotate2D(Scalar angle) {
 
 template <typename Scalar, typename Rotation>
 Rotation rotate2DIntegral(typename NumTraits<Scalar>::NonInteger angle) {
-  typedef typename NumTraits<Scalar>::NonInteger NonInteger;
+  using NonInteger = typename NumTraits<Scalar>::NonInteger;
   return Rotation2D<NonInteger>(angle).toRotationMatrix().template cast<Scalar>();
 }
 
@@ -195,7 +195,7 @@ Rotation rotate3DZAxis(Scalar angle) {
 
 template <typename Scalar, typename Rotation>
 Rotation rotate3DZAxisIntegral(typename NumTraits<Scalar>::NonInteger angle) {
-  typedef typename NumTraits<Scalar>::NonInteger NonInteger;
+  using NonInteger = typename NumTraits<Scalar>::NonInteger;
   return AngleAxis<NonInteger>(angle, Matrix<NonInteger, 3, 1>(0, 0, 1)).toRotationMatrix().template cast<Scalar>();
 }
 
@@ -234,11 +234,11 @@ void alignedboxRotatable(const BoxType& box,
                          Rotation (*rotate)(typename NumTraits<typename BoxType::Scalar>::NonInteger /*_angle*/)) {
   alignedboxTranslatable(box);
 
-  typedef typename BoxType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::NonInteger NonInteger;
-  typedef Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1> VectorType;
-  typedef Transform<Scalar, BoxType::AmbientDimAtCompileTime, Isometry> IsometryTransform;
-  typedef Transform<Scalar, BoxType::AmbientDimAtCompileTime, Affine> AffineTransform;
+  using Scalar = typename BoxType::Scalar;
+  using NonInteger = typename NumTraits<Scalar>::NonInteger;
+  using VectorType = Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1>;
+  using IsometryTransform = Transform<Scalar, BoxType::AmbientDimAtCompileTime, Isometry>;
+  using AffineTransform = Transform<Scalar, BoxType::AmbientDimAtCompileTime, Affine>;
 
   const VectorType Zero = VectorType::Zero();
   const VectorType Ones = VectorType::Ones();
@@ -303,13 +303,13 @@ void alignedboxNonIntegralRotatable(
     const BoxType& box, Rotation (*rotate)(typename NumTraits<typename BoxType::Scalar>::NonInteger /*_angle*/)) {
   alignedboxRotatable(box, rotate);
 
-  typedef typename BoxType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::NonInteger NonInteger;
+  using Scalar = typename BoxType::Scalar;
+  using NonInteger = typename NumTraits<Scalar>::NonInteger;
   enum { Dim = BoxType::AmbientDimAtCompileTime };
-  typedef Matrix<Scalar, Dim, 1> VectorType;
-  typedef Matrix<Scalar, Dim, (1 << Dim)> CornersType;
-  typedef Transform<Scalar, Dim, Isometry> IsometryTransform;
-  typedef Transform<Scalar, Dim, Affine> AffineTransform;
+  using VectorType = Matrix<Scalar, Dim, 1>;
+  using CornersType = Matrix<Scalar, Dim, (1 << Dim)>;
+  using IsometryTransform = Transform<Scalar, Dim, Isometry>;
+  using AffineTransform = Transform<Scalar, Dim, Affine>;
 
   const Index dim = box.dim();
   const VectorType Zero = VectorType::Zero();
@@ -421,8 +421,8 @@ void alignedboxNonIntegralRotatable(
 template <typename BoxType>
 void alignedboxCastTests(const BoxType& box) {
   // casting
-  typedef typename BoxType::Scalar Scalar;
-  typedef Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1> VectorType;
+  using Scalar = typename BoxType::Scalar;
+  using VectorType = Matrix<Scalar, BoxType::AmbientDimAtCompileTime, 1>;
 
   const Index dim = box.dim();
 
@@ -437,7 +437,7 @@ void alignedboxCastTests(const BoxType& box) {
   b0.extend(p1);
 
   const int Dim = BoxType::AmbientDimAtCompileTime;
-  typedef typename GetDifferentType<Scalar>::type OtherScalar;
+  using OtherScalar = typename GetDifferentType<Scalar>::type;
   AlignedBox<OtherScalar, Dim> hp1f = b0.template cast<OtherScalar>();
   VERIFY_IS_APPROX(hp1f.template cast<Scalar>(), b0);
   AlignedBox<Scalar, Dim> hp1d = b0.template cast<Scalar>();
@@ -450,7 +450,7 @@ void specificTest1() {
   Vector2f M;
   M << 1.0f, 5.0f;
 
-  typedef AlignedBox2f BoxType;
+  using BoxType = AlignedBox2f;
   BoxType box(m, M);
 
   Vector2f sides = M - m;
@@ -479,7 +479,7 @@ void specificTest2() {
   Vector3i M;
   M << 1, 5, 3;
 
-  typedef AlignedBox3i BoxType;
+  using BoxType = AlignedBox3i;
   BoxType box(m, M);
 
   Vector3i sides = M - m;

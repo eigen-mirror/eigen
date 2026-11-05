@@ -41,12 +41,12 @@ struct has_product<Lhs, Rhs, internal::void_t<decltype(std::declval<const Lhs&>(
 
 template <typename SparseMatrixType>
 void sparse_structured_view_product_sfinae() {
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVectorType;
-  typedef decltype(std::declval<SparseMatrixType&>().template triangularView<Lower>()) TriangularViewType;
-  typedef decltype(std::declval<SparseMatrixType&>().template selfadjointView<Lower>()) SelfAdjointViewType;
-  typedef decltype(std::declval<const DenseVectorType&>().asDiagonal()) DiagonalType;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVectorType = Matrix<Scalar, Dynamic, 1>;
+  using TriangularViewType = decltype(std::declval<SparseMatrixType&>().template triangularView<Lower>());
+  using SelfAdjointViewType = decltype(std::declval<SparseMatrixType&>().template selfadjointView<Lower>());
+  using DiagonalType = decltype(std::declval<const DenseVectorType&>().asDiagonal());
 
   STATIC_CHECK((has_product<TriangularViewType, SparseMatrixType>::value));
   STATIC_CHECK((has_product<SparseMatrixType, TriangularViewType>::value));
@@ -65,20 +65,20 @@ void sparse_structured_view_product_sfinae() {
 
 template <typename SparseMatrixType>
 void sparse_product() {
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
   Index n = 100;
   const Index rows = internal::random<Index>(1, n);
   const Index cols = internal::random<Index>(1, n);
   const Index depth = internal::random<Index>(1, n);
-  typedef typename SparseMatrixType::Scalar Scalar;
+  using Scalar = typename SparseMatrixType::Scalar;
   enum { Flags = SparseMatrixType::Flags };
 
   double density = (std::max)(8. / (rows * cols), 0.2);
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Matrix<Scalar, 1, Dynamic> RowDenseVector;
-  typedef SparseVector<Scalar, 0, StorageIndex> ColSpVector;
-  typedef SparseVector<Scalar, RowMajor, StorageIndex> RowSpVector;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using RowDenseVector = Matrix<Scalar, 1, Dynamic>;
+  using ColSpVector = SparseVector<Scalar, 0, StorageIndex>;
+  using RowSpVector = SparseVector<Scalar, RowMajor, StorageIndex>;
 
   Scalar s1 = internal::random<Scalar>();
   Scalar s2 = internal::random<Scalar>();
@@ -442,9 +442,9 @@ void sparse_product_regression_test() {
 
 template <typename Scalar>
 void bug_942() {
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
-  typedef SparseMatrix<Scalar, ColMajor> ColSpMat;
-  typedef SparseMatrix<Scalar, RowMajor> RowSpMat;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using ColSpMat = SparseMatrix<Scalar, ColMajor>;
+  using RowSpMat = SparseMatrix<Scalar, RowMajor>;
   ColSpMat cmA(1, 1);
   cmA.insert(0, 0) = 1;
 
@@ -464,12 +464,12 @@ void bug_942() {
 
 template <typename Real>
 void test_mixing_types() {
-  typedef std::complex<Real> Cplx;
-  typedef SparseMatrix<Real> SpMatReal;
-  typedef SparseMatrix<Cplx> SpMatCplx;
-  typedef SparseMatrix<Cplx, RowMajor> SpRowMatCplx;
-  typedef Matrix<Real, Dynamic, Dynamic> DenseMatReal;
-  typedef Matrix<Cplx, Dynamic, Dynamic> DenseMatCplx;
+  using Cplx = std::complex<Real>;
+  using SpMatReal = SparseMatrix<Real>;
+  using SpMatCplx = SparseMatrix<Cplx>;
+  using SpRowMatCplx = SparseMatrix<Cplx, RowMajor>;
+  using DenseMatReal = Matrix<Real, Dynamic, Dynamic>;
+  using DenseMatCplx = Matrix<Cplx, Dynamic, Dynamic>;
 
   Index n = internal::random<Index>(1, 100);
   double density = (std::max)(8. / static_cast<double>(n * n), 0.2);
@@ -553,8 +553,8 @@ void test_mixing_types() {
 // Test mixed storage types
 template <int OrderA, int OrderB, int OrderC>
 void test_mixed_storage_imp() {
-  typedef float Real;
-  typedef Matrix<Real, Dynamic, Dynamic> DenseMat;
+  using Real = float;
+  using DenseMat = Matrix<Real, Dynamic, Dynamic>;
 
   // Case: Large inputs but small result
   {
@@ -610,8 +610,8 @@ void test_mixed_storage() {
 // non-trivially-copyable scalars (issue #2873).
 template <typename = void>
 void test_pruned_product_custom_scalar() {
-  typedef SparseMatrix<AnnoyingScalar> SpMat;
-  typedef Matrix<AnnoyingScalar, Dynamic, Dynamic> DenseMat;
+  using SpMat = SparseMatrix<AnnoyingScalar>;
+  using DenseMat = Matrix<AnnoyingScalar, Dynamic, Dynamic>;
   int instances_before = AnnoyingScalar::instances;
   {
     // Low density runs the AmbiVector in linked-list mode, high density in
@@ -653,7 +653,7 @@ void test_pruned_product_custom_scalar() {
 // the next coeffRef() to construct over.
 template <typename = void>
 void test_ambivector_discard_custom_scalar() {
-  typedef internal::AmbiVector<AnnoyingScalar, int> AmbiVec;
+  using AmbiVec = internal::AmbiVector<AnnoyingScalar, int>;
   const Index n = 32;
   int instances_before = AnnoyingScalar::instances;
   {
@@ -684,7 +684,7 @@ void test_ambivector_discard_custom_scalar() {
 // sub-vector bounds an iterator walks describe the size the vector had before.
 template <typename = void>
 void test_ambivector_resize_bounds() {
-  typedef internal::AmbiVector<double, int> AmbiVec;
+  using AmbiVec = internal::AmbiVector<double, int>;
   {
     AmbiVec v(20);
     v.init(IsDense);
@@ -777,7 +777,7 @@ bool ThrowingScalar::throw_on_relocation = false;
 template <typename = void>
 void test_ambivector_failed_insertion() {
   using ambivector_throwing::ThrowingScalar;
-  typedef internal::AmbiVector<ThrowingScalar, int> AmbiVec;
+  using AmbiVec = internal::AmbiVector<ThrowingScalar, int>;
   const int live_before = ThrowingScalar::live;
   {
     AmbiVec v(8);
@@ -844,7 +844,7 @@ void test_ambivector_failed_insertion() {
 template <typename = void>
 void test_ambivector_failed_reallocation() {
   using ambivector_throwing::ThrowingScalar;
-  typedef internal::AmbiVector<ThrowingScalar, int> AmbiVec;
+  using AmbiVec = internal::AmbiVector<ThrowingScalar, int>;
   const int live_before = ThrowingScalar::live;
   {
     // Sized so that the initial node capacity is a fraction of the vector's own
@@ -890,7 +890,7 @@ void test_ambivector_failed_reallocation() {
 template <typename = void>
 void test_ambivector_front_insertion_relocates() {
   using ambivector_throwing::ThrowingScalar;
-  typedef internal::AmbiVector<ThrowingScalar, int> AmbiVec;
+  using AmbiVec = internal::AmbiVector<ThrowingScalar, int>;
   const int live_before = ThrowingScalar::live;
   {
     const Index n = 1200;  // a list capacity of a third of n

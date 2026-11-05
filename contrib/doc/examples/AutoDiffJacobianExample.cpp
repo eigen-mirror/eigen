@@ -7,8 +7,8 @@
 #include <contrib/Eigen/AutoDiff>
 
 struct ExampleFunctor {
-  typedef Eigen::Vector2d InputType;
-  typedef Eigen::Vector2d ValueType;
+  using InputType = Eigen::Vector2d;
+  using ValueType = Eigen::Vector2d;
 
   template <typename Scalar>
   void operator()(const Eigen::Matrix<Scalar, 2, 1>& x, Eigen::Matrix<Scalar, 2, 1>* y) const {

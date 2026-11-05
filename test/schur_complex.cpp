@@ -15,8 +15,8 @@
 
 template <typename MatrixType>
 void schur(int size = MatrixType::ColsAtCompileTime) {
-  typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
+  using ComplexMatrixType = typename ComplexSchur<MatrixType>::ComplexMatrixType;
 
   // Test basic functionality: T is triangular and A = U T U*
   for (int counter = 0; counter < g_repeat; ++counter) {
@@ -85,10 +85,10 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
 // to reduce the caller's matrix directly, so at this scale it returned the diagonal of the input as the Schur form.
 template <typename MatrixType>
 void schur_underflow_scale(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
+  using ComplexMatrixType = typename ComplexSchur<MatrixType>::ComplexMatrixType;
 
   // Representable, but every product of two coefficients underflows.
   const RealScalar scale = numext::sqrt((std::numeric_limits<RealScalar>::min)()) / RealScalar(1024);
@@ -128,9 +128,9 @@ bool compute_schur(ComplexSchur<MatrixType>& schur, const MatrixType& A, bool fl
 // quantization of the subnormal input.
 template <typename MatrixType>
 void schur_subnormal_scale(Index size, bool flushToZero) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexMatrixType = typename ComplexSchur<MatrixType>::ComplexMatrixType;
   using WideScalar = std::complex<long double>;
   using WideMatrix = Matrix<WideScalar, Dynamic, Dynamic>;
 
@@ -178,10 +178,10 @@ void schur_subnormal_scale(Index size, bool flushToZero) {
 // unscaled reduction squares such a matrix into overflow anyway.
 template <typename MatrixType>
 void schur_dynamic_range(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexScalar ComplexScalar;
-  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexScalar = typename ComplexSchur<MatrixType>::ComplexScalar;
+  using ComplexMatrixType = typename ComplexSchur<MatrixType>::ComplexMatrixType;
 
   const RealScalar huge = numext::sqrt((std::numeric_limits<RealScalar>::max)());
   MatrixType A = MatrixType::Random(size, size) * Scalar(huge);
@@ -206,8 +206,8 @@ void schur_dynamic_range(Index size) {
 // default max reduction keeps whichever operand it visits first.
 template <typename MatrixType>
 void schur_nan_only(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   for (Index k = 0; k < size; ++k) {
     MatrixType A = MatrixType::Zero(size, size);
@@ -221,7 +221,7 @@ void schur_nan_only(Index size) {
 // The zero matrix has no exponent to normalize by; it must still decompose trivially.
 template <typename MatrixType>
 void schur_zero(Index size) {
-  typedef typename ComplexSchur<MatrixType>::ComplexMatrixType ComplexMatrixType;
+  using ComplexMatrixType = typename ComplexSchur<MatrixType>::ComplexMatrixType;
 
   const MatrixType A = MatrixType::Zero(size, size);
   ComplexSchur<MatrixType> schurOfA(A);

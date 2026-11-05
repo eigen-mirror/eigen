@@ -9,7 +9,7 @@ using namespace Eigen;
 using namespace std;
 
 int main() {
-  typedef Matrix<double, 5, 1> Vector5d;
+  using Vector5d = Matrix<double, 5, 1>;
 
   Vector5d roots = Vector5d::Random();
   cout << "Roots: " << roots.transpose() << endl;

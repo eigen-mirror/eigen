@@ -50,8 +50,8 @@ bool find_pivot(typename MatrixType::Scalar tol, MatrixType& diffs, Index col = 
  */
 template <typename VectorType>
 void verify_is_approx_upto_permutation(const VectorType& vec1, const VectorType& vec2) {
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   VERIFY(vec1.cols() == 1);
   VERIFY(vec2.cols() == 1);
@@ -74,8 +74,8 @@ void eigensolver(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType a = MatrixType::Random(rows, cols);
   MatrixType symmA = a.adjoint() * a;
@@ -149,8 +149,8 @@ void eigensolver_verify_assert(const MatrixType& m) {
 }
 
 void custom_complex_stable_normalization() {
-  typedef CustomComplex<double> Scalar;
-  typedef Matrix<Scalar, 2, 1> Vector2;
+  using Scalar = CustomComplex<double>;
+  using Vector2 = Matrix<Scalar, 2, 1>;
 
   Vector2 input;
   input << Scalar(3.0, 4.0), Scalar(0.0, 0.0);

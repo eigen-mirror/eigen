@@ -25,8 +25,8 @@ namespace Eigen {
 template <typename StorageIndex>
 class MetisOrdering {
  public:
-  typedef PermutationMatrix<Dynamic, Dynamic, StorageIndex> PermutationType;
-  typedef Matrix<StorageIndex, Dynamic, 1> IndexVector;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, StorageIndex>;
+  using IndexVector = Matrix<StorageIndex, Dynamic, 1>;
 
   template <typename MatrixType>
   void get_symmetrized_graph(const MatrixType& A) {

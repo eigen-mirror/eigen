@@ -133,7 +133,7 @@ Example:
 \code
 template<int n> class Foo
 {
-  typedef Eigen::Matrix<float,n,1> Vector;
+  using Vector = Eigen::Matrix<float,n,1>;
   enum { NeedsToAlign = (sizeof(Vector)%16)==0 };
   ...
   Vector v;

@@ -73,8 +73,8 @@ struct plan {};
 
 template <>
 struct plan<float> {
-  typedef float scalar_type;
-  typedef MKL_Complex8 complex_type;
+  using scalar_type = float;
+  using complex_type = MKL_Complex8;
 
   std::shared_ptr<DFTI_DESCRIPTOR> m_plan;
 
@@ -129,8 +129,8 @@ struct plan<float> {
 
 template <>
 struct plan<double> {
-  typedef double scalar_type;
-  typedef MKL_Complex16 complex_type;
+  using scalar_type = double;
+  using complex_type = MKL_Complex16;
 
   std::shared_ptr<DFTI_DESCRIPTOR> m_plan;
 
@@ -185,8 +185,8 @@ struct plan<double> {
 
 template <typename Scalar_>
 struct imklfft_impl {
-  typedef Scalar_ Scalar;
-  typedef std::complex<Scalar> Complex;
+  using Scalar = Scalar_;
+  using Complex = std::complex<Scalar>;
 
   inline void clear() { m_plans.clear(); }
 

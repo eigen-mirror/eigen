@@ -50,7 +50,7 @@ struct has_diagonal_sum<
 
 template <unsigned int Mode, typename MatrixType>
 void triangular_scalar_multiply(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   const Index rows = m.rows();
   const Index cols = m.cols();
@@ -66,14 +66,14 @@ void triangular_scalar_multiply(const MatrixType& m) {
 
 template <unsigned int Mode, typename MatrixType, bool IsSelfAdjointMode = Mode == Upper || Mode == Lower>
 struct selfadjoint_structured_sum_impl {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   static void run(const Scalar&, const MatrixType&, const MatrixType&, MatrixType&, MatrixType&) {}
 };
 
 template <unsigned int Mode, typename MatrixType>
 struct selfadjoint_structured_sum_impl<Mode, MatrixType, true> {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   static void run(const Scalar& s, const MatrixType& a, const MatrixType& b, MatrixType& result,
                   MatrixType& reference) {
@@ -95,7 +95,7 @@ struct selfadjoint_structured_sum_impl<Mode, MatrixType, true> {
 
 template <unsigned int Mode, typename MatrixType>
 void triangular_structured_sum(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   const Index rows = m.rows();
   const Index cols = m.cols();
@@ -215,11 +215,11 @@ void triangular_setters(const MatrixType& m) {
 
 template <typename MatrixType>
 void triangular_scalar_multiply_sfinae() {
-  typedef decltype(std::declval<MatrixType&>().template triangularView<Upper>()) UpperView;
-  typedef decltype(std::declval<MatrixType&>().template triangularView<Lower>()) LowerView;
-  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyLower>()) StrictlyLowerView;
-  typedef decltype(std::declval<MatrixType&>().template triangularView<StrictlyUpper>()) StrictlyUpperView;
-  typedef decltype(std::declval<MatrixType&>().template triangularView<UnitLower>()) UnitLowerView;
+  using UpperView = decltype(std::declval<MatrixType&>().template triangularView<Upper>());
+  using LowerView = decltype(std::declval<MatrixType&>().template triangularView<Lower>());
+  using StrictlyLowerView = decltype(std::declval<MatrixType&>().template triangularView<StrictlyLower>());
+  using StrictlyUpperView = decltype(std::declval<MatrixType&>().template triangularView<StrictlyUpper>());
+  using UnitLowerView = decltype(std::declval<MatrixType&>().template triangularView<UnitLower>());
 
   STATIC_CHECK((has_left_scalar_multiply<UpperView>::value));
   STATIC_CHECK((has_right_scalar_multiply<UpperView>::value));
@@ -239,8 +239,8 @@ void triangular_scalar_multiply_sfinae() {
   STATIC_CHECK((!has_structured_sum<UnitLowerView>::value));
 
   // Sums with a diagonal matrix exist only for modes that store their diagonal.
-  typedef DiagonalMatrix<typename MatrixType::Scalar, MatrixType::RowsAtCompileTime> DiagonalType;
-  typedef decltype(std::declval<MatrixType&>().template selfadjointView<Lower>()) SelfAdjointLowerView;
+  using DiagonalType = DiagonalMatrix<typename MatrixType::Scalar, MatrixType::RowsAtCompileTime>;
+  using SelfAdjointLowerView = decltype(std::declval<MatrixType&>().template selfadjointView<Lower>());
   STATIC_CHECK((has_diagonal_sum<UpperView, DiagonalType>::value));
   STATIC_CHECK((has_diagonal_sum<LowerView, DiagonalType>::value));
   STATIC_CHECK((has_diagonal_sum<SelfAdjointLowerView, DiagonalType>::value));
@@ -252,8 +252,8 @@ void triangular_scalar_multiply_sfinae() {
 // view +/- diagonal keeps the view's mode; the dense value is the view of the dense sum.
 template <unsigned int Mode, typename MatrixType>
 void triangular_diagonal_sum(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   const Index rows = m.rows();
   const MatrixType a = MatrixType::Random(rows, rows);
@@ -307,9 +307,9 @@ void triangular_deprecated(const MatrixType& m) {
 
 template <typename MatrixType>
 void triangular_square(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   triangular_scalar_multiply_sfinae<MatrixType>();
   triangular_structured_sum<Upper>(m);
@@ -470,8 +470,8 @@ void triangular_square(const MatrixType& m) {
 
 template <typename MatrixType>
 void triangular_rect(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
 
   Index rows = m.rows();
@@ -557,7 +557,7 @@ void triangular_rect(const MatrixType& m) {
 // isLowerTriangular() used to skip.
 template <typename MatrixType>
 void triangular_predicates(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   const Index rows = m.rows();
   const Index cols = m.cols();
@@ -595,9 +595,9 @@ void triangular_predicates(const MatrixType& m) {
 // in TriangularSolverMatrix.h (requires size >= 48 with EIGEN_DEBUG_SMALL_PRODUCT_BLOCKS).
 template <int>
 void triangular_at_blocking_boundaries() {
-  typedef double Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Scalar = double;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   const int sizes[] = {47, 48, 49, 64, 96, 128};
   for (int si = 0; si < 6; ++si) {
@@ -636,8 +636,8 @@ void triangular_at_blocking_boundaries() {
 
   // Also test with float and RowMajor
   {
-    typedef Matrix<float, Dynamic, Dynamic, RowMajor> RMat;
-    typedef Matrix<float, Dynamic, 1> FVec;
+    using RMat = Matrix<float, Dynamic, Dynamic, RowMajor>;
+    using FVec = Matrix<float, Dynamic, 1>;
     for (int si = 0; si < 6; ++si) {
       int n = sizes[si];
       RMat m1 = RMat::Random(n, n);

@@ -23,8 +23,8 @@ void linearStructure(const MatrixType& m) {
   /* this test covers the following files:
      CwiseUnaryOp.h, CwiseBinaryOp.h, SelfCwiseBinaryOp.h
   */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -88,8 +88,8 @@ void linearStructure(const MatrixType& m) {
 // Make sure that complex * real and real * complex are properly optimized
 template <typename MatrixType>
 void real_complex(DenseIndex rows = MatrixType::RowsAtCompileTime, DenseIndex cols = MatrixType::ColsAtCompileTime) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   RealScalar s = internal::random<RealScalar>();
   MatrixType m1 = MatrixType::Random(rows, cols);
@@ -131,8 +131,8 @@ void linearStructure_mixed_storage() {
   const Index PS = internal::packet_traits<Scalar>::size;
   // Sizes at vectorization boundaries to expose any mismatch in traversal
   const Index sizes[] = {1, PS, PS + 1, 2 * PS, 2 * PS + 1, 4 * PS + 1, 16};
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
+  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   for (int si = 0; si < 7; ++si) {
     Index n = sizes[si];
@@ -178,8 +178,8 @@ void linearStructure_mixed_storage() {
 // rounding error of s1 * m1 + s1 * m2 stays proportional to |s1| * (|m1| + |m2|).
 template <typename Scalar>
 void linearStructure_cancellation() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, 1, 1> MatrixType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, 1, 1>;
 
   const RealScalar close = RealScalar(1) - RealScalar(64) * NumTraits<RealScalar>::epsilon();
   const Scalar s1 = Scalar(RealScalar(-0.465));

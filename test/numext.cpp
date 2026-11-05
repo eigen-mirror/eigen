@@ -535,7 +535,7 @@ struct check_copysign_impl {
 template <typename T>
 struct check_copysign_impl<std::complex<T>> {
   static void run() {
-    typedef std::complex<T> ComplexT;
+    using ComplexT = std::complex<T>;
     const T pos_one = T(1);
     const T neg_one = numext::negate(pos_one);
 
@@ -752,13 +752,13 @@ std::enable_if_t<NumTraits<T>::IsInteger && !NumTraits<T>::IsSigned, T> random_a
 
 template <typename T>
 std::enable_if_t<!NumTraits<T>::IsInteger, T> random_abs2_input() {
-  typedef typename NumTraits<T>::Real Real;
+  using Real = typename NumTraits<T>::Real;
   return internal::random<T>() / Real(2);
 }
 
 template <typename T>
 void check_abs() {
-  typedef typename NumTraits<T>::Real Real;
+  using Real = typename NumTraits<T>::Real;
   Real zero(0);
 
   if (NumTraits<T>::IsSigned) VERIFY_IS_EQUAL(numext::abs(numext::negate(T(1))), T(1));
@@ -789,7 +789,7 @@ void check_abs<bool>() {
 // forming 1/|z| first would overflow (subnormal |z|) or itself be subnormal, hence inexact (|z| near max).
 template <typename T>
 void check_complex_sign() {
-  typedef typename NumTraits<T>::Real Real;
+  using Real = typename NumTraits<T>::Real;
   const Real zero(0), one(1);
 
   VERIFY_IS_EQUAL(numext::sign(T(zero, zero)), T(zero, zero));
@@ -1122,7 +1122,7 @@ void check_twoprod_negation_expression() {
 
 template <typename T>
 void check_arg() {
-  typedef typename NumTraits<T>::Real Real;
+  using Real = typename NumTraits<T>::Real;
   for (int k = 0; k < 100; ++k) {
     T x = internal::random<T>();
     Real y = numext::arg(x);
@@ -1154,7 +1154,7 @@ struct check_sqrt_impl {
 template <typename T>
 struct check_sqrt_impl<std::complex<T>> {
   static void run() {
-    typedef std::complex<T> ComplexT;
+    using ComplexT = std::complex<T>;
 
     for (int i = 0; i < 1000; ++i) {
       const ComplexT x = internal::random<ComplexT>();
@@ -1222,7 +1222,7 @@ struct check_rsqrt_impl {
 template <typename T>
 struct check_rsqrt_impl<std::complex<T>> {
   static void run() {
-    typedef std::complex<T> ComplexT;
+    using ComplexT = std::complex<T>;
     const T zero = T(0);
     const T one = T(1);
     const T inf = std::numeric_limits<T>::infinity();

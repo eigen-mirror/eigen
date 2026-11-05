@@ -11,7 +11,7 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 // 5*N*log2(N) is the conventional flop count for a length-N complex FFT.
 static double FFTFlops(double n) { return 5.0 * n * std::log2(n); }

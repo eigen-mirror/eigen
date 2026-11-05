@@ -17,8 +17,8 @@ using namespace Eigen;
 
 template <typename Scalar>
 void test_kron_product(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -57,8 +57,8 @@ void test_kron_product(Index m1, Index n1, Index m2, Index n2) {
 
 template <typename Scalar>
 void test_kron_transpose(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -83,8 +83,8 @@ void test_kron_transpose(Index m1, Index n1, Index m2, Index n2) {
 // AliasFreeProduct same-object check could not see.
 template <typename Scalar>
 void test_kron_aliased_product(Index n1, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Square factors so that the destination and the right-hand side can alias.
   Mat A = Mat::Random(n1, n1), B = Mat::Random(n2, n2);
@@ -126,8 +126,8 @@ void test_kron_aliased_product(Index n1, Index n2) {
 // into a temporary before x is resized from cols() to rows() entries.
 template <typename Scalar>
 void test_kron_aliased_resize(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -153,8 +153,8 @@ void test_kron_aliased_resize(Index m1, Index n1, Index m2, Index n2) {
 // would read freed memory if the product held a reference instead.
 template <typename Scalar>
 void test_kron_delayed_product(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK((!std::is_reference<typename internal::ref_selector<KroneckerOperator<Mat, Mat>>::type>::value));
 
@@ -183,11 +183,11 @@ void test_kron_delayed_product(Index m1, Index n1, Index m2, Index n2) {
 // promoted type rather than the operator scalar.
 template <typename RealScalar>
 void test_kron_mixed_scalar(Index m1, Index n1, Index m2, Index n2) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RMat A = RMat::Random(m1, n1), B = RMat::Random(m2, n2);
   KroneckerOperator<RMat, RMat> K(A, B);
@@ -320,9 +320,9 @@ void test_kron_chunked_mixed_scalar() {
 
 template <typename Scalar>
 void test_kron_solve(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Diagonal boosts keep both factors (hence the product) well conditioned.
   Mat A = Mat::Random(n1, n1) + RealScalar(2 * n1) * Mat::Identity(n1, n1);
@@ -342,7 +342,7 @@ void test_kron_solve(Index n1, Index n2) {
 
 template <typename Scalar>
 void test_kron_least_squares(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -357,8 +357,8 @@ void test_kron_least_squares(Index m1, Index n1, Index m2, Index n2) {
 
 template <typename Scalar>
 void test_kron_least_squares_rank_deficient(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // A rank-one left factor and a rank-two right factor make the product rank
   // deficient; the minimum-norm least-squares solution stays unique and
@@ -381,8 +381,8 @@ void test_kron_least_squares_rank_deficient(Index m1, Index n1, Index m2, Index 
 // instead of being ranked out by the pivoted QR.
 template <typename Scalar>
 void test_kron_least_squares_scaling(Index m1, Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const int maxExp = std::numeric_limits<RealScalar>::max_exponent;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2), b = Mat::Random(m1 * m2, 3);
@@ -413,8 +413,8 @@ void test_kron_least_squares_scaling(Index m1, Index n1, Index m2, Index n2) {
 // pairwise products), so it applies A^+ (x) B^+ with both 1e-8 modes inverted.
 template <typename = void>
 void test_kron_product_level_rank() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   const double small = 1e-8;
   Mat A(2, 2);
@@ -438,7 +438,7 @@ void test_kron_product_level_rank() {
 // when the result is representable.
 template <typename = void>
 void test_kron_determinant_scaling() {
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   // Reviewer repro: det(A)^2 = 1e400 overflows on its own, yet the determinant
   // of K = diag(1e100, 1e100) is 1e200.
@@ -481,8 +481,8 @@ void test_kron_determinant_scaling() {
 // ratio space: (sa_i/sa_0) * (sb_j/sb_0) against min(rows,cols) * eps.
 template <typename = void>
 void test_kron_rank_ratio_threshold() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   Mat A(1, 1);
   A << 1e-310;  // subnormal
@@ -523,8 +523,8 @@ void test_kron_rank_ratio_threshold() {
 // DBL_MIN itself stays rank one, matching SVDBase::rank()'s >= convention.
 template <typename = void>
 void test_kron_rank_min_normal_clamp() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
   const double mn = (std::numeric_limits<double>::min)();
 
   Mat A(1, 1), B(1, 1);
@@ -558,11 +558,11 @@ void test_kron_rank_min_normal_clamp() {
 
 template <typename Scalar>
 void test_kron_eigen(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
 
   Mat A = Mat::Random(n1, n1), B = Mat::Random(n2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -575,8 +575,8 @@ void test_kron_eigen(Index n1, Index n2) {
 
 template <typename Scalar>
 void test_kron_svd(Index m1, Index n1, Index m2, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Mat A = Mat::Random(m1, n1), B = Mat::Random(m2, n2);
   KroneckerOperator<Mat, Mat> K(A, B);
@@ -606,8 +606,8 @@ void test_kron_svd(Index m1, Index n1, Index m2, Index n2) {
 
 template <typename Scalar>
 void test_kron_inverse_determinant(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Modest diagonal boost: invertible, with the determinant's magnitude tame
   // enough for a relative comparison in double precision.
@@ -623,9 +623,9 @@ void test_kron_inverse_determinant(Index n1, Index n2) {
 
 template <typename Scalar>
 void test_kron_matrix_free_cg(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // SPD factors make an SPD Kronecker product.
   Mat Ar = Mat::Random(n1, n1), Br = Mat::Random(n2, n2);
@@ -644,9 +644,9 @@ void test_kron_matrix_free_cg(Index n1, Index n2) {
 
 template <typename Scalar, int M1, int N1, int M2, int N2>
 void test_kron_fixed() {
-  typedef Matrix<Scalar, M1, N1> MatA;
-  typedef Matrix<Scalar, M2, N2> MatB;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using MatA = Matrix<Scalar, M1, N1>;
+  using MatB = Matrix<Scalar, M2, N2>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatA A = MatA::Random();
   MatB B = MatB::Random();
@@ -667,7 +667,7 @@ void test_kron_fixed() {
 
   // The solvers must propagate the compile-time product dimension instead of
   // collapsing to Dynamic rows.
-  typedef Matrix<Scalar, M1 * M2, 1> FixedB;
+  using FixedB = Matrix<Scalar, M1 * M2, 1>;
   STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const KroneckerOperator<MatA, MatB>&>().leastSquaresSolve(
                     std::declval<const FixedB&>()))>::RowsAtCompileTime == N1 * N2));
 }
@@ -676,11 +676,11 @@ void test_kron_fixed() {
 // carries the fixed row count, and the values match the dense references.
 template <typename Scalar, int N1, int N2>
 void test_kron_fixed_solve() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, N1, N1> MatA;
-  typedef Matrix<Scalar, N2, N2> MatB;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatA = Matrix<Scalar, N1, N1>;
+  using MatB = Matrix<Scalar, N2, N2>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatA A = MatA::Random() + RealScalar(2 * N1) * MatA::Identity();
   MatB B = MatB::Random() + RealScalar(2 * N2) * MatB::Identity();
@@ -704,9 +704,9 @@ void test_kron_fixed_solve() {
 // path, while storing only the diagonals.
 template <typename Scalar>
 void test_kron_diag_product(Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
 
   const Diag D1(Vec::Random(n1)), D2(Vec::Random(n2));
   Mat B = Mat::Random(m2, n2);
@@ -769,10 +769,10 @@ void test_kron_diag_product(Index n1, Index m2, Index n2) {
 // against the vec identity (I (x) A) vec(X) = vec(A X) directly.
 template <typename Scalar>
 void test_kron_identity(Index p, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> CmMat;  // reshape frame of the vec identity
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CmMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;  // reshape frame of the vec identity
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
 
   Mat A = Mat::Random(m2, n2);
   auto KI = makeKroneckerOperator(Vec::Ones(p).asDiagonal(), A);  // I_p (x) A
@@ -799,9 +799,9 @@ void test_kron_identity(Index p, Index m2, Index n2) {
 // value.
 template <typename Scalar>
 void test_kron_diag_transpose(Index n1, Index m2, Index n2) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
 
   const Diag D(Vec::Random(n1));
   Mat B = Mat::Random(m2, n2);
@@ -832,10 +832,10 @@ void test_kron_diag_transpose(Index n1, Index m2, Index n2) {
 // LU solve.
 template <typename Scalar>
 void test_kron_diag_solve(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
 
   // Diagonal entries bounded away from zero and diagonally boosted dense
   // factors keep everything well conditioned.
@@ -867,10 +867,10 @@ void test_kron_diag_solve(Index n1, Index n2) {
 // determinant() accumulates directly from the diagonal, skipping the LU.
 template <typename Scalar>
 void test_kron_diag_inverse_determinant(Index n1, Index n2) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef DiagonalMatrix<Scalar, Dynamic> Diag;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<Scalar, Dynamic>;
 
   const Diag D(Vec::Random(n1) + Vec::Constant(n1, Scalar(2)));
   Mat B = Mat::Random(n2, n2) + RealScalar(2) * Mat::Identity(n2, n2);
@@ -948,8 +948,8 @@ void test_kron_diag_least_squares(Index n1, Index n2) {
 // that overflow on their own.
 template <typename = void>
 void test_kron_diag_determinant_scaling() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef DiagonalMatrix<double, Dynamic> Diag;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Diag = DiagonalMatrix<double, Dynamic>;
 
   // det(diag(1e200))^2 = 1e400 overflows on its own, yet the determinant of
   // diag(1e200) (x) diag(1e-100, 1e-100) is 1e200 -- and the diagonal path
@@ -963,12 +963,12 @@ void test_kron_diag_determinant_scaling() {
 // a complex right-hand side runs in the promoted scalar.
 template <typename RealScalar>
 void test_kron_diag_mixed_scalar(Index n1, Index m2, Index n2) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
-  typedef DiagonalMatrix<RealScalar, Dynamic> RDiag;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
+  using RDiag = DiagonalMatrix<RealScalar, Dynamic>;
 
   const RDiag D(RVec::Random(n1));
   RMat B = RMat::Random(m2, n2);
@@ -987,9 +987,9 @@ void test_kron_diag_mixed_scalar(Index n1, Index m2, Index n2) {
 // Fixed-size diagonal factors propagate compile-time dimensions.
 template <typename Scalar, int N1, int M2, int N2>
 void test_kron_diag_fixed() {
-  typedef DiagonalMatrix<Scalar, N1> Diag;
-  typedef Matrix<Scalar, M2, N2> MatB;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Diag = DiagonalMatrix<Scalar, N1>;
+  using MatB = Matrix<Scalar, M2, N2>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   const Diag D(Matrix<Scalar, N1, 1>::Random());
   MatB B = MatB::Random();
@@ -1010,9 +1010,9 @@ void test_kron_diag_fixed() {
 // tensored with an SPD dense factor is SPD.
 template <typename = void>
 void test_kron_diag_matrix_free_cg(Index n1, Index n2) {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  typedef DiagonalMatrix<double, Dynamic> Diag;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
+  using Diag = DiagonalMatrix<double, Dynamic>;
 
   const Diag D(Vec::Random(n1).cwiseAbs() + Vec::Constant(n1, 1.0));
   Mat Br = Mat::Random(n2, n2);
@@ -1203,7 +1203,7 @@ template <typename Scalar>
 void test_kron_sparse_identity(Index p, Index m2, Index n2, Index q) {
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> CmMat;  // reshape frame of the vec identity
+  using CmMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;  // reshape frame of the vec identity
   using Sparse = SparseMatrix<Scalar>;
   using Diag = DiagonalMatrix<Scalar, Dynamic>;
 

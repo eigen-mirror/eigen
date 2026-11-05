@@ -24,8 +24,8 @@ namespace Eigen {
 // map_allocator.
 template <typename T>
 struct MakePointer {
-  typedef T* Type;
-  typedef const T* ConstType;
+  using Type = T*;
+  using ConstType = const T*;
 };
 
 template <typename T>
@@ -53,7 +53,7 @@ struct Pointer_type_promotion<A, A> {
 };
 template <typename A, typename B>
 struct TypeConversion {
-  typedef A* type;
+  using type = A*;
 };
 }  // namespace internal
 

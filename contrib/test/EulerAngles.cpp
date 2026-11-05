@@ -35,11 +35,11 @@ const char Z = EULER_Z;
 
 template <typename Scalar, class EulerSystem>
 void verify_euler(const EulerAngles<Scalar, EulerSystem>& e) {
-  typedef EulerAngles<Scalar, EulerSystem> EulerAnglesType;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Quaternion<Scalar> QuaternionType;
-  typedef AngleAxis<Scalar> AngleAxisType;
+  using EulerAnglesType = EulerAngles<Scalar, EulerSystem>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using QuaternionType = Quaternion<Scalar>;
+  using AngleAxisType = AngleAxis<Scalar>;
 
   const Scalar ONE = Scalar(1);
   const Scalar HALF_PI = Scalar(EIGEN_PI / 2);
@@ -163,7 +163,7 @@ void check_all_var(const Matrix<Scalar, 3, 1>& ea) {
 
 template <typename Scalar>
 void check_singular_cases(const Scalar& singularBeta) {
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
   const Scalar PI = Scalar(EIGEN_PI);
 
   for (Scalar epsilon = NumTraits<Scalar>::epsilon(); epsilon < 1; epsilon *= Scalar(1.2)) {
@@ -184,8 +184,8 @@ void check_singular_cases(const Scalar& singularBeta) {
 
 template <typename Scalar>
 void eulerangles_manual() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
   const Vector3 Zero = Vector3::Zero();
   const Scalar PI = Scalar(EIGEN_PI);
 
@@ -216,11 +216,11 @@ void eulerangles_manual() {
 
 template <typename Scalar>
 void eulerangles_rand() {
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Array<Scalar, 3, 1> Array3;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisType;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Array3 = Array<Scalar, 3, 1>;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisType = AngleAxis<Scalar>;
 
   Scalar a = internal::random<Scalar>(-Scalar(EIGEN_PI), Scalar(EIGEN_PI));
   Quaternionx q1;
@@ -263,7 +263,7 @@ void eulerangles_rand() {
 
 template <typename Scalar>
 void eulerangles_gimbal_lock_regression() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
   const Scalar deg = Scalar(EIGEN_PI) / Scalar(180);
 
   check_all_var(Vector3(Scalar(10) * deg, Scalar(90) * deg, Scalar(30) * deg));

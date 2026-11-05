@@ -14,8 +14,8 @@ using namespace Eigen;
 EIGEN_DECLARE_TEST(mpreal_support) {
   // set precision to 256 bits (double has only 53 bits)
   mpreal::set_default_prec(256);
-  typedef Matrix<mpreal, Eigen::Dynamic, Eigen::Dynamic> MatrixXmp;
-  typedef Matrix<std::complex<mpreal>, Eigen::Dynamic, Eigen::Dynamic> MatrixXcmp;
+  using MatrixXmp = Matrix<mpreal, Eigen::Dynamic, Eigen::Dynamic>;
+  using MatrixXcmp = Matrix<std::complex<mpreal>, Eigen::Dynamic, Eigen::Dynamic>;
 
   std::cerr << "epsilon =         " << NumTraits<mpreal>::epsilon() << "\n";
   std::cerr << "dummy_precision = " << NumTraits<mpreal>::dummy_precision() << "\n";

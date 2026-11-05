@@ -63,12 +63,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE std::enable_if_t<sizeof(T) == 8, int> coun
 
 template <typename T>
 struct UnsignedTraits {
-  typedef std::conditional_t<sizeof(T) == 8, uint64_t, uint32_t> type;
+  using type = std::conditional_t<sizeof(T) == 8, uint64_t, uint32_t>;
 };
 
 template <typename T>
 struct DividerTraits {
-  typedef typename UnsignedTraits<T>::type type;
+  using type = typename UnsignedTraits<T>::type;
   static constexpr int N = sizeof(T) * 8;
 };
 
@@ -172,7 +172,7 @@ struct TensorIntDivisor {
   }
 
  private:
-  typedef typename DividerTraits<T>::type UnsignedType;
+  using UnsignedType = typename DividerTraits<T>::type;
   UnsignedType multiplier = 0;
   int32_t shift1 = 0;
   int32_t shift2 = 0;

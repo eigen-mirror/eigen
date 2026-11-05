@@ -14,7 +14,7 @@
 
 template <typename MatrixType>
 void rcond_partial_piv_lu() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -32,7 +32,7 @@ void rcond_partial_piv_lu() {
 
 template <typename MatrixType>
 void rcond_full_piv_lu() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -49,7 +49,7 @@ void rcond_full_piv_lu() {
 
 template <typename MatrixType>
 void rcond_llt() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -67,7 +67,7 @@ void rcond_llt() {
 
 template <typename MatrixType>
 void rcond_ldlt() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -85,7 +85,7 @@ void rcond_ldlt() {
 
 template <typename MatrixType>
 void rcond_singular() {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -121,7 +121,7 @@ void rcond_singular_finite_solves() {
 
 template <typename MatrixType>
 void rcond_identity() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
 
@@ -148,7 +148,7 @@ void rcond_identity() {
 
 template <typename MatrixType>
 void rcond_ill_conditioned() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(4, EIGEN_TEST_MAX_SIZE);
 
@@ -177,8 +177,8 @@ void rcond_ill_conditioned() {
 
 template <typename MatrixType>
 void rcond_1x1() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<typename MatrixType::Scalar, 1, 1> Mat1;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Mat1 = Matrix<typename MatrixType::Scalar, 1, 1>;
   Mat1 m;
   m(0, 0) = internal::random<RealScalar>(RealScalar(1), RealScalar(100));
 
@@ -210,8 +210,8 @@ void rcond_1x1() {
 
 template <typename MatrixType>
 void rcond_2x2() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<typename MatrixType::Scalar, 2, 2> Mat2;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Mat2 = Matrix<typename MatrixType::Scalar, 2, 2>;
 
   // Well-conditioned 2x2 matrix.
   Mat2 m;

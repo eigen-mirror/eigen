@@ -21,11 +21,11 @@ void parametrizedline(const LineType &_line) {
   */
   using std::abs;
   const Index dim = _line.dim();
-  typedef typename LineType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, LineType::AmbientDimAtCompileTime, 1> VectorType;
-  typedef Hyperplane<Scalar, LineType::AmbientDimAtCompileTime> HyperplaneType;
-  typedef Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime> MatrixType;
+  using Scalar = typename LineType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, LineType::AmbientDimAtCompileTime, 1>;
+  using HyperplaneType = Hyperplane<Scalar, LineType::AmbientDimAtCompileTime>;
+  using MatrixType = Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime>;
 
   VectorType p0 = VectorType::Random(dim);
   VectorType p1 = VectorType::Random(dim);
@@ -46,7 +46,7 @@ void parametrizedline(const LineType &_line) {
 
   // casting
   const int Dim = LineType::AmbientDimAtCompileTime;
-  typedef typename GetDifferentType<Scalar>::type OtherScalar;
+  using OtherScalar = typename GetDifferentType<Scalar>::type;
   ParametrizedLine<OtherScalar, Dim> hp1f = l0.template cast<OtherScalar>();
   VERIFY_IS_APPROX(hp1f.template cast<Scalar>(), l0);
   ParametrizedLine<Scalar, Dim> hp1d = l0.template cast<Scalar>();
@@ -88,8 +88,8 @@ void parametrizedline(const LineType &_line) {
 
 template <typename Scalar>
 void parametrizedline_alignment() {
-  typedef ParametrizedLine<Scalar, 4, AutoAlign> Line4a;
-  typedef ParametrizedLine<Scalar, 4, DontAlign> Line4u;
+  using Line4a = ParametrizedLine<Scalar, 4, AutoAlign>;
+  using Line4u = ParametrizedLine<Scalar, 4, DontAlign>;
 
   EIGEN_ALIGN_MAX Scalar array1[16];
   EIGEN_ALIGN_MAX Scalar array2[16];

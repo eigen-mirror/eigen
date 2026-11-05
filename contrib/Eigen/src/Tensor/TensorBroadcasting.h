@@ -19,13 +19,13 @@ namespace Eigen {
 namespace internal {
 template <typename Broadcast, typename XprType>
 struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
   enum {
     // Broadcast is read-only.
     Flags = traits<XprType>::Flags & ~LvalueBit
@@ -34,7 +34,7 @@ struct traits<TensorBroadcastingOp<Broadcast, XprType>> : public traits<XprType>
 
 template <typename Broadcast, typename XprType>
 struct eval<TensorBroadcastingOp<Broadcast, XprType>, Eigen::Dense> {
-  typedef const TensorBroadcastingOp<Broadcast, XprType> EIGEN_DEVICE_REF type;
+  using type = const TensorBroadcastingOp<Broadcast, XprType> EIGEN_DEVICE_REF;
 };
 
 template <typename Dims>
@@ -52,12 +52,12 @@ struct is_input_scalar<Sizes<Indices...>> : bool_constant<Sizes<Indices...>::tot
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorBroadcastingOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorBroadcastingOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorBroadcastingOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorBroadcastingOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorBroadcastingOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorBroadcastingOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorBroadcastingOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBroadcastingOp(const XprType& expr, const Broadcast& broadcast)
       : m_xpr(expr), m_broadcast(broadcast) {}
@@ -74,14 +74,14 @@ class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, X
 // Eval as rvalue
 template <typename Broadcast, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
-  typedef TensorBroadcastingOp<Broadcast, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorBroadcastingOp<Broadcast, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions InputDimensions;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using InputDimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
 
  protected:  //  all the non-static fields must have the same access control, otherwise the TensorEvaluator won't be
@@ -89,8 +89,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   bool isCopy, nByOne, oneByN;
 
  public:
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   enum {
     IsAligned = TensorEvaluator<ArgType, Device>::IsAligned,
@@ -101,19 +101,19 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
   };
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   // We do block based broadcasting using a trick with 2x tensor rank and 0
   // strides. See block method implementation for details.
-  typedef DSizes<Index, 2 * NumDims> BroadcastDimensions;
+  using BroadcastDimensions = DSizes<Index, 2 * NumDims>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -965,8 +965,8 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
         *materialized_input = static_cast<ScalarNoConst*>(mem);
       }
 
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>
-          TensorBlockAssignment;
+      using TensorBlockAssignment =
+          internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>;
 
       TensorBlockAssignment::Run(
           TensorBlockAssignment::target(input_block_sizes, input_block_strides, *materialized_input),
@@ -978,7 +978,7 @@ struct TensorEvaluator<const TensorBroadcastingOp<Broadcast, ArgType>, Device> {
     // ---------------------------------------------------------------------- //
     // Copy data from materialized input block to the materialized output, using
     // given broadcast strides (strides with zeroes).
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, 2 * NumDims, Layout> TensorBlockIO;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, 2 * NumDims, Layout>;
 
     typename TensorBlockIO::Src src(bcast_input_strides, input_buffer);
     typename TensorBlockIO::Dst dst(bcast_block_sizes, bcast_block_strides, materialized_output + offset);

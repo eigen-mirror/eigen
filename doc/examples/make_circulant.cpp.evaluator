@@ -2,10 +2,10 @@ namespace Eigen {
 namespace internal {
 template <typename ArgType>
 struct evaluator<Circulant<ArgType> > : evaluator_base<Circulant<ArgType> > {
-  typedef Circulant<ArgType> XprType;
-  typedef typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type ArgTypeNested;
-  typedef remove_all_t<ArgTypeNested> ArgTypeNestedCleaned;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
+  using XprType = Circulant<ArgType>;
+  using ArgTypeNested = typename nested_eval<ArgType, XprType::ColsAtCompileTime>::type;
+  using ArgTypeNestedCleaned = remove_all_t<ArgTypeNested>;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
 
   enum { CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost, Flags = Eigen::ColMajor };
 

@@ -461,7 +461,7 @@ EIGEN_DEVICE_FUNC inline Scalar AlignedBox<Scalar, AmbientDim>::squaredExteriorD
 
 #define EIGEN_MAKE_TYPEDEFS(Type, TypeSuffix, Size, SizeSuffix) \
   /** \ingroup alignedboxtypedefs */                            \
-  typedef AlignedBox<Type, Size> AlignedBox##SizeSuffix##TypeSuffix;
+  using AlignedBox##SizeSuffix##TypeSuffix = AlignedBox<Type, Size>;
 
 #define EIGEN_MAKE_TYPEDEFS_ALL_SIZES(Type, TypeSuffix) \
   EIGEN_MAKE_TYPEDEFS(Type, TypeSuffix, 1, 1)           \

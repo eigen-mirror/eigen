@@ -16,7 +16,7 @@ using namespace std;
 
 template <typename MatrixType>
 void lu_non_invertible() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   /* this test covers the following files:
      LU.h
   */
@@ -37,8 +37,8 @@ void lu_non_invertible() {
   using KernelMatrixType = typename decltype(std::declval<FullPivLU<MatrixType>>().kernel())::PlainObject;
   using ImageMatrixType =
       typename decltype(std::declval<FullPivLU<MatrixType>>().image(std::declval<const MatrixType&>()))::PlainObject;
-  typedef Matrix<typename MatrixType::Scalar, ColsAtCompileTime, ColsAtCompileTime> CMatrixType;
-  typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, RowsAtCompileTime> RMatrixType;
+  using CMatrixType = Matrix<typename MatrixType::Scalar, ColsAtCompileTime, ColsAtCompileTime>;
+  using RMatrixType = Matrix<typename MatrixType::Scalar, RowsAtCompileTime, RowsAtCompileTime>;
 
   Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
@@ -97,7 +97,7 @@ void lu_invertible() {
   /* this test covers the following files:
      FullPivLU.h
   */
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
   Index size = MatrixType::RowsAtCompileTime;
   if (size == Dynamic) size = internal::random<Index>(1, EIGEN_TEST_MAX_SIZE);
 
@@ -141,7 +141,7 @@ void lu_partial_piv(Index size = MatrixType::ColsAtCompileTime) {
   /* this test covers the following files:
      PartialPivLU.h
   */
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
 
   MatrixType m1(size, size), m2(size, size), m3(size, size);
   m1.setRandom();
@@ -167,8 +167,8 @@ void lu_partial_piv(Index size = MatrixType::ColsAtCompileTime) {
 // same reduction. The determinant of an empty matrix is the empty product, 1.
 template <typename MatrixType>
 void lu_empty() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index n = 5;
 
   FullPivLU<MatrixType> lu{MatrixType(0, 0)};
@@ -199,8 +199,8 @@ void lu_empty() {
 // A = Q D Q^*, with Q unitary, has det(A) = det(D) because det(Q) det(Q^*) = |det(Q)|^2 = 1.
 template <typename MatrixType>
 void lu_determinant(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType d = MatrixType::Zero(size, size);
   setRandomWellConditionedDiagonal(d);
@@ -218,8 +218,8 @@ void lu_determinant(Index size) {
 // a diagonal of 10^4, det = 10^800 overflows every supported float type while log|det| = 800 log 10 does not.
 template <typename MatrixType>
 void lu_determinant_overflow() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   const Index size = 200;
   for (bool overflow : {true, false}) {
@@ -244,8 +244,8 @@ void lu_determinant_overflow() {
 // QR decompositions; determinant() keeps its documented behaviour of returning the pivot product.
 template <typename MatrixType>
 void lu_determinant_rank_deficient(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   const Index rank = internal::random<Index>(1, size - 1);
   MatrixType a(size, size);
@@ -351,8 +351,8 @@ void test_2889() {
 // and remainder tails, including pivot propagation across block edges.
 template <typename Scalar>
 void lu_blocking_boundary() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1, 2, 3,  PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1, 7,
@@ -394,8 +394,8 @@ void lu_blocking_boundary() {
 // Test PartialPivLU with RowMajor storage order at blocking boundaries.
 template <typename Scalar>
 void lu_rowmajor_boundary() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrixType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RowMatrixType = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   const Index sizes[] = {7, 8, 9, 15, 16, 17, 31, 32, 33};
   for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {

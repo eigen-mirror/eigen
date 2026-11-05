@@ -63,7 +63,7 @@ void test_move_initialized_bdcsvd() {
   expected << 1.0, -2.0, 3.0;
   const VectorXd rhs = matrix * expected;
 
-  typedef BDCSVD<MatrixXd, ComputeThinU | ComputeThinV> Solver;
+  using Solver = BDCSVD<MatrixXd, ComputeThinU | ComputeThinV>;
   Solver solver = move_computed_solver<Solver>(matrix);
   const VectorXd actual = solver.solve(rhs);
 
@@ -78,7 +78,7 @@ void test_move_initialized_simplicial_llt() {
   expected << 1.0, -2.0, 3.0;
   const VectorXd rhs = matrix * expected;
 
-  typedef SimplicialLLT<SparseMatrix<double>> Solver;
+  using Solver = SimplicialLLT<SparseMatrix<double>>;
   Solver solver = move_computed_solver<Solver>(matrix);
   const VectorXd actual = solver.solve(rhs);
 

@@ -133,9 +133,9 @@ void eval_closed_spline2d() {
 }
 
 void check_global_interpolation2d() {
-  typedef Spline2d::PointType PointType;
-  typedef Spline2d::KnotVectorType KnotVectorType;
-  typedef Spline2d::ControlPointVectorType ControlPointVectorType;
+  using PointType = Spline2d::PointType;
+  using KnotVectorType = Spline2d::KnotVectorType;
+  using ControlPointVectorType = Spline2d::ControlPointVectorType;
 
   ControlPointVectorType points = ControlPointVectorType::Random(2, 100);
 
@@ -168,9 +168,9 @@ void check_global_interpolation2d() {
 // Regression test for issue #764: KnotAveraging hard-coded 0/1 boundary knots,
 // producing a non-monotone knot vector for parameters outside [0, 1].
 void check_global_interpolation2d_arbitrary_range() {
-  typedef Spline2d::PointType PointType;
-  typedef Spline2d::KnotVectorType KnotVectorType;
-  typedef Spline2d::ControlPointVectorType ControlPointVectorType;
+  using PointType = Spline2d::PointType;
+  using KnotVectorType = Spline2d::KnotVectorType;
+  using ControlPointVectorType = Spline2d::ControlPointVectorType;
 
   // The issue's example: parameters [2,3,4,5] with degree 1 must yield the
   // clamped knot vector [2,2,3,4,5,5], not [0,0,3,4,1,1].
@@ -203,8 +203,8 @@ void check_global_interpolation2d_arbitrary_range() {
 }
 
 void check_global_interpolation_with_derivatives2d() {
-  typedef Spline2d::PointType PointType;
-  typedef Spline2d::KnotVectorType KnotVectorType;
+  using PointType = Spline2d::PointType;
+  using KnotVectorType = Spline2d::KnotVectorType;
 
   const Eigen::DenseIndex numPoints = 100;
   const unsigned int dimension = 2;

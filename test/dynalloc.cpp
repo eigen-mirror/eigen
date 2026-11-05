@@ -16,8 +16,8 @@
 #define ALIGNMENT 1
 #endif
 
-typedef Matrix<float, 16, 1> Vector16f;
-typedef Matrix<float, 8, 1> Vector8f;
+using Vector16f = Matrix<float, 16, 1>;
+using Vector8f = Matrix<float, 8, 1>;
 
 void check_handmade_aligned_malloc() {
   // Hand-make alignment needs at least sizeof(void*) to store the offset.

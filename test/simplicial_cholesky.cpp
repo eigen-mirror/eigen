@@ -23,7 +23,7 @@ void verify_determinant_asserts(const Solver& solver) {
 // so they check info() too, as the dense LLT ones do.
 template <typename SparseMatrixType>
 void test_simplicial_cholesky_determinant_asserts() {
-  typedef typename SparseMatrixType::Scalar Scalar;
+  using Scalar = typename SparseMatrixType::Scalar;
   const Index n = 6;
 
   // A zero pivot stops all four classes; SimplicialLLT alone also rejects a negative one.
@@ -67,7 +67,7 @@ void test_simplicial_cholesky_determinant_asserts() {
 
 template <typename T, typename I_, int flag>
 void test_simplicial_cholesky_T() {
-  typedef SparseMatrix<T, flag, I_> SparseMatrixType;
+  using SparseMatrixType = SparseMatrix<T, flag, I_>;
   SimplicialCholesky<SparseMatrixType, Lower> chol_colmajor_lower_amd;
   SimplicialCholesky<SparseMatrixType, Upper> chol_colmajor_upper_amd;
   SimplicialLLT<SparseMatrixType, Lower> llt_colmajor_lower_amd;

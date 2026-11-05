@@ -9,9 +9,9 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-typedef SparseMatrix<Scalar> SpMat;
+using Scalar = double;
+using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+using SpMat = SparseMatrix<Scalar>;
 
 // --- Dense Kronecker product ---
 static void BM_KroneckerDense(benchmark::State& state) {

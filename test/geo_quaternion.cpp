@@ -26,8 +26,8 @@ T bounded_acos(T v) {
 template <typename QuatType>
 void check_slerp(const QuatType& q0, const QuatType& q1) {
   using std::abs;
-  typedef typename QuatType::Scalar Scalar;
-  typedef AngleAxis<Scalar> AA;
+  using Scalar = typename QuatType::Scalar;
+  using AA = AngleAxis<Scalar>;
 
   Scalar largeEps = test_precision<Scalar>();
 
@@ -53,10 +53,10 @@ void quaternion(void) {
   using std::cos;
   using std::sin;
   using std::sqrt;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Quaternion<Scalar, Options> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Quaternionx = Quaternion<Scalar, Options>;
+  using AngleAxisx = AngleAxis<Scalar>;
 
   Scalar largeEps = test_precision<Scalar>();
 
@@ -328,13 +328,13 @@ void quaternion(void) {
 
 template <typename Scalar>
 void mapQuaternion(void) {
-  typedef Map<Quaternion<Scalar>, Aligned> MQuaternionA;
-  typedef Map<const Quaternion<Scalar>, Aligned> MCQuaternionA;
-  typedef Map<Quaternion<Scalar> > MQuaternionUA;
-  typedef Map<const Quaternion<Scalar> > MCQuaternionUA;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef AngleAxis<Scalar> AngleAxisx;
+  using MQuaternionA = Map<Quaternion<Scalar>, Aligned>;
+  using MCQuaternionA = Map<const Quaternion<Scalar>, Aligned>;
+  using MQuaternionUA = Map<Quaternion<Scalar> >;
+  using MCQuaternionUA = Map<const Quaternion<Scalar> >;
+  using Quaternionx = Quaternion<Scalar>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using AngleAxisx = AngleAxis<Scalar>;
 
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
   Scalar a = internal::random<Scalar>(-Scalar(EIGEN_PI), Scalar(EIGEN_PI));
@@ -408,8 +408,8 @@ void mapQuaternion(void) {
 
 template <typename Scalar>
 void quaternionAlignment(void) {
-  typedef Quaternion<Scalar, AutoAlign> QuaternionA;
-  typedef Quaternion<Scalar, DontAlign> QuaternionUA;
+  using QuaternionA = Quaternion<Scalar, AutoAlign>;
+  using QuaternionUA = Quaternion<Scalar, DontAlign>;
 
   EIGEN_ALIGN_MAX Scalar array1[4];
   EIGEN_ALIGN_MAX Scalar array2[4];
@@ -435,7 +435,7 @@ void check_const_correctness(const PlainObjectType&) {
   // CMake can help with that.
 
   // verify that map-to-const don't have LvalueBit
-  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
+  using ConstPlainObjectType = std::add_const_t<PlainObjectType>;
   VERIFY(!(internal::traits<Map<ConstPlainObjectType> >::Flags & LvalueBit));
   VERIFY(!(internal::traits<Map<ConstPlainObjectType, Aligned> >::Flags & LvalueBit));
   VERIFY(!(Map<ConstPlainObjectType>::Flags & LvalueBit));

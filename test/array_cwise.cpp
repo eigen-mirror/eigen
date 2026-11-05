@@ -628,10 +628,10 @@ void signbit_tests() {
 
 template <typename ArrayType>
 void array_generic(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
-  typedef typename ArrayType::RealScalar RealScalar;
-  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename ArrayType::RealScalar;
+  using ColVectorType = Array<Scalar, ArrayType::RowsAtCompileTime, 1>;
+  using RowVectorType = Array<Scalar, 1, ArrayType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -707,9 +707,9 @@ void array_generic(const ArrayType& m) {
   VERIFY_IS_APPROX((m3 = s1), ArrayType::Constant(rows, cols, s1));
   VERIFY_IS_APPROX((m3 = 1), ArrayType::Constant(rows, cols, 1));
   VERIFY_IS_APPROX((m3.topLeftCorner(rows, cols) = 1), ArrayType::Constant(rows, cols, 1));
-  typedef Array<Scalar, ArrayType::RowsAtCompileTime == Dynamic ? 2 : ArrayType::RowsAtCompileTime,
-                ArrayType::ColsAtCompileTime == Dynamic ? 2 : ArrayType::ColsAtCompileTime, ArrayType::Options>
-      FixedArrayType;
+  using FixedArrayType =
+      Array<Scalar, ArrayType::RowsAtCompileTime == Dynamic ? 2 : ArrayType::RowsAtCompileTime,
+            ArrayType::ColsAtCompileTime == Dynamic ? 2 : ArrayType::ColsAtCompileTime, ArrayType::Options>;
   {
     FixedArrayType f1(s1);
     VERIFY_IS_APPROX(f1, FixedArrayType::Constant(s1));
@@ -750,7 +750,7 @@ void array_generic(const ArrayType& m) {
   VERIFY_IS_APPROX(Eigen::pow(m1(0, 0), exponents), ArrayType::Constant(rows, cols, m1(0, 0) * m1(0, 0)));
 
   // Check possible conflicts with 1D ctor
-  typedef Array<Scalar, Dynamic, 1> OneDArrayType;
+  using OneDArrayType = Array<Scalar, Dynamic, 1>;
   {
     OneDArrayType o1(rows);
     VERIFY(o1.size() == rows);
@@ -764,8 +764,8 @@ void array_generic(const ArrayType& m) {
     VERIFY(o4.size() == rows);
   }
   // Check possible conflicts with 2D ctor
-  typedef Array<Scalar, Dynamic, Dynamic> TwoDArrayType;
-  typedef Array<Scalar, 2, 1> ArrayType2;
+  using TwoDArrayType = Array<Scalar, Dynamic, Dynamic>;
+  using ArrayType2 = Array<Scalar, 2, 1>;
   {
     TwoDArrayType o1(rows, cols);
     VERIFY(o1.rows() == rows);
@@ -797,8 +797,8 @@ void array_generic(const ArrayType& m) {
 template <typename ArrayType>
 void comparisons(const ArrayType& m) {
   using numext::abs;
-  typedef typename ArrayType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -901,7 +901,7 @@ void comparisons(const ArrayType& m) {
   RealScalar a = m1.abs().mean();
   VERIFY((m1 < -a || m1 > a).count() == (m1.abs() > a).count());
 
-  typedef Array<Index, Dynamic, 1> ArrayOfIndices;
+  using ArrayOfIndices = Array<Index, Dynamic, 1>;
 
   // TODO allows colwise/rowwise for array
   VERIFY_IS_APPROX(((m1.abs() + Scalar(1)) > RealScalar(0.1)).colwise().count(),
@@ -926,8 +926,8 @@ template <typename ArrayType>
 void array_real(const ArrayType& m) {
   using numext::abs;
   using std::sqrt;
-  typedef typename ArrayType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -1131,8 +1131,8 @@ void array_real(const ArrayType& m) {
 
 template <typename ArrayType>
 void array_complex(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -1279,7 +1279,7 @@ void array_complex(const ArrayType& m) {
 
 template <typename ArrayType>
 void min_max(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
+  using Scalar = typename ArrayType::Scalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -1483,7 +1483,7 @@ void typed_logicals_test(const ArrayType& m) {
 // everything for unsigned ones.
 template <typename ArrayType>
 void integer_typed_predicates_test(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
+  using Scalar = typename ArrayType::Scalar;
   Index rows = m.rows();
   Index cols = m.cols();
   const Scalar values[] = {Scalar(0),
@@ -1895,6 +1895,6 @@ EIGEN_DECLARE_TEST(array_cwise) {
   VERIFY((std::is_same<internal::global_math_functions_filtering_base<int>::type, int>::value));
   VERIFY((std::is_same<internal::global_math_functions_filtering_base<float>::type, float>::value));
   VERIFY((std::is_same<internal::global_math_functions_filtering_base<Array2i>::type, ArrayBase<Array2i>>::value));
-  typedef CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd> Xpr;
+  using Xpr = CwiseUnaryOp<internal::scalar_abs_op<double>, ArrayXd>;
   VERIFY((std::is_same<internal::global_math_functions_filtering_base<Xpr>::type, ArrayBase<Xpr>>::value));
 }

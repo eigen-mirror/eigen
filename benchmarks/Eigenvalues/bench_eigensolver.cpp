@@ -12,11 +12,11 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 static void BM_SelfAdjointEigenSolver(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType a = MatrixType::Random(n, n);
   MatrixType covMat = a * a.adjoint();
   int r = internal::random<int>(0, n - 1);
@@ -33,7 +33,7 @@ BENCHMARK(BM_SelfAdjointEigenSolver)->RangeMultiplier(2)->Range(4, 512);
 
 static void BM_EigenSolver(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType a = MatrixType::Random(n, n);
   MatrixType covMat = a * a.adjoint();
   int r = internal::random<int>(0, n - 1);

@@ -182,9 +182,9 @@ void check_inf_nan(bool dryrun) {
 
 template <typename RealScalar>
 void check_complex_rowmajor_adjoint_product() {
-  typedef std::complex<RealScalar> Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrix;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMatrix;
+  using Scalar = std::complex<RealScalar>;
+  using RowMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using ColMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
 
   RowMatrix mat(2, 2);
   mat << Scalar(1, 2), Scalar(3, -4), Scalar(-5, 6), Scalar(7, 8);
@@ -202,8 +202,8 @@ void check_complex_rowmajor_adjoint_product() {
 
 template <typename RealScalar>
 void check_complex_packet_arithmetic() {
-  typedef std::complex<RealScalar> Scalar;
-  typedef Matrix<Scalar, 2, 1> Vector2;
+  using Scalar = std::complex<RealScalar>;
+  using Vector2 = Matrix<Scalar, 2, 1>;
 
   Vector2 values;
   values << Scalar(RealScalar(0.53645928880954319), RealScalar(-0.60489662966980218)),
@@ -259,8 +259,8 @@ void check_complex_packet_arithmetic() {
 
 template <typename RealScalar>
 void check_complex_packet_math_functions() {
-  typedef std::complex<RealScalar> Scalar;
-  typedef Matrix<Scalar, 4, 1> Vector4;
+  using Scalar = std::complex<RealScalar>;
+  using Vector4 = Matrix<Scalar, 4, 1>;
 
   Vector4 values;
   values << Scalar(RealScalar(0.53645928880954319), RealScalar(-0.60489662966980218)),
@@ -286,9 +286,9 @@ void check_complex_packet_math_functions() {
 
 template <typename RealScalar>
 void check_complex_householder_qr() {
-  typedef std::complex<RealScalar> Scalar;
-  typedef Matrix<Scalar, 3, 2> Matrix32;
-  typedef Matrix<Scalar, 2, 2> Matrix22;
+  using Scalar = std::complex<RealScalar>;
+  using Matrix32 = Matrix<Scalar, 3, 2>;
+  using Matrix22 = Matrix<Scalar, 2, 2>;
 
   Matrix32 mat;
   mat << Scalar(RealScalar(0.59688070592806186), RealScalar(-0.21123424512127231)),
@@ -310,7 +310,7 @@ void check_complex_householder_qr() {
 // maximum then discards. Large entries both on the diagonal and inside a packet of a column.
 template <typename RealScalar>
 void check_complex_selfadjoint_l1norm() {
-  typedef std::complex<RealScalar> Scalar;
+  using Scalar = std::complex<RealScalar>;
   RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
   Matrix<Scalar, 8, 8> m = Matrix<Scalar, 8, 8>::Identity() * big;
   VERIFY_IS_APPROX(m.template selfadjointView<Lower>().l1Norm(), big);
@@ -339,7 +339,7 @@ void check_complex_fastmath() {
 // and outputs is not relaxed by fast-math, so these checks must hold.
 template <typename Scalar>
 void check_sign_dependent_functions() {
-  typedef Array<Scalar, Dynamic, 1> ArrayType;
+  using ArrayType = Array<Scalar, Dynamic, 1>;
   const Index n = 64;
 
   ArrayType ya(n), xa(n);

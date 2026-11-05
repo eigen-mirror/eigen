@@ -12,7 +12,7 @@
 
 template <typename Scalar>
 void special_numbers() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
+  using MatType = Matrix<Scalar, Dynamic, Dynamic>;
   int rows = internal::random<int>(1, 300);
   int cols = internal::random<int>(1, 300);
 

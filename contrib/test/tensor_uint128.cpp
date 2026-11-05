@@ -15,7 +15,7 @@
 #if EIGEN_COMP_MSVC || !defined(__SIZEOF_INT128__)
 #define EIGEN_NO_INT128
 #else
-typedef __uint128_t uint128_t;
+using uint128_t = __uint128_t;
 #endif
 
 // Only run the test on compilers that support 128bit integers natively

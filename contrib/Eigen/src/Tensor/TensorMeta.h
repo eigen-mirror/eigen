@@ -46,16 +46,16 @@ EIGEN_DEPRECATED EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE constexpr T divup(const T
 // Default packet types
 template <typename Scalar, typename Device>
 struct PacketType : internal::packet_traits<Scalar> {
-  typedef typename internal::packet_traits<Scalar>::type type;
+  using type = typename internal::packet_traits<Scalar>::type;
 };
 
 // For CUDA packet types when using a GpuDevice
 #if defined(EIGEN_USE_GPU) && defined(EIGEN_GPU_COMPILE_PHASE)
 
-typedef ulonglong2 Packet4h2;
+using Packet4h2 = ulonglong2;
 template <>
 struct PacketType<half, GpuDevice> {
-  typedef Packet4h2 type;
+  using type = Packet4h2;
   static constexpr int size = 8;
   enum {
     HasAdd = 1,
@@ -116,13 +116,13 @@ struct static_for<Index, end, end, step, StepOp> {
 template <typename OutScalar, typename Device, bool Vectorizable>
 struct Vectorise {
   static constexpr int PacketSize = 1;
-  typedef OutScalar PacketReturnType;
+  using PacketReturnType = OutScalar;
 };
 
 template <typename OutScalar, typename Device>
 struct Vectorise<OutScalar, Device, true> {
   static constexpr int PacketSize = Eigen::PacketType<OutScalar, Device>::size;
-  typedef typename Eigen::PacketType<OutScalar, Device>::type PacketReturnType;
+  using PacketReturnType = typename Eigen::PacketType<OutScalar, Device>::type;
 };
 
 static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index roundUp(Index x, Index y) { return ((((x) + (y)-1) / (y)) * (y)); }
@@ -132,7 +132,7 @@ static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Index roundUp(Index x, Index y) { r
 
 template <>
 struct PacketType<half, SyclDevice> {
-  typedef half type;
+  using type = half;
   static constexpr int size = 1;
   enum {
     HasAdd = 0,
@@ -151,8 +151,8 @@ struct PacketType<half, SyclDevice> {
 };
 template <typename Scalar>
 struct PacketType<Scalar, SyclDevice> : internal::default_packet_traits {
-  typedef Scalar type;
-  typedef Scalar half;
+  using type = Scalar;
+  using half = Scalar;
   enum {
     Vectorizable = 0,
     size = 1,
@@ -179,8 +179,8 @@ struct PacketType<Scalar, const SyclDevice> : PacketType<Scalar, SyclDevice> {};
 #define PACKET_TYPE(CVQual, Type, val, lengths, DEV)                                 \
   template <>                                                                        \
   struct PacketType<CVQual Type, DEV> : internal::sycl_packet_traits<val, lengths> { \
-    typedef typename internal::packet_traits<Type>::type type;                       \
-    typedef typename internal::packet_traits<Type>::half half;                       \
+    using type = typename internal::packet_traits<Type>::type;                       \
+    using half = typename internal::packet_traits<Type>::half;                       \
   };
 
 PACKET_TYPE(const, float, 1, 4, SyclDevice)
@@ -210,8 +210,8 @@ struct Pair {
   U first{};
   V second{};
 
-  typedef U first_type;
-  typedef V second_type;
+  using first_type = U;
+  using second_type = V;
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Pair() = default;
 

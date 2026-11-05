@@ -30,7 +30,7 @@ struct processTriangularMatrix {
 // cut this routine is meant to avoid.
 template <typename MatrixType>
 struct processTriangularMatrix<MatrixType, 0> {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   static void run(MatrixType& m, MatrixType& T, const MatrixType& U) {
     using std::abs;
     using std::sqrt;

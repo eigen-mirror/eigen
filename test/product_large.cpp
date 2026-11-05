@@ -144,8 +144,8 @@ template <typename T>
 void test_aliasing() {
   int rows = internal::random<int>(1, 12);
   int cols = internal::random<int>(1, 12);
-  typedef Matrix<T, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<T, Dynamic, 1> VectorType;
+  using MatrixType = Matrix<T, Dynamic, Dynamic>;
+  using VectorType = Matrix<T, Dynamic, 1>;
   VectorType x(cols);
   x.setRandom();
   VectorType z(x);
@@ -420,7 +420,7 @@ void product_extreme_aspect_ratios() {
 
 template <int>
 void bug_1622() {
-  typedef Matrix<double, 2, -1, 0, 2, -1> Mat2X;
+  using Mat2X = Matrix<double, 2, -1, 0, 2, -1>;
   Mat2X x(2, 2);
   x.setRandom();
   MatrixXd y(2, 2);

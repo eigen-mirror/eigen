@@ -85,7 +85,7 @@ struct fixed_size_tensor_index_extraction_helper<Index, 0> {
  */
 template <std::ptrdiff_t... Indices>
 struct Sizes {
-  typedef std::integer_sequence<std::ptrdiff_t, Indices...> Base;
+  using Base = std::integer_sequence<std::ptrdiff_t, Indices...>;
   const Base t = Base();
   static constexpr std::ptrdiff_t total_size = internal::arg_prod(Indices...);
   static constexpr ptrdiff_t count = sizeof...(Indices);
@@ -180,7 +180,7 @@ struct tensor_index_linearization_helper<Index, NumIndices, 0, RowMajor> {
  */
 template <typename DenseIndex, int NumDims>
 struct DSizes : array<DenseIndex, NumDims> {
-  typedef array<DenseIndex, NumDims> Base;
+  using Base = array<DenseIndex, NumDims>;
   static constexpr int count = NumDims;
 
   constexpr EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index rank() const { return NumDims; }

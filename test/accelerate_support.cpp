@@ -20,7 +20,7 @@
 
 template <typename MatrixType, typename DenseMat>
 int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows = 300, int maxCols = 300) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   int rows = internal::random<int>(1, maxRows);
   int cols = internal::random<int>(1, maxCols);
   double density = (std::max)(8.0 / (rows * cols), 0.01);
@@ -34,7 +34,7 @@ int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows
 
 template <typename MatrixType, typename DenseMat>
 int generate_sparse_square_symmetric_problem(MatrixType& A, DenseMat& dA, int maxSize = 300) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   int rows = internal::random<int>(1, maxSize);
   int cols = rows;
   double density = (std::max)(8.0 / (rows * cols), 0.01);
@@ -50,8 +50,8 @@ int generate_sparse_square_symmetric_problem(MatrixType& A, DenseMat& dA, int ma
 
 template <typename Scalar, typename Solver>
 void test_accelerate_ldlt() {
-  typedef SparseMatrix<Scalar> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<Scalar>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A;
   Matrix<Scalar, Dynamic, Dynamic> dA;
@@ -84,8 +84,8 @@ void test_accelerate_ldlt() {
 
 template <typename Scalar, typename Solver>
 void test_accelerate_llt() {
-  typedef SparseMatrix<Scalar> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<Scalar>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A;
   Matrix<Scalar, Dynamic, Dynamic> dA;
@@ -118,8 +118,8 @@ void test_accelerate_llt() {
 
 template <typename Scalar, typename Solver>
 void test_accelerate_qr() {
-  typedef SparseMatrix<Scalar> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<Scalar>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A;
   Matrix<Scalar, Dynamic, Dynamic> dA;
@@ -152,7 +152,7 @@ void test_accelerate_qr() {
 
 template <typename Scalar>
 void run_tests() {
-  typedef SparseMatrix<Scalar> MatrixType;
+  using MatrixType = SparseMatrix<Scalar>;
 
   test_accelerate_ldlt<Scalar, AccelerateLDLT<MatrixType, Lower> >();
   test_accelerate_ldlt<Scalar, AccelerateLDLTUnpivoted<MatrixType, Lower> >();

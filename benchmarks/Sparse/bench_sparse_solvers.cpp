@@ -14,9 +14,9 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef SparseMatrix<Scalar> SpMat;
-typedef Matrix<Scalar, Dynamic, 1> Vec;
+using Scalar = double;
+using SpMat = SparseMatrix<Scalar>;
+using Vec = Matrix<Scalar, Dynamic, 1>;
 
 // Generate a SPD banded matrix (Laplacian-like).
 static SpMat generateSPD(int n, int bandwidth) {

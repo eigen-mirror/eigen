@@ -46,7 +46,7 @@ inline T poly_eval_horner(const Polynomials& poly, const T& x) {
  */
 template <typename Polynomials, typename T>
 inline T poly_eval(const Polynomials& poly, const T& x) {
-  typedef typename NumTraits<T>::Real Real;
+  using Real = typename NumTraits<T>::Real;
 
   if (numext::abs2(x) <= Real(1)) {
     return poly_eval_horner(poly, x);
@@ -74,8 +74,8 @@ inline T poly_eval(const Polynomials& poly, const T& x) {
 template <typename Polynomial>
 inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_max_bound(const Polynomial& poly) {
   using std::abs;
-  typedef typename Polynomial::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real Real;
+  using Scalar = typename Polynomial::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
 
   eigen_assert(Scalar(0) != poly[poly.size() - 1]);
   const Scalar inv_leading_coeff = Scalar(1) / poly[poly.size() - 1];
@@ -96,8 +96,8 @@ inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_max_bound(co
 template <typename Polynomial>
 inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_min_bound(const Polynomial& poly) {
   using std::abs;
-  typedef typename Polynomial::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real Real;
+  using Scalar = typename Polynomial::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
 
   DenseIndex i = 0;
   while (i < poly.size() - 1 && Scalar(0) == poly(i)) {
@@ -127,7 +127,7 @@ inline typename NumTraits<typename Polynomial::Scalar>::Real cauchy_min_bound(co
  */
 template <typename RootVector, typename Polynomial>
 void roots_to_monicPolynomial(const RootVector& rv, Polynomial& poly) {
-  typedef typename Polynomial::Scalar Scalar;
+  using Scalar = typename Polynomial::Scalar;
 
   poly.setZero(rv.size() + 1);
   poly[0] = -rv[0];

@@ -180,7 +180,7 @@ struct TensorBlockResourceRequirements {
 template <int NumDims, typename IndexType = Eigen::Index>
 class TensorBlockDescriptor {
  public:
-  typedef DSizes<IndexType, NumDims> Dimensions;
+  using Dimensions = DSizes<IndexType, NumDims>;
 
   // If we evaluate a Tensor assignment, and expression on the left, already has
   // a memory buffer, then we might do performance optimization, and evaluate
@@ -324,10 +324,10 @@ class TensorBlockDescriptor {
 
 template <int NumDims, int Layout, typename IndexType = Eigen::Index>
 class TensorBlockMapper {
-  typedef TensorBlockDescriptor<NumDims, IndexType> BlockDescriptor;
+  using BlockDescriptor = TensorBlockDescriptor<NumDims, IndexType>;
 
  public:
-  typedef DSizes<IndexType, NumDims> Dimensions;
+  using Dimensions = DSizes<IndexType, NumDims>;
 
   TensorBlockMapper() = default;
   TensorBlockMapper(const DSizes<IndexType, NumDims>& dimensions, const TensorBlockResourceRequirements& requirements)
@@ -577,7 +577,7 @@ enum TensorBlockKind {
 
 class TensorBlockNotImplemented {
  public:
-  typedef void XprType;
+  using XprType = void;
 };
 
 template <typename Scalar, int NumDims, int Layout, typename IndexType>
@@ -724,11 +724,11 @@ namespace internal {
 
 template <typename XprType>
 struct XprScalar {
-  typedef typename XprType::Scalar type;
+  using type = typename XprType::Scalar;
 };
 template <>
 struct XprScalar<void> {
-  typedef void type;
+  using type = void;
 };
 
 // -------------------------------------------------------------------------- //
@@ -752,7 +752,7 @@ struct XprScalar<void> {
 template <typename Scalar, int NumDims, int Layout, typename IndexType = Eigen::Index>
 class TensorMaterializedBlock {
  public:
-  typedef DSizes<IndexType, NumDims> Dimensions;
+  using Dimensions = DSizes<IndexType, NumDims>;
   using XprType = TensorBlockView<Scalar, NumDims, Layout, IndexType>;
 
   TensorMaterializedBlock(TensorBlockKind kind, const Scalar* data, const Dimensions& dimensions,
@@ -772,7 +772,7 @@ class TensorMaterializedBlock {
   const Scalar* data() const { return m_valid_expr ? m_expr.data() : m_data; }
   void cleanup() {}
 
-  typedef internal::TensorBlockDescriptor<NumDims, IndexType> TensorBlockDesc;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, IndexType>;
 
   // TensorMaterializedBlock can be backed by different types of storage:
   //
@@ -818,7 +818,7 @@ class TensorMaterializedBlock {
   EIGEN_STRONG_INLINE static Storage prepareStorage(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                                     bool allow_strided_storage = false) {
     // Try to reuse destination as an output block buffer.
-    typedef typename TensorBlockDesc::DestinationBuffer DestinationBuffer;
+    using DestinationBuffer = typename TensorBlockDesc::DestinationBuffer;
 
     if (desc.destination().kind() == DestinationBuffer::kContiguous) {
       Scalar* buffer = desc.destination().template data<Scalar>();
@@ -870,11 +870,10 @@ class TensorCwiseUnaryBlock {
   static constexpr bool NoArgBlockAccess = std::is_void<typename ArgTensorBlock::XprType>::value;
 
  public:
-  typedef std::conditional_t<NoArgBlockAccess, void,
-                             TensorCwiseUnaryOp<UnaryOp, const typename ArgTensorBlock::XprType> >
-      XprType;
+  using XprType =
+      std::conditional_t<NoArgBlockAccess, void, TensorCwiseUnaryOp<UnaryOp, const typename ArgTensorBlock::XprType>>;
 
-  typedef typename XprScalar<XprType>::type Scalar;
+  using Scalar = typename XprScalar<XprType>::type;
 
   TensorCwiseUnaryBlock(const ArgTensorBlock& arg_block, const UnaryOp& functor)
       : m_arg_block(arg_block), m_functor(functor) {}
@@ -900,12 +899,11 @@ class TensorCwiseBinaryBlock {
       std::is_void<typename LhsTensorBlock::XprType>::value || std::is_void<typename RhsTensorBlock::XprType>::value;
 
  public:
-  typedef std::conditional_t<
+  using XprType = std::conditional_t<
       NoArgBlockAccess, void,
-      TensorCwiseBinaryOp<BinaryOp, const typename LhsTensorBlock::XprType, const typename RhsTensorBlock::XprType> >
-      XprType;
+      TensorCwiseBinaryOp<BinaryOp, const typename LhsTensorBlock::XprType, const typename RhsTensorBlock::XprType>>;
 
-  typedef typename XprScalar<XprType>::type Scalar;
+  using Scalar = typename XprScalar<XprType>::type;
 
   TensorCwiseBinaryBlock(const LhsTensorBlock& left_block, const RhsTensorBlock& right_block, const BinaryOp& functor)
       : m_left_block(left_block), m_right_block(right_block), m_functor(functor) {}
@@ -934,13 +932,13 @@ class TensorCwiseBinaryBlock {
 
 template <typename BlockFactory, typename ArgTensorBlock>
 class TensorUnaryExprBlock {
-  typedef typename ArgTensorBlock::XprType ArgXprType;
+  using ArgXprType = typename ArgTensorBlock::XprType;
   static constexpr bool NoArgBlockAccess = std::is_void<ArgXprType>::value;
 
  public:
-  typedef std::conditional_t<NoArgBlockAccess, void, typename BlockFactory::template XprType<ArgXprType>::type> XprType;
+  using XprType = std::conditional_t<NoArgBlockAccess, void, typename BlockFactory::template XprType<ArgXprType>::type>;
 
-  typedef typename XprScalar<XprType>::type Scalar;
+  using Scalar = typename XprScalar<XprType>::type;
 
   TensorUnaryExprBlock(const ArgTensorBlock& arg_block, const BlockFactory& factory)
       : m_arg_block(arg_block), m_factory(factory) {}
@@ -961,19 +959,19 @@ class TensorUnaryExprBlock {
 
 template <typename BlockFactory, typename Arg1TensorBlock, typename Arg2TensorBlock, typename Arg3TensorBlock>
 class TensorTernaryExprBlock {
-  typedef typename Arg1TensorBlock::XprType Arg1XprType;
-  typedef typename Arg2TensorBlock::XprType Arg2XprType;
-  typedef typename Arg3TensorBlock::XprType Arg3XprType;
+  using Arg1XprType = typename Arg1TensorBlock::XprType;
+  using Arg2XprType = typename Arg2TensorBlock::XprType;
+  using Arg3XprType = typename Arg3TensorBlock::XprType;
 
   static constexpr bool NoArgBlockAccess =
       std::is_void<Arg1XprType>::value || std::is_void<Arg2XprType>::value || std::is_void<Arg3XprType>::value;
 
  public:
-  typedef std::conditional_t<NoArgBlockAccess, void,
-                             typename BlockFactory::template XprType<Arg1XprType, Arg2XprType, Arg3XprType>::type>
-      XprType;
+  using XprType =
+      std::conditional_t<NoArgBlockAccess, void,
+                         typename BlockFactory::template XprType<Arg1XprType, Arg2XprType, Arg3XprType>::type>;
 
-  typedef typename XprScalar<XprType>::type Scalar;
+  using Scalar = typename XprScalar<XprType>::type;
 
   TensorTernaryExprBlock(const Arg1TensorBlock& arg1_block, const Arg2TensorBlock& arg2_block,
                          const Arg3TensorBlock& arg3_block, const BlockFactory& factory)
@@ -1001,8 +999,8 @@ class TensorTernaryExprBlock {
 
 template <typename Scalar, typename IndexType>
 class StridedLinearBufferCopy {
-  typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
+  using Packet = typename packet_traits<Scalar>::type;
+  using HalfPacket = typename unpacket_traits<Packet>::half;
   enum {
     Vectorizable = packet_traits<Scalar>::Vectorizable,
     PacketSize = packet_traits<Scalar>::size,
@@ -1254,11 +1252,11 @@ template <typename Scalar, typename IndexType, int NumDims, int Layout>
 class TensorBlockIO {
   static constexpr bool IsColMajor = Layout == ColMajor;
 
-  typedef StridedLinearBufferCopy<Scalar, IndexType> LinCopy;
+  using LinCopy = StridedLinearBufferCopy<Scalar, IndexType>;
 
  public:
-  typedef DSizes<IndexType, NumDims> Dimensions;
-  typedef DSizes<int, NumDims> DimensionsMap;
+  using Dimensions = DSizes<IndexType, NumDims>;
+  using DimensionsMap = DSizes<int, NumDims>;
 
   struct Dst {
     Dst(const Dimensions& dst_dims, const Dimensions& dst_strides, Scalar* dst, IndexType dst_offset = 0)
@@ -1662,9 +1660,9 @@ struct TensorBlockRead<TensorConversionOp<Scalar, Arg>> {
 template <typename Scalar, int NumDims, typename TensorBlockExpr, typename IndexType = Eigen::Index>
 class TensorBlockAssignment {
   // We will use coeff/packet path to evaluate block expressions.
-  typedef TensorEvaluator<const TensorBlockExpr, DefaultDevice> TensorBlockEvaluator;
+  using TensorBlockEvaluator = TensorEvaluator<const TensorBlockExpr, DefaultDevice>;
 
-  typedef DSizes<IndexType, NumDims> Dimensions;
+  using Dimensions = DSizes<IndexType, NumDims>;
   using BlockRead = TensorBlockRead<TensorBlockExpr>;
 
   enum { Vectorizable = packet_traits<Scalar>::Vectorizable, PacketSize = packet_traits<Scalar>::size };
@@ -1681,7 +1679,7 @@ class TensorBlockAssignment {
   template <typename Evaluator>
   struct InnerDimAssign<true, Evaluator> {
     EIGEN_ALWAYS_INLINE static void Run(Scalar* target, IndexType count, const Evaluator& eval, IndexType eval_offset) {
-      typedef typename packet_traits<Scalar>::type Packet;
+      using Packet = typename packet_traits<Scalar>::type;
 
       const IndexType unrolled_size = (4 * PacketSize) * (count / (4 * PacketSize));
       const IndexType vectorized_size = PacketSize * (count / PacketSize);

@@ -1006,7 +1006,7 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
   template <typename DiagXpr, typename Func>
   void assignDiagonal(const DiagXpr diagXpr, const Func& assignFunc) {
     constexpr StorageIndex kEmptyIndexVal(-1);
-    typedef typename ScalarVector::AlignedMapType ValueMap;
+    using ValueMap = typename ScalarVector::AlignedMapType;
 
     Index n = diagXpr.size();
 
@@ -1317,7 +1317,7 @@ void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator
   *
   * Here is a typical usage example:
   * \code
-    typedef Triplet<double> T;
+    using T = Triplet<double>;
     std::vector<T> tripletList;
     tripletList.reserve(estimation_of_entries);
     for(...)
@@ -1411,7 +1411,7 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromSortedTriplets(const 
   * Here is a typical usage example:
   * \code
     SparseMatrixType m(rows,cols); // m contains nonzero entries
-    typedef Triplet<double> T;
+    using T = Triplet<double>;
     std::vector<T> tripletList;
     tripletList.reserve(estimation_of_entries);
     for(...)
@@ -1546,11 +1546,10 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     //  1 - compute the number of coeffs per dest inner vector
     //  2 - do the actual copy/eval
     // Since each coeff of the rhs has to be evaluated twice, let's evaluate it if needed
-    typedef
-        typename internal::nested_eval<OtherDerived, 2, typename internal::plain_matrix_type<OtherDerived>::type>::type
-            OtherCopy;
-    typedef internal::remove_all_t<OtherCopy> OtherCopy_;
-    typedef internal::evaluator<OtherCopy_> OtherCopyEval;
+    using OtherCopy =
+        typename internal::nested_eval<OtherDerived, 2, typename internal::plain_matrix_type<OtherDerived>::type>::type;
+    using OtherCopy_ = internal::remove_all_t<OtherCopy>;
+    using OtherCopyEval = internal::evaluator<OtherCopy_>;
     OtherCopy otherCopy(other.derived());
     OtherCopyEval otherCopyEval(otherCopy);
 
@@ -1739,8 +1738,8 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
     } else {
       // handle the edge case where StorageIndex is insufficient to reserve outerSize additional elements
       // allocate space for one additional element in the interval [outer,maxReserveSize)
-      typedef internal::sparse_reserve_op<StorageIndex> ReserveSizesOp;
-      typedef CwiseNullaryOp<ReserveSizesOp, IndexVector> ReserveSizesXpr;
+      using ReserveSizesOp = internal::sparse_reserve_op<StorageIndex>;
+      using ReserveSizesXpr = CwiseNullaryOp<ReserveSizesOp, IndexVector>;
       ReserveSizesXpr reserveSizesXpr(m_outerSize, 1, ReserveSizesOp(outer, m_outerSize, maxReserveSize));
       reserveInnerVectors(reserveSizesXpr);
     }

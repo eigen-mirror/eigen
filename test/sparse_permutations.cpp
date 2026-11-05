@@ -55,11 +55,11 @@ template <int OtherStorage, typename SparseMatrixType>
 void sparse_permutations(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
   const Index cols = ref.cols();
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, OtherStorage, StorageIndex> OtherSparseMatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<StorageIndex, Dynamic, 1> VectorI;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
+  using OtherSparseMatrixType = SparseMatrix<Scalar, OtherStorage, StorageIndex>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorI = Matrix<StorageIndex, Dynamic, 1>;
   //   bool IsRowMajor1 = SparseMatrixType::IsRowMajor;
   //   bool IsRowMajor2 = OtherSparseMatrixType::IsRowMajor;
 

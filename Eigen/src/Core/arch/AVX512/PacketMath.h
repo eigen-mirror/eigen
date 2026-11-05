@@ -32,18 +32,18 @@ namespace internal {
 #endif
 #endif
 
-typedef __m512 Packet16f;
-typedef __m512i Packet16i;
-typedef __m512d Packet8d;
-typedef eigen_packet_wrapper<__m512i, 1> Packet8l;
+using Packet16f = __m512;
+using Packet16i = __m512i;
+using Packet8d = __m512d;
+using Packet8l = eigen_packet_wrapper<__m512i, 1>;
 #ifndef EIGEN_VECTORIZE_AVX512FP16
-typedef eigen_packet_wrapper<__m256i, 1> Packet16h;
+using Packet16h = eigen_packet_wrapper<__m256i, 1>;
 #endif
-typedef eigen_packet_wrapper<__m256i, 2> Packet16bf;
+using Packet16bf = eigen_packet_wrapper<__m256i, 2>;
 
-typedef eigen_packet_wrapper<__m512i, 6> Packet32s;
-typedef eigen_packet_wrapper<__m256i, 6> Packet16s;
-typedef eigen_packet_wrapper<__m128i, 6> Packet8s;
+using Packet32s = eigen_packet_wrapper<__m512i, 6>;
+using Packet16s = eigen_packet_wrapper<__m256i, 6>;
+using Packet8s = eigen_packet_wrapper<__m128i, 6>;
 
 #if EIGEN_COMP_NVHPC
 #define EIGEN_AVX512_SHUFFLE_PS(A, B, M) ((__m512)_mm512_shuffle_ps(A, B, M))
@@ -114,9 +114,9 @@ struct is_arithmetic<Packet16h> : std::true_type {};
 
 template <>
 struct packet_traits<half> : default_packet_traits {
-  typedef Packet16h type;
+  using type = Packet16h;
   // There is no half-size packet for Packet16h.
-  typedef Packet16h half;
+  using half = Packet16h;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -151,8 +151,8 @@ struct packet_traits<half> : default_packet_traits {
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet16f type;
-  typedef Packet8f half;
+  using type = Packet16f;
+  using half = Packet8f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -194,8 +194,8 @@ struct packet_traits<float> : default_packet_traits {
 };
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet8d type;
-  typedef Packet4d half;
+  using type = Packet8d;
+  using half = Packet4d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -228,24 +228,24 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct packet_traits<int> : default_packet_traits {
-  typedef Packet16i type;
-  typedef Packet8i half;
+  using type = Packet16i;
+  using half = Packet8i;
   enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 16 };
 };
 
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
-  typedef Packet8l type;
-  typedef Packet4l half;
+  using type = Packet8l;
+  using half = Packet4l;
   enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 8 };
 };
 
 template <>
 struct unpacket_traits<Packet16f> {
-  typedef float type;
-  typedef Packet8f half;
-  typedef Packet16i integer_packet;
-  typedef uint16_t mask_t;
+  using type = float;
+  using half = Packet8f;
+  using integer_packet = Packet16i;
+  using mask_t = uint16_t;
   enum {
     size = 16,
     alignment = Aligned64,
@@ -257,10 +257,10 @@ struct unpacket_traits<Packet16f> {
 };
 template <>
 struct unpacket_traits<Packet8d> {
-  typedef double type;
-  typedef Packet4d half;
-  typedef Packet8l integer_packet;
-  typedef uint8_t mask_t;
+  using type = double;
+  using half = Packet4d;
+  using integer_packet = Packet8l;
+  using mask_t = uint8_t;
   enum {
     size = 8,
     alignment = Aligned64,
@@ -272,8 +272,8 @@ struct unpacket_traits<Packet8d> {
 };
 template <>
 struct unpacket_traits<Packet16i> {
-  typedef int type;
-  typedef Packet8i half;
+  using type = int;
+  using half = Packet8i;
   enum {
     size = 16,
     alignment = Aligned64,
@@ -285,8 +285,8 @@ struct unpacket_traits<Packet16i> {
 
 template <>
 struct unpacket_traits<Packet8l> {
-  typedef int64_t type;
-  typedef Packet4l half;
+  using type = int64_t;
+  using half = Packet4l;
   enum {
     size = 8,
     alignment = Aligned64,
@@ -299,8 +299,8 @@ struct unpacket_traits<Packet8l> {
 #ifndef EIGEN_VECTORIZE_AVX512FP16
 template <>
 struct unpacket_traits<Packet16h> {
-  typedef Eigen::half type;
-  typedef Packet8h half;
+  using type = Eigen::half;
+  using half = Packet8h;
   enum {
     size = 16,
     alignment = Aligned32,
@@ -313,8 +313,8 @@ struct unpacket_traits<Packet16h> {
 
 template <>
 struct unpacket_traits<Packet32s> {
-  typedef numext::int16_t type;
-  typedef Packet16s half;
+  using type = numext::int16_t;
+  using half = Packet16s;
   enum {
     size = 32,
     alignment = Aligned64,
@@ -324,8 +324,8 @@ struct unpacket_traits<Packet32s> {
 
 template <>
 struct unpacket_traits<Packet16s> {
-  typedef numext::int16_t type;
-  typedef Packet8s half;
+  using type = numext::int16_t;
+  using half = Packet8s;
   enum {
     size = 16,
     alignment = Aligned32,
@@ -335,8 +335,8 @@ struct unpacket_traits<Packet16s> {
 
 template <>
 struct unpacket_traits<Packet8s> {
-  typedef numext::int16_t type;
-  typedef Packet8s half;
+  using type = numext::int16_t;
+  using half = Packet8s;
   enum {
     size = 8,
     alignment = Aligned16,
@@ -2579,8 +2579,8 @@ struct is_arithmetic<Packet16bf> : std::true_type {};
 
 template <>
 struct packet_traits<bfloat16> : default_packet_traits {
-  typedef Packet16bf type;
-  typedef Packet8bf half;
+  using type = Packet16bf;
+  using half = Packet8bf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -2607,7 +2607,7 @@ struct packet_traits<bfloat16> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet16bf> {
-  typedef bfloat16 type;
+  using type = bfloat16;
   enum {
     size = 16,
     alignment = Aligned32,
@@ -2615,7 +2615,7 @@ struct unpacket_traits<Packet16bf> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet8bf half;
+  using half = Packet8bf;
 };
 
 template <>

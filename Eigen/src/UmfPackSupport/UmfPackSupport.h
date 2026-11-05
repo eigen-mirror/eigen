@@ -302,26 +302,26 @@ inline SuiteSparse_long umfpack_get_determinant(std::complex<double> *Mx, double
 template <typename MatrixType_>
 class UmfPackLU : public SparseSolverBase<UmfPackLU<MatrixType_> > {
  protected:
-  typedef SparseSolverBase<UmfPackLU<MatrixType_> > Base;
+  using Base = SparseSolverBase<UmfPackLU<MatrixType_> >;
   using Base::m_isInitialized;
 
  public:
   using Base::_solve_impl;
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
-  typedef Matrix<int, 1, MatrixType::ColsAtCompileTime> IntRowVectorType;
-  typedef Matrix<int, MatrixType::RowsAtCompileTime, 1> IntColVectorType;
-  typedef SparseMatrix<Scalar> LUMatrixType;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> UmfpackMatrixType;
-  typedef Ref<const UmfpackMatrixType, StandardCompressedFormat> UmfpackMatrixRef;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using IntRowVectorType = Matrix<int, 1, MatrixType::ColsAtCompileTime>;
+  using IntColVectorType = Matrix<int, MatrixType::RowsAtCompileTime, 1>;
+  using LUMatrixType = SparseMatrix<Scalar>;
+  using UmfpackMatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using UmfpackMatrixRef = Ref<const UmfpackMatrixType, StandardCompressedFormat>;
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:
-  typedef Array<double, UMFPACK_CONTROL, 1> UmfpackControl;
-  typedef Array<double, UMFPACK_INFO, 1> UmfpackInfo;
+  using UmfpackControl = Array<double, UMFPACK_CONTROL, 1>;
+  using UmfpackInfo = Array<double, UMFPACK_INFO, 1>;
 
   UmfPackLU() : m_dummy(0, 0), mp_matrix(m_dummy) { init(); }
 

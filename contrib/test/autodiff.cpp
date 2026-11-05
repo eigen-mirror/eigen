@@ -32,17 +32,17 @@ EIGEN_DONT_INLINE Scalar foo(const Scalar& x, const Scalar& y) {
 
 template <typename Vector>
 EIGEN_DONT_INLINE typename Vector::Scalar foo(const Vector& p) {
-  typedef typename Vector::Scalar Scalar;
+  using Scalar = typename Vector::Scalar;
   return (p - Vector(Scalar(-1), Scalar(1.))).norm() + (p.array() * p.array()).sum() + p.dot(p);
 }
 
 template <typename Scalar_, int NX = Dynamic, int NY = Dynamic>
 struct TestFunc1 {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
   enum { InputsAtCompileTime = NX, ValuesAtCompileTime = NY };
-  typedef Matrix<Scalar, InputsAtCompileTime, 1> InputType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, 1> ValueType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime> JacobianType;
+  using InputType = Matrix<Scalar, InputsAtCompileTime, 1>;
+  using ValueType = Matrix<Scalar, ValuesAtCompileTime, 1>;
+  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
 
   int m_inputs, m_values;
 
@@ -100,8 +100,8 @@ struct TestFunc1 {
 
 template <typename Scalar>
 struct integratorFunctor {
-  typedef Matrix<Scalar, 2, 1> InputType;
-  typedef Matrix<Scalar, 2, 1> ValueType;
+  using InputType = Matrix<Scalar, 2, 1>;
+  using ValueType = Matrix<Scalar, 2, 1>;
 
   /*
    * Implementation starts here.
@@ -141,10 +141,10 @@ struct integratorFunctor {
 
 template <typename Func>
 void forward_jacobian_with_scalar_arg(const Func& f) {
-  typedef typename Func::ValueType::Scalar Scalar;
-  typedef typename Func::ValueType ValueType;
-  typedef typename Func::InputType InputType;
-  typedef typename AutoDiffJacobian<Func>::JacobianType JacobianType;
+  using Scalar = typename Func::ValueType::Scalar;
+  using ValueType = typename Func::ValueType;
+  using InputType = typename Func::InputType;
+  using JacobianType = typename AutoDiffJacobian<Func>::JacobianType;
 
   InputType x = InputType::Random(InputType::RowsAtCompileTime);
   ValueType y, yref;
@@ -215,8 +215,8 @@ void test_autodiff_scalar() {
 template <int>
 void test_autodiff_vector() {
   Vector2f p = Vector2f::Random();
-  typedef AutoDiffScalar<Vector2f> AD;
-  typedef Matrix<AD, 2, 1> VectorAD;
+  using AD = AutoDiffScalar<Vector2f>;
+  using VectorAD = Matrix<AD, 2, 1>;
   VectorAD ap = p.cast<AD>();
   ap.x().derivatives() = Vector2f::UnitX();
   ap.y().derivatives() = Vector2f::UnitY();
@@ -270,10 +270,10 @@ void test_autodiff_jacobian() {
 
 template <int>
 void test_autodiff_hessian() {
-  typedef AutoDiffScalar<VectorXd> AD;
-  typedef Matrix<AD, Eigen::Dynamic, 1> VectorAD;
-  typedef AutoDiffScalar<VectorAD> ADD;
-  typedef Matrix<ADD, Eigen::Dynamic, 1> VectorADD;
+  using AD = AutoDiffScalar<VectorXd>;
+  using VectorAD = Matrix<AD, Eigen::Dynamic, 1>;
+  using ADD = AutoDiffScalar<VectorAD>;
+  using VectorADD = Matrix<ADD, Eigen::Dynamic, 1>;
   VectorADD x(2);
   double s1 = internal::random<double>(), s2 = internal::random<double>(), s3 = internal::random<double>(),
          s4 = internal::random<double>();
@@ -313,7 +313,7 @@ void test_autodiff_hessian() {
 }
 
 double bug_1222() {
-  typedef Eigen::AutoDiffScalar<Eigen::Vector3d> AD;
+  using AD = Eigen::AutoDiffScalar<Eigen::Vector3d>;
   const double _cv1_3 = 1.0;
   const AD chi_3 = 1.0;
   // this line did not work, because operator+ returns ADS<DerType&>, which then cannot be converted to ADS<DerType>
@@ -323,7 +323,7 @@ double bug_1222() {
 
 double bug_1223() {
   using std::min;
-  typedef Eigen::AutoDiffScalar<Eigen::Vector3d> AD;
+  using AD = Eigen::AutoDiffScalar<Eigen::Vector3d>;
 
   const double _cv1_3 = 1.0;
   const AD chi_3 = 1.0;
@@ -348,8 +348,8 @@ void bug_1260() {
 
 // check a compilation issue with numext::max
 double bug_1261() {
-  typedef AutoDiffScalar<Matrix2d> AD;
-  typedef Matrix<AD, 2, 1> VectorAD;
+  using AD = AutoDiffScalar<Matrix2d>;
+  using VectorAD = Matrix<AD, 2, 1>;
 
   VectorAD v(0., 0.);
   const AD maxVal = v.maxCoeff();
@@ -358,7 +358,7 @@ double bug_1261() {
 }
 
 double bug_1264() {
-  typedef AutoDiffScalar<Vector2d> AD;
+  using AD = AutoDiffScalar<Vector2d>;
   const AD s = 0.;
   const Matrix<AD, 3, 1> v1(0., 0., 0.);
   const Matrix<AD, 3, 1> v2 = (s + 3.0) * v1;
@@ -368,7 +368,7 @@ double bug_1264() {
 // check with expressions on constants
 double bug_1281() {
   int n = 2;
-  typedef AutoDiffScalar<VectorXd> AD;
+  using AD = AutoDiffScalar<VectorXd>;
   const AD c = 1.;
   AD x0(2, n, 0);
   AD y1 = (AD(c) + AD(c)) * x0;
@@ -382,7 +382,7 @@ double bug_1281() {
 
 // atan2 must pad the empty derivatives of a constant, as the arithmetic operators do.
 void test_autodiff_atan2_constant() {
-  typedef AutoDiffScalar<VectorXd> AD;
+  using AD = AutoDiffScalar<VectorXd>;
   const AD x(1.0, 2, 0), c(2.0);
   VERIFY_IS_APPROX(atan2(x, c).derivatives(), Vector2d(0.4, 0));
   VERIFY_IS_APPROX(atan2(c, x).derivatives(), Vector2d(-0.4, 0));
@@ -403,7 +403,7 @@ void test_autodiff_padded_block_derivatives() {
 // LLT stores the 1-norm of its input for rcond(); the sum of AutoDiffScalars is an expression, so
 // the norm must materialize its column totals before comparing them.
 void test_autodiff_selfadjoint_l1norm() {
-  typedef AutoDiffScalar<Vector2d> AD;
+  using AD = AutoDiffScalar<Vector2d>;
   Matrix<AD, 8, 8> m = Matrix<AD, 8, 8>::Identity();
   m(3, 3) = AD(2, Vector2d(1, 0));
   AD norm = m.selfadjointView<Lower>().l1Norm();

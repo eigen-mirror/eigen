@@ -13,11 +13,11 @@
 
 template <typename MatrixType>
 void syrk(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, RowMajor> RMatrixType;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, Dynamic> Rhs1;
-  typedef Matrix<Scalar, Dynamic, MatrixType::RowsAtCompileTime> Rhs2;
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, Dynamic, RowMajor> Rhs3;
+  using Scalar = typename MatrixType::Scalar;
+  using RMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, RowMajor>;
+  using Rhs1 = Matrix<Scalar, MatrixType::ColsAtCompileTime, Dynamic>;
+  using Rhs2 = Matrix<Scalar, Dynamic, MatrixType::RowsAtCompileTime>;
+  using Rhs3 = Matrix<Scalar, MatrixType::ColsAtCompileTime, Dynamic, RowMajor>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -172,7 +172,7 @@ void syrk(const MatrixType& m) {
   // destination with a non-default inner-stride
   // see bug 1741
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * rows, 2 * cols);
     Map<MatrixType, 0, Stride<Dynamic, 2> > map1(buffer.data(), rows, cols, Stride<Dynamic, 2>(2 * rows, 2));
     buffer.setZero();
@@ -219,8 +219,8 @@ void syrk(const MatrixType& m) {
 
 template <typename MatrixType>
 void syrk_empty_update(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> UpdateType;
+  using Scalar = typename MatrixType::Scalar;
+  using UpdateType = Matrix<Scalar, Dynamic, Dynamic>;
 
   MatrixType m = MatrixType::Random(size, size);
   MatrixType ref = m;
@@ -234,7 +234,7 @@ void syrk_empty_update(Index size) {
 }
 
 EIGEN_DECLARE_TEST(product_syrk) {
-  typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMajorMatrixXd EIGEN_UNUSED;
+  using RowMajorMatrixXd EIGEN_UNUSED = Matrix<double, Dynamic, Dynamic, RowMajor>;
 
   for (int i = 0; i < g_repeat; i++) {
     int s;

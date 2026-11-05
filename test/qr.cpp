@@ -17,8 +17,8 @@ void qr(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   MatrixType a = MatrixType::Random(rows, cols);
   HouseholderQR<MatrixType> qrOfA(a);
@@ -33,7 +33,7 @@ void qr(const MatrixType& m) {
 template <typename MatrixType, int Cols2>
 void qr_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   Matrix<Scalar, Rows, Cols> m1 = Matrix<Scalar, Rows, Cols>::Random();
   if (Rows < Cols) {
     // Transposed solves depend on R_11, which has the singular values of the leading square block.
@@ -61,8 +61,8 @@ template <typename MatrixType>
 void qr_invertible() {
   using std::abs;
   using std::log;
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
-  typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using Scalar = typename MatrixType::Scalar;
 
   STATIC_CHECK((std::is_same<typename HouseholderQR<MatrixType>::StorageIndex, int>::value));
 

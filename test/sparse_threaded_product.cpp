@@ -17,8 +17,8 @@
 
 template <typename SparseMatrixType, typename DenseVectorType>
 void verify_threaded_spmv(Index rows, Index cols, double density) {
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   DenseMatrix refMat(rows, cols);
   SparseMatrixType A(rows, cols);
@@ -133,9 +133,9 @@ void verify_threaded_spmv(Index rows, Index cols, double density) {
 // exercises the serial scatter, where the same propagation must hold.
 template <typename Scalar>
 void verify_threaded_scatter_ieee754() {
-  typedef SparseMatrix<Scalar, ColMajor> SpMat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef typename NumTraits<Scalar>::Real Real;
+  using SpMat = SparseMatrix<Scalar, ColMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Real = typename NumTraits<Scalar>::Real;
 
   // Pin the OMP team size so the scatter/reduce gate (nnz >= threads * m)
   // is deterministic across runs.
@@ -202,7 +202,7 @@ void verify_threaded_scatter_ieee754() {
 
 template <typename Scalar>
 void run_grid() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   // Cover both storage orders, square and rectangular, small (serial path,
   // nnz < threshold) and larger (threaded path).
   for (int order = 0; order < 2; ++order) {

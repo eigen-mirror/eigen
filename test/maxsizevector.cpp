@@ -50,7 +50,7 @@ Index Foo::object_limit = 0;
 Index Foo::copy_limit = NumTraits<Index>::highest();
 
 EIGEN_DECLARE_TEST(maxsizevector) {
-  typedef MaxSizeVector<Foo> VectorX;
+  using VectorX = MaxSizeVector<Foo>;
   // A copy would share, and then free twice, the owned buffer.
   VERIFY(!std::is_copy_constructible<VectorX>::value);
   VERIFY(!std::is_copy_assignable<VectorX>::value);

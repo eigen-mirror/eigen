@@ -100,15 +100,14 @@ class AutoDiffScalar
                                         typename NumTraits<typename internal::traits<
                                             internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value> {
  public:
-  typedef internal::auto_diff_special_op<
+  using Base = internal::auto_diff_special_op<
       DerivativeType,
       !std::is_same<
           typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar,
-          typename NumTraits<typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value>
-      Base;
-  typedef internal::remove_all_t<DerivativeType> DerType;
-  typedef typename internal::traits<DerType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real Real;
+          typename NumTraits<typename internal::traits<internal::remove_all_t<DerivativeType>>::Scalar>::Real>::value>;
+  using DerType = internal::remove_all_t<DerivativeType>;
+  using Scalar = typename internal::traits<DerType>::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
 
   using Base::operator+;
   using Base::operator*;
@@ -347,9 +346,9 @@ namespace internal {
 
 template <typename DerivativeType>
 struct auto_diff_special_op<DerivativeType, true> {
-  typedef remove_all_t<DerivativeType> DerType;
-  typedef typename traits<DerType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real Real;
+  using DerType = remove_all_t<DerivativeType>;
+  using Scalar = typename traits<DerType>::Scalar;
+  using Real = typename NumTraits<Scalar>::Real;
 
   const AutoDiffScalar<DerivativeType>& derived() const {
     return *static_cast<const AutoDiffScalar<DerivativeType>*>(this);
@@ -398,26 +397,26 @@ struct auto_diff_special_op<DerivativeType, false> {
 
 template <typename DerType, typename BinOp>
 struct ScalarBinaryOpTraits<AutoDiffScalar<DerType>, typename DerType::Scalar, BinOp> {
-  typedef AutoDiffScalar<DerType> ReturnType;
+  using ReturnType = AutoDiffScalar<DerType>;
 };
 
 template <typename DerType, typename BinOp>
 struct ScalarBinaryOpTraits<typename DerType::Scalar, AutoDiffScalar<DerType>, BinOp> {
-  typedef AutoDiffScalar<DerType> ReturnType;
+  using ReturnType = AutoDiffScalar<DerType>;
 };
 
 #define EIGEN_AUTODIFF_DECLARE_GLOBAL_UNARY(FUNC, CODE)                                              \
   template <typename DerType>                                                                        \
   inline auto FUNC(const Eigen::AutoDiffScalar<DerType>& x) {                                        \
     using namespace Eigen;                                                                           \
-    typedef typename Eigen::internal::traits<Eigen::internal::remove_all_t<DerType>>::Scalar Scalar; \
+    using Scalar = typename Eigen::internal::traits<Eigen::internal::remove_all_t<DerType>>::Scalar; \
     EIGEN_UNUSED_VARIABLE(sizeof(Scalar));                                                           \
     CODE;                                                                                            \
   }
 
 template <typename DerType>
 struct CleanedUpDerType {
-  typedef AutoDiffScalar<typename Eigen::internal::remove_all_t<DerType>::PlainObject> type;
+  using type = AutoDiffScalar<typename Eigen::internal::remove_all_t<DerType>::PlainObject>;
 };
 
 template <typename DerType>
@@ -446,22 +445,22 @@ inline bool(isfinite)(const AutoDiffScalar<DerType>& x) {
 }
 template <typename DerType, typename T>
 inline typename CleanedUpDerType<DerType>::type(min)(const AutoDiffScalar<DerType>& x, const T& y) {
-  typedef typename CleanedUpDerType<DerType>::type ADS;
+  using ADS = typename CleanedUpDerType<DerType>::type;
   return (x <= y ? ADS(x) : ADS(y));
 }
 template <typename DerType, typename T>
 inline typename CleanedUpDerType<DerType>::type(max)(const AutoDiffScalar<DerType>& x, const T& y) {
-  typedef typename CleanedUpDerType<DerType>::type ADS;
+  using ADS = typename CleanedUpDerType<DerType>::type;
   return (x >= y ? ADS(x) : ADS(y));
 }
 template <typename DerType, typename T>
 inline typename CleanedUpDerType<DerType>::type(min)(const T& x, const AutoDiffScalar<DerType>& y) {
-  typedef typename CleanedUpDerType<DerType>::type ADS;
+  using ADS = typename CleanedUpDerType<DerType>::type;
   return (x < y ? ADS(x) : ADS(y));
 }
 template <typename DerType, typename T>
 inline typename CleanedUpDerType<DerType>::type(max)(const T& x, const AutoDiffScalar<DerType>& y) {
-  typedef typename CleanedUpDerType<DerType>::type ADS;
+  using ADS = typename CleanedUpDerType<DerType>::type;
   return (x > y ? ADS(x) : ADS(y));
 }
 template <typename DerType>
@@ -513,8 +512,8 @@ template <typename DerTypeA, typename DerTypeB>
 inline AutoDiffScalar<Matrix<typename internal::traits<internal::remove_all_t<DerTypeA>>::Scalar, Dynamic, 1>> atan2(
     const AutoDiffScalar<DerTypeA>& a, const AutoDiffScalar<DerTypeB>& b) {
   using std::atan2;
-  typedef typename internal::traits<internal::remove_all_t<DerTypeA>>::Scalar Scalar;
-  typedef AutoDiffScalar<Matrix<Scalar, Dynamic, 1>> PlainADS;
+  using Scalar = typename internal::traits<internal::remove_all_t<DerTypeA>>::Scalar;
+  using PlainADS = AutoDiffScalar<Matrix<Scalar, Dynamic, 1>>;
   PlainADS ret;
   ret.value() = atan2(a.value(), b.value());
 
@@ -640,14 +639,13 @@ inline auto atanh(const AutoDiffScalar<DerType>& x) {
 template <typename DerType>
 struct NumTraits<AutoDiffScalar<DerType>>
     : NumTraits<typename NumTraits<typename internal::remove_all_t<DerType>::Scalar>::Real> {
-  typedef internal::remove_all_t<DerType> DerTypeCleaned;
-  typedef AutoDiffScalar<Matrix<typename NumTraits<typename DerTypeCleaned::Scalar>::Real,
-                                DerTypeCleaned::RowsAtCompileTime, DerTypeCleaned::ColsAtCompileTime, 0,
-                                DerTypeCleaned::MaxRowsAtCompileTime, DerTypeCleaned::MaxColsAtCompileTime>>
-      Real;
-  typedef AutoDiffScalar<DerType> NonInteger;
-  typedef AutoDiffScalar<DerType> Nested;
-  typedef typename NumTraits<typename DerTypeCleaned::Scalar>::Literal Literal;
+  using DerTypeCleaned = internal::remove_all_t<DerType>;
+  using Real = AutoDiffScalar<Matrix<typename NumTraits<typename DerTypeCleaned::Scalar>::Real,
+                                     DerTypeCleaned::RowsAtCompileTime, DerTypeCleaned::ColsAtCompileTime, 0,
+                                     DerTypeCleaned::MaxRowsAtCompileTime, DerTypeCleaned::MaxColsAtCompileTime>>;
+  using NonInteger = AutoDiffScalar<DerType>;
+  using Nested = AutoDiffScalar<DerType>;
+  using Literal = typename NumTraits<typename DerTypeCleaned::Scalar>::Literal;
   enum { RequireInitialization = 1 };
 };
 

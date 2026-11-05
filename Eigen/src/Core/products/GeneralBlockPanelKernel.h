@@ -554,25 +554,29 @@ struct packet_conditional<GEBPPacketHalf, T1, T2, T3> {
   using type = T2;
 };
 
-#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
-  typedef typename packet_conditional<                                                                     \
-      packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet##postfix
+#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                               \
+  using name##Packet##postfix =                                                            \
+      typename packet_conditional<packet_size, typename packet_traits<name##Scalar>::type, \
+                                  typename packet_traits<name##Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type
 
-#define PACKET_DECL_COND(name, packet_size)                                                                \
-  typedef typename packet_conditional<                                                                     \
-      packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet
+#define PACKET_DECL_COND(name, packet_size)                                                \
+  using name##Packet =                                                                     \
+      typename packet_conditional<packet_size, typename packet_traits<name##Scalar>::type, \
+                                  typename packet_traits<name##Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type
 
-#define PACKET_DECL_COND_SCALAR_POSTFIX(postfix, packet_size)                                  \
-  typedef typename packet_conditional<                                                         \
-      packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket##postfix
+#define PACKET_DECL_COND_SCALAR_POSTFIX(postfix, packet_size)                        \
+  using ScalarPacket##postfix =                                                      \
+      typename packet_conditional<packet_size, typename packet_traits<Scalar>::type, \
+                                  typename packet_traits<Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type
 
-#define PACKET_DECL_COND_SCALAR(packet_size)                                                   \
-  typedef typename packet_conditional<                                                         \
-      packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket
+#define PACKET_DECL_COND_SCALAR(packet_size)                                         \
+  using ScalarPacket =                                                               \
+      typename packet_conditional<packet_size, typename packet_traits<Scalar>::type, \
+                                  typename packet_traits<Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type
 
 /* Vectorization logic
  *  real*real: unpack rhs to constant packets, ...
@@ -2032,18 +2036,14 @@ gebp_kernel<LhsScalar, RhsScalar, Index, DataMapper, mr, nr, ConjugateLhs, Conju
           }
           if (SwappedTraits::LhsProgress == 8) {
             // Special case where we have to first reduce the accumulation register C0
-            typedef std::conditional_t<SwappedTraits::LhsProgress >= 8, typename unpacket_traits<SResPacket>::half,
-                                       SResPacket>
-                SResPacketHalf;
-            typedef std::conditional_t<SwappedTraits::LhsProgress >= 8, typename unpacket_traits<SLhsPacket>::half,
-                                       SLhsPacket>
-                SLhsPacketHalf;
-            typedef std::conditional_t<SwappedTraits::LhsProgress >= 8, typename unpacket_traits<SRhsPacket>::half,
-                                       SRhsPacket>
-                SRhsPacketHalf;
-            typedef std::conditional_t<SwappedTraits::LhsProgress >= 8, typename unpacket_traits<SAccPacket>::half,
-                                       SAccPacket>
-                SAccPacketHalf;
+            using SResPacketHalf = std::conditional_t<SwappedTraits::LhsProgress >= 8,
+                                                      typename unpacket_traits<SResPacket>::half, SResPacket>;
+            using SLhsPacketHalf = std::conditional_t<SwappedTraits::LhsProgress >= 8,
+                                                      typename unpacket_traits<SLhsPacket>::half, SLhsPacket>;
+            using SRhsPacketHalf = std::conditional_t<SwappedTraits::LhsProgress >= 8,
+                                                      typename unpacket_traits<SRhsPacket>::half, SRhsPacket>;
+            using SAccPacketHalf = std::conditional_t<SwappedTraits::LhsProgress >= 8,
+                                                      typename unpacket_traits<SAccPacket>::half, SAccPacket>;
 
             SResPacketHalf R =
                 overwrite ? pset1<SResPacketHalf>(ResScalar(0)) : res.template gatherPacket<SResPacketHalf>(i, j2);

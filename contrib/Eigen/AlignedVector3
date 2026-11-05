@@ -47,11 +47,11 @@ struct traits<AlignedVector3<Scalar_> > : traits<Matrix<Scalar_, 3, 1, 0, 4, 1> 
 
 template <typename Scalar_>
 class AlignedVector3 : public MatrixBase<AlignedVector3<Scalar_> > {
-  typedef Matrix<Scalar_, 4, 1> CoeffType;
+  using CoeffType = Matrix<Scalar_, 4, 1>;
   CoeffType m_coeffs;
 
  public:
-  typedef MatrixBase<AlignedVector3<Scalar_> > Base;
+  using Base = MatrixBase<AlignedVector3<Scalar_> >;
   EIGEN_DENSE_PUBLIC_INTERFACE(AlignedVector3)
   using Base::operator*;
 
@@ -190,13 +190,13 @@ namespace internal {
 
 template <typename Scalar_>
 struct eval<AlignedVector3<Scalar_>, Dense> {
-  typedef const AlignedVector3<Scalar_>& type;
+  using type = const AlignedVector3<Scalar_>&;
 };
 
 template <typename Scalar>
 struct evaluator<AlignedVector3<Scalar> > : evaluator<Matrix<Scalar, 4, 1> > {
-  typedef AlignedVector3<Scalar> XprType;
-  typedef evaluator<Matrix<Scalar, 4, 1> > Base;
+  using XprType = AlignedVector3<Scalar>;
+  using Base = evaluator<Matrix<Scalar, 4, 1> >;
 
   evaluator(const XprType& m) : Base(m.coeffs()) {}
 };

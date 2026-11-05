@@ -14,7 +14,7 @@
 template <typename MatrixType, typename DenseMat>
 int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows = 300, int maxCols = 300) {
   eigen_assert(maxRows >= maxCols);
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   int rows = internal::random<int>(1, maxRows);
   int cols = internal::random<int>(1, rows);
   double density = (std::max)(8. / (rows * cols), 0.01);
@@ -28,10 +28,10 @@ int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows
 
 template <typename Scalar>
 void test_spqr_scalar() {
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
   MatrixType A;
   Matrix<Scalar, Dynamic, Dynamic> dA;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
   DenseVector refX, x, b;
   SPQR<MatrixType> solver;
   generate_sparse_rectangular_problem(A, dA);
@@ -57,9 +57,9 @@ void test_spqr_scalar() {
 
 template <typename = void>
 void test_spqr_fixed_ordering_uses_identity_permutation() {
-  typedef SparseMatrix<double, ColMajor> MatrixType;
-  typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<double, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<double, ColMajor>;
+  using DenseMatrix = Matrix<double, Dynamic, Dynamic>;
+  using DenseVector = Matrix<double, Dynamic, 1>;
 
   DenseMatrix dA(6, 4);
   dA << 4.0, 1.0, 0.0, 0.0,  //
@@ -97,11 +97,11 @@ void test_spqr_fixed_ordering_uses_identity_permutation() {
 
 template <typename = void>
 void test_spqr_matrix_q_times_identity_expression() {
-  typedef SparseMatrix<double, ColMajor> MatrixType;
-  typedef Matrix<double, Dynamic, Dynamic> DenseMatrix;
-  typedef SPQR<MatrixType> SolverType;
-  typedef typename SolverType::MatrixType SolverSparseMatrix;
-  typedef Matrix<double, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<double, ColMajor>;
+  using DenseMatrix = Matrix<double, Dynamic, Dynamic>;
+  using SolverType = SPQR<MatrixType>;
+  using SolverSparseMatrix = typename SolverType::MatrixType;
+  using DenseVector = Matrix<double, Dynamic, 1>;
 
   DenseMatrix dA(6, 4);
   dA << 4.0, 1.0, 0.0, 0.0,  //

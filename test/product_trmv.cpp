@@ -13,8 +13,8 @@
 
 template <typename MatrixType>
 void trmv(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   Index rows = m.rows();
   Index cols = m.cols();

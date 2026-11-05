@@ -58,8 +58,8 @@ Matrix<Scalar, Dynamic, Dynamic> reference_vandermonde(const Matrix<Scalar, Dyna
 
 template <typename Scalar>
 void test_vandermonde_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x = Vec::Random(m);
   Vandermonde<Scalar> V(x, n);
@@ -90,9 +90,9 @@ void test_vandermonde_product(Index m, Index n) {
 // of roundoff verifies the primal and dual solves against the exact solution.
 template <typename Scalar>
 void test_bjorck_pereyra(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x(n);
   for (Index i = 0; i < n; ++i)
@@ -133,8 +133,8 @@ void test_bjorck_pereyra(Index n) {
 // analytic inverse a = V^H f / n to catch catastrophic Newton-basis growth.
 template <typename RealScalar>
 void test_bjorck_pereyra_roots_of_unity(Index n) {
-  typedef std::complex<RealScalar> Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Scalar = std::complex<RealScalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   Vec x(n);
   for (Index i = 0; i < n; ++i)
@@ -162,7 +162,7 @@ void test_bjorck_pereyra_roots_of_unity(Index n) {
 // range-protection helpers retain support for narrow floating-point scalars.
 template <typename = void>
 void test_vandermonde_half() {
-  typedef Matrix<half, 2, 1> Vec;
+  using Vec = Matrix<half, 2, 1>;
   Vec nodes, coefficients;
   nodes << half(0), half(2);
   coefficients << half(3), half(2);
@@ -183,7 +183,7 @@ void test_vandermonde_half() {
 // tiny even though the matrix conditioning is astronomical. Deterministic.
 template <typename = void>
 void test_bjorck_pereyra_higham() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
 
   const Index n = 20;
   Vec x(n);
@@ -224,10 +224,10 @@ void test_bjorck_pereyra_higham() {
 // conditioned while avoiding the unrotated grid's extra symmetries.
 template <typename = void>
 void test_bjorck_pereyra_complex_transpose_adjoint(Index n) {
-  typedef std::complex<double> Scalar;
-  typedef Matrix<double, Dynamic, 1> RealVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Scalar = std::complex<double>;
+  using RealVec = Matrix<double, Dynamic, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x(n);
   for (Index i = 0; i < n; ++i) x[i] = std::polar(1.0, double(2 * EIGEN_PI) * (double(i) + 0.25) / double(n));
@@ -281,7 +281,7 @@ void test_bjorck_pereyra_complex_transpose_adjoint(Index n) {
 // the solver input invalid. Both must be reported before solve evaluation.
 template <typename = void>
 void test_bjorck_pereyra_singular() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   Vec x(5);
   x << 0.1, 0.7, 0.3, 0.7, 0.9;
   Vandermonde<double> V(x);
@@ -298,8 +298,8 @@ void test_bjorck_pereyra_singular() {
 // x += V * x must come out as if the right-hand side had been copied first.
 template <typename Scalar>
 void test_vandermonde_aliased_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x = Vec::Random(n);
   Vandermonde<Scalar> V(x);  // square, so x = V * x type-checks
@@ -330,8 +330,8 @@ void test_vandermonde_aliased_product(Index n) {
 // resized by the assignment.
 template <typename Scalar>
 void test_vandermonde_aliased_expression(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec nodes = Vec::Random(n);
   Vandermonde<Scalar> V(nodes);  // square
@@ -365,8 +365,8 @@ void test_vandermonde_aliased_expression(Index n) {
 // nest the operator by value (no NestByRefBit) or `expr` dangles.
 template <typename Scalar>
 void test_vandermonde_delayed_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Vandermonde<Scalar>>::type>::value);
 
@@ -386,10 +386,10 @@ void test_vandermonde_delayed_product(Index m, Index n) {
 // type rather than the operator scalar.
 template <typename RealScalar>
 void test_vandermonde_mixed_scalar(Index m, Index n) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec x = RVec::Random(m);
   Vandermonde<RealScalar> V(x, n);
@@ -414,8 +414,8 @@ void test_vandermonde_mixed_scalar(Index m, Index n) {
 
 template <typename Scalar>
 void test_vandermonde_determinant(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec x = Vec::Random(n);
   Vandermonde<Scalar> V(x);
@@ -447,8 +447,8 @@ double reference_vandermonde_det(const Matrix<double, Dynamic, 1>& x) {
 // representable determinant, while zeros and genuine overflow still propagate.
 template <typename = void>
 void test_vandermonde_determinant_scaled() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef std::complex<double> Complex;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Complex = std::complex<double>;
   // The implementation accumulates the identical factor sequence as the
   // reference above, so the two sides differ only by the exactness of the
   // power-of-two renormalization.
@@ -537,7 +537,7 @@ void test_vandermonde_determinant_scaled() {
 // A genuinely unrepresentable value saturates.
 template <typename = void>
 void test_vandermonde_horner() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   {
     const Index m = 7, n = 6;
     Vec x = Vec::Random(m), a = Vec::Random(n);
@@ -563,8 +563,8 @@ void test_vandermonde_horner() {
   {
     // Complex values at real nodes keep real-times-complex arithmetic: an infinite real part, from the
     // data or from overflow, leaves the imaginary part exactly zero as in a dense product.
-    typedef std::complex<double> Complex;
-    typedef Matrix<Complex, Dynamic, 1> CVec;
+    using Complex = std::complex<double>;
+    using CVec = Matrix<Complex, Dynamic, 1>;
     const double inf = std::numeric_limits<double>::infinity();
     Vec x(2);
     x << 2.0, 3.0;
@@ -583,9 +583,9 @@ void test_vandermonde_horner() {
 
 template <typename Scalar, int M, int N>
 void test_vandermonde_fixed() {
-  typedef Matrix<Scalar, M, 1> NodeVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, M, N> MatMN;
+  using NodeVec = Matrix<Scalar, M, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatMN = Matrix<Scalar, M, N>;
 
   NodeVec x = NodeVec::Random();
   Vandermonde<Scalar, M, N> V(x, N);
@@ -605,11 +605,11 @@ void test_vandermonde_fixed() {
 // expression forms together because they share the same structured wrapper.
 template <typename = void>
 void test_vandermonde_expression_regressions() {
-  typedef Matrix<double, 1, 1> Vec1;
-  typedef Matrix<double, 3, 1> Vec3;
-  typedef Matrix<double, 1, 3> Row3;
-  typedef Matrix<double, 3, 3> Mat3;
-  typedef Matrix<double, 3, 2> Mat32;
+  using Vec1 = Matrix<double, 1, 1>;
+  using Vec3 = Matrix<double, 3, 1>;
+  using Row3 = Matrix<double, 1, 3>;
+  using Mat3 = Matrix<double, 3, 3>;
+  using Mat32 = Matrix<double, 3, 2>;
 
   Vec1 x;
   x << 0.5;
@@ -646,16 +646,16 @@ void test_vandermonde_dimension_checks() {
 // operator new under C++14.
 template <typename = void>
 void test_vandermonde_fixed_heap_expressions() {
-  typedef Matrix<double, 4, 1> Vec4;
-  typedef Matrix<double, 4, 4> Mat4;
+  using Vec4 = Matrix<double, 4, 1>;
+  using Mat4 = Matrix<double, 4, 4>;
 
   Vec4 x;
   x << -1.0, -0.25, 0.5, 1.0;
   Vec4 a;
   a << 1.0, 2.0, 3.0, 4.0;
 
-  typedef decltype(makeVandermonde(x) * a) ProductExpression;
-  typedef decltype(2.0 * makeVandermonde(x)) ScaledExpression;
+  using ProductExpression = decltype(makeVandermonde(x) * a);
+  using ScaledExpression = decltype(2.0 * makeVandermonde(x));
   STATIC_CHECK(alignof(ProductExpression) <= alignof(std::max_align_t));
   STATIC_CHECK(alignof(ScaledExpression) <= alignof(std::max_align_t));
 

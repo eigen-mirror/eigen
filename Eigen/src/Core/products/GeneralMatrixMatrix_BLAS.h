@@ -54,7 +54,7 @@ namespace internal {
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>            \
   struct general_matrix_matrix_product<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, RhsStorageOrder,        \
                                        ConjugateRhs, ColMajor, 1> {                                                    \
-    typedef gebp_traits<EIGTYPE, EIGTYPE> Traits;                                                                      \
+    using Traits = gebp_traits<EIGTYPE, EIGTYPE>;                                                                      \
     using Scalar = EIGTYPE;                                                                                            \
                                                                                                                        \
     static void run(Index rows, Index cols, Index depth, const EIGTYPE* lhs_, Index lhsStride, const EIGTYPE* rhs_,    \
@@ -141,7 +141,7 @@ void EIGEN_BLAS_SYM(sbgemm)(const char* trans_a, const char* trans_b, const EIGE
 template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>
 struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, ConjugateLhs, Eigen::bfloat16,
                                      RhsStorageOrder, ConjugateRhs, ColMajor, 1> {
-  typedef gebp_traits<Eigen::bfloat16, Eigen::bfloat16> Traits;
+  using Traits = gebp_traits<Eigen::bfloat16, Eigen::bfloat16>;
 
   static void run(Index rows, Index cols, Index depth, const Eigen::bfloat16* lhs_, Index lhsStride,
                   const Eigen::bfloat16* rhs_, Index rhsStride, Eigen::bfloat16* res, Index resIncr, Index resStride,

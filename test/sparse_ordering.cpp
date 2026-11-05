@@ -13,7 +13,7 @@
 
 template <typename Idx>
 void verify_is_permutation(const PermutationMatrix<Dynamic, Dynamic, Idx>& perm) {
-  typedef Matrix<Idx, Dynamic, 1> Vec;
+  using Vec = Matrix<Idx, Dynamic, 1>;
   Vec sorted = perm.indices();
   std::sort(sorted.data(), sorted.data() + sorted.size());
   Vec expected = Vec::LinSpaced(perm.size(), 0, Idx(perm.size() - 1));
@@ -22,8 +22,8 @@ void verify_is_permutation(const PermutationMatrix<Dynamic, Dynamic, Idx>& perm)
 
 template <typename Scalar>
 void test_colamd_uncompressed() {
-  typedef int Idx;
-  typedef SparseMatrix<Scalar, ColMajor, Idx> SpMat;
+  using Idx = int;
+  using SpMat = SparseMatrix<Scalar, ColMajor, Idx>;
   const int n = 32;
   SpMat A(n, n);
   A.reserve(VectorXi::Constant(n, 5));
@@ -52,7 +52,7 @@ void test_colamd_uncompressed() {
 }
 
 void test_colamd_mixed_index_types() {
-  typedef SparseMatrix<double, ColMajor, int> SpMat;
+  using SpMat = SparseMatrix<double, ColMajor, int>;
   const int n = 8;
   SpMat A(n, n);
   A.reserve(VectorXi::Constant(n, 3));
@@ -73,8 +73,8 @@ void test_colamd_mixed_index_types() {
 
 template <typename Scalar>
 void test_amd_uncompressed() {
-  typedef int Idx;
-  typedef SparseMatrix<Scalar, ColMajor, Idx> SpMat;
+  using Idx = int;
+  using SpMat = SparseMatrix<Scalar, ColMajor, Idx>;
   const int n = 24;
   SpMat A(n, n);
   A.reserve(VectorXi::Constant(n, 4));

@@ -29,14 +29,14 @@ namespace Eigen {
 template <typename Scalar_, typename Dimensions_, int Options_, typename IndexType>
 class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> > {
  public:
-  typedef TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> Self;
-  typedef TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> > Base;
-  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
-  typedef typename internal::traits<Self>::StorageKind StorageKind;
-  typedef typename internal::traits<Self>::Index Index;
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename Base::CoeffReturnType CoeffReturnType;
+  using Self = TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType>;
+  using Base = TensorBase<TensorFixedSize<Scalar_, Dimensions_, Options_, IndexType> >;
+  using Nested = typename Eigen::internal::ref_selector<Self>::type;
+  using StorageKind = typename internal::traits<Self>::StorageKind;
+  using Index = typename internal::traits<Self>::Index;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename Base::CoeffReturnType;
 
   static constexpr int Options = Options_;
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
@@ -51,10 +51,10 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
-  typedef Dimensions_ Dimensions;
+  using Dimensions = Dimensions_;
   static constexpr std::size_t NumIndices = Dimensions::count;
 
  protected:
@@ -192,13 +192,13 @@ class TensorFixedSize : public TensorBase<TensorFixedSize<Scalar_, Dimensions_, 
 
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFixedSize(const TensorBase<OtherDerived, ReadOnlyAccessors>& other) {
-    typedef TensorAssignOp<TensorFixedSize, const OtherDerived> Assign;
+    using Assign = TensorAssignOp<TensorFixedSize, const OtherDerived>;
     Assign assign(*this, other.derived());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
   }
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFixedSize(const TensorBase<OtherDerived, WriteAccessors>& other) {
-    typedef TensorAssignOp<TensorFixedSize, const OtherDerived> Assign;
+    using Assign = TensorAssignOp<TensorFixedSize, const OtherDerived>;
     Assign assign(*this, other.derived());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
   }

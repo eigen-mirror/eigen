@@ -38,8 +38,8 @@ namespace internal {
 
 template <typename Op, typename CoeffReturnType, typename Index, bool Vectorizable>
 struct OpDefiner {
-  typedef typename Vectorise<CoeffReturnType, Eigen::SyclDevice, Vectorizable>::PacketReturnType PacketReturnType;
-  typedef Op type;
+  using PacketReturnType = typename Vectorise<CoeffReturnType, Eigen::SyclDevice, Vectorizable>::PacketReturnType;
+  using type = Op;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type get_op(Op &op) { return op; }
 
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType finalise_op(const PacketReturnType &accumulator,
@@ -50,7 +50,7 @@ struct OpDefiner {
 
 template <typename CoeffReturnType, typename Index>
 struct OpDefiner<Eigen::internal::MeanReducer<CoeffReturnType>, CoeffReturnType, Index, false> {
-  typedef Eigen::internal::SumReducer<CoeffReturnType> type;
+  using type = Eigen::internal::SumReducer<CoeffReturnType>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type get_op(Eigen::internal::MeanReducer<CoeffReturnType> &) {
     return type();
   }
@@ -64,8 +64,8 @@ struct OpDefiner<Eigen::internal::MeanReducer<CoeffReturnType>, CoeffReturnType,
 
 template <typename CoeffReturnType, typename Index>
 struct OpDefiner<Eigen::internal::MeanReducer<CoeffReturnType>, CoeffReturnType, Index, true> {
-  typedef typename Vectorise<CoeffReturnType, Eigen::SyclDevice, true>::PacketReturnType PacketReturnType;
-  typedef Eigen::internal::SumReducer<CoeffReturnType> type;
+  using PacketReturnType = typename Vectorise<CoeffReturnType, Eigen::SyclDevice, true>::PacketReturnType;
+  using type = Eigen::internal::SumReducer<CoeffReturnType>;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE type get_op(Eigen::internal::MeanReducer<CoeffReturnType> &) {
     return type();
   }
@@ -79,10 +79,10 @@ struct OpDefiner<Eigen::internal::MeanReducer<CoeffReturnType>, CoeffReturnType,
 template <typename CoeffReturnType, typename OpType, typename InputAccessor, typename OutputAccessor, typename Index,
           Index local_range>
 struct SecondStepFullReducer {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      LocalAccessor;
-  typedef OpDefiner<OpType, CoeffReturnType, Index, true> OpDef;
-  typedef typename OpDef::type Op;
+  using LocalAccessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
+  using OpDef = OpDefiner<OpType, CoeffReturnType, Index, true>;
+  using Op = typename OpDef::type;
   LocalAccessor scratch;
   InputAccessor aI;
   OutputAccessor outAcc;
@@ -121,20 +121,18 @@ struct SecondStepFullReducer {
 template <typename Evaluator, typename OpType, typename Evaluator::Index local_range>
 class FullReductionKernelFunctor {
  public:
-  typedef typename Evaluator::CoeffReturnType CoeffReturnType;
-  typedef typename Evaluator::Index Index;
-  typedef OpDefiner<OpType, typename Evaluator::CoeffReturnType, Index,
-                    (Evaluator::ReducerTraits::PacketAccess & Evaluator::InputPacketAccess)>
-      OpDef;
+  using CoeffReturnType = typename Evaluator::CoeffReturnType;
+  using Index = typename Evaluator::Index;
+  using OpDef = OpDefiner<OpType, typename Evaluator::CoeffReturnType, Index,
+                          (Evaluator::ReducerTraits::PacketAccess & Evaluator::InputPacketAccess)>;
 
-  typedef typename OpDef::type Op;
-  typedef typename Evaluator::EvaluatorPointerType EvaluatorPointerType;
-  typedef typename Evaluator::PacketReturnType PacketReturnType;
-  typedef std::conditional_t<(Evaluator::ReducerTraits::PacketAccess & Evaluator::InputPacketAccess), PacketReturnType,
-                             CoeffReturnType>
-      OutType;
-  typedef cl::sycl::accessor<OutType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      LocalAccessor;
+  using Op = typename OpDef::type;
+  using EvaluatorPointerType = typename Evaluator::EvaluatorPointerType;
+  using PacketReturnType = typename Evaluator::PacketReturnType;
+  using OutType = std::conditional_t<(Evaluator::ReducerTraits::PacketAccess & Evaluator::InputPacketAccess),
+                                     PacketReturnType, CoeffReturnType>;
+  using LocalAccessor =
+      cl::sycl::accessor<OutType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   LocalAccessor scratch;
   Evaluator evaluator;
   EvaluatorPointerType final_output;
@@ -218,11 +216,11 @@ class FullReductionKernelFunctor {
 template <typename Evaluator, typename OpType>
 class GenericNondeterministicReducer {
  public:
-  typedef typename Evaluator::CoeffReturnType CoeffReturnType;
-  typedef typename Evaluator::EvaluatorPointerType EvaluatorPointerType;
-  typedef typename Evaluator::Index Index;
-  typedef OpDefiner<OpType, CoeffReturnType, Index, false> OpDef;
-  typedef typename OpDef::type Op;
+  using CoeffReturnType = typename Evaluator::CoeffReturnType;
+  using EvaluatorPointerType = typename Evaluator::EvaluatorPointerType;
+  using Index = typename Evaluator::Index;
+  using OpDef = OpDefiner<OpType, CoeffReturnType, Index, false>;
+  using Op = typename OpDef::type;
   template <typename Scratch>
   GenericNondeterministicReducer(Scratch, Evaluator evaluator_, EvaluatorPointerType output_accessor_, OpType functor_,
                                  Index range_, Index num_values_to_reduce_)
@@ -258,13 +256,13 @@ enum class reduction_dim { inner_most, outer_most };
 // Default partial reduction (preserve dimensions).
 template <typename Evaluator, typename OpType, typename PannelParameters, reduction_dim rt>
 struct PartialReductionKernel {
-  typedef typename Evaluator::CoeffReturnType CoeffReturnType;
-  typedef typename Evaluator::EvaluatorPointerType EvaluatorPointerType;
-  typedef typename Evaluator::Index Index;
-  typedef OpDefiner<OpType, CoeffReturnType, Index, false> OpDef;
-  typedef typename OpDef::type Op;
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      ScratchAcc;
+  using CoeffReturnType = typename Evaluator::CoeffReturnType;
+  using EvaluatorPointerType = typename Evaluator::EvaluatorPointerType;
+  using Index = typename Evaluator::Index;
+  using OpDef = OpDefiner<OpType, CoeffReturnType, Index, false>;
+  using Op = typename OpDef::type;
+  using ScratchAcc =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   ScratchAcc scratch;
   Evaluator evaluator;
   EvaluatorPointerType output_accessor;
@@ -365,10 +363,10 @@ struct PartialReductionKernel {
 
 template <typename OutScalar, typename Index, typename InputAccessor, typename OutputAccessor, typename OpType>
 struct SecondStepPartialReduction {
-  typedef OpDefiner<OpType, OutScalar, Index, false> OpDef;
-  typedef typename OpDef::type Op;
-  typedef cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      ScratchAccessor;
+  using OpDef = OpDefiner<OpType, OutScalar, Index, false>;
+  using Op = typename OpDef::type;
+  using ScratchAccessor =
+      cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   InputAccessor input_accessor;
   OutputAccessor output_accessor;
   Op op;
@@ -411,14 +409,14 @@ struct ReductionPannel {
 
 template <typename Self, typename Op, TensorSycl::internal::reduction_dim rt>
 struct PartialReducerLauncher {
-  typedef typename Self::EvaluatorPointerType EvaluatorPointerType;
-  typedef typename Self::CoeffReturnType CoeffReturnType;
-  typedef typename Self::Storage Storage;
-  typedef typename Self::Index Index;
-  typedef ReductionPannel<typename Self::Index, EIGEN_SYCL_LOCAL_THREAD_DIM0, EIGEN_SYCL_LOCAL_THREAD_DIM1, true>
-      PannelParameters;
+  using EvaluatorPointerType = typename Self::EvaluatorPointerType;
+  using CoeffReturnType = typename Self::CoeffReturnType;
+  using Storage = typename Self::Storage;
+  using Index = typename Self::Index;
+  using PannelParameters =
+      ReductionPannel<typename Self::Index, EIGEN_SYCL_LOCAL_THREAD_DIM0, EIGEN_SYCL_LOCAL_THREAD_DIM1, true>;
 
-  typedef PartialReductionKernel<Self, Op, PannelParameters, rt> SyclReducerKerneType;
+  using SyclReducerKerneType = PartialReductionKernel<Self, Op, PannelParameters, rt>;
 
   static bool run(const Self &self, const Op &reducer, const Eigen::SyclDevice &dev, EvaluatorPointerType output,
                   Index num_coeffs_to_reduce, Index num_coeffs_to_preserve) {
@@ -458,8 +456,8 @@ struct PartialReducerLauncher {
              self, temp_accessor, thread_range, scratchSize, reducer, pNumGroups, rNumGroups, num_coeffs_to_preserve,
              num_coeffs_to_reduce)
           .wait();
-      typedef SecondStepPartialReduction<CoeffReturnType, Index, EvaluatorPointerType, EvaluatorPointerType, Op>
-          SecondStepPartialReductionKernel;
+      using SecondStepPartialReductionKernel =
+          SecondStepPartialReduction<CoeffReturnType, Index, EvaluatorPointerType, EvaluatorPointerType, Op>;
       dev.template unary_kernel_launcher<CoeffReturnType, SecondStepPartialReductionKernel>(
              temp_accessor, output,
              cl::sycl::nd_range<1>(cl::sycl::range<1>(pNumGroups * localRange), cl::sycl::range<1>(localRange)),
@@ -482,12 +480,12 @@ namespace internal {
 
 template <typename Self, typename Op, bool Vectorizable>
 struct FullReducer<Self, Op, Eigen::SyclDevice, Vectorizable> {
-  typedef typename Self::CoeffReturnType CoeffReturnType;
-  typedef typename Self::EvaluatorPointerType EvaluatorPointerType;
+  using CoeffReturnType = typename Self::CoeffReturnType;
+  using EvaluatorPointerType = typename Self::EvaluatorPointerType;
   static constexpr bool HasOptimizedImplementation = true;
   static constexpr int PacketSize = Self::PacketAccess ? Self::PacketSize : 1;
   static void run(const Self &self, Op &reducer, const Eigen::SyclDevice &dev, EvaluatorPointerType data) {
-    typedef std::conditional_t<Self::PacketAccess, typename Self::PacketReturnType, CoeffReturnType> OutType;
+    using OutType = std::conditional_t<Self::PacketAccess, typename Self::PacketReturnType, CoeffReturnType>;
     static_assert(!((EIGEN_SYCL_LOCAL_THREAD_DIM0 * EIGEN_SYCL_LOCAL_THREAD_DIM1) &
                     (EIGEN_SYCL_LOCAL_THREAD_DIM0 * EIGEN_SYCL_LOCAL_THREAD_DIM1 - 1)),
                   "The Local thread size must be a power of 2 for the reduction "
@@ -505,7 +503,7 @@ struct FullReducer<Self, Op, Eigen::SyclDevice, Vectorizable> {
     const Index global_range = num_work_group * local_range;
 
     auto thread_range = cl::sycl::nd_range<1>(cl::sycl::range<1>(global_range), cl::sycl::range<1>(local_range));
-    typedef TensorSycl::internal::FullReductionKernelFunctor<Self, Op, local_range> reduction_kernel_t;
+    using reduction_kernel_t = TensorSycl::internal::FullReductionKernelFunctor<Self, Op, local_range>;
     if (num_work_group > 1) {
       CoeffReturnType *temp_pointer =
           static_cast<CoeffReturnType *>(dev.allocate_temp(num_work_group * sizeof(CoeffReturnType)));
@@ -513,9 +511,8 @@ struct FullReducer<Self, Op, Eigen::SyclDevice, Vectorizable> {
       dev.template unary_kernel_launcher<OutType, reduction_kernel_t>(self, tmp_global_accessor, thread_range,
                                                                       local_range, inputSize, reducer)
           .wait();
-      typedef TensorSycl::internal::SecondStepFullReducer<CoeffReturnType, Op, EvaluatorPointerType,
-                                                          EvaluatorPointerType, Index, local_range>
-          GenericRKernel;
+      using GenericRKernel = TensorSycl::internal::SecondStepFullReducer<CoeffReturnType, Op, EvaluatorPointerType,
+                                                                         EvaluatorPointerType, Index, local_range>;
       dev.template unary_kernel_launcher<CoeffReturnType, GenericRKernel>(
              tmp_global_accessor, data,
              cl::sycl::nd_range<1>(cl::sycl::range<1>(num_work_group), cl::sycl::range<1>(num_work_group)),

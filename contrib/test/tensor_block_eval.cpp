@@ -138,7 +138,7 @@ static void VerifyBlockEvaluator(const Expression& expr, GenBlockParams gen_bloc
   auto d = Device();
 
   // Scratch memory allocator for block evaluation.
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
   TensorBlockScratch scratch(d);
 
   // TensorEvaluator is needed to produce tensor blocks of the expression.
@@ -993,7 +993,7 @@ static void test_eval_tensor_patch() {
   {
     const array<Index, 3> strides = {{2, 2, 2}};
     auto strided = input.stride(strides);
-    typedef TensorEvaluator<const decltype(strided), DefaultDevice> StridedEval;
+    using StridedEval = TensorEvaluator<const decltype(strided), DefaultDevice>;
     static_assert(!StridedEval::BlockAccess && !StridedEval::RawAccess,
                   "stride() must stay a coeff()-only argument for this check to be meaningful");
 
@@ -1015,7 +1015,7 @@ static void test_eval_tensor_patch() {
     }
 
     auto strided_patch = strided.extract_patches(strided_patch_dims);
-    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    using PatchEval = TensorEvaluator<const decltype(strided_patch), DefaultDevice>;
     static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
                   "the patch block path must dispatch for a coeff()-only argument");
     VerifyBlockEvaluator<T, 4, Layout>(strided_patch,
@@ -1092,7 +1092,7 @@ static void test_eval_tensor_image_patch() {
   {
     const array<Index, 4> strides = {{1, 2, 2, 1}};
     auto strided_patch = input.stride(strides).extract_image_patches(pr, pc, 1, 1, 1, 1, PADDING_VALID);
-    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    using PatchEval = TensorEvaluator<const decltype(strided_patch), DefaultDevice>;
     static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
                   "the image-patch block path must dispatch for a coeff()-only argument");
     const Index rows_s = (rows - 1) / 2 + 1;
@@ -1163,7 +1163,7 @@ static void test_eval_tensor_volume_patch() {
   {
     const array<Index, 5> strides = {{1, 2, 2, 2, 1}};
     auto strided_patch = input.stride(strides).extract_volume_patches(pp, pr, pc, 1, 1, 1, PADDING_VALID);
-    typedef TensorEvaluator<const decltype(strided_patch), DefaultDevice> PatchEval;
+    using PatchEval = TensorEvaluator<const decltype(strided_patch), DefaultDevice>;
     static_assert(PatchEval::BlockAccess && PatchEval::PreferBlockAccess,
                   "the volume-patch block path must dispatch for a coeff()-only argument");
     const Index planes_s = (planes - 1) / 2 + 1;

@@ -28,12 +28,12 @@ namespace Eigen {
 template <typename Derived>
 class KroneckerProductBase : public ReturnByValue<Derived> {
  private:
-  typedef typename internal::traits<Derived> Traits;
-  typedef typename Traits::Scalar Scalar;
+  using Traits = typename internal::traits<Derived>;
+  using Scalar = typename Traits::Scalar;
 
  protected:
-  typedef typename Traits::Lhs Lhs;
-  typedef typename Traits::Rhs Rhs;
+  using Lhs = typename Traits::Lhs;
+  using Rhs = typename Traits::Rhs;
 
  public:
   /*! \brief Constructor. */
@@ -79,7 +79,7 @@ class KroneckerProductBase : public ReturnByValue<Derived> {
 template <typename Lhs, typename Rhs>
 class KroneckerProduct : public KroneckerProductBase<KroneckerProduct<Lhs, Rhs> > {
  private:
-  typedef KroneckerProductBase<KroneckerProduct> Base;
+  using Base = KroneckerProductBase<KroneckerProduct>;
   using Base::m_A;
   using Base::m_B;
 
@@ -110,7 +110,7 @@ class KroneckerProduct : public KroneckerProductBase<KroneckerProduct<Lhs, Rhs> 
 template <typename Lhs, typename Rhs>
 class KroneckerProductSparse : public KroneckerProductBase<KroneckerProductSparse<Lhs, Rhs> > {
  private:
-  typedef KroneckerProductBase<KroneckerProductSparse> Base;
+  using Base = KroneckerProductBase<KroneckerProductSparse>;
   using Base::m_A;
   using Base::m_B;
 
@@ -141,16 +141,16 @@ void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
   dst.resizeNonZeros(0);
 
   // 1 - evaluate the operands if needed:
-  typedef typename internal::nested_eval<Lhs, Dynamic>::type Lhs1;
-  typedef internal::remove_all_t<Lhs1> Lhs1Cleaned;
+  using Lhs1 = typename internal::nested_eval<Lhs, Dynamic>::type;
+  using Lhs1Cleaned = internal::remove_all_t<Lhs1>;
   const Lhs1 lhs1(m_A);
-  typedef typename internal::nested_eval<Rhs, Dynamic>::type Rhs1;
-  typedef internal::remove_all_t<Rhs1> Rhs1Cleaned;
+  using Rhs1 = typename internal::nested_eval<Rhs, Dynamic>::type;
+  using Rhs1Cleaned = internal::remove_all_t<Rhs1>;
   const Rhs1 rhs1(m_B);
 
   // 2 - construct respective iterators
-  typedef Eigen::InnerIterator<Lhs1Cleaned> LhsInnerIterator;
-  typedef Eigen::InnerIterator<Rhs1Cleaned> RhsInnerIterator;
+  using LhsInnerIterator = Eigen::InnerIterator<Lhs1Cleaned>;
+  using RhsInnerIterator = Eigen::InnerIterator<Rhs1Cleaned>;
 
   // compute number of non-zeros per innervectors of dst
   {
@@ -183,10 +183,10 @@ namespace internal {
 
 template <typename Lhs_, typename Rhs_>
 struct traits<KroneckerProduct<Lhs_, Rhs_> > {
-  typedef remove_all_t<Lhs_> Lhs;
-  typedef remove_all_t<Rhs_> Rhs;
-  typedef typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType Scalar;
-  typedef typename promote_index_type<typename Lhs::StorageIndex, typename Rhs::StorageIndex>::type StorageIndex;
+  using Lhs = remove_all_t<Lhs_>;
+  using Rhs = remove_all_t<Rhs_>;
+  using Scalar = typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType;
+  using StorageIndex = typename promote_index_type<typename Lhs::StorageIndex, typename Rhs::StorageIndex>::type;
 
   enum {
     Rows = size_at_compile_time(traits<Lhs>::RowsAtCompileTime, traits<Rhs>::RowsAtCompileTime),
@@ -195,19 +195,19 @@ struct traits<KroneckerProduct<Lhs_, Rhs_> > {
     MaxCols = size_at_compile_time(traits<Lhs>::MaxColsAtCompileTime, traits<Rhs>::MaxColsAtCompileTime)
   };
 
-  typedef Matrix<Scalar, Rows, Cols> ReturnType;
+  using ReturnType = Matrix<Scalar, Rows, Cols>;
 };
 
 template <typename Lhs_, typename Rhs_>
 struct traits<KroneckerProductSparse<Lhs_, Rhs_> > {
-  typedef MatrixXpr XprKind;
-  typedef remove_all_t<Lhs_> Lhs;
-  typedef remove_all_t<Rhs_> Rhs;
-  typedef typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType Scalar;
-  typedef typename cwise_promote_storage_type<typename traits<Lhs>::StorageKind, typename traits<Rhs>::StorageKind,
-                                              scalar_product_op<typename Lhs::Scalar, typename Rhs::Scalar> >::ret
-      StorageKind;
-  typedef typename promote_index_type<typename Lhs::StorageIndex, typename Rhs::StorageIndex>::type StorageIndex;
+  using XprKind = MatrixXpr;
+  using Lhs = remove_all_t<Lhs_>;
+  using Rhs = remove_all_t<Rhs_>;
+  using Scalar = typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType;
+  using StorageKind =
+      typename cwise_promote_storage_type<typename traits<Lhs>::StorageKind, typename traits<Rhs>::StorageKind,
+                                          scalar_product_op<typename Lhs::Scalar, typename Rhs::Scalar> >::ret;
+  using StorageIndex = typename promote_index_type<typename Lhs::StorageIndex, typename Rhs::StorageIndex>::type;
 
   enum {
     LhsFlags = Lhs::Flags,
@@ -225,7 +225,7 @@ struct traits<KroneckerProductSparse<Lhs_, Rhs_> > {
     CoeffReadCost = HugeCost
   };
 
-  typedef SparseMatrix<Scalar, 0, StorageIndex> ReturnType;
+  using ReturnType = SparseMatrix<Scalar, 0, StorageIndex>;
 };
 
 }  // end namespace internal

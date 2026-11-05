@@ -49,14 +49,13 @@ static void test_type2index_list() {
   tensor.setRandom();
   tensor += tensor.constant(10.0f);
 
-  typedef Eigen::IndexList<Eigen::type2index<0>> Dims0;
-  typedef Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>> Dims1;
-  typedef Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>> Dims2;
-  typedef Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>, Eigen::type2index<3>>
-      Dims3;
-  typedef Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>, Eigen::type2index<3>,
-                           Eigen::type2index<4>>
-      Dims4;
+  using Dims0 = Eigen::IndexList<Eigen::type2index<0>>;
+  using Dims1 = Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>>;
+  using Dims2 = Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>>;
+  using Dims3 =
+      Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>, Eigen::type2index<3>>;
+  using Dims4 = Eigen::IndexList<Eigen::type2index<0>, Eigen::type2index<1>, Eigen::type2index<2>, Eigen::type2index<3>,
+                                 Eigen::type2index<4>>;
 
 #if 0
   EIGEN_STATIC_ASSERT((internal::indices_statically_known_to_increase<Dims0>() == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -174,12 +173,12 @@ static void test_type2indexpair_list() {
   tensor.setRandom();
   tensor += tensor.constant(10.0f);
 
-  typedef Eigen::IndexPairList<Eigen::type2indexpair<0, 10>> Dims0;
-  typedef Eigen::IndexPairList<Eigen::type2indexpair<0, 10>, Eigen::type2indexpair<1, 11>, Eigen::type2indexpair<2, 12>>
-      Dims2_a;
-  typedef Eigen::IndexPairList<Eigen::type2indexpair<0, 10>, Eigen::IndexPair<Index>, Eigen::type2indexpair<2, 12>>
-      Dims2_b;
-  typedef Eigen::IndexPairList<Eigen::IndexPair<Index>, Eigen::type2indexpair<1, 11>, Eigen::IndexPair<Index>> Dims2_c;
+  using Dims0 = Eigen::IndexPairList<Eigen::type2indexpair<0, 10>>;
+  using Dims2_a =
+      Eigen::IndexPairList<Eigen::type2indexpair<0, 10>, Eigen::type2indexpair<1, 11>, Eigen::type2indexpair<2, 12>>;
+  using Dims2_b =
+      Eigen::IndexPairList<Eigen::type2indexpair<0, 10>, Eigen::IndexPair<Index>, Eigen::type2indexpair<2, 12>>;
+  using Dims2_c = Eigen::IndexPairList<Eigen::IndexPair<Index>, Eigen::type2indexpair<1, 11>, Eigen::IndexPair<Index>>;
 
   Dims2_a d2_a;
 
@@ -396,7 +395,7 @@ static void test_mixed_index_list() {
   VERIFY_IS_EQUAL(static_cast<Index>(reduction_axis[2]), 2);
   VERIFY_IS_EQUAL(static_cast<Index>(reduction_axis[3]), 3);
 
-  typedef IndexList<type2index<0>, int, type2index<2>, int> ReductionIndices;
+  using ReductionIndices = IndexList<type2index<0>, int, type2index<2>, int>;
   ReductionIndices reduction_indices;
   reduction_indices.set(1, 1);
   reduction_indices.set(3, 3);
@@ -414,7 +413,7 @@ static void test_mixed_index_list() {
   EIGEN_STATIC_ASSERT((internal::indices_statically_known_to_increase<IndexList<int, type2index<1>>>() == false),
                       YOU_MADE_A_PROGRAMMING_MISTAKE);
 
-  typedef IndexList<type2index<0>, type2index<1>, type2index<2>, type2index<3>> ReductionList;
+  using ReductionList = IndexList<type2index<0>, type2index<1>, type2index<2>, type2index<3>>;
   ReductionList reduction_list;
   EIGEN_STATIC_ASSERT((internal::index_statically_eq<ReductionList>(0, 0) == true), YOU_MADE_A_PROGRAMMING_MISTAKE);
   EIGEN_STATIC_ASSERT((internal::index_statically_eq<ReductionList>(1, 1) == true), YOU_MADE_A_PROGRAMMING_MISTAKE);

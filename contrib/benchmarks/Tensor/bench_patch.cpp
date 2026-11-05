@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // Validates `result` against the expression's scalar coeff() path, which does
 // not depend on block evaluation.

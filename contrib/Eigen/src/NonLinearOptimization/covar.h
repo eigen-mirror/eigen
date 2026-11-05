@@ -15,7 +15,7 @@ template <typename Scalar>
 void covar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt,
            Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon())) {
   using std::abs;
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Index i, j, k, l, ii, jj;

@@ -62,12 +62,12 @@ namespace Eigen {
  */
 template <typename MatrixType>
 void createRandomPIMatrixOfRank(Index desired_rank, Index rows, Index cols, MatrixType& m) {
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
 
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<Scalar, Rows, Rows> MatrixAType;
-  typedef Matrix<Scalar, Cols, Cols> MatrixBType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixAType = Matrix<Scalar, Rows, Rows>;
+  using MatrixBType = Matrix<Scalar, Cols, Cols>;
 
   if (desired_rank == 0) {
     m.setZero(rows, cols);
@@ -103,7 +103,7 @@ void createRandomPIMatrixOfRank(Index desired_rank, Index rows, Index cols, Matr
  */
 template <typename PermutationVectorType>
 void randomPermutationVector(PermutationVectorType& v, Index size) {
-  typedef typename PermutationVectorType::Scalar Scalar;
+  using Scalar = typename PermutationVectorType::Scalar;
   v.resize(size);
   for (Index i = 0; i < size; ++i) v(i) = Scalar(i);
   if (size == 1) return;
@@ -128,8 +128,8 @@ void randomPermutationVector(PermutationVectorType& v, Index size) {
  */
 template <typename MatrixType>
 MatrixType generateRandomUnitaryMatrix(const Index dim) {
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType v = MatrixType::Identity(dim, dim);
   VectorType h = VectorType::Zero(dim);
@@ -172,9 +172,9 @@ MatrixType generateRandomUnitaryMatrix(const Index dim) {
 template <typename MatrixType, typename RealScalarVectorType>
 void generateRandomMatrixSvs(const RealScalarVectorType& svs, const Index rows, const Index cols, MatrixType& M) {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
-  typedef Matrix<Scalar, Rows, Rows> MatrixAType;
-  typedef Matrix<Scalar, Cols, Cols> MatrixBType;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
+  using MatrixAType = Matrix<Scalar, Rows, Rows>;
+  using MatrixBType = Matrix<Scalar, Cols, Cols>;
 
   const Index min_dim = (std::min)(rows, cols);
 

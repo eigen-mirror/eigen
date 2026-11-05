@@ -10,9 +10,9 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
-typedef Matrix<double, Dynamic, Dynamic> Mat;
-typedef Matrix<std::complex<double>, Dynamic, 1> CVec;
+using Vec = Matrix<double, Dynamic, 1>;
+using Mat = Matrix<double, Dynamic, Dynamic>;
+using CVec = Matrix<std::complex<double>, Dynamic, 1>;
 
 // --- Construction: the one-time embedding symbol FFT ---
 // 97 exercises the 5-smooth padding of the embedding (2*97-1 = 193 is prime).

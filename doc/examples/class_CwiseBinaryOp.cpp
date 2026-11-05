@@ -9,7 +9,7 @@ using Eigen::Matrix4d;
 // define a custom template binary functor
 template <typename Scalar>
 struct MakeComplexOp {
-  typedef std::complex<Scalar> result_type;
+  using result_type = std::complex<Scalar>;
   result_type operator()(const Scalar& a, const Scalar& b) const { return result_type(a, b); }
 };
 

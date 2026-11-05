@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Inflate only the inner-most (contiguous) dimension. ---
 static void BM_Inflate2D_Inner(benchmark::State& state) {

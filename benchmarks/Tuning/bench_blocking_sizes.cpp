@@ -15,8 +15,8 @@ int eigen_block_size_k, eigen_block_size_m, eigen_block_size_n;
 
 using namespace Eigen;
 
-typedef MatrixXf MatrixType;
-typedef MatrixType::Scalar Scalar;
+using MatrixType = MatrixXf;
+using Scalar = MatrixType::Scalar;
 
 static void BM_GemmDefaultBlocking(benchmark::State& state) {
   int k = state.range(0);

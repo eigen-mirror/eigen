@@ -27,7 +27,7 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
 {
   using std::abs;
   using std::sqrt;
-  typedef typename QRSolver::Scalar Scalar;
+  using Scalar = typename QRSolver::Scalar;
   /* Local variables */
   Index j;
   Scalar fp;

@@ -33,15 +33,15 @@ struct GetDifferentType;
 
 template <>
 struct GetDifferentType<float> {
-  typedef double type;
+  using type = double;
 };
 template <>
 struct GetDifferentType<double> {
-  typedef float type;
+  using type = float;
 };
 template <typename T>
 struct GetDifferentType<std::complex<T>> {
-  typedef std::complex<typename GetDifferentType<T>::type> type;
+  using type = std::complex<typename GetDifferentType<T>::type>;
 };
 
 template <typename T>

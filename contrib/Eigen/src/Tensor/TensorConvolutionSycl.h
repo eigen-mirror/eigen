@@ -29,8 +29,8 @@ template <typename Evaluator, typename CoeffReturnType, typename KernelType, typ
           typename Kernel_accessor, typename Buffer_accessor>
 struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, InputDims, Kernel_accessor,
                               Buffer_accessor, convolution_type::CONV1D> {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      Local_accessor;
+  using Local_accessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   Local_accessor local_acc;
   Evaluator device_evaluator;
   Kernel_accessor kernel_filter;
@@ -96,8 +96,8 @@ template <typename Evaluator, typename CoeffReturnType, typename KernelType, typ
           typename Kernel_accessor, typename Buffer_accessor>
 struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, InputDims, Kernel_accessor,
                               Buffer_accessor, convolution_type::CONV2D> {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      Local_accessor;
+  using Local_accessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   Local_accessor local_acc;
   Evaluator device_evaluator;
   Kernel_accessor kernel_filter;
@@ -181,8 +181,8 @@ template <typename Evaluator, typename CoeffReturnType, typename KernelType, typ
           typename Kernel_accessor, typename Buffer_accessor>
 struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, InputDims, Kernel_accessor,
                               Buffer_accessor, convolution_type::CONV3D> {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      Local_accessor;
+  using Local_accessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   Local_accessor local_acc;
   Evaluator device_evaluator;
   Kernel_accessor kernel_filter;
@@ -269,22 +269,22 @@ struct EigenConvolutionKernel<Evaluator, CoeffReturnType, KernelType, Index, Inp
 
 template <typename Indices, typename InputArgType, typename KernelArgType>
 struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelArgType>, Eigen::SyclDevice> {
-  typedef TensorConvolutionOp<Indices, InputArgType, KernelArgType> XprType;
+  using XprType = TensorConvolutionOp<Indices, InputArgType, KernelArgType>;
 
   static constexpr int NumDims =
       internal::array_size<typename TensorEvaluator<InputArgType, Eigen::SyclDevice>::Dimensions>::value;
   static constexpr int NumKernelDims = internal::array_size<Indices>::value;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Dimensions KernelDimensions;
-  typedef const Eigen::SyclDevice Device;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Eigen::SyclDevice>::type PacketReturnType;
-  typedef typename InputArgType::Scalar Scalar;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumDims>;
+  using KernelDimensions = typename TensorEvaluator<KernelArgType, Eigen::SyclDevice>::Dimensions;
+  using Device = const Eigen::SyclDevice;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Eigen::SyclDevice>::type;
+  using Scalar = typename InputArgType::Scalar;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Eigen::SyclDevice> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
-  typedef StorageMemory<const CoeffReturnType, Eigen::SyclDevice> KernelStorage;
+  using Storage = StorageMemory<CoeffReturnType, Eigen::SyclDevice>;
+  using EvaluatorPointerType = typename Storage::Type;
+  using KernelStorage = StorageMemory<const CoeffReturnType, Eigen::SyclDevice>;
 
   static constexpr int Layout = TensorEvaluator<InputArgType, Eigen::SyclDevice>::Layout;
   enum {
@@ -298,7 +298,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   TensorEvaluator(const XprType &op, const Eigen::SyclDevice &device)
@@ -371,7 +371,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     } else {
       ptrdiff_t kernel_sz = m_kernelImpl.dimensions().TotalSize() * sizeof(Scalar);
       EvaluatorPointerType local = (EvaluatorPointerType)m_device.get((Scalar *)m_device.allocate_temp(kernel_sz));
-      typedef TensorEvalToOp<const KernelArgType> EvalTo;
+      using EvalTo = TensorEvalToOp<const KernelArgType>;
       EvalTo evalToTmp(m_device.get(local), m_kernelArg);
       const bool PacketAccess = internal::IsVectorizable<Eigen::SyclDevice, KernelArgType>::value;
       internal::TensorExecutor<const EvalTo, Eigen::SyclDevice, PacketAccess>::run(evalToTmp, m_device);
@@ -381,8 +381,8 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void executeEval(EvaluatorPointerType data) const {
-    typedef TensorEvaluator<InputArgType, Eigen::SyclDevice> InputEvaluator;
-    typedef typename InputEvaluator::Dimensions InputDims;
+    using InputEvaluator = TensorEvaluator<InputArgType, Eigen::SyclDevice>;
+    using InputDims = typename InputEvaluator::Dimensions;
     switch (NumKernelDims) {
       case 1: {
         const size_t numX = dimensions()[m_indices[0]];
@@ -399,9 +399,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const array<Index, 1> kernel_dims{{m_kernelImpl.dimensions()[0]}};
         internal::IndexMapper<Index, InputDims, 1, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
 
-        typedef EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
-                                       typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV1D>
-            ConvKernel;
+        using ConvKernel =
+            EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
+                                   typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV1D>;
 
         m_device
             .template binary_kernel_launcher<CoeffReturnType, ConvKernel>(
@@ -433,9 +433,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const array<Index, 2> kernel_dims{
             {m_kernelImpl.dimensions()[kernel_index[0]], m_kernelImpl.dimensions()[kernel_index[1]]}};
         internal::IndexMapper<Index, InputDims, 2, Layout> indexMapper(m_inputImpl.dimensions(), kernel_dims, indices);
-        typedef EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
-                                       typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV2D>
-            ConvKernel;
+        using ConvKernel =
+            EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
+                                   typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV2D>;
         m_device
             .template binary_kernel_launcher<CoeffReturnType, ConvKernel>(
                 m_inputImpl, m_kernel, data, cl::sycl::nd_range<3>(global_range, local_range), local_memory_size,
@@ -475,9 +475,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
         const size_t local_memory_size = local_memory_range[0] * local_memory_range[1] * local_memory_range[2];
 
         eigen_assert(static_cast<unsigned long>(local_memory_size) <= m_device.sharedMemPerBlock());
-        typedef EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
-                                       typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV3D>
-            ConvKernel;
+        using ConvKernel =
+            EigenConvolutionKernel<InputEvaluator, CoeffReturnType, Scalar, Index, InputDims,
+                                   typename KernelStorage::Type, EvaluatorPointerType, convolution_type::CONV3D>;
         m_device
             .template binary_kernel_launcher<CoeffReturnType, ConvKernel>(
                 m_inputImpl, m_kernel, data, cl::sycl::nd_range<3>(global_range, local_range), local_memory_size,

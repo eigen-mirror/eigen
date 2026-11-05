@@ -35,7 +35,7 @@ template <typename System, typename Other, int OtherRows = Other::RowsAtCompileT
 struct eulerangles_assign_impl;
 }  // namespace internal
 
-#define EIGEN_EULER_ANGLES_CLASS_STATIC_ASSERT(COND, MSG) typedef char static_assertion_##MSG[(COND) ? 1 : -1]
+#define EIGEN_EULER_ANGLES_CLASS_STATIC_ASSERT(COND, MSG) using static_assertion_##MSG = char[(COND) ? 1 : -1]
 
 /** \brief Representation of a fixed signed rotation axis for EulerSystem.
  *
@@ -185,7 +185,7 @@ template <int Alpha, int Beta, int Gamma>
 constexpr int EulerSystem<Alpha, Beta, Gamma>::GammaAxis;
 #endif
 
-#define EIGEN_EULER_SYSTEM_TYPEDEF(A, B, C) typedef EulerSystem<EULER_##A, EULER_##B, EULER_##C> EulerSystem##A##B##C;
+#define EIGEN_EULER_SYSTEM_TYPEDEF(A, B, C) using EulerSystem##A##B##C = EulerSystem<EULER_##A, EULER_##B, EULER_##C>;
 
 /** Default XYZ Euler coordinate system.
  * \ingroup EulerAngles_Module

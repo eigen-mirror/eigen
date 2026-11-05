@@ -19,10 +19,10 @@
 
 template <typename MatrixType>
 void dontalign(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();

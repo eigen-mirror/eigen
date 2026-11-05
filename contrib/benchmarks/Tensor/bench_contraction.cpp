@@ -16,7 +16,7 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 // --- DefaultDevice contraction (rank-2, equivalent to matrix multiply) ---
 static void BM_Contraction(benchmark::State& state) {

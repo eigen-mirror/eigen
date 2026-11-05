@@ -23,9 +23,9 @@ struct CoherentPadOp;
 
 template <typename XprType, int SizeAtCompileTime_>
 struct traits<CoherentPadOp<XprType, SizeAtCompileTime_>> : public traits<XprType> {
-  typedef internal::remove_all_t<XprType> PlainXprType;
-  typedef typename internal::ref_selector<XprType>::type XprNested;
-  typedef std::remove_reference_t<XprNested> XprNested_;
+  using PlainXprType = internal::remove_all_t<XprType>;
+  using XprNested = typename internal::ref_selector<XprType>::type;
+  using XprNested_ = std::remove_reference_t<XprNested>;
   enum : int {
     IsRowMajor = traits<PlainXprType>::Flags & RowMajorBit,
     SizeAtCompileTime = SizeAtCompileTime_,
@@ -40,7 +40,7 @@ struct traits<CoherentPadOp<XprType, SizeAtCompileTime_>> : public traits<XprTyp
 // Pads a vector with zeros to a given size.
 template <typename XprType, int SizeAtCompileTime_>
 struct CoherentPadOp : public dense_xpr_base<CoherentPadOp<XprType, SizeAtCompileTime_>>::type {
-  typedef typename internal::generic_xpr_base<CoherentPadOp<XprType, SizeAtCompileTime_>>::type Base;
+  using Base = typename internal::generic_xpr_base<CoherentPadOp<XprType, SizeAtCompileTime_>>::type;
   EIGEN_GENERIC_PUBLIC_INTERFACE(CoherentPadOp)
 
   using XprNested = typename traits<CoherentPadOp>::XprNested;
@@ -76,10 +76,10 @@ struct CoherentPadOp : public dense_xpr_base<CoherentPadOp<XprType, SizeAtCompil
 template <typename ArgType, int SizeAtCompileTime>
 struct unary_evaluator<CoherentPadOp<ArgType, SizeAtCompileTime>>
     : evaluator_base<CoherentPadOp<ArgType, SizeAtCompileTime>> {
-  typedef CoherentPadOp<ArgType, SizeAtCompileTime> XprType;
-  typedef internal::remove_all_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename internal::nested_eval<ArgType, 1>::type ArgTypeNested;
-  typedef internal::remove_all_t<ArgTypeNested> ArgTypeNestedCleaned;
+  using XprType = CoherentPadOp<ArgType, SizeAtCompileTime>;
+  using CoeffReturnType = internal::remove_all_t<typename XprType::CoeffReturnType>;
+  using ArgTypeNested = typename internal::nested_eval<ArgType, 1>::type;
+  using ArgTypeNestedCleaned = internal::remove_all_t<ArgTypeNested>;
 
   enum {
     CoeffReadCost = evaluator<ArgTypeNestedCleaned>::CoeffReadCost,

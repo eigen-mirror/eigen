@@ -23,9 +23,9 @@ struct broadcast_affine_op {
 
 template <typename ArrayType>
 void vectorwiseop_array(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
-  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename ArrayType::Scalar;
+  using ColVectorType = Array<Scalar, ArrayType::RowsAtCompileTime, 1>;
+  using RowVectorType = Array<Scalar, 1, ArrayType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -168,13 +168,13 @@ void vectorwiseop_array(const ArrayType& m) {
 
 template <typename MatrixType>
 void vectorwiseop_matrix(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Matrix<Scalar, 1, MatrixType::ColsAtCompileTime> RowVectorType;
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, 1> RealColVectorType;
-  typedef Matrix<RealScalar, 1, MatrixType::ColsAtCompileTime> RealRowVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ColVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using RowVectorType = Matrix<Scalar, 1, MatrixType::ColsAtCompileTime>;
+  using RealColVectorType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, 1>;
+  using RealRowVectorType = Matrix<RealScalar, 1, MatrixType::ColsAtCompileTime>;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -344,9 +344,9 @@ void vectorwiseop_matrix(const MatrixType& m) {
 // Skips *, / which cause integer overflow or division-by-zero with full-range random ints.
 template <typename ArrayType>
 void vectorwiseop_array_integer(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
-  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename ArrayType::Scalar;
+  using ColVectorType = Array<Scalar, ArrayType::RowsAtCompileTime, 1>;
+  using RowVectorType = Array<Scalar, 1, ArrayType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -424,9 +424,9 @@ void vectorwiseop_mixedscalar() {
 
 template <typename ArrayType>
 void vectorwiseop_array_extensions(const ArrayType& m) {
-  typedef typename ArrayType::Scalar Scalar;
-  typedef Array<Scalar, ArrayType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Array<Scalar, 1, ArrayType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename ArrayType::Scalar;
+  using ColVectorType = Array<Scalar, ArrayType::RowsAtCompileTime, 1>;
+  using RowVectorType = Array<Scalar, 1, ArrayType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -489,9 +489,9 @@ void vectorwiseop_array_extensions(const ArrayType& m) {
 
 template <typename MatrixType>
 void vectorwiseop_matrix_extensions(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Matrix<Scalar, 1, MatrixType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using ColVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using RowVectorType = Matrix<Scalar, 1, MatrixType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -599,11 +599,11 @@ void vectorwiseop_minmax_nan() {
 // The existing tests only use ColMajor matrices.
 template <typename Scalar>
 void vectorwiseop_rowmajor() {
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrix;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMajorMatrix;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, 1, Dynamic> RealRowVectorType;
-  typedef Matrix<RealScalar, Dynamic, 1> RealColVectorType;
+  using RowMajorMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using ColMajorMatrix = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealRowVectorType = Matrix<RealScalar, 1, Dynamic>;
+  using RealColVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   const Index rows = 7;
   const Index cols = 11;
@@ -636,8 +636,8 @@ void vectorwiseop_rowmajor() {
   VERIFY_IS_APPROX(rc_c, rc_r);
 
   // Broadcast operations
-  typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
+  using ColVectorType = Matrix<Scalar, Dynamic, 1>;
+  using RowVectorType = Matrix<Scalar, 1, Dynamic>;
   ColVectorType cv = ColVectorType::Random(rows);
   RowVectorType rv = RowVectorType::Random(cols);
 

@@ -19,7 +19,7 @@ using Eigen::placeholders::lastp1;
 #include <array>
 
 namespace test {
-typedef std::pair<Index, Index> IndexPair;
+using IndexPair = std::pair<Index, Index>;
 }
 
 int encode(Index i, Index j) { return int(i * 100 + j); }

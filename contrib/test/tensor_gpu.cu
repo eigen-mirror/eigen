@@ -63,9 +63,9 @@ void test_gpu_nullary() {
 // max representable size.
 template <typename IndexType, IndexType N = (std::numeric_limits<IndexType>::max)()>
 void test_gpu_nullary_max_size() {
-  typedef int8_t DataType;
-  typedef Tensor<DataType, 1, 0, IndexType> TensorType;
-  typedef Eigen::array<IndexType, 1> ArrayType;
+  using DataType = int8_t;
+  using TensorType = Tensor<DataType, 1, 0, IndexType>;
+  using ArrayType = Eigen::array<IndexType, 1>;
 
   const IndexType n = N;
   TensorType in1((ArrayType(n)));
@@ -338,8 +338,8 @@ void test_gpu_striding() {
 
   auto read_expr = gpu_in.stride(strides);
   auto write_expr = gpu_write_out.stride(strides);
-  typedef Eigen::TensorEvaluator<const decltype(read_expr), Eigen::GpuDevice> ReadEval;
-  typedef Eigen::TensorEvaluator<decltype(write_expr), Eigen::GpuDevice> WriteEval;
+  using ReadEval = Eigen::TensorEvaluator<const decltype(read_expr), Eigen::GpuDevice>;
+  using WriteEval = Eigen::TensorEvaluator<decltype(write_expr), Eigen::GpuDevice>;
   ReadEval read_eval(read_expr, gpu_device);
   WriteEval write_eval(write_expr, gpu_device);
   read_eval.evalSubExprsIfNeeded(NULL);
@@ -452,12 +452,12 @@ void test_gpu_contraction() {
   Eigen::TensorMap<Eigen::Tensor<float, 5, DataLayout> > gpu_t_right(d_t_right, 3, 31, 7, 20, 1);
   Eigen::TensorMap<Eigen::Tensor<float, 5, DataLayout> > gpu_t_result(d_t_result, 6, 50, 7, 20, 1);
 
-  typedef Eigen::Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> > MapXf;
+  using MapXf = Eigen::Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> >;
   MapXf m_left(t_left.data(), 300, 93);
   MapXf m_right(t_right.data(), 93, 140);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(300, 140);
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 2> dims;
   dims[0] = DimPair(2, 0);
   dims[1] = DimPair(3, 1);

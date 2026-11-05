@@ -28,7 +28,7 @@ struct SplineTraits {};
  **/
 template <typename Scalar_, int Dim_, int Degree_>
 struct SplineTraits<Spline<Scalar_, Dim_, Degree_>, Dynamic> {
-  typedef Scalar_ Scalar; /*!< The spline curve's scalar type. */
+  using Scalar = Scalar_; /*!< The spline curve's scalar type. */
   enum { Dimension = Dim_ /*!< The spline curve's dimension. */ };
   enum { Degree = Degree_ /*!< The spline curve's degree. */ };
 
@@ -42,27 +42,27 @@ struct SplineTraits<Spline<Scalar_, Dim_, Degree_>, Dynamic> {
   enum { DerivativeMemoryLayout = Dimension == 1 ? RowMajor : ColMajor /*!< The derivative type's memory layout. */ };
 
   /** \brief The data type used to store non-zero basis functions. */
-  typedef Array<Scalar, 1, OrderAtCompileTime> BasisVectorType;
+  using BasisVectorType = Array<Scalar, 1, OrderAtCompileTime>;
 
   /** \brief The data type used to store the values of the basis function derivatives. */
-  typedef Array<Scalar, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>
-      BasisDerivativeType;
+  using BasisDerivativeType =
+      Array<Scalar, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>;
 
   /** \brief The data type used to store the spline's derivative values. */
-  typedef Array<Scalar, Dimension, Dynamic, DerivativeMemoryLayout, Dimension, NumOfDerivativesAtCompileTime>
-      DerivativeType;
+  using DerivativeType =
+      Array<Scalar, Dimension, Dynamic, DerivativeMemoryLayout, Dimension, NumOfDerivativesAtCompileTime>;
 
   /** \brief The point type the spline is representing. */
-  typedef Array<Scalar, Dimension, 1> PointType;
+  using PointType = Array<Scalar, Dimension, 1>;
 
   /** \brief The data type used to store knot vectors. */
-  typedef Array<Scalar, 1, Dynamic> KnotVectorType;
+  using KnotVectorType = Array<Scalar, 1, Dynamic>;
 
   /** \brief The data type used to store parameter vectors. */
-  typedef Array<Scalar, 1, Dynamic> ParameterVectorType;
+  using ParameterVectorType = Array<Scalar, 1, Dynamic>;
 
   /** \brief The data type representing the spline's control points. */
-  typedef Array<Scalar, Dimension, Dynamic> ControlPointVectorType;
+  using ControlPointVectorType = Array<Scalar, Dimension, Dynamic>;
 };
 
 /**
@@ -87,24 +87,24 @@ struct SplineTraits<Spline<Scalar_, Dim_, Degree_>, _DerivativeOrder>
   enum { DerivativeMemoryLayout = Dim_ == 1 ? RowMajor : ColMajor /*!< The derivative type's memory layout. */ };
 
   /** \brief The data type used to store the values of the basis function derivatives. */
-  typedef Array<Scalar_, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>
-      BasisDerivativeType;
+  using BasisDerivativeType =
+      Array<Scalar_, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>;
 
   /** \brief The data type used to store the spline's derivative values. */
-  typedef Array<Scalar_, Dim_, Dynamic, DerivativeMemoryLayout, Dim_, NumOfDerivativesAtCompileTime> DerivativeType;
+  using DerivativeType = Array<Scalar_, Dim_, Dynamic, DerivativeMemoryLayout, Dim_, NumOfDerivativesAtCompileTime>;
 };
 
 /** \brief 2D float B-spline with dynamic degree. */
-typedef Spline<float, 2> Spline2f;
+using Spline2f = Spline<float, 2>;
 
 /** \brief 3D float B-spline with dynamic degree. */
-typedef Spline<float, 3> Spline3f;
+using Spline3f = Spline<float, 3>;
 
 /** \brief 2D double B-spline with dynamic degree. */
-typedef Spline<double, 2> Spline2d;
+using Spline2d = Spline<double, 2>;
 
 /** \brief 3D double B-spline with dynamic degree. */
-typedef Spline<double, 3> Spline3d;
+using Spline3d = Spline<double, 3>;
 }  // namespace Eigen
 
 #endif  // EIGEN_SPLINES_FWD_H

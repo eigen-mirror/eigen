@@ -24,7 +24,7 @@ void use_n_times(const XprType& xpr) {
 
 template <int N, typename ReferenceType, typename XprType>
 bool verify_eval_type(const XprType&, const ReferenceType&) {
-  typedef typename internal::nested_eval<XprType, N>::type EvalType;
+  using EvalType = typename internal::nested_eval<XprType, N>::type;
   return std::is_same<internal::remove_all_t<EvalType>, internal::remove_all_t<ReferenceType>>::value;
 }
 
@@ -46,7 +46,7 @@ void run_nesting_ops_1(const MatrixType& _m) {
 
 template <typename MatrixType>
 void run_nesting_ops_2(const MatrixType& _m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   Index rows = _m.rows();
   Index cols = _m.cols();
   MatrixType m1 = MatrixType::Random(rows, cols);

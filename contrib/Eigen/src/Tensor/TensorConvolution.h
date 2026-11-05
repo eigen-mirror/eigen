@@ -194,23 +194,23 @@ class IndexMapper {
 template <typename Dimensions, typename InputXprType, typename KernelXprType>
 struct traits<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType> > {
   // Type promotion to handle the case where the types of the lhs and the rhs are different.
-  typedef typename promote_storage_type<typename InputXprType::Scalar, typename KernelXprType::Scalar>::ret Scalar;
-  typedef typename promote_storage_type<typename traits<InputXprType>::StorageKind,
-                                        typename traits<KernelXprType>::StorageKind>::ret StorageKind;
-  typedef typename promote_index_type<typename traits<InputXprType>::Index, typename traits<KernelXprType>::Index>::type
-      Index;
+  using Scalar = typename promote_storage_type<typename InputXprType::Scalar, typename KernelXprType::Scalar>::ret;
+  using StorageKind = typename promote_storage_type<typename traits<InputXprType>::StorageKind,
+                                                    typename traits<KernelXprType>::StorageKind>::ret;
+  using Index =
+      typename promote_index_type<typename traits<InputXprType>::Index, typename traits<KernelXprType>::Index>::type;
   static constexpr int NumDimensions = traits<InputXprType>::NumDimensions;
   static constexpr int Layout = traits<InputXprType>::Layout;
-  typedef std::conditional_t<Pointer_type_promotion<typename InputXprType::Scalar, Scalar>::val,
-                             typename traits<InputXprType>::PointerType, typename traits<KernelXprType>::PointerType>
-      PointerType;
+  using PointerType =
+      std::conditional_t<Pointer_type_promotion<typename InputXprType::Scalar, Scalar>::val,
+                         typename traits<InputXprType>::PointerType, typename traits<KernelXprType>::PointerType>;
 
   enum { Flags = 0 };
 };
 
 template <typename Dimensions, typename InputXprType, typename KernelXprType>
 struct eval<TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>, Eigen::Dense> {
-  typedef const TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>& type;
+  using type = const TensorConvolutionOp<Dimensions, InputXprType, KernelXprType>&;
 };
 
 }  // end namespace internal
@@ -222,13 +222,13 @@ template <typename Indices, typename InputXprType, typename KernelXprType>
 class TensorConvolutionOp
     : public TensorBase<TensorConvolutionOp<Indices, InputXprType, KernelXprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorConvolutionOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename internal::promote_storage_type<typename InputXprType::CoeffReturnType,
-                                                  typename KernelXprType::CoeffReturnType>::ret CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorConvolutionOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorConvolutionOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorConvolutionOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorConvolutionOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename internal::promote_storage_type<typename InputXprType::CoeffReturnType,
+                                                                  typename KernelXprType::CoeffReturnType>::ret;
+  using Nested = typename Eigen::internal::ref_selector<TensorConvolutionOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorConvolutionOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorConvolutionOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorConvolutionOp(const InputXprType& input, const KernelXprType& kernel,
                                                             const Indices& dims)
@@ -255,20 +255,20 @@ class TensorConvolutionOp
 
 template <typename Indices, typename InputArgType, typename KernelArgType, typename Device>
 struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelArgType>, Device> {
-  typedef TensorConvolutionOp<Indices, InputArgType, KernelArgType> XprType;
+  using XprType = TensorConvolutionOp<Indices, InputArgType, KernelArgType>;
 
   static constexpr int NumDims =
       internal::array_size<typename TensorEvaluator<InputArgType, Device>::Dimensions>::value;
   static constexpr int NumKernelDims = internal::array_size<Indices>::value;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumDims> Dimensions;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumDims>;
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<Scalar, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<Scalar, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<InputArgType, Device>::Layout;
   enum {
@@ -283,7 +283,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -498,7 +498,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     } else {
       size_t kernel_sz = m_kernelImpl.dimensions().TotalSize() * sizeof(Scalar);
       Scalar* local = (Scalar*)m_device.allocate_temp(kernel_sz);
-      typedef TensorEvalToOp<const KernelArgType> EvalTo;
+      using EvalTo = TensorEvalToOp<const KernelArgType>;
       EvalTo evalToTmp(local, m_kernelArg);
       const bool Vectorize = internal::IsVectorizable<Device, KernelArgType>::value;
       internal::TensorExecutor<const EvalTo, Device, Vectorize>::run(evalToTmp, m_device);
@@ -764,14 +764,14 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel3D(
 
 template <typename Indices, typename InputArgType, typename KernelArgType>
 struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelArgType>, GpuDevice> {
-  typedef TensorConvolutionOp<Indices, InputArgType, KernelArgType> XprType;
+  using XprType = TensorConvolutionOp<Indices, InputArgType, KernelArgType>;
 
   static constexpr int NumDims =
       internal::array_size<typename TensorEvaluator<InputArgType, GpuDevice>::Dimensions>::value;
   static constexpr int NumKernelDims = internal::array_size<Indices>::value;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename TensorEvaluator<KernelArgType, GpuDevice>::Dimensions KernelDimensions;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumDims>;
+  using KernelDimensions = typename TensorEvaluator<KernelArgType, GpuDevice>::Dimensions;
 
   static constexpr int Layout = TensorEvaluator<InputArgType, GpuDevice>::Layout;
   enum {
@@ -785,7 +785,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   TensorEvaluator(const XprType& op, const GpuDevice& device)
@@ -814,9 +814,9 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     }
   }
 
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, GpuDevice>::type PacketReturnType;
-  typedef typename InputArgType::Scalar Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, GpuDevice>::type;
+  using Scalar = typename InputArgType::Scalar;
   static constexpr int PacketSize = internal::unpacket_traits<PacketReturnType>::size;
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_dimensions; }
@@ -857,7 +857,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
     } else {
       size_t kernel_sz = m_kernelImpl.dimensions().TotalSize() * sizeof(Scalar);
       Scalar* local = (Scalar*)m_device.allocate(kernel_sz);
-      typedef TensorEvalToOp<const KernelArgType> EvalTo;
+      using EvalTo = TensorEvalToOp<const KernelArgType>;
       EvalTo evalToTmp(local, m_kernelArg);
       const bool PacketAccess = internal::IsVectorizable<GpuDevice, KernelArgType>::value;
       internal::TensorExecutor<const EvalTo, GpuDevice, PacketAccess>::run(evalToTmp, m_device);
@@ -876,7 +876,7 @@ struct TensorEvaluator<const TensorConvolutionOp<Indices, InputArgType, KernelAr
   }
 
   void executeEval(Scalar* data) const {
-    typedef typename TensorEvaluator<InputArgType, GpuDevice>::Dimensions InputDims;
+    using InputDims = typename TensorEvaluator<InputArgType, GpuDevice>::Dimensions;
 
     const int maxSharedMem = m_device.sharedMemPerBlock();
     const int maxThreadsPerBlock = m_device.maxGpuThreadsPerBlock();

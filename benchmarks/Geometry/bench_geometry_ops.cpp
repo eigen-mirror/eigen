@@ -171,7 +171,7 @@ static void BM_Rotation2DSlerp(benchmark::State& state) {
 
 template <typename Scalar, int Mode>
 static void BM_TransformInverse(benchmark::State& state) {
-  typedef Transform<Scalar, 3, Mode> Trans;
+  using Trans = Transform<Scalar, 3, Mode>;
   Trans t;
   t.setIdentity();
   t.rotate(Quaternion<Scalar>::UnitRandom());

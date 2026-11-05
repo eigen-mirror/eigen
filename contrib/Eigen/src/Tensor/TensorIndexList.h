@@ -53,7 +53,7 @@ constexpr Index type2indexpair<f, s>::second;
 
 template <Index n>
 struct NumTraits<type2index<n>> {
-  typedef Index Real;
+  using Real = Index;
   enum { IsComplex = 0, RequireInitialization = false, ReadCost = 1, AddCost = 1, MulCost = 1 };
 
   EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE Real epsilon() { return 0; }
@@ -104,8 +104,8 @@ struct IndexTuple<T, O...> {
   static constexpr int count = 1 + sizeof...(O);
   T head{};
   IndexTuple<O...> others{};
-  typedef T Head;
-  typedef IndexTuple<O...> Other;
+  using Head = T;
+  using Other = IndexTuple<O...>;
 };
 
 template <typename T>
@@ -115,7 +115,7 @@ struct IndexTuple<T> {
 
   constexpr static int count = 1;
   T head{};
-  typedef T Head;
+  using Head = T;
 };
 
 template <int N, typename... T>
@@ -123,7 +123,7 @@ struct IndexTupleExtractor;
 
 template <int N, typename T, typename... O>
 struct IndexTupleExtractor<N, T, O...> {
-  typedef typename IndexTupleExtractor<N - 1, O...>::ValType ValType;
+  using ValType = typename IndexTupleExtractor<N - 1, O...>::ValType;
 
   EIGEN_DEVICE_FUNC static constexpr ValType& get_val(IndexTuple<T, O...>& val) {
     return IndexTupleExtractor<N - 1, O...>::get_val(val.others);
@@ -140,7 +140,7 @@ struct IndexTupleExtractor<N, T, O...> {
 
 template <typename T, typename... O>
 struct IndexTupleExtractor<0, T, O...> {
-  typedef T ValType;
+  using ValType = T;
 
   EIGEN_DEVICE_FUNC static constexpr ValType& get_val(IndexTuple<T, O...>& val) { return val.head; }
   EIGEN_DEVICE_FUNC static constexpr const ValType& get_val(const IndexTuple<T, O...>& val) { return val.head; }

@@ -68,7 +68,7 @@ namespace Eigen {
 template <class MatrixType_>
 class NNLS {
  public:
-  typedef MatrixType_ MatrixType;
+  using MatrixType = MatrixType_;
 
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,
@@ -78,15 +78,15 @@ class NNLS {
     MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime
   };
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::Index Index;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using Index = typename MatrixType::Index;
 
   /** Type of a row vector of the system matrix \f$A\f$. */
-  typedef Matrix<Scalar, ColsAtCompileTime, 1> SolutionVectorType;
+  using SolutionVectorType = Matrix<Scalar, ColsAtCompileTime, 1>;
   /** Type of a column vector of the system matrix \f$A\f$. */
-  typedef Matrix<Scalar, RowsAtCompileTime, 1> RhsVectorType;
-  typedef Matrix<Index, ColsAtCompileTime, 1> IndicesType;
+  using RhsVectorType = Matrix<Scalar, RowsAtCompileTime, 1>;
+  using IndicesType = Matrix<Index, ColsAtCompileTime, 1>;
 
   /** */
   NNLS();
@@ -167,7 +167,7 @@ class NNLS {
   void solveInactiveSet_(const RhsVectorType &b);
 
  private:
-  typedef Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime> MatrixAtAType;
+  using MatrixAtAType = Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime>;
 
   /** \internal Holds the maximum number of iterations for the NNLS algorithm.
    *  @c -1 means to use the default value. */

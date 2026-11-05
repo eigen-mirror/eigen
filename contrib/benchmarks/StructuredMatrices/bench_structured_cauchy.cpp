@@ -12,8 +12,8 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
-typedef Matrix<double, Dynamic, Dynamic> Mat;
+using Vec = Matrix<double, Dynamic, 1>;
+using Mat = Matrix<double, Dynamic, Dynamic>;
 
 // After reversing its rows, this Cauchy matrix has diagonal 4n and off-diagonal
 // row sums below 2 H_n. It is well conditioned while still exercising row

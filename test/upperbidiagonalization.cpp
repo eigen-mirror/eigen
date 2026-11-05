@@ -17,10 +17,10 @@ void upperbidiag_verify(const MatrixType& a) {
   const Index rows = a.rows();
   const Index cols = a.cols();
 
-  typedef Matrix<typename MatrixType::RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>
-      RealMatrixType;
-  typedef Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::RowsAtCompileTime>
-      TransposeMatrixType;
+  using RealMatrixType =
+      Matrix<typename MatrixType::RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
+  using TransposeMatrixType =
+      Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   internal::UpperBidiagonalization<MatrixType> ubd(a);
   RealMatrixType b(rows, cols);
@@ -38,8 +38,8 @@ void upperbidiag_verify_unblocked(const MatrixType& a) {
   const Index rows = a.rows();
   const Index cols = a.cols();
 
-  typedef Matrix<typename MatrixType::RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>
-      RealMatrixType;
+  using RealMatrixType =
+      Matrix<typename MatrixType::RealScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
   internal::UpperBidiagonalization<MatrixType> ubd(rows, cols);
   ubd.computeUnblocked(a);
@@ -73,7 +73,7 @@ void upperbidiag_default_construct() {
 // Test with structured/ill-conditioned matrices.
 template <typename Scalar>
 void upperbidiag_structured(Index rows, Index cols) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Zero matrix.
   {
@@ -98,7 +98,7 @@ void upperbidiag_structured(Index rows, Index cols) {
     MatrixType Q_V = qrV.householderQ() * MatrixType::Identity(cols, cols);
     // Graded singular values: 1, 1e-2, 1e-4, ...
     MatrixType sigma = MatrixType::Zero(rows, cols);
-    typedef typename NumTraits<Scalar>::Real RealScalar;
+    using RealScalar = typename NumTraits<Scalar>::Real;
     for (Index i = 0; i < cols; ++i) {
       sigma(i, i) = static_cast<RealScalar>(std::pow(RealScalar(10), -RealScalar(2) * i / (cols > 1 ? cols - 1 : 1)));
     }

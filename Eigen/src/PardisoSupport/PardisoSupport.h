@@ -58,7 +58,7 @@ struct pardiso_run_selector {
 };
 template <>
 struct pardiso_run_selector<long long int> {
-  typedef long long int IndexType;
+  using IndexType = long long int;
   static IndexType run(_MKL_DSS_HANDLE_t pt, IndexType maxfct, IndexType mnum, IndexType type, IndexType phase,
                        IndexType n, void* a, IndexType* ia, IndexType* ja, IndexType* perm, IndexType nrhs,
                        IndexType* iparm, IndexType msglvl, void* b, void* x) {
@@ -73,26 +73,26 @@ struct pardiso_traits;
 
 template <typename MatrixType_>
 struct pardiso_traits<PardisoLU<MatrixType_> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 template <typename MatrixType_, int Options>
 struct pardiso_traits<PardisoLLT<MatrixType_, Options> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 template <typename MatrixType_, int Options>
 struct pardiso_traits<PardisoLDLT<MatrixType_, Options> > {
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef typename MatrixType_::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = typename MatrixType_::StorageIndex;
 };
 
 }  // end namespace internal
@@ -100,24 +100,24 @@ struct pardiso_traits<PardisoLDLT<MatrixType_, Options> > {
 template <class Derived>
 class PardisoImpl : public SparseSolverBase<Derived> {
  protected:
-  typedef SparseSolverBase<Derived> Base;
+  using Base = SparseSolverBase<Derived>;
   using Base::derived;
   using Base::m_isInitialized;
 
-  typedef internal::pardiso_traits<Derived> Traits;
+  using Traits = internal::pardiso_traits<Derived>;
 
  public:
   using Base::_solve_impl;
 
-  typedef typename Traits::MatrixType MatrixType;
-  typedef typename Traits::Scalar Scalar;
-  typedef typename Traits::RealScalar RealScalar;
-  typedef typename Traits::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, RowMajor, StorageIndex> SparseMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Matrix<StorageIndex, 1, MatrixType::ColsAtCompileTime> IntRowVectorType;
-  typedef Matrix<StorageIndex, MatrixType::RowsAtCompileTime, 1> IntColVectorType;
-  typedef Array<StorageIndex, 64, 1, DontAlign> ParameterType;
+  using MatrixType = typename Traits::MatrixType;
+  using Scalar = typename Traits::Scalar;
+  using RealScalar = typename Traits::RealScalar;
+  using StorageIndex = typename Traits::StorageIndex;
+  using SparseMatrixType = SparseMatrix<Scalar, RowMajor, StorageIndex>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using IntRowVectorType = Matrix<StorageIndex, 1, MatrixType::ColsAtCompileTime>;
+  using IntColVectorType = Matrix<StorageIndex, MatrixType::RowsAtCompileTime, 1>;
+  using ParameterType = Array<StorageIndex, 64, 1, DontAlign>;
   enum { ScalarIsComplex = NumTraits<Scalar>::IsComplex, ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 
   PardisoImpl() : m_analysisIsOk(false), m_factorizationIsOk(false) {
@@ -365,14 +365,14 @@ void PardisoImpl<Derived>::_solve_impl(const MatrixBase<BDerived>& b, MatrixBase
 template <typename MatrixType>
 class PardisoLU : public PardisoImpl<PardisoLU<MatrixType> > {
  protected:
-  typedef PardisoImpl<PardisoLU> Base;
+  using Base = PardisoImpl<PardisoLU>;
   using Base::m_matrix;
   using Base::pardisoInit;
   friend class PardisoImpl<PardisoLU<MatrixType> >;
 
  public:
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
 
   using Base::compute;
   using Base::solve;
@@ -413,15 +413,15 @@ class PardisoLU : public PardisoImpl<PardisoLU<MatrixType> > {
 template <typename MatrixType, int UpLo_>
 class PardisoLLT : public PardisoImpl<PardisoLLT<MatrixType, UpLo_> > {
  protected:
-  typedef PardisoImpl<PardisoLLT<MatrixType, UpLo_> > Base;
+  using Base = PardisoImpl<PardisoLLT<MatrixType, UpLo_> >;
   using Base::m_matrix;
   using Base::pardisoInit;
   friend class PardisoImpl<PardisoLLT<MatrixType, UpLo_> >;
 
  public:
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
-  typedef typename Base::StorageIndex StorageIndex;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
+  using StorageIndex = typename Base::StorageIndex;
   enum { UpLo = UpLo_ };
   using Base::compute;
 
@@ -467,15 +467,15 @@ class PardisoLLT : public PardisoImpl<PardisoLLT<MatrixType, UpLo_> > {
 template <typename MatrixType, int Options>
 class PardisoLDLT : public PardisoImpl<PardisoLDLT<MatrixType, Options> > {
  protected:
-  typedef PardisoImpl<PardisoLDLT<MatrixType, Options> > Base;
+  using Base = PardisoImpl<PardisoLDLT<MatrixType, Options> >;
   using Base::m_matrix;
   using Base::pardisoInit;
   friend class PardisoImpl<PardisoLDLT<MatrixType, Options> >;
 
  public:
-  typedef typename Base::Scalar Scalar;
-  typedef typename Base::RealScalar RealScalar;
-  typedef typename Base::StorageIndex StorageIndex;
+  using Scalar = typename Base::Scalar;
+  using RealScalar = typename Base::RealScalar;
+  using StorageIndex = typename Base::StorageIndex;
   using Base::compute;
   enum { UpLo = Options & (Upper | Lower) };
 

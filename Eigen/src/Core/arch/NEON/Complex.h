@@ -52,8 +52,8 @@ struct Packet2cf {
 
 template <>
 struct packet_traits<std::complex<float>> : default_packet_traits {
-  typedef Packet2cf type;
-  typedef Packet1cf half;
+  using type = Packet2cf;
+  using half = Packet1cf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -460,8 +460,8 @@ struct Packet1cd {
 
 template <>
 struct packet_traits<std::complex<double>> : default_packet_traits {
-  typedef Packet1cd type;
-  typedef Packet1cd half;
+  using type = Packet1cd;
+  using half = Packet1cd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,

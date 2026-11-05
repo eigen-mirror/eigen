@@ -25,10 +25,10 @@
 
 template <typename Scalar>
 void angleaxis_edge_cases() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef AngleAxis<Scalar> AngleAxisx;
-  typedef Quaternion<Scalar> Quaternionx;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using AngleAxisx = AngleAxis<Scalar>;
+  using Quaternionx = Quaternion<Scalar>;
 
   Scalar eps = test_precision<Scalar>();
 
@@ -190,9 +190,9 @@ void angleaxis_edge_cases() {
 
 template <typename Scalar>
 void rotation2d_standalone() {
-  typedef Matrix<Scalar, 2, 1> Vector2;
-  typedef Matrix<Scalar, 2, 2> Matrix2;
-  typedef Rotation2D<Scalar> Rotation2Dx;
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  using Matrix2 = Matrix<Scalar, 2, 2>;
+  using Rotation2Dx = Rotation2D<Scalar>;
 
   Scalar eps = test_precision<Scalar>();
 
@@ -261,9 +261,9 @@ void rotation2d_standalone() {
 
 template <typename Scalar>
 void translation_standalone() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Translation<Scalar, 3> Translation3;
-  typedef Transform<Scalar, 3, Isometry> Isometry3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Translation3 = Translation<Scalar, 3>;
+  using Isometry3 = Transform<Scalar, 3, Isometry>;
 
   // Construction
   {
@@ -318,17 +318,17 @@ void translation_standalone() {
     Translation3 t(v);
     Isometry3 iso(t);
     VERIFY_IS_APPROX(iso.translation(), v);
-    typedef Matrix<Scalar, 3, 3> Matrix3;
+    using Matrix3 = Matrix<Scalar, 3, 3>;
     VERIFY_IS_APPROX(iso.linear(), Matrix3::Identity());
   }
 }
 
 template <typename Scalar>
 void scaling_standalone() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Translation<Scalar, 3> Translation3;
-  typedef Transform<Scalar, 3, Affine> Affine3;
-  typedef UniformScaling<Scalar> UniformScalingx;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Translation3 = Translation<Scalar, 3>;
+  using Affine3 = Transform<Scalar, 3, Affine>;
+  using UniformScalingx = UniformScaling<Scalar>;
 
   // UniformScaling construction
   {
@@ -375,8 +375,8 @@ void scaling_standalone() {
 
 template <typename Scalar>
 void quaternion_from_non_orthogonal_matrix() {
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Quaternion<Scalar> Quaternionx;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Quaternionx = Quaternion<Scalar>;
 
   // Slightly non-orthogonal matrix should not produce NaN
   {
@@ -455,10 +455,10 @@ void quaternion_from_non_orthogonal_matrix() {
 
 template <typename Scalar>
 void quaternion_slerp_edge_cases() {
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisx = AngleAxis<Scalar>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
 
   // The slerp formula preserves unit norm to O(epsilon^2) for unit inputs.
   Scalar tight = Scalar(32) * NumTraits<Scalar>::epsilon();
@@ -538,10 +538,10 @@ void quaternion_slerp_edge_cases() {
 
 template <typename Scalar>
 void umeyama_degenerate() {
-  typedef Matrix<Scalar, 3, Dynamic> Points3;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 4, 4> Matrix4;
+  using Points3 = Matrix<Scalar, 3, Dynamic>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Matrix4 = Matrix<Scalar, 4, 4>;
 
   // All source points identical
   {
@@ -586,8 +586,8 @@ void umeyama_degenerate() {
 
 template <typename Scalar>
 void shear_ground_truth() {
-  typedef Transform<Scalar, 2, Affine> Transform2;
-  typedef Matrix<Scalar, 2, 1> Vector2;
+  using Transform2 = Transform<Scalar, 2, Affine>;
+  using Vector2 = Matrix<Scalar, 2, 1>;
 
   // Verify the actual matrix produced by shear()
   // Note: Eigen's shear(sx, sy) applies the matrix [[1, sy], [sx, 1]] to columns,

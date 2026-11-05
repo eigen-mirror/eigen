@@ -68,21 +68,21 @@ namespace Eigen {
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
 class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
  public:
-  typedef Tensor<Scalar_, NumIndices_, Options_, IndexType_> Self;
-  typedef TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > Base;
-  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
-  typedef typename internal::traits<Self>::StorageKind StorageKind;
-  typedef typename internal::traits<Self>::Index Index;
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename Base::CoeffReturnType CoeffReturnType;
+  using Self = Tensor<Scalar_, NumIndices_, Options_, IndexType_>;
+  using Base = TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexType_> >;
+  using Nested = typename Eigen::internal::ref_selector<Self>::type;
+  using StorageKind = typename internal::traits<Self>::StorageKind;
+  using Index = typename internal::traits<Self>::Index;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename Base::CoeffReturnType;
 
   enum { IsAligned = (EIGEN_MAX_ALIGN_BYTES > 0) && !(Options_ & DontAlign), CoordAccess = true, RawAccess = true };
 
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   static constexpr int Options = Options_;
   static constexpr int NumIndices = NumIndices_;
-  typedef DSizes<Index, NumIndices_> Dimensions;
+  using Dimensions = DSizes<Index, NumIndices_>;
 
  protected:
   TensorStorage<Scalar, Dimensions, Options> m_storage;
@@ -268,7 +268,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Tensor(const TensorBase<OtherDerived, ReadOnlyAccessors>& other) {
     EIGEN_STATIC_ASSERT(OtherDerived::NumDimensions == Base::NumDimensions, Number_of_dimensions_must_match)
-    typedef TensorAssignOp<Tensor, const OtherDerived> Assign;
+    using Assign = TensorAssignOp<Tensor, const OtherDerived>;
     Assign assign(*this, other.derived());
     resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
@@ -277,7 +277,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Tensor(const TensorBase<OtherDerived, WriteAccessors>& other) {
     EIGEN_STATIC_ASSERT(OtherDerived::NumDimensions == Base::NumDimensions, Number_of_dimensions_must_match)
-    typedef TensorAssignOp<Tensor, const OtherDerived> Assign;
+    using Assign = TensorAssignOp<Tensor, const OtherDerived>;
     Assign assign(*this, other.derived());
     resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
@@ -290,7 +290,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Tensor& operator=(const Tensor& other) {
-    typedef TensorAssignOp<Tensor, const Tensor> Assign;
+    using Assign = TensorAssignOp<Tensor, const Tensor>;
     Assign assign(*this, other);
     resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
@@ -298,7 +298,7 @@ class Tensor : public TensorBase<Tensor<Scalar_, NumIndices_, Options_, IndexTyp
   }
   template <typename OtherDerived>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Tensor& operator=(const OtherDerived& other) {
-    typedef TensorAssignOp<Tensor, const OtherDerived> Assign;
+    using Assign = TensorAssignOp<Tensor, const OtherDerived>;
     Assign assign(*this, other);
     resize(TensorEvaluator<const Assign, DefaultDevice>(assign, DefaultDevice()).dimensions());
     internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());

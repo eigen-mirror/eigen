@@ -24,7 +24,7 @@
 // P^T L D L^* P == A and that matrixL()/matrixU() are consistent.
 template <typename MatrixType, typename BKType>
 void verify_factorization(const MatrixType& A, const BKType& bk) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   const Index n = A.rows();
 
   VERIFY_IS_APPROX(A, bk.reconstructedMatrix());
@@ -59,9 +59,9 @@ void verify_factorization(const MatrixType& A, const BKType& bk) {
 // Core test on a Hermitian indefinite matrix `symm` (full, self-adjoint).
 template <typename MatrixType>
 void bunchkaufman_solve_and_reconstruct(const MatrixType& symm) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   const Index rows = symm.rows();
   const Index cols = symm.cols();
@@ -99,9 +99,9 @@ void bunchkaufman_solve_and_reconstruct(const MatrixType& symm) {
 // Build a Hermitian matrix with a prescribed (real) eigenvalue spectrum and check inertia + stability.
 template <typename MatrixType>
 void bunchkaufman_inertia_and_conditioning(Index n) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   // Random orthonormal/unitary U via QR.
   MatrixType R = MatrixType::Random(n, n);
@@ -144,8 +144,8 @@ void bunchkaufman_inertia_and_conditioning(Index n) {
 // Definiteness / 2x2-pivot regression cases.
 template <typename Scalar>
 void bunchkaufman_small_cases() {
-  typedef Matrix<Scalar, 2, 2> Mat2;
-  typedef Matrix<Scalar, 2, 1> Vec2;
+  using Mat2 = Matrix<Scalar, 2, 2>;
+  using Vec2 = Matrix<Scalar, 2, 1>;
 
   // Indefinite with zero diagonal -> requires a 2x2 pivot.
   {
@@ -187,7 +187,7 @@ void bunchkaufman_small_cases() {
 // size larger than the panel width (blocked kernel, where the zero pivot lands inside a panel).
 template <typename Scalar>
 void bunchkaufman_singular(Index n) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   // A zero column/row makes the matrix exactly singular with an exact zero pivot. Place it in the
   // interior so that, for n > blocksize, it falls inside a panel of the blocked algorithm.
   const Index z = n / 2;
@@ -209,7 +209,7 @@ void bunchkaufman_singular(Index n) {
 // not silently accepted.
 template <typename Scalar>
 void bunchkaufman_nan() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   for (Index n : {5, 100}) {
     MatrixType M = MatrixType::Random(n, n);
     MatrixType A = M + M.adjoint();
@@ -222,7 +222,7 @@ void bunchkaufman_nan() {
 // Rank-deficient PSD: A = a a^* with a of rank r < n. Reconstruct must match.
 template <typename Scalar>
 void bunchkaufman_rank_deficient() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   const Index n = 16;
   const Index r = internal::random<Index>(1, n - 1);
   MatrixType a = MatrixType::Random(n, r);
@@ -235,8 +235,8 @@ void bunchkaufman_rank_deficient() {
 // Blocking and 2x2-panel-boundary stress across sizes that straddle the panel width.
 template <typename Scalar>
 void bunchkaufman_blocking_boundary() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1,  2,  3,  PS - 1, PS,  PS + 1, 2 * PS, 31,  32,         33,
                          63, 64, 65, 96,     127, 128,    129,    192, 2 * 64 + 3, 200};
@@ -271,9 +271,9 @@ void bunchkaufman_blocking_boundary() {
 // A well conditioned, hence the inertia -- and with it signDeterminant() -- unambiguous.
 template <typename MatrixType>
 void bunchkaufman_determinant(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
   RealVectorType d(size);
@@ -304,8 +304,8 @@ void bunchkaufman_determinant(Index size) {
 // The determinant of an empty matrix is the empty product, 1.
 template <typename MatrixType>
 void bunchkaufman_determinant_empty() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   BunchKaufman<MatrixType> bk{MatrixType(0, 0)};
   VERIFY_IS_EQUAL(bk.determinant(), Scalar(1));
@@ -344,8 +344,8 @@ void bunchkaufman_determinant_mixed_scale() {
 // 1/|d21| overflows on, and the resulting infinity flips the block's inertia.
 template <typename MatrixType>
 void bunchkaufman_determinant_subnormal_block() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   if (!subnormalDivisionIsExact<RealScalar>()) {
     const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
@@ -418,7 +418,7 @@ void bunchkaufman_inertia_wide_2x2_block() {
 // where u^2 would be zero. Not template code, because building the off-diagonal needs a complex literal.
 template <typename = void>
 void bunchkaufman_determinant_subnormal_block_complex() {
-  typedef std::complex<double> Scalar;
+  using Scalar = std::complex<double>;
 
   if (!subnormalDivisionIsExact<double>()) return;
 
@@ -481,9 +481,9 @@ void bunchkaufman(const MatrixType& m) {
 // so this is exercised for double / complex<double> only.
 template <typename Scalar>
 void bunchkaufman_extreme_scale() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, 2, 2> Mat2;
-  typedef Matrix<Scalar, 2, 1> Vec2;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat2 = Matrix<Scalar, 2, 2>;
+  using Vec2 = Matrix<Scalar, 2, 1>;
   // One reciprocal and a 2x2 product; include complex multiply/add rounding.
   const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon();
   for (RealScalar mag : {numext::pow(RealScalar(10), RealScalar(200)), numext::pow(RealScalar(10), RealScalar(-200))}) {
@@ -510,9 +510,9 @@ void bunchkaufman_extreme_scale() {
 // the solve must stay backward stable. double / complex<double> only (1e+-175 overflows float).
 template <typename Scalar>
 void bunchkaufman_extreme_scale_large(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
   const RealScalar tol = numext::sqrt(test_precision<RealScalar>());
   MatrixType M = MatrixType::Random(n, n);
   MatrixType A = M + M.adjoint();
@@ -541,7 +541,7 @@ Scalar subnormal_block_off_diagonal(const Scalar& s, std::false_type /*IsComplex
 }
 template <typename Scalar>
 Scalar subnormal_block_off_diagonal(const typename NumTraits<Scalar>::Real& s, std::true_type /*IsComplex*/) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   return Scalar(RealScalar(3) * s, RealScalar(4) * s);
 }
 
@@ -555,8 +555,8 @@ void verify_subnormal_2x2_block(const MatrixType& A, const BKType& bk,
                                 const Matrix<typename MatrixType::Scalar, Dynamic, 1>& b,
                                 const Matrix<typename MatrixType::Scalar, Dynamic, 1>& x_true, Index m,
                                 const typename MatrixType::RealScalar& s) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   const RealScalar u = (std::numeric_limits<RealScalar>::denorm_min)();
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
 
@@ -579,9 +579,9 @@ void verify_subnormal_2x2_block(const MatrixType& A, const BKType& bk,
 
 template <typename MatrixType>
 void bunchkaufman_subnormal_2x2_block(Index n, Index p, Index m, const typename MatrixType::RealScalar& s) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A = MatrixType::Identity(n, n);
   A(p, p) = A(p + 1, p + 1) = Scalar(s);
@@ -610,7 +610,7 @@ void bunchkaufman_subnormal_2x2_block(Index n, Index p, Index m, const typename 
 
 template <typename MatrixType>
 void bunchkaufman_subnormal_2x2_block() {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   if (!subnormalDivisionIsExact<RealScalar>()) {
     const char* reason = ScopedFlushToZero::hardwareFlushesSubnormalInputs() ? "the hardware flushes subnormal inputs"
                                                                              : "the compiler relaxed the division";
@@ -641,7 +641,7 @@ void bunchkaufman_subnormal_2x2_block() {
 
 template <typename BKType, typename VectorType>
 void verify_near_max_scale(const BKType& bk, const VectorType& b, const VectorType& x_true) {
-  typedef typename VectorType::RealScalar RealScalar;
+  using RealScalar = typename VectorType::RealScalar;
   VERIFY(bk.info() == Success);
   VERIFY(bk.matrixLDLT().allFinite());
   // x_true = e_2 comes back through cancellations (6/5 - 6/5 and -3/5 + 3/5, or 18/25 - 18/25 and
@@ -657,9 +657,9 @@ void verify_near_max_scale(const BKType& bk, const VectorType& b, const VectorTy
 // L D L^* is not checked: (L D)(2, 1) = 6M/5 - 3M/10 overflows in the middle of its own evaluation.
 template <typename MatrixType>
 void bunchkaufman_near_max_scale() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
   const RealScalar M = (std::numeric_limits<RealScalar>::max)();
   for (Index n : {Index(3), 2 * internal::bunch_kaufman_blocksize<Scalar>() + 2}) {
     for (RealScalar s : {RealScalar(1), RealScalar(-1)}) {
@@ -684,7 +684,7 @@ void bunchkaufman_near_max_scale() {
 // trailing-update GEMM's small blocking buffers stay on the stack rather than the heap.)
 template <typename Scalar>
 void bunchkaufman_no_malloc() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   const Index n = internal::bunch_kaufman_blocksize<Scalar>() + 36;
   const MatrixType M = MatrixType::Random(n, n);
   const MatrixType A = M + M.adjoint();

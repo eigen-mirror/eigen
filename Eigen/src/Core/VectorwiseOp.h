@@ -80,19 +80,19 @@ class PartialReduxExpr : public internal::dense_xpr_base<PartialReduxExpr<Matrix
 template <typename A, typename B>
 struct partial_redux_dummy_func;
 
-#define EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(MEMBER, COST, VECTORIZABLE, BINARYOP)              \
-  template <typename ResultType, typename Scalar>                                           \
-  struct member_##MEMBER {                                                                  \
-    typedef ResultType result_type;                                                         \
-    typedef BINARYOP<Scalar, Scalar> BinaryOp;                                              \
-    template <int Size>                                                                     \
-    struct Cost : std::integral_constant<int, COST> {};                                     \
-    enum { Vectorizable = (VECTORIZABLE) && functor_traits<BinaryOp>::PacketAccess };       \
-    template <typename XprType>                                                             \
-    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const { \
-      return mat.MEMBER();                                                                  \
-    }                                                                                       \
-    BinaryOp binaryFunc() const { return BinaryOp(); }                                      \
+#define EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(MEMBER, COST, VECTORIZABLE, BINARYOP)                         \
+  template <typename ResultType, typename Scalar>                                                      \
+  struct member_##MEMBER {                                                                             \
+    using result_type = ResultType;                                                                    \
+    using BinaryOp = BINARYOP<Scalar, Scalar>; /* NOLINT(bugprone-macro-parentheses): template name */ \
+    template <int Size>                                                                                \
+    struct Cost : std::integral_constant<int, COST> {};                                                \
+    enum { Vectorizable = (VECTORIZABLE) && functor_traits<BinaryOp>::PacketAccess };                  \
+    template <typename XprType>                                                                        \
+    EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const {            \
+      return mat.MEMBER();                                                                             \
+    }                                                                                                  \
+    BinaryOp binaryFunc() const { return BinaryOp(); }                                                 \
   }
 
 #define EIGEN_MEMBER_FUNCTOR(MEMBER, COST) EIGEN_MAKE_PARTIAL_REDUX_FUNCTOR(MEMBER, COST, 0, partial_redux_dummy_func)

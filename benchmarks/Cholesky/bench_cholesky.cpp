@@ -11,7 +11,7 @@ using namespace Eigen;
 #define SCALAR float
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 static void BM_LDLT(benchmark::State& state) {
   int n = state.range(0);
@@ -42,8 +42,8 @@ BENCHMARK(BM_LDLT)->RangeMultiplier(2)->Range(4, 1500)->Arg(96)->Arg(97);
 
 static void BM_LLT(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> SquareMatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using SquareMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   MatrixType a = MatrixType::Random(n, n);
   SquareMatrixType covMat = a * a.adjoint();
   int r = internal::random<int>(0, n - 1);

@@ -17,6 +17,6 @@
 
 #define EIGEN_LAPACK_FUNC(FUNC) EIGEN_BLAS_FUNC(FUNC)
 
-typedef Eigen::Map<Eigen::Transpositions<Eigen::Dynamic, Eigen::Dynamic, int> > PivotsType;
+using PivotsType = Eigen::Map<Eigen::Transpositions<Eigen::Dynamic, Eigen::Dynamic, int> >;
 
 #endif  // EIGEN_LAPACK_COMMON_H

@@ -12,10 +12,10 @@
 
 template <typename Scalar>
 void smallVectors() {
-  typedef Matrix<Scalar, 1, 2> V2;
-  typedef Matrix<Scalar, 3, 1> V3;
-  typedef Matrix<Scalar, 1, 4> V4;
-  typedef Matrix<Scalar, Dynamic, 1> VX;
+  using V2 = Matrix<Scalar, 1, 2>;
+  using V3 = Matrix<Scalar, 3, 1>;
+  using V4 = Matrix<Scalar, 1, 4>;
+  using VX = Matrix<Scalar, Dynamic, 1>;
   Scalar x1 = internal::random<Scalar>(), x2 = internal::random<Scalar>(), x3 = internal::random<Scalar>(),
          x4 = internal::random<Scalar>();
   V2 v2(x1, x2);

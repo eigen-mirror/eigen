@@ -161,10 +161,10 @@ static void test_striding_without_impl_packet_access() {
   // Pin the capabilities this test relies on: the nested TensorRef evaluator
   // must not have packet access (otherwise this test exercises nothing), while
   // the striding evaluator on top of it must still advertise it.
-  typedef Eigen::TensorRef<const Tensor<T, 3, DataLayout>> RefType;
-  typedef decltype(std::declval<const RefType&>().stride(identity)) StrideExprType;
-  typedef Eigen::TensorEvaluator<const RefType, Eigen::DefaultDevice> RefEvaluator;
-  typedef Eigen::TensorEvaluator<const StrideExprType, Eigen::DefaultDevice> StrideEvaluator;
+  using RefType = Eigen::TensorRef<const Tensor<T, 3, DataLayout>>;
+  using StrideExprType = decltype(std::declval<const RefType&>().stride(identity));
+  using RefEvaluator = Eigen::TensorEvaluator<const RefType, Eigen::DefaultDevice>;
+  using StrideEvaluator = Eigen::TensorEvaluator<const StrideExprType, Eigen::DefaultDevice>;
   EIGEN_STATIC_ASSERT(!RefEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
   EIGEN_STATIC_ASSERT(StrideEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
 

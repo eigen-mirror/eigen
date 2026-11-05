@@ -8,7 +8,7 @@
 EIGEN_DONT_INLINE half fp16_underflow_probe(half normal_min, half one_half) { return normal_min * one_half; }
 
 // Volatile dispatch prevents constant-propagation clones from bypassing the changed FPCR.
-typedef half (*Fp16UnderflowProbe)(half, half);
+using Fp16UnderflowProbe = half (*)(half, half);
 static Fp16UnderflowProbe volatile fp16_underflow_probe_runtime = &fp16_underflow_probe;
 
 void scoped_flush_to_zero_fp16() {
@@ -29,9 +29,9 @@ void scoped_flush_to_zero_fp16() {
 
 template <typename RealScalar>
 void stable_normalize_fastmath() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Complex, 1, 1> ComplexVector1;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
+  using Complex = std::complex<RealScalar>;
+  using ComplexVector1 = Matrix<Complex, 1, 1>;
   using std::sqrt;
 
   const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
@@ -59,8 +59,8 @@ void stable_normalize_fastmath() {
 
 template <typename RealScalar>
 void stable_norm_ftz_boundaries() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
+  using VectorX = Matrix<RealScalar, Dynamic, 1>;
   using std::sqrt;
 
   const RealScalar normal_min = (std::numeric_limits<RealScalar>::min)();
@@ -91,7 +91,7 @@ void stable_norm_ftz_boundaries() {
 
 template <typename RealScalar>
 void stable_norm_multiblock_fastmath() {
-  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
+  using VectorX = Matrix<RealScalar, Dynamic, 1>;
   using std::sqrt;
 
   const Index block_size = 4096;

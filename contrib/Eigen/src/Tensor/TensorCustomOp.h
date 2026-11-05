@@ -19,9 +19,9 @@ namespace Eigen {
 namespace internal {
 template <typename CustomUnaryFunc, typename XprType>
 struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::StorageKind StorageKind;
-  typedef typename XprType::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using StorageKind = typename XprType::StorageKind;
+  using Index = typename XprType::Index;
   // The functor's dimensions() determines the output shape, so the rank of the
   // result may differ from the rank of the input. The argument is spelled
   // exactly as in the evaluator's call so both resolve to the same overload.
@@ -34,13 +34,13 @@ struct traits<TensorCustomUnaryOp<CustomUnaryFunc, XprType> > {
   // Clamped so a failed assertion doesn't cascade into DSizes<Index, -1> errors.
   static constexpr int NumDimensions = CustomRank < 0 ? 1 : static_cast<int>(CustomRank);
   static constexpr int Layout = traits<XprType>::Layout;
-  typedef typename traits<XprType>::PointerType PointerType;
+  using PointerType = typename traits<XprType>::PointerType;
   enum { Flags = 0 };
 };
 
 template <typename CustomUnaryFunc, typename XprType>
 struct eval<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Eigen::Dense> {
-  typedef const TensorCustomUnaryOp<CustomUnaryFunc, XprType> EIGEN_DEVICE_REF type;
+  using type = const TensorCustomUnaryOp<CustomUnaryFunc, XprType> EIGEN_DEVICE_REF;
 };
 
 }  // end namespace internal
@@ -53,12 +53,12 @@ struct eval<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Eigen::Dense> {
 template <typename CustomUnaryFunc, typename XprType>
 class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFunc, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename internal::traits<TensorCustomUnaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename internal::ref_selector<TensorCustomUnaryOp>::non_const_type Nested;
-  typedef typename internal::traits<TensorCustomUnaryOp>::StorageKind StorageKind;
-  typedef typename internal::traits<TensorCustomUnaryOp>::Index Index;
+  using Scalar = typename internal::traits<TensorCustomUnaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename internal::ref_selector<TensorCustomUnaryOp>::non_const_type;
+  using StorageKind = typename internal::traits<TensorCustomUnaryOp>::StorageKind;
+  using Index = typename internal::traits<TensorCustomUnaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCustomUnaryOp(const XprType& expr, const CustomUnaryFunc& func)
       : m_expr(expr), m_func(func) {}
@@ -75,17 +75,17 @@ class TensorCustomUnaryOp : public TensorBase<TensorCustomUnaryOp<CustomUnaryFun
 // Eval as rvalue
 template <typename CustomUnaryFunc, typename XprType, typename Device>
 struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Device> {
-  typedef TensorCustomUnaryOp<CustomUnaryFunc, XprType> ArgType;
-  typedef typename internal::traits<ArgType>::Index Index;
+  using ArgType = TensorCustomUnaryOp<CustomUnaryFunc, XprType>;
+  using Index = typename internal::traits<ArgType>::Index;
   static constexpr int NumDims = internal::traits<ArgType>::NumDimensions;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef std::remove_const_t<typename ArgType::Scalar> Scalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = std::remove_const_t<typename ArgType::Scalar>;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename Eigen::internal::traits<XprType>::PointerType TensorPointerType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename Eigen::internal::traits<XprType>::PointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<XprType, Device>::Layout;
   enum {
@@ -103,10 +103,10 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   // The functor's dimensions() may return an index type that promotes to Index.
@@ -180,13 +180,13 @@ struct TensorEvaluator<const TensorCustomUnaryOp<CustomUnaryFunc, XprType>, Devi
 namespace internal {
 template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
 struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
-  typedef typename internal::promote_storage_type<typename LhsXprType::Scalar, typename RhsXprType::Scalar>::ret Scalar;
-  typedef typename internal::promote_storage_type<typename LhsXprType::CoeffReturnType,
-                                                  typename RhsXprType::CoeffReturnType>::ret CoeffReturnType;
-  typedef typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
-                                        typename traits<RhsXprType>::StorageKind>::ret StorageKind;
-  typedef
-      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type Index;
+  using Scalar = typename internal::promote_storage_type<typename LhsXprType::Scalar, typename RhsXprType::Scalar>::ret;
+  using CoeffReturnType = typename internal::promote_storage_type<typename LhsXprType::CoeffReturnType,
+                                                                  typename RhsXprType::CoeffReturnType>::ret;
+  using StorageKind = typename promote_storage_type<typename traits<LhsXprType>::StorageKind,
+                                                    typename traits<RhsXprType>::StorageKind>::ret;
+  using Index =
+      typename promote_index_type<typename traits<LhsXprType>::Index, typename traits<RhsXprType>::Index>::type;
   // The functor's dimensions() determines the output shape, so the rank of the
   // result may differ from the ranks of the inputs. The arguments are spelled
   // exactly as in the evaluator's call so both resolve to the same overload.
@@ -200,15 +200,15 @@ struct traits<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> > {
   // Clamped so a failed assertion doesn't cascade into DSizes<Index, -1> errors.
   static constexpr int NumDimensions = CustomRank < 0 ? 1 : static_cast<int>(CustomRank);
   static constexpr int Layout = traits<LhsXprType>::Layout;
-  typedef std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
-                             typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>
-      PointerType;
+  using PointerType =
+      std::conditional_t<Pointer_type_promotion<typename LhsXprType::Scalar, Scalar>::val,
+                         typename traits<LhsXprType>::PointerType, typename traits<RhsXprType>::PointerType>;
   enum { Flags = 0 };
 };
 
 template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
 struct eval<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>, Eigen::Dense> {
-  typedef const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>& type;
+  using type = const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>&;
 };
 
 }  // end namespace internal
@@ -217,12 +217,12 @@ template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType>
 class TensorCustomBinaryOp
     : public TensorBase<TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>, ReadOnlyAccessors> {
  public:
-  typedef typename internal::traits<TensorCustomBinaryOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename internal::traits<TensorCustomBinaryOp>::CoeffReturnType CoeffReturnType;
-  typedef typename internal::ref_selector<TensorCustomBinaryOp>::non_const_type Nested;
-  typedef typename internal::traits<TensorCustomBinaryOp>::StorageKind StorageKind;
-  typedef typename internal::traits<TensorCustomBinaryOp>::Index Index;
+  using Scalar = typename internal::traits<TensorCustomBinaryOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename internal::traits<TensorCustomBinaryOp>::CoeffReturnType;
+  using Nested = typename internal::ref_selector<TensorCustomBinaryOp>::non_const_type;
+  using StorageKind = typename internal::traits<TensorCustomBinaryOp>::StorageKind;
+  using Index = typename internal::traits<TensorCustomBinaryOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorCustomBinaryOp(const LhsXprType& lhs, const RhsXprType& rhs,
                                                              const CustomBinaryFunc& func)
@@ -248,18 +248,18 @@ class TensorCustomBinaryOp
 // Eval as rvalue
 template <typename CustomBinaryFunc, typename LhsXprType, typename RhsXprType, typename Device>
 struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>, Device> {
-  typedef TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType> XprType;
-  typedef typename internal::traits<XprType>::Index Index;
+  using XprType = TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, RhsXprType>;
+  using Index = typename internal::traits<XprType>::Index;
   static constexpr int NumDims = internal::traits<XprType>::NumDimensions;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
 
-  typedef typename Eigen::internal::traits<XprType>::PointerType TensorPointerType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename Eigen::internal::traits<XprType>::PointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<LhsXprType, Device>::Layout;
   enum {
@@ -274,10 +274,10 @@ struct TensorEvaluator<const TensorCustomBinaryOp<CustomBinaryFunc, LhsXprType, 
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   // The functor's dimensions() may return an index type that promotes to Index.

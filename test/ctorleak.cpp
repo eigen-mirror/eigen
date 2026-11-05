@@ -37,8 +37,8 @@ Index Foo::object_limit = 0;
 #define EIGEN_TEST_MAX_SIZE 3
 
 EIGEN_DECLARE_TEST(ctorleak) {
-  typedef Matrix<Foo, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Foo, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<Foo, Dynamic, Dynamic>;
+  using VectorX = Matrix<Foo, Dynamic, 1>;
 
   Foo::object_count = 0;
   for (int i = 0; i < g_repeat; i++) {

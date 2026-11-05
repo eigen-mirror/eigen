@@ -25,7 +25,7 @@ template <typename MatrixType>
 void nomalloc(const MatrixType& m) {
   /* this test check no dynamic memory allocation are issued with fixed-size matrices
    */
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
@@ -98,11 +98,11 @@ void ctms_decompositions() {
   const int maxSize = 16;
   const int size = 12;
 
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, 0, maxSize, maxSize> Matrix;
+  using Matrix = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, 0, maxSize, maxSize>;
 
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1, 0, maxSize, 1> Vector;
+  using Vector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1, 0, maxSize, 1>;
 
-  typedef Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, Eigen::Dynamic, 0, maxSize, maxSize> ComplexMatrix;
+  using ComplexMatrix = Eigen::Matrix<std::complex<Scalar>, Eigen::Dynamic, Eigen::Dynamic, 0, maxSize, maxSize>;
 
   const Matrix A(Matrix::Random(size, size)), B(Matrix::Random(size, size));
   Matrix X(size, size);
@@ -169,7 +169,7 @@ void ctms_decompositions() {
 
 template <typename Scalar>
 void selfadjoint_eigensolver_large_fixed_no_malloc() {
-  typedef Eigen::Matrix<Scalar, 96, 96> Matrix;
+  using Matrix = Eigen::Matrix<Scalar, 96, 96>;
   Matrix A = Matrix::Random();
   Matrix saA = A.adjoint() * A;
 
@@ -218,15 +218,15 @@ void test_zerosized() {
 
 template <typename MatrixType>
 void test_reference(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   enum { Flag = MatrixType::IsRowMajor ? Eigen::RowMajor : Eigen::ColMajor };
   enum { TransposeFlag = !MatrixType::IsRowMajor ? Eigen::RowMajor : Eigen::ColMajor };
   Index rows = m.rows(), cols = m.cols();
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Flag> MatrixX;
-  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, TransposeFlag> MatrixXT;
+  using MatrixX = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Flag>;
+  using MatrixXT = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, TransposeFlag>;
   // Dynamic reference:
-  typedef Eigen::Ref<const MatrixX> Ref;
-  typedef Eigen::Ref<const MatrixXT> RefT;
+  using Ref = Eigen::Ref<const MatrixX>;
+  using RefT = Eigen::Ref<const MatrixXT>;
 
   Ref r1(m);
   Ref r2(m.block(rows / 3, cols / 4, rows / 2, cols / 2));
@@ -245,7 +245,7 @@ void test_reference(const MatrixType& m) {
   Eigen::Ref<const MatrixX, Unaligned, Stride<Dynamic, Dynamic> > r10 = r8, r11 = m;
 
   // Initializing from an incompatible Ref will malloc:
-  typedef Eigen::Ref<const MatrixX, Aligned> RefAligned;
+  using RefAligned = Eigen::Ref<const MatrixX, Aligned>;
   VERIFY_RAISES_ASSERT(RefAligned r12 = r10);
   VERIFY_RAISES_ASSERT(Ref r13 = r10);  // r10 has more dynamic strides
 }

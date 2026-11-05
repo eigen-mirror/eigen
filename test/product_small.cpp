@@ -64,7 +64,7 @@ void test_dynamic_bool() {
   int cols = internal::random<int>(1, 64);
   int depth = internal::random<int>(1, 65);
 
-  typedef Matrix<bool, Dynamic, Dynamic> MatrixX;
+  using MatrixX = Matrix<bool, Dynamic, Dynamic>;
   MatrixX A(rows, depth);
   A.setRandom();
   MatrixX B(depth, cols);
@@ -333,10 +333,10 @@ void product_small_regressions() {
     // for the pairs its kernel claims), so a build where double falls back to
     // the generic kernel would otherwise disagree with whichever value the macro
     // holds -- silently, since no SME job builds this test.
-    typedef Eigen::Matrix<double, 10, 10> Matrix10;
+    using Matrix10 = Eigen::Matrix<double, 10, 10>;
     constexpr int kGemm = (internal::product_type<Matrix10, Matrix10>::FixedSizeThreshold + 2) / 3;
-    typedef Eigen::Matrix<double, kGemm - 1, kGemm - 1> MatrixBelow;
-    typedef Eigen::Matrix<double, kGemm, kGemm> MatrixAt;
+    using MatrixBelow = Eigen::Matrix<double, kGemm - 1, kGemm - 1>;
+    using MatrixAt = Eigen::Matrix<double, kGemm, kGemm>;
     VERIFY((internal::product_type<MatrixBelow, MatrixBelow>::value == CoeffBasedProductMode));
     // A dimension below EIGEN_CACHEFRIENDLY_PRODUCT_THRESHOLD (16 on ZVector) keeps the product coefficient-based
     // whatever the fixed-size threshold.

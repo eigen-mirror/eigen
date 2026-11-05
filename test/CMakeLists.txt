@@ -318,7 +318,7 @@ ei_add_test(tanh_no_fast_math)
 # Generic clang vector backend tests for different vector sizes.
 include(CheckCXXSourceCompiles)
 check_cxx_source_compiles("
-  typedef float v4sf __attribute__((ext_vector_type(4)));
+  using v4sf __attribute__((ext_vector_type(4))) = float;
   int main() { return __builtin_vectorelements(v4sf{}); }
 " COMPILER_SUPPORTS_VECTOR_EXTENSIONS)
 if(COMPILER_SUPPORTS_VECTOR_EXTENSIONS)

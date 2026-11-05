@@ -10,7 +10,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- 1D convolution ---
 static void BM_Convolve1D(benchmark::State& state) {

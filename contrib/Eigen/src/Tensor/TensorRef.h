@@ -46,10 +46,10 @@ class TensorLazyEvaluatorReadOnly
     : public TensorLazyBaseEvaluator<Dimensions, typename TensorEvaluator<Expr, Device>::Scalar> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  typedef typename TensorEvaluator<Expr, Device>::Scalar Scalar;
-  typedef StorageMemory<Scalar, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
-  typedef TensorEvaluator<Expr, Device> EvalType;
+  using Scalar = typename TensorEvaluator<Expr, Device>::Scalar;
+  using Storage = StorageMemory<Scalar, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
+  using EvalType = TensorEvaluator<Expr, Device>;
 
   TensorLazyEvaluatorReadOnly(const Expr& expr, const Device& device) : m_impl(expr, device), m_dummy() {
     EIGEN_STATIC_ASSERT(
@@ -83,10 +83,10 @@ class TensorLazyEvaluatorReadOnly
 template <typename Dimensions, typename Expr, typename Device>
 class TensorLazyEvaluatorWritable : public TensorLazyEvaluatorReadOnly<Dimensions, Expr, Device> {
  public:
-  typedef TensorLazyEvaluatorReadOnly<Dimensions, Expr, Device> Base;
-  typedef typename Base::Scalar Scalar;
-  typedef StorageMemory<Scalar, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Base = TensorLazyEvaluatorReadOnly<Dimensions, Expr, Device>;
+  using Scalar = typename Base::Scalar;
+  using Storage = StorageMemory<Scalar, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   TensorLazyEvaluatorWritable(const Expr& expr, const Device& device) : Base(expr, device) {}
   virtual ~TensorLazyEvaluatorWritable() = default;
@@ -100,10 +100,9 @@ template <typename Dimensions, typename Expr, typename Device, bool IsWritable>
 class TensorLazyEvaluator : public std::conditional_t<IsWritable, TensorLazyEvaluatorWritable<Dimensions, Expr, Device>,
                                                       TensorLazyEvaluatorReadOnly<Dimensions, const Expr, Device>> {
  public:
-  typedef std::conditional_t<IsWritable, TensorLazyEvaluatorWritable<Dimensions, Expr, Device>,
-                             TensorLazyEvaluatorReadOnly<Dimensions, const Expr, Device>>
-      Base;
-  typedef typename Base::Scalar Scalar;
+  using Base = std::conditional_t<IsWritable, TensorLazyEvaluatorWritable<Dimensions, Expr, Device>,
+                                  TensorLazyEvaluatorReadOnly<Dimensions, const Expr, Device>>;
+  using Scalar = typename Base::Scalar;
 
   TensorLazyEvaluator(const Expr& expr, const Device& device) : Base(expr, device) {}
   virtual ~TensorLazyEvaluator() = default;
@@ -112,19 +111,19 @@ class TensorLazyEvaluator : public std::conditional_t<IsWritable, TensorLazyEval
 template <typename Derived>
 class TensorRefBase : public TensorBase<Derived> {
  public:
-  typedef typename traits<Derived>::PlainObjectType PlainObjectType;
-  typedef typename PlainObjectType::Base Base;
-  typedef typename Eigen::internal::ref_selector<Derived>::type Nested;
-  typedef typename traits<PlainObjectType>::StorageKind StorageKind;
-  typedef typename traits<PlainObjectType>::Index Index;
-  typedef typename traits<PlainObjectType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename Base::CoeffReturnType CoeffReturnType;
-  typedef Scalar* PointerType;
-  typedef PointerType PointerArgType;
+  using PlainObjectType = typename traits<Derived>::PlainObjectType;
+  using Base = typename PlainObjectType::Base;
+  using Nested = typename Eigen::internal::ref_selector<Derived>::type;
+  using StorageKind = typename traits<PlainObjectType>::StorageKind;
+  using Index = typename traits<PlainObjectType>::Index;
+  using Scalar = typename traits<PlainObjectType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename Base::CoeffReturnType;
+  using PointerType = Scalar*;
+  using PointerArgType = PointerType;
 
   static constexpr Index NumIndices = PlainObjectType::NumIndices;
-  typedef typename PlainObjectType::Dimensions Dimensions;
+  using Dimensions = typename PlainObjectType::Dimensions;
 
   static constexpr int Layout = PlainObjectType::Layout;
   enum {
@@ -137,7 +136,7 @@ class TensorRefBase : public TensorBase<Derived> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -----------===//
-  typedef TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = TensorBlockNotImplemented;
   //===------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorRefBase() = default;
@@ -263,7 +262,7 @@ constexpr int TensorRefBase<Derived>::Layout;
  */
 template <typename PlainObjectType>
 class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
-  typedef internal::TensorRefBase<TensorRef<PlainObjectType>> Base;
+  using Base = internal::TensorRefBase<TensorRef<PlainObjectType>>;
 
  public:
   using Scalar = typename Base::Scalar;
@@ -331,7 +330,7 @@ class TensorRef : public internal::TensorRefBase<TensorRef<PlainObjectType>> {
  */
 template <typename PlainObjectType>
 class TensorRef<const PlainObjectType> : public internal::TensorRefBase<TensorRef<const PlainObjectType>> {
-  typedef internal::TensorRefBase<TensorRef<const PlainObjectType>> Base;
+  using Base = internal::TensorRefBase<TensorRef<const PlainObjectType>>;
 
  public:
   EIGEN_STRONG_INLINE TensorRef() = default;
@@ -352,13 +351,13 @@ class TensorRef<const PlainObjectType> : public internal::TensorRefBase<TensorRe
 // evaluator for rvalues
 template <typename Derived, typename Device>
 struct TensorEvaluator<const TensorRef<Derived>, Device> {
-  typedef typename Derived::Index Index;
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef typename Derived::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Index = typename Derived::Index;
+  using Scalar = typename Derived::Scalar;
+  using CoeffReturnType = typename Derived::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Dimensions = typename Derived::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorRef<Derived>::Layout;
   enum {
@@ -371,7 +370,7 @@ struct TensorEvaluator<const TensorRef<Derived>, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const TensorRef<Derived>& m, const Device&) : m_ref(m) {}
@@ -395,18 +394,18 @@ struct TensorEvaluator<const TensorRef<Derived>, Device> {
 // evaluator for lvalues
 template <typename Derived, typename Device>
 struct TensorEvaluator<TensorRef<Derived>, Device> : public TensorEvaluator<const TensorRef<Derived>, Device> {
-  typedef typename Derived::Index Index;
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef typename Derived::Dimensions Dimensions;
+  using Index = typename Derived::Index;
+  using Scalar = typename Derived::Scalar;
+  using CoeffReturnType = typename Derived::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Dimensions = typename Derived::Dimensions;
 
-  typedef TensorEvaluator<const TensorRef<Derived>, Device> Base;
+  using Base = TensorEvaluator<const TensorRef<Derived>, Device>;
 
   enum { IsAligned = false, PacketAccess = false, BlockAccess = false, PreferBlockAccess = false, RawAccess = false };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(TensorRef<Derived>& m, const Device& d) : Base(m, d) {}

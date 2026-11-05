@@ -132,7 +132,7 @@ EIGEN_BLAS_TRMV_SPECIALIZE(scomplex)
       Index rows = IsLower ? rows_ : size;                                                                           \
       Index cols = IsLower ? size : cols_;                                                                           \
                                                                                                                      \
-      typedef VectorX##EIGPREFIX VectorRhs;                                                                          \
+      using VectorRhs = VectorX##EIGPREFIX;                                                                          \
       Scalar *x, *y;                                                                                                 \
                                                                                                                      \
       /* Set x*/                                                                                                     \
@@ -239,7 +239,7 @@ EIGEN_BLAS_TRMV_CM(scomplex, float, cf, c, EIGEN_BLAS_POSTFIX)
       Index rows = IsLower ? rows_ : size;                                                                           \
       Index cols = IsLower ? size : cols_;                                                                           \
                                                                                                                      \
-      typedef VectorX##EIGPREFIX VectorRhs;                                                                          \
+      using VectorRhs = VectorX##EIGPREFIX;                                                                          \
       Scalar *x, *y;                                                                                                 \
                                                                                                                      \
       /* Set x*/                                                                                                     \

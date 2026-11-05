@@ -28,9 +28,9 @@ void rqr() {
         cols2 = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
   Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   MatrixType m1;
   createRandomPIMatrixOfRank(rank, rows, cols, m1);
   RandColPivHouseholderQR<MatrixType> qr;
@@ -83,7 +83,7 @@ void rqr() {
 template <typename MatrixType, int Cols2>
 void rqr_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   MatrixType m1;
   createRandomPIMatrixOfRank(rank, Rows, Cols, m1);
@@ -110,7 +110,7 @@ void rqr_fixedsize() {
 template <typename MatrixType>
 void rqr_kahan_matrix() {
   using std::sqrt;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   Index rows = 200, cols = rows;
 
@@ -142,8 +142,8 @@ template <typename MatrixType>
 void rqr_invertible() {
   using std::abs;
   using std::log;
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
-  typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using Scalar = typename MatrixType::Scalar;
 
   int size = internal::random<int>(10, 50);
 
@@ -222,9 +222,9 @@ void rcod() {
   Index cols2 = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
   Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   MatrixType matrix;
   createRandomPIMatrixOfRank(rank, rows, cols, matrix);
   RandCompleteOrthogonalDecomposition<MatrixType> cod;
@@ -281,8 +281,8 @@ void rcod() {
 template <typename MatrixType, int Cols2>
 void rcod_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef RandCompleteOrthogonalDecomposition<MatrixType> COD;
+  using Scalar = typename MatrixType::Scalar;
+  using COD = RandCompleteOrthogonalDecomposition<MatrixType>;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   MatrixType matrix;
   createRandomPIMatrixOfRank(rank, Rows, Cols, matrix);
@@ -412,8 +412,8 @@ void rqr_rank_detection_stress() {
 // the rank-detection threshold must come back as full-rank.
 template <typename MatrixType>
 void rqr_threshold_efficiency() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
   const Index sizes[][2] = {{10, 10}, {50, 50}, {100, 100}, {40, 10}, {10, 40}};
   for (const auto& sz : sizes) {
     const Index rows = sz[0], cols = sz[1];
@@ -433,8 +433,8 @@ void rqr_threshold_efficiency() {
 // then noise SVs near eps. The clear gap at `rank` should be detected.
 template <typename MatrixType>
 void rqr_rank_gap_test() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
   const Index sizes[][2] = {{20, 20}, {50, 50}, {100, 100}, {50, 20}, {20, 50}};
   for (const auto& sz : sizes) {
     const Index rows = sz[0], cols = sz[1];
@@ -466,8 +466,8 @@ void rqr_rank_gap_test() {
 // classical column pivoting on these distributions; we verify that here.
 template <typename MatrixType>
 void rqr_sv_decay_classes() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
   const Index n = 60;
 
   // Slow decay: linear from 1 to 0.01.
@@ -531,9 +531,9 @@ void rqr_sv_decay_classes() {
 // the RQRCP/HQRRP papers.
 template <typename MatrixType>
 void rqr_literature_matrices() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   // 1. Hilbert (n = 10): full rank in theory; cond ~ 1e13 in double. The
   // Q*R*P^-1 reconstruction is backward stable, so the round-trip error is

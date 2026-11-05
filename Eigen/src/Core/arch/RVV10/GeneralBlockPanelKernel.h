@@ -23,8 +23,8 @@ namespace internal {
 template <>
 struct gebp_traits<float, float, false, false, Architecture::RVV10, GEBPPacketFull>
     : gebp_traits<float, float, false, false, Architecture::Generic, GEBPPacketFull> {
-  typedef float RhsPacket;
-  typedef QuadPacket<float> RhsPacketx4;
+  using RhsPacket = float;
+  using RhsPacketx4 = QuadPacket<float>;
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
@@ -76,8 +76,8 @@ struct gebp_traits<float, float, false, false, Architecture::RVV10, GEBPPacketFu
 template <>
 struct gebp_traits<double, double, false, false, Architecture::RVV10, GEBPPacketFull>
     : gebp_traits<double, double, false, false, Architecture::Generic, GEBPPacketFull> {
-  typedef double RhsPacket;
-  typedef QuadPacket<double> RhsPacketx4;
+  using RhsPacket = double;
+  using RhsPacketx4 = QuadPacket<double>;
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
     pbroadcast4(b, dest.B_0, dest.B1, dest.B2, dest.B3);
@@ -131,10 +131,10 @@ struct gebp_traits<double, double, false, false, Architecture::RVV10, GEBPPacket
 template <>
 struct gebp_traits<half, half, false, false, Architecture::RVV10>
     : gebp_traits<half, half, false, false, Architecture::Generic> {
-  typedef half RhsPacket;
-  typedef PacketXh LhsPacket;
-  typedef PacketXh AccPacket;
-  typedef QuadPacket<half> RhsPacketx4;
+  using RhsPacket = half;
+  using LhsPacket = PacketXh;
+  using AccPacket = PacketXh;
+  using RhsPacketx4 = QuadPacket<half>;
 
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
@@ -181,10 +181,10 @@ struct gebp_traits<half, half, false, false, Architecture::RVV10>
 template <>
 struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
     : gebp_traits<bfloat16, bfloat16, false, false, Architecture::Generic> {
-  typedef bfloat16 RhsPacket;
-  typedef PacketXbf LhsPacket;
-  typedef PacketXbf AccPacket;
-  typedef QuadPacket<bfloat16> RhsPacketx4;
+  using RhsPacket = bfloat16;
+  using LhsPacket = PacketXbf;
+  using AccPacket = PacketXbf;
+  using RhsPacketx4 = QuadPacket<bfloat16>;
 
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = pset1<RhsPacket>(*b); }
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacketx4& dest) const {
@@ -234,25 +234,27 @@ struct gebp_traits<bfloat16, bfloat16, false, false, Architecture::RVV10>
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
 /********************************* complex ************************************/
 
-#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                                               \
-  typedef typename packet_conditional<                                                                     \
-      packet_size, typename packet_traits<name##Scalar>::type, typename packet_traits<name##Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type name##Packet##postfix
+#define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                               \
+  using name##Packet##postfix =                                                            \
+      typename packet_conditional<packet_size, typename packet_traits<name##Scalar>::type, \
+                                  typename packet_traits<name##Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<name##Scalar>::half>::half>::type
 
-#define RISCV_COMPLEX_PACKET_DECL_COND_SCALAR(packet_size)                                     \
-  typedef typename packet_conditional<                                                         \
-      packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket
+#define RISCV_COMPLEX_PACKET_DECL_COND_SCALAR(packet_size)                           \
+  using ScalarPacket =                                                               \
+      typename packet_conditional<packet_size, typename packet_traits<Scalar>::type, \
+                                  typename packet_traits<Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type
 
 template <typename RealScalar, bool ConjLhs_, bool ConjRhs_, int PacketSize_>
 struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_, Architecture::RVV10,
                    PacketSize_> : gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_, ConjRhs_,
                                               Architecture::Generic, PacketSize_> {
-  typedef std::complex<RealScalar> Scalar;
-  typedef std::complex<RealScalar> LhsScalar;
-  typedef std::complex<RealScalar> RhsScalar;
-  typedef std::complex<RealScalar> ResScalar;
-  typedef typename packet_traits<std::complex<RealScalar>>::type RealPacket;
+  using Scalar = std::complex<RealScalar>;
+  using LhsScalar = std::complex<RealScalar>;
+  using RhsScalar = std::complex<RealScalar>;
+  using ResScalar = std::complex<RealScalar>;
+  using RealPacket = typename packet_traits<std::complex<RealScalar>>::type;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -276,15 +278,15 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
     RhsProgress = 1
   };
 
-  typedef DoublePacket<RealPacket> DoublePacketType;
+  using DoublePacketType = DoublePacket<RealPacket>;
 
-  typedef std::conditional_t<Vectorizable, ScalarPacket, Scalar> LhsPacket4Packing;
-  typedef std::conditional_t<Vectorizable, RealPacket, Scalar> LhsPacket;
-  typedef std::conditional_t<Vectorizable, DoublePacket<RealScalar>, Scalar> RhsPacket;
-  typedef std::conditional_t<Vectorizable, ScalarPacket, Scalar> ResPacket;
-  typedef std::conditional_t<Vectorizable, DoublePacketType, Scalar> AccPacket;
+  using LhsPacket4Packing = std::conditional_t<Vectorizable, ScalarPacket, Scalar>;
+  using LhsPacket = std::conditional_t<Vectorizable, RealPacket, Scalar>;
+  using RhsPacket = std::conditional_t<Vectorizable, DoublePacket<RealScalar>, Scalar>;
+  using ResPacket = std::conditional_t<Vectorizable, ScalarPacket, Scalar>;
+  using AccPacket = std::conditional_t<Vectorizable, DoublePacketType, Scalar>;
 
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
 
   EIGEN_STRONG_INLINE void initAcc(Scalar& p) { p = Scalar(0); }
 
@@ -416,19 +418,20 @@ struct gebp_traits<std::complex<RealScalar>, std::complex<RealScalar>, ConjLhs_,
   conj_helper<LhsScalar, RhsScalar, ConjLhs, ConjRhs> cj;
 };
 
-#define PACKET_DECL_COND_SCALAR_POSTFIX(postfix, packet_size)                                  \
-  typedef typename packet_conditional<                                                         \
-      packet_size, typename packet_traits<Scalar>::type, typename packet_traits<Scalar>::half, \
-      typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type ScalarPacket##postfix
+#define PACKET_DECL_COND_SCALAR_POSTFIX(postfix, packet_size)                        \
+  using ScalarPacket##postfix =                                                      \
+      typename packet_conditional<packet_size, typename packet_traits<Scalar>::type, \
+                                  typename packet_traits<Scalar>::half,              \
+                                  typename unpacket_traits<typename packet_traits<Scalar>::half>::half>::type
 
 template <typename RealScalar, bool ConjRhs_, int PacketSize_>
 class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Architecture::RVV10, PacketSize_>
     : public gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Architecture::Generic, PacketSize_> {
  public:
-  typedef std::complex<RealScalar> Scalar;
-  typedef RealScalar LhsScalar;
-  typedef Scalar RhsScalar;
-  typedef Scalar ResScalar;
+  using Scalar = std::complex<RealScalar>;
+  using LhsScalar = RealScalar;
+  using RhsScalar = Scalar;
+  using ResScalar = Scalar;
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Res, PacketSize_);
@@ -453,12 +456,12 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Archite
     RhsProgress = 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef RhsScalar RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
-  typedef ResPacket AccPacket;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = RhsScalar;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
+  using LhsPacket4Packing = LhsPacket;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
+  using AccPacket = ResPacket;
 
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p) const { p = pset1<ResPacket>(ResScalar(0)); }
 
@@ -556,9 +559,9 @@ template <typename RealScalar, bool ConjLhs_, int PacketSize_>
 class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Architecture::RVV10, PacketSize_>
     : public gebp_traits<RealScalar, std::complex<RealScalar>, ConjLhs_, false, Architecture::Generic, PacketSize_> {
  public:
-  typedef std::complex<RealScalar> LhsScalar;
-  typedef RealScalar RhsScalar;
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using LhsScalar = std::complex<RealScalar>;
+  using RhsScalar = RealScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
 
   PACKET_DECL_COND_POSTFIX(_, Lhs, PacketSize_);
   PACKET_DECL_COND_POSTFIX(_, Rhs, PacketSize_);
@@ -580,14 +583,14 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Archite
     RhsProgress = 1
   };
 
-  typedef std::conditional_t<Vectorizable, LhsPacket_, LhsScalar> LhsPacket;
-  typedef RhsScalar RhsPacket;
-  typedef std::conditional_t<Vectorizable, ResPacket_, ResScalar> ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
+  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
+  using RhsPacket = RhsScalar;
+  using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
+  using LhsPacket4Packing = LhsPacket;
 
-  typedef QuadPacket<RhsPacket> RhsPacketx4;
+  using RhsPacketx4 = QuadPacket<RhsPacket>;
 
-  typedef ResPacket AccPacket;
+  using AccPacket = ResPacket;
 
   EIGEN_STRONG_INLINE void initAcc(AccPacket& p) { p = pset1<ResPacket>(ResScalar(0)); }
 

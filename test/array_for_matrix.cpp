@@ -12,9 +12,9 @@
 
 template <typename MatrixType>
 void array_for_matrix(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> ColVectorType;
-  typedef Matrix<Scalar, 1, MatrixType::ColsAtCompileTime> RowVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using ColVectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using RowVectorType = Matrix<Scalar, 1, MatrixType::ColsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -95,8 +95,8 @@ void array_for_matrix(const MatrixType& m) {
 template <typename MatrixType>
 void comparisons(const MatrixType& m) {
   using std::abs;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -144,7 +144,7 @@ void comparisons(const MatrixType& m) {
   VERIFY(((m1.array() < -mid).matrix() || (m1.array() > mid).matrix()).count() ==
          (m1.cwiseAbs().array() > mid).count());
 
-  typedef Matrix<Index, Dynamic, 1> VectorOfIndices;
+  using VectorOfIndices = Matrix<Index, Dynamic, 1>;
 
   // TODO allows colwise/rowwise for array
   VERIFY_IS_APPROX(((m1.array().abs() + 1) > RealScalar(0.1)).matrix().colwise().count(),
@@ -156,7 +156,7 @@ void comparisons(const MatrixType& m) {
 template <typename VectorType>
 void lpNorm(const VectorType& v) {
   using std::sqrt;
-  typedef typename VectorType::RealScalar RealScalar;
+  using RealScalar = typename VectorType::RealScalar;
   VectorType u = VectorType::Random(v.size());
 
   if (v.size() == 0) {
@@ -176,7 +176,7 @@ void lpNorm(const VectorType& v) {
 
 template <typename MatrixType>
 void cwise_min_max(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -255,11 +255,11 @@ void cwise_min_max(const MatrixType& m) {
 
 template <typename MatrixTraits>
 void resize(const MatrixTraits& t) {
-  typedef typename MatrixTraits::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Array<Scalar, Dynamic, Dynamic> Array2DType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
-  typedef Array<Scalar, Dynamic, 1> Array1DType;
+  using Scalar = typename MatrixTraits::Scalar;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using Array2DType = Array<Scalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using Array1DType = Array<Scalar, Dynamic, 1>;
 
   Index rows = t.rows(), cols = t.cols();
 
@@ -286,7 +286,7 @@ void lpNorm_matrix(const MatrixType& m) {
   using std::abs;
   using std::pow;
   using std::sqrt;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   Index rows = m.rows();
   Index cols = m.cols();

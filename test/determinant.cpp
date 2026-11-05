@@ -17,18 +17,18 @@
 
 template <typename Scalar>
 struct determinant_reference_scalar {
-  typedef long double type;
+  using type = long double;
 };
 
 template <typename RealScalar>
 struct determinant_reference_scalar<std::complex<RealScalar> > {
-  typedef std::complex<long double> type;
+  using type = std::complex<long double>;
 };
 
 template <typename MatrixType>
 typename determinant_reference_scalar<typename MatrixType::Scalar>::type brute_force_determinant(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename determinant_reference_scalar<Scalar>::type ReferenceScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using ReferenceScalar = typename determinant_reference_scalar<Scalar>::type;
   const Index size = m.rows();
   std::vector<Index> permutation(size);
   for (Index i = 0; i < size; ++i) permutation[i] = i;
@@ -50,8 +50,8 @@ typename determinant_reference_scalar<typename MatrixType::Scalar>::type brute_f
 
 template <typename MatrixType>
 void verify_determinant_against_reference(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Scalar expected = Scalar(brute_force_determinant(m));
   Scalar actual = m.determinant();
@@ -66,8 +66,8 @@ void verify_determinant_against_reference(const MatrixType& m) {
 
 template <typename MatrixType>
 void determinant_lu_fallback_reference(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index size = m.rows();
 
   MatrixType random(size, size);
@@ -94,8 +94,8 @@ void determinant_lu_fallback_reference(const MatrixType& m) {
 
 template <typename MatrixType>
 void verify_non_finite_lu_determinant(MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   m.setIdentity();
   m(0, 0) = Scalar(std::numeric_limits<RealScalar>::quiet_NaN());
@@ -128,7 +128,7 @@ void determinant(const MatrixType& m) {
   MatrixType m1(size, size), m2(size, size);
   m1.setRandom();
   m2.setRandom();
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   Scalar x = internal::random<Scalar>();
   VERIFY_IS_APPROX(MatrixType::Identity(size, size).determinant(), Scalar(1));
   VERIFY_IS_APPROX((m1 * m2).eval().determinant(), m1.determinant() * m2.determinant());

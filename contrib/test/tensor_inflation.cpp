@@ -112,15 +112,15 @@ static void test_inflation_block_access_gating() {
   // -- every draw is a pure function of (seed, index) -- so it keeps the tiled
   // path, as a plain tensor and a cwise expression do. A TensorRef exposes no
   // block access and must disable it.
-  typedef Tensor<float, 3, DataLayout> TensorType;
-  typedef Eigen::array<ptrdiff_t, 3> Strides;
+  using TensorType = Tensor<float, 3, DataLayout>;
+  using Strides = Eigen::array<ptrdiff_t, 3>;
 
-  typedef decltype(std::declval<const TensorType&>().inflate(std::declval<Strides>())) PlainInflate;
-  typedef decltype((std::declval<const TensorType&>() * std::declval<const TensorType&>().constant(1.0f))
-                       .inflate(std::declval<Strides>())) CwiseInflate;
-  typedef decltype(std::declval<const TensorType&>().random().inflate(std::declval<Strides>())) RandomInflate;
-  typedef Eigen::TensorRef<const TensorType> RefType;
-  typedef decltype(std::declval<const RefType&>().inflate(std::declval<Strides>())) RefInflate;
+  using PlainInflate = decltype(std::declval<const TensorType&>().inflate(std::declval<Strides>()));
+  using CwiseInflate = decltype((std::declval<const TensorType&>() * std::declval<const TensorType&>().constant(1.0f))
+                                    .inflate(std::declval<Strides>()));
+  using RandomInflate = decltype(std::declval<const TensorType&>().random().inflate(std::declval<Strides>()));
+  using RefType = Eigen::TensorRef<const TensorType>;
+  using RefInflate = decltype(std::declval<const RefType&>().inflate(std::declval<Strides>()));
 
   EIGEN_STATIC_ASSERT((Eigen::TensorEvaluator<const PlainInflate, Eigen::DefaultDevice>::BlockAccess),
                       YOU_MADE_A_PROGRAMMING_MISTAKE)

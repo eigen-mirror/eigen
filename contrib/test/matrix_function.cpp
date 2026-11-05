@@ -14,8 +14,8 @@
 // Returns a matrix with eigenvalues clustered around 0, 1 and 2.
 template <typename MatrixType>
 MatrixType randomMatrixWithRealEivals(const Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   MatrixType diag = MatrixType::Zero(size, size);
   for (Index i = 0; i < size; ++i) {
     diag(i, i) =
@@ -36,7 +36,7 @@ struct randomMatrixWithImagEivals {
 template <typename MatrixType>
 struct randomMatrixWithImagEivals<MatrixType, 0> {
   static MatrixType run(const Index size) {
-    typedef typename MatrixType::Scalar Scalar;
+    using Scalar = typename MatrixType::Scalar;
     MatrixType diag = MatrixType::Zero(size, size);
     Index i = 0;
     while (i < size) {
@@ -61,8 +61,8 @@ struct randomMatrixWithImagEivals<MatrixType, 0> {
 template <typename MatrixType>
 struct randomMatrixWithImagEivals<MatrixType, 1> {
   static MatrixType run(const Index size) {
-    typedef typename MatrixType::Scalar Scalar;
-    typedef typename MatrixType::RealScalar RealScalar;
+    using Scalar = typename MatrixType::Scalar;
+    using RealScalar = typename MatrixType::RealScalar;
     const Scalar imagUnit(0, 1);
     MatrixType diag = MatrixType::Zero(size, size);
     for (Index i = 0; i < size; ++i) {
@@ -77,17 +77,17 @@ struct randomMatrixWithImagEivals<MatrixType, 1> {
 
 template <typename MatrixType>
 void testMatrixExponential(const MatrixType& A) {
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> ComplexScalar;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ComplexScalar = std::complex<RealScalar>;
 
   VERIFY_IS_APPROX(A.exp(), A.matrixFunction(internal::stem_function_exp<ComplexScalar>));
 }
 
 template <typename MatrixType>
 void testMatrixLogarithm(const MatrixType& A) {
-  typedef typename internal::traits<MatrixType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename internal::traits<MatrixType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType scaledA;
   RealScalar maxImagPartOfSpectrum = A.eigenvalues().imag().cwiseAbs().maxCoeff();
@@ -117,11 +117,11 @@ void testHyperbolicFunctions(const MatrixType& A) {
 
 template <typename MatrixType>
 void testGonioFunctions(const MatrixType& A) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> ComplexScalar;
-  typedef Matrix<ComplexScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, MatrixType::Options>
-      ComplexMatrix;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ComplexScalar = std::complex<RealScalar>;
+  using ComplexMatrix =
+      Matrix<ComplexScalar, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, MatrixType::Options>;
 
   ComplexScalar imagUnit(0, 1);
   ComplexScalar two(2, 0);

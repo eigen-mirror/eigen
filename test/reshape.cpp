@@ -67,7 +67,7 @@ void check_direct_access_reshape4x4(const MatType& m, internal::FixedInt<0>) {
 // just test a 4x4 matrix, enumerate all combination manually
 template <typename MatType>
 void reshape4x4(const MatType& m0) {
-  typedef typename MatType::Scalar Scalar;
+  using Scalar = typename MatType::Scalar;
   MatType m = m0;
 
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime == Dynamic ? -1 : 1> v1(1);
@@ -77,7 +77,7 @@ void reshape4x4(const MatType& m0) {
   internal::VariableAndFixedInt<MatType::SizeAtCompileTime == Dynamic ? -1 : 16> v16(16);
 
   if ((MatType::Flags & RowMajorBit) == 0) {
-    typedef Map<MatrixXi> MapMat;
+    using MapMat = Map<MatrixXi>;
     // dynamic
     VERIFY_IS_EQUAL((m.reshaped(1, 16)), MapMat(m.data(), 1, 16));
     VERIFY_IS_EQUAL((m.reshaped(2, 8)), MapMat(m.data(), 2, 8));
@@ -197,9 +197,9 @@ void reshape4x4(const MatType& m0) {
 template <typename Scalar>
 void check_reshaped_evaluator_flags() {
   // Storage orders are pinned so the checks keep their meaning under EIGEN_DEFAULT_TO_ROW_MAJOR.
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> Mat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
-  typedef Matrix<Scalar, Dynamic, 1, ColMajor> Vec;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1, ColMajor>;
   enum { BasePacket = int(internal::evaluator<Mat>::Flags) & PacketAccessBit };
 
   // Direct access with unit inner stride: packet access and alignment carry over.
@@ -218,7 +218,7 @@ void check_reshaped_evaluator_flags() {
 
   // Expression source with matching enumeration order: linear accesses and packets forward to the
   // nested evaluator, so matrix-shaped reshapes gain linear access as well.
-  typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Mat, const Mat> Sum;
+  using Sum = CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Mat, const Mat>;
   STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
                int(BasePacket));
   STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Flags) & LinearAccessBit) ==
@@ -226,7 +226,7 @@ void check_reshaped_evaluator_flags() {
   STATIC_CHECK(int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, ColMajor> >::Alignment) ==
                int(internal::evaluator<Sum>::Alignment));
   // A vector source does not make a matrix-shaped result's storage order immaterial.
-  typedef CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Vec, const Vec> VecSum;
+  using VecSum = CwiseBinaryOp<internal::scalar_sum_op<Scalar, Scalar>, const Vec, const Vec>;
   STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor>>::Flags) & PacketAccessBit) == 0);
   STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, RowMajor>>::Flags) & LinearAccessBit) == 0);
   STATIC_CHECK((int(internal::evaluator<Reshaped<VecSum, Dynamic, Dynamic, ColMajor>>::Flags) & PacketAccessBit) ==
@@ -242,7 +242,7 @@ void check_reshaped_evaluator_flags() {
   // a cross-order expression source (a genuine element permutation),
   STATIC_CHECK((int(internal::evaluator<Reshaped<Sum, Dynamic, Dynamic, RowMajor> >::Flags) & PacketAccessBit) == 0);
   // and a non-unit inner stride.
-  typedef Map<Vec, 0, InnerStride<2> > StridedVec;
+  using StridedVec = Map<Vec, 0, InnerStride<2>>;
   STATIC_CHECK((int(internal::evaluator<Reshaped<StridedVec, Dynamic, Dynamic, ColMajor> >::Flags) & PacketAccessBit) ==
                0);
 }
@@ -250,9 +250,9 @@ void check_reshaped_evaluator_flags() {
 // Exercise the (possibly vectorized) assignment kernels with sizes that have partial-packet tails.
 template <typename Scalar>
 void reshape_copies(Index rows, Index cols) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Mat m = random_for_arithmetic<Mat>(rows, cols);
 
   Vec v = m.reshaped();
@@ -455,8 +455,8 @@ void reshape_inner_iterator() {
 }
 
 EIGEN_DECLARE_TEST(reshape) {
-  typedef Matrix<int, Dynamic, Dynamic, RowMajor> RowMatrixXi;
-  typedef Matrix<int, 4, 4, RowMajor> RowMatrix4i;
+  using RowMatrixXi = Matrix<int, Dynamic, Dynamic, RowMajor>;
+  using RowMatrix4i = Matrix<int, 4, 4, RowMajor>;
   MatrixXi mx = MatrixXi::Random(4, 4);
   Matrix4i m4 = Matrix4i::Random(4, 4);
   RowMatrixXi rmx = RowMatrixXi::Random(4, 4);

@@ -34,7 +34,7 @@ const char* inputScaleName(InputScale scale) {
 
 template <typename Scalar>
 struct coefficient_maker {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   static Scalar run(RealScalar magnitude, Index index) {
     return index % 2 == 0 ? Scalar(magnitude) : Scalar(-magnitude);
@@ -52,8 +52,8 @@ struct coefficient_maker<std::complex<RealScalar>> {
 
 template <typename Scalar>
 Matrix<Scalar, Dynamic, 1> makeInput(Index size, InputScale scale) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
 
   RealScalar magnitude = RealScalar(0.5);
   if (scale == kLarge) {
@@ -123,7 +123,7 @@ Index normalizationBatchSize(Index size) {
 
 template <typename Scalar>
 static void BM_Norm(benchmark::State& state) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
   const Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
@@ -138,7 +138,7 @@ static void BM_Norm(benchmark::State& state) {
 
 template <typename Scalar>
 static void BM_StableNorm(benchmark::State& state) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
   const Matrix<Scalar, Dynamic, 1> input = makeStableInput<Scalar>(size, scale);
@@ -162,8 +162,8 @@ static void BM_StableNorm(benchmark::State& state) {
 
 template <typename Plain>
 Plain makeFixedInput(Index seed) {
-  typedef typename Plain::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename Plain::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const RealScalar magnitude = RealScalar(0.25) + RealScalar(seed % 17) / RealScalar(64);
   Plain input;
   for (Index i = 0; i < input.size(); ++i) input.data()[i] = coefficient_maker<Scalar>::run(magnitude, i + seed);
@@ -172,10 +172,10 @@ Plain makeFixedInput(Index seed) {
 
 template <typename Plain>
 static void BM_FixedMapStableNorm(benchmark::State& state) {
-  typedef typename Plain::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Stride<Dynamic, Dynamic> DynamicStride;
-  typedef Map<const Plain, Unaligned, DynamicStride> MapType;
+  using Scalar = typename Plain::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DynamicStride = Stride<Dynamic, Dynamic>;
+  using MapType = Map<const Plain, Unaligned, DynamicStride>;
 
   const Index input_count = 256;
   std::vector<Plain, aligned_allocator<Plain>> inputs(static_cast<std::size_t>(input_count));
@@ -197,7 +197,7 @@ static void BM_FixedMapStableNorm(benchmark::State& state) {
 
 template <typename Scalar>
 static void BM_BlueNorm(benchmark::State& state) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
   const Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
@@ -212,7 +212,7 @@ static void BM_BlueNorm(benchmark::State& state) {
 
 template <typename Scalar>
 static void BM_HypotNorm(benchmark::State& state) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index size = state.range(0);
   const InputScale scale = static_cast<InputScale>(state.range(1));
   const Matrix<Scalar, Dynamic, 1> input = makeInput<Scalar>(size, scale);
@@ -296,18 +296,18 @@ static void BM_StableNormalized(benchmark::State& state) {
   setNormalizeCounters<Scalar>(state, size);
 }
 
-typedef Matrix<float, 1, 16> FixedRow16f;
-typedef Matrix<float, 16, 1> FixedCol16f;
-typedef Matrix<float, 4, 4> FixedMatrix4f;
-typedef Matrix<double, 1, 8> FixedRow8d;
-typedef Matrix<double, 8, 1> FixedCol8d;
-typedef Matrix<double, 3, 3> FixedMatrix3d;
-typedef Matrix<std::complex<float>, 1, 8> FixedRow8cf;
-typedef Matrix<std::complex<float>, 8, 1> FixedCol8cf;
-typedef Matrix<std::complex<float>, 2, 4> FixedMatrix4cf;
-typedef Matrix<std::complex<double>, 1, 4> FixedRow4cd;
-typedef Matrix<std::complex<double>, 4, 1> FixedCol4cd;
-typedef Matrix<std::complex<double>, 2, 2> FixedMatrix4cd;
+using FixedRow16f = Matrix<float, 1, 16>;
+using FixedCol16f = Matrix<float, 16, 1>;
+using FixedMatrix4f = Matrix<float, 4, 4>;
+using FixedRow8d = Matrix<double, 1, 8>;
+using FixedCol8d = Matrix<double, 8, 1>;
+using FixedMatrix3d = Matrix<double, 3, 3>;
+using FixedRow8cf = Matrix<std::complex<float>, 1, 8>;
+using FixedCol8cf = Matrix<std::complex<float>, 8, 1>;
+using FixedMatrix4cf = Matrix<std::complex<float>, 2, 4>;
+using FixedRow4cd = Matrix<std::complex<double>, 1, 4>;
+using FixedCol4cd = Matrix<std::complex<double>, 4, 1>;
+using FixedMatrix4cd = Matrix<std::complex<double>, 2, 2>;
 
 // clang-format off
 #define NORM_ARGS ->ArgsProduct({{64, 4096, 65536}, {kOrdinary, kLarge, kSmall}})->ArgNames({"size", "scale"})

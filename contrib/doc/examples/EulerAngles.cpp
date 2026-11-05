@@ -14,8 +14,8 @@ int main() {
   //  and the third one is roll(the angle between the horizontal body
   //   direction and the plane ground surface)
   // Keep remembering we're using radian angles here!
-  typedef EulerSystem<-EULER_Z, EULER_Y, EULER_X> MyArmySystem;
-  typedef EulerAngles<double, MyArmySystem> MyArmyAngles;
+  using MyArmySystem = EulerSystem<-EULER_Z, EULER_Y, EULER_X>;
+  using MyArmyAngles = EulerAngles<double, MyArmySystem>;
 
   MyArmyAngles vehicleAngles(3.14 /*PI*/ / 2, /* heading to east, notice that this angle is counter-clockwise */
                              -0.3,            /* going down from a mountain */

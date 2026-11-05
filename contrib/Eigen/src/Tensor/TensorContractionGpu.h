@@ -1154,8 +1154,8 @@ __launch_bounds__(256)
   __shared__ float2 lhs_shmem[64 * 32];
   __shared__ float2 rhs_shmem[128 * 8];
 
-  typedef float2 LHS_MEM[64][32];
-  typedef float2 RHS_MEM[128][8];
+  using LHS_MEM = float2[64][32];
+  using RHS_MEM = float2[128][8];
 
   const Index m_block_idx = blockIdx.x;
   const Index n_block_idx = blockIdx.y;
@@ -1228,16 +1228,16 @@ template <typename Indices, typename LeftArgType, typename RightArgType, typenam
 struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>, GpuDevice>
     : public TensorContractionEvaluatorBase<TensorEvaluator<
           const TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>, GpuDevice> > {
-  typedef GpuDevice Device;
+  using Device = GpuDevice;
 
-  typedef TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>, Device> Self;
-  typedef TensorContractionEvaluatorBase<Self> Base;
+  using Self = TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>, Device>;
+  using Base = TensorContractionEvaluatorBase<Self>;
 
-  typedef TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType> XprType;
-  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
-  typedef typename XprType::Index Index;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, GpuDevice>::type PacketReturnType;
+  using XprType = TensorContractionOp<Indices, LeftArgType, RightArgType, OutputKernelType>;
+  using Scalar = std::remove_const_t<typename XprType::Scalar>;
+  using Index = typename XprType::Index;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, GpuDevice>::type;
 
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
 
@@ -1245,8 +1245,8 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
   // inputs are RowMajor, we will "cheat" by swapping the LHS and RHS:
   // If we want to compute A * B = C, where A is LHS and B is RHS, the code
   // will pretend B is LHS and A is RHS.
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), LeftArgType, RightArgType> EvalLeftArgType;
-  typedef std::conditional_t<Layout == static_cast<int>(ColMajor), RightArgType, LeftArgType> EvalRightArgType;
+  using EvalLeftArgType = std::conditional_t<Layout == static_cast<int>(ColMajor), LeftArgType, RightArgType>;
+  using EvalRightArgType = std::conditional_t<Layout == static_cast<int>(ColMajor), RightArgType, LeftArgType>;
 
   static constexpr int LDims =
       internal::array_size<typename TensorEvaluator<EvalLeftArgType, Device>::Dimensions>::value;
@@ -1254,26 +1254,26 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       internal::array_size<typename TensorEvaluator<EvalRightArgType, Device>::Dimensions>::value;
   static constexpr int ContractDims = internal::array_size<Indices>::value;
 
-  typedef array<Index, LDims> left_dim_mapper_t;
-  typedef array<Index, RDims> right_dim_mapper_t;
+  using left_dim_mapper_t = array<Index, LDims>;
+  using right_dim_mapper_t = array<Index, RDims>;
 
-  typedef array<Index, ContractDims> contract_t;
-  typedef array<Index, LDims - ContractDims> left_nocontract_t;
-  typedef array<Index, RDims - ContractDims> right_nocontract_t;
+  using contract_t = array<Index, ContractDims>;
+  using left_nocontract_t = array<Index, LDims - ContractDims>;
+  using right_nocontract_t = array<Index, RDims - ContractDims>;
 
   static constexpr int NumDims = LDims + RDims - 2 * ContractDims;
 
-  typedef DSizes<Index, NumDims> Dimensions;
+  using Dimensions = DSizes<Index, NumDims>;
 
   // typedefs needed in evalTo
-  typedef std::remove_const_t<typename EvalLeftArgType::Scalar> LhsScalar;
-  typedef std::remove_const_t<typename EvalRightArgType::Scalar> RhsScalar;
+  using LhsScalar = std::remove_const_t<typename EvalLeftArgType::Scalar>;
+  using RhsScalar = std::remove_const_t<typename EvalRightArgType::Scalar>;
 
-  typedef TensorEvaluator<EvalLeftArgType, Device> LeftEvaluator;
-  typedef TensorEvaluator<EvalRightArgType, Device> RightEvaluator;
+  using LeftEvaluator = TensorEvaluator<EvalLeftArgType, Device>;
+  using RightEvaluator = TensorEvaluator<EvalRightArgType, Device>;
 
-  typedef typename LeftEvaluator::Dimensions LeftDimensions;
-  typedef typename RightEvaluator::Dimensions RightDimensions;
+  using LeftDimensions = typename LeftEvaluator::Dimensions;
+  using RightDimensions = typename RightEvaluator::Dimensions;
 
   TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {
     EIGEN_STATIC_ASSERT((std::is_same<OutputKernelType, const NoOpOutputKernel>::value),
@@ -1407,16 +1407,16 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
 
     if (k == 0) return;
 
-    typedef internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator, left_nocontract_t,
-                                                   contract_t, 4, lhs_inner_dim_contiguous, false, Unaligned>
-        LhsMapper;
+    using LhsMapper =
+        internal::TensorContractionInputMapper<LhsScalar, Index, internal::Lhs, LeftEvaluator, left_nocontract_t,
+                                               contract_t, 4, lhs_inner_dim_contiguous, false, Unaligned>;
 
-    typedef internal::TensorContractionInputMapper<RhsScalar, Index, internal::Rhs, RightEvaluator, right_nocontract_t,
-                                                   contract_t, 4, rhs_inner_dim_contiguous, rhs_inner_dim_reordered,
-                                                   Unaligned>
-        RhsMapper;
+    using RhsMapper =
+        internal::TensorContractionInputMapper<RhsScalar, Index, internal::Rhs, RightEvaluator, right_nocontract_t,
+                                               contract_t, 4, rhs_inner_dim_contiguous, rhs_inner_dim_reordered,
+                                               Unaligned>;
 
-    typedef internal::blas_data_mapper<Scalar, Index, ColMajor> OutputMapper;
+    using OutputMapper = internal::blas_data_mapper<Scalar, Index, ColMajor>;
 
     // initialize data mappers
     LhsMapper lhs(this->m_leftImpl, this->m_left_nocontract_strides, this->m_i_strides,

@@ -46,9 +46,9 @@ namespace Eigen {
 template<> struct NumTraits<adtl::adouble>
  : NumTraits<double> // permits to get the epsilon, dummy_precision, lowest, highest functions
 {
-  typedef adtl::adouble Real;
-  typedef adtl::adouble NonInteger;
-  typedef adtl::adouble Nested;
+  using Real = adtl::adouble;
+  using NonInteger = adtl::adouble;
+  using Nested = adtl::adouble;
 
   enum {
     IsComplex = 0,
@@ -86,9 +86,9 @@ This other example adds support for the \c mpq_class type from <a href="https://
 namespace Eigen {
   template<> struct NumTraits<mpq_class> : GenericNumTraits<mpq_class>
   {
-    typedef mpq_class Real;
-    typedef mpq_class NonInteger;
-    typedef mpq_class Nested;
+    using Real = mpq_class;
+    using NonInteger = mpq_class;
+    using Nested = mpq_class;
 
     static inline Real epsilon() { return 0; }
     static inline Real dummy_precision() { return 0; }

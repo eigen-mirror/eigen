@@ -76,17 +76,17 @@ void check_random_matrix(const MatrixType &m) {
     Cols = MatrixType::ColsAtCompileTime,
     DiagSize = internal::min_size_prefer_dynamic(Rows, Cols)
   };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, DiagSize, 1> RealVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, DiagSize, 1>;
 
   const Index rows = m.rows(), cols = m.cols();
   const Index diag_size = (std::min)(rows, cols);
   const RealScalar min_svs = 1.0, max_svs = 1000.0;
 
   // check generation of unitary random matrices
-  typedef Matrix<Scalar, Rows, Rows> MatrixAType;
-  typedef Matrix<Scalar, Cols, Cols> MatrixBType;
+  using MatrixAType = Matrix<Scalar, Rows, Rows>;
+  using MatrixBType = Matrix<Scalar, Cols, Cols>;
   check_generateRandomUnitaryMatrix<MatrixAType>(rows);
   check_generateRandomUnitaryMatrix<MatrixBType>(cols);
 

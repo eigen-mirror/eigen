@@ -167,7 +167,7 @@ struct random_without_cast_overflow<
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar, std::enable_if_t<NumTraits<SrcScalar>::IsComplex && !NumTraits<TgtScalar>::IsComplex>> {
-  typedef typename NumTraits<SrcScalar>::Real SrcReal;
+  using SrcReal = typename NumTraits<SrcScalar>::Real;
   static SrcScalar value() { return SrcScalar(random_without_cast_overflow<SrcReal, TgtScalar>::value(), 0); }
 };
 
@@ -175,7 +175,7 @@ struct random_without_cast_overflow<
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar, std::enable_if_t<!NumTraits<SrcScalar>::IsComplex && NumTraits<TgtScalar>::IsComplex>> {
-  typedef typename NumTraits<TgtScalar>::Real TgtReal;
+  using TgtReal = typename NumTraits<TgtScalar>::Real;
   static SrcScalar value() { return random_without_cast_overflow<SrcScalar, TgtReal>::value(); }
 };
 
@@ -183,8 +183,8 @@ struct random_without_cast_overflow<
 template <typename SrcScalar, typename TgtScalar>
 struct random_without_cast_overflow<
     SrcScalar, TgtScalar, std::enable_if_t<NumTraits<SrcScalar>::IsComplex && NumTraits<TgtScalar>::IsComplex>> {
-  typedef typename NumTraits<SrcScalar>::Real SrcReal;
-  typedef typename NumTraits<TgtScalar>::Real TgtReal;
+  using SrcReal = typename NumTraits<SrcScalar>::Real;
+  using TgtReal = typename NumTraits<TgtScalar>::Real;
   static SrcScalar value() {
     return SrcScalar(random_without_cast_overflow<SrcReal, TgtReal>::value(),
                      random_without_cast_overflow<SrcReal, TgtReal>::value());

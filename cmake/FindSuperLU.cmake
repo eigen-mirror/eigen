@@ -34,7 +34,7 @@ set(CMAKE_REQUIRED_INCLUDES ${CMAKE_REQUIRED_INCLUDES} ${SUPERLU_INCLUDES})
 
 # check whether struct mem_usage_t is globally defined
 check_cxx_source_compiles("
-typedef int int_t;
+using int_t = int;
 #include <supermatrix.h>
 #include <slu_util.h>
 int main() {
@@ -45,7 +45,7 @@ SUPERLU_HAS_GLOBAL_MEM_USAGE_T)
 
 
 check_cxx_source_compiles("
-typedef int int_t;
+using int_t = int;
 #include <supermatrix.h>
 #include <superlu_enum_consts.h>
 int main() {
@@ -54,7 +54,7 @@ int main() {
 SUPERLU_HAS_CLEAN_ENUMS)
 
 check_cxx_source_compiles("
-typedef int int_t;
+using int_t = int;
 #include <supermatrix.h>
 #include <slu_util.h>
 int main(void)

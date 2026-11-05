@@ -55,7 +55,7 @@ static_assert(std::is_trivially_copy_constructible<Array4f>::value, "Array4f not
 
 template <typename T, int Size, int Rows, int Cols>
 void dense_storage_copy(int rows, int cols) {
-  typedef DenseStorage<T, Size, Rows, Cols, 0> DenseStorageType;
+  using DenseStorageType = DenseStorage<T, Size, Rows, Cols, 0>;
 
   const int size = rows * cols;
   DenseStorageType reference(size, rows, cols);
@@ -69,7 +69,7 @@ void dense_storage_copy(int rows, int cols) {
 
 template <typename T, int Size, int Rows, int Cols>
 void dense_storage_assignment(int rows, int cols) {
-  typedef DenseStorage<T, Size, Rows, Cols, 0> DenseStorageType;
+  using DenseStorageType = DenseStorage<T, Size, Rows, Cols, 0>;
 
   const int size = rows * cols;
   DenseStorageType reference(size, rows, cols);
@@ -84,7 +84,7 @@ void dense_storage_assignment(int rows, int cols) {
 
 template <typename T, int Size, int Rows, int Cols>
 void dense_storage_swap(int rowsa, int colsa, int rowsb, int colsb) {
-  typedef DenseStorage<T, Size, Rows, Cols, 0> DenseStorageType;
+  using DenseStorageType = DenseStorage<T, Size, Rows, Cols, 0>;
 
   const int sizea = rowsa * colsa;
   ArrayX<T> referencea(sizea);

@@ -142,12 +142,12 @@ void non_projective_only() {
   /* this test covers the following files:
    Cross.h Quaternion.h, Transform.cpp
 */
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
-  typedef Transform<Scalar, 3, Mode, Options> Transform3;
-  typedef DiagonalMatrix<Scalar, 3> AlignedScaling3;
-  typedef Translation<Scalar, 3> Translation3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisx = AngleAxis<Scalar>;
+  using Transform3 = Transform<Scalar, 3, Mode, Options>;
+  using AlignedScaling3 = DiagonalMatrix<Scalar, 3>;
+  using Translation3 = Translation<Scalar, 3>;
 
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
 
@@ -203,19 +203,19 @@ void transformations() {
   */
   using std::abs;
   using std::cos;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
-  typedef Matrix<Scalar, 4, 4> Matrix4;
-  typedef Matrix<Scalar, 2, 1> Vector2;
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 4, 1> Vector4;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
-  typedef Transform<Scalar, 2, Mode, Options> Transform2;
-  typedef Transform<Scalar, 3, Mode, Options> Transform3;
-  typedef typename Transform3::MatrixType MatrixType;
-  typedef DiagonalMatrix<Scalar, 3> AlignedScaling3;
-  typedef Translation<Scalar, 2> Translation2;
-  typedef Translation<Scalar, 3> Translation3;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  using Matrix4 = Matrix<Scalar, 4, 4>;
+  using Vector2 = Matrix<Scalar, 2, 1>;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Vector4 = Matrix<Scalar, 4, 1>;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisx = AngleAxis<Scalar>;
+  using Transform2 = Transform<Scalar, 2, Mode, Options>;
+  using Transform3 = Transform<Scalar, 3, Mode, Options>;
+  using MatrixType = typename Transform3::MatrixType;
+  using AlignedScaling3 = DiagonalMatrix<Scalar, 3>;
+  using Translation2 = Translation<Scalar, 2>;
+  using Translation3 = Translation<Scalar, 3>;
 
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
   Matrix3 matrot1, m;
@@ -359,10 +359,10 @@ void transformations() {
   // mixed-scalar operations
   {
     using OtherScalar = std::conditional_t<std::is_same<Scalar, float>::value, double, float>;
-    typedef Matrix<OtherScalar, 3, 1> Vector3Other;
-    typedef Matrix<OtherScalar, 3, 3> Matrix3Other;
-    typedef Quaternion<OtherScalar> QuaternionOther;
-    typedef AngleAxis<OtherScalar> AngleAxisOther;
+    using Vector3Other = Matrix<OtherScalar, 3, 1>;
+    using Matrix3Other = Matrix<OtherScalar, 3, 3>;
+    using QuaternionOther = Quaternion<OtherScalar>;
+    using AngleAxisOther = AngleAxis<OtherScalar>;
 
     Vector3Other v_other(OtherScalar(1), OtherScalar(2), OtherScalar(3));
     Matrix4 H_trans = Matrix4::Identity();
@@ -483,7 +483,7 @@ void transformations() {
   // mixed-scalar 2D rotate and prerotate
   {
     using OtherScalar = std::conditional_t<std::is_same<Scalar, float>::value, double, float>;
-    typedef Matrix<Scalar, 3, 3> Matrix3_2D;
+    using Matrix3_2D = Matrix<Scalar, 3, 3>;
     Rotation2D<OtherScalar> r2d_other(OtherScalar(0.4));
     Matrix<Scalar, 2, 2> r2d_mat = r2d_other.toRotationMatrix().template cast<Scalar>();
     Matrix3_2D H2_rot = Matrix3_2D::Identity();
@@ -761,15 +761,15 @@ void transform_associativity2(const A1& a1, const A2& a2, const P& p, const Q& q
 
 template <typename Scalar, int Dim, int Options, typename RotationType>
 void transform_associativity(const RotationType& R) {
-  typedef Matrix<Scalar, Dim, 1> VectorType;
-  typedef Matrix<Scalar, Dim + 1, 1> HVectorType;
-  typedef Matrix<Scalar, Dim, Dim> LinearType;
-  typedef Matrix<Scalar, Dim + 1, Dim + 1> MatrixType;
-  typedef Transform<Scalar, Dim, AffineCompact, Options> AffineCompactType;
-  typedef Transform<Scalar, Dim, Affine, Options> AffineType;
-  typedef Transform<Scalar, Dim, Projective, Options> ProjectiveType;
-  typedef DiagonalMatrix<Scalar, Dim> ScalingType;
-  typedef Translation<Scalar, Dim> TranslationType;
+  using VectorType = Matrix<Scalar, Dim, 1>;
+  using HVectorType = Matrix<Scalar, Dim + 1, 1>;
+  using LinearType = Matrix<Scalar, Dim, Dim>;
+  using MatrixType = Matrix<Scalar, Dim + 1, Dim + 1>;
+  using AffineCompactType = Transform<Scalar, Dim, AffineCompact, Options>;
+  using AffineType = Transform<Scalar, Dim, Affine, Options>;
+  using ProjectiveType = Transform<Scalar, Dim, Projective, Options>;
+  using ScalingType = DiagonalMatrix<Scalar, Dim>;
+  using TranslationType = Translation<Scalar, Dim>;
 
   AffineCompactType A1c;
   A1c.matrix().setRandom();
@@ -807,8 +807,8 @@ void transform_associativity(const RotationType& R) {
 
 template <typename Scalar>
 void transform_alignment() {
-  typedef Transform<Scalar, 3, Projective, AutoAlign> Projective3a;
-  typedef Transform<Scalar, 3, Projective, DontAlign> Projective3u;
+  using Projective3a = Transform<Scalar, 3, Projective, AutoAlign>;
+  using Projective3u = Transform<Scalar, 3, Projective, DontAlign>;
 
   EIGEN_ALIGN_MAX Scalar array1[16];
   EIGEN_ALIGN_MAX Scalar array2[16];
@@ -831,10 +831,10 @@ void transform_alignment() {
 
 template <typename Scalar, int Dim, int Options>
 void transform_products() {
-  typedef Matrix<Scalar, Dim + 1, Dim + 1> Mat;
-  typedef Transform<Scalar, Dim, Projective, Options> Proj;
-  typedef Transform<Scalar, Dim, Affine, Options> Aff;
-  typedef Transform<Scalar, Dim, AffineCompact, Options> AffC;
+  using Mat = Matrix<Scalar, Dim + 1, Dim + 1>;
+  using Proj = Transform<Scalar, Dim, Projective, Options>;
+  using Aff = Transform<Scalar, Dim, Affine, Options>;
+  using AffC = Transform<Scalar, Dim, AffineCompact, Options>;
 
   Proj p;
   p.matrix().setRandom();
@@ -874,13 +874,13 @@ void transformations_no_scale() {
   /* this test covers the following files:
   Cross.h Quaternion.h, Transform.h
 */
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Matrix<Scalar, 4, 1> Vector4;
-  typedef Quaternion<Scalar> Quaternionx;
-  typedef AngleAxis<Scalar> AngleAxisx;
-  typedef Transform<Scalar, 3, Mode, Options> Transform3;
-  typedef Translation<Scalar, 3> Translation3;
-  typedef Matrix<Scalar, 4, 4> Matrix4;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Vector4 = Matrix<Scalar, 4, 1>;
+  using Quaternionx = Quaternion<Scalar>;
+  using AngleAxisx = AngleAxis<Scalar>;
+  using Transform3 = Transform<Scalar, 3, Mode, Options>;
+  using Translation3 = Translation<Scalar, 3>;
+  using Matrix4 = Matrix<Scalar, 4, 4>;
 
   Vector3 v0 = Vector3::Random(), v1 = Vector3::Random();
 
@@ -933,9 +933,9 @@ void transformations_no_scale() {
 
 template <typename Scalar, int Mode, int Options>
 void transformations_computed_scaling_continuity() {
-  typedef Matrix<Scalar, 3, 1> Vector3;
-  typedef Transform<Scalar, 3, Mode, Options> Transform3;
-  typedef Matrix<Scalar, 3, 3> Matrix3;
+  using Vector3 = Matrix<Scalar, 3, 1>;
+  using Transform3 = Transform<Scalar, 3, Mode, Options>;
+  using Matrix3 = Matrix<Scalar, 3, 3>;
 
   // Given: two transforms that differ by '2*eps'.
   Scalar eps(1e-3);

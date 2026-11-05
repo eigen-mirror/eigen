@@ -14,7 +14,7 @@
 
 template <typename MatrixType>
 void matrixVisitor_impl(MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -133,7 +133,7 @@ void matrixVisitor(const MatrixType& p) {
 
 template <typename VectorType>
 void vectorVisitor(const VectorType& w) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
 
   Index size = w.size();
 
@@ -649,7 +649,7 @@ void visitor_vec_boundary() {
   for (int si = 0; si < 11; ++si) {
     const Index n = sizes[si];
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    using Vec = Matrix<Scalar, Dynamic, 1>;
     Vec v = Vec::Random(n);
     // Ensure all elements are distinct.
     for (Index i = 0; i < n; ++i)
@@ -676,7 +676,7 @@ void visitor_vec_boundary() {
 
     // Also test matrix form at this size (exercises different inner/outer sizes).
     if (n >= 2) {
-      typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+      using Mat = Matrix<Scalar, Dynamic, Dynamic>;
       // Test as n×1 and 1×n (different inner sizes for visitor traversal).
       Mat mc = v;
       Mat mr = v.transpose();

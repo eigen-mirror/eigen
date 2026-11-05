@@ -159,17 +159,17 @@ struct fft_inv_proxy;
 namespace internal {
 template <typename T_SrcMat, typename T_FftIfc>
 struct traits<fft_fwd_proxy<T_SrcMat, T_FftIfc> > {
-  typedef typename T_SrcMat::PlainObject ReturnType;
+  using ReturnType = typename T_SrcMat::PlainObject;
 };
 template <typename T_SrcMat, typename T_FftIfc>
 struct traits<fft_inv_proxy<T_SrcMat, T_FftIfc> > {
-  typedef typename T_SrcMat::PlainObject ReturnType;
+  using ReturnType = typename T_SrcMat::PlainObject;
 };
 }  // namespace internal
 
 template <typename T_SrcMat, typename T_FftIfc>
 struct fft_fwd_proxy : public ReturnByValue<fft_fwd_proxy<T_SrcMat, T_FftIfc> > {
-  typedef Eigen::Index Index;
+  using Index = Eigen::Index;
 
   fft_fwd_proxy(const T_SrcMat& src, T_FftIfc& fft, Index nfft) : m_src(src), m_ifc(fft), m_nfft(nfft) {}
 
@@ -187,7 +187,7 @@ struct fft_fwd_proxy : public ReturnByValue<fft_fwd_proxy<T_SrcMat, T_FftIfc> > 
 
 template <typename T_SrcMat, typename T_FftIfc>
 struct fft_inv_proxy : public ReturnByValue<fft_inv_proxy<T_SrcMat, T_FftIfc> > {
-  typedef Eigen::Index Index;
+  using Index = Eigen::Index;
 
   fft_inv_proxy(const T_SrcMat& src, T_FftIfc& fft, Index nfft) : m_src(src), m_ifc(fft), m_nfft(nfft) {}
 
@@ -249,10 +249,10 @@ EIGEN_STRONG_INLINE void fft_resize_as_vector(DenseBase<Derived>& dst, Index siz
 template <typename T_Scalar, typename T_Impl = default_fft_impl<T_Scalar> >
 class FFT {
  public:
-  typedef T_Impl impl_type;
-  typedef Eigen::Index Index;
-  typedef typename impl_type::Scalar Scalar;
-  typedef typename impl_type::Complex Complex;
+  using impl_type = T_Impl;
+  using Index = Eigen::Index;
+  using Scalar = typename impl_type::Scalar;
+  using Complex = typename impl_type::Complex;
 
   using Flag = int;
   static constexpr Flag Default = 0;
@@ -298,8 +298,8 @@ class FFT {
 
   template <typename InputDerived, typename ComplexDerived>
   inline void fwd(DenseBase<ComplexDerived>& dst, const DenseBase<InputDerived>& src, Index nfft = -1) {
-    typedef typename ComplexDerived::Scalar dst_type;
-    typedef typename InputDerived::Scalar src_type;
+    using dst_type = typename ComplexDerived::Scalar;
+    using src_type = typename InputDerived::Scalar;
     EIGEN_STATIC_ASSERT_FFT_VECTOR(InputDerived)
     EIGEN_STATIC_ASSERT_FFT_VECTOR(ComplexDerived)
     EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(ComplexDerived, InputDerived)  // size at compile-time
@@ -369,9 +369,9 @@ class FFT {
 
   template <typename OutputDerived, typename ComplexDerived>
   inline void inv(DenseBase<OutputDerived>& dst, const DenseBase<ComplexDerived>& src, Index nfft = -1) {
-    typedef typename ComplexDerived::Scalar src_type;
-    typedef typename ComplexDerived::RealScalar real_type;
-    typedef typename OutputDerived::Scalar dst_type;
+    using src_type = typename ComplexDerived::Scalar;
+    using real_type = typename ComplexDerived::RealScalar;
+    using dst_type = typename OutputDerived::Scalar;
     const bool realfft = (NumTraits<dst_type>::IsComplex == 0);
     EIGEN_STATIC_ASSERT_FFT_VECTOR(OutputDerived)
     EIGEN_STATIC_ASSERT_FFT_VECTOR(ComplexDerived)

@@ -17,7 +17,7 @@
 
 template <typename MatrixType>
 void signed_integer_type_tests(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   constexpr Scalar kMax = (Scalar(1) << ((8 * sizeof(Scalar) - 2) / 2)) - 1;
 
   enum { is_signed = (Scalar(-1) > Scalar(0)) ? 0 : 1 };
@@ -40,15 +40,15 @@ void signed_integer_type_tests(const MatrixType& m) {
 
 template <typename MatrixType>
 void integer_type_tests(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   constexpr Scalar kMax = (Scalar(1) << ((8 * sizeof(Scalar) - 2) / 2)) - 1;
 
   VERIFY(NumTraits<Scalar>::IsInteger);
   enum { is_signed = (Scalar(-1) > Scalar(0)) ? 0 : 1 };
   VERIFY(int(NumTraits<Scalar>::IsSigned) == is_signed);
 
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   Index rows = m.rows();
   Index cols = m.cols();

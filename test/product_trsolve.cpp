@@ -78,7 +78,7 @@ void trsolve_scaled_reads_triangle_only(Index size) {
 
 template <typename Scalar, int Size, int Cols>
 void trsolve(int size = Size, int cols = Cols) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Matrix<Scalar, Size, Size, ColMajor> cmLhs(size, size);
   Matrix<Scalar, Size, Size, RowMajor> rmLhs(size, size);
@@ -137,7 +137,7 @@ void trsolve(int size = Size, int cols = Cols) {
   // destination with a non-default inner-stride
   // see bug 1741
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * cmRhs.rows(), 2 * cmRhs.cols());
     Map<Matrix<Scalar, Size, Cols, colmajor>, 0, Stride<Dynamic, 2> > map1(
         buffer.data(), cmRhs.rows(), cmRhs.cols(), Stride<Dynamic, 2>(2 * cmRhs.outerStride(), 2));
@@ -184,8 +184,8 @@ void trsolve(int size = Size, int cols = Cols) {
 // trigger blocking transitions and tests additional configurations.
 template <int>
 void trsolve_strided_boundary() {
-  typedef double Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+  using Scalar = double;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
 
   const int sizes[] = {1, 2, 3, 4, 8, 12, 16, 24, 32, 47, 48, 49, 64};
   for (int si = 0; si < 13; ++si) {
@@ -267,7 +267,7 @@ void trsolve_strided_boundary() {
 
     // Vector RHS with InnerStride = 2
     {
-      typedef Matrix<Scalar, Dynamic, 1> VecX;
+      using VecX = Matrix<Scalar, Dynamic, 1>;
       VecX buffer(2 * n);
       Map<VecX, 0, InnerStride<2> > map(buffer.data(), n, InnerStride<2>(2));
       buffer.setZero();
@@ -280,8 +280,8 @@ void trsolve_strided_boundary() {
 
   // Complex with non-unit stride: tests conjugation in the scalar fallback path.
   {
-    typedef std::complex<double> CScalar;
-    typedef Matrix<CScalar, Dynamic, Dynamic> CMatrixX;
+    using CScalar = std::complex<double>;
+    using CMatrixX = Matrix<CScalar, Dynamic, Dynamic>;
     int n = 32;
     CMatrixX lhs = CMatrixX::Random(n, n);
     lhs *= CScalar(0.1);
@@ -309,8 +309,8 @@ void trsolve_strided_boundary() {
 }
 
 void trsolve_indexed_view() {
-  typedef Matrix<double, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<double, Dynamic, 1> VectorX;
+  using MatrixX = Matrix<double, Dynamic, Dynamic>;
+  using VectorX = Matrix<double, Dynamic, 1>;
 
   MatrixX lhs = MatrixX::Random(8, 8);
   lhs *= 0.1;
@@ -363,9 +363,9 @@ void trsolve_indexed_view() {
 // past the ends of both operands.
 template <typename Scalar, int TriOptions>
 void trsolve_no_malloc(int size, int cols) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, TriOptions> TriMatrix;
-  typedef Matrix<Scalar, Dynamic, Dynamic> RhsMatrix;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using TriMatrix = Matrix<Scalar, Dynamic, Dynamic, TriOptions>;
+  using RhsMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   TriMatrix lhs = TriMatrix::Random(size, size) * RealScalar(0.1);
   lhs.diagonal().array() += RealScalar(1);

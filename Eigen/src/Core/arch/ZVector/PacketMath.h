@@ -30,17 +30,17 @@ namespace internal {
 #define EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS 32
 #endif
 
-typedef __vector int Packet4i;
-typedef __vector unsigned int Packet4ui;
-typedef __vector __bool int Packet4bi;
-typedef __vector short int Packet8i;
-typedef __vector unsigned char Packet16uc;
-typedef __vector double Packet2d;
-typedef __vector unsigned long long Packet2ul;
-typedef __vector long long Packet2l;
+using Packet4i = __vector int;
+using Packet4ui = __vector unsigned int;
+using Packet4bi = __vector __bool int;
+using Packet8i = __vector short int;
+using Packet16uc = __vector unsigned char;
+using Packet2d = __vector double;
+using Packet2ul = __vector unsigned long long;
+using Packet2l = __vector long long;
 
 // Z14 has builtin support for float vectors
-typedef __vector float Packet4f;
+using Packet4f = __vector float;
 
 typedef union {
   numext::int32_t i[4];
@@ -139,8 +139,8 @@ static Packet16uc p16uc_COMPLEX32_REV2 =
 
 template <>
 struct packet_traits<int> : default_packet_traits {
-  typedef Packet4i type;
-  typedef Packet4i half;
+  using type = Packet4i;
+  using half = Packet4i;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -155,8 +155,8 @@ struct packet_traits<int> : default_packet_traits {
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet4f type;
-  typedef Packet4f half;
+  using type = Packet4f;
+  using half = Packet4f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -184,8 +184,8 @@ struct packet_traits<float> : default_packet_traits {
 
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet2d type;
-  typedef Packet2d half;
+  using type = Packet2d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -210,7 +210,7 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4i> {
-  typedef int type;
+  using type = int;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -218,11 +218,11 @@ struct unpacket_traits<Packet4i> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet4i half;
+  using half = Packet4i;
 };
 template <>
 struct unpacket_traits<Packet4f> {
-  typedef float type;
+  using type = float;
   enum {
     size = 4,
     alignment = Aligned16,
@@ -230,12 +230,12 @@ struct unpacket_traits<Packet4f> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet4f half;
-  typedef Packet4i integer_packet;
+  using half = Packet4f;
+  using integer_packet = Packet4i;
 };
 template <>
 struct unpacket_traits<Packet2d> {
-  typedef double type;
+  using type = double;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -243,8 +243,8 @@ struct unpacket_traits<Packet2d> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet2d half;
-  typedef Packet2l integer_packet;
+  using half = Packet2d;
+  using integer_packet = Packet2l;
 };
 // The integer_packet of Packet2d, for the generic bit-manipulation paths; int64 is not vectorized.
 template <>

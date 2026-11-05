@@ -181,8 +181,8 @@ struct pcast_array;
 
 template <typename SrcPacket, typename TgtPacket, int TgtCoeffRatio>
 struct pcast_array<SrcPacket, TgtPacket, 1, TgtCoeffRatio> {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-  typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
+  using SrcScalar = typename internal::unpacket_traits<SrcPacket>::type;
+  using TgtScalar = typename internal::unpacket_traits<TgtPacket>::type;
   static void cast(const SrcScalar* src, size_t size, TgtScalar* dst) {
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
@@ -258,8 +258,8 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, fals
 template <typename SrcPacket, typename TgtPacket, int SrcCoeffRatio, int TgtCoeffRatio>
 struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true> {
   static void run() {
-    typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-    typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
+    using SrcScalar = typename internal::unpacket_traits<SrcPacket>::type;
+    using TgtScalar = typename internal::unpacket_traits<TgtPacket>::type;
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
     static const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
     static const int BlockSize = SrcPacketSize * SrcCoeffRatio;
@@ -294,9 +294,9 @@ struct test_cast_helper<SrcPacket, TgtPacket, SrcCoeffRatio, TgtCoeffRatio, true
 template <typename SrcPacket, typename TgtPacket>
 struct test_cast {
   static void run() {
-    typedef typename internal::unpacket_traits<SrcPacket>::type SrcScalar;
-    typedef typename internal::unpacket_traits<TgtPacket>::type TgtScalar;
-    typedef typename internal::type_casting_traits<SrcScalar, TgtScalar> TypeCastingTraits;
+    using SrcScalar = typename internal::unpacket_traits<SrcPacket>::type;
+    using TgtScalar = typename internal::unpacket_traits<TgtPacket>::type;
+    using TypeCastingTraits = typename internal::type_casting_traits<SrcScalar, TgtScalar>;
     static const int SrcCoeffRatio = TypeCastingTraits::SrcCoeffRatio;
     static const int TgtCoeffRatio = TypeCastingTraits::TgtCoeffRatio;
     static const int SrcPacketSize = internal::unpacket_traits<SrcPacket>::size;
@@ -819,9 +819,9 @@ void packetmath_pnot_ptrue() {
 
 template <typename Scalar, typename Packet>
 void packetmath() {
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   if (g_first_pass)
     std::cerr << "=== Testing packet of type '" << typeid(Packet).name() << "' and scalar type '"
@@ -1204,7 +1204,7 @@ EIGEN_DONT_INLINE void preciprocal_out_of_line(const Scalar* in, Scalar* out) {
 
 template <typename Scalar, typename Packet>
 void packetmath_real() {
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
@@ -1217,7 +1217,7 @@ void packetmath_real() {
     test::packet_helper<PacketTraits::HasNegate, Packet> h;
     data1[0] = Scalar{-0};
     h.store(data2, internal::pnegate(h.load(data1)));
-    typedef std::make_unsigned_t<typename internal::make_integer<Scalar>::type> Bits;
+    using Bits = std::make_unsigned_t<typename internal::make_integer<Scalar>::type>;
     Bits bits = numext::bit_cast<Bits>(data2[0]);
     VERIFY_IS_EQUAL(bits, static_cast<Bits>(Bits(1) << (sizeof(Scalar) * CHAR_BIT - 1)));
   }
@@ -1253,7 +1253,7 @@ void packetmath_real() {
 
   // Rounding edge cases.
   if (PacketTraits::HasRound) {
-    typedef typename internal::make_integer<Scalar>::type IntType;
+    using IntType = typename internal::make_integer<Scalar>::type;
     // Start with values that cannot fit inside an integer, work down to less than one.
     Scalar val =
         numext::mini(Scalar(2) * static_cast<Scalar>(NumTraits<IntType>::highest()), NumTraits<Scalar>::highest());
@@ -1921,7 +1921,7 @@ std::enable_if_t<NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_val
 
 template <typename Scalar, typename Packet>
 std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_values() {
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
   run_ieee_cases<PacketTraits::HasSqrt, Scalar, Packet>(sqrt_fun());
   // The x86 float rsqrt recomputes the subnormal inputs its estimate flushes; other estimates may still flush them.
   run_ieee_cases<PacketTraits::HasRsqrt, Scalar, Packet,
@@ -2098,7 +2098,7 @@ void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
   packetmath_special_value_lanes<Scalar, Packet>();
 
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4];
@@ -2291,7 +2291,7 @@ int raised_exceptions(const Scalar* in, Scalar* out, Op op) {
 
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
 struct exp_complex_test_impl {
-  typedef typename Scalar::value_type RealScalar;
+  using RealScalar = typename Scalar::value_type;
 
   static Scalar pexp1(const Scalar& x) {
     Packet px = internal::pset1<Packet>(x);
@@ -2520,7 +2520,7 @@ struct exp_complex_test_impl {
 
 template <typename Scalar, typename Packet>
 struct exp_complex_test_impl<Scalar, Packet, false> {
-  typedef typename Scalar::value_type RealScalar;
+  using RealScalar = typename Scalar::value_type;
   static void run(Scalar*, Scalar*, Scalar*, int){};
 };
 
@@ -2553,8 +2553,8 @@ int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, Scalar& quotient) 
 
 template <typename Scalar, typename Packet>
 void packetmath_complex() {
-  typedef internal::packet_traits<Scalar> PacketTraits;
-  typedef typename Scalar::value_type RealScalar;
+  using PacketTraits = internal::packet_traits<Scalar>;
+  using RealScalar = typename Scalar::value_type;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;
@@ -2930,7 +2930,7 @@ void packetmath_complex() {
 
 template <typename Scalar, typename Packet>
 void packetmath_scatter_gather() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
   RealScalar refvalue = RealScalar(0);

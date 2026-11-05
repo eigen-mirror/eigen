@@ -18,7 +18,7 @@
 #include <contrib/Eigen/Tensor>
 
 using Eigen::Tensor;
-typedef Tensor<float, 1>::DimensionPair DimPair;
+using DimPair = Tensor<float, 1>::DimensionPair;
 
 template <int DataLayout>
 void test_gpu_cumsum(int m_size, int k_size, int n_size) {

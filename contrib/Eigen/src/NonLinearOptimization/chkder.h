@@ -22,7 +22,7 @@ void chkder(const Matrix<Scalar, Dynamic, 1> &x, const Matrix<Scalar, Dynamic, 1
   using std::log;
   using std::sqrt;
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   const Scalar eps = sqrt(NumTraits<Scalar>::epsilon());
   const Scalar epsf = chkder_factor * NumTraits<Scalar>::epsilon();

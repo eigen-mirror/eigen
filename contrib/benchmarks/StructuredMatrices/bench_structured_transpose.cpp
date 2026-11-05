@@ -12,7 +12,7 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
+using Vec = Matrix<double, Dynamic, 1>;
 
 // The generating column of C^T: the index-reversed column of C (what transpose()
 // computes internally before attaching the reused symbol).

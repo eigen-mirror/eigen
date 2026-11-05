@@ -64,7 +64,7 @@ void RandomFill(std::vector<std::complex<T> >& vec) {
 
 template <typename T_time, typename T_freq>
 void fwd_inv(size_t nfft) {
-  typedef typename NumTraits<T_freq>::Real Scalar;
+  using Scalar = typename NumTraits<T_freq>::Real;
   vector<T_time> timebuf(nfft);
   RandomFill(timebuf);
 

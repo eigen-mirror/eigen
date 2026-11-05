@@ -20,7 +20,7 @@ namespace internal {
 // TODO: Add support for native armv8.6-a bfloat16_t
 
 // TODO: Guard if we have native bfloat16 support
-typedef eigen_packet_wrapper<uint16x4_t, 19> Packet4bf;
+using Packet4bf = eigen_packet_wrapper<uint16x4_t, 19>;
 using Packet8bf = eigen_packet_wrapper<uint16x8_t, 20>;
 
 template <>

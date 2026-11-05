@@ -31,8 +31,8 @@ void test_dgmres_T() {
 // pivot) and benign (exact Krylov subspace) breakdown paths.
 template <typename T>
 void test_dgmres_breakdown_T() {
-  typedef SparseMatrix<T> Mat;
-  typedef Matrix<T, 2, 1> Vec;
+  using Mat = SparseMatrix<T>;
+  using Vec = Matrix<T, 2, 1>;
 
   // Nilpotent A with singular Hessenberg pivot on the first step.
   Mat A(2, 2);

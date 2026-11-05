@@ -12,8 +12,8 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
-typedef Matrix<double, Dynamic, Dynamic> Mat;
+using Vec = Matrix<double, Dynamic, 1>;
+using Mat = Matrix<double, Dynamic, Dynamic>;
 
 struct DPR1Problem {
   explicit DPR1Problem(Index n) : d(n), z(n), rho(2.0) {

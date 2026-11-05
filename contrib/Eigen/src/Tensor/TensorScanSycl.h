@@ -86,8 +86,8 @@ enum class scan_step { first, second };
 template <typename Evaluator, typename CoeffReturnType, typename OutAccessor, typename Op, typename Index,
           scan_step stp>
 struct ScanKernelFunctor {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      LocalAccessor;
+  using LocalAccessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   static constexpr int PacketSize = ScanParameters<Index>::ScanPerThread / 2;
 
   LocalAccessor scratch;
@@ -288,8 +288,8 @@ struct ScanKernelFunctor {
 
 template <typename CoeffReturnType, typename InAccessor, typename OutAccessor, typename Op, typename Index>
 struct ScanAdjustmentKernelFunctor {
-  typedef cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-      LocalAccessor;
+  using LocalAccessor =
+      cl::sycl::accessor<CoeffReturnType, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
   static constexpr int PacketSize = ScanParameters<Index>::ScanPerThread / 2;
   InAccessor in_ptr;
   OutAccessor out_ptr;
@@ -413,8 +413,8 @@ struct SYCLAdjustBlockOffset {
     auto scan_info =
         ScanInfo<Index>(total_size, scan_size, panel_size, non_scan_size, scan_stride, non_scan_stride, dev);
 
-    typedef ScanAdjustmentKernelFunctor<CoeffReturnType, EvaluatorPointerType, EvaluatorPointerType, Reducer, Index>
-        AdjustFuctor;
+    using AdjustFuctor =
+        ScanAdjustmentKernelFunctor<CoeffReturnType, EvaluatorPointerType, EvaluatorPointerType, Reducer, Index>;
     dev.template unary_kernel_launcher<CoeffReturnType, AdjustFuctor>(in_ptr, out_ptr, scan_info.get_thread_range(),
                                                                       scan_info.max_elements_per_block,
                                                                       scan_info.get_scan_parameter(), accumulator)
@@ -438,7 +438,7 @@ struct ScanLauncher_impl {
         static_cast<CoeffReturnType *>(dev.allocate_temp(temp_pointer_size * sizeof(CoeffReturnType)));
     EvaluatorPointerType tmp_global_accessor = dev.get(temp_pointer);
 
-    typedef ScanKernelFunctor<Input, CoeffReturnType, EvaluatorPointerType, Reducer, Index, stp> ScanFunctor;
+    using ScanFunctor = ScanKernelFunctor<Input, CoeffReturnType, EvaluatorPointerType, Reducer, Index, stp>;
     dev.template binary_kernel_launcher<CoeffReturnType, ScanFunctor>(
            in_ptr, out_ptr, tmp_global_accessor, scan_info.get_thread_range(), scratch_size,
            scan_info.get_scan_parameter(), accumulator, inclusive)
@@ -462,10 +462,10 @@ struct ScanLauncher_impl {
 namespace internal {
 template <typename Self, typename Reducer, bool vectorize>
 struct ScanLauncher<Self, Reducer, Eigen::SyclDevice, vectorize> {
-  typedef typename Self::Index Index;
-  typedef typename Self::CoeffReturnType CoeffReturnType;
-  typedef typename Self::Storage Storage;
-  typedef typename Self::EvaluatorPointerType EvaluatorPointerType;
+  using Index = typename Self::Index;
+  using CoeffReturnType = typename Self::CoeffReturnType;
+  using Storage = typename Self::Storage;
+  using EvaluatorPointerType = typename Self::EvaluatorPointerType;
   void operator()(Self &self, EvaluatorPointerType data) const {
     const Index total_size = internal::array_prod(self.dimensions());
     const Index scan_size = self.size();

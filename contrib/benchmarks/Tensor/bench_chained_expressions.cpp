@@ -11,7 +11,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Pure memory-bound baseline (dst = src) ---
 static void BM_Copy_ThreadPool(benchmark::State& state) {

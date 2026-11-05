@@ -21,7 +21,7 @@
 #include <contrib/Eigen/Tensor>
 
 using Eigen::Tensor;
-typedef Tensor<float, 1>::DimensionPair DimPair;
+using DimPair = Tensor<float, 1>::DimensionPair;
 
 template <typename DataType, int DataLayout, typename IndexType>
 void test_sycl_cumsum(const Eigen::SyclDevice& sycl_device, IndexType m_size, IndexType k_size, IndexType n_size,

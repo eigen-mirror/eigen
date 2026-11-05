@@ -181,8 +181,8 @@ class QueueInterface {
   EIGEN_ALWAYS_INLINE cl::sycl::event binary_kernel_launcher(const Lhs &lhs, const Rhs &rhs, OutPtr outptr,
                                                              Range thread_range, Index scratchSize, T... var) const {
     auto kernel_functor = [=](cl::sycl::handler &cgh) {
-      typedef cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-          LocalAccessor;
+      using LocalAccessor =
+          cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
 
       LocalAccessor scratch(cl::sycl::range<1>(scratchSize), cgh);
       cgh.parallel_for(thread_range, sycl_kernel(scratch, lhs, rhs, outptr, var...));
@@ -196,8 +196,8 @@ class QueueInterface {
   EIGEN_ALWAYS_INLINE cl::sycl::event unary_kernel_launcher(const InPtr &inptr, OutPtr &outptr, Range thread_range,
                                                             Index scratchSize, T... var) const {
     auto kernel_functor = [=](cl::sycl::handler &cgh) {
-      typedef cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-          LocalAccessor;
+      using LocalAccessor =
+          cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
 
       LocalAccessor scratch(cl::sycl::range<1>(scratchSize), cgh);
       cgh.parallel_for(thread_range, sycl_kernel(scratch, inptr, outptr, var...));
@@ -209,8 +209,8 @@ class QueueInterface {
   EIGEN_ALWAYS_INLINE cl::sycl::event nullary_kernel_launcher(const InPtr &inptr, Range thread_range, Index scratchSize,
                                                               T... var) const {
     auto kernel_functor = [=](cl::sycl::handler &cgh) {
-      typedef cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>
-          LocalAccessor;
+      using LocalAccessor =
+          cl::sycl::accessor<OutScalar, 1, cl::sycl::access::mode::read_write, cl::sycl::access::target::local>;
 
       LocalAccessor scratch(cl::sycl::range<1>(scratchSize), cgh);
       cgh.parallel_for(thread_range, sycl_kernel(scratch, inptr, var...));

@@ -26,7 +26,7 @@ void inverse_permutation_4x4() {
 template <typename MatrixType>
 void inverse_general_4x4(int repeat) {
   using std::abs;
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   double error_sum = 0., error_max = 0.;
   for (int i = 0; i < repeat; ++i) {
     // Create a random diagonally dominant (thus invertible) matrix.

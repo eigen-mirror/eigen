@@ -150,25 +150,25 @@ EIGEN_STRONG_INLINE void run_dot_chunk(const Scalar* EIGEN_RESTRICT vals, const 
 template <typename SparseMatrixType_>
 class ThreadedSparseProduct {
  public:
-  typedef SparseMatrixType_ SparseMatrixType;
-  typedef typename SparseMatrixType::Scalar Scalar;
-  typedef typename SparseMatrixType::RealScalar RealScalar;
-  typedef typename SparseMatrixType::StorageIndex StorageIndex;
+  using SparseMatrixType = SparseMatrixType_;
+  using Scalar = typename SparseMatrixType::Scalar;
+  using RealScalar = typename SparseMatrixType::RealScalar;
+  using StorageIndex = typename SparseMatrixType::StorageIndex;
 
   enum { IsRowMajor = static_cast<int>(SparseMatrixType::IsRowMajor) };
 
   // Opposite-storage-order mirror used by the conflict-free path for whichever
   // direction doesn't match A's native order.
-  typedef SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex> MirrorType;
+  using MirrorType = SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
 
   // The dot-product kernel walks x/y via raw `Scalar*` with unit inner
   // stride; constraining the public API to `Ref` forces compatible layout
   // (binding for plain matrices, vectors, and unit-stride Maps/Blocks;
   // copy-evaluation for non-conforming const inputs; runtime error for
   // non-conforming mutable outputs).
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Ref<const DenseVector> ConstVectorRef;
-  typedef Ref<DenseVector> MutableVectorRef;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using ConstVectorRef = Ref<const DenseVector>;
+  using MutableVectorRef = Ref<DenseVector>;
 
   ThreadedSparseProduct() = default;
 

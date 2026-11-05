@@ -87,15 +87,15 @@ void fixedsizeVariadicVectorConstruction2() {
 
 #define CHECK_MIXSCALAR_V5(VEC5, A0, A1, A2, A3, A4)  \
   {                                                   \
-    typedef VEC5::Scalar Scalar;                      \
+    using Scalar = VEC5::Scalar;                      \
     VEC5 v = {A0, A1, A2, A3, A4};                    \
     CHECK_MIXSCALAR_V5_APPROX(v, A0, A1, A2, A3, A4); \
   }
 
 template <int>
 void fixedsizeVariadicVectorConstruction3() {
-  typedef Matrix<double, 5, 1> Vec5;
-  typedef Array<float, 5, 1> Arr5;
+  using Vec5 = Matrix<double, 5, 1>;
+  using Arr5 = Array<float, 5, 1>;
   CHECK_MIXSCALAR_V5(Vec5, 1, 2., -3, 4.121, 5.53252);
   CHECK_MIXSCALAR_V5(Arr5, 1, 2., 3.12f, 4.121, 5.53252);
 }
@@ -335,7 +335,7 @@ void dynamicVectorConstruction() {
     raw[i] = internal::random<Scalar>();
   }
 
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   {
     VectorX v{{raw[0], raw[1], raw[2], raw[3]}};

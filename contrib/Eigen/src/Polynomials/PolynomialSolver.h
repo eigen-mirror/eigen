@@ -34,12 +34,12 @@ class PolynomialSolverBase {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_, Deg_ == Dynamic ? Dynamic : Deg_)
 
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef internal::make_complex_t<Scalar> RootType;
-  typedef Matrix<RootType, Deg_, 1> RootsType;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RootType = internal::make_complex_t<Scalar>;
+  using RootsType = Matrix<RootType, Deg_, 1>;
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
  protected:
   template <typename OtherPolynomial>
@@ -263,10 +263,10 @@ class PolynomialSolverBase {
 };
 
 #define EIGEN_POLYNOMIAL_SOLVER_BASE_INHERITED_TYPES(BASE) \
-  typedef typename BASE::Scalar Scalar;                    \
-  typedef typename BASE::RealScalar RealScalar;            \
-  typedef typename BASE::RootType RootType;                \
-  typedef typename BASE::RootsType RootsType;
+  using Scalar = typename BASE::Scalar;                    \
+  using RealScalar = typename BASE::RealScalar;            \
+  using RootType = typename BASE::RootType;                \
+  using RootsType = typename BASE::RootsType;
 
 /** \ingroup Polynomials_Module
  *
@@ -301,14 +301,13 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar_, Deg_ == Dynamic ? Dynamic : Deg_)
 
-  typedef PolynomialSolverBase<Scalar_, Deg_> PS_Base;
+  using PS_Base = PolynomialSolverBase<Scalar_, Deg_>;
   EIGEN_POLYNOMIAL_SOLVER_BASE_INHERITED_TYPES(PS_Base)
 
-  typedef Matrix<Scalar, Deg_, Deg_> CompanionMatrixType;
-  typedef std::conditional_t<NumTraits<Scalar>::IsComplex, ComplexEigenSolver<CompanionMatrixType>,
-                             EigenSolver<CompanionMatrixType> >
-      EigenSolverType;
-  typedef internal::make_complex_t<Scalar_> ComplexScalar;
+  using CompanionMatrixType = Matrix<Scalar, Deg_, Deg_>;
+  using EigenSolverType = std::conditional_t<NumTraits<Scalar>::IsComplex, ComplexEigenSolver<CompanionMatrixType>,
+                                             EigenSolver<CompanionMatrixType> >;
+  using ComplexScalar = internal::make_complex_t<Scalar_>;
 
  public:
   /** Computes the complex roots of a new polynomial. */
@@ -494,7 +493,7 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
 template <typename Scalar_>
 class PolynomialSolver<Scalar_, 1> : public PolynomialSolverBase<Scalar_, 1> {
  public:
-  typedef PolynomialSolverBase<Scalar_, 1> PS_Base;
+  using PS_Base = PolynomialSolverBase<Scalar_, 1>;
   EIGEN_POLYNOMIAL_SOLVER_BASE_INHERITED_TYPES(PS_Base)
 
  public:

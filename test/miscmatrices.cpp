@@ -15,8 +15,8 @@ void miscMatrices(const MatrixType& m) {
   /* this test covers the following files:
      DiagonalMatrix.h Ones.h
   */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
   Index rows = m.rows();
   Index cols = m.cols();
 

@@ -441,12 +441,12 @@ void openglsupport_test_loop() {
 
       GLint prg_id = createProgram(vtx, frg);
       VERIFY(prg_id > 0 && "Failed to create program.");
-      typedef Matrix<float, 2, 3> Matrix23f;
-      typedef Matrix<float, 3, 2> Matrix32f;
-      typedef Matrix<float, 2, 4> Matrix24f;
-      typedef Matrix<float, 4, 2> Matrix42f;
-      typedef Matrix<float, 3, 4> Matrix34f;
-      typedef Matrix<float, 4, 3> Matrix43f;
+      using Matrix23f = Matrix<float, 2, 3>;
+      using Matrix32f = Matrix<float, 3, 2>;
+      using Matrix24f = Matrix<float, 2, 4>;
+      using Matrix42f = Matrix<float, 4, 2>;
+      using Matrix34f = Matrix<float, 3, 4>;
+      using Matrix43f = Matrix<float, 4, 3>;
 
       VERIFY_UNIFORM(fv, m23f, Matrix23f);
       VERIFY_UNIFORM(fv, m32f, Matrix32f);
@@ -474,9 +474,9 @@ void openglsupport_test_loop() {
 
       GLint prg_id = createProgram(vtx, frg);
       VERIFY(prg_id > 0 && "Failed to create program.");
-      typedef Matrix<unsigned int, 2, 1> Vector2ui;
-      typedef Matrix<unsigned int, 3, 1> Vector3ui;
-      typedef Matrix<unsigned int, 4, 1> Vector4ui;
+      using Vector2ui = Matrix<unsigned int, 2, 1>;
+      using Vector3ui = Matrix<unsigned int, 3, 1>;
+      using Vector4ui = Matrix<unsigned int, 4, 1>;
 
       VERIFY_UNIFORMi(v2ui, Vector2ui);
       VERIFY_UNIFORMi(v3ui, Vector3ui);

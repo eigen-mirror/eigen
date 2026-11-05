@@ -29,8 +29,8 @@ struct Packet8cf {
 
 template <>
 struct packet_traits<std::complex<float> > : default_packet_traits {
-  typedef Packet8cf type;
-  typedef Packet4cf half;
+  using type = Packet8cf;
+  using half = Packet4cf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -54,9 +54,9 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet8cf> {
-  typedef std::complex<float> type;
-  typedef Packet4cf half;
-  typedef Packet16f as_real;
+  using type = std::complex<float>;
+  using half = Packet4cf;
+  using as_real = Packet16f;
   enum {
     size = 8,
     alignment = unpacket_traits<Packet16f>::alignment,
@@ -215,8 +215,8 @@ struct Packet4cd {
 
 template <>
 struct packet_traits<std::complex<double> > : default_packet_traits {
-  typedef Packet4cd type;
-  typedef Packet2cd half;
+  using type = Packet4cd;
+  using half = Packet2cd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
@@ -240,9 +240,9 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4cd> {
-  typedef std::complex<double> type;
-  typedef Packet2cd half;
-  typedef Packet8d as_real;
+  using type = std::complex<double>;
+  using half = Packet2cd;
+  using as_real = Packet8d;
   enum {
     size = 4,
     alignment = unpacket_traits<Packet8d>::alignment,

@@ -21,9 +21,9 @@ void cod() {
   Index cols2 = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
   Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   MatrixType matrix;
   createRandomPIMatrixOfRank(rank, rows, cols, matrix);
   CompleteOrthogonalDecomposition<MatrixType> cod(matrix);
@@ -85,8 +85,8 @@ void cod() {
 template <typename MatrixType, int Cols2>
 void cod_fixedsize() {
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef CompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols> > COD;
+  using Scalar = typename MatrixType::Scalar;
+  using COD = CompleteOrthogonalDecomposition<Matrix<Scalar, Rows, Cols>>;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   Matrix<Scalar, Rows, Cols> matrix;
   createRandomPIMatrixOfRank(rank, Rows, Cols, matrix);
@@ -123,9 +123,9 @@ void qr() {
         cols2 = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE);
   Index rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   MatrixType m1;
   createRandomPIMatrixOfRank(rank, rows, cols, m1);
   ColPivHouseholderQR<MatrixType> qr(m1);
@@ -179,8 +179,8 @@ void qr_fixedsize() {
   using std::abs;
   using std::sqrt;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   int rank = internal::random<int>(1, (std::min)(int(Rows), int(Cols)) - 1);
   Matrix<Scalar, Rows, Cols> m1;
   createRandomPIMatrixOfRank(rank, Rows, Cols, m1);
@@ -225,8 +225,8 @@ template <typename MatrixType>
 void qr_kahan_matrix() {
   using std::abs;
   using std::sqrt;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   Index rows = 300, cols = rows;
 
@@ -263,8 +263,8 @@ template <typename MatrixType>
 void qr_invertible() {
   using std::abs;
   using std::log;
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
-  typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using Scalar = typename MatrixType::Scalar;
 
   int size = internal::random<int>(10, 50);
 
@@ -366,8 +366,8 @@ void qr_rank_detection_stress() {
 // the backward error bound, and verifies they are detected as full rank.
 template <typename MatrixType>
 void qr_threshold_efficiency() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   const Index sizes[][2] = {{10, 10}, {50, 50}, {100, 100}, {40, 10}, {10, 40}};
   for (const auto& sz : sizes) {
@@ -395,8 +395,8 @@ void qr_threshold_efficiency() {
 // than partial isometries and stresses the threshold from both sides.
 template <typename MatrixType>
 void qr_rank_gap_test() {
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   const Index sizes[][2] = {{20, 20}, {50, 50}, {100, 100}, {50, 20}, {20, 50}};
   for (const auto& sz : sizes) {

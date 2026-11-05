@@ -29,8 +29,8 @@ template <typename MatrixType, typename MatrixSolver = SimplicialLLT<MatrixType>
 class ArpackGeneralizedSelfAdjointEigenSolver {
  public:
   /** \brief Scalar type for matrices of type \p MatrixType. */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::Index Index;
+  using Scalar = typename MatrixType::Scalar;
+  using Index = typename MatrixType::Index;
 
   /** \brief Real scalar type for \p MatrixType.
    *
@@ -38,14 +38,14 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
    * \c double), and the type of the real part of \c Scalar if #Scalar is
    * complex.
    */
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   /** \brief Type for vector of eigenvalues as returned by eigenvalues().
    *
    * This is a column vector with entries of type #RealScalar.
    * The length of the vector is the size of \p nbrEigenvalues.
    */
-  typedef typename internal::plain_col_type<MatrixType, RealScalar>::type RealVectorType;
+  using RealVectorType = typename internal::plain_col_type<MatrixType, RealScalar>::type;
 
   /** \brief Default constructor.
    *

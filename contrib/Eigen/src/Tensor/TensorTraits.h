@@ -46,9 +46,9 @@ struct compute_tensor_flags
 
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>
 struct traits<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef IndexType_ Index;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using Index = IndexType_;
   static constexpr int NumDimensions = NumIndices_;
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
@@ -57,16 +57,16 @@ struct traits<Tensor<Scalar_, NumIndices_, Options_, IndexType_> > {
   };
   template <typename T>
   struct MakePointer {
-    typedef T* Type;
+    using Type = T*;
   };
-  typedef typename MakePointer<Scalar>::Type PointerType;
+  using PointerType = typename MakePointer<Scalar>::Type;
 };
 
 template <typename Scalar_, typename Dimensions, int Options_, typename IndexType_>
 struct traits<TensorFixedSize<Scalar_, Dimensions, Options_, IndexType_> > {
-  typedef Scalar_ Scalar;
-  typedef Dense StorageKind;
-  typedef IndexType_ Index;
+  using Scalar = Scalar_;
+  using StorageKind = Dense;
+  using Index = IndexType_;
   static constexpr int NumDimensions = array_size<Dimensions>::value;
   static constexpr int Layout = Options_ & RowMajor ? RowMajor : ColMajor;
   enum {
@@ -75,84 +75,84 @@ struct traits<TensorFixedSize<Scalar_, Dimensions, Options_, IndexType_> > {
   };
   template <typename T>
   struct MakePointer {
-    typedef T* Type;
+    using Type = T*;
   };
-  typedef typename MakePointer<Scalar>::Type PointerType;
+  using PointerType = typename MakePointer<Scalar>::Type;
 };
 
 template <typename PlainObjectType, int Options_, template <class> class MakePointer_>
 struct traits<TensorMap<PlainObjectType, Options_, MakePointer_> > : public traits<PlainObjectType> {
-  typedef traits<PlainObjectType> BaseTraits;
-  typedef typename BaseTraits::Scalar Scalar;
-  typedef typename BaseTraits::StorageKind StorageKind;
-  typedef typename BaseTraits::Index Index;
+  using BaseTraits = traits<PlainObjectType>;
+  using Scalar = typename BaseTraits::Scalar;
+  using StorageKind = typename BaseTraits::StorageKind;
+  using Index = typename BaseTraits::Index;
   static constexpr int NumDimensions = BaseTraits::NumDimensions;
   static constexpr int Layout = BaseTraits::Layout;
   enum { Options = Options_, Flags = BaseTraits::Flags };
   template <class T>
   struct MakePointer {
-    typedef typename MakePointer_<T>::Type Type;
+    using Type = typename MakePointer_<T>::Type;
   };
-  typedef typename MakePointer<Scalar>::Type PointerType;
+  using PointerType = typename MakePointer<Scalar>::Type;
 };
 
 template <typename PlainObjectType_>
 struct traits<TensorRef<PlainObjectType_> > : public traits<PlainObjectType_> {
-  typedef PlainObjectType_ PlainObjectType;
-  typedef traits<PlainObjectType> BaseTraits;
-  typedef typename BaseTraits::Scalar Scalar;
-  typedef typename BaseTraits::StorageKind StorageKind;
-  typedef typename BaseTraits::Index Index;
+  using PlainObjectType = PlainObjectType_;
+  using BaseTraits = traits<PlainObjectType>;
+  using Scalar = typename BaseTraits::Scalar;
+  using StorageKind = typename BaseTraits::StorageKind;
+  using Index = typename BaseTraits::Index;
   static constexpr int NumDimensions = BaseTraits::NumDimensions;
   static constexpr int Layout = BaseTraits::Layout;
   enum { Options = BaseTraits::Options, Flags = BaseTraits::Flags };
-  typedef typename BaseTraits::PointerType PointerType;
+  using PointerType = typename BaseTraits::PointerType;
 };
 
 template <typename Scalar_, int NumIndices_, int Options, typename IndexType_>
 struct eval<Tensor<Scalar_, NumIndices_, Options, IndexType_>, Eigen::Dense> {
-  typedef const Tensor<Scalar_, NumIndices_, Options, IndexType_> EIGEN_DEVICE_REF type;
+  using type = const Tensor<Scalar_, NumIndices_, Options, IndexType_> EIGEN_DEVICE_REF;
 };
 
 template <typename Scalar_, int NumIndices_, int Options, typename IndexType_>
 struct eval<const Tensor<Scalar_, NumIndices_, Options, IndexType_>, Eigen::Dense> {
-  typedef const Tensor<Scalar_, NumIndices_, Options, IndexType_> EIGEN_DEVICE_REF type;
+  using type = const Tensor<Scalar_, NumIndices_, Options, IndexType_> EIGEN_DEVICE_REF;
 };
 
 template <typename Scalar_, typename Dimensions, int Options, typename IndexType_>
 struct eval<TensorFixedSize<Scalar_, Dimensions, Options, IndexType_>, Eigen::Dense> {
-  typedef const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF type;
+  using type = const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF;
 };
 
 template <typename Scalar_, typename Dimensions, int Options, typename IndexType_>
 struct eval<const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_>, Eigen::Dense> {
-  typedef const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF type;
+  using type = const TensorFixedSize<Scalar_, Dimensions, Options, IndexType_> EIGEN_DEVICE_REF;
 };
 
 template <typename PlainObjectType, int Options, template <class> class MakePointer>
 struct eval<TensorMap<PlainObjectType, Options, MakePointer>, Eigen::Dense> {
-  typedef const TensorMap<PlainObjectType, Options, MakePointer> EIGEN_DEVICE_REF type;
+  using type = const TensorMap<PlainObjectType, Options, MakePointer> EIGEN_DEVICE_REF;
 };
 
 template <typename PlainObjectType, int Options, template <class> class MakePointer>
 struct eval<const TensorMap<PlainObjectType, Options, MakePointer>, Eigen::Dense> {
-  typedef const TensorMap<PlainObjectType, Options, MakePointer> EIGEN_DEVICE_REF type;
+  using type = const TensorMap<PlainObjectType, Options, MakePointer> EIGEN_DEVICE_REF;
 };
 
 template <typename PlainObjectType>
 struct eval<TensorRef<PlainObjectType>, Eigen::Dense> {
-  typedef const TensorRef<PlainObjectType> EIGEN_DEVICE_REF type;
+  using type = const TensorRef<PlainObjectType> EIGEN_DEVICE_REF;
 };
 
 template <typename PlainObjectType>
 struct eval<const TensorRef<PlainObjectType>, Eigen::Dense> {
-  typedef const TensorRef<PlainObjectType> EIGEN_DEVICE_REF type;
+  using type = const TensorRef<PlainObjectType> EIGEN_DEVICE_REF;
 };
 
 template <typename T>
 struct tensor_ref_selector {
-  typedef const T EIGEN_DEVICE_REF type;
-  typedef T EIGEN_DEVICE_REF non_const_type;
+  using type = const T EIGEN_DEVICE_REF;
+  using non_const_type = T EIGEN_DEVICE_REF;
 };
 
 template <typename Scalar_, int NumIndices_, int Options_, typename IndexType_>

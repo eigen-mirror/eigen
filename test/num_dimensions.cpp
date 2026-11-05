@@ -18,13 +18,13 @@ void check_dim(const Xpr&) {
 
 template <template <typename, int, int> class Object>
 void map_num_dimensions() {
-  typedef Object<double, 1, 1> ArrayScalarType;
-  typedef Object<double, 2, 1> ArrayVectorType;
-  typedef Object<double, 1, 2> TransposeArrayVectorType;
-  typedef Object<double, 2, 2> ArrayType;
-  typedef Object<double, Eigen::Dynamic, 1> DynamicArrayVectorType;
-  typedef Object<double, 1, Eigen::Dynamic> DynamicTransposeArrayVectorType;
-  typedef Object<double, Eigen::Dynamic, Eigen::Dynamic> DynamicArrayType;
+  using ArrayScalarType = Object<double, 1, 1>;
+  using ArrayVectorType = Object<double, 2, 1>;
+  using TransposeArrayVectorType = Object<double, 1, 2>;
+  using ArrayType = Object<double, 2, 2>;
+  using DynamicArrayVectorType = Object<double, Eigen::Dynamic, 1>;
+  using DynamicTransposeArrayVectorType = Object<double, 1, Eigen::Dynamic>;
+  using DynamicArrayType = Object<double, Eigen::Dynamic, Eigen::Dynamic>;
 
   STATIC_CHECK(ArrayScalarType::NumDimensions == 0);
   STATIC_CHECK(ArrayVectorType::NumDimensions == 1);
@@ -34,13 +34,13 @@ void map_num_dimensions() {
   STATIC_CHECK(DynamicTransposeArrayVectorType::NumDimensions == 1);
   STATIC_CHECK(DynamicArrayType::NumDimensions == 2);
 
-  typedef Eigen::Map<ArrayScalarType> ArrayScalarMap;
-  typedef Eigen::Map<ArrayVectorType> ArrayVectorMap;
-  typedef Eigen::Map<TransposeArrayVectorType> TransposeArrayVectorMap;
-  typedef Eigen::Map<ArrayType> ArrayMap;
-  typedef Eigen::Map<DynamicArrayVectorType> DynamicArrayVectorMap;
-  typedef Eigen::Map<DynamicTransposeArrayVectorType> DynamicTransposeArrayVectorMap;
-  typedef Eigen::Map<DynamicArrayType> DynamicArrayMap;
+  using ArrayScalarMap = Eigen::Map<ArrayScalarType>;
+  using ArrayVectorMap = Eigen::Map<ArrayVectorType>;
+  using TransposeArrayVectorMap = Eigen::Map<TransposeArrayVectorType>;
+  using ArrayMap = Eigen::Map<ArrayType>;
+  using DynamicArrayVectorMap = Eigen::Map<DynamicArrayVectorType>;
+  using DynamicTransposeArrayVectorMap = Eigen::Map<DynamicTransposeArrayVectorType>;
+  using DynamicArrayMap = Eigen::Map<DynamicArrayType>;
 
   STATIC_CHECK(ArrayScalarMap::NumDimensions == 0);
   STATIC_CHECK(ArrayVectorMap::NumDimensions == 1);

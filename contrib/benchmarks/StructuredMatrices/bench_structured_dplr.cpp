@@ -13,8 +13,8 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
-typedef Matrix<double, Dynamic, Dynamic> Mat;
+using Vec = Matrix<double, Dynamic, 1>;
+using Mat = Matrix<double, Dynamic, Dynamic>;
 
 // Well-conditioned operator: diagonal bounded away from zero and a contractive
 // correction, so the capacitance matrix is safely invertible.

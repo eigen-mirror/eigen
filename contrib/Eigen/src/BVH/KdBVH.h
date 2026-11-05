@@ -22,7 +22,7 @@ namespace internal {
 template <typename Scalar, int Dim>
 struct vector_int_pair {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF_VECTORIZABLE_FIXED_SIZE(Scalar, Dim)
-  typedef Matrix<Scalar, Dim, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dim, 1>;
 
   vector_int_pair(const VectorType &v, int i) : first(v), second(i) {}
 
@@ -69,14 +69,14 @@ template <typename Scalar_, int Dim_, typename Object_>
 class KdBVH {
  public:
   enum { Dim = Dim_ };
-  typedef Object_ Object;
-  typedef std::vector<Object, aligned_allocator<Object> > ObjectList;
-  typedef Scalar_ Scalar;
-  typedef AlignedBox<Scalar, Dim> Volume;
-  typedef std::vector<Volume, aligned_allocator<Volume> > VolumeList;
-  typedef int Index;
-  typedef const int *VolumeIterator;  // the iterators are just pointers into the tree's vectors
-  typedef const Object *ObjectIterator;
+  using Object = Object_;
+  using ObjectList = std::vector<Object, aligned_allocator<Object> >;
+  using Scalar = Scalar_;
+  using Volume = AlignedBox<Scalar, Dim>;
+  using VolumeList = std::vector<Volume, aligned_allocator<Volume> >;
+  using Index = int;
+  using VolumeIterator = const int *;  // the iterators are just pointers into the tree's vectors
+  using ObjectIterator = const Object *;
 
   KdBVH() = default;
 
@@ -171,9 +171,9 @@ class KdBVH {
   inline const Volume &getVolume(Index index) const { return boxes[index]; }
 
  private:
-  typedef internal::vector_int_pair<Scalar, Dim> VIPair;
-  typedef std::vector<VIPair, aligned_allocator<VIPair> > VIPairList;
-  typedef Matrix<Scalar, Dim, 1> VectorType;
+  using VIPair = internal::vector_int_pair<Scalar, Dim>;
+  using VIPairList = std::vector<VIPair, aligned_allocator<VIPair> >;
+  using VectorType = Matrix<Scalar, Dim, 1>;
   struct VectorComparator  // compares vectors, or more specifically, VIPairs along a particular dimension
   {
     VectorComparator(int inDim) : dim(inDim) {}

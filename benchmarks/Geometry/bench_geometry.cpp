@@ -34,7 +34,7 @@ static void initTransformation(Matrix<Scalar, Rows, Cols, Options, MaxRows, MaxC
 
 template <typename Transformation, int N>
 static void BM_TransformData(benchmark::State& state) {
-  typedef typename Transformation::Scalar Scalar;
+  using Scalar = typename Transformation::Scalar;
   constexpr int Dim = TransformDim<Transformation>::value;
   Transformation t;
   initTransformation(t);
@@ -60,10 +60,10 @@ static void BM_QuatTransform(benchmark::State& state) {
 }
 
 // Use typedefs to avoid commas in macro arguments
-typedef Transform<float, 3, Isometry> Isometry3f_t;
-typedef Transform<float, 3, Affine> Affine3f_t;
-typedef Transform<float, 3, AffineCompact> AffineCompact3f_t;
-typedef Matrix<float, 3, 3> Matrix3f_t;
+using Isometry3f_t = Transform<float, 3, Isometry>;
+using Affine3f_t = Transform<float, 3, Affine>;
+using AffineCompact3f_t = Transform<float, 3, AffineCompact>;
+using Matrix3f_t = Matrix<float, 3, 3>;
 
 BENCHMARK(BM_TransformData<Isometry3f_t, 1>);
 BENCHMARK(BM_TransformData<Isometry3f_t, 4>);

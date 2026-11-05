@@ -11,7 +11,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Broadcast row vector {1,N} -> {M,N} ---
 static void BM_BroadcastRow(benchmark::State& state) {

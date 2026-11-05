@@ -20,7 +20,7 @@
 using Eigen::DefaultDevice;
 using Eigen::Tensor;
 
-typedef Tensor<float, 1>::DimensionPair DimPair;
+using DimPair = Tensor<float, 1>::DimensionPair;
 
 template <int DataLayout>
 static void test_evals() {
@@ -35,7 +35,7 @@ static void test_evals() {
   Tensor<float, 2, DataLayout> mat4(3, 3);
   mat4.setZero();
   Eigen::array<DimPair, 1> dims3 = {{DimPair(0, 0)}};
-  typedef TensorEvaluator<decltype(mat1.contract(mat2, dims3)), DefaultDevice> Evaluator;
+  using Evaluator = TensorEvaluator<decltype(mat1.contract(mat2, dims3)), DefaultDevice>;
   Evaluator eval(mat1.contract(mat2, dims3), DefaultDevice());
   eval.evalTo(mat4.data());
   EIGEN_STATIC_ASSERT(Evaluator::NumDims == 2ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -55,7 +55,7 @@ static void test_evals() {
   Tensor<float, 2, DataLayout> mat5(2, 2);
   mat5.setZero();
   Eigen::array<DimPair, 1> dims4 = {{DimPair(1, 1)}};
-  typedef TensorEvaluator<decltype(mat1.contract(mat2, dims4)), DefaultDevice> Evaluator2;
+  using Evaluator2 = TensorEvaluator<decltype(mat1.contract(mat2, dims4)), DefaultDevice>;
   Evaluator2 eval2(mat1.contract(mat2, dims4), DefaultDevice());
   eval2.evalTo(mat5.data());
   EIGEN_STATIC_ASSERT(Evaluator2::NumDims == 2ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -70,7 +70,7 @@ static void test_evals() {
   Tensor<float, 2, DataLayout> mat6(2, 2);
   mat6.setZero();
   Eigen::array<DimPair, 1> dims6 = {{DimPair(1, 0)}};
-  typedef TensorEvaluator<decltype(mat1.contract(mat3, dims6)), DefaultDevice> Evaluator3;
+  using Evaluator3 = TensorEvaluator<decltype(mat1.contract(mat3, dims6)), DefaultDevice>;
   Evaluator3 eval3(mat1.contract(mat3, dims6), DefaultDevice());
   eval3.evalTo(mat6.data());
   EIGEN_STATIC_ASSERT(Evaluator3::NumDims == 2ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -112,7 +112,7 @@ static void test_multidims() {
   Tensor<float, 3, DataLayout> mat3(2, 2, 2);
   mat3.setZero();
   Eigen::array<DimPair, 2> dims = {{DimPair(1, 2), DimPair(2, 3)}};
-  typedef TensorEvaluator<decltype(mat1.contract(mat2, dims)), DefaultDevice> Evaluator;
+  using Evaluator = TensorEvaluator<decltype(mat1.contract(mat2, dims)), DefaultDevice>;
   Evaluator eval(mat1.contract(mat2, dims), DefaultDevice());
   eval.evalTo(mat3.data());
   EIGEN_STATIC_ASSERT(Evaluator::NumDims == 3ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -146,7 +146,7 @@ static void test_multidims() {
   Tensor<float, 1, DataLayout> mat6(2);
   mat6.setZero();
   Eigen::array<DimPair, 2> dims2{{DimPair(0, 1), DimPair(1, 0)}};
-  typedef TensorEvaluator<decltype(mat4.contract(mat5, dims2)), DefaultDevice> Evaluator2;
+  using Evaluator2 = TensorEvaluator<decltype(mat4.contract(mat5, dims2)), DefaultDevice>;
   Evaluator2 eval2(mat4.contract(mat5, dims2), DefaultDevice());
   eval2.evalTo(mat6.data());
   EIGEN_STATIC_ASSERT(Evaluator2::NumDims == 1ul, YOU_MADE_A_PROGRAMMING_MISTAKE);
@@ -384,7 +384,7 @@ static void test_large_contraction() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 1500, 248);
   MapXf m_right(t_right.data(), 248, 1400);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
@@ -411,7 +411,7 @@ static void test_matrix_vector() {
   t_left.setRandom();
   t_right.setRandom();
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 30, 50);
   MapXf m_right(t_right.data(), 50, 1);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(30, 1);
@@ -444,8 +444,8 @@ static void test_matrix_transpose_vector_impl() {
       Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
       Tensor<Scalar, 1, DataLayout> t_result = t_left.contract(t_right, dims);
 
-      typedef Map<const Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>> MapMat;
-      typedef Map<const Eigen::Matrix<Scalar, Dynamic, 1>> MapVec;
+      using MapMat = Map<const Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>>;
+      using MapVec = Map<const Eigen::Matrix<Scalar, Dynamic, 1>>;
       MapMat m_left(t_left.data(), M, N);
       MapVec m_right(t_right.data(), M);
       Eigen::Matrix<Scalar, Dynamic, 1> m_result = m_left.transpose() * m_right;
@@ -471,11 +471,11 @@ static void test_tensor_vector() {
   t_left.setRandom();
   t_right.setRandom();
 
-  typedef typename Tensor<float, 1, DataLayout>::DimensionPair DimensionPair;
+  using DimensionPair = typename Tensor<float, 1, DataLayout>::DimensionPair;
   Eigen::array<DimensionPair, 1> dim_pair01{{{0, 1}}};
   Tensor<float, 3, DataLayout> t_result = t_left.contract(t_right, dim_pair01);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 7, 13 * 17);
   MapXf m_right(t_right.data(), 1, 7);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result = m_left.transpose() * m_right.transpose();
@@ -605,7 +605,7 @@ static void test_large_contraction_with_output_kernel() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 1500, 248);
   MapXf m_right(t_right.data(), 248, 1400);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
@@ -628,8 +628,8 @@ static void test_large_contraction_with_output_kernel() {
 // the architecture-specific kernels have to support.
 template <int DataLayout, typename Scalar>
 static void test_narrow_index_contraction() {
-  typedef Tensor<Scalar, 2, DataLayout, int> TensorType;
-  typedef typename TensorType::DimensionPair NarrowDimPair;
+  using TensorType = Tensor<Scalar, 2, DataLayout, int>;
+  using NarrowDimPair = typename TensorType::DimensionPair;
 
   TensorType t_left(53, 37);
   TensorType t_right(37, 41);
@@ -638,7 +638,7 @@ static void test_narrow_index_contraction() {
   t_left.setRandom();
   t_right.setRandom();
 
-  typedef Map<Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>> MapType;
+  using MapType = Map<Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>>;
   MapType m_left(t_left.data(), 53, 37);
   MapType m_right(t_right.data(), 37, 41);
   Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout> m_result(53, 41);
@@ -680,7 +680,7 @@ static void test_zero_dim_contraction_2d() {
   // Also test via TensorEvaluator directly with evalTo into pre-filled memory.
   Tensor<Scalar, 2, DataLayout> t_result_eval(10, 20);
   t_result_eval.setConstant(non_zero);
-  typedef TensorEvaluator<decltype(t_left.contract(t_right, dims)), DefaultDevice> Evaluator;
+  using Evaluator = TensorEvaluator<decltype(t_left.contract(t_right, dims)), DefaultDevice>;
   Evaluator eval(t_left.contract(t_right, dims), DefaultDevice());
   eval.evalTo(t_result_eval.data());
   for (Index i = 0; i < t_result_eval.size(); ++i) {

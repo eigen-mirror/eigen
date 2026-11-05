@@ -240,7 +240,7 @@ void test_gpu_contractions(const Eigen::SyclDevice& sycl_device) {
   gpu_float1.device(sycl_device) = gpu_float1.random() - gpu_float1.constant(0.5f);
   gpu_float2.device(sycl_device) = gpu_float2.random() - gpu_float2.constant(0.5f);
 
-  typedef typename Tensor<float, 2>::DimensionPair DimPair;
+  using DimPair = typename Tensor<float, 2>::DimensionPair;
   Eigen::array<DimPair, 1> dims;
   gpu_res_float.device(sycl_device) = gpu_float1.contract(gpu_float2, dims).cast<Eigen::half>();
   gpu_res_half.device(sycl_device) = gpu_float1.cast<Eigen::half>().contract(gpu_float2.cast<Eigen::half>(), dims);

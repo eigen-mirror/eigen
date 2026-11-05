@@ -131,15 +131,15 @@ class HVXPacket {
   HVX_Vector m_val = Q6_V_vzero();
 };
 
-typedef HVXPacket<HVXPacketSize::Full> Packet32f;
-typedef HVXPacket<HVXPacketSize::Half> Packet16f;
-typedef HVXPacket<HVXPacketSize::Quarter> Packet8f;
+using Packet32f = HVXPacket<HVXPacketSize::Full>;
+using Packet16f = HVXPacket<HVXPacketSize::Half>;
+using Packet8f = HVXPacket<HVXPacketSize::Quarter>;
 
 // Packet traits.
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet32f type;
-  typedef Packet16f half;
+  using type = Packet32f;
+  using half = Packet16f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -178,8 +178,8 @@ struct packet_traits<float> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet32f> {
-  typedef float type;
-  typedef Packet16f half;
+  using type = float;
+  using half = Packet16f;
   enum {
     size = 32,
     alignment = Aligned128,
@@ -191,8 +191,8 @@ struct unpacket_traits<Packet32f> {
 
 template <>
 struct unpacket_traits<Packet16f> {
-  typedef float type;
-  typedef Packet8f half;
+  using type = float;
+  using half = Packet8f;
   enum {
     size = 16,
     // Much code assumes alignment on packet size instead of following the trait
@@ -206,8 +206,8 @@ struct unpacket_traits<Packet16f> {
 
 template <>
 struct unpacket_traits<Packet8f> {
-  typedef float type;
-  typedef Packet8f half;
+  using type = float;
+  using half = Packet8f;
   enum {
     size = 8,
     // Much code assumes alignment on packet size instead of following the trait

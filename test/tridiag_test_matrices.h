@@ -54,7 +54,7 @@ void tridiag_constant(VectorType& diag, VectorType& offdiag,
 // Eigenvalues: 2 - 2*cos(k*pi/(n+1)) for k=1,...,n
 template <typename VectorType>
 void tridiag_1_2_1(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   diag.setConstant(Scalar(2));
   offdiag.setOnes();
 }
@@ -63,7 +63,7 @@ void tridiag_1_2_1(VectorType& diag, VectorType& offdiag) {
 // Has pairs of eigenvalues agreeing to many digits; stresses deflation.
 template <typename VectorType>
 void tridiag_wilkinson(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = numext::abs(Scalar(n / 2) - Scalar(i));
   offdiag.setOnes();
@@ -74,7 +74,7 @@ void tridiag_wilkinson(VectorType& diag, VectorType& offdiag) {
 template <typename VectorType>
 void tridiag_clement(VectorType& diag, VectorType& offdiag) {
   EIGEN_USING_STD(sqrt);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   diag.setZero();
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = sqrt(Scalar(i + 1) * Scalar(n - 1 - i));
@@ -89,7 +89,7 @@ void tridiag_kahan(VectorType& diag, VectorType& offdiag,
   EIGEN_USING_STD(cos);
   EIGEN_USING_STD(pow);
   EIGEN_USING_STD(log);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   const Scalar s = sin(theta);
@@ -104,7 +104,7 @@ template <typename VectorType>
 void tridiag_graded(VectorType& diag, VectorType& offdiag,
                     typename VectorType::Scalar base = typename VectorType::Scalar(10)) {
   EIGEN_USING_STD(pow);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = pow(base, -Scalar(i));
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = pow(base, -Scalar(i));
@@ -116,7 +116,7 @@ void tridiag_geometric_diagonal(VectorType& diag, VectorType& offdiag,
                                 typename VectorType::Scalar base = typename VectorType::Scalar(0.5)) {
   EIGEN_USING_STD(pow);
   EIGEN_USING_STD(log);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   const Scalar maxPower = -log(eps) / (-log(base));
@@ -129,7 +129,7 @@ template <typename VectorType>
 void tridiag_geometric_offdiag(VectorType& diag, VectorType& offdiag,
                                typename VectorType::Scalar base = typename VectorType::Scalar(0.5)) {
   EIGEN_USING_STD(pow);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   diag.setOnes();
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = pow(base, Scalar(i));
@@ -138,7 +138,7 @@ void tridiag_geometric_offdiag(VectorType& diag, VectorType& offdiag,
 // 11. Clustered eigenvalues: d_i = 1 + i*eps, e=[0,...,0]
 template <typename VectorType>
 void tridiag_clustered(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   for (Index i = 0; i < n; ++i) diag(i) = Scalar(1) + Scalar(i) * eps;
@@ -148,7 +148,7 @@ void tridiag_clustered(VectorType& diag, VectorType& offdiag) {
 // 12. Two clusters: half at 1, half at eps.
 template <typename VectorType>
 void tridiag_two_clusters(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   for (Index i = 0; i < n; ++i) diag(i) = (i < n / 2) ? Scalar(1) : eps;
@@ -158,7 +158,7 @@ void tridiag_two_clusters(VectorType& diag, VectorType& offdiag) {
 // 13. Single tiny value: d=[1,...,1,eps], e=[eps^2,...,eps^2]
 template <typename VectorType>
 void tridiag_single_tiny(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   diag.setOnes();
@@ -169,7 +169,7 @@ void tridiag_single_tiny(VectorType& diag, VectorType& offdiag) {
 // 14. Overflow/underflow: alternating big/tiny diagonal and offdiagonal.
 template <typename VectorType>
 void tridiag_overflow_underflow(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar big = (std::numeric_limits<Scalar>::max)() / Scalar(1000);
   const Scalar tiny = (std::numeric_limits<Scalar>::min)() * Scalar(1000);
@@ -182,7 +182,7 @@ template <typename VectorType>
 void tridiag_prescribed_cond(VectorType& diag, VectorType& offdiag) {
   EIGEN_USING_STD(pow);
   EIGEN_USING_STD(abs);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   const Scalar kappa = Scalar(1) / eps;
@@ -193,7 +193,7 @@ void tridiag_prescribed_cond(VectorType& diag, VectorType& offdiag) {
 // 16. Rank-deficient: d=[1,..,0,..,0,..,1], e=[0,...,0]
 template <typename VectorType>
 void tridiag_rank_deficient(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = (i < n / 3 || i >= 2 * n / 3) ? Scalar(1) : Scalar(0);
   offdiag.setZero();
@@ -202,7 +202,7 @@ void tridiag_rank_deficient(VectorType& diag, VectorType& offdiag) {
 // 17. Arrowhead-like: d_i = linspace(1,n), e_i = 1/(i+1)
 template <typename VectorType>
 void tridiag_arrowhead(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = Scalar(1) + Scalar(i);
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = Scalar(1) / Scalar(i + 1);
@@ -211,7 +211,7 @@ void tridiag_arrowhead(VectorType& diag, VectorType& offdiag) {
 // 18. Repeated values: d=[1,2,3,1,2,3,...], e=[0,...,0]
 template <typename VectorType>
 void tridiag_repeated(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = Scalar((i % 3) + 1);
   offdiag.setZero();
@@ -221,7 +221,7 @@ void tridiag_repeated(VectorType& diag, VectorType& offdiag) {
 // Two identity blocks coupled by a tiny off-diagonal entry.
 template <typename VectorType>
 void tridiag_glued(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   diag.setOnes();
   offdiag.setZero();
@@ -232,7 +232,7 @@ void tridiag_glued(VectorType& diag, VectorType& offdiag) {
 template <typename VectorType>
 void tridiag_nearly_diagonal(VectorType& diag, VectorType& offdiag) {
   EIGEN_USING_STD(abs);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   const Scalar eps = NumTraits<Scalar>::epsilon();
   diag = VectorType::Random(n).cwiseAbs() + VectorType::Constant(n, Scalar(0.1));
@@ -243,7 +243,7 @@ void tridiag_nearly_diagonal(VectorType& diag, VectorType& offdiag) {
 // (Only meaningful for symmetric eigenvalue problems, not SVD.)
 template <typename VectorType>
 void tridiag_negative(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = -Scalar(i + 1);
   offdiag.setOnes();
@@ -253,7 +253,7 @@ void tridiag_negative(VectorType& diag, VectorType& offdiag) {
 // (Only meaningful for symmetric eigenvalue problems, not SVD.)
 template <typename VectorType>
 void tridiag_mixed_sign(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = ((i % 2 == 0) ? Scalar(1) : Scalar(-1)) * Scalar(i + 1);
   offdiag.setOnes();
@@ -277,7 +277,7 @@ void tridiag_toeplitz(VectorType& diag, VectorType& offdiag,
 // close-pair W+ matrix (#5).  (Wilkinson, The Algebraic Eigenvalue Problem, 1965.)
 template <typename VectorType>
 void tridiag_wilkinson_signed(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = Scalar(n - 1) / Scalar(2) - Scalar(i);
   offdiag.setOnes();
@@ -292,7 +292,7 @@ void tridiag_wilkinson_signed(VectorType& diag, VectorType& offdiag) {
 template <typename VectorType>
 void tridiag_glued_wilkinson(VectorType& diag, VectorType& offdiag, Index blk = 15,
                              typename VectorType::Scalar glue = typename VectorType::Scalar(1e-3)) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   if (blk < 1) blk = 1;
   const Index m = (blk - 1) / 2;
@@ -308,7 +308,7 @@ void tridiag_glued_wilkinson(VectorType& diag, VectorType& offdiag, Index blk = 
 // exercises definiteness/range handling. (Golub & Welsch, 1969.)
 template <typename VectorType>
 void tridiag_laguerre(VectorType& diag, VectorType& offdiag) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   for (Index i = 0; i < n; ++i) diag(i) = Scalar(2 * i + 1);
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = Scalar(i + 1);
@@ -319,7 +319,7 @@ void tridiag_laguerre(VectorType& diag, VectorType& offdiag) {
 template <typename VectorType>
 void tridiag_hermite(VectorType& diag, VectorType& offdiag) {
   EIGEN_USING_STD(sqrt);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   diag.setZero();
   for (Index i = 0; i < n - 1; ++i) offdiag(i) = sqrt(Scalar(i + 1) / Scalar(2));
@@ -330,7 +330,7 @@ void tridiag_hermite(VectorType& diag, VectorType& offdiag) {
 template <typename VectorType>
 void tridiag_legendre(VectorType& diag, VectorType& offdiag) {
   EIGEN_USING_STD(sqrt);
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index n = diag.size();
   diag.setZero();
   for (Index i = 0; i < n - 1; ++i) {
@@ -350,7 +350,7 @@ void tridiag_legendre(VectorType& diag, VectorType& offdiag) {
 template <typename Scalar, typename Func>
 void for_tridiag_sizes(Func&& func) {
   const int sizes[] = {1, 2, 3, 5, 10, 16, 20, 50, 100};
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
   for (int si = 0; si < int(sizeof(sizes) / sizeof(sizes[0])); ++si) {
     const Index n = sizes[si];
     VectorType diag(n), offdiag(n > 1 ? n - 1 : 0);
@@ -363,7 +363,7 @@ void for_tridiag_sizes(Func&& func) {
 template <typename Scalar, typename Func>
 void for_all_tridiag_test_matrices(Func&& verify) {
   const int sizes[] = {1, 2, 3, 5, 10, 16, 20, 50, 100};
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   for (int si = 0; si < int(sizeof(sizes) / sizeof(sizes[0])); ++si) {
     const Index n = sizes[si];
@@ -444,7 +444,7 @@ void for_all_symmetric_tridiag_test_matrices(Func&& verify) {
   for_all_tridiag_test_matrices<Scalar>(verify);
 
   const int sizes[] = {1, 2, 3, 5, 10, 16, 20, 50, 100};
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   for (int si = 0; si < int(sizeof(sizes) / sizeof(sizes[0])); ++si) {
     const Index n = sizes[si];

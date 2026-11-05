@@ -12,12 +12,12 @@
 
 template <typename T>
 struct other_matrix_type {
-  typedef int type;
+  using type = int;
 };
 
 template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
 struct other_matrix_type<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_> > {
-  typedef Matrix<Scalar_, Rows_, Cols_, Options_ ^ RowMajor, MaxRows_, MaxCols_> type;
+  using type = Matrix<Scalar_, Rows_, Cols_, Options_ ^ RowMajor, MaxRows_, MaxCols_>;
 };
 
 template <typename MatrixType>
@@ -37,8 +37,8 @@ check_row_swap(MatrixType& /* unused */) {}
 
 template <typename MatrixType>
 void swap(const MatrixType& m) {
-  typedef typename other_matrix_type<MatrixType>::type OtherMatrixType;
-  typedef typename MatrixType::Scalar Scalar;
+  using OtherMatrixType = typename other_matrix_type<MatrixType>::type;
+  using Scalar = typename MatrixType::Scalar;
 
   eigen_assert((!std::is_same<MatrixType, OtherMatrixType>::value));
   Index rows = m.rows();

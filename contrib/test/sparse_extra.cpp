@@ -54,10 +54,10 @@ template <typename SparseMatrixType>
 void sparse_extra(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
   const Index cols = ref.cols();
-  typedef typename SparseMatrixType::Scalar Scalar;
+  using Scalar = typename SparseMatrixType::Scalar;
 
   double density = (std::max)(8. / (rows * cols), 0.01);
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   SparseMatrixType m(rows, cols);
   DenseMatrix refMat = DenseMatrix::Zero(rows, cols);
@@ -108,7 +108,7 @@ void sparse_extra(const SparseMatrixType& ref) {
 
 template <typename SparseMatrixType>
 void check_marketio() {
-  typedef Matrix<typename SparseMatrixType::Scalar, Dynamic, Dynamic> DenseMatrix;
+  using DenseMatrix = Matrix<typename SparseMatrixType::Scalar, Dynamic, Dynamic>;
   Index rows = internal::random<Index>(1, 100);
   Index cols = internal::random<Index>(1, 100);
   SparseMatrixType m1, m2;
@@ -156,8 +156,8 @@ void check_marketio_dense() {
 
 template <typename Scalar>
 void check_sparse_inverse() {
-  typedef SparseMatrix<Scalar> MatrixType;
-  typedef SparseMatrix<Scalar, RowMajor> RowMatrixType;
+  using MatrixType = SparseMatrix<Scalar>;
+  using RowMatrixType = SparseMatrix<Scalar, RowMajor>;
 
   Matrix<Scalar, -1, -1> A;
   A.resize(1000, 1000);

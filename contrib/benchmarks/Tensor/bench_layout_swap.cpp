@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 static void BM_LayoutSwap_2D(benchmark::State& state) {
   const int M = state.range(0);

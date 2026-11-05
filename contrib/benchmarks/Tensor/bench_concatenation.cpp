@@ -15,7 +15,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Standalone concat along axis 0 (innermost for ColMajor) ---
 static void BM_Concat2D_Axis0(benchmark::State& state) {

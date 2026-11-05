@@ -28,7 +28,7 @@ static void test_evals() {
   Eigen::array<Tensor<float, 2>::Index, 1> dims3;
   dims3[0] = 0;
 
-  typedef TensorEvaluator<decltype(input.convolve(kernel, dims3)), DefaultDevice> Evaluator;
+  using Evaluator = TensorEvaluator<decltype(input.convolve(kernel, dims3)), DefaultDevice>;
   Evaluator eval(input.convolve(kernel, dims3), DefaultDevice());
   eval.evalTo(result.data());
   EIGEN_STATIC_ASSERT(Evaluator::NumDims == 2ul, YOU_MADE_A_PROGRAMMING_MISTAKE);

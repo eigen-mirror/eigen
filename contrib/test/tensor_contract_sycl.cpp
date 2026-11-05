@@ -34,7 +34,7 @@ using Eigen::TensorMap;
 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void static test_sycl_contraction(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   // Absolute slack for accumulation-order differences between device and host float contractions.
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   // with these dimensions, the output has 300 * 140 elements, which is
@@ -129,7 +129,7 @@ void test_sycl_contraction_sizes(const Device &sycl_device) {
 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void static test_no_out_of_bounds(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Tensor<DataType, 2, DataLayout, IndexType> t_left(m_size, k_size);
   Tensor<DataType, 2, DataLayout, IndexType> t_right(k_size, n_size);
@@ -224,7 +224,7 @@ void test_scalar(const Device &sycl_device, IndexType m_size, IndexType k_size, 
   // with these dimensions, the output has 300 * 140 elements, which is
   // more than 30 * 1024, which is the number of threads in blocks on
   // a 15 SM GK110 GPU
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Tensor<DataType, 2, DataLayout, IndexType> t_left(m_size, k_size);
   Tensor<DataType, 2, DataLayout, IndexType> t_right(k_size, n_size);
@@ -271,10 +271,10 @@ void test_scalar(const Device &sycl_device, IndexType m_size, IndexType k_size, 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_batch(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size,
                        IndexType m_batch, IndexType start, IndexType limit) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
-  typedef Eigen::array<IndexType, 3> TensorDim;
-  typedef Eigen::Tensor<DataType, 3, DataLayout, IndexType> TensorType;
+  using TensorDim = Eigen::array<IndexType, 3>;
+  using TensorType = Eigen::Tensor<DataType, 3, DataLayout, IndexType>;
   TensorDim left_dims = {{m_batch, k_size, m_size}};
   TensorDim right_dims = {{m_batch, n_size, k_size}};
   TensorDim res_dims = {{m_batch, m_size, n_size}};
@@ -335,7 +335,7 @@ void contraction_batch(const Device &sycl_device, IndexType m_size, IndexType k_
 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_rhs_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{m_size, k_size}};
   Eigen::array<IndexType, 2> right_dims = {{n_size, k_size}};
@@ -392,7 +392,7 @@ void contraction_rhs_transposed(const Device &sycl_device, IndexType m_size, Ind
 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_lhs_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{k_size, m_size}};
   Eigen::array<IndexType, 2> right_dims = {{k_size, n_size}};
@@ -445,7 +445,7 @@ void contraction_lhs_transposed(const Device &sycl_device, IndexType m_size, Ind
 
 template <int DataLayout, typename DataType, typename IndexType, typename Device>
 void contraction_both_transposed(const Device &sycl_device, IndexType m_size, IndexType k_size, IndexType n_size) {
-  typedef typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair DimPair;
+  using DimPair = typename Tensor<DataType, 1, DataLayout, IndexType>::DimensionPair;
   static const DataType error_threshold = DataType(1024) * NumTraits<DataType>::epsilon();
   Eigen::array<IndexType, 2> left_dims = {{k_size, m_size}};
   Eigen::array<IndexType, 2> right_dims = {{n_size, k_size}};
@@ -499,8 +499,8 @@ void contraction_both_transposed(const Device &sycl_device, IndexType m_size, In
 
 template <typename Dev>
 void inline tensorOutofBound(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Test out of bound for Tensor-Tensor
@@ -523,8 +523,8 @@ void inline tensorOutofBound(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorTensor_m(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Tensor Tensor Contraction
@@ -540,8 +540,8 @@ void inline tensorTensor_m(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorTensor_n(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Tensor Tensor Contraction
@@ -557,8 +557,8 @@ void inline tensorTensor_n(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorTensor_k(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   test_sycl_contraction_k<ColMajor, DataType, IndexType>(sycl_device);
@@ -573,8 +573,8 @@ void inline tensorTensor_k(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorTensor_sizes(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Tensor Tensor Contraction
@@ -589,8 +589,8 @@ void inline tensorTensor_sizes(const Dev &sycl_device) {
 }
 template <typename Dev>
 void inline vectorVector(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // VECTOR-VECTOR
@@ -610,8 +610,8 @@ void inline vectorVector(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline vectorTensor(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Vector-Tensor
@@ -639,8 +639,8 @@ void inline vectorTensor(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorVector(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Matrix-Vector
@@ -674,8 +674,8 @@ void inline tensorVector(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensorScalar(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // SCALAR Contraction
@@ -695,8 +695,8 @@ void inline tensorScalar(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline skinnyTensor_row(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Tensor Tensor Contraction
@@ -714,8 +714,8 @@ void inline skinnyTensor_row(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline skinnyTensor_col(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
   // Tensor Tensor Contraction
@@ -733,8 +733,8 @@ void inline skinnyTensor_col(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensor_contraction_batch_per_device(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
 
@@ -749,8 +749,8 @@ void inline tensor_contraction_batch_per_device(const Dev &sycl_device) {
 
 template <typename Dev>
 void inline tensor_contraction_lhs_transposed_per_device(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
 
@@ -770,8 +770,8 @@ void inline tensor_contraction_lhs_transposed_per_device(const Dev &sycl_device)
 
 template <typename Dev>
 void inline tensor_contraction_rhs_transposed_per_device(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
 
@@ -792,8 +792,8 @@ void inline tensor_contraction_rhs_transposed_per_device(const Dev &sycl_device)
 
 template <typename Dev>
 void inline tensor_contraction_both_transposed_per_device(const Dev &sycl_device) {
-  typedef float DataType;
-  typedef int64_t IndexType;
+  using DataType = float;
+  using IndexType = int64_t;
   std::chrono::time_point<std::chrono::system_clock> start, end;
   start = std::chrono::system_clock::now();
 

@@ -18,9 +18,9 @@ namespace Eigen {
 
 namespace internal {
 
-typedef __m512h Packet32h;
-typedef __m256h Packet16h;
-typedef __m128h Packet8h;
+using Packet32h = __m512h;
+using Packet16h = __m256h;
+using Packet8h = __m128h;
 
 template <>
 struct is_arithmetic<Packet8h> {
@@ -29,8 +29,8 @@ struct is_arithmetic<Packet8h> {
 
 template <>
 struct packet_traits<half> : default_packet_traits {
-  typedef Packet32h type;
-  typedef Packet16h half;
+  using type = Packet32h;
+  using half = Packet16h;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -65,9 +65,9 @@ struct packet_traits<half> : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet32h> {
-  typedef Eigen::half type;
-  typedef Packet16h half;
-  typedef Packet32s integer_packet;
+  using type = Eigen::half;
+  using half = Packet16h;
+  using integer_packet = Packet32s;
   enum {
     size = 32,
     alignment = Aligned64,
@@ -79,9 +79,9 @@ struct unpacket_traits<Packet32h> {
 
 template <>
 struct unpacket_traits<Packet16h> {
-  typedef Eigen::half type;
-  typedef Packet8h half;
-  typedef Packet16s integer_packet;
+  using type = Eigen::half;
+  using half = Packet8h;
+  using integer_packet = Packet16s;
   enum {
     size = 16,
     alignment = Aligned32,
@@ -93,9 +93,9 @@ struct unpacket_traits<Packet16h> {
 
 template <>
 struct unpacket_traits<Packet8h> {
-  typedef Eigen::half type;
-  typedef Packet8h half;
-  typedef Packet8s integer_packet;
+  using type = Eigen::half;
+  using half = Packet8h;
+  using integer_packet = Packet8s;
   enum {
     size = 8,
     alignment = Aligned16,

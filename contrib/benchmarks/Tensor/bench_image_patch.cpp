@@ -10,7 +10,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Basic image patch extraction with PADDING_VALID ---
 static void BM_ImagePatch_Valid(benchmark::State& state) {

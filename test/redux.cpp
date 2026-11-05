@@ -17,8 +17,8 @@
 
 template <typename MatrixType>
 void matrixRedux(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -113,8 +113,8 @@ void matrixRedux(const MatrixType& m) {
 template <typename VectorType>
 void vectorRedux(const VectorType& w) {
   using std::abs;
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index size = w.size();
 
   VectorType v = VectorType::Random(size);
@@ -181,7 +181,7 @@ void vectorRedux(const VectorType& w) {
 
 void boolRedux(Index rows, Index cols) {
   // Test boolean reductions: all(), any(), count()
-  typedef Array<bool, Dynamic, Dynamic> BoolArray;
+  using BoolArray = Array<bool, Dynamic, Dynamic>;
 
   // All-true
   BoolArray all_true = BoolArray::Constant(rows, cols, true);
@@ -235,7 +235,7 @@ void boolRedux(Index rows, Index cols) {
 // values shifted near one, so that prod() neither underflows (float) nor overflows (int).
 template <typename VecType>
 void redux_vec_boundary_check(const VecType& v, const VecType& v_for_prod) {
-  typedef typename VecType::Scalar Scalar;
+  using Scalar = typename VecType::Scalar;
   const Index n = v.size();
   Scalar ref_sum(0), ref_prod(1);
   typename NumTraits<Scalar>::Real ref_min = numext::real(v(0)), ref_max = numext::real(v(0));
@@ -260,7 +260,7 @@ void redux_vec_boundary() {
   // two- and three-packet residuals that the 4-way loop leaves to the straight-line merge.
   const Index sizes[] = {1,          PS - 1, PS,         PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 3 * PS,    3 * PS + 1,
                          4 * PS - 1, 4 * PS, 4 * PS + 1, 5 * PS, 6 * PS,     7 * PS, 8 * PS,     8 * PS + 1};
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   for (const Index n : sizes) {
     if (n <= 0) continue;
     Vec v = Vec::Random(n);
@@ -296,8 +296,8 @@ void redux_vec_boundary() {
 template <typename Scalar>
 void redux_block_boundary() {
   const Index PS = internal::packet_traits<Scalar>::size;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index innerSizes[] = {1,      PS - 1, PS,     PS + 1, 2 * PS,     3 * PS,    4 * PS - 1,
                               4 * PS, 5 * PS, 6 * PS, 7 * PS, 8 * PS - 1, 8 * PS + 1};
   // Panel counts below, at and above the four the outer-dimension accumulators consume at a time.
@@ -330,7 +330,7 @@ void redux_block_boundary() {
 template <typename Scalar>
 void redux_strided() {
   const Index n = 64;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec data = Vec::Random(2 * n);
   // Map with inner stride of 2 — every other element
   Map<Vec, 0, InnerStride<2>> strided(data.data(), n);
@@ -346,7 +346,7 @@ void redux_strided() {
   VERIFY_IS_APPROX(strided.real().maxCoeff(), ref_max);
 
   // Also test reduction on a non-contiguous matrix block (SliceVectorizedTraversal)
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   Mat m = Mat::Random(16, 16);
   for (Index bsz = 1; bsz <= 8; bsz *= 2) {
     Scalar block_sum(0);
@@ -378,8 +378,8 @@ struct keep_last_op {
 
 template <typename Scalar>
 void redux_operand_order() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   // Sizes straddle the small-size fallback, the ordered-tree cutoff, and its ragged tail.
   const Index sizes[] = {1, 2, 5, 7, 8, 9, 15, 16, 17, 23, 24, 31, 32, 33, 64, 129, 191, 192, 193, 250};
   keep_first_op first;
@@ -421,8 +421,8 @@ struct functor_is_commutative<marked_commutative_sum_op<Scalar>> : std::true_typ
 
 template <typename Scalar>
 void redux_commutative() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const Index sizes[] = {1, 2, 7, 8, 9, 15, 16, 17, 24, 31, 32, 33, 63, 64, 65, 129, 192, 250};
   marked_commutative_sum_op<Scalar> op;
   for (int si = 0; si < 18; ++si) {
@@ -458,8 +458,8 @@ void redux_commutative() {
 // and the serial tail.
 template <typename Scalar>
 void redux_minmax_nan() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const Scalar kNaN = std::numeric_limits<Scalar>::quiet_NaN();
   const Index sizes[] = {2, 3, 7, 8, 9, 15, 16, 17, 31, 33, 64, 129, 250};
   for (int si = 0; si < 13; ++si) {
@@ -567,7 +567,7 @@ struct NumTraits<TaggedScalar> : GenericNumTraits<TaggedScalar> {};
 }  // namespace Eigen
 
 void redux_custom_scalar_min_ties() {
-  typedef Matrix<TaggedScalar, Dynamic, 1> Vec;
+  using Vec = Matrix<TaggedScalar, Dynamic, 1>;
   STATIC_CHECK(
       !(internal::functor_is_commutative<internal::scalar_min_op<TaggedScalar, TaggedScalar, PropagateFast>>::value));
   // Sizes on both sides of the ordered-tree cutoff, extrema in different unroll regions.
@@ -600,9 +600,9 @@ void redux_custom_scalar_min_ties() {
 // fallback path stays correct when the runtime inner stride is genuinely != 1.
 template <typename Scalar>
 void redux_runtime_contiguous() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index sizes[] = {1, 2, 7, 8, 9, 16, 17, 64, 255, 256, 257};
   for (int si = 0; si < 11; ++si) {
     const Index n = sizes[si];

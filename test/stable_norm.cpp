@@ -38,8 +38,8 @@ void stable_norm(const MatrixType& m) {
   */
   using std::abs;
   using std::sqrt;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   bool complex_real_product_ok = true;
 
@@ -268,9 +268,9 @@ void stable_normalization_max_abs_special_values() {
 
 template <typename RealScalar>
 void stable_normalize_extremes() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixX;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
+  using VectorX = Matrix<RealScalar, Dynamic, 1>;
+  using MatrixX = Matrix<RealScalar, Dynamic, Dynamic>;
   using std::signbit;
   using std::sqrt;
 
@@ -427,8 +427,8 @@ void stable_normalize_daz() {
 
 template <typename RealScalar>
 void stable_normalize_complex_extremes() {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Complex, Dynamic, 1> VectorX;
+  using Complex = std::complex<RealScalar>;
+  using VectorX = Matrix<Complex, Dynamic, 1>;
   using std::sqrt;
 
   const RealScalar highest = (std::numeric_limits<RealScalar>::max)();
@@ -458,7 +458,7 @@ void stable_normalize_complex_extremes() {
 
 template <typename RealScalar>
 void stable_norm_extreme_cross_product() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
   using std::sqrt;
 
   const RealScalar denorm = std::numeric_limits<RealScalar>::denorm_min();
@@ -497,7 +497,7 @@ void stable_norm_extreme_cross_product() {
 
 template <typename RealScalar>
 void stable_norm_mixed_underflow() {
-  typedef Matrix<RealScalar, Dynamic, 1> VectorX;
+  using VectorX = Matrix<RealScalar, Dynamic, 1>;
   using std::abs;
   using std::sqrt;
 
@@ -519,7 +519,7 @@ void stable_norm_mixed_underflow() {
 
 template <typename RealScalar>
 void stable_norm_denormal_rounding() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
   volatile RealScalar denormInput = std::numeric_limits<RealScalar>::denorm_min();
   const RealScalar denorm = denormInput;
   if (std::numeric_limits<RealScalar>::has_denorm != std::denorm_present || !(denorm > RealScalar(0))) return;
@@ -564,7 +564,7 @@ void stable_norm_power_of_two_scaling() {
 
 template <typename RealScalar>
 void stable_norm_power_of_two_ftz() {
-  typedef Matrix<RealScalar, 2, 1> Vector2;
+  using Vector2 = Matrix<RealScalar, 2, 1>;
   Vector2 input;
   input << (std::numeric_limits<RealScalar>::max)(), RealScalar(0);
 
@@ -576,7 +576,7 @@ void stable_norm_power_of_two_ftz() {
 
 template <typename Scalar>
 void stable_norm_low_precision() {
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
   using std::abs;
   using std::sqrt;
 
@@ -604,8 +604,8 @@ void stable_norm_low_precision() {
 
 template <typename RealScalar>
 void stable_norm_complex_low_precision() {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Complex, 1, 1> Vector1;
+  using Complex = std::complex<RealScalar>;
+  using Vector1 = Matrix<Complex, 1, 1>;
   using std::abs;
 
   Vector1 input;
@@ -622,7 +622,7 @@ void stable_norm_complex_low_precision() {
 
 template <typename = void>
 void stable_normalize_promoted_factor() {
-  typedef Matrix<half, Dynamic, 1> VectorX;
+  using VectorX = Matrix<half, Dynamic, 1>;
   using std::abs;
 
   // The combined normalization factor is just below half's first subnormal,
@@ -668,7 +668,7 @@ void stable_norm_expression_and_stride() {
 
   VectorXd storage = VectorXd::Zero(2 * size);
   for (Index i = 0; i < size; ++i) storage(2 * i) = double(i + 1);
-  typedef InnerStride<Dynamic> VectorStride;
+  using VectorStride = InnerStride<Dynamic>;
   Map<VectorXd, Unaligned, VectorStride> strided(storage.data(), size, VectorStride(2));
   VERIFY_IS_APPROX(strided.stableNorm(), expected);
   strided.stableNormalize();
@@ -686,7 +686,7 @@ void stable_norm_expression_and_stride() {
   VERIFY_IS_APPROX(runtime_packed.norm(), 1.0);
 
   // Flattening must preserve total size for fixed rows and multi-column matrices.
-  typedef Matrix<double, 1, 4> FixedRowVector;
+  using FixedRowVector = Matrix<double, 1, 4>;
   FixedRowVector fixed_row_storage;
   fixed_row_storage << 1.0, 2.0, 3.0, 4.0;
   Map<FixedRowVector, Unaligned, VectorStride> fixed_row(fixed_row_storage.data(), VectorStride(1));
@@ -700,8 +700,8 @@ void stable_norm_expression_and_stride() {
   VERIFY_IS_APPROX(fixed_row, expected_fixed_row);
   VERIFY_IS_APPROX(fixed_row.norm(), 1.0);
 
-  typedef Stride<Dynamic, Dynamic> MatrixStride;
-  typedef Matrix<double, 2, 3> FixedMatrix;
+  using MatrixStride = Stride<Dynamic, Dynamic>;
+  using FixedMatrix = Matrix<double, 2, 3>;
   FixedMatrix fixed_matrix_storage;
   fixed_matrix_storage << 1.0, 2.0, 3.0, 4.0, 5.0, 6.0;
   Map<FixedMatrix, Unaligned, MatrixStride> fixed_matrix(fixed_matrix_storage.data(),
@@ -736,7 +736,7 @@ void stable_norm_expression_and_stride() {
 
 template <typename Scalar>
 void test_hypot() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   // Get a random factor bounded away from zero: |factor| >= 0.1.
   Scalar factor = internal::random<Scalar>(Scalar(RealScalar(0.1)), Scalar(RealScalar(1)));
   Scalar big = factor * ((std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4));
@@ -760,8 +760,8 @@ void test_hypot() {
 
 template <typename Scalar>
 void stable_norm_complex_infinity() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VecType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VecType = Matrix<Scalar, Dynamic, 1>;
 
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
   const Scalar finite(RealScalar(3), RealScalar(-4));
@@ -791,8 +791,8 @@ template <typename Scalar>
 void stable_norm_block_boundary() {
   using std::abs;
   using std::sqrt;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> VecType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VecType = Matrix<Scalar, Dynamic, 1>;
 
   // Test sizes around the 4096 block boundary.
   const Index sizes[] = {4095, 4096, 4097, 8191, 8192, 8193, 12288};
@@ -838,7 +838,7 @@ void stable_norm_block_boundary() {
   {
     RealScalar tiny = (std::numeric_limits<RealScalar>::min)() * RealScalar(1e4);
     RealScalar huge_val = (std::numeric_limits<RealScalar>::max)() * RealScalar(1e-4);
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatType;
+    using MatType = Matrix<Scalar, Dynamic, Dynamic>;
     MatType m(100, 2);
     m.col(0).setConstant(Scalar(tiny));
     m.col(1).setConstant(Scalar(huge_val));

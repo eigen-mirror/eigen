@@ -32,7 +32,7 @@ static void test_simple() {
   Tensor<float, 2> mat3(3, 3);
   mat3 = mat1;
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims;
   dims[0] = DimPair(1, 0);
 

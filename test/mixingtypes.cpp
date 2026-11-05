@@ -36,16 +36,16 @@ using namespace std;
 // Scalar and coefficient-wise mixed-type operations, and compound assignment.
 template <int SizeAtCompileType>
 void mixingtypes_scalar(int size = SizeAtCompileType) {
-  typedef std::complex<float> CF;
-  typedef std::complex<double> CD;
-  typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
-  typedef Matrix<double, SizeAtCompileType, SizeAtCompileType> Mat_d;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType> Mat_cf;
-  typedef Matrix<std::complex<double>, SizeAtCompileType, SizeAtCompileType> Mat_cd;
-  typedef Matrix<float, SizeAtCompileType, 1> Vec_f;
-  typedef Matrix<double, SizeAtCompileType, 1> Vec_d;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, 1> Vec_cf;
-  typedef Matrix<std::complex<double>, SizeAtCompileType, 1> Vec_cd;
+  using CF = std::complex<float>;
+  using CD = std::complex<double>;
+  using Mat_f = Matrix<float, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_d = Matrix<double, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_cf = Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_cd = Matrix<std::complex<double>, SizeAtCompileType, SizeAtCompileType>;
+  using Vec_f = Matrix<float, SizeAtCompileType, 1>;
+  using Vec_d = Matrix<double, SizeAtCompileType, 1>;
+  using Vec_cf = Matrix<std::complex<float>, SizeAtCompileType, 1>;
+  using Vec_cd = Matrix<std::complex<double>, SizeAtCompileType, 1>;
 
   Mat_f mf = Mat_f::Random(size, size);
   Mat_d md = mf.template cast<double>();
@@ -203,11 +203,11 @@ void mixingtypes_scalar(int size = SizeAtCompileType) {
 // the two Dynamic subtests the slowest units in the official test suite.
 template <int SizeAtCompileType>
 void mixingtypes_product_f(int size = SizeAtCompileType) {
-  typedef std::complex<float> CF;
-  typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType> Mat_cf;
-  typedef Matrix<float, SizeAtCompileType, 1> Vec_f;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, 1> Vec_cf;
+  using CF = std::complex<float>;
+  using Mat_f = Matrix<float, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_cf = Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType>;
+  using Vec_f = Matrix<float, SizeAtCompileType, 1>;
+  using Vec_cf = Matrix<std::complex<float>, SizeAtCompileType, 1>;
 
   Mat_f mf = Mat_f::Random(size, size);
   Mat_cf mcf = Mat_cf::Random(size, size);
@@ -263,15 +263,15 @@ void mixingtypes_product_f(int size = SizeAtCompileType) {
 // Mixed-type products in the double / complex<double> family.
 template <int SizeAtCompileType>
 void mixingtypes_product_d(int size = SizeAtCompileType) {
-  typedef std::complex<double> CD;
-  typedef Matrix<float, SizeAtCompileType, SizeAtCompileType> Mat_f;
-  typedef Matrix<double, SizeAtCompileType, SizeAtCompileType> Mat_d;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType> Mat_cf;
-  typedef Matrix<std::complex<double>, SizeAtCompileType, SizeAtCompileType> Mat_cd;
-  typedef Matrix<float, SizeAtCompileType, 1> Vec_f;
-  typedef Matrix<double, SizeAtCompileType, 1> Vec_d;
-  typedef Matrix<std::complex<float>, SizeAtCompileType, 1> Vec_cf;
-  typedef Matrix<std::complex<double>, SizeAtCompileType, 1> Vec_cd;
+  using CD = std::complex<double>;
+  using Mat_f = Matrix<float, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_d = Matrix<double, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_cf = Matrix<std::complex<float>, SizeAtCompileType, SizeAtCompileType>;
+  using Mat_cd = Matrix<std::complex<double>, SizeAtCompileType, SizeAtCompileType>;
+  using Vec_f = Matrix<float, SizeAtCompileType, 1>;
+  using Vec_d = Matrix<double, SizeAtCompileType, 1>;
+  using Vec_cf = Matrix<std::complex<float>, SizeAtCompileType, 1>;
+  using Vec_cd = Matrix<std::complex<double>, SizeAtCompileType, 1>;
 
   Mat_f mf = Mat_f::Random(size, size);
   Mat_d md = mf.template cast<double>();

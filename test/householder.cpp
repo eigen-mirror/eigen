@@ -138,15 +138,15 @@ void householder(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::value, 1> EssentialVectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
-  typedef Matrix<Scalar, Dynamic, MatrixType::ColsAtCompileTime> HBlockMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> HCoeffsVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using EssentialVectorType = Matrix<Scalar, internal::decrement_size<MatrixType::RowsAtCompileTime>::value, 1>;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using HBlockMatrixType = Matrix<Scalar, Dynamic, MatrixType::ColsAtCompileTime>;
+  using HCoeffsVectorType = Matrix<Scalar, Dynamic, 1>;
 
-  typedef Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::RowsAtCompileTime> TMatrixType;
+  using TMatrixType = Matrix<Scalar, MatrixType::ColsAtCompileTime, MatrixType::RowsAtCompileTime>;
 
   Matrix<Scalar, internal::max_size_prefer_dynamic(MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime), 1>
       _tmp((std::max)(rows, cols));
@@ -297,11 +297,11 @@ void householder_update(const MatrixType& m) {
   const Index rows = m.rows();
   const Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, 1> HCoeffsVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using HCoeffsVectorType = Matrix<Scalar, Dynamic, 1>;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   VectorX tmpOwner(cols);
   Scalar* tmp = tmpOwner.data();
@@ -370,10 +370,10 @@ void householder_update(const MatrixType& m) {
 
 template <typename Scalar>
 void householder_blocked_right_regression() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
-  typedef HouseholderSequence<MatrixX, VectorX> LeftSequence;
-  typedef HouseholderSequence<MatrixX, VectorX, OnTheRight> RightSequence;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
+  using LeftSequence = HouseholderSequence<MatrixX, VectorX>;
+  using RightSequence = HouseholderSequence<MatrixX, VectorX, OnTheRight>;
 
   const Index rows = 256;
   const Index cols = 128;
@@ -417,7 +417,7 @@ template <typename VectorType, typename EssentialType>
 void verify_real_householder_result(const VectorType& vector, const EssentialType& essential,
                                     const typename VectorType::Scalar& tau,
                                     const typename VectorType::RealScalar& beta) {
-  typedef typename VectorType::RealScalar RealScalar;
+  using RealScalar = typename VectorType::RealScalar;
   const long double epsilon = static_cast<long double>(NumTraits<RealScalar>::epsilon());
   long double input_squared_norm = 0;
   long double householder_squared_norm = 1;
@@ -451,8 +451,8 @@ void verify_real_householder_result(const VectorType& vector, const EssentialTyp
 
 template <typename RealScalar>
 void verify_complex_zero_tail(RealScalar coefficient) {
-  typedef std::complex<RealScalar> Scalar;
-  typedef std::complex<long double> WideScalar;
+  using Scalar = std::complex<RealScalar>;
+  using WideScalar = std::complex<long double>;
   Matrix<Scalar, 2, 1> vector;
   vector << Scalar(0, coefficient), Scalar(0, 0);
   Matrix<Scalar, 1, 1> essential;
@@ -479,7 +479,7 @@ void verify_complex_zero_tail(RealScalar coefficient) {
 
 template <typename RealScalar>
 void verify_low_precision_complex_zero_tail() {
-  typedef std::complex<RealScalar> Scalar;
+  using Scalar = std::complex<RealScalar>;
   const RealScalar zero = RealScalar(0);
   const RealScalar coefficient = RealScalar(0.25f);
   Matrix<Scalar, 2, 1> vector;
@@ -499,7 +499,7 @@ void verify_low_precision_complex_zero_tail() {
 
 template <typename RealScalar>
 void verify_complex_nan_head() {
-  typedef std::complex<RealScalar> Scalar;
+  using Scalar = std::complex<RealScalar>;
   const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
   Matrix<Scalar, 2, 1> vector;
   vector << Scalar(1, nan), Scalar(0, 0);
@@ -514,7 +514,7 @@ void verify_complex_nan_head() {
 
 template <typename = void>
 void verify_custom_complex_small_tail() {
-  typedef reordered_complex::Complex<float> Scalar;
+  using Scalar = reordered_complex::Complex<float>;
   const float coefficient = 2e-16f;
   Matrix<Scalar, 2, 1> vector;
   vector << Scalar(0), Scalar(coefficient);
@@ -602,7 +602,7 @@ void householder_small_tail_layouts() {
 
   float input_storage[8] = {0.0f, 11.0f, coefficient, 12.0f, -2.0f * coefficient, 13.0f, 3.0f * coefficient, 14.0f};
   float essential_storage[6] = {0.0f, 21.0f, 0.0f, 22.0f, 0.0f, 23.0f};
-  typedef Map<VectorXf, Unaligned, InnerStride<2>> StridedVector;
+  using StridedVector = Map<VectorXf, Unaligned, InnerStride<2>>;
   StridedVector strided_input(input_storage, 4, InnerStride<2>());
   StridedVector strided_essential(essential_storage, 3, InnerStride<2>());
   strided_input.makeHouseholder(strided_essential, tau, beta);
@@ -770,7 +770,7 @@ template <typename VectorType, typename EssentialType>
 void verify_large_householder_result(const VectorType& vector, const EssentialType& essential,
                                      const typename VectorType::Scalar& tau,
                                      const typename VectorType::RealScalar& beta) {
-  typedef typename VectorType::RealScalar RealScalar;
+  using RealScalar = typename VectorType::RealScalar;
   int exponent = 0;
   (void)std::frexp(vector.cwiseAbs().maxCoeff(), &exponent);
   const RealScalar scale = std::ldexp(RealScalar(1), exponent);
@@ -1152,8 +1152,8 @@ void householder_right_fixed_columns() {
 // dense Q.
 template <typename Scalar>
 void householder_structured_products(Index size) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   const MatrixType a = MatrixType::Random(size, size);
   const HouseholderQR<MatrixType> qr(a);

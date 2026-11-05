@@ -30,7 +30,7 @@ Matrix<typename Scalar, int RowsAtCompileTime, int ColsAtCompileTime>
 We offer a lot of convenience typedefs to cover the usual cases. For example, \c Matrix4f is
 a 4x4 matrix of floats. Here is how it is defined by Eigen:
 \code
-typedef Matrix<float, 4, 4> Matrix4f;
+using Matrix4f = Matrix<float, 4, 4>;
 \endcode
 We discuss \ref TutorialMatrixTypedefs "below" these convenience typedefs.
 
@@ -43,11 +43,11 @@ where they have 1 row, they are called row-vectors.
 
 For example, the convenience typedef \c Vector3f is a (column) vector of 3 floats. It is defined as follows by Eigen:
 \code
-typedef Matrix<float, 3, 1> Vector3f;
+using Vector3f = Matrix<float, 3, 1>;
 \endcode
 We also offer convenience typedefs for row-vectors, for example:
 \code
-typedef Matrix<int, 1, 2> RowVector2i;
+using RowVector2i = Matrix<int, 1, 2>;
 \endcode
 
 \section TutorialMatrixDynamic The special value Dynamic
@@ -60,11 +60,11 @@ be handled as a run-time variable. In Eigen terminology, such a size is referred
 \em fixed \em size. For example, the convenience typedef \c MatrixXd, meaning
 a matrix of doubles with dynamic size, is defined as follows:
 \code
-typedef Matrix<double, Dynamic, Dynamic> MatrixXd;
+using MatrixXd = Matrix<double, Dynamic, Dynamic>;
 \endcode
 And similarly, we define a self-explanatory typedef \c VectorXi as follows:
 \code
-typedef Matrix<int, Dynamic, 1> VectorXi;
+using VectorXi = Matrix<int, Dynamic, 1>;
 \endcode
 You can perfectly have e.g. a fixed number of rows with a dynamic number of columns, as in:
 \code

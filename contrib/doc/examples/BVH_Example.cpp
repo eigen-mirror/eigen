@@ -6,7 +6,7 @@
 #include <iostream>
 
 using namespace Eigen;
-typedef AlignedBox<double, 2> Box2d;
+using Box2d = AlignedBox<double, 2>;
 
 namespace Eigen {
 Box2d bounding_box(const Vector2d &v) { return Box2d(v, v); }  // compute the bounding box of a single point
@@ -15,7 +15,7 @@ Box2d bounding_box(const Vector2d &v) { return Box2d(v, v); }  // compute the bo
 struct PointPointMinimizer  // how to compute squared distances between points and rectangles
 {
   PointPointMinimizer() : calls(0) {}
-  typedef double Scalar;
+  using Scalar = double;
 
   double minimumOnVolumeVolume(const Box2d &r1, const Box2d &r2) {
     ++calls;
@@ -38,7 +38,7 @@ struct PointPointMinimizer  // how to compute squared distances between points a
 };
 
 int main() {
-  typedef std::vector<Vector2d, aligned_allocator<Vector2d> > StdVectorOfVector2d;
+  using StdVectorOfVector2d = std::vector<Vector2d, aligned_allocator<Vector2d> >;
   StdVectorOfVector2d redPoints, bluePoints;
   for (int i = 0; i < 100; ++i) {  // initialize random set of red points and blue points
     redPoints.push_back(Vector2d::Random());

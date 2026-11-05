@@ -136,7 +136,7 @@ class SGroup : public internal::tensor_symmetry_pre_analysis<internal::tensor_sy
                                                              Gen...>::root_type {
  public:
   constexpr static std::size_t NumIndices = internal::tensor_symmetry_num_indices<Gen...>::value;
-  typedef typename internal::tensor_symmetry_pre_analysis<NumIndices, Gen...>::root_type Base;
+  using Base = typename internal::tensor_symmetry_pre_analysis<NumIndices, Gen...>::root_type;
 
   // make standard constructors + assignment operators public
   inline SGroup() = default;
@@ -233,25 +233,24 @@ struct tensor_symmetry_num_indices<AntiHermiticity<One_, Two_>, Sym...>
  */
 template <std::size_t NumIndices>
 struct tensor_symmetry_pre_analysis<NumIndices> {
-  typedef StaticSGroup<> root_type;
+  using root_type = StaticSGroup<>;
 };
 
 template <std::size_t NumIndices, typename Gen_, typename... Gens_>
 struct tensor_symmetry_pre_analysis<NumIndices, Gen_, Gens_...> {
   constexpr static std::size_t max_static_generators = 4;
   constexpr static std::size_t max_static_elements = 16;
-  typedef tensor_static_symgroup_if<(sizeof...(Gens_) + 1 <= max_static_generators), NumIndices, Gen_, Gens_...> helper;
+  using helper = tensor_static_symgroup_if<(sizeof...(Gens_) + 1 <= max_static_generators), NumIndices, Gen_, Gens_...>;
   constexpr static std::size_t possible_size = helper::size;
 
-  typedef std::conditional_t<possible_size == 0 || possible_size >= max_static_elements,
-                             DynamicSGroupFromTemplateArgs<Gen_, Gens_...>, typename helper::type>
-      root_type;
+  using root_type = std::conditional_t<possible_size == 0 || possible_size >= max_static_elements,
+                                       DynamicSGroupFromTemplateArgs<Gen_, Gens_...>, typename helper::type>;
 };
 
 template <bool instantiate, std::size_t NumIndices, typename... Gens>
 struct tensor_static_symgroup_if {
   constexpr static std::size_t size = 0;
-  typedef void type;
+  using type = void;
 };
 
 template <std::size_t NumIndices, typename... Gens>
@@ -259,8 +258,8 @@ struct tensor_static_symgroup_if<true, NumIndices, Gens...> : tensor_static_symg
 
 template <typename Tensor_>
 struct tensor_symmetry_assign_value {
-  typedef typename Tensor_::Index Index;
-  typedef typename Tensor_::Scalar Scalar;
+  using Index = typename Tensor_::Index;
+  using Scalar = typename Tensor_::Scalar;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
   static inline int run(const std::array<Index, NumIndices>& transformed_indices, int transformation_flags, int dummy,
@@ -275,7 +274,7 @@ struct tensor_symmetry_assign_value {
 
 template <typename Tensor_>
 struct tensor_symmetry_calculate_flags {
-  typedef typename Tensor_::Index Index;
+  using Index = typename Tensor_::Index;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
   static inline int run(const std::array<Index, NumIndices>& transformed_indices, int transform_flags,
@@ -295,8 +294,8 @@ struct tensor_symmetry_calculate_flags {
 template <typename Tensor_, typename Symmetry_, int Flags = 0>
 class tensor_symmetry_value_setter {
  public:
-  typedef typename Tensor_::Index Index;
-  typedef typename Tensor_::Scalar Scalar;
+  using Index = typename Tensor_::Index;
+  using Scalar = typename Tensor_::Scalar;
   constexpr static std::size_t NumIndices = Tensor_::NumIndices;
 
   inline tensor_symmetry_value_setter(Tensor_& tensor, Symmetry_ const& symmetry,

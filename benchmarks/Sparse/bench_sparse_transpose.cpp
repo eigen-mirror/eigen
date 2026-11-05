@@ -7,8 +7,8 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef SparseMatrix<Scalar> SpMat;
+using Scalar = double;
+using SpMat = SparseMatrix<Scalar>;
 
 static void fillMatrix(float density, int rows, int cols, SpMat& dst) {
   dst.resize(rows, cols);

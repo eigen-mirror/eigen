@@ -47,8 +47,8 @@ int main()
   // set precision to 256 bits (double has only 53 bits)
   mpreal::set_default_prec(256);
   // Declare matrix and vector types with multi-precision scalar type
-  typedef Matrix<mpreal,Dynamic,Dynamic>  MatrixXmp;
-  typedef Matrix<mpreal,Dynamic,1>        VectorXmp;
+  using MatrixXmp = Matrix<mpreal,Dynamic,Dynamic>;
+  using VectorXmp = Matrix<mpreal,Dynamic,1>;
 
   MatrixXmp A = MatrixXmp::Random(100,100);
   VectorXmp b = VectorXmp::Random(100);
@@ -74,8 +74,8 @@ struct NumTraits<mpfr::mpreal> : GenericNumTraits<mpfr::mpreal> {
     MulCost = HugeCost
   };
 
-  typedef mpfr::mpreal Real;
-  typedef mpfr::mpreal NonInteger;
+  using Real = mpfr::mpreal;
+  using NonInteger = mpfr::mpreal;
 
   static inline Real highest(long Precision = mpfr::mpreal::get_default_prec()) { return mpfr::maxval(Precision); }
   static inline Real lowest(long Precision = mpfr::mpreal::get_default_prec()) { return -mpfr::maxval(Precision); }
@@ -162,7 +162,7 @@ inline int cast<mpfr::mpreal, int>(const mpfr::mpreal& x) {
 template <>
 class gebp_traits<mpfr::mpreal, mpfr::mpreal, false, false> {
  public:
-  typedef mpfr::mpreal ResScalar;
+  using ResScalar = mpfr::mpreal;
   enum {
     Vectorizable = false,
     LhsPacketSize = 1,
@@ -174,15 +174,15 @@ class gebp_traits<mpfr::mpreal, mpfr::mpreal, false, false> {
     LhsProgress = 1,
     RhsProgress = 1
   };
-  typedef ResScalar LhsPacket;
-  typedef ResScalar RhsPacket;
-  typedef ResScalar ResPacket;
-  typedef LhsPacket LhsPacket4Packing;
+  using LhsPacket = ResScalar;
+  using RhsPacket = ResScalar;
+  using ResPacket = ResScalar;
+  using LhsPacket4Packing = LhsPacket;
 };
 
 template <typename Index, typename DataMapper, bool ConjugateLhs, bool ConjugateRhs>
 struct gebp_kernel<mpfr::mpreal, mpfr::mpreal, Index, DataMapper, 1, 1, ConjugateLhs, ConjugateRhs> {
-  typedef mpfr::mpreal mpreal;
+  using mpreal = mpfr::mpreal;
 
   EIGEN_DONT_INLINE void operator()(const DataMapper& res, const mpreal* blockA, const mpreal* blockB, Index rows,
                                     Index depth, Index cols, const mpreal& alpha, Index strideA = -1,

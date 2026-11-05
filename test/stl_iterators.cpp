@@ -262,10 +262,10 @@ void test_strided_iterator_endpoints() {
 
 template <typename Scalar, int Rows, int Cols>
 void test_stl_iterators(int rows = Rows, int cols = Cols) {
-  typedef Matrix<Scalar, Rows, 1> VectorType;
-  typedef Matrix<Scalar, 1, Cols> RowVectorType;
-  typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMatrixType;
-  typedef Matrix<Scalar, Rows, Cols, RowMajor> RowMatrixType;
+  using VectorType = Matrix<Scalar, Rows, 1>;
+  using RowVectorType = Matrix<Scalar, 1, Cols>;
+  using ColMatrixType = Matrix<Scalar, Rows, Cols, ColMajor>;
+  using RowMatrixType = Matrix<Scalar, Rows, Cols, RowMajor>;
   VectorType v = random_for_arithmetic<VectorType>(rows);
   const VectorType& cv(v);
   ColMatrixType A = random_for_arithmetic<ColMatrixType>(rows, cols);
@@ -728,9 +728,9 @@ bool IsContainerType(long /* dummy */) {
 
 template <typename Scalar, int Rows, int Cols>
 void test_stl_container_detection(int rows = Rows, int cols = Cols) {
-  typedef Matrix<Scalar, Rows, 1> VectorType;
-  typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMatrixType;
-  typedef Matrix<Scalar, Rows, Cols, RowMajor> RowMatrixType;
+  using VectorType = Matrix<Scalar, Rows, 1>;
+  using ColMatrixType = Matrix<Scalar, Rows, Cols, ColMajor>;
+  using RowMatrixType = Matrix<Scalar, Rows, Cols, RowMajor>;
 
   ColMatrixType A = ColMatrixType::Random(rows, cols);
   RowMatrixType B = RowMatrixType::Random(rows, cols);
@@ -757,9 +757,9 @@ void test_stl_container_detection(int rows = Rows, int cols = Cols) {
 #ifdef EIGEN_TEST_CXX20_RANGES
 template <typename Scalar, int Rows, int Cols>
 void test_cxx20_ranges(int rows = Rows, int cols = Cols) {
-  typedef Matrix<Scalar, Rows, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, 1> DynVectorType;
-  typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMatrixType;
+  using VectorType = Matrix<Scalar, Rows, 1>;
+  using DynVectorType = Matrix<Scalar, Dynamic, 1>;
+  using ColMatrixType = Matrix<Scalar, Rows, Cols, ColMajor>;
 
   // Vectors with unit stride satisfy contiguous_range.
   static_assert(std::contiguous_iterator<typename VectorType::iterator>);

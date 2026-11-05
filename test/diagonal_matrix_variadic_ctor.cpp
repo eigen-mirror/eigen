@@ -36,10 +36,10 @@
 
 template <typename Scalar>
 void constructorTest() {
-  typedef DiagonalMatrix<Scalar, 0> DiagonalMatrix0;
-  typedef DiagonalMatrix<Scalar, 3> DiagonalMatrix3;
-  typedef DiagonalMatrix<Scalar, 4> DiagonalMatrix4;
-  typedef DiagonalMatrix<Scalar, Dynamic> DiagonalMatrixX;
+  using DiagonalMatrix0 = DiagonalMatrix<Scalar, 0>;
+  using DiagonalMatrix3 = DiagonalMatrix<Scalar, 3>;
+  using DiagonalMatrix4 = DiagonalMatrix<Scalar, 4>;
+  using DiagonalMatrixX = DiagonalMatrix<Scalar, Dynamic>;
 
   Scalar raw[7];
   for (int k = 0; k < 7; ++k) raw[k] = internal::random<Scalar>();

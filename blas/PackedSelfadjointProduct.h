@@ -22,10 +22,10 @@ struct selfadjoint_packed_rank1_update;
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, ConjRhs> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   static void run(Index size, Scalar* mat, const Scalar* vec, RealScalar alpha) {
-    typedef Map<const Matrix<Scalar, Dynamic, 1> > OtherMap;
-    typedef conj_expr_if<ConjLhs, OtherMap> ConjRhsType;
+    using OtherMap = Map<const Matrix<Scalar, Dynamic, 1> >;
+    using ConjRhsType = conj_expr_if<ConjLhs, OtherMap>;
     conj_if<ConjRhs> cj;
 
     for (Index i = 0; i < size; ++i) {
@@ -40,7 +40,7 @@ struct selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, C
 
 template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
 struct selfadjoint_packed_rank1_update<Scalar, Index, RowMajor, UpLo, ConjLhs, ConjRhs> {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   static void run(Index size, Scalar* mat, const Scalar* vec, RealScalar alpha) {
     selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo == Lower ? Upper : Lower, ConjRhs, ConjLhs>::run(
         size, mat, vec, alpha);

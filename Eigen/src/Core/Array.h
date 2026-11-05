@@ -301,15 +301,15 @@ class Array : public PlainObjectBase<Array<Scalar_, Rows_, Cols_, Options_, MaxR
 
 #define EIGEN_MAKE_ARRAY_TYPEDEFS(Type, TypeSuffix, Size, SizeSuffix)        \
   /** \ingroup arraytypedefs */                                              \
-  typedef Array<Type, Size, Size> Array##SizeSuffix##SizeSuffix##TypeSuffix; \
+  using Array##SizeSuffix##SizeSuffix##TypeSuffix = Array<Type, Size, Size>; \
   /** \ingroup arraytypedefs */                                              \
-  typedef Array<Type, Size, 1> Array##SizeSuffix##TypeSuffix;
+  using Array##SizeSuffix##TypeSuffix = Array<Type, Size, 1>;
 
 #define EIGEN_MAKE_ARRAY_FIXED_TYPEDEFS(Type, TypeSuffix, Size)  \
   /** \ingroup arraytypedefs */                                  \
-  typedef Array<Type, Size, Dynamic> Array##Size##X##TypeSuffix; \
+  using Array##Size##X##TypeSuffix = Array<Type, Size, Dynamic>; \
   /** \ingroup arraytypedefs */                                  \
-  typedef Array<Type, Dynamic, Size> Array##X##Size##TypeSuffix;
+  using Array##X##Size##TypeSuffix = Array<Type, Dynamic, Size>;
 
 #define EIGEN_MAKE_ARRAY_TYPEDEFS_ALL_SIZES(Type, TypeSuffix) \
   EIGEN_MAKE_ARRAY_TYPEDEFS(Type, TypeSuffix, 2, 2)           \

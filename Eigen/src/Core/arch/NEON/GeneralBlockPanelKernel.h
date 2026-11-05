@@ -54,8 +54,8 @@ struct gebp_traits<float, float, false, false, Architecture::NEON, GEBPPacketFul
 template <>
 struct gebp_traits<float, float, false, false, Architecture::NEON, GEBPPacketFull>
     : gebp_traits<float, float, false, false, Architecture::Generic, GEBPPacketFull> {
-  typedef float RhsPacket;
-  typedef float32x4_t RhsPacketx4;
+  using RhsPacket = float;
+  using RhsPacketx4 = float32x4_t;
   enum { nr = EIGEN_NEON_GEBP_NR };
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = *b; }
 
@@ -115,7 +115,7 @@ struct gebp_traits<float, float, false, false, Architecture::NEON, GEBPPacketFul
 template <>
 struct gebp_traits<double, double, false, false, Architecture::NEON>
     : gebp_traits<double, double, false, false, Architecture::Generic> {
-  typedef double RhsPacket;
+  using RhsPacket = double;
   enum { nr = EIGEN_NEON_GEBP_NR };
   struct RhsPacketx4 {
     float64x2_t B_0, B_1;
@@ -196,9 +196,9 @@ struct gebp_traits<double, double, false, false, Architecture::NEON>
 template <>
 struct gebp_traits<half, half, false, false, Architecture::NEON>
     : gebp_traits<half, half, false, false, Architecture::Generic> {
-  typedef half RhsPacket;
-  typedef float16x4_t RhsPacketx4;
-  typedef float16x4_t PacketHalf;
+  using RhsPacket = half;
+  using RhsPacketx4 = float16x4_t;
+  using PacketHalf = float16x4_t;
   enum { nr = EIGEN_NEON_GEBP_NR };
 
   EIGEN_STRONG_INLINE void loadRhs(const RhsScalar* b, RhsPacket& dest) const { dest = *b; }

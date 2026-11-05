@@ -76,7 +76,7 @@ EIGEN_BLAS_SYMV_SPECIALIZE(scomplex)
   template <typename Index, int StorageOrder, int UpLo, bool ConjugateLhs, bool ConjugateRhs>                     \
   struct selfadjoint_matrix_vector_product_symv<EIGTYPE, Index, StorageOrder, UpLo, ConjugateLhs, ConjugateRhs> { \
     using Scalar = EIGTYPE;                                                                                       \
-    typedef Matrix<EIGTYPE, Dynamic, 1, ColMajor> SYMVVector;                                                     \
+    using SYMVVector = Matrix<EIGTYPE, Dynamic, 1, ColMajor>;                                                     \
                                                                                                                   \
     static void run(Index size, const EIGTYPE* lhs, Index lhsStride, const EIGTYPE* _rhs, Scalar* res,            \
                     EIGTYPE alpha) {                                                                              \

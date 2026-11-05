@@ -158,7 +158,7 @@ struct scalar_lgamma_op {
     using numext::lgamma;
     return lgamma(a);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::plgamma(a); }
 };
 template <typename Scalar>
@@ -180,7 +180,7 @@ struct scalar_digamma_op {
     using numext::digamma;
     return digamma(a);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::pdigamma(a); }
 };
 template <typename Scalar>
@@ -202,7 +202,7 @@ struct scalar_zeta_op {
     using numext::zeta;
     return zeta(x, q);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& x, const Packet& q) const {
     return internal::pzeta(x, q);
   }
@@ -226,7 +226,7 @@ struct scalar_polygamma_op {
     using numext::polygamma;
     return polygamma(n, x);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& n, const Packet& x) const {
     return internal::ppolygamma(n, x);
   }
@@ -283,7 +283,7 @@ struct scalar_erfc_op {
     using numext::erfc;
     return erfc(a);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::perfc(a); }
 };
 template <typename Scalar>
@@ -306,7 +306,7 @@ struct scalar_ndtri_op {
     using numext::ndtri;
     return ndtri(a);
   }
-  typedef typename packet_traits<Scalar>::type Packet;
+  using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::pndtri(a); }
 };
 template <typename Scalar>

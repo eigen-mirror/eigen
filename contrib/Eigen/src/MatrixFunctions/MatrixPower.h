@@ -43,7 +43,7 @@ class MatrixPower;
 template <typename MatrixType>
 class MatrixPowerParenthesesReturnValue : public ReturnByValue<MatrixPowerParenthesesReturnValue<MatrixType> > {
  public:
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
   /**
    * \brief Constructor.
@@ -90,10 +90,10 @@ template <typename MatrixType>
 class MatrixPowerAtomic {
  private:
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, MaxRowsAtCompileTime = MatrixType::MaxRowsAtCompileTime };
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Block<MatrixType, Dynamic, Dynamic> ResultType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using ResultType = Block<MatrixType, Dynamic, Dynamic>;
 
   const MatrixType& m_A;
   RealScalar m_p;
@@ -353,8 +353,8 @@ inline typename MatrixPowerAtomic<MatrixType>::RealScalar MatrixPowerAtomic<Matr
 template <typename MatrixType>
 class MatrixPower {
  private:
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
 
  public:
   MatrixPower(const MatrixPower&) = delete;
@@ -397,9 +397,9 @@ class MatrixPower {
   Index cols() const { return m_A.cols(); }
 
  private:
-  typedef internal::make_complex_t<Scalar> ComplexScalar;
-  typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>
-      ComplexMatrix;
+  using ComplexScalar = internal::make_complex_t<Scalar>;
+  using ComplexMatrix =
+      Matrix<ComplexScalar, Dynamic, Dynamic, 0, MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime>;
 
   /** \brief Reference to the base of matrix power. */
   typename MatrixType::Nested m_A;
@@ -610,8 +610,8 @@ inline void MatrixPower<MatrixType>::revertSchur(Matrix<RealScalar, Rows, Cols, 
 template <typename Derived>
 class MatrixPowerReturnValue : public ReturnByValue<MatrixPowerReturnValue<Derived> > {
  public:
-  typedef typename Derived::PlainObject PlainObject;
-  typedef typename Derived::RealScalar RealScalar;
+  using PlainObject = typename Derived::PlainObject;
+  using RealScalar = typename Derived::RealScalar;
 
   /**
    * \brief Constructor.
@@ -656,8 +656,8 @@ class MatrixPowerReturnValue : public ReturnByValue<MatrixPowerReturnValue<Deriv
 template <typename Derived>
 class MatrixComplexPowerReturnValue : public ReturnByValue<MatrixComplexPowerReturnValue<Derived> > {
  public:
-  typedef typename Derived::PlainObject PlainObject;
-  typedef internal::make_complex_t<typename Derived::Scalar> ComplexScalar;
+  using PlainObject = typename Derived::PlainObject;
+  using ComplexScalar = internal::make_complex_t<typename Derived::Scalar>;
 
   /**
    * \brief Constructor.
@@ -693,17 +693,17 @@ namespace internal {
 
 template <typename MatrixPowerType>
 struct traits<MatrixPowerParenthesesReturnValue<MatrixPowerType> > {
-  typedef typename MatrixPowerType::PlainObject ReturnType;
+  using ReturnType = typename MatrixPowerType::PlainObject;
 };
 
 template <typename Derived>
 struct traits<MatrixPowerReturnValue<Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 
 template <typename Derived>
 struct traits<MatrixComplexPowerReturnValue<Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 
 }  // namespace internal

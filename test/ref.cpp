@@ -34,15 +34,15 @@
 
 template <typename MatrixType>
 void ref_matrix(const MatrixType &m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, MatrixType::Options> DynMatrixType;
-  typedef Matrix<RealScalar, Dynamic, Dynamic, MatrixType::Options> RealDynMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic, MatrixType::Options>;
+  using RealDynMatrixType = Matrix<RealScalar, Dynamic, Dynamic, MatrixType::Options>;
 
-  typedef Ref<MatrixType> RefMat;
-  typedef Ref<DynMatrixType> RefDynMat;
-  typedef Ref<const DynMatrixType> ConstRefDynMat;
-  typedef Ref<RealDynMatrixType, 0, Stride<Dynamic, Dynamic>> RefRealMatWithStride;
+  using RefMat = Ref<MatrixType>;
+  using RefDynMat = Ref<DynMatrixType>;
+  using ConstRefDynMat = Ref<const DynMatrixType>;
+  using RefRealMatWithStride = Ref<RealDynMatrixType, 0, Stride<Dynamic, Dynamic>>;
 
   Index rows = m.rows(), cols = m.cols();
 
@@ -80,17 +80,17 @@ void ref_matrix(const MatrixType &m) {
 
 template <typename VectorType>
 void ref_vector(const VectorType &m) {
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename VectorType::RealScalar RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1, VectorType::Options> DynMatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> MatrixType;
-  typedef Matrix<RealScalar, Dynamic, 1, VectorType::Options> RealDynMatrixType;
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename VectorType::RealScalar;
+  using DynMatrixType = Matrix<Scalar, Dynamic, 1, VectorType::Options>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RealDynMatrixType = Matrix<RealScalar, Dynamic, 1, VectorType::Options>;
 
-  typedef Ref<VectorType> RefMat;
-  typedef Ref<DynMatrixType> RefDynMat;
-  typedef Ref<const DynMatrixType> ConstRefDynMat;
-  typedef Ref<RealDynMatrixType, 0, InnerStride<>> RefRealMatWithStride;
-  typedef Ref<DynMatrixType, 0, InnerStride<>> RefMatWithStride;
+  using RefMat = Ref<VectorType>;
+  using RefDynMat = Ref<DynMatrixType>;
+  using ConstRefDynMat = Ref<const DynMatrixType>;
+  using RefRealMatWithStride = Ref<RealDynMatrixType, 0, InnerStride<>>;
+  using RefMatWithStride = Ref<DynMatrixType, 0, InnerStride<>>;
 
   Index size = m.size();
 
@@ -151,13 +151,13 @@ void ref_vector(const VectorType &m) {
 
 template <typename Scalar, int Rows, int Cols>
 void ref_vector_fixed_sizes() {
-  typedef Matrix<Scalar, Rows, Cols, RowMajor> RowMajorMatrixType;
-  typedef Matrix<Scalar, Rows, Cols, ColMajor> ColMajorMatrixType;
-  typedef Matrix<Scalar, 1, Cols> RowVectorType;
-  typedef Matrix<Scalar, Rows, 1> ColVectorType;
-  typedef Matrix<Scalar, Cols, 1> RowVectorTransposeType;
-  typedef Matrix<Scalar, 1, Rows> ColVectorTransposeType;
-  typedef Stride<Dynamic, Dynamic> DynamicStride;
+  using RowMajorMatrixType = Matrix<Scalar, Rows, Cols, RowMajor>;
+  using ColMajorMatrixType = Matrix<Scalar, Rows, Cols, ColMajor>;
+  using RowVectorType = Matrix<Scalar, 1, Cols>;
+  using ColVectorType = Matrix<Scalar, Rows, 1>;
+  using RowVectorTransposeType = Matrix<Scalar, Cols, 1>;
+  using ColVectorTransposeType = Matrix<Scalar, 1, Rows>;
+  using DynamicStride = Stride<Dynamic, Dynamic>;
 
   RowMajorMatrixType mr = RowMajorMatrixType::Random();
   ColMajorMatrixType mc = ColMajorMatrixType::Random();
@@ -214,7 +214,7 @@ void ref_vector_fixed_sizes() {
 template <typename PlainObjectType>
 void check_const_correctness(const PlainObjectType &) {
   // verify that ref-to-const don't have LvalueBit
-  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
+  using ConstPlainObjectType = std::add_const_t<PlainObjectType>;
   VERIFY(!(internal::traits<Ref<ConstPlainObjectType>>::Flags & LvalueBit));
   VERIFY(!(internal::traits<Ref<ConstPlainObjectType, Aligned>>::Flags & LvalueBit));
   VERIFY(!(Ref<ConstPlainObjectType>::Flags & LvalueBit));
@@ -355,7 +355,7 @@ void call_ref() {
   VERIFY_EVALUATION_COUNT(call_ref_7(c, c), 0);
 }
 
-typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMatrixXd;
+using RowMatrixXd = Matrix<double, Dynamic, Dynamic, RowMajor>;
 int test_ref_overload_fun1(Ref<MatrixXd>) { return 1; }
 int test_ref_overload_fun1(Ref<RowMatrixXd>) { return 2; }
 int test_ref_overload_fun1(Ref<MatrixXf>) { return 3; }
@@ -391,8 +391,8 @@ struct RefDerived : Ref_ {
 
 template <typename MatrixType, typename Derived>
 void test_cref_move_ctor(const DenseBase<Derived> &expr) {
-  typedef Ref<const MatrixType> CRef;
-  typedef RefDerived<CRef> CRefDerived;
+  using CRef = Ref<const MatrixType>;
+  using CRefDerived = RefDerived<CRef>;
 
   const bool owns_data = !bool(internal::traits<CRef>::template match<Derived>::type::value);
   CRef cref1(expr);
@@ -407,8 +407,8 @@ void test_cref_move_ctor(const DenseBase<Derived> &expr) {
 
 template <typename MatrixType>
 void test_contiguous_ref_no_copy(const PlainObjectBase<MatrixType> &obj) {
-  typedef Ref<MatrixType, Unaligned, Stride<0, 0>> Ref_;
-  typedef Ref<const MatrixType, Unaligned, Stride<0, 0>> CRef_;
+  using Ref_ = Ref<MatrixType, Unaligned, Stride<0, 0>>;
+  using CRef_ = Ref<const MatrixType, Unaligned, Stride<0, 0>>;
   MatrixType m(obj);
   Ref_ ref(m);
   VERIFY(test_is_equal(ref.data(), m.data(), true));

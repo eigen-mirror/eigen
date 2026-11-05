@@ -17,31 +17,31 @@
 namespace Eigen {
 namespace internal {
 
-typedef eigen_packet_wrapper<vbfloat16m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 26> Packet1Xbf;
-typedef eigen_packet_wrapper<vbfloat16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 27>
-    Packet2Xbf;
+using Packet1Xbf = eigen_packet_wrapper<vbfloat16m1_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL))), 26>;
+using Packet2Xbf =
+    eigen_packet_wrapper<vbfloat16m2_t __attribute__((riscv_rvv_vector_bits(EIGEN_RISCV64_RVV_VL * 2))), 27>;
 
 template <>
 struct rvv_half_packet<Packet2Xbf> {
-  typedef Packet1Xbf type;
+  using type = Packet1Xbf;
 };
 
 template <>
 struct unpacket_traits<Packet1Xbf> : rvv_default_unpacket_traits<bfloat16, Packet1Xbf, 1> {
-  typedef Packet1Xs integer_packet;
-  typedef PacketMask16 packet_mask;
+  using integer_packet = Packet1Xs;
+  using packet_mask = PacketMask16;
 };
 
 template <>
 struct unpacket_traits<Packet2Xbf> : rvv_default_unpacket_traits<bfloat16, Packet2Xbf, 2> {
-  typedef Packet2Xs integer_packet;
-  typedef PacketMask8 packet_mask;
+  using integer_packet = Packet2Xs;
+  using packet_mask = PacketMask8;
 };
 
 #if EIGEN_RISCV64_DEFAULT_LMUL == 1
-typedef Packet1Xbf PacketXbf;
+using PacketXbf = Packet1Xbf;
 #else
-typedef Packet2Xbf PacketXbf;
+using PacketXbf = Packet2Xbf;
 #endif
 
 template <>

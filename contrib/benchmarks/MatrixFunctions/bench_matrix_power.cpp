@@ -8,8 +8,8 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+using Scalar = double;
+using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
 static void BM_MatrixSqrt(benchmark::State& state) {
   int n = state.range(0);

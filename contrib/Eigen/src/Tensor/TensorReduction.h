@@ -30,23 +30,23 @@ namespace Eigen {
 namespace internal {
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 struct traits<TensorReductionOp<Op, Dims, XprType, MakePointer_> > : traits<XprType> {
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::Scalar Scalar;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using XprTraits = traits<XprType>;
+  using Scalar = typename XprTraits::Scalar;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions - array_size<Dims>::value;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 
   template <class T>
   struct MakePointer {
-    typedef typename MakePointer_<T>::Type Type;
+    using Type = typename MakePointer_<T>::Type;
   };
 };
 
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 struct eval<TensorReductionOp<Op, Dims, XprType, MakePointer_>, Eigen::Dense> {
-  typedef const TensorReductionOp<Op, Dims, XprType, MakePointer_>& type;
+  using type = const TensorReductionOp<Op, Dims, XprType, MakePointer_>&;
 };
 
 template <typename OutputDims>
@@ -395,7 +395,7 @@ struct FullReducer<Self, Op, ThreadPoolDevice, Vectorizable> {
   // launch one reducer per thread and accumulate the result.
   static void run(const Self& self, Op& reducer, const ThreadPoolDevice& device,
                   typename Self::CoeffReturnType* output) {
-    typedef typename Self::Index Index;
+    using Index = typename Self::Index;
     const Index num_coeffs = array_prod(self.m_impl.dimensions());
     if (num_coeffs == 0) {
       *output = reducer.finalize(reducer.initialize());
@@ -512,9 +512,9 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void OuterReductionKernel(R, const S, I_
 template <typename Op, typename CoeffReturnType>
 struct ReductionReturnType {
 #if defined(EIGEN_USE_SYCL)
-  typedef std::remove_const_t<decltype(std::declval<Op>().initialize())> type;
+  using type = std::remove_const_t<decltype(std::declval<Op>().initialize())>;
 #else
-  typedef std::remove_const_t<CoeffReturnType> type;
+  using type = std::remove_const_t<CoeffReturnType>;
 #endif
 };
 
@@ -529,12 +529,12 @@ struct ReductionReturnType {
 template <typename Op, typename Dims, typename XprType, template <class> class MakePointer_>
 class TensorReductionOp : public TensorBase<TensorReductionOp<Op, Dims, XprType, MakePointer_>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorReductionOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorReductionOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorReductionOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorReductionOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorReductionOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using Nested = typename Eigen::internal::ref_selector<TensorReductionOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorReductionOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorReductionOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorReductionOp(const XprType& expr, const Dims& dims)
       : m_expr(expr), m_dims(dims) {}
@@ -593,26 +593,26 @@ struct TensorReductionEvaluatorBase;
 // Eval as rvalue
 template <typename Op, typename Dims, typename ArgType, template <class> class MakePointer_, typename Device>
 struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> {
-  typedef internal::reducer_traits<Op, Device> ReducerTraits;
-  typedef Dims ReducedDims;
-  typedef TensorReductionOp<Op, Dims, ArgType, MakePointer_> XprType;
-  typedef typename XprType::Index Index;
-  typedef ArgType ChildType;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions InputDimensions;
+  using ReducerTraits = internal::reducer_traits<Op, Device>;
+  using ReducedDims = Dims;
+  using XprType = TensorReductionOp<Op, Dims, ArgType, MakePointer_>;
+  using Index = typename XprType::Index;
+  using ChildType = ArgType;
+  using InputDimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
   static constexpr int NumInputDims = internal::array_size<InputDimensions>::value;
   static constexpr int NumReducedDims = internal::array_size<Dims>::value;
   static constexpr int NumOutputDims = NumInputDims - NumReducedDims;
-  typedef std::conditional_t<NumOutputDims == 0, Sizes<>, DSizes<Index, NumOutputDims> > Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> Self;
+  using Dimensions = std::conditional_t<NumOutputDims == 0, Sizes<>, DSizes<Index, NumOutputDims> >;
+  using Scalar = typename XprType::Scalar;
+  using Self = TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device>;
   static constexpr bool InputPacketAccess = TensorEvaluator<ArgType, Device>::PacketAccess;
-  typedef typename internal::ReductionReturnType<Op, typename XprType::CoeffReturnType>::type CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using CoeffReturnType = typename internal::ReductionReturnType<Op, typename XprType::CoeffReturnType>::type;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr Index PacketSize = PacketType<CoeffReturnType, Device>::size;
 
-  typedef typename Eigen::internal::traits<XprType>::PointerType TensorPointerType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename Eigen::internal::traits<XprType>::PointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   // Subset of strides of the input tensor for the non-reduced dimensions.
   // Indexed by output dimensions.
@@ -640,10 +640,10 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   static constexpr bool ReducingInnerMostDims = internal::are_inner_most_dims<Dims, NumInputDims, Layout>::value;
@@ -1090,15 +1090,15 @@ struct TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, M
 template <typename Op, typename Dims, typename ArgType, template <class> class MakePointer_, typename Device>
 struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device>
     : public TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> {
-  typedef TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device> Base;
+  using Base = TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Device>;
   EIGEN_STRONG_INLINE TensorEvaluator(const typename Base::XprType& op, const Device& device) : Base(op, device) {}
 };
 
 template <typename Op, typename Dims, typename ArgType, template <class> class MakePointer_>
 struct TensorEvaluator<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice>
     : public TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice> {
-  typedef TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice>
-      Base;
+  using Base =
+      TensorReductionEvaluatorBase<const TensorReductionOp<Op, Dims, ArgType, MakePointer_>, Eigen::SyclDevice>;
   EIGEN_STRONG_INLINE TensorEvaluator(const typename Base::XprType& op, const Eigen::SyclDevice& device)
       : Base(op, device) {}
   // The base coeff function uses a recursive method that is not standard layout and cannot be used in

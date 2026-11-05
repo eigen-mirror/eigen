@@ -15,10 +15,10 @@ void replicate(const MatrixType& m) {
   /* this test covers the following files:
      Replicate.cpp
   */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
-  typedef Matrix<Scalar, Dynamic, 1> VectorX;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorX = Matrix<Scalar, Dynamic, 1>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -147,10 +147,10 @@ void replicate_flexible_indexers() {
 template <typename Scalar>
 void check_replicate_evaluator_flags() {
   // Storage orders are pinned so the checks keep their meaning under EIGEN_DEFAULT_TO_ROW_MAJOR.
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> Mat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, 1, Dynamic> RowVec;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RowVec = Matrix<Scalar, 1, Dynamic>;
   enum { BasePacket = int(internal::evaluator<Mat>::Flags) & PacketAccessBit };
 
   // Inner direction not replicated: packets serve from a single copy of the argument. The first
@@ -172,9 +172,9 @@ void check_replicate_evaluator_flags() {
 // Exercise the (possibly vectorized) broadcast kernels with sizes that have partial-packet tails.
 template <typename Scalar>
 void replicate_broadcasts(Index rows, Index cols) {
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, 1, Dynamic> RowVec;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using RowVec = Matrix<Scalar, 1, Dynamic>;
 
   Mat m = Mat::Random(rows, cols);
   Vec v = Vec::Random(rows);

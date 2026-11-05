@@ -18,9 +18,9 @@
 
 template <typename MatrixType, template <typename, int> class CholType>
 void test_chol_update(const MatrixType& symm) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   MatrixType symmLo = symm.template triangularView<Lower>();
   MatrixType symmUp = symm.template triangularView<Upper>();
@@ -142,10 +142,10 @@ void cholesky(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   MatrixType a0 = MatrixType::Random(rows, cols);
   VectorType vecB = VectorType::Random(rows), vecX(rows);
@@ -363,10 +363,10 @@ void cholesky_cplx(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> RealMatrixType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealMatrixType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   RealMatrixType a0 = RealMatrixType::Random(rows, cols);
   VectorType vecB = VectorType::Random(rows), vecX(rows);
@@ -412,8 +412,8 @@ template <typename MatrixType>
 void cholesky_bug241(const MatrixType& m) {
   eigen_assert(m.rows() == 2 && m.cols() == 2);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
 
   MatrixType matA;
   matA << 1, 1, 1, 1;
@@ -922,9 +922,9 @@ void cholesky_ldlt_rankupdate_zero_components(const MatrixType& m) {
 // Drawing the |D_ii| from an annulus keeps A well conditioned and log|det(A)| away from zero.
 template <typename MatrixType>
 void cholesky_determinant(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
 
   MatrixType q = MatrixType::Random(size, size).householderQr().householderQ();
   RealVectorType d(size);
@@ -961,8 +961,8 @@ void cholesky_determinant(Index size) {
 // The determinant of an empty matrix is the empty product, 1.
 template <typename MatrixType>
 void cholesky_determinant_empty() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   MatrixType empty(0, 0);
 
@@ -983,8 +983,8 @@ void cholesky_determinant_empty() {
 // a diagonal of 10^4, det = 10^800 overflows every supported float type while log|det| = 800 log 10 does not.
 template <typename MatrixType>
 void cholesky_determinant_overflow() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   const Index size = 200;
   for (bool overflow : {true, false}) {
@@ -1078,9 +1078,9 @@ void cholesky_verify_assert() {
 // blocked and unblocked paths, including triangular solve boundaries.
 template <typename Scalar>
 void cholesky_blocking_boundary() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> VectorType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
 
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1, 2, 3,  PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1, 7,
@@ -1114,8 +1114,8 @@ void cholesky_blocking_boundary() {
 // Test Cholesky with RowMajor storage at blocking boundaries.
 template <typename Scalar>
 void cholesky_rowmajor_boundary() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMatrixType;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RowMatrixType = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   const Index sizes[] = {7, 8, 9, 15, 16, 17, 31, 32, 33};
   for (Index si = 0; si < Index(sizeof(sizes) / sizeof(sizes[0])); ++si) {
@@ -1138,7 +1138,7 @@ void cholesky_rowmajor_boundary() {
 // they take for rcond(), whose workspace comes from the stack.
 template <typename Scalar>
 void cholesky_dynamic_preallocated_no_malloc() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   Index size = 8;
   MatrixType A = MatrixType::Random(size, size);
   MatrixType spd = A * A.adjoint() + MatrixType::Identity(size, size) * Scalar(size);

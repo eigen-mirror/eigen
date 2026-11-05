@@ -36,17 +36,17 @@ class companion {
 
   enum { Deg = Deg_, Deg_1 = decrement_if_fixed_size<Deg>::value };
 
-  typedef Scalar_ Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Deg, 1> RightColumn;
-  typedef Matrix<Scalar, Deg_1, 1> BottomLeftDiagonal;
+  using Scalar = Scalar_;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using RightColumn = Matrix<Scalar, Deg, 1>;
+  using BottomLeftDiagonal = Matrix<Scalar, Deg_1, 1>;
 
-  typedef Matrix<Scalar, Deg, Deg> DenseCompanionMatrixType;
-  typedef Matrix<Scalar, Deg_, Deg_1> LeftBlock;
-  typedef Matrix<Scalar, Deg_1, Deg_1> BottomLeftBlock;
-  typedef Matrix<Scalar, 1, Deg_1> LeftBlockFirstRow;
+  using DenseCompanionMatrixType = Matrix<Scalar, Deg, Deg>;
+  using LeftBlock = Matrix<Scalar, Deg_, Deg_1>;
+  using BottomLeftBlock = Matrix<Scalar, Deg_1, Deg_1>;
+  using LeftBlockFirstRow = Matrix<Scalar, 1, Deg_1>;
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
  public:
   EIGEN_STRONG_INLINE const Scalar_ operator()(Index row, Index col) const {

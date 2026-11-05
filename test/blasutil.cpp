@@ -40,7 +40,7 @@ void compare(const Packet& a, const Packet& b) {
 
 template <typename Scalar, int StorageOrder, int n>
 struct PacketBlockSet {
-  typedef typename internal::packet_traits<Scalar>::type Packet;
+  using Packet = typename internal::packet_traits<Scalar>::type;
 
   void setPacketBlock(internal::PacketBlock<Packet, n>& block, Scalar value) {
     for (int idx = 0; idx < n; idx++) {
@@ -58,10 +58,10 @@ struct PacketBlockSet {
 
 template <typename Scalar, int StorageOrder, int BlockSize>
 void run_bdmp_spec_1() {
-  typedef internal::blas_data_mapper<Scalar, int, StorageOrder> BlasDataMapper;
+  using BlasDataMapper = internal::blas_data_mapper<Scalar, int, StorageOrder>;
   int packetSize = internal::packet_traits<Scalar>::size;
   int minSize = std::max<int>(packetSize, BlockSize);
-  typedef typename internal::packet_traits<Scalar>::type Packet;
+  using Packet = typename internal::packet_traits<Scalar>::type;
 
   int szm = internal::random<int>(minSize, 500), szn = internal::random<int>(minSize, 500);
   int stride = StorageOrder == RowMajor ? szn : szm;

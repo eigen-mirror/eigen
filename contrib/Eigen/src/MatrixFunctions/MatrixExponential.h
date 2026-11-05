@@ -57,8 +57,8 @@ MatrixType matrix_exp_scale(const ArgType& arg, int squarings) {
  */
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade3(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatA>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatA>::Scalar>::Real;
   const RealScalar b[] = {120.L, 60.L, 12.L, 1.L};
   const MatrixType A2 = A * A;
   const MatrixType tmp = b[3] * A2 + b[1] * MatrixType::Identity(A.rows(), A.cols());
@@ -73,8 +73,8 @@ void matrix_exp_pade3(const MatA& A, MatU& U, MatV& V) {
  */
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade5(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatrixType>::Scalar>::Real;
   const RealScalar b[] = {30240.L, 15120.L, 3360.L, 420.L, 30.L, 1.L};
   const MatrixType A2 = A * A;
   const MatrixType A4 = A2 * A2;
@@ -90,8 +90,8 @@ void matrix_exp_pade5(const MatA& A, MatU& U, MatV& V) {
  */
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade7(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatrixType>::Scalar>::Real;
   const RealScalar b[] = {17297280.L, 8648640.L, 1995840.L, 277200.L, 25200.L, 1512.L, 56.L, 1.L};
   const MatrixType A2 = A * A;
   const MatrixType A4 = A2 * A2;
@@ -108,8 +108,8 @@ void matrix_exp_pade7(const MatA& A, MatU& U, MatV& V) {
  */
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade9(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatrixType>::Scalar>::Real;
   const RealScalar b[] = {17643225600.L, 8821612800.L, 2075673600.L, 302702400.L, 30270240.L,
                           2162160.L,     110880.L,     3960.L,       90.L,        1.L};
   const MatrixType A2 = A * A;
@@ -129,8 +129,8 @@ void matrix_exp_pade9(const MatA& A, MatU& U, MatV& V) {
  */
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade13(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatrixType>::Scalar>::Real;
   const RealScalar b[] = {64764752532480000.L,
                           32382376266240000.L,
                           7771770303897600.L,
@@ -167,8 +167,8 @@ void matrix_exp_pade13(const MatA& A, MatU& U, MatV& V) {
 #if LDBL_MANT_DIG > 64
 template <typename MatA, typename MatU, typename MatV>
 void matrix_exp_pade17(const MatA& A, MatU& U, MatV& V) {
-  typedef typename MatA::PlainObject MatrixType;
-  typedef typename NumTraits<typename traits<MatrixType>::Scalar>::Real RealScalar;
+  using MatrixType = typename MatA::PlainObject;
+  using RealScalar = typename NumTraits<typename traits<MatrixType>::Scalar>::Real;
   const RealScalar b[] = {830034394580628357120000.L,
                           415017197290314178560000.L,
                           100610229646136770560000.L,
@@ -353,7 +353,7 @@ using is_exp_known_type = bool_constant<std::is_same<T, float>::value || std::is
 template <typename ArgType, typename ResultType>
 void matrix_exp_compute(const ArgType& arg, ResultType& result, std::true_type)  // natively supported scalar type
 {
-  typedef typename ArgType::PlainObject MatrixType;
+  using MatrixType = typename ArgType::PlainObject;
   MatrixType U, V;
   int squarings;
   matrix_exp_computeUV<MatrixType>::run(arg, U, V, squarings);  // Pade approximant is (U+V) / (-U+V)
@@ -371,8 +371,8 @@ void matrix_exp_compute(const ArgType& arg, ResultType& result, std::true_type) 
 template <typename ArgType, typename ResultType>
 void matrix_exp_compute(const ArgType& arg, ResultType& result, std::false_type)  // default
 {
-  typedef typename ArgType::PlainObject MatrixType;
-  typedef make_complex_t<typename traits<MatrixType>::Scalar> ComplexScalar;
+  using MatrixType = typename ArgType::PlainObject;
+  using ComplexScalar = make_complex_t<typename traits<MatrixType>::Scalar>;
   result = arg.matrixFunction(internal::stem_function_exp<ComplexScalar>);
 }
 
@@ -417,7 +417,7 @@ struct MatrixExponentialReturnValue : public ReturnByValue<MatrixExponentialRetu
 namespace internal {
 template <typename Derived>
 struct traits<MatrixExponentialReturnValue<Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 }  // namespace internal
 

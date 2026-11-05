@@ -63,7 +63,7 @@ EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet perfc(const Packet& 
 /** \internal \returns the ndtri(\a a) (coeff-wise) */
 template <typename Packet>
 EIGEN_DECLARE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pndtri(const Packet& a) {
-  typedef typename unpacket_traits<Packet>::type ScalarType;
+  using ScalarType = typename unpacket_traits<Packet>::type;
   using internal::generic_ndtri;
   return generic_ndtri<Packet, ScalarType>(a);
 }

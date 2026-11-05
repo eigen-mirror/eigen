@@ -58,8 +58,8 @@ MatrixType scaled_selfadjoint_for_residual(const MatrixType& matrix, typename Ma
 
 template <typename MatrixType>
 void selfadjointeigensolver_essential_check(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   RealScalar eival_eps =
       numext::mini<RealScalar>(test_precision<RealScalar>(), NumTraits<Scalar>::dummy_precision() * 20000);
 
@@ -141,8 +141,8 @@ void selfadjointeigensolver(const MatrixType& m) {
   Index rows = m.rows();
   Index cols = m.cols();
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   RealScalar largerEps = 10 * test_precision<RealScalar>();
 
@@ -281,8 +281,8 @@ void selfadjointeigensolver(const MatrixType& m) {
 // Test matrices with exact eigenvalue multiplicities.
 template <typename MatrixType>
 void selfadjointeigensolver_repeated_eigenvalues(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index n = m.rows();
   if (n < 2) return;
 
@@ -333,8 +333,8 @@ void selfadjointeigensolver_repeated_eigenvalues(const MatrixType& m) {
 template <typename MatrixType>
 void selfadjointeigensolver_extreme_eigenvalues(const MatrixType& m) {
   using std::pow;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index n = m.rows();
   if (n < 2) return;
 
@@ -445,13 +445,13 @@ void selfadjointeigensolver_subnormal_coefficients() {
 // Test computeFromTridiagonal with scaled inputs (regression for missing scaling).
 template <typename MatrixType>
 void selfadjointeigensolver_tridiagonal_scaled(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index n = m.rows();
   if (n < 2) return;
 
   // Create a tridiagonal matrix with large entries.
-  typedef Matrix<RealScalar, Dynamic, 1> RealVectorType;
+  using RealVectorType = Matrix<RealScalar, Dynamic, 1>;
   RealVectorType diag(n), subdiag(n - 1);
 
   // Case 1: Large values.
@@ -511,8 +511,8 @@ void selfadjointeigensolver_dense_deflation_scale_invariance() {
 template <typename RealScalar>
 void selfadjointeigensolver_tridiagonal_wide_range() {
   using std::sqrt;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
 
   // Block 1: entries near overflow threshold.
   // Block 2: entries near 1.
@@ -586,7 +586,7 @@ void selfadjointeigensolver_tridiagonal_wide_range() {
 // Test computeFromTridiagonal with structured hard-case matrices from the literature.
 template <typename RealScalar>
 void selfadjointeigensolver_structured_tridiagonal() {
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
 
   test::for_all_symmetric_tridiag_test_matrices<RealScalar>([](const auto& diag, const auto& offdiag) {
     Index n = diag.size();
@@ -638,8 +638,8 @@ void selfadjointeigensolver_structured_tridiagonal() {
 // Test with diagonal matrices (tridiagonalization is trivial).
 template <typename MatrixType>
 void selfadjointeigensolver_diagonal(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index n = m.rows();
 
   // Random diagonal matrix.
@@ -688,10 +688,10 @@ void selfadjointeigensolver_inverse_sqrt(const MatrixType& m) {
 // Test that RowMajor matrices work correctly with computeDirect.
 template <int>
 void selfadjointeigensolver_rowmajor() {
-  typedef Matrix<double, 3, 3, RowMajor> RowMajorMatrix3d;
-  typedef Matrix<double, 2, 2, RowMajor> RowMajorMatrix2d;
-  typedef Matrix<float, 3, 3, RowMajor> RowMajorMatrix3f;
-  typedef Matrix<float, 2, 2, RowMajor> RowMajorMatrix2f;
+  using RowMajorMatrix3d = Matrix<double, 3, 3, RowMajor>;
+  using RowMajorMatrix2d = Matrix<double, 2, 2, RowMajor>;
+  using RowMajorMatrix3f = Matrix<float, 3, 3, RowMajor>;
+  using RowMajorMatrix2f = Matrix<float, 2, 2, RowMajor>;
 
   // 3x3 RowMajor double
   {
@@ -740,7 +740,7 @@ void selfadjointeigensolver_rowmajor() {
 
   // Dynamic RowMajor with iterative solver
   {
-    typedef Matrix<double, Dynamic, Dynamic, RowMajor> RowMajorMatrixXd;
+    using RowMajorMatrixXd = Matrix<double, Dynamic, Dynamic, RowMajor>;
     int s = internal::random<int>(2, 20);
     RowMajorMatrixXd a = RowMajorMatrixXd::Random(s, s);
     RowMajorMatrixXd symmA = a.transpose() * a;
@@ -939,8 +939,8 @@ void direct_2x2_stress() {
 // allocate in compute(), for any of the three generalized problem types.
 template <typename MatrixType>
 void generalizedselfadjointeigensolver_no_malloc() {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index n = 20;
 
   MatrixType a = MatrixType::Random(n, n);

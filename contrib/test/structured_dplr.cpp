@@ -18,7 +18,7 @@ using namespace Eigen;
 template <typename Scalar>
 void random_dplr(Index n, Index k, Matrix<Scalar, Dynamic, 1>& d, Matrix<Scalar, Dynamic, Dynamic>& U,
                  Matrix<Scalar, Dynamic, Dynamic>& V) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   d = Matrix<Scalar, Dynamic, 1>::Random(n);
   d.array() += Scalar(RealScalar(3));
   U = Scalar(RealScalar(0.5)) * Matrix<Scalar, Dynamic, Dynamic>::Random(n, k);
@@ -43,8 +43,8 @@ Matrix<Scalar, Dynamic, Dynamic> reference_dplr(const Matrix<Scalar, Dynamic, 1>
 
 template <typename Scalar>
 void test_dplr_product(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -78,8 +78,8 @@ void test_dplr_product(Index n, Index k) {
 
 template <typename Scalar>
 void test_dplr_transpose(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -101,8 +101,8 @@ void test_dplr_transpose(Index n, Index k) {
 
 template <typename Scalar>
 void test_dplr_solve(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -127,8 +127,8 @@ void test_dplr_solve(Index n, Index k) {
 
 template <typename Scalar>
 void test_dplr_inverse_determinant(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -151,9 +151,9 @@ void test_dplr_inverse_determinant(Index n, Index k) {
 
 template <typename Scalar>
 void test_dplr_matrix_free_gmres(Index n, Index k) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -178,8 +178,8 @@ void test_dplr_matrix_free_gmres(Index n, Index k) {
 // expressions referencing the destination.
 template <typename Scalar>
 void test_dplr_aliased_product(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Pin the routing: the structured products must dispatch through the shared
   // structured_product_impl.
@@ -224,8 +224,8 @@ void test_dplr_aliased_product(Index n, Index k) {
 // would read freed memory if the product held a reference instead.
 template <typename Scalar>
 void test_dplr_delayed_product(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<DiagonalPlusLowRank<Scalar>>::type>::value);
 
@@ -249,11 +249,11 @@ void test_dplr_delayed_product(Index n, Index k) {
 // type rather than the operator scalar.
 template <typename RealScalar>
 void test_dplr_mixed_scalar(Index n, Index k) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> RMat;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using RMat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec d;
   RMat U, V;
@@ -287,11 +287,11 @@ void test_dplr_mixed_scalar(Index n, Index k) {
 // still saturate to infinity / zero.
 template <typename = void>
 void test_dplr_determinant_scaled() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
+  using Complex = std::complex<double>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   {
     // The reviewer's magnitude regime: det(D) = 1e200 * 1e200 * 1e-100 = 1e300 is
@@ -349,10 +349,10 @@ void test_dplr_determinant_scaled() {
 // latter from the LU pivots rather than the plain pivot product .determinant() would form.
 template <typename = void>
 void test_dplr_determinant_capacitance() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
-  typedef std::complex<double> Complex;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
+  using Complex = std::complex<double>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
   const double eps = NumTraits<double>::epsilon();
 
   {
@@ -424,8 +424,8 @@ void test_dplr_determinant_capacitance() {
 // evaluation.
 template <typename Scalar>
 void test_dplr_capacitance_plain(Index n, Index k) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec d;
   Mat U, V;
@@ -451,10 +451,10 @@ void test_dplr_capacitance_plain(Index n, Index k) {
 // diagonal it is.
 template <typename Scalar, int N>
 void test_dplr_fixed_rank0() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, N, 1> VecN;
-  typedef Matrix<Scalar, N, 0> FacN0;
-  typedef Matrix<Scalar, N, N> MatN;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VecN = Matrix<Scalar, N, 1>;
+  using FacN0 = Matrix<Scalar, N, 0>;
+  using MatN = Matrix<Scalar, N, N>;
 
   VecN d = VecN::Random();
   d.array() += Scalar(RealScalar(3));
@@ -493,11 +493,11 @@ void test_dplr_fixed_rank0() {
 
 template <typename Scalar, int N, int K>
 void test_dplr_fixed() {
-  typedef Matrix<Scalar, N, 1> VecN;
-  typedef Matrix<Scalar, N, K> FacNK;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using VecN = Matrix<Scalar, N, 1>;
+  using FacNK = Matrix<Scalar, N, K>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   VecN d = VecN::Random();
   d.array() += Scalar(RealScalar(3));

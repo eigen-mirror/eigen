@@ -12,7 +12,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // Macro to define a benchmark for a unary tensor operation.
 #define BENCH_TENSOR_UNARY(NAME, EXPR)                                        \

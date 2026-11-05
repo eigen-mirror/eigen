@@ -19,7 +19,7 @@ void test_incompleteLUT_T() {
 
 template <typename T>
 void test_extract_LU() {
-  typedef Eigen::SparseMatrix<T> SparseMatrix;
+  using SparseMatrix = Eigen::SparseMatrix<T>;
 
   SparseMatrix A(5, 5);
   std::vector<Eigen::Triplet<T>> triplets;
@@ -86,8 +86,8 @@ void test_extract_LU() {
 // produces a useless preconditioner.
 template <typename T>
 void test_zero_diagonal_2626() {
-  typedef Eigen::SparseMatrix<T> SparseMatrixT;
-  typedef Eigen::Matrix<T, Eigen::Dynamic, 1> Vector;
+  using SparseMatrixT = Eigen::SparseMatrix<T>;
+  using Vector = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 
   const int n = 50;
   // 1D Laplacian: SPD, fully nonzero diagonal.
@@ -133,7 +133,7 @@ void test_zero_diagonal_2626() {
 // This covers the rownorm == 0 early-return path.
 template <typename T>
 void test_structurally_singular() {
-  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  using SparseMatrixT = Eigen::SparseMatrix<T>;
   std::vector<Eigen::Triplet<T>> triplets;
   triplets.emplace_back(0, 0, T(2));
   triplets.emplace_back(0, 1, T(1));
@@ -157,7 +157,7 @@ void test_structurally_singular() {
 // NumericalIssue.
 template <typename T>
 void test_zero_pivot_numerical_issue() {
-  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  using SparseMatrixT = Eigen::SparseMatrix<T>;
   SparseMatrixT A(3, 3);
   std::vector<Eigen::Triplet<T>> triplets;
   triplets.emplace_back(0, 0, T(1));
@@ -177,7 +177,7 @@ void test_zero_pivot_numerical_issue() {
 // factorize a numerically nonzero matrix sharing that pattern.
 template <typename T>
 void test_pattern_value_separation() {
-  typedef Eigen::SparseMatrix<T> SparseMatrixT;
+  using SparseMatrixT = Eigen::SparseMatrix<T>;
   SparseMatrixT pattern(2, 2);
   pattern.insert(0, 1) = T(0);
   pattern.insert(1, 0) = T(0);

@@ -81,7 +81,7 @@ void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVect
 template <typename KnotVectorType, typename ParameterVectorType, typename IndexArray>
 void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const unsigned int degree,
                                   const IndexArray& derivativeIndices, KnotVectorType& knots) {
-  typedef typename ParameterVectorType::Scalar Scalar;
+  using Scalar = typename ParameterVectorType::Scalar;
 
   DenseIndex numParameters = parameters.size();
   DenseIndex numDerivatives = derivativeIndices.size();
@@ -173,7 +173,7 @@ void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const u
  **/
 template <typename PointArrayType, typename KnotVectorType>
 void ChordLengths(const PointArrayType& pts, KnotVectorType& chord_lengths) {
-  typedef typename KnotVectorType::Scalar Scalar;
+  using Scalar = typename KnotVectorType::Scalar;
 
   const DenseIndex n = pts.cols();
 
@@ -197,8 +197,8 @@ void ChordLengths(const PointArrayType& pts, KnotVectorType& chord_lengths) {
  **/
 template <typename SplineType>
 struct SplineFitting {
-  typedef typename SplineType::KnotVectorType KnotVectorType;
-  typedef typename SplineType::ParameterVectorType ParameterVectorType;
+  using KnotVectorType = typename SplineType::KnotVectorType;
+  using ParameterVectorType = typename SplineType::ParameterVectorType;
 
   /**
    * \brief Fits an interpolating Spline to the given data points.
@@ -270,10 +270,10 @@ template <typename SplineType>
 template <typename PointArrayType>
 SplineType SplineFitting<SplineType>::Interpolate(const PointArrayType& pts, DenseIndex degree,
                                                   const KnotVectorType& knot_parameters) {
-  typedef typename SplineType::KnotVectorType::Scalar Scalar;
-  typedef typename SplineType::ControlPointVectorType ControlPointVectorType;
+  using Scalar = typename SplineType::KnotVectorType::Scalar;
+  using ControlPointVectorType = typename SplineType::ControlPointVectorType;
 
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   KnotVectorType knots;
   KnotAveraging(knot_parameters, degree, knots);
@@ -312,10 +312,10 @@ SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArra
                                                                  const IndexArray& derivativeIndices,
                                                                  const unsigned int degree,
                                                                  const ParameterVectorType& parameters) {
-  typedef typename SplineType::KnotVectorType::Scalar Scalar;
-  typedef typename SplineType::ControlPointVectorType ControlPointVectorType;
+  using Scalar = typename SplineType::KnotVectorType::Scalar;
+  using ControlPointVectorType = typename SplineType::ControlPointVectorType;
 
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   const DenseIndex n = points.cols() + derivatives.cols();
 

@@ -10,7 +10,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Rank-2 transpose ---
 static void BM_Shuffle2D(benchmark::State& state) {

@@ -11,7 +11,7 @@
 #include "common.h"
 
 struct scalar_norm1_op {
-  typedef RealScalar result_type;
+  using result_type = RealScalar;
   inline RealScalar operator()(const Scalar &a) const { return Eigen::numext::norm1(a); }
 };
 namespace Eigen {

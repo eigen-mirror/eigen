@@ -83,7 +83,7 @@ class vml_assign_traits {
   struct Assignment<DstXprType, CwiseUnaryOp<scalar_##EIGENOP##_op<EIGENTYPE>, SrcXprNested>,               \
                     assign_op<EIGENTYPE, EIGENTYPE>, Dense2Dense,                                           \
                     std::enable_if_t<vml_assign_traits<DstXprType, SrcXprNested>::EnableVml>> {             \
-    typedef CwiseUnaryOp<scalar_##EIGENOP##_op<EIGENTYPE>, SrcXprNested> SrcXprType;                        \
+    using SrcXprType = CwiseUnaryOp<scalar_##EIGENOP##_op<EIGENTYPE>, SrcXprNested>;                        \
     static void run(DstXprType &dst, const SrcXprType &src, const assign_op<EIGENTYPE, EIGENTYPE> &func) {  \
       resize_if_allowed(dst, src, func);                                                                    \
       eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());                                   \
@@ -139,34 +139,33 @@ EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(floor, Floor, _)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(ceil, Ceil, _)
 EIGEN_MKL_VML_DECLARE_UNARY_CALLS_REAL(cbrt, Cbrt, _)
 
-#define EIGEN_MKL_VML_DECLARE_POW_CALL(EIGENOP, VMLOP, EIGENTYPE, VMLTYPE, VMLMODE)                        \
-  template <typename DstXprType, typename SrcXprNested, typename Plain>                                    \
-  struct Assignment<DstXprType,                                                                            \
-                    CwiseBinaryOp<scalar_##EIGENOP##_op<EIGENTYPE, EIGENTYPE>, SrcXprNested,               \
-                                  const CwiseNullaryOp<internal::scalar_constant_op<EIGENTYPE>, Plain>>,   \
-                    assign_op<EIGENTYPE, EIGENTYPE>, Dense2Dense,                                          \
-                    std::enable_if_t<vml_assign_traits<DstXprType, SrcXprNested>::EnableVml>> {            \
-    typedef CwiseBinaryOp<scalar_##EIGENOP##_op<EIGENTYPE, EIGENTYPE>, SrcXprNested,                       \
-                          const CwiseNullaryOp<internal::scalar_constant_op<EIGENTYPE>, Plain>>            \
-        SrcXprType;                                                                                        \
-    static void run(DstXprType &dst, const SrcXprType &src, const assign_op<EIGENTYPE, EIGENTYPE> &func) { \
-      resize_if_allowed(dst, src, func);                                                                   \
-      eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());                                  \
-      VMLTYPE exponent = reinterpret_cast<const VMLTYPE &>(src.rhs().functor().m_other);                   \
-      EIGEN_IF_CONSTEXPR (vml_assign_traits<DstXprType, SrcXprNested>::Traversal == LinearTraversal) {     \
-        VMLOP(dst.size(), (const VMLTYPE *)src.lhs().data(), exponent,                                     \
-              (VMLTYPE *)dst.data() EIGEN_PP_EXPAND(EIGEN_VMLMODE_EXPAND_x##VMLMODE));                     \
-      } else {                                                                                             \
-        const Index outerSize = dst.outerSize();                                                           \
-        for (Index outer = 0; outer < outerSize; ++outer) {                                                \
-          const EIGENTYPE *src_ptr =                                                                       \
-              src.IsRowMajor ? &(src.lhs().coeffRef(outer, 0)) : &(src.lhs().coeffRef(0, outer));          \
-          EIGENTYPE *dst_ptr = dst.IsRowMajor ? &(dst.coeffRef(outer, 0)) : &(dst.coeffRef(0, outer));     \
-          VMLOP(dst.innerSize(), (const VMLTYPE *)src_ptr, exponent,                                       \
-                (VMLTYPE *)dst_ptr EIGEN_PP_EXPAND(EIGEN_VMLMODE_EXPAND_x##VMLMODE));                      \
-        }                                                                                                  \
-      }                                                                                                    \
-    }                                                                                                      \
+#define EIGEN_MKL_VML_DECLARE_POW_CALL(EIGENOP, VMLOP, EIGENTYPE, VMLTYPE, VMLMODE)                         \
+  template <typename DstXprType, typename SrcXprNested, typename Plain>                                     \
+  struct Assignment<DstXprType,                                                                             \
+                    CwiseBinaryOp<scalar_##EIGENOP##_op<EIGENTYPE, EIGENTYPE>, SrcXprNested,                \
+                                  const CwiseNullaryOp<internal::scalar_constant_op<EIGENTYPE>, Plain>>,    \
+                    assign_op<EIGENTYPE, EIGENTYPE>, Dense2Dense,                                           \
+                    std::enable_if_t<vml_assign_traits<DstXprType, SrcXprNested>::EnableVml>> {             \
+    using SrcXprType = CwiseBinaryOp<scalar_##EIGENOP##_op<EIGENTYPE, EIGENTYPE>, SrcXprNested,             \
+                                     const CwiseNullaryOp<internal::scalar_constant_op<EIGENTYPE>, Plain>>; \
+    static void run(DstXprType &dst, const SrcXprType &src, const assign_op<EIGENTYPE, EIGENTYPE> &func) {  \
+      resize_if_allowed(dst, src, func);                                                                    \
+      eigen_assert(dst.rows() == src.rows() && dst.cols() == src.cols());                                   \
+      VMLTYPE exponent = reinterpret_cast<const VMLTYPE &>(src.rhs().functor().m_other);                    \
+      EIGEN_IF_CONSTEXPR (vml_assign_traits<DstXprType, SrcXprNested>::Traversal == LinearTraversal) {      \
+        VMLOP(dst.size(), (const VMLTYPE *)src.lhs().data(), exponent,                                      \
+              (VMLTYPE *)dst.data() EIGEN_PP_EXPAND(EIGEN_VMLMODE_EXPAND_x##VMLMODE));                      \
+      } else {                                                                                              \
+        const Index outerSize = dst.outerSize();                                                            \
+        for (Index outer = 0; outer < outerSize; ++outer) {                                                 \
+          const EIGENTYPE *src_ptr =                                                                        \
+              src.IsRowMajor ? &(src.lhs().coeffRef(outer, 0)) : &(src.lhs().coeffRef(0, outer));           \
+          EIGENTYPE *dst_ptr = dst.IsRowMajor ? &(dst.coeffRef(outer, 0)) : &(dst.coeffRef(0, outer));      \
+          VMLOP(dst.innerSize(), (const VMLTYPE *)src_ptr, exponent,                                        \
+                (VMLTYPE *)dst_ptr EIGEN_PP_EXPAND(EIGEN_VMLMODE_EXPAND_x##VMLMODE));                       \
+        }                                                                                                   \
+      }                                                                                                     \
+    }                                                                                                       \
   };
 
 EIGEN_MKL_VML_DECLARE_POW_CALL(pow, vmsPowx, float, float, LA)

@@ -58,7 +58,7 @@ void run_matrix_tests() {
 
 template <typename Scalar>
 void run_vector_tests() {
-  typedef Matrix<Scalar, 1, Eigen::Dynamic> VectorType;
+  using VectorType = Matrix<Scalar, 1, Eigen::Dynamic>;
 
   VectorType m, n;
 
@@ -116,8 +116,8 @@ void run_vector_tests() {
 // Basic memory leak check with a non-copyable scalar type
 template <int>
 void noncopyable() {
-  typedef Eigen::Matrix<AnnoyingScalar, Dynamic, 1> VectorType;
-  typedef Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic> MatrixType;
+  using VectorType = Eigen::Matrix<AnnoyingScalar, Dynamic, 1>;
+  using MatrixType = Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic>;
 
   {
 #ifndef EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW

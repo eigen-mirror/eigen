@@ -70,21 +70,21 @@ inline klu_numeric *klu_factor(int Ap[], int Ai[], std::complex<double> Ax[], kl
 template <typename MatrixType_>
 class KLU : public SparseSolverBase<KLU<MatrixType_> > {
  protected:
-  typedef SparseSolverBase<KLU<MatrixType_> > Base;
+  using Base = SparseSolverBase<KLU<MatrixType_> >;
   using Base::m_isInitialized;
 
  public:
   using Base::_solve_impl;
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
-  typedef Matrix<Scalar, Dynamic, 1> Vector;
-  typedef Matrix<int, 1, MatrixType::ColsAtCompileTime> IntRowVectorType;
-  typedef Matrix<int, MatrixType::RowsAtCompileTime, 1> IntColVectorType;
-  typedef SparseMatrix<Scalar> LUMatrixType;
-  typedef SparseMatrix<Scalar, ColMajor, int> KLUMatrixType;
-  typedef Ref<const KLUMatrixType, StandardCompressedFormat> KLUMatrixRef;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  using IntRowVectorType = Matrix<int, 1, MatrixType::ColsAtCompileTime>;
+  using IntColVectorType = Matrix<int, MatrixType::RowsAtCompileTime, 1>;
+  using LUMatrixType = SparseMatrix<Scalar>;
+  using KLUMatrixType = SparseMatrix<Scalar, ColMajor, int>;
+  using KLUMatrixRef = Ref<const KLUMatrixType, StandardCompressedFormat>;
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime, MaxColsAtCompileTime = MatrixType::MaxColsAtCompileTime };
 
  public:

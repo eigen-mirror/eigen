@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename Generator, typename XprType>
 struct traits<TensorGeneratorOp<Generator, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename Generator, typename XprType>
 struct eval<TensorGeneratorOp<Generator, XprType>, Eigen::Dense> {
-  typedef const TensorGeneratorOp<Generator, XprType>& type;
+  using type = const TensorGeneratorOp<Generator, XprType>&;
 };
 
 }  // end namespace internal
@@ -43,12 +43,12 @@ struct eval<TensorGeneratorOp<Generator, XprType>, Eigen::Dense> {
 template <typename Generator, typename XprType>
 class TensorGeneratorOp : public TensorBase<TensorGeneratorOp<Generator, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorGeneratorOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorGeneratorOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorGeneratorOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorGeneratorOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorGeneratorOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorGeneratorOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorGeneratorOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorGeneratorOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorGeneratorOp(const XprType& expr, const Generator& generator)
       : m_xpr(expr), m_generator(generator) {}
@@ -65,15 +65,15 @@ class TensorGeneratorOp : public TensorBase<TensorGeneratorOp<Generator, XprType
 // Eval as rvalue
 template <typename Generator, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
-  typedef TensorGeneratorOp<Generator, ArgType> XprType;
-  typedef typename XprType::Index Index;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
+  using XprType = TensorGeneratorOp<Generator, ArgType>;
+  using Index = typename XprType::Index;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
     IsAligned = false,
@@ -84,13 +84,13 @@ struct TensorEvaluator<const TensorGeneratorOp<Generator, ArgType>, Device> {
     RawAccess = false
   };
 
-  typedef internal::TensorIntDivisor<Index> IndexDivisor;
+  using IndexDivisor = internal::TensorIntDivisor<Index>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)

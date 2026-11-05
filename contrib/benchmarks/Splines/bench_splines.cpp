@@ -9,15 +9,15 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
+using Scalar = double;
 
 // --- Spline fitting (interpolation) ---
 template <int Dim, int Degree>
 static void BM_SplineFit(benchmark::State& state) {
   const int n = state.range(0);
 
-  typedef Spline<Scalar, Dim> SplineType;
-  typedef typename SplineType::PointType PointType;
+  using SplineType = Spline<Scalar, Dim>;
+  using PointType = typename SplineType::PointType;
 
   // Generate random points.
   Matrix<Scalar, Dim, Dynamic> pts(Dim, n);
@@ -36,7 +36,7 @@ static void BM_SplineEval(benchmark::State& state) {
   const int n = state.range(0);  // number of control points for fitting
   const int neval = 1000;        // number of evaluation points
 
-  typedef Spline<Scalar, Dim> SplineType;
+  using SplineType = Spline<Scalar, Dim>;
 
   Matrix<Scalar, Dim, Dynamic> pts(Dim, n);
   pts.setRandom();
@@ -61,7 +61,7 @@ static void BM_SplineDerivatives(benchmark::State& state) {
   const int n = state.range(0);
   const int neval = 1000;
 
-  typedef Spline<Scalar, Dim> SplineType;
+  using SplineType = Spline<Scalar, Dim>;
 
   Matrix<Scalar, Dim, Dynamic> pts(Dim, n);
   pts.setRandom();

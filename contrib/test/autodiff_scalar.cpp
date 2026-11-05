@@ -27,8 +27,8 @@
 
 template <typename Scalar>
 void check_atan2() {
-  typedef Matrix<Scalar, 1, 1> Deriv1;
-  typedef AutoDiffScalar<Deriv1> AD;
+  using Deriv1 = Matrix<Scalar, 1, 1>;
+  using AD = AutoDiffScalar<Deriv1>;
 
   AD x(internal::random<Scalar>(-3.0, 3.0), Deriv1::UnitX());
 
@@ -51,8 +51,8 @@ void check_hyperbolic_functions() {
   using std::cosh;
   using std::sinh;
   using std::tanh;
-  typedef Matrix<Scalar, 1, 1> Deriv1;
-  typedef AutoDiffScalar<Deriv1> AD;
+  using Deriv1 = Matrix<Scalar, 1, 1>;
+  using AD = AutoDiffScalar<Deriv1>;
   Deriv1 p = Deriv1::Random();
   AD val(p.x(), Deriv1::UnitX());
 
@@ -84,11 +84,11 @@ void check_hyperbolic_functions() {
 
 template <typename Scalar>
 void check_limits_specialization() {
-  typedef Eigen::Matrix<Scalar, 1, 1> Deriv;
-  typedef Eigen::AutoDiffScalar<Deriv> AD;
+  using Deriv = Eigen::Matrix<Scalar, 1, 1>;
+  using AD = Eigen::AutoDiffScalar<Deriv>;
 
-  typedef std::numeric_limits<AD> A;
-  typedef std::numeric_limits<Scalar> B;
+  using A = std::numeric_limits<AD>;
+  using B = std::numeric_limits<Scalar>;
 
   // workaround "unused typedef" warning:
   VERIFY(!bool(std::is_same<B, A>::value));
@@ -102,8 +102,8 @@ void check_limits_specialization() {
 // for inputs with equal values but different derivative vectors.
 template <typename Scalar>
 void check_min_max_equal_values() {
-  typedef Eigen::Matrix<Scalar, 2, 1> Deriv2;
-  typedef Eigen::AutoDiffScalar<Deriv2> AD;
+  using Deriv2 = Eigen::Matrix<Scalar, 2, 1>;
+  using AD = Eigen::AutoDiffScalar<Deriv2>;
 
   AD a(Scalar(1), Deriv2(Scalar(1), Scalar(0)));
   AD b(Scalar(1), Deriv2(Scalar(0), Scalar(1)));

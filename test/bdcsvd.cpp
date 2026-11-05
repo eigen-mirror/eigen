@@ -29,8 +29,8 @@
 template <typename MatrixType>
 void bdcsvd_method() {
   enum { Size = MatrixType::RowsAtCompileTime };
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<RealScalar, Size, 1> RealVecType;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RealVecType = Matrix<RealScalar, Size, 1>;
   MatrixType m = MatrixType::Identity();
   VERIFY_IS_APPROX(m.bdcSvd().singularValues(), RealVecType::Ones());
   VERIFY_RAISES_ASSERT(m.bdcSvd().matrixU());
@@ -95,8 +95,8 @@ void bdcsvd_check_convergence(const MatrixType& input) {
 template <typename RealScalar, int Options = ComputeFullU | ComputeFullV>
 void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                            const Matrix<RealScalar, Dynamic, 1>& superdiag) {
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorXr;
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorXr = Matrix<RealScalar, Dynamic, 1>;
   const Index n = diag.size();
 
   BDCSVD<MatrixXr, Options> bdcsvd(diag, superdiag);
@@ -134,7 +134,7 @@ void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
 template <typename RealScalar, int Options = 0>
 void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                                      const Matrix<RealScalar, Dynamic, 1>& superdiag) {
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixXr;
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic>;
   const Index n = diag.size();
 
   // Build dense bidiagonal matrix.
@@ -170,7 +170,7 @@ void bdcsvd_bidiagonal_hard_cases() {
 
   // Additional SVD-specific test: scalar for n=1.
   {
-    typedef Matrix<RealScalar, Dynamic, 1> VectorXr;
+    using VectorXr = Matrix<RealScalar, Dynamic, 1>;
     VectorXr diag(1), offdiag(0);
     diag(0) = RealScalar(3.14);
     verify_bidiagonal_svd<RealScalar>(diag, offdiag);
@@ -241,7 +241,7 @@ void bdcsvd_precondition_square_matrix_bidiagonal(Index n) {
 #if defined(EIGEN_TEST_PART_53) || defined(EIGEN_TEST_PART_ALL)
 template <typename = void>
 void bdcsvd_extreme_scale_regressions() {
-  typedef Matrix<double, 6, 6> Matrix6d;
+  using Matrix6d = Matrix<double, 6, 6>;
   const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
 
   const auto verify_decomposition = [kTolerance](const Matrix6d& matrix) {

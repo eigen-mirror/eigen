@@ -459,21 +459,21 @@ class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, Ma
 #define EIGEN_MAKE_TYPEDEFS(Type, TypeSuffix, Size, SizeSuffix)    \
   /** \ingroup matrixtypedefs */                                   \
   /** \brief `Size`&times;`Size` matrix of type `Type`. */         \
-  typedef Matrix<Type, Size, Size> Matrix##SizeSuffix##TypeSuffix; \
+  using Matrix##SizeSuffix##TypeSuffix = Matrix<Type, Size, Size>; \
   /** \ingroup matrixtypedefs */                                   \
   /** \brief `Size`&times;`1` vector of type `Type`. */            \
-  typedef Matrix<Type, Size, 1> Vector##SizeSuffix##TypeSuffix;    \
+  using Vector##SizeSuffix##TypeSuffix = Matrix<Type, Size, 1>;    \
   /** \ingroup matrixtypedefs */                                   \
   /** \brief `1`&times;`Size` vector of type `Type`. */            \
-  typedef Matrix<Type, 1, Size> RowVector##SizeSuffix##TypeSuffix;
+  using RowVector##SizeSuffix##TypeSuffix = Matrix<Type, 1, Size>;
 
 #define EIGEN_MAKE_FIXED_TYPEDEFS(Type, TypeSuffix, Size)          \
   /** \ingroup matrixtypedefs */                                   \
   /** \brief `Size`&times;`Dynamic` matrix of type `Type`. */      \
-  typedef Matrix<Type, Size, Dynamic> Matrix##Size##X##TypeSuffix; \
+  using Matrix##Size##X##TypeSuffix = Matrix<Type, Size, Dynamic>; \
   /** \ingroup matrixtypedefs */                                   \
   /** \brief `Dynamic`&times;`Size` matrix of type `Type`. */      \
-  typedef Matrix<Type, Dynamic, Size> Matrix##X##Size##TypeSuffix;
+  using Matrix##X##Size##TypeSuffix = Matrix<Type, Dynamic, Size>;
 
 #define EIGEN_MAKE_TYPEDEFS_ALL_SIZES(Type, TypeSuffix) \
   EIGEN_MAKE_TYPEDEFS(Type, TypeSuffix, 2, 2)           \

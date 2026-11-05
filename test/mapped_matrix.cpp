@@ -15,7 +15,7 @@
 
 template <typename VectorType>
 void map_class_vector(const VectorType& m) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
 
   Index size = m.size();
 
@@ -50,7 +50,7 @@ void map_class_vector(const VectorType& m) {
 
 template <typename MatrixType>
 void map_class_matrix(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index rows = m.rows(), cols = m.cols(), size = rows * cols;
   Scalar s1 = random_scalar_for_arithmetic<Scalar>();
@@ -136,7 +136,7 @@ void map_class_matrix(const MatrixType& m) {
 
 template <typename VectorType>
 void map_static_methods(const VectorType& m) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
 
   Index size = m.size();
 
@@ -168,7 +168,7 @@ void check_const_correctness(const PlainObjectType&) {
   // CMake can help with that.
 
   // verify that map-to-const don't have LvalueBit
-  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
+  using ConstPlainObjectType = std::add_const_t<PlainObjectType>;
   VERIFY(!(internal::traits<Map<ConstPlainObjectType>>::Flags & LvalueBit));
   VERIFY(!(internal::traits<Map<ConstPlainObjectType, AlignedMax>>::Flags & LvalueBit));
   VERIFY(!(Map<ConstPlainObjectType>::Flags & LvalueBit));
@@ -185,7 +185,7 @@ void map_inner_stride_boundary() {
   for (int si = 0; si < 10; ++si) {
     const Index n = sizes[si];
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    using Vec = Matrix<Scalar, Dynamic, 1>;
     // InnerStride<2>: every other element
     Vec data = random_for_arithmetic<Vec>(2 * n);
     Map<Vec, 0, InnerStride<2>> strided(data.data(), n);
@@ -214,7 +214,7 @@ void map_inner_stride_boundary() {
 template <typename Scalar>
 void map_outer_stride_boundary() {
   const Index PS = internal::packet_traits<Scalar>::size;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   // Test various inner dimensions around packet size
   const Index inner_sizes[] = {1, PS - 1, PS, PS + 1, 2 * PS, 2 * PS + 1};
   const Index outer_stride = numext::maxi<Index>(64, 2 * PS + 1);  // large enough for any inner size
@@ -223,7 +223,7 @@ void map_outer_stride_boundary() {
   for (int si = 0; si < 6; ++si) {
     Index rows = inner_sizes[si];
     if (rows <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    using Vec = Matrix<Scalar, Dynamic, 1>;
     Vec data = random_for_arithmetic<Vec>(outer_stride * cols);
     Map<Mat, 0, OuterStride<>> mapped(data.data(), rows, cols, OuterStride<>(outer_stride));
 

@@ -33,10 +33,10 @@ void test_dense_quaternion_row_order() {
 
 template <typename MatrixType>
 void product_extra(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
-  typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, MatrixType::Flags & RowMajorBit> OtherMajorMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RowVectorType = Matrix<Scalar, 1, Dynamic>;
+  using ColVectorType = Matrix<Scalar, Dynamic, 1>;
+  using OtherMajorMatrixType = Matrix<Scalar, Dynamic, Dynamic, MatrixType::Flags & RowMajorBit>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -152,7 +152,7 @@ void mat_mat_scalar_scalar_product() {
 
 template <typename MatrixType>
 void zero_sized_objects(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   const int PacketSize = internal::packet_traits<Scalar>::size;
   constexpr int PacketSize1 = PacketSize > 1 ? PacketSize - 1 : 1;
   Index rows = m.rows();
@@ -426,7 +426,7 @@ void bug_1308() {
   VERIFY_IS_APPROX(m44.noalias() = Matrix4d::Ones() * ones44, Matrix4d::Constant(4));
   VERIFY_IS_APPROX(m44.noalias() = Matrix4d::Ones() * ones44.transpose(), Matrix4d::Constant(4));
 
-  typedef Matrix<double, 4, 4, RowMajor> RMatrix4d;
+  using RMatrix4d = Matrix<double, 4, 4, RowMajor>;
   RMatrix4d r44 = Matrix4d::Ones() * Matrix4d::Ones();
   VERIFY_IS_APPROX(r44, Matrix4d::Constant(4));
   VERIFY_IS_APPROX(r44.noalias() = ones44 * Matrix4d::Ones(), Matrix4d::Constant(4));
@@ -629,8 +629,8 @@ void product_custom_scalar_types() {
 // but only at random sizes, never systematically at packet boundaries.
 template <int>
 void gemv_complex_conjugate() {
-  typedef std::complex<float> Scf;
-  typedef std::complex<double> Scd;
+  using Scf = std::complex<float>;
+  using Scd = std::complex<double>;
   const Index PS_f = internal::packet_traits<Scf>::size;
   const Index PS_d = internal::packet_traits<Scd>::size;
 
@@ -641,8 +641,8 @@ void gemv_complex_conjugate() {
     Index m = sizes[si];
     // Test complex<float> GEMV with all conjugation combos.
     {
-      typedef Matrix<Scf, Dynamic, Dynamic> Mat;
-      typedef Matrix<Scf, Dynamic, 1> Vec;
+      using Mat = Matrix<Scf, Dynamic, Dynamic>;
+      using Vec = Matrix<Scf, Dynamic, 1>;
       Mat A = Mat::Random(m, m);
       Vec v = Vec::Random(m);
       Vec res(m);
@@ -669,7 +669,7 @@ void gemv_complex_conjugate() {
       VERIFY_IS_APPROX(res2, (A.adjoint().eval() * v.eval()).eval());
 
       // Row-major complex GEMV
-      typedef Matrix<Scf, Dynamic, Dynamic, RowMajor> RMat;
+      using RMat = Matrix<Scf, Dynamic, Dynamic, RowMajor>;
       RMat B = A;
       res.noalias() = B * v;
       VERIFY_IS_APPROX(res, (A.eval() * v.eval()).eval());
@@ -680,8 +680,8 @@ void gemv_complex_conjugate() {
 
     // Test complex<double> GEMV with conjugation.
     {
-      typedef Matrix<Scd, Dynamic, Dynamic> Mat;
-      typedef Matrix<Scd, Dynamic, 1> Vec;
+      using Mat = Matrix<Scd, Dynamic, Dynamic>;
+      using Vec = Matrix<Scd, Dynamic, 1>;
       Mat A = Mat::Random(m, m);
       Vec v = Vec::Random(m);
       Vec res(m);
@@ -766,8 +766,8 @@ void gemv_remainder_sweep() {
 // Inf/NaN operands make a kernel that ran anyway visible as a NaN.
 template <typename Scalar, int Order>
 void alpha_zero_skips_gemm(Index m, Index k, Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, Order> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
 
   const Scalar pos_zero = Scalar(0);
   const Scalar neg_zero = Scalar(-RealScalar(0));
@@ -797,10 +797,10 @@ void alpha_zero_skips_gemm(Index m, Index k, Index n) {
 
 template <typename Scalar>
 void alpha_zero_skips_kernel() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMat;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMat = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   const Index m = 17, k = 13, n = 11;
   const Scalar inf = Scalar(NumTraits<RealScalar>::infinity());

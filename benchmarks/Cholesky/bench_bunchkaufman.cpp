@@ -16,9 +16,9 @@ using namespace Eigen;
 #define SCALAR double
 #endif
 
-typedef SCALAR Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-typedef Matrix<Scalar, Dynamic, 1> VectorType;
+using Scalar = SCALAR;
+using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+using VectorType = Matrix<Scalar, Dynamic, 1>;
 
 // Half-flops symmetric-factorization cost (multiply + add counted separately), matching bench_cholesky.cpp.
 static double symmetric_factorization_cost(int n) {

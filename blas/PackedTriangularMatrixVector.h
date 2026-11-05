@@ -20,7 +20,7 @@ struct packed_triangular_matrix_vector_product;
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs>
 struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScalar, ConjRhs, ColMajor> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   enum {
     IsLower = (Mode & Lower) == Lower,
     HasUnitDiag = (Mode & UnitDiag) == UnitDiag,
@@ -28,9 +28,9 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
   };
   static void run(Index size, const LhsScalar* lhs, const RhsScalar* rhs, ResScalar* res, ResScalar alpha) {
     internal::conj_if<ConjRhs> cj;
-    typedef Map<const Matrix<LhsScalar, Dynamic, 1> > LhsMap;
-    typedef conj_expr_if<ConjLhs, LhsMap> ConjLhsType;
-    typedef Map<Matrix<ResScalar, Dynamic, 1> > ResMap;
+    using LhsMap = Map<const Matrix<LhsScalar, Dynamic, 1> >;
+    using ConjLhsType = conj_expr_if<ConjLhs, LhsMap>;
+    using ResMap = Map<Matrix<ResScalar, Dynamic, 1> >;
 
     for (Index i = 0; i < size; ++i) {
       Index s = IsLower && (HasUnitDiag || HasZeroDiag) ? 1 : 0;
@@ -48,7 +48,7 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs>
 struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, RhsScalar, ConjRhs, RowMajor> {
-  typedef typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType ResScalar;
+  using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
   enum {
     IsLower = (Mode & Lower) == Lower,
     HasUnitDiag = (Mode & UnitDiag) == UnitDiag,
@@ -56,10 +56,10 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
   };
   static void run(Index size, const LhsScalar* lhs, const RhsScalar* rhs, ResScalar* res, ResScalar alpha) {
     internal::conj_if<ConjRhs> cj;
-    typedef Map<const Matrix<LhsScalar, Dynamic, 1> > LhsMap;
-    typedef conj_expr_if<ConjLhs, LhsMap> ConjLhsType;
-    typedef Map<const Matrix<RhsScalar, Dynamic, 1> > RhsMap;
-    typedef conj_expr_if<ConjRhs, RhsMap> ConjRhsType;
+    using LhsMap = Map<const Matrix<LhsScalar, Dynamic, 1> >;
+    using ConjLhsType = conj_expr_if<ConjLhs, LhsMap>;
+    using RhsMap = Map<const Matrix<RhsScalar, Dynamic, 1> >;
+    using ConjRhsType = conj_expr_if<ConjRhs, RhsMap>;
 
     for (Index i = 0; i < size; ++i) {
       Index s = !IsLower && (HasUnitDiag || HasZeroDiag) ? 1 : 0;

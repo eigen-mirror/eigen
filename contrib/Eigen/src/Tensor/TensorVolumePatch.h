@@ -15,18 +15,18 @@ namespace internal {
 
 template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
 struct traits<TensorVolumePatchOp<Planes, Rows, Cols, XprType>> : traits<XprType> {
-  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = std::remove_const_t<typename XprType::Scalar>;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
 struct eval<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, Eigen::Dense> {
-  typedef const TensorVolumePatchOp<Planes, Rows, Cols, XprType>& type;
+  using type = const TensorVolumePatchOp<Planes, Rows, Cols, XprType>&;
 };
 
 }  // end namespace internal
@@ -49,12 +49,12 @@ struct eval<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, Eigen::Dense> {
 template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename XprType>
 class TensorVolumePatchOp : public TensorBase<TensorVolumePatchOp<Planes, Rows, Cols, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorVolumePatchOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorVolumePatchOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorVolumePatchOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorVolumePatchOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorVolumePatchOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorVolumePatchOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorVolumePatchOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorVolumePatchOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorVolumePatchOp(
       const XprType& expr, DenseIndex patch_planes, DenseIndex patch_rows, DenseIndex patch_cols,
@@ -166,18 +166,18 @@ class TensorVolumePatchOp : public TensorBase<TensorVolumePatchOp<Planes, Rows, 
 // Eval as rvalue
 template <DenseIndex Planes, DenseIndex Rows, DenseIndex Cols, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, Device> {
-  typedef TensorVolumePatchOp<Planes, Rows, Cols, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorVolumePatchOp<Planes, Rows, Cols, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumInputDims =
       internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   static constexpr int NumDims = NumInputDims + 1;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef std::remove_const_t<typename XprType::Scalar> Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = std::remove_const_t<typename XprType::Scalar>;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -196,9 +196,9 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-  typedef typename internal::TensorMaterializedBlock<Scalar, NumDims, Layout, Index> TensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
+  using TensorBlock = typename internal::TensorMaterializedBlock<Scalar, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -597,7 +597,7 @@ struct TensorEvaluator<const TensorVolumePatchOp<Planes, Rows, Cols, ArgType>, D
       }
     }
 
-    typedef internal::StridedLinearBufferCopy<Scalar, Index> LinCopy;
+    using LinCopy = internal::StridedLinearBufferCopy<Scalar, Index>;
 
     // The loop nest below visits the block in exactly its memory order (the
     // storage returned by prepareStorage() is dense with the block's own

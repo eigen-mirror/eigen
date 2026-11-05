@@ -444,7 +444,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erfc<double>::run(const T& 
 
 template <typename T>
 struct erfc_impl {
-  typedef typename unpacket_traits<T>::type Scalar;
+  using Scalar = typename unpacket_traits<T>::type;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return run_impl(x, std::is_same<T, Scalar>()); }
 
  private:
@@ -564,7 +564,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T generic_fast_erf<double>::run(const T& x
 
 template <typename T>
 struct erf_impl {
-  typedef typename unpacket_traits<T>::type Scalar;
+  using Scalar = typename unpacket_traits<T>::type;
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T& x) { return run_impl(x, std::is_same<T, Scalar>()); }
 
  private:

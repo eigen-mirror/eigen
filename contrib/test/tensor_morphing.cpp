@@ -66,7 +66,7 @@ static void test_reshape_in_expr() {
   // The TensorMaps below alias the matrix data as default-layout (col-major)
   // tensors, so pin the matrices to ColMajor: MatrixXf would not match under
   // EIGEN_DEFAULT_TO_ROW_MAJOR.
-  typedef Matrix<float, Dynamic, Dynamic, ColMajor> Mtx;
+  using Mtx = Matrix<float, Dynamic, Dynamic, ColMajor>;
   Mtx m1(2, 3 * 5 * 7 * 11);
   Mtx m2(3 * 5 * 7 * 11, 13);
   m1.setRandom();
@@ -77,7 +77,7 @@ static void test_reshape_in_expr() {
   TensorMap<Tensor<float, 5>> tensor2(m2.data(), 3, 5, 7, 11, 13);
   Tensor<float, 2>::Dimensions newDims1(2, 3 * 5 * 7 * 11);
   Tensor<float, 2>::Dimensions newDims2(3 * 5 * 7 * 11, 13);
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   array<DimPair, 1> contract_along{{DimPair(1, 0)}};
   Tensor<float, 2> tensor3(2, 13);
   tensor3 = tensor1.reshape(newDims1).contract(tensor2.reshape(newDims2), contract_along);
@@ -149,7 +149,7 @@ static void test_const_slice() {
 
 template <typename T, int DataLayout>
 static void test_slice_in_expr() {
-  typedef Matrix<T, Dynamic, Dynamic, DataLayout> Mtx;
+  using Mtx = Matrix<T, Dynamic, Dynamic, DataLayout>;
   Mtx m1(7, 7);
   Mtx m2(3, 3);
   m1.setRandom();
@@ -160,7 +160,7 @@ static void test_slice_in_expr() {
   TensorMap<Tensor<T, 2, DataLayout>> tensor1(m1.data(), 7, 7);
   TensorMap<Tensor<T, 2, DataLayout>> tensor2(m2.data(), 3, 3);
   Tensor<T, 2, DataLayout> tensor3(3, 1);
-  typedef typename Tensor<T, 1>::DimensionPair DimPair;
+  using DimPair = typename Tensor<T, 1>::DimensionPair;
   array<DimPair, 1> contract_along{{DimPair(1, 0)}};
 
   Eigen::DSizes<ptrdiff_t, 2> indices1(1, 2);
@@ -251,7 +251,7 @@ static void test_slice_raw_data() {
 
   Eigen::DSizes<ptrdiff_t, 4> offsets(1, 2, 3, 4);
   Eigen::DSizes<ptrdiff_t, 4> extents(1, 1, 1, 1);
-  typedef TensorEvaluator<decltype(tensor.slice(offsets, extents)), DefaultDevice> SliceEvaluator;
+  using SliceEvaluator = TensorEvaluator<decltype(tensor.slice(offsets, extents)), DefaultDevice>;
   auto slice1 = SliceEvaluator(tensor.slice(offsets, extents), DefaultDevice());
   VERIFY_IS_EQUAL(slice1.dimensions().TotalSize(), 1);
   VERIFY_IS_EQUAL(slice1.data()[0], tensor(1, 2, 3, 4));
@@ -338,10 +338,10 @@ static void test_slice_raw_data() {
 
 template <typename T, int DataLayout>
 static void test_strided_slice() {
-  typedef Tensor<T, 5, DataLayout> Tensor5f;
-  typedef Eigen::DSizes<Eigen::DenseIndex, 5> Index5;
-  typedef Tensor<T, 2, DataLayout> Tensor2f;
-  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+  using Tensor5f = Tensor<T, 5, DataLayout>;
+  using Index5 = Eigen::DSizes<Eigen::DenseIndex, 5>;
+  using Tensor2f = Tensor<T, 2, DataLayout>;
+  using Index2 = Eigen::DSizes<Eigen::DenseIndex, 2>;
   Tensor<T, 5, DataLayout> tensor(2, 3, 5, 7, 11);
   Tensor<T, 2, DataLayout> tensor2(7, 11);
   tensor.setRandom();
@@ -431,8 +431,8 @@ static void test_strided_slice() {
 
 template <typename T, int DataLayout>
 static void test_strided_slice_write() {
-  typedef Tensor<T, 2, DataLayout> Tensor2f;
-  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+  using Tensor2f = Tensor<T, 2, DataLayout>;
+  using Index2 = Eigen::DSizes<Eigen::DenseIndex, 2>;
 
   Tensor<T, 2, DataLayout> tensor(7, 11), tensor2(7, 11);
   tensor.setRandom();
@@ -457,14 +457,14 @@ static void test_strided_slice_write() {
 
 template <typename T, int DataLayout>
 static void test_strided_slice_packet_access() {
-  typedef Tensor<T, 2, DataLayout> Tensor2;
-  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+  using Tensor2 = Tensor<T, 2, DataLayout>;
+  using Index2 = Eigen::DSizes<Eigen::DenseIndex, 2>;
 
   // The strided-slice evaluators forward the nested evaluator's packet
   // access; the packet methods below are exercised through the executor.
-  typedef Eigen::TensorStridingSlicingOp<const Index2, const Index2, const Index2, const Tensor2> SliceOp;
-  typedef TensorEvaluator<const SliceOp, DefaultDevice> SliceEval;
-  typedef TensorEvaluator<const Tensor2, DefaultDevice> ArgEval;
+  using SliceOp = Eigen::TensorStridingSlicingOp<const Index2, const Index2, const Index2, const Tensor2>;
+  using SliceEval = TensorEvaluator<const SliceOp, DefaultDevice>;
+  using ArgEval = TensorEvaluator<const Tensor2, DefaultDevice>;
   static_assert(int(SliceEval::PacketAccess) == int(ArgEval::PacketAccess),
                 "strided slice must forward the nested evaluator's packet access");
 
@@ -536,8 +536,8 @@ static void test_strided_slice_packet_access() {
 
 template <typename = void>
 static void test_strided_slice_packet_cost() {
-  typedef Tensor<float, 2> Tensor2;
-  typedef Eigen::DSizes<Eigen::DenseIndex, 2> Index2;
+  using Tensor2 = Tensor<float, 2>;
+  using Index2 = Eigen::DSizes<Eigen::DenseIndex, 2>;
 
   Tensor2 tensor(32, 32);
   tensor.setRandom();

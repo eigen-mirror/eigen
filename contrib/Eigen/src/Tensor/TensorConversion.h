@@ -20,18 +20,18 @@ namespace internal {
 template <typename TargetType, typename XprType>
 struct traits<TensorConversionOp<TargetType, XprType> > {
   // Type promotion to handle the case where the types of the lhs and the rhs are different.
-  typedef TargetType Scalar;
-  typedef typename traits<XprType>::StorageKind StorageKind;
-  typedef typename traits<XprType>::Index Index;
+  using Scalar = TargetType;
+  using StorageKind = typename traits<XprType>::StorageKind;
+  using Index = typename traits<XprType>::Index;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = traits<XprType>::Layout;
   enum { Flags = 0 };
-  typedef typename TypeConversion<Scalar, typename traits<XprType>::PointerType>::type PointerType;
+  using PointerType = typename TypeConversion<Scalar, typename traits<XprType>::PointerType>::type;
 };
 
 template <typename TargetType, typename XprType>
 struct eval<TensorConversionOp<TargetType, XprType>, Eigen::Dense> {
-  typedef const TensorConversionOp<TargetType, XprType>& type;
+  using type = const TensorConversionOp<TargetType, XprType>&;
 };
 
 }  // end namespace internal
@@ -130,8 +130,8 @@ struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 1, TgtCoeffRatio> 
       return internal::pcast<SrcPacket, TgtPacket>(m_impl.template packet<Unaligned>(index));
     } else {
       const int TgtPacketSize = internal::unpacket_traits<TgtPacket>::size;
-      typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-      typedef typename internal::unpacket_traits<TgtPacket>::type TgtType;
+      using SrcType = typename internal::unpacket_traits<SrcPacket>::type;
+      using TgtType = typename internal::unpacket_traits<TgtPacket>::type;
       internal::scalar_cast_op<SrcType, TgtType> converter;
       EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<TgtPacket>::alignment)
       typename internal::unpacket_traits<TgtPacket>::type values[TgtPacketSize];
@@ -159,12 +159,12 @@ struct PacketConverter<TensorEvaluator, SrcPacket, TgtPacket, 1, TgtCoeffRatio> 
 template <typename TargetType, typename XprType>
 class TensorConversionOp : public TensorBase<TensorConversionOp<TargetType, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename internal::traits<TensorConversionOp>::Scalar Scalar;
-  typedef typename internal::traits<TensorConversionOp>::StorageKind StorageKind;
-  typedef typename internal::traits<TensorConversionOp>::Index Index;
-  typedef typename internal::ref_selector<TensorConversionOp>::type Nested;
-  typedef Scalar CoeffReturnType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename internal::traits<TensorConversionOp>::Scalar;
+  using StorageKind = typename internal::traits<TensorConversionOp>::StorageKind;
+  using Index = typename internal::traits<TensorConversionOp>::Index;
+  using Nested = typename internal::ref_selector<TensorConversionOp>::type;
+  using CoeffReturnType = Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorConversionOp(const XprType& xpr) : m_xpr(xpr) {}
 
@@ -226,8 +226,8 @@ struct CoeffConv<SrcType, TargetType, true> {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode, bool ActuallyVectorize, bool IsSameT>
 struct PacketConv {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  using SrcType = typename internal::unpacket_traits<SrcPacket>::type;
+  using TargetType = typename internal::unpacket_traits<TargetPacket>::type;
 
   static constexpr int PacketSize = internal::unpacket_traits<TargetPacket>::size;
 
@@ -248,8 +248,8 @@ struct PacketConv {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode, bool IsSameT>
 struct PacketConv<SrcPacket, TargetPacket, LoadMode, true, IsSameT> {
-  typedef typename internal::unpacket_traits<SrcPacket>::type SrcType;
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  using SrcType = typename internal::unpacket_traits<SrcPacket>::type;
+  using TargetType = typename internal::unpacket_traits<TargetPacket>::type;
 
   template <typename ArgType, typename Device>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TargetPacket run(const TensorEvaluator<ArgType, Device>& impl,
@@ -264,7 +264,7 @@ struct PacketConv<SrcPacket, TargetPacket, LoadMode, true, IsSameT> {
 
 template <typename SrcPacket, typename TargetPacket, int LoadMode>
 struct PacketConv<SrcPacket, TargetPacket, LoadMode, /*ActuallyVectorize=*/false, /*IsSameT=*/true> {
-  typedef typename internal::unpacket_traits<TargetPacket>::type TargetType;
+  using TargetType = typename internal::unpacket_traits<TargetPacket>::type;
   static constexpr int PacketSize = internal::unpacket_traits<TargetPacket>::size;
 
   template <typename ArgType, typename Device>
@@ -291,18 +291,18 @@ struct PacketConv<SrcPacket, TargetPacket, LoadMode, /*ActuallyVectorize=*/true,
 // Eval as rvalue
 template <typename TargetType, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
-  typedef TensorConversionOp<TargetType, ArgType> XprType;
-  typedef typename XprType::Index Index;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
-  typedef TargetType Scalar;
-  typedef TargetType CoeffReturnType;
-  typedef internal::remove_all_t<typename internal::traits<ArgType>::Scalar> SrcType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef typename PacketType<SrcType, Device>::type PacketSourceType;
+  using XprType = TensorConversionOp<TargetType, ArgType>;
+  using Index = typename XprType::Index;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using Scalar = TargetType;
+  using CoeffReturnType = TargetType;
+  using SrcType = internal::remove_all_t<typename internal::traits<ArgType>::Scalar>;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using PacketSourceType = typename PacketType<SrcType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   static constexpr bool IsSameType = std::is_same<TargetType, SrcType>::value;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   enum {
     IsAligned = false,
@@ -322,15 +322,15 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
 
   struct TensorConversionOpBlockFactory {
     template <typename ArgXprType>
     struct XprType {
-      typedef TensorConversionOp<TargetType, const ArgXprType> type;
+      using type = TensorConversionOp<TargetType, const ArgXprType>;
     };
 
     template <typename ArgXprType>
@@ -339,7 +339,7 @@ struct TensorEvaluator<const TensorConversionOp<TargetType, ArgType>, Device> {
     }
   };
 
-  typedef internal::TensorUnaryExprBlock<TensorConversionOpBlockFactory, ArgTensorBlock> TensorBlock;
+  using TensorBlock = internal::TensorUnaryExprBlock<TensorConversionOpBlockFactory, ArgTensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : m_impl(op.expression(), device) {}

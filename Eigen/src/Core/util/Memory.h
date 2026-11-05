@@ -994,7 +994,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
   EIGEN_DEVICE_FUNC void operator delete[](void* ptr, const std::nothrow_t&) noexcept {                               \
     Eigen::internal::conditional_aligned_free<NeedsToAlign>(ptr);                                                     \
   }                                                                                                                   \
-  typedef void eigen_aligned_operator_new_marker_type;
+  using eigen_aligned_operator_new_marker_type = void;
 #else
 #define EIGEN_MAKE_ALIGNED_OPERATOR_NEW_IF(NeedsToAlign)
 #endif

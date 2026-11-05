@@ -26,20 +26,20 @@ class AutoDiffJacobian : public Functor {
   template <typename... T>
   AutoDiffJacobian(const T&... Values) : Functor(Values...) {}
 
-  typedef typename Functor::InputType InputType;
-  typedef typename Functor::ValueType ValueType;
-  typedef typename ValueType::Scalar Scalar;
+  using InputType = typename Functor::InputType;
+  using ValueType = typename Functor::ValueType;
+  using Scalar = typename ValueType::Scalar;
 
   enum { InputsAtCompileTime = InputType::RowsAtCompileTime, ValuesAtCompileTime = ValueType::RowsAtCompileTime };
 
-  typedef Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime> JacobianType;
-  typedef typename JacobianType::Index Index;
+  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
+  using Index = typename JacobianType::Index;
 
-  typedef Matrix<Scalar, InputsAtCompileTime, 1> DerivativeType;
-  typedef AutoDiffScalar<DerivativeType> ActiveScalar;
+  using DerivativeType = Matrix<Scalar, InputsAtCompileTime, 1>;
+  using ActiveScalar = AutoDiffScalar<DerivativeType>;
 
-  typedef Matrix<ActiveScalar, InputsAtCompileTime, 1> ActiveInput;
-  typedef Matrix<ActiveScalar, ValuesAtCompileTime, 1> ActiveValue;
+  using ActiveInput = Matrix<ActiveScalar, InputsAtCompileTime, 1>;
+  using ActiveValue = Matrix<ActiveScalar, ValuesAtCompileTime, 1>;
 
   // Some compilers don't accept variadic parameters after a default parameter,
   // i.e., we can't just write _jac=0 but we need to overload operator():

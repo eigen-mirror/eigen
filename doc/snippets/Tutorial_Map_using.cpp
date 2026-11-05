@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-typedef Matrix<float, 1, Dynamic> MatrixType;
-typedef Map<MatrixType> MapType;
-typedef Map<const MatrixType> MapTypeConst;  // a read-only map
+using MatrixType = Matrix<float, 1, Dynamic>;
+using MapType = Map<MatrixType>;
+using MapTypeConst = Map<const MatrixType>;  // a read-only map
 const int n_dims = 5;
 
 MatrixType m1(n_dims), m2(n_dims);

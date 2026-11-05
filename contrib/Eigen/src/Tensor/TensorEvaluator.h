@@ -45,16 +45,16 @@ struct tensor_functor_is_repeatable<Functor, void_t<decltype(functor_traits<Func
  */
 template <typename Derived, typename Device>
 struct TensorEvaluator {
-  typedef typename Derived::Index Index;
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef typename Derived::Dimensions Dimensions;
-  typedef Derived XprType;
+  using Index = typename Derived::Index;
+  using Scalar = typename Derived::Scalar;
+  using CoeffReturnType = typename Derived::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Dimensions = typename Derived::Dimensions;
+  using XprType = Derived;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename internal::traits<Derived>::template MakePointer<Scalar>::Type TensorPointerType;
-  typedef StorageMemory<Scalar, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename internal::traits<Derived>::template MakePointer<Scalar>::Type;
+  using Storage = StorageMemory<Scalar, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   // NumDimensions is -1 for variable dim tensors
   static constexpr int NumCoords =
@@ -70,13 +70,13 @@ struct TensorEvaluator {
     RawAccess = true
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumCoords, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumCoords, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumCoords, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumCoords, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorEvaluator(const Derived& m, const Device& device)
@@ -172,8 +172,8 @@ struct TensorEvaluator {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
     eigen_assert(m_data != nullptr);
 
-    typedef typename TensorBlock::XprType TensorBlockExpr;
-    typedef internal::TensorBlockAssignment<Scalar, NumCoords, TensorBlockExpr, Index> TensorBlockAssign;
+    using TensorBlockExpr = typename TensorBlock::XprType;
+    using TensorBlockAssign = internal::TensorBlockAssignment<Scalar, NumCoords, TensorBlockExpr, Index>;
 
     TensorBlockAssign::Run(
         TensorBlockAssign::target(desc.dimensions(), internal::strides<Layout>(m_dims), m_data, desc.offset()),
@@ -214,17 +214,17 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Eigen::half loadConstant(const Eigen::half
 // Default evaluator for rvalues
 template <typename Derived, typename Device>
 struct TensorEvaluator<const Derived, Device> {
-  typedef typename Derived::Index Index;
-  typedef typename Derived::Scalar Scalar;
-  typedef typename Derived::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef typename Derived::Dimensions Dimensions;
-  typedef const Derived XprType;
-  typedef typename internal::traits<Derived>::template MakePointer<const Scalar>::Type TensorPointerType;
-  typedef StorageMemory<const Scalar, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Index = typename Derived::Index;
+  using Scalar = typename Derived::Scalar;
+  using CoeffReturnType = typename Derived::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Dimensions = typename Derived::Dimensions;
+  using XprType = const Derived;
+  using TensorPointerType = typename internal::traits<Derived>::template MakePointer<const Scalar>::Type;
+  using Storage = StorageMemory<const Scalar, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   // NumDimensions is -1 for variable dim tensors
   static constexpr int NumCoords =
@@ -242,10 +242,10 @@ struct TensorEvaluator<const Derived, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumCoords, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumCoords, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumCoords, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumCoords, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC TensorEvaluator(const Derived& m, const Device& device)
@@ -328,21 +328,21 @@ struct TensorEvaluator<const Derived, Device> {
 
 template <typename NullaryOp, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
-  typedef TensorCwiseNullaryOp<NullaryOp, ArgType> XprType;
+  using XprType = TensorCwiseNullaryOp<NullaryOp, ArgType>;
 
   EIGEN_DEVICE_FUNC TensorEvaluator(const XprType& op, const Device& device)
       : m_functor(op.functor()), m_argImpl(op.nestedExpression(), device), m_wrapper() {}
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename internal::traits<XprType>::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
-  typedef std::remove_const_t<CoeffReturnType> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<CoeffReturnType>;
 
   // Only functors whose functor_traits declare IsRepeatable (e.g. the
   // scalar_constant_op behind constant(), cwiseMax(Scalar) and clip(), and the
@@ -388,8 +388,8 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
   // Lazy block for index-independent functors: rebuilds the nullary
   // expression over the block extent. The nested map exists only to give the
@@ -397,9 +397,9 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
   // argument's data.
   class TensorNullaryBlock {
    public:
-    typedef TensorMap<const Tensor<ScalarNoConst, NumDims, Layout, Index>> ArgXprType;
-    typedef TensorCwiseNullaryOp<NullaryOp, const ArgXprType> XprType;
-    typedef typename internal::XprScalar<XprType>::type Scalar;
+    using ArgXprType = TensorMap<const Tensor<ScalarNoConst, NumDims, Layout, Index>>;
+    using XprType = TensorCwiseNullaryOp<NullaryOp, const ArgXprType>;
+    using Scalar = typename internal::XprScalar<XprType>::type;
 
     TensorNullaryBlock(const NullaryOp& functor, const DSizes<Index, NumDims>& dimensions)
         : m_functor(functor), m_dimensions(dimensions) {}
@@ -416,8 +416,8 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     DSizes<Index, NumDims> m_dimensions;
   };
 
-  typedef internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> MaterializedTensorBlock;
-  typedef std::conditional_t<IndexIndependentFunctor, TensorNullaryBlock, MaterializedTensorBlock> TensorBlock;
+  using MaterializedTensorBlock = internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
+  using TensorBlock = std::conditional_t<IndexIndependentFunctor, TensorNullaryBlock, MaterializedTensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_argImpl.dimensions(); }
@@ -497,7 +497,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
     // packet-sized sweep.
     static TensorBlock Run(const Self& self, TensorBlockDesc& desc, TensorBlockScratch& scratch) {
       constexpr bool is_col_major = static_cast<int>(Layout) == static_cast<int>(ColMajor);
-      typedef NullaryBlockFill<Self, bool(PacketAccess)> Fill;
+      using Fill = NullaryBlockFill<Self, bool(PacketAccess)>;
 
       if (desc.size() == 0) {
         return TensorBlock(internal::TensorBlockKind::kView, nullptr, desc.dimensions());
@@ -559,7 +559,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
 
   EIGEN_STRONG_INLINE TensorBlock block(TensorBlockDesc& desc, TensorBlockScratch& scratch,
                                         bool /*root_of_expr_ast*/ = false) const {
-    typedef TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> Self;
+    using Self = TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device>;
     return NullaryBlockImpl<Self, IndexIndependentFunctor>::Run(*this, desc, scratch);
   }
 
@@ -575,7 +575,7 @@ struct TensorEvaluator<const TensorCwiseNullaryOp<NullaryOp, ArgType>, Device> {
 
 template <typename UnaryOp, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
-  typedef TensorCwiseUnaryOp<UnaryOp, ArgType> XprType;
+  using XprType = TensorCwiseUnaryOp<UnaryOp, ArgType>;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -591,24 +591,24 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
   EIGEN_DEVICE_FUNC TensorEvaluator(const XprType& op, const Device& device)
       : m_device(device), m_functor(op.functor()), m_argImpl(op.nestedExpression(), device) {}
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
-  typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
+  using CoeffReturnType = typename internal::traits<XprType>::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
 
-  typedef internal::TensorCwiseUnaryBlock<UnaryOp, ArgTensorBlock> TensorBlock;
+  using TensorBlock = internal::TensorCwiseUnaryBlock<UnaryOp, ArgTensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const { return m_argImpl.dimensions(); }
@@ -675,7 +675,7 @@ struct TensorEvaluator<const TensorCwiseUnaryOp<UnaryOp, ArgType>, Device> {
 
 template <typename BinaryOp, typename LeftArgType, typename RightArgType, typename Device>
 struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArgType>, Device> {
-  typedef TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArgType> XprType;
+  using XprType = TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArgType>;
 
   static constexpr int Layout = TensorEvaluator<LeftArgType, Device>::Layout;
   enum {
@@ -704,25 +704,25 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
     EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_leftImpl, m_rightImpl);
   }
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename internal::traits<XprType>::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename TensorEvaluator<LeftArgType, Device>::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = typename TensorEvaluator<LeftArgType, Device>::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<LeftArgType, Device>::Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const LeftArgType, Device>::TensorBlock LeftTensorBlock;
-  typedef typename TensorEvaluator<const RightArgType, Device>::TensorBlock RightTensorBlock;
+  using LeftTensorBlock = typename TensorEvaluator<const LeftArgType, Device>::TensorBlock;
+  using RightTensorBlock = typename TensorEvaluator<const RightArgType, Device>::TensorBlock;
 
-  typedef internal::TensorCwiseBinaryBlock<BinaryOp, LeftTensorBlock, RightTensorBlock> TensorBlock;
+  using TensorBlock = internal::TensorCwiseBinaryBlock<BinaryOp, LeftTensorBlock, RightTensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const {
@@ -796,7 +796,7 @@ struct TensorEvaluator<const TensorCwiseBinaryOp<BinaryOp, LeftArgType, RightArg
 
 template <typename TernaryOp, typename Arg1Type, typename Arg2Type, typename Arg3Type, typename Device>
 struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type, Arg3Type>, Device> {
-  typedef TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type, Arg3Type> XprType;
+  using XprType = TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type, Arg3Type>;
 
   static constexpr int Layout = TensorEvaluator<Arg1Type, Device>::Layout;
   enum {
@@ -840,23 +840,23 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
     EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_arg1Impl, m_arg3Impl);
   }
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename internal::traits<XprType>::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename TensorEvaluator<Arg1Type, Device>::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = typename TensorEvaluator<Arg1Type, Device>::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const Arg1Type, Device>::TensorBlock Arg1TensorBlock;
-  typedef typename TensorEvaluator<const Arg2Type, Device>::TensorBlock Arg2TensorBlock;
-  typedef typename TensorEvaluator<const Arg3Type, Device>::TensorBlock Arg3TensorBlock;
+  using Arg1TensorBlock = typename TensorEvaluator<const Arg1Type, Device>::TensorBlock;
+  using Arg2TensorBlock = typename TensorEvaluator<const Arg2Type, Device>::TensorBlock;
+  using Arg3TensorBlock = typename TensorEvaluator<const Arg3Type, Device>::TensorBlock;
 
   // Rebuilds the ternary expression over the arguments' block expressions,
   // carrying the functor; mirrors TensorSelectOpBlockFactory.
@@ -865,7 +865,7 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
 
     template <typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
     struct XprType {
-      typedef TensorCwiseTernaryOp<TernaryOp, const Arg1XprType, const Arg2XprType, const Arg3XprType> type;
+      using type = TensorCwiseTernaryOp<TernaryOp, const Arg1XprType, const Arg2XprType, const Arg3XprType>;
     };
 
     template <typename Arg1XprType, typename Arg2XprType, typename Arg3XprType>
@@ -875,9 +875,8 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
     }
   };
 
-  typedef internal::TensorTernaryExprBlock<TensorCwiseTernaryOpBlockFactory, Arg1TensorBlock, Arg2TensorBlock,
-                                           Arg3TensorBlock>
-      TensorBlock;
+  using TensorBlock = internal::TensorTernaryExprBlock<TensorCwiseTernaryOpBlockFactory, Arg1TensorBlock,
+                                                       Arg2TensorBlock, Arg3TensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const {
@@ -953,8 +952,8 @@ struct TensorEvaluator<const TensorCwiseTernaryOp<TernaryOp, Arg1Type, Arg2Type,
 
 template <typename IfArgType, typename ThenArgType, typename ElseArgType, typename Device>
 struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>, Device> {
-  typedef TensorSelectOp<IfArgType, ThenArgType, ElseArgType> XprType;
-  typedef typename XprType::Scalar Scalar;
+  using XprType = TensorSelectOp<IfArgType, ThenArgType, ElseArgType>;
+  using Scalar = typename XprType::Scalar;
 
   using TernarySelectOp = internal::scalar_boolean_select_op<typename internal::traits<ThenArgType>::Scalar,
                                                              typename internal::traits<ElseArgType>::Scalar,
@@ -994,9 +993,9 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     EIGEN_INTERNAL_ASSERT_TENSOR_SHAPE(m_thenImpl, m_elseImpl);
   }
 
-  typedef typename XprType::Index Index;
-  typedef typename internal::traits<XprType>::Scalar CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using CoeffReturnType = typename internal::traits<XprType>::Scalar;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   using CondScalar = std::remove_const_t<typename internal::traits<IfArgType>::Scalar>;
   using CondPacket = typename PacketType<CondScalar, Device>::type;
@@ -1011,24 +1010,24 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
                                         : PacketSize == 2 * CondPacketSize ? 2
                                         : CondPacketSize > PacketSize      ? 3
                                                                            : 0;
-  typedef typename TensorEvaluator<IfArgType, Device>::Dimensions Dimensions;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Dimensions = typename TensorEvaluator<IfArgType, Device>::Dimensions;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int NumDims = internal::array_size<Dimensions>::value;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename TensorEvaluator<const IfArgType, Device>::TensorBlock IfArgTensorBlock;
-  typedef typename TensorEvaluator<const ThenArgType, Device>::TensorBlock ThenArgTensorBlock;
-  typedef typename TensorEvaluator<const ElseArgType, Device>::TensorBlock ElseArgTensorBlock;
+  using IfArgTensorBlock = typename TensorEvaluator<const IfArgType, Device>::TensorBlock;
+  using ThenArgTensorBlock = typename TensorEvaluator<const ThenArgType, Device>::TensorBlock;
+  using ElseArgTensorBlock = typename TensorEvaluator<const ElseArgType, Device>::TensorBlock;
 
   struct TensorSelectOpBlockFactory {
     template <typename IfArgXprType, typename ThenArgXprType, typename ElseArgXprType>
     struct XprType {
-      typedef TensorSelectOp<const IfArgXprType, const ThenArgXprType, const ElseArgXprType> type;
+      using type = TensorSelectOp<const IfArgXprType, const ThenArgXprType, const ElseArgXprType>;
     };
 
     template <typename IfArgXprType, typename ThenArgXprType, typename ElseArgXprType>
@@ -1039,9 +1038,8 @@ struct TensorEvaluator<const TensorSelectOp<IfArgType, ThenArgType, ElseArgType>
     }
   };
 
-  typedef internal::TensorTernaryExprBlock<TensorSelectOpBlockFactory, IfArgTensorBlock, ThenArgTensorBlock,
-                                           ElseArgTensorBlock>
-      TensorBlock;
+  using TensorBlock = internal::TensorTernaryExprBlock<TensorSelectOpBlockFactory, IfArgTensorBlock, ThenArgTensorBlock,
+                                                       ElseArgTensorBlock>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_DEVICE_FUNC const Dimensions& dimensions() const {

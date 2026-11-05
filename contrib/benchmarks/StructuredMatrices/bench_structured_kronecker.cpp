@@ -14,9 +14,9 @@
 
 using namespace Eigen;
 
-typedef Matrix<double, Dynamic, 1> Vec;
-typedef Matrix<double, Dynamic, Dynamic> Mat;
-typedef DiagonalMatrix<double, Dynamic> Diag;
+using Vec = Matrix<double, Dynamic, 1>;
+using Mat = Matrix<double, Dynamic, Dynamic>;
+using Diag = DiagonalMatrix<double, Dynamic>;
 
 // --- Matrix-vector product y = (A (x) B) * x, n x n factors ---
 static void BM_KroneckerProductImplicit(benchmark::State& state) {

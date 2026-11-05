@@ -13,7 +13,7 @@
 template <typename MatrixType, typename DenseMat>
 int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows = 300, int maxCols = 150) {
   eigen_assert(maxRows >= maxCols);
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   int rows = internal::random<int>(1, maxRows);
   int cols = internal::random<int>(1, maxCols);
   double density = (std::max)(8. / (rows * cols), 0.01);
@@ -42,10 +42,10 @@ int generate_sparse_rectangular_problem(MatrixType& A, DenseMat& dA, int maxRows
 
 template <typename Scalar>
 void test_sparseqr_scalar() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMat;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
+  using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
   MatrixType A;
   DenseMat dA;
   DenseVector refX, x, b;
@@ -136,9 +136,9 @@ void test_sparseqr_scalar() {
 
 template <typename = void>
 void test_sparseqr_factorize_uncompressed_input() {
-  typedef SparseMatrix<double, ColMajor> MatrixType;
-  typedef VectorXd Vector;
-  typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
+  using MatrixType = SparseMatrix<double, ColMajor>;
+  using Vector = VectorXd;
+  using Solver = SparseQR<MatrixType, NaturalOrdering<int> >;
 
   MatrixType uncompressed(2, 2);
   VectorXi reserve(2);
@@ -175,9 +175,9 @@ void test_sparseqr_factorize_uncompressed_input() {
 
 template <typename OrderingType, typename DenseMat, typename DenseRhs>
 void verify_sparseqr_solves(const DenseMat& denseA, const DenseRhs& b, Index expectedRank) {
-  typedef typename DenseMat::Scalar Scalar;
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> SolutionType;
+  using Scalar = typename DenseMat::Scalar;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
+  using SolutionType = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A = denseA.sparseView();
   A.makeCompressed();
@@ -233,8 +233,8 @@ void test_sparseqr_lookahead_preserves_needed_weak_direction() {
 
 template <typename = void>
 void test_sparseqr_explicit_threshold_disables_lookahead() {
-  typedef SparseMatrix<double, ColMajor> MatrixType;
-  typedef SparseQR<MatrixType, NaturalOrdering<int> > Solver;
+  using MatrixType = SparseMatrix<double, ColMajor>;
+  using Solver = SparseQR<MatrixType, NaturalOrdering<int> >;
 
   Matrix<double, 2, 3> denseA;
   const double weak_pivot = 5e-13;
@@ -282,8 +282,8 @@ void test_sparseqr_16bit_default_threshold(int n, float tol) {
   // computed entirely in the 16-bit scalar type, where 20*(m+n)*epsilon
   // exceeds 1 for m+n as small as 52 (half) or 7 (bfloat16) -- so every pivot
   // was rejected and the reported rank collapsed to 0 with info()==Success.
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   MatrixType A(n, n);
   A.reserve(VectorXi::Constant(n, 3));

@@ -33,41 +33,40 @@ namespace Eigen {
 template <typename PlainObjectType, int Options_, template <class> class MakePointer_>
 class TensorMap : public TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> > {
  public:
-  typedef TensorMap<PlainObjectType, Options_, MakePointer_> Self;
-  typedef TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> > Base;
+  using Self = TensorMap<PlainObjectType, Options_, MakePointer_>;
+  using Base = TensorBase<TensorMap<PlainObjectType, Options_, MakePointer_> >;
 #ifdef EIGEN_USE_SYCL
-  typedef std::remove_reference_t<typename Eigen::internal::ref_selector<Self>::type> Nested;
+  using Nested = std::remove_reference_t<typename Eigen::internal::ref_selector<Self>::type>;
 #else
-  typedef typename Eigen::internal::ref_selector<Self>::type Nested;
+  using Nested = typename Eigen::internal::ref_selector<Self>::type;
 #endif
-  typedef typename internal::traits<PlainObjectType>::StorageKind StorageKind;
-  typedef typename internal::traits<PlainObjectType>::Index Index;
-  typedef typename internal::traits<PlainObjectType>::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef typename PlainObjectType::Base::CoeffReturnType CoeffReturnType;
+  using StorageKind = typename internal::traits<PlainObjectType>::StorageKind;
+  using Index = typename internal::traits<PlainObjectType>::Index;
+  using Scalar = typename internal::traits<PlainObjectType>::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename PlainObjectType::Base::CoeffReturnType;
 
-  typedef typename MakePointer_<Scalar>::Type PointerType;
-  typedef typename MakePointer_<Scalar>::ConstType PointerConstType;
+  using PointerType = typename MakePointer_<Scalar>::Type;
+  using PointerConstType = typename MakePointer_<Scalar>::ConstType;
 
   // WARN: PointerType still can be a pointer to const (const Scalar*), for
   // example in TensorMap<Tensor<const Scalar, ...>> expression. This type of
   // expression should be illegal, but adding this restriction is not possible
   // in practice (see https://bitbucket.org/eigen/eigen/pull-requests/488).
-  typedef std::conditional_t<bool(internal::is_lvalue<PlainObjectType>::value),
-                             PointerType,      // use simple pointer in lvalue expressions
-                             PointerConstType  // use const pointer in rvalue expressions
-                             >
-      StoragePointerType;
+  using StoragePointerType = std::conditional_t<bool(internal::is_lvalue<PlainObjectType>::value),
+                                                PointerType,      // use simple pointer in lvalue expressions
+                                                PointerConstType  // use const pointer in rvalue expressions
+                                                >;
 
   // If TensorMap was constructed over rvalue expression (e.g. const Tensor),
   // we should return a reference to const from operator() (and others), even
   // if TensorMap itself is not const.
-  typedef std::conditional_t<bool(internal::is_lvalue<PlainObjectType>::value), Scalar&, const Scalar&> StorageRefType;
+  using StorageRefType = std::conditional_t<bool(internal::is_lvalue<PlainObjectType>::value), Scalar&, const Scalar&>;
 
   static constexpr int Options = Options_;
 
   static constexpr Index NumIndices = PlainObjectType::NumIndices;
-  typedef typename PlainObjectType::Dimensions Dimensions;
+  using Dimensions = typename PlainObjectType::Dimensions;
 
   static constexpr int Layout = PlainObjectType::Layout;
   enum { IsAligned = ((int(Options_) & Aligned) == Aligned), CoordAccess = true, RawAccess = true };

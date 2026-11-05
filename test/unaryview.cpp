@@ -20,9 +20,9 @@ struct UnaryViewBox {
 namespace Eigen {
 template <>
 struct NumTraits<UnaryViewBox> : NumTraits<double> {
-  typedef UnaryViewBox Real;
-  typedef UnaryViewBox NonInteger;
-  typedef UnaryViewBox Nested;
+  using Real = UnaryViewBox;
+  using NonInteger = UnaryViewBox;
+  using Nested = UnaryViewBox;
   enum {
     IsComplex = 0,
     IsInteger = 0,
@@ -52,7 +52,7 @@ struct functor_traits<unaryview_box_ref_op> {
 
 template <int OuterStride, int InnerStride, typename VectorType>
 void unaryview_stride(const VectorType& m) {
-  typedef typename VectorType::Scalar Scalar;
+  using Scalar = typename VectorType::Scalar;
   Index rows = m.rows();
   Index cols = m.cols();
   VectorType vec = VectorType::Random(rows, cols);
@@ -172,7 +172,7 @@ void test_unaryview_solve() {
 }
 
 void test_unaryview_direct_access_product() {
-  typedef Matrix<UnaryViewBox, Dynamic, Dynamic> BoxMatrix;
+  using BoxMatrix = Matrix<UnaryViewBox, Dynamic, Dynamic>;
 
   BoxMatrix a(4, 4), b(4, 4);
   MatrixXd a_values(4, 4), b_values(4, 4);

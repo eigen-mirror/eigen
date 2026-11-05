@@ -11,8 +11,8 @@ using namespace Eigen;
 
 template <typename T, bool Forward, bool Unscaled = false, bool HalfSpec = false>
 static void BM_FFT(benchmark::State& state) {
-  typedef typename NumTraits<T>::Real ScalarType;
-  typedef std::complex<ScalarType> Complex;
+  using ScalarType = typename NumTraits<T>::Real;
+  using Complex = std::complex<ScalarType>;
   int nfft = state.range(0);
   std::vector<T> inbuf(nfft);
   std::vector<Complex> outbuf(nfft);

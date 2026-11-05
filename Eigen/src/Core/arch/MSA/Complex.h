@@ -91,8 +91,8 @@ inline std::ostream& operator<<(std::ostream& os, const Packet2cf& value) {
 
 template <>
 struct packet_traits<std::complex<float> > : default_packet_traits {
-  typedef Packet2cf type;
-  typedef Packet2cf half;
+  using type = Packet2cf;
+  using half = Packet2cf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -113,8 +113,8 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet2cf> {
-  typedef std::complex<float> type;
-  typedef Packet4f as_real;
+  using type = std::complex<float>;
+  using as_real = Packet4f;
   enum {
     size = 2,
     alignment = Aligned16,
@@ -122,7 +122,7 @@ struct unpacket_traits<Packet2cf> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet2cf half;
+  using half = Packet2cf;
 };
 
 template <>
@@ -385,8 +385,8 @@ inline std::ostream& operator<<(std::ostream& os, const Packet1cd& value) {
 
 template <>
 struct packet_traits<std::complex<double> > : default_packet_traits {
-  typedef Packet1cd type;
-  typedef Packet1cd half;
+  using type = Packet1cd;
+  using half = Packet1cd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
@@ -407,8 +407,8 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet1cd> {
-  typedef std::complex<double> type;
-  typedef Packet2d as_real;
+  using type = std::complex<double>;
+  using as_real = Packet2d;
   enum {
     size = 1,
     alignment = Aligned16,
@@ -416,7 +416,7 @@ struct unpacket_traits<Packet1cd> {
     masked_load_available = false,
     masked_store_available = false
   };
-  typedef Packet1cd half;
+  using half = Packet1cd;
 };
 
 template <>

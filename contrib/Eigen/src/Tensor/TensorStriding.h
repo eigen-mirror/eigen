@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename Strides, typename XprType>
 struct traits<TensorStridingOp<Strides, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename Strides, typename XprType>
 struct eval<TensorStridingOp<Strides, XprType>, Eigen::Dense> {
-  typedef const TensorStridingOp<Strides, XprType> EIGEN_DEVICE_REF type;
+  using type = const TensorStridingOp<Strides, XprType> EIGEN_DEVICE_REF;
 };
 
 }  // end namespace internal
@@ -43,13 +43,13 @@ struct eval<TensorStridingOp<Strides, XprType>, Eigen::Dense> {
 template <typename Strides, typename XprType>
 class TensorStridingOp : public TensorBase<TensorStridingOp<Strides, XprType> > {
  public:
-  typedef TensorBase<TensorStridingOp<Strides, XprType> > Base;
-  typedef typename Eigen::internal::traits<TensorStridingOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorStridingOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorStridingOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorStridingOp>::Index Index;
+  using Base = TensorBase<TensorStridingOp<Strides, XprType> >;
+  using Scalar = typename Eigen::internal::traits<TensorStridingOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorStridingOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorStridingOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorStridingOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorStridingOp(const XprType& expr, const Strides& dims)
       : m_xpr(expr), m_dims(dims) {}
@@ -68,22 +68,22 @@ class TensorStridingOp : public TensorBase<TensorStridingOp<Strides, XprType> > 
 // Eval as rvalue
 template <typename Strides, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
-  typedef TensorStridingOp<Strides, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorStridingOp<Strides, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   // Inner-most dimension in storage order: the one a packet runs along.
   static constexpr int kInnerDim = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? 0 : NumDims - 1;
   // Tag selecting whether the argument can be asked for whole packets.
-  typedef std::integral_constant<bool, TensorEvaluator<ArgType, Device>::PacketAccess> ImplHasPacket;
+  using ImplHasPacket = std::integral_constant<bool, TensorEvaluator<ArgType, Device>::PacketAccess>;
   enum {
     IsAligned = false,
     // Packets are assembled from inner runs even when the nested evaluator
@@ -96,7 +96,7 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockNotImplemented TensorBlock;
+  using TensorBlock = internal::TensorBlockNotImplemented;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : m_impl(op.expression(), device) {
@@ -264,14 +264,14 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
 template <typename Strides, typename ArgType, typename Device>
 struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
     : public TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
-  typedef TensorStridingOp<Strides, ArgType> XprType;
-  typedef TensorEvaluator<const XprType, Device> Base;
+  using XprType = TensorStridingOp<Strides, ArgType>;
+  using Base = TensorEvaluator<const XprType, Device>;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -315,7 +315,7 @@ struct TensorEvaluator<TensorStridingOp<Strides, ArgType>, Device>
   template <int StoreMode>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
     eigen_assert(index + PacketSize - 1 < this->dimensions().TotalSize());
-    typedef typename Base::ImplHasPacket ImplHasPacket;
+    using ImplHasPacket = typename Base::ImplHasPacket;
     if (this->m_is_identity) {
       storeInnerRun(index, 1, x, ImplHasPacket());
       return;

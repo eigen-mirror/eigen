@@ -124,15 +124,15 @@ struct AccelFactorizationDeleter {
 
 template <typename DenseVecT, typename DenseMatT, typename SparseMatT, typename NumFactT>
 struct SparseTypesTraitBase {
-  typedef DenseVecT AccelDenseVector;
-  typedef DenseMatT AccelDenseMatrix;
-  typedef SparseMatT AccelSparseMatrix;
+  using AccelDenseVector = DenseVecT;
+  using AccelDenseMatrix = DenseMatT;
+  using AccelSparseMatrix = SparseMatT;
 
-  typedef SparseOpaqueSymbolicFactorization SymbolicFactorization;
-  typedef NumFactT NumericFactorization;
+  using SymbolicFactorization = SparseOpaqueSymbolicFactorization;
+  using NumericFactorization = NumFactT;
 
-  typedef AccelFactorizationDeleter<SymbolicFactorization> SymbolicFactorizationDeleter;
-  typedef AccelFactorizationDeleter<NumericFactorization> NumericFactorizationDeleter;
+  using SymbolicFactorizationDeleter = AccelFactorizationDeleter<SymbolicFactorization>;
+  using NumericFactorizationDeleter = AccelFactorizationDeleter<NumericFactorization>;
 };
 
 template <typename Scalar>
@@ -159,9 +159,9 @@ class AccelerateImpl : public SparseSolverBase<AccelerateImpl<MatrixType_, UpLo_
  public:
   using Base::_solve_impl;
 
-  typedef MatrixType_ MatrixType;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::StorageIndex StorageIndex;
+  using MatrixType = MatrixType_;
+  using Scalar = typename MatrixType::Scalar;
+  using StorageIndex = typename MatrixType::StorageIndex;
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
   enum { UpLo = UpLo_ };
 

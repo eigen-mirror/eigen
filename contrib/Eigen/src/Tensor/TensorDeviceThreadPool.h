@@ -233,7 +233,7 @@ struct ThreadPoolDevice {
   Allocator* allocator() const { return allocator_; }
 
  private:
-  typedef TensorCostModel<ThreadPoolDevice> CostModel;
+  using CostModel = TensorCostModel<ThreadPoolDevice>;
 
   static void handleRange(Index firstIdx, Index lastIdx, Index granularity, Barrier* barrier, ThreadPoolInterface* pool,
                           const std::function<void(Index, Index)>& f) {

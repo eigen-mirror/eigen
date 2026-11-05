@@ -21,9 +21,9 @@ namespace internal {
 #ifndef EIGEN_PARSED_BY_DOXYGEN
 template <typename BVH, typename Intersector>
 bool intersect_helper(const BVH &tree, Intersector &intersector, typename BVH::Index root) {
-  typedef typename BVH::Index Index;
-  typedef typename BVH::VolumeIterator VolIter;
-  typedef typename BVH::ObjectIterator ObjIter;
+  using Index = typename BVH::Index;
+  using VolIter = typename BVH::VolumeIterator;
+  using ObjIter = typename BVH::ObjectIterator;
 
   VolIter vBegin = VolIter(), vEnd = VolIter();
   ObjIter oBegin = ObjIter(), oEnd = ObjIter();
@@ -93,18 +93,16 @@ template <typename BVH1, typename BVH2, typename Intersector>
 void BVIntersect(const BVH1 &tree1, const BVH2 &tree2,
                  Intersector &intersector)  // TODO: tandem descent when it makes sense
 {
-  typedef typename BVH1::Index Index1;
-  typedef typename BVH2::Index Index2;
-  typedef internal::intersector_helper1<typename BVH1::Volume, typename BVH1::Object, typename BVH2::Object,
-                                        Intersector>
-      Helper1;
-  typedef internal::intersector_helper2<typename BVH2::Volume, typename BVH2::Object, typename BVH1::Object,
-                                        Intersector>
-      Helper2;
-  typedef typename BVH1::VolumeIterator VolIter1;
-  typedef typename BVH1::ObjectIterator ObjIter1;
-  typedef typename BVH2::VolumeIterator VolIter2;
-  typedef typename BVH2::ObjectIterator ObjIter2;
+  using Index1 = typename BVH1::Index;
+  using Index2 = typename BVH2::Index;
+  using Helper1 =
+      internal::intersector_helper1<typename BVH1::Volume, typename BVH1::Object, typename BVH2::Object, Intersector>;
+  using Helper2 =
+      internal::intersector_helper2<typename BVH2::Volume, typename BVH2::Object, typename BVH1::Object, Intersector>;
+  using VolIter1 = typename BVH1::VolumeIterator;
+  using ObjIter1 = typename BVH1::ObjectIterator;
+  using VolIter2 = typename BVH2::VolumeIterator;
+  using ObjIter2 = typename BVH2::ObjectIterator;
 
   VolIter1 vBegin1 = VolIter1(), vEnd1 = VolIter1();
   ObjIter1 oBegin1 = ObjIter1(), oEnd1 = ObjIter1();
@@ -150,11 +148,11 @@ namespace internal {
 template <typename BVH, typename Minimizer>
 typename Minimizer::Scalar minimize_helper(const BVH &tree, Minimizer &minimizer, typename BVH::Index root,
                                            typename Minimizer::Scalar minimum) {
-  typedef typename Minimizer::Scalar Scalar;
-  typedef typename BVH::Index Index;
-  typedef std::pair<Scalar, Index> QueueElement;  // first element is priority
-  typedef typename BVH::VolumeIterator VolIter;
-  typedef typename BVH::ObjectIterator ObjIter;
+  using Scalar = typename Minimizer::Scalar;
+  using Index = typename BVH::Index;
+  using QueueElement = std::pair<Scalar, Index>;  // first element is priority
+  using VolIter = typename BVH::VolumeIterator;
+  using ObjIter = typename BVH::ObjectIterator;
 
   VolIter vBegin = VolIter(), vEnd = VolIter();
   ObjIter oBegin = ObjIter(), oEnd = ObjIter();
@@ -182,7 +180,7 @@ typename Minimizer::Scalar minimize_helper(const BVH &tree, Minimizer &minimizer
 
 template <typename Volume1, typename Object1, typename Object2, typename Minimizer>
 struct minimizer_helper1 {
-  typedef typename Minimizer::Scalar Scalar;
+  using Scalar = typename Minimizer::Scalar;
   minimizer_helper1(const Object2 &inStored, Minimizer &m) : stored(inStored), minimizer(m) {}
   Scalar minimumOnVolume(const Volume1 &vol) { return minimizer.minimumOnVolumeObject(vol, stored); }
   Scalar minimumOnObject(const Object1 &obj) { return minimizer.minimumOnObjectObject(obj, stored); }
@@ -195,7 +193,7 @@ struct minimizer_helper1 {
 
 template <typename Volume2, typename Object2, typename Object1, typename Minimizer>
 struct minimizer_helper2 {
-  typedef typename Minimizer::Scalar Scalar;
+  using Scalar = typename Minimizer::Scalar;
   minimizer_helper2(const Object1 &inStored, Minimizer &m) : stored(inStored), minimizer(m) {}
   Scalar minimumOnVolume(const Volume2 &vol) { return minimizer.minimumOnObjectVolume(stored, vol); }
   Scalar minimumOnObject(const Object2 &obj) { return minimizer.minimumOnObjectObject(stored, obj); }
@@ -231,18 +229,18 @@ typename Minimizer::Scalar BVMinimize(const BVH &tree, Minimizer &minimizer) {
   */
 template <typename BVH1, typename BVH2, typename Minimizer>
 typename Minimizer::Scalar BVMinimize(const BVH1 &tree1, const BVH2 &tree2, Minimizer &minimizer) {
-  typedef typename Minimizer::Scalar Scalar;
-  typedef typename BVH1::Index Index1;
-  typedef typename BVH2::Index Index2;
-  typedef internal::minimizer_helper1<typename BVH1::Volume, typename BVH1::Object, typename BVH2::Object, Minimizer>
-      Helper1;
-  typedef internal::minimizer_helper2<typename BVH2::Volume, typename BVH2::Object, typename BVH1::Object, Minimizer>
-      Helper2;
-  typedef std::pair<Scalar, std::pair<Index1, Index2> > QueueElement;  // first element is priority
-  typedef typename BVH1::VolumeIterator VolIter1;
-  typedef typename BVH1::ObjectIterator ObjIter1;
-  typedef typename BVH2::VolumeIterator VolIter2;
-  typedef typename BVH2::ObjectIterator ObjIter2;
+  using Scalar = typename Minimizer::Scalar;
+  using Index1 = typename BVH1::Index;
+  using Index2 = typename BVH2::Index;
+  using Helper1 =
+      internal::minimizer_helper1<typename BVH1::Volume, typename BVH1::Object, typename BVH2::Object, Minimizer>;
+  using Helper2 =
+      internal::minimizer_helper2<typename BVH2::Volume, typename BVH2::Object, typename BVH1::Object, Minimizer>;
+  using QueueElement = std::pair<Scalar, std::pair<Index1, Index2> >;  // first element is priority
+  using VolIter1 = typename BVH1::VolumeIterator;
+  using ObjIter1 = typename BVH1::ObjectIterator;
+  using VolIter2 = typename BVH2::VolumeIterator;
+  using ObjIter2 = typename BVH2::ObjectIterator;
 
   VolIter1 vBegin1 = VolIter1(), vEnd1 = VolIter1();
   ObjIter1 oBegin1 = ObjIter1(), oEnd1 = ObjIter1();

@@ -32,8 +32,8 @@ bool equalsIdentity(const MatrixType& A) {
 template <typename VectorType>
 void check_extremity_accuracy(const VectorType& v, const typename VectorType::Scalar& low,
                               const typename VectorType::Scalar& high) {
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename VectorType::RealScalar RealScalar;
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename VectorType::RealScalar;
 
   RealScalar prec = std::is_same<RealScalar, float>::value ? NumTraits<RealScalar>::dummy_precision() * 10
                                                            : NumTraits<RealScalar>::dummy_precision() / 10;
@@ -61,8 +61,8 @@ void check_extremity_accuracy(const VectorType& v, const typename VectorType::Sc
 
 template <typename VectorType>
 void testVectorType(const VectorType& base) {
-  typedef typename VectorType::Scalar Scalar;
-  typedef typename VectorType::RealScalar RealScalar;
+  using Scalar = typename VectorType::Scalar;
+  using RealScalar = typename VectorType::RealScalar;
 
   const Index size = base.size();
 
@@ -130,7 +130,7 @@ void testVectorType(const VectorType& base) {
   size_changer.setLinSpaced(size, low, high);
   VERIFY(size_changer.size() == size);
 
-  typedef Matrix<Scalar, 1, 1> ScalarMatrix;
+  using ScalarMatrix = Matrix<Scalar, 1, 1>;
   ScalarMatrix scalar;
   scalar.setLinSpaced(1, low, high);
   VERIFY_IS_APPROX(scalar, ScalarMatrix::Constant(high));
@@ -201,7 +201,7 @@ void testMatrixType(const MatrixType& m) {
   using std::abs;
   const Index rows = m.rows();
   const Index cols = m.cols();
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Scalar s1 = internal::random<Scalar>();
 
@@ -294,10 +294,10 @@ void nullary_internal_logic() {
 // This exercises those boundaries with element-by-element verification.
 template <typename Scalar>
 void linspaced_boundary() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   const Index PS = internal::packet_traits<Scalar>::size;
   const Index sizes[] = {1, 2, 3, PS - 1, PS, PS + 1, 2 * PS - 1, 2 * PS, 2 * PS + 1, 4 * PS, 4 * PS + 1};
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   for (int si = 0; si < 11; ++si) {
     Index n = sizes[si];
@@ -385,7 +385,7 @@ struct NumTraits<CustomInt> : GenericNumTraits<long long> {
 // barely covered by existing tests which use random ranges.
 template <int>
 void linspaced_integer_divisor() {
-  typedef Matrix<int, Dynamic, 1> VecI;
+  using VecI = Matrix<int, Dynamic, 1>;
 
   // Case: num_steps much larger than range → triggers divisor path.
   // LinSpaced(12, 0, 5): 12 steps over range [0,5], so range+1=6, 6 < 12.

@@ -67,12 +67,12 @@ std::enable_if_t<((MatrixType::Flags & RowMajorBit) != 0), void> checkInnerVecto
 
 template <typename MatrixType>
 void block(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, 1, MatrixType::ColsAtCompileTime> RowVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor> DynamicMatrixType;
-  typedef Matrix<Scalar, Dynamic, 1> DynamicVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using RowVectorType = Matrix<Scalar, 1, MatrixType::ColsAtCompileTime>;
+  using DynamicMatrixType = Matrix<Scalar, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor>;
+  using DynamicVectorType = Matrix<Scalar, Dynamic, 1>;
 
   Index rows = m.rows();
   Index cols = m.cols();

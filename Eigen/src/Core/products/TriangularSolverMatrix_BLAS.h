@@ -78,7 +78,7 @@ namespace internal {
         uplo = (uplo == 'L') ? 'U' : 'L';                                                                             \
       }                                                                                                               \
       /* Set a, lda */                                                                                                \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder> MatrixTri;                                           \
+      using MatrixTri = Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder>;                                           \
       Map<const MatrixTri, 0, OuterStride<> > tri(_tri, size, size, OuterStride<>(triStride));                        \
       MatrixTri a_tmp;                                                                                                \
                                                                                                                       \
@@ -148,7 +148,7 @@ EIGEN_BLAS_TRSM_L(scomplex, float, EIGEN_BLAS_SYM(ctrsm))
         uplo = (uplo == 'L') ? 'U' : 'L';                                                                              \
       }                                                                                                                \
       /* Set a, lda */                                                                                                 \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder> MatrixTri;                                            \
+      using MatrixTri = Matrix<EIGTYPE, Dynamic, Dynamic, TriStorageOrder>;                                            \
       Map<const MatrixTri, 0, OuterStride<> > tri(_tri, size, size, OuterStride<>(triStride));                         \
       MatrixTri a_tmp;                                                                                                 \
                                                                                                                        \

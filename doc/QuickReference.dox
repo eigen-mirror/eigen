@@ -32,8 +32,8 @@ The Eigen library is divided into a Core module and several additional modules. 
 
 \b Recall: Eigen provides two kinds of dense objects: mathematical matrices and vectors which are both represented by the template class Matrix, and general 1D and 2D arrays represented by the template class Array:
 \code
-typedef Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options> MyMatrixType;
-typedef Array<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options> MyArrayType;
+using MyMatrixType = Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options>;
+using MyArrayType = Array<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options>;
 \endcode
 
 \li \c Scalar is the scalar type of the coefficients (e.g., \c float, \c double, \c bool, \c int, etc.).
@@ -197,7 +197,7 @@ object_of_float = expression_of_double.cast<float>();
 <tr style="border-bottom-style: none;">
   <td>
 \code
-typedef {Matrix3f|Array33f} FixedXD;
+using FixedXD = {Matrix3f|Array33f};
 FixedXD x;
 
 x = FixedXD::Zero();
@@ -215,7 +215,7 @@ x.setLinSpaced(size, low, high);
   </td>
   <td>
 \code
-typedef {MatrixXf|ArrayXXf} Dynamic2D;
+using Dynamic2D = {MatrixXf|ArrayXXf};
 Dynamic2D x;
 
 x = Dynamic2D::Zero(rows, cols);
@@ -233,7 +233,7 @@ N/A
   </td>
   <td>
 \code
-typedef {VectorXf|ArrayXf} Dynamic1D;
+using Dynamic1D = {VectorXf|ArrayXf};
 Dynamic1D x;
 
 x = Dynamic1D::Zero(size);

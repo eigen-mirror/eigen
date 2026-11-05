@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename Shuffle, typename XprType>
 struct traits<TensorShufflingOp<Shuffle, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename Shuffle, typename XprType>
 struct eval<TensorShufflingOp<Shuffle, XprType>, Eigen::Dense> {
-  typedef const TensorShufflingOp<Shuffle, XprType>& type;
+  using type = const TensorShufflingOp<Shuffle, XprType>&;
 };
 
 }  // end namespace internal
@@ -43,13 +43,13 @@ struct eval<TensorShufflingOp<Shuffle, XprType>, Eigen::Dense> {
 template <typename Shuffle, typename XprType>
 class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> > {
  public:
-  typedef TensorBase<TensorShufflingOp<Shuffle, XprType> > Base;
-  typedef typename Eigen::internal::traits<TensorShufflingOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorShufflingOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorShufflingOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorShufflingOp>::Index Index;
+  using Base = TensorBase<TensorShufflingOp<Shuffle, XprType> >;
+  using Scalar = typename Eigen::internal::traits<TensorShufflingOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorShufflingOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorShufflingOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorShufflingOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorShufflingOp(const XprType& expr, const Shuffle& shfl)
       : m_xpr(expr), m_shuffle(shfl) {}
@@ -68,17 +68,17 @@ class TensorShufflingOp : public TensorBase<TensorShufflingOp<Shuffle, XprType> 
 // Eval as rvalue
 template <typename Shuffle, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
-  typedef TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> Self;
-  typedef TensorShufflingOp<Shuffle, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using Self = TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>;
+  using XprType = TensorShufflingOp<Shuffle, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -90,13 +90,13 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -273,9 +273,9 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
                                                           bool root_of_expr_ast = false) const {
     eigen_assert(m_impl.data() != nullptr);
 
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
-    typedef typename TensorBlockIO::Dst TensorBlockIODst;
-    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout>;
+    using TensorBlockIODst = typename TensorBlockIO::Dst;
+    using TensorBlockIOSrc = typename TensorBlockIO::Src;
 
     const typename TensorBlock::Storage block_storage =
         TensorBlock::prepareStorage(desc, scratch, /*allow_strided_storage=*/root_of_expr_ast);
@@ -371,15 +371,15 @@ struct TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
 template <typename Shuffle, typename ArgType, typename Device>
 struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
     : public TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> {
-  typedef TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device> Base;
+  using Base = TensorEvaluator<const TensorShufflingOp<Shuffle, ArgType>, Device>;
 
-  typedef TensorShufflingOp<Shuffle, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorShufflingOp<Shuffle, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
 
@@ -391,10 +391,10 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
@@ -420,7 +420,7 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
 
   template <int StoreMode>
   EIGEN_STRONG_INLINE void writePacket(Index index, const PacketReturnType& x) const {
-    typedef TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device> Self;
+    using Self = TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>;
     constexpr bool ImplPacketAccess = bool(TensorEvaluator<ArgType, Device>::PacketAccess);
 
     // Mirrors the rvalue PacketLoader: within one inner-most run the target
@@ -459,9 +459,9 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void writeBlock(const TensorBlockDesc& desc, const TensorBlock& block) {
     eigen_assert(this->m_impl.data() != nullptr);
 
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
-    typedef typename TensorBlockIO::Dst TensorBlockIODst;
-    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout>;
+    using TensorBlockIODst = typename TensorBlockIO::Dst;
+    using TensorBlockIOSrc = typename TensorBlockIO::Src;
 
     const Scalar* block_buffer = block.data();
 
@@ -472,8 +472,8 @@ struct TensorEvaluator<TensorShufflingOp<Shuffle, ArgType>, Device>
       mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
       ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
 
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
-          TensorBlockAssignment;
+      using TensorBlockAssignment =
+          internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>;
 
       TensorBlockAssignment::Run(
           TensorBlockAssignment::target(desc.dimensions(), internal::strides<Layout>(desc.dimensions()), buf),

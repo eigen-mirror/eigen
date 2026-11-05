@@ -16,8 +16,8 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef SparseMatrix<Scalar, ColMajor> SpMat;
+using Scalar = double;
+using SpMat = SparseMatrix<Scalar, ColMajor>;
 
 static SpMat makeWeakPivotMatrix(Index rows) {
   eigen_assert(rows >= 2);

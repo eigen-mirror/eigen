@@ -125,7 +125,7 @@ void neon_erf_subnormals_bfloat16() {
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   using std::abs;
-  typedef internal::packet_traits<Scalar> PacketTraits;
+  using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
 
   const int size = PacketSize * 4;

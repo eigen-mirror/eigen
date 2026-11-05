@@ -71,10 +71,10 @@ void svd_check_full(const MatrixType& m, const SvdType& svd) {
 
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime> MatrixUType;
-  typedef Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime> MatrixVType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using MatrixUType = Matrix<Scalar, RowsAtCompileTime, RowsAtCompileTime>;
+  using MatrixVType = Matrix<Scalar, ColsAtCompileTime, ColsAtCompileTime>;
 
   MatrixType sigma = MatrixType::Zero(rows, cols);
   sigma.diagonal() = svd.singularValues().template cast<Scalar>();
@@ -113,15 +113,15 @@ bool svd_check_normal_equation(const MatrixType& m, const SvdType& svd, const Rh
 
 template <typename MatrixType, typename SvdType>
 void svd_least_square(const MatrixType& m, SvdType& svd) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index rows = m.rows();
   Index cols = m.cols();
 
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
 
-  typedef Matrix<Scalar, RowsAtCompileTime, Dynamic> RhsType;
-  typedef Matrix<Scalar, ColsAtCompileTime, Dynamic> SolutionType;
+  using RhsType = Matrix<Scalar, RowsAtCompileTime, Dynamic>;
+  using SolutionType = Matrix<Scalar, ColsAtCompileTime, Dynamic>;
 
   RhsType rhs = RhsType::Random(rows, internal::random<Index>(1, cols));
 
@@ -234,21 +234,21 @@ void svd_normal_equation_roundoff() {
 // check minimal norm solutions, the input matrix m is only used to recover problem size
 template <typename MatrixType, int Options>
 void svd_min_norm(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   Index cols = m.cols();
 
   enum { ColsAtCompileTime = MatrixType::ColsAtCompileTime };
 
-  typedef Matrix<Scalar, ColsAtCompileTime, Dynamic> SolutionType;
+  using SolutionType = Matrix<Scalar, ColsAtCompileTime, Dynamic>;
 
   // Generate a full-rank m x n problem with m<n. Keep fixed columns from the
   // caller, but do not encode generated row counts into the helper matrix types.
   // Otherwise fixed-column callers instantiate extra fully fixed SVD shapes.
   constexpr int RankAtCompileTime2 = Dynamic;
   constexpr int RowsAtCompileTime3 = Dynamic;
-  typedef Matrix<Scalar, RankAtCompileTime2, ColsAtCompileTime> MatrixType2;
-  typedef Matrix<Scalar, RankAtCompileTime2, 1> RhsType2;
-  typedef Matrix<Scalar, ColsAtCompileTime, RankAtCompileTime2> MatrixType2T;
+  using MatrixType2 = Matrix<Scalar, RankAtCompileTime2, ColsAtCompileTime>;
+  using RhsType2 = Matrix<Scalar, RankAtCompileTime2, 1>;
+  using MatrixType2T = Matrix<Scalar, ColsAtCompileTime, RankAtCompileTime2>;
   Index rank = ColsAtCompileTime == Dynamic ? internal::random<Index>(1, cols) : Index(ColsAtCompileTime / 2 + 1);
   MatrixType2 m2(rank, cols);
   m2.setRandom();
@@ -275,8 +275,8 @@ void svd_min_norm(const MatrixType& m) {
   VERIFY_IS_APPROX(x21, x22);
 
   // Now check with a rank deficient matrix
-  typedef Matrix<Scalar, RowsAtCompileTime3, ColsAtCompileTime> MatrixType3;
-  typedef Matrix<Scalar, RowsAtCompileTime3, 1> RhsType3;
+  using MatrixType3 = Matrix<Scalar, RowsAtCompileTime3, ColsAtCompileTime>;
+  using RhsType3 = Matrix<Scalar, RowsAtCompileTime3, 1>;
   Index rows3 =
       ColsAtCompileTime == Dynamic ? internal::random<Index>(rank + 1, 2 * cols) : Index(ColsAtCompileTime + 1);
   // Orthonormal columns give m3 the nonzero singular values of m2, so sigma_0 / sigma_{rank-1} = cond(m2) stays far
@@ -320,7 +320,7 @@ void svd_test_solvers(const MatrixType& m, const SolverType& solver) {
     cols2 = cols;
   }
   if (svd_solve_truncated_by_clamp(solver)) return;
-  typedef Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime> CMatrixType;
+  using CMatrixType = Matrix<typename MatrixType::Scalar, MatrixType::ColsAtCompileTime, MatrixType::ColsAtCompileTime>;
   check_solverbase<CMatrixType, MatrixType>(m, solver, rows, cols, cols2);
 }
 
@@ -368,7 +368,7 @@ struct svd_solver_checks_if<MatrixType, Options, SVDType, true> {
 template <typename MatrixType>
 void svd_inf_nan() {
   SVD_STATIC_OPTIONS(MatrixType, ComputeFullU | ComputeFullV) svd;
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   const Scalar some_inf = (std::numeric_limits<Scalar>::infinity)();
   VERIFY((numext::isinf)(some_inf));
   svd.compute(MatrixType::Constant(10, 10, some_inf));
@@ -553,7 +553,7 @@ template <typename MatrixType, int QRPreconditioner = 0>
 void svd_verify_assert_full_only(const MatrixType& m) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
 
-  typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
+  using RhsType = Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1>;
   RhsType rhs = RhsType::Zero(m.rows());
   EIGEN_UNUSED_VARIABLE(rhs);  // Only used if asserts are enabled.
 
@@ -585,7 +585,7 @@ void svd_verify_assert_full_only(const MatrixType& m) {
 template <typename MatrixType, int QRPreconditioner = 0>
 void svd_verify_assert(const MatrixType& m) {
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime };
-  typedef Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1> RhsType;
+  using RhsType = Matrix<typename MatrixType::Scalar, RowsAtCompileTime, 1>;
   RhsType rhs = RhsType::Zero(m.rows());
   EIGEN_UNUSED_VARIABLE(rhs);  // Only used if asserts are enabled.
 
@@ -601,7 +601,7 @@ void svd_verify_assert(const MatrixType& m) {
 
 template <typename MatrixType, int Options>
 void svd_compute_checks(const MatrixType& m) {
-  typedef SVD_STATIC_OPTIONS(MatrixType, Options) SVDType;
+  using SVDType = SVD_STATIC_OPTIONS(MatrixType, Options);
 
   enum {
     RowsAtCompileTime = MatrixType::RowsAtCompileTime,

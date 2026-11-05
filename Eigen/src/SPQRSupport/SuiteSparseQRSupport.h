@@ -28,20 +28,20 @@ struct SPQR_QProduct;
 namespace internal {
 template <typename SPQRType>
 struct traits<SPQRMatrixQReturnType<SPQRType> > {
-  typedef typename SPQRType::MatrixType ReturnType;
-  typedef typename ReturnType::Scalar Scalar;
-  typedef typename ReturnType::StorageIndex StorageIndex;
-  typedef typename ReturnType::StorageKind StorageKind;
+  using ReturnType = typename SPQRType::MatrixType;
+  using Scalar = typename ReturnType::Scalar;
+  using StorageIndex = typename ReturnType::StorageIndex;
+  using StorageKind = typename ReturnType::StorageKind;
   static constexpr int RowsAtCompileTime = Dynamic;
   static constexpr int ColsAtCompileTime = Dynamic;
 };
 template <typename SPQRType>
 struct traits<SPQRMatrixQTransposeReturnType<SPQRType> > {
-  typedef typename SPQRType::MatrixType ReturnType;
+  using ReturnType = typename SPQRType::MatrixType;
 };
 template <typename SPQRType, typename Derived>
 struct traits<SPQR_QProduct<SPQRType, Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 }  // End namespace internal
 
@@ -72,15 +72,15 @@ struct traits<SPQR_QProduct<SPQRType, Derived> > {
 template <typename MatrixType_>
 class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
  protected:
-  typedef SparseSolverBase<SPQR<MatrixType_> > Base;
+  using Base = SparseSolverBase<SPQR<MatrixType_> >;
   using Base::m_isInitialized;
 
  public:
-  typedef typename MatrixType_::Scalar Scalar;
-  typedef typename MatrixType_::RealScalar RealScalar;
-  typedef SuiteSparse_long StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> MatrixType;
-  typedef Map<PermutationMatrix<Dynamic, Dynamic, StorageIndex> > PermutationType;
+  using Scalar = typename MatrixType_::Scalar;
+  using RealScalar = typename MatrixType_::RealScalar;
+  using StorageIndex = SuiteSparse_long;
+  using MatrixType = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using PermutationType = Map<PermutationMatrix<Dynamic, Dynamic, StorageIndex> >;
   enum { ColsAtCompileTime = Dynamic, MaxColsAtCompileTime = Dynamic };
 
  public:
@@ -283,8 +283,8 @@ class SPQR : public SparseSolverBase<SPQR<MatrixType_> > {
 
 template <typename SPQRType, typename Derived>
 struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
-  typedef typename SPQRType::Scalar Scalar;
-  typedef typename SPQRType::StorageIndex StorageIndex;
+  using Scalar = typename SPQRType::Scalar;
+  using StorageIndex = typename SPQRType::StorageIndex;
   // Define the constructor to get reference to argument types
   SPQR_QProduct(const SPQRType& spqr, const Derived& other, bool transpose)
       : m_spqr(spqr), m_other(other), m_transpose(transpose) {}
@@ -370,7 +370,7 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
 };
 template <typename SPQRType>
 struct SPQRMatrixQReturnType : public EigenBase<SPQRMatrixQReturnType<SPQRType> > {
-  typedef typename SPQRType::Scalar Scalar;
+  using Scalar = typename SPQRType::Scalar;
   static constexpr int RowsAtCompileTime = Dynamic;
   static constexpr int ColsAtCompileTime = Dynamic;
   SPQRMatrixQReturnType(const SPQRType& spqr) : m_spqr(spqr) {}
@@ -410,16 +410,16 @@ namespace internal {
 
 template <typename SPQRType>
 struct evaluator_traits<SPQRMatrixQReturnType<SPQRType> > {
-  typedef typename SPQRType::MatrixType MatrixType;
-  typedef typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind Kind;
-  typedef SparseShape Shape;
+  using MatrixType = typename SPQRType::MatrixType;
+  using Kind = typename storage_kind_to_evaluator_kind<typename MatrixType::StorageKind>::Kind;
+  using Shape = SparseShape;
 };
 
 template <typename DstXprType, typename SPQRType>
 struct Assignment<DstXprType, SPQRMatrixQReturnType<SPQRType>,
                   internal::assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Sparse2Sparse> {
-  typedef SPQRMatrixQReturnType<SPQRType> SrcXprType;
-  typedef typename DstXprType::Scalar Scalar;
+  using SrcXprType = SPQRMatrixQReturnType<SPQRType>;
+  using Scalar = typename DstXprType::Scalar;
 
   static void run(DstXprType& dst, const SrcXprType& src, const internal::assign_op<Scalar, Scalar>& /*func*/) {
     typename DstXprType::PlainObject idMat(src.rows(), src.cols());
@@ -431,8 +431,8 @@ struct Assignment<DstXprType, SPQRMatrixQReturnType<SPQRType>,
 template <typename DstXprType, typename SPQRType>
 struct Assignment<DstXprType, SPQRMatrixQReturnType<SPQRType>,
                   internal::assign_op<typename DstXprType::Scalar, typename DstXprType::Scalar>, Sparse2Dense> {
-  typedef SPQRMatrixQReturnType<SPQRType> SrcXprType;
-  typedef typename DstXprType::Scalar Scalar;
+  using SrcXprType = SPQRMatrixQReturnType<SPQRType>;
+  using Scalar = typename DstXprType::Scalar;
 
   static void run(DstXprType& dst, const SrcXprType& src, const internal::assign_op<Scalar, Scalar>& /*func*/) {
     dst = src.m_spqr.matrixQ() * DstXprType::Identity(src.rows(), src.cols());

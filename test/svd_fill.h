@@ -39,8 +39,8 @@ struct maybe_set_imag_part<Scalar, false> {
 template <typename MatrixType>
 void svd_fill_random(MatrixType& m, int Option = 0) {
   using std::pow;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Index diagSize = (std::min)(m.rows(), m.cols());
   RealScalar s = std::numeric_limits<RealScalar>::max_exponent10 / 4;
   s = internal::random<RealScalar>(1, s);

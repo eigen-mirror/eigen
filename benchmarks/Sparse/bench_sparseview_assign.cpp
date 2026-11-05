@@ -8,9 +8,9 @@
 
 using namespace Eigen;
 
-typedef double Scalar;
-typedef Matrix<Scalar, Dynamic, Dynamic> DenseMat;
-typedef SparseMatrix<Scalar> SpMat;
+using Scalar = double;
+using DenseMat = Matrix<Scalar, Dynamic, Dynamic>;
+using SpMat = SparseMatrix<Scalar>;
 
 static DenseMat makeDense(int rows, int cols, double density, std::uint64_t seed) {
   DenseMat dense = DenseMat::Zero(rows, cols);

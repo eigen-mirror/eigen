@@ -124,7 +124,7 @@ class TensorWithFormat<T, RowMajor, rank, Format> {
 
   friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, RowMajor, rank, Format>& wf) {
     // Evaluate the expression if needed
-    typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
+    using Evaluator = TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice>;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
     Evaluator tensor(eval, DefaultDevice());
     tensor.evalSubExprsIfNeeded(nullptr);
@@ -146,7 +146,7 @@ class TensorWithFormat<T, ColMajor, rank, Format> {
 
   friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, ColMajor, rank, Format>& wf) {
     // Switch to RowMajor storage and print afterwards
-    typedef typename T::Index IndexType;
+    using IndexType = typename T::Index;
     std::array<IndexType, rank> shuffle;
     std::array<IndexType, rank> id;
     std::iota(id.begin(), id.end(), IndexType(0));
@@ -154,7 +154,7 @@ class TensorWithFormat<T, ColMajor, rank, Format> {
     auto tensor_row_major = wf.t_tensor.swap_layout().shuffle(shuffle);
 
     // Evaluate the expression if needed
-    typedef TensorEvaluator<const TensorForcedEvalOp<const decltype(tensor_row_major)>, DefaultDevice> Evaluator;
+    using Evaluator = TensorEvaluator<const TensorForcedEvalOp<const decltype(tensor_row_major)>, DefaultDevice>;
     TensorForcedEvalOp<const decltype(tensor_row_major)> eval = tensor_row_major.eval();
     Evaluator tensor(eval, DefaultDevice());
     tensor.evalSubExprsIfNeeded(nullptr);
@@ -176,7 +176,7 @@ class TensorWithFormat<T, ColMajor, 0, Format> {
 
   friend std::ostream& operator<<(std::ostream& os, const TensorWithFormat<T, ColMajor, 0, Format>& wf) {
     // Evaluate the expression if needed
-    typedef TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice> Evaluator;
+    using Evaluator = TensorEvaluator<const TensorForcedEvalOp<const T>, DefaultDevice>;
     TensorForcedEvalOp<const T> eval = wf.t_tensor.eval();
     Evaluator tensor(eval, DefaultDevice());
     tensor.evalSubExprsIfNeeded(nullptr);
@@ -218,19 +218,19 @@ struct TensorPrinter {
   using Scalar = std::remove_const_t<typename Tensor::Scalar>;
 
   static void run(std::ostream& s, const Tensor& tensor, const Format& fmt) {
-    typedef typename Tensor::Index IndexType;
+    using IndexType = typename Tensor::Index;
 
     eigen_assert(Tensor::Layout == RowMajor);
-    typedef std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
-                                   std::is_same<Scalar, numext::int8_t>::value ||
-                                   std::is_same<Scalar, numext::uint8_t>::value,
-                               int,
-                               std::conditional_t<std::is_same<Scalar, std::complex<char>>::value ||
-                                                      std::is_same<Scalar, std::complex<unsigned char>>::value ||
-                                                      std::is_same<Scalar, std::complex<numext::int8_t>>::value ||
-                                                      std::is_same<Scalar, std::complex<numext::uint8_t>>::value,
-                                                  std::complex<int>, const Scalar&>>
-        PrintType;
+    using PrintType =
+        std::conditional_t<std::is_same<Scalar, char>::value || std::is_same<Scalar, unsigned char>::value ||
+                               std::is_same<Scalar, numext::int8_t>::value ||
+                               std::is_same<Scalar, numext::uint8_t>::value,
+                           int,
+                           std::conditional_t<std::is_same<Scalar, std::complex<char>>::value ||
+                                                  std::is_same<Scalar, std::complex<unsigned char>>::value ||
+                                                  std::is_same<Scalar, std::complex<numext::int8_t>>::value ||
+                                                  std::is_same<Scalar, std::complex<numext::uint8_t>>::value,
+                                              std::complex<int>, const Scalar&>>;
     using PrintScalar = std::remove_const_t<std::remove_reference_t<PrintType>>;
 
     const IndexType total_size = array_prod(tensor.dimensions());
@@ -364,7 +364,7 @@ struct TensorPrinter<Tensor, rank, TensorIOFormatLegacy, std::enable_if_t<rank !
   using Scalar = std::remove_const_t<typename Tensor::Scalar>;
 
   static void run(std::ostream& s, const Tensor& tensor, const Format&) {
-    typedef typename Tensor::Index IndexType;
+    using IndexType = typename Tensor::Index;
     // backwards compatibility case: print tensor after reshaping to matrix of size dim(0) x
     // (dim(1)*dim(2)*...*dim(rank-1)).
     const IndexType total_size = internal::array_prod(tensor.dimensions());

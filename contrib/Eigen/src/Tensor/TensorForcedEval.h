@@ -21,20 +21,20 @@ namespace Eigen {
 namespace internal {
 template <typename XprType>
 struct traits<TensorForcedEvalOp<XprType>> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename traits<XprType>::StorageKind StorageKind;
-  typedef typename traits<XprType>::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename traits<XprType>::StorageKind;
+  using Index = typename traits<XprType>::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 
   enum { Flags = 0 };
 };
 
 template <typename XprType>
 struct eval<TensorForcedEvalOp<XprType>, Eigen::Dense> {
-  typedef const TensorForcedEvalOp<XprType>& type;
+  using type = const TensorForcedEvalOp<XprType>&;
 };
 
 }  // end namespace internal
@@ -47,12 +47,12 @@ struct eval<TensorForcedEvalOp<XprType>, Eigen::Dense> {
 template <typename XprType>
 class TensorForcedEvalOp : public TensorBase<TensorForcedEvalOp<XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorForcedEvalOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorForcedEvalOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorForcedEvalOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorForcedEvalOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorForcedEvalOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using Nested = typename Eigen::internal::ref_selector<TensorForcedEvalOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorForcedEvalOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorForcedEvalOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorForcedEvalOp(const XprType& expr) : m_xpr(expr) {}
 
@@ -111,17 +111,17 @@ class DeviceTempPointerHolder {
 
 template <typename ArgType_, typename Device>
 struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
-  typedef const internal::remove_all_t<ArgType_> ArgType;
-  typedef TensorForcedEvalOp<ArgType> XprType;
-  typedef typename ArgType::Scalar Scalar;
-  typedef typename TensorEvaluator<ArgType, Device>::Dimensions Dimensions;
-  typedef typename XprType::Index Index;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using ArgType = const internal::remove_all_t<ArgType_>;
+  using XprType = TensorForcedEvalOp<ArgType>;
+  using Scalar = typename ArgType::Scalar;
+  using Dimensions = typename TensorEvaluator<ArgType, Device>::Dimensions;
+  using Index = typename XprType::Index;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef typename Eigen::internal::traits<XprType>::PointerType TensorPointerType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using TensorPointerType = typename Eigen::internal::traits<XprType>::PointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   enum {
     IsAligned = true,
@@ -135,10 +135,10 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
   static constexpr int NumDims = internal::traits<ArgType>::NumDimensions;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   TensorEvaluator(const XprType& op, const Device& device)
@@ -160,7 +160,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 
     m_placement_constructed = internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
 
-    typedef TensorEvalToOp<const std::remove_const_t<ArgType>> EvalTo;
+    using EvalTo = TensorEvalToOp<const std::remove_const_t<ArgType>>;
     EvalTo evalToTmp(m_device.get(m_buffer), m_op);
 
     internal::TensorExecutor<const EvalTo, std::remove_const_t<Device>,
@@ -179,7 +179,7 @@ struct TensorEvaluator<const TensorForcedEvalOp<ArgType_>, Device> {
 
     m_placement_constructed = internal::non_integral_type_placement_new<Device, CoeffReturnType>()(numValues, m_buffer);
 
-    typedef TensorEvalToOp<const std::remove_const_t<ArgType>> EvalTo;
+    using EvalTo = TensorEvalToOp<const std::remove_const_t<ArgType>>;
     EvalTo evalToTmp(m_device.get(m_buffer), m_op);
 
     auto on_done = std::bind([](EvalSubExprsCallback done_) { done_(true); }, std::move(done));

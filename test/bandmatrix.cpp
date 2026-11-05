@@ -12,9 +12,9 @@
 
 template <typename MatrixType>
 void bandmatrix(const MatrixType& _m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseMatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   Index rows = _m.rows();
   Index cols = _m.cols();

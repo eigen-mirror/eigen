@@ -47,12 +47,12 @@ template <typename MatrixType>
 void product_notemporary(const MatrixType& m) {
   /* This test checks the number of temporaries created
    * during the evaluation of a complex expression */
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef Matrix<Scalar, 1, Dynamic> RowVectorType;
-  typedef Matrix<Scalar, Dynamic, 1> ColVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> ColMajorMatrixType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RowMajorMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using RowVectorType = Matrix<Scalar, 1, Dynamic>;
+  using ColVectorType = Matrix<Scalar, Dynamic, 1>;
+  using ColMajorMatrixType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RowMajorMatrixType = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   Index rows = m.rows();
   Index cols = m.cols();

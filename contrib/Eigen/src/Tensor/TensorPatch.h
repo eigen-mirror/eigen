@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename PatchDim, typename XprType>
 struct traits<TensorPatchOp<PatchDim, XprType> > : traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions + 1;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename PatchDim, typename XprType>
 struct eval<TensorPatchOp<PatchDim, XprType>, Eigen::Dense> {
-  typedef const TensorPatchOp<PatchDim, XprType>& type;
+  using type = const TensorPatchOp<PatchDim, XprType>&;
 };
 
 }  // end namespace internal
@@ -43,12 +43,12 @@ struct eval<TensorPatchOp<PatchDim, XprType>, Eigen::Dense> {
 template <typename PatchDim, typename XprType>
 class TensorPatchOp : public TensorBase<TensorPatchOp<PatchDim, XprType>, ReadOnlyAccessors> {
  public:
-  typedef typename Eigen::internal::traits<TensorPatchOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorPatchOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorPatchOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorPatchOp>::Index Index;
+  using Scalar = typename Eigen::internal::traits<TensorPatchOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorPatchOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorPatchOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorPatchOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorPatchOp(const XprType& expr, const PatchDim& patch_dims)
       : m_xpr(expr), m_patch_dims(patch_dims) {}
@@ -65,16 +65,16 @@ class TensorPatchOp : public TensorBase<TensorPatchOp<PatchDim, XprType>, ReadOn
 // Eval as rvalue
 template <typename PatchDim, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
-  typedef TensorPatchOp<PatchDim, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorPatchOp<PatchDim, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value + 1;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -93,9 +93,9 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-  typedef typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index> TensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
+  using TensorBlock = typename internal::TensorMaterializedBlock<CoeffReturnType, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)

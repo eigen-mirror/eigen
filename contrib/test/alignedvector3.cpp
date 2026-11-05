@@ -26,9 +26,9 @@ template <typename Scalar>
 void alignedvector3() {
   Scalar s1 = internal::random<Scalar>();
   Scalar s2 = internal::random<Scalar>();
-  typedef Matrix<Scalar, 3, 1> RefType;
-  typedef Matrix<Scalar, 3, 3> Mat33;
-  typedef AlignedVector3<Scalar> FastType;
+  using RefType = Matrix<Scalar, 3, 1>;
+  using Mat33 = Matrix<Scalar, 3, 3>;
+  using FastType = AlignedVector3<Scalar>;
   RefType r1(RefType::Random()), r2(RefType::Random()), r3(RefType::Random()), r4(RefType::Random()),
       r5(RefType::Random());
   FastType f1(r1), f2(r2), f3(r3), f4(r4), f5(r5);

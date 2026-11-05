@@ -71,7 +71,7 @@ Let's analyze the first line:
 
 First of all, VectorXf is the following typedef:
 \code
-  typedef Matrix<float, Dynamic, 1> VectorXf;
+  using VectorXf = Matrix<float, Dynamic, 1>;
 \endcode
 
 The class template Matrix is declared in src/Core/util/ForwardDeclarations.h with 6 template parameters, but the last 3 are automatically determined by the first 3. So you don't need to worry about them for now. Here, Matrix\<float, Dynamic, 1\> means a matrix of floats, with a dynamic number of rows and 1 column.

@@ -14,7 +14,7 @@ namespace internal {
 template <typename Scalar>
 void rwupdt(Matrix<Scalar, Dynamic, Dynamic> &r, const Matrix<Scalar, Dynamic, 1> &w, Matrix<Scalar, Dynamic, 1> &b,
             Scalar alpha) {
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   const Index n = r.cols();
   eigen_assert(r.rows() >= n);

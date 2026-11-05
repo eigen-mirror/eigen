@@ -43,9 +43,9 @@ void solve_with_guess(SparseSolverBase<Solver>& solver, const SparseMatrixBase<R
 template <typename Solver, typename Rhs, typename DenseMat, typename DenseRhs>
 void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, const Rhs& b, const DenseMat& dA,
                           const DenseRhs& db) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename Mat::StorageIndex StorageIndex;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using StorageIndex = typename Mat::StorageIndex;
 
   DenseRhs refX = dA.householderQr().solve(db);
   {
@@ -162,9 +162,9 @@ template <typename Scalar, typename Rhs, typename DenseMat, typename DenseRhs>
 void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>& solver,
                           const typename Eigen::SparseMatrix<Scalar>& A, const Rhs& b, const DenseMat& dA,
                           const DenseRhs& db) {
-  typedef typename Eigen::SparseMatrix<Scalar> Mat;
-  typedef typename Mat::StorageIndex StorageIndex;
-  typedef typename Eigen::SparseLU<Eigen::SparseMatrix<Scalar>> Solver;
+  using Mat = typename Eigen::SparseMatrix<Scalar>;
+  using StorageIndex = typename Mat::StorageIndex;
+  using Solver = typename Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>;
 
   // reference solutions computed by dense QR solver
   DenseRhs refX1 = dA.householderQr().solve(db);              // solution of A x = db
@@ -287,9 +287,9 @@ void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>& solver,
 template <typename Solver, typename Rhs>
 void check_sparse_solving_real_cases(Solver& solver, const typename Solver::MatrixType& A, const Rhs& b,
                                      const typename Solver::MatrixType& fullA, const Rhs& refX) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename Mat::RealScalar RealScalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename Mat::RealScalar;
 
   Rhs x(A.cols(), b.cols());
 
@@ -314,9 +314,9 @@ void check_sparse_solving_real_cases(Solver& solver, const typename Solver::Matr
 }
 template <typename Solver, typename DenseMat>
 void check_sparse_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   solver.compute(A);
   if (solver.info() != Success) {
@@ -339,8 +339,8 @@ void check_sparse_determinant(Solver& solver, const typename Solver::MatrixType&
 template <typename Solver, typename DenseMat>
 void check_sparse_abs_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
   using std::abs;
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
 
   solver.compute(A);
   if (solver.info() != Success) {
@@ -354,9 +354,9 @@ void check_sparse_abs_determinant(Solver& solver, const typename Solver::MatrixT
 
 template <typename Solver, typename DenseMat>
 void check_sparse_log_abs_determinant(Solver& solver, const typename Solver::MatrixType& A, const DenseMat& dA) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   solver.compute(A);
   if (solver.info() != Success) {
@@ -377,9 +377,9 @@ void check_sparse_log_abs_determinant(Solver& solver, const typename Solver::Mat
 template <typename Solver, typename DenseMat>
 int generate_sparse_spd_problem(Solver&, typename Solver::MatrixType& A, typename Solver::MatrixType& halfA,
                                 DenseMat& dA, int maxSize = 300) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   int size = internal::random<int>(1, maxSize);
   double density = (std::max)(8. / static_cast<double>(size * size), 0.01);
@@ -431,13 +431,13 @@ std::string solver_stats(const SparseSolverBase<Derived>& /*solver*/) {
 template <typename Solver>
 void check_sparse_spd_solving(Solver& solver, int maxSize = (std::min)(300, EIGEN_TEST_MAX_SIZE),
                               int maxRealWorldSize = 100000) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename Mat::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> SpMat;
-  typedef SparseVector<Scalar, 0, StorageIndex> SpVec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using StorageIndex = typename Mat::StorageIndex;
+  using SpMat = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using SpVec = SparseVector<Scalar, 0, StorageIndex>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   // generate the problem
   Mat A, halfA;
@@ -509,9 +509,9 @@ void check_sparse_spd_solving(Solver& solver, int maxSize = (std::min)(300, EIGE
 
 template <typename Solver>
 void check_sparse_spd_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   // generate the problem
   Mat A, halfA;
@@ -524,9 +524,9 @@ void check_sparse_spd_determinant(Solver& solver) {
 
 template <typename Solver>
 void check_sparse_spd_log_abs_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   // generate the problem
   Mat A, halfA;
@@ -540,9 +540,9 @@ void check_sparse_spd_log_abs_determinant(Solver& solver) {
 template <typename Solver, typename DenseMat>
 int generate_sparse_nonhermitian_problem(Solver&, typename Solver::MatrixType& A, typename Solver::MatrixType& halfA,
                                          DenseMat& dA, int maxSize = 300) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   int size = internal::random<int>(1, maxSize);
   double density = (std::max)(8. / static_cast<double>(size * size), 0.01);
@@ -567,13 +567,13 @@ int generate_sparse_nonhermitian_problem(Solver&, typename Solver::MatrixType& A
 template <typename Solver>
 void check_sparse_nonhermitian_solving(Solver& solver, int maxSize = (std::min)(300, EIGEN_TEST_MAX_SIZE),
                                        int maxRealWorldSize = 100000) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef typename Mat::StorageIndex StorageIndex;
-  typedef SparseMatrix<Scalar, ColMajor, StorageIndex> SpMat;
-  typedef SparseVector<Scalar, 0, StorageIndex> SpVec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using StorageIndex = typename Mat::StorageIndex;
+  using SpMat = SparseMatrix<Scalar, ColMajor, StorageIndex>;
+  using SpVec = SparseVector<Scalar, 0, StorageIndex>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   // generate the problem
   Mat A, halfA;
@@ -612,9 +612,9 @@ void check_sparse_nonhermitian_solving(Solver& solver, int maxSize = (std::min)(
 
 template <typename Solver>
 void check_sparse_nonhermitian_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   // generate the problem
   Mat A, halfA;
@@ -629,9 +629,9 @@ void check_sparse_nonhermitian_determinant(Solver& solver) {
 
 template <typename Solver>
 void check_sparse_nonhermitian_log_abs_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   // generate the problem
   Mat A, halfA;
@@ -646,7 +646,7 @@ void check_sparse_nonhermitian_log_abs_determinant(Solver& solver) {
 
 template <typename Solver>
 void check_sparse_zero_matrix(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
+  using Mat = typename Solver::MatrixType;
 
   Mat A(1, 1);
   solver.compute(A);
@@ -656,8 +656,8 @@ void check_sparse_zero_matrix(Solver& solver) {
 template <typename Solver, typename DenseMat>
 Index generate_sparse_square_problem(Solver&, typename Solver::MatrixType& A, DenseMat& dA, int maxSize = 300,
                                      int options = ForceNonZeroDiag) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
 
   Index size = internal::random<int>(1, maxSize);
   double density = (std::max)(8. / static_cast<double>(size * size), 0.01);
@@ -682,12 +682,12 @@ struct prune_column {
 template <typename Solver>
 void check_sparse_square_solving(Solver& solver, int maxSize = 300, int maxRealWorldSize = 100000,
                                  bool checkDeficient = false) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef SparseMatrix<Scalar, ColMajor, typename Mat::StorageIndex> SpMat;
-  typedef SparseVector<Scalar, 0, typename Mat::StorageIndex> SpVec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using SpMat = SparseMatrix<Scalar, ColMajor, typename Mat::StorageIndex>;
+  using SpVec = SparseVector<Scalar, 0, typename Mat::StorageIndex>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   int rhsCols = internal::random<int>(1, 16);
 
@@ -751,9 +751,9 @@ void check_sparse_square_solving(Solver& solver, int maxSize = 300, int maxRealW
 
 template <typename Solver>
 void check_sparse_square_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   for (int i = 0; i < g_repeat; i++) {
     // generate the problem
@@ -774,9 +774,9 @@ void check_sparse_square_determinant(Solver& solver) {
 
 template <typename Solver>
 void check_sparse_square_abs_determinant(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
   for (int i = 0; i < g_repeat; i++) {
     // generate the problem
@@ -791,8 +791,8 @@ void check_sparse_square_abs_determinant(Solver& solver) {
 template <typename Solver, typename DenseMat>
 void generate_sparse_leastsquare_problem(Solver&, typename Solver::MatrixType& A, DenseMat& dA, int maxSize = 300,
                                          int options = ForceNonZeroDiag) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
 
   int rows = internal::random<int>(1, maxSize);
   int cols = internal::random<int>(1, rows);
@@ -806,11 +806,11 @@ void generate_sparse_leastsquare_problem(Solver&, typename Solver::MatrixType& A
 
 template <typename Solver>
 void check_sparse_leastsquare_solving(Solver& solver) {
-  typedef typename Solver::MatrixType Mat;
-  typedef typename Mat::Scalar Scalar;
-  typedef SparseMatrix<Scalar, ColMajor, typename Mat::StorageIndex> SpMat;
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using SpMat = SparseMatrix<Scalar, ColMajor, typename Mat::StorageIndex>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
 
   int rhsCols = internal::random<int>(1, 16);
 

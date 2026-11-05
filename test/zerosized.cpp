@@ -104,7 +104,7 @@ void zeroReduction(const MatrixType& m) {
 template <typename MatrixType>
 void zeroSizedMatrix() {
   MatrixType t1;
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   if (MatrixType::SizeAtCompileTime == Dynamic || MatrixType::SizeAtCompileTime == 0) {
     zeroReduction(t1);

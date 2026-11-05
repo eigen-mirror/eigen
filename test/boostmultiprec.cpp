@@ -80,7 +80,7 @@
 #include <boost/math/complex.hpp>
 #include <boost/rational.hpp>
 
-typedef boost::multiprecision::number<boost::multiprecision::cpp_dec_float<100>, boost::multiprecision::et_on> Real;
+using Real = boost::multiprecision::number<boost::multiprecision::cpp_dec_float<100>, boost::multiprecision::et_on>;
 
 namespace Eigen {
 template <>
@@ -168,8 +168,8 @@ void is_orthogonal_custom_scalars() {
 }
 
 EIGEN_DECLARE_TEST(boostmultiprec) {
-  typedef Matrix<Real, Dynamic, Dynamic> Mat;
-  typedef Matrix<std::complex<Real>, Dynamic, Dynamic> MatC;
+  using Mat = Matrix<Real, Dynamic, Dynamic>;
+  using MatC = Matrix<std::complex<Real>, Dynamic, Dynamic>;
 
   std::cout << "NumTraits<Real>::epsilon()         = " << NumTraits<Real>::epsilon() << std::endl;
   std::cout << "NumTraits<Real>::dummy_precision() = " << NumTraits<Real>::dummy_precision() << std::endl;

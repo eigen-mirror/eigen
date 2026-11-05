@@ -58,7 +58,7 @@ class LevenbergMarquardt {
     useExternalScaling = false;
   }
 
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   struct Parameters {
     Parameters()
@@ -76,8 +76,8 @@ class LevenbergMarquardt {
     Scalar epsfcn;
   };
 
-  typedef Matrix<Scalar, Dynamic, 1> FVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> JacobianType;
+  using FVectorType = Matrix<Scalar, Dynamic, 1>;
+  using JacobianType = Matrix<Scalar, Dynamic, Dynamic>;
 
   LevenbergMarquardtSpace::Status lmder1(FVectorType &x, const Scalar tol = sqrt_epsilon());
 

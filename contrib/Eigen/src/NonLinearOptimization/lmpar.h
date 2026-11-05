@@ -16,7 +16,7 @@ void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matr
            const Matrix<Scalar, Dynamic, 1> &qtb, Scalar delta, Scalar &par, Matrix<Scalar, Dynamic, 1> &x) {
   using std::abs;
   using std::sqrt;
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Index i, j, l;
@@ -153,7 +153,7 @@ void lmpar2(const ColPivHouseholderQR<Matrix<Scalar, Dynamic, Dynamic> > &qr, co
 {
   using std::abs;
   using std::sqrt;
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   /* Local variables */
   Index j;

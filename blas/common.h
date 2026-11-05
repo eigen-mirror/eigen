@@ -72,20 +72,19 @@ inline bool check_side(const char* side) { return SIDE(*side) != 0xff; }
 
 inline bool check_uplo(const char* uplo) { return UPLO(*uplo) != 0xff; }
 
-typedef SCALAR Scalar;
-typedef Eigen::NumTraits<Scalar>::Real RealScalar;
-typedef std::complex<RealScalar> Complex;
+using Scalar = SCALAR;
+using RealScalar = Eigen::NumTraits<Scalar>::Real;
+using Complex = std::complex<RealScalar>;
 
 enum { IsComplex = Eigen::NumTraits<SCALAR>::IsComplex, Conj = IsComplex };
 
-typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> PlainMatrixType;
-typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<> >
-    MatrixType;
-typedef Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0,
-                   Eigen::OuterStride<> >
-    ConstMatrixType;
-typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic> > StridedVectorType;
-typedef Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1> > CompactVectorType;
+using PlainMatrixType = Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>;
+using MatrixType =
+    Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>>;
+using ConstMatrixType =
+    Eigen::Map<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>>;
+using StridedVectorType = Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>, 0, Eigen::InnerStride<Eigen::Dynamic>>;
+using CompactVectorType = Eigen::Map<Eigen::Matrix<Scalar, Eigen::Dynamic, 1>>;
 
 template <typename T>
 Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>, 0, Eigen::OuterStride<>> matrix(

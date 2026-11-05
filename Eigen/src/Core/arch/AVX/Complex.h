@@ -30,8 +30,8 @@ struct Packet4cf {
 #ifndef EIGEN_VECTORIZE_AVX512
 template <>
 struct packet_traits<std::complex<float> > : default_packet_traits {
-  typedef Packet4cf type;
-  typedef Packet2cf half;
+  using type = Packet4cf;
+  using half = Packet2cf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -56,9 +56,9 @@ struct packet_traits<std::complex<float> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet4cf> {
-  typedef std::complex<float> type;
-  typedef Packet2cf half;
-  typedef Packet8f as_real;
+  using type = std::complex<float>;
+  using half = Packet2cf;
+  using as_real = Packet8f;
   enum {
     size = 4,
     alignment = Aligned32,
@@ -253,8 +253,8 @@ struct Packet2cd {
 #ifndef EIGEN_VECTORIZE_AVX512
 template <>
 struct packet_traits<std::complex<double> > : default_packet_traits {
-  typedef Packet2cd type;
-  typedef Packet1cd half;
+  using type = Packet2cd;
+  using half = Packet1cd;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 0,
@@ -279,9 +279,9 @@ struct packet_traits<std::complex<double> > : default_packet_traits {
 
 template <>
 struct unpacket_traits<Packet2cd> {
-  typedef std::complex<double> type;
-  typedef Packet1cd half;
-  typedef Packet4d as_real;
+  using type = std::complex<double>;
+  using half = Packet1cd;
+  using as_real = Packet4d;
   enum {
     size = 2,
     alignment = Aligned32,

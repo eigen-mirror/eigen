@@ -44,10 +44,10 @@ template<typename Derived>
 class TensorBase<Derived, ReadOnlyAccessors>
 {
   public:
-    typedef internal::traits<Derived> DerivedTraits;
-    typedef typename DerivedTraits::Scalar Scalar;
-    typedef typename DerivedTraits::Index Index;
-    typedef std::remove_const_t<Scalar> CoeffReturnType;
+    using DerivedTraits = internal::traits<Derived>;
+    using Scalar = typename DerivedTraits::Scalar;
+    using Index = typename DerivedTraits::Index;
+    using CoeffReturnType = std::remove_const_t<Scalar>;
     static constexpr int NumDimensions = DerivedTraits::NumDimensions;
 
     // Generic nullary operation support.
@@ -647,7 +647,7 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     // Contractions.
-    typedef Eigen::IndexPair<Index> DimensionPair;
+    using DimensionPair = Eigen::IndexPair<Index>;
 
     template<typename OtherDerived, typename Dimensions> EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorContractionOp<const Dimensions, const Derived, const OtherDerived, const NoOpOutputKernel>
@@ -676,14 +676,14 @@ class TensorBase<Derived, ReadOnlyAccessors>
     }
 
     // Scan.
-    typedef TensorScanOp<internal::SumReducer<CoeffReturnType>, const Derived> TensorScanSumOp;
+    using TensorScanSumOp = TensorScanOp<internal::SumReducer<CoeffReturnType>, const Derived>;
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorScanSumOp
     cumsum(const Index& axis, bool exclusive = false) const {
       return TensorScanSumOp(derived(), axis, exclusive);
     }
 
-    typedef TensorScanOp<internal::ProdReducer<CoeffReturnType>, const Derived> TensorScanProdOp;
+    using TensorScanProdOp = TensorScanOp<internal::ProdReducer<CoeffReturnType>, const Derived>;
     EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE
     const TensorScanProdOp
     cumprod(const Index& axis, bool exclusive = false) const {
@@ -1035,11 +1035,11 @@ class TensorBase<Derived, ReadOnlyAccessors>
 template<typename Derived, int AccessLevel = internal::accessors_level<Derived>::value>
 class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
  public:
-    typedef TensorBase<Derived, ReadOnlyAccessors> Base;
-    typedef internal::traits<Derived> DerivedTraits;
-    typedef typename DerivedTraits::Scalar Scalar;
-    typedef typename DerivedTraits::Index Index;
-    typedef Scalar CoeffReturnType;
+    using Base = TensorBase<Derived, ReadOnlyAccessors>;
+    using DerivedTraits = internal::traits<Derived>;
+    using Scalar = typename DerivedTraits::Scalar;
+    using Index = typename DerivedTraits::Index;
+    using CoeffReturnType = Scalar;
     static constexpr int NumDimensions = DerivedTraits::NumDimensions;
 
     template <typename Scalar, int NumIndices, int Options, typename IndexType> friend class Tensor;
@@ -1259,7 +1259,7 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
     template<typename OtherDerived> EIGEN_DEVICE_FUNC
     EIGEN_STRONG_INLINE Derived& operator=(const OtherDerived& other)
     {
-      typedef TensorAssignOp<Derived, const OtherDerived> Assign;
+      using Assign = TensorAssignOp<Derived, const OtherDerived>;
       Assign assign(derived(), other.derived());
       internal::TensorExecutor<const Assign, DefaultDevice>::run(assign, DefaultDevice());
       return derived();
@@ -1276,7 +1276,7 @@ class TensorBase : public TensorBase<Derived, ReadOnlyAccessors> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const TensorCwiseUnaryOp<                                                       \
       internal::bind1st_op<internal::scalar_##name##_op<typename internal::traits<Derived>::Scalar> >, const Derived>  \
   op(OtherScalar lhs, const TensorBase<Derived, ReadOnlyAccessors>& rhs) {                                              \
-    typedef typename internal::traits<Derived>::Scalar Scalar;                                                         \
+    using Scalar = typename internal::traits<Derived>::Scalar;                                                         \
     return rhs.derived().unaryExpr(                                                                                    \
         internal::bind1st_op<internal::scalar_##name##_op<Scalar> >(static_cast<Scalar>(lhs)));                        \
   }
@@ -1300,7 +1300,7 @@ EIGEN_FORWARD_SCALAR_BINOP(operator/, quotient)
       const TensorCwiseNullaryOp<internal::scalar_constant_op<typename internal::traits<Derived>::Scalar>,     \
                                  const Derived> >                                                              \
   op(OtherScalar lhs, const TensorBase<Derived, ReadOnlyAccessors>& rhs) {                                     \
-    typedef typename internal::traits<Derived>::Scalar Scalar;                                                 \
+    using Scalar = typename internal::traits<Derived>::Scalar;                                                 \
     return rhs.derived().reflected(static_cast<Scalar>(lhs));                                                  \
   }
 EIGEN_FORWARD_SCALAR_CMP_LHS(operator<, operator>, GT)

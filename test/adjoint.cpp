@@ -97,10 +97,10 @@ void adjoint(const MatrixType& m) {
      Transpose.h Conjugate.h Dot.h
   */
   using std::abs;
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> SquareMatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using SquareMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   const Index PacketSize = internal::packet_traits<Scalar>::size;
 
   Index rows = m.rows();
@@ -165,7 +165,7 @@ void adjoint(const MatrixType& m) {
   VERIFY_IS_APPROX(m3, m1.conjugate());
 
   // check mixed dot product
-  typedef Matrix<RealScalar, MatrixType::RowsAtCompileTime, 1> RealVectorType;
+  using RealVectorType = Matrix<RealScalar, MatrixType::RowsAtCompileTime, 1>;
   RealVectorType rv1 = RandomMatrix<RealVectorType>(rows, 1, rmin, rmax);
 
   VERIFY_IS_APPROX(v1.dot(rv1.template cast<Scalar>()), v1.dot(rv1));
@@ -245,7 +245,7 @@ void inner_product_boundary_sizes() {
   for (int si = 0; si < 20; ++si) {
     const Index n = sizes[si];
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, 1> Vec;
+    using Vec = Matrix<Scalar, Dynamic, 1>;
     Vec v1 = Vec::Random(n);
     Vec v2 = Vec::Random(n);
     // Reference: scalar loop
@@ -550,7 +550,7 @@ void transposeInPlace_boundary() {
   for (int si = 0; si < 13; ++si) {
     Index n = sizes[si];
     if (n <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+    using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
     // Square transposeInPlace
     Mat m1 = Mat::Random(n, n);
@@ -567,7 +567,7 @@ void transposeInPlace_boundary() {
   for (int si = 0; si < 5; ++si) {
     Index r = rect_sizes[si][0], c = rect_sizes[si][1];
     if (r <= 0 || c <= 0) continue;
-    typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+    using Mat = Matrix<Scalar, Dynamic, Dynamic>;
     Mat m1 = Mat::Random(r, c);
     Mat expected = m1.transpose();
     Mat m2 = m1;

@@ -28,7 +28,7 @@ EIGEN_DONT_INLINE Packet packet_product_runtime(const Packet& lhs, const Packet&
 // product and applying scalar IEEE semantics.
 template <typename RealScalar>
 bool packet_path_flushes_subnormals() {
-  typedef typename internal::packet_traits<RealScalar>::type Packet;
+  using Packet = typename internal::packet_traits<RealScalar>::type;
   volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
   const RealScalar tiny = vtiny;
   const RealScalar half_tiny =
@@ -40,7 +40,7 @@ bool packet_path_flushes_subnormals() {
 // residual / reconstruction checks against the solver output.
 template <typename DiagType, typename SubType>
 Matrix<typename DiagType::Scalar, Dynamic, Dynamic> dense_symmetric_tridiag(const DiagType& d, const SubType& e) {
-  typedef typename DiagType::Scalar RealScalar;
+  using RealScalar = typename DiagType::Scalar;
   const Index n = d.size();
   Matrix<RealScalar, Dynamic, Dynamic> T = Matrix<RealScalar, Dynamic, Dynamic>::Zero(n, n);
   T.diagonal() = d;
@@ -57,8 +57,8 @@ Matrix<typename DiagType::Scalar, Dynamic, Dynamic> dense_symmetric_tridiag(cons
 // selection, and verify absolute accuracy against matrices with known spectra.
 template <typename RealScalar>
 void tridiagonal_eigensolver_bisection() {
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
   const RealScalar tiny = (std::numeric_limits<RealScalar>::min)();
 
@@ -266,8 +266,8 @@ void tridiagonal_eigensolver_bisection() {
 // computeEigenvectors(diag, subdiag, eigenvalues) API.
 template <typename RealScalar>
 void tridiagonal_eigensolver_eigenvectors() {
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
   const RealScalar tiny = (std::numeric_limits<RealScalar>::min)();
   const double pi = 3.14159265358979323846;
@@ -573,8 +573,8 @@ void tridiagonal_eigensolver_eigenvectors() {
 // eigenspace. Each block below used to fail in the corresponding way.
 template <typename RealScalar>
 void tridiagonal_eigensolver_narrow() {
-  typedef Matrix<RealScalar, Dynamic, 1> VectorType;
-  typedef Matrix<RealScalar, Dynamic, Dynamic> MatrixType;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
 
   // (a) 2x2 [2, 1; 1, 2]: exact eigenpairs (1, 3) with vectors (1, -1)/sqrt(2), (1, 1)/sqrt(2).

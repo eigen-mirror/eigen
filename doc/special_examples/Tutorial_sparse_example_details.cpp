@@ -5,8 +5,8 @@
 #include <fstream>
 #include <vector>
 
-typedef Eigen::SparseMatrix<double> SpMat;  // declares a column-major sparse matrix type of double
-typedef Eigen::Triplet<double> T;
+using SpMat = Eigen::SparseMatrix<double>;  // declares a column-major sparse matrix type of double
+using T = Eigen::Triplet<double>;
 
 void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs, Eigen::VectorXd& b,
                        const Eigen::VectorXd& boundary) {

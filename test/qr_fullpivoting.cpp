@@ -23,8 +23,8 @@ void qr() {
         cols2 = Cols == Dynamic ? internal::random<Index>(min_size, max_size) : Cols,
         rank = internal::random<Index>(1, (std::min)(rows, cols) - 1);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime> MatrixQType;
+  using Scalar = typename MatrixType::Scalar;
+  using MatrixQType = Matrix<Scalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
   MatrixType m1;
   createRandomPIMatrixOfRank(rank, rows, cols, m1);
   FullPivHouseholderQR<MatrixType> qr(m1);
@@ -72,8 +72,8 @@ template <typename MatrixType>
 void qr_invertible() {
   using std::abs;
   using std::log;
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
-  typedef typename MatrixType::Scalar Scalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
+  using Scalar = typename MatrixType::Scalar;
 
   Index max_size = numext::mini(50, EIGEN_TEST_MAX_SIZE);
   Index min_size = numext::maxi(1, EIGEN_TEST_MAX_SIZE / 10);

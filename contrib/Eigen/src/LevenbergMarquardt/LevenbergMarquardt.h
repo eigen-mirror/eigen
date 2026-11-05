@@ -43,12 +43,12 @@ enum Status {
 
 template <typename Scalar_, int NX = Dynamic, int NY = Dynamic>
 struct DenseFunctor {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
   enum { InputsAtCompileTime = NX, ValuesAtCompileTime = NY };
-  typedef Matrix<Scalar, InputsAtCompileTime, 1> InputType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, 1> ValueType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime> JacobianType;
-  typedef ColPivHouseholderQR<JacobianType> QRSolver;
+  using InputType = Matrix<Scalar, InputsAtCompileTime, 1>;
+  using ValueType = Matrix<Scalar, ValuesAtCompileTime, 1>;
+  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
+  using QRSolver = ColPivHouseholderQR<JacobianType>;
   const int m_inputs = InputsAtCompileTime;
   const int m_values = ValuesAtCompileTime;
 
@@ -67,12 +67,12 @@ struct DenseFunctor {
 
 template <typename Scalar_, typename Index_>
 struct SparseFunctor {
-  typedef Scalar_ Scalar;
-  typedef Index_ Index;
-  typedef Matrix<Scalar, Dynamic, 1> InputType;
-  typedef Matrix<Scalar, Dynamic, 1> ValueType;
-  typedef SparseMatrix<Scalar, ColMajor, Index> JacobianType;
-  typedef SparseQR<JacobianType, COLAMDOrdering<int> > QRSolver;
+  using Scalar = Scalar_;
+  using Index = Index_;
+  using InputType = Matrix<Scalar, Dynamic, 1>;
+  using ValueType = Matrix<Scalar, Dynamic, 1>;
+  using JacobianType = SparseMatrix<Scalar, ColMajor, Index>;
+  using QRSolver = SparseQR<JacobianType, COLAMDOrdering<int> >;
   enum { InputsAtCompileTime = Dynamic, ValuesAtCompileTime = Dynamic };
 
   SparseFunctor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
@@ -103,14 +103,14 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
 template <typename FunctorType_>
 class LevenbergMarquardt : internal::no_assignment_operator {
  public:
-  typedef FunctorType_ FunctorType;
-  typedef typename FunctorType::QRSolver QRSolver;
-  typedef typename FunctorType::JacobianType JacobianType;
-  typedef typename JacobianType::Scalar Scalar;
-  typedef typename JacobianType::RealScalar RealScalar;
-  typedef typename QRSolver::StorageIndex PermIndex;
-  typedef Matrix<Scalar, Dynamic, 1> FVectorType;
-  typedef PermutationMatrix<Dynamic, Dynamic, int> PermutationType;
+  using FunctorType = FunctorType_;
+  using QRSolver = typename FunctorType::QRSolver;
+  using JacobianType = typename FunctorType::JacobianType;
+  using Scalar = typename JacobianType::Scalar;
+  using RealScalar = typename JacobianType::RealScalar;
+  using PermIndex = typename QRSolver::StorageIndex;
+  using FVectorType = Matrix<Scalar, Dynamic, 1>;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, int>;
 
  public:
   LevenbergMarquardt(FunctorType &functor)

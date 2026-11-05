@@ -711,7 +711,7 @@ EIGEN_ALWAYS_INLINE void calcVecLoops(Index cols, Index rows, LhsMapper& lhs, Rh
 template <typename LhsMapper, typename RhsMapper>
 EIGEN_STRONG_INLINE void gemvMMA_bfloat16_row(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                               bfloat16* res, Index resIncr, bfloat16 alpha) {
-  typedef typename RhsMapper::LinearMapper LinearMapper;
+  using LinearMapper = typename RhsMapper::LinearMapper;
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
   // This helps GCC to generate proper code.

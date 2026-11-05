@@ -28,8 +28,8 @@
 
 template <typename Scalar>
 void mmtr(int size) {
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> MatrixColMaj;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> MatrixRowMaj;
+  using MatrixColMaj = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using MatrixRowMaj = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   DenseIndex othersize = internal::random<DenseIndex>(1, 200);
 
@@ -93,7 +93,7 @@ void mmtr(int size) {
   // destination with a non-default inner-stride
   // see bug 1741
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * size, 2 * size);
     Map<MatrixColMaj, 0, Stride<Dynamic, Dynamic> > map1(buffer.data(), size, size,
                                                          Stride<Dynamic, Dynamic>(2 * size, 2));
@@ -104,9 +104,9 @@ void mmtr(int size) {
 
 template <typename MatrixType>
 void mmtr_empty_product(Index size) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic, ColMajor> LhsType;
-  typedef Matrix<Scalar, Dynamic, Dynamic, RowMajor> RhsType;
+  using Scalar = typename MatrixType::Scalar;
+  using LhsType = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using RhsType = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
 
   LhsType lhs(size, 0);
   RhsType rhs(0, size);

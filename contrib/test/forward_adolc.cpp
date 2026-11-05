@@ -16,17 +16,17 @@
 
 template <typename Vector>
 EIGEN_DONT_INLINE typename Vector::Scalar foo(const Vector& p) {
-  typedef typename Vector::Scalar Scalar;
+  using Scalar = typename Vector::Scalar;
   return (p - Vector(Scalar(-1), Scalar(1.))).norm() + (p.array().sqrt().abs() * p.array().sin()).sum() + p.dot(p);
 }
 
 template <typename Scalar_, int NX = Dynamic, int NY = Dynamic>
 struct TestFunc1 {
-  typedef Scalar_ Scalar;
+  using Scalar = Scalar_;
   enum { InputsAtCompileTime = NX, ValuesAtCompileTime = NY };
-  typedef Matrix<Scalar, InputsAtCompileTime, 1> InputType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, 1> ValueType;
-  typedef Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime> JacobianType;
+  using InputType = Matrix<Scalar, InputsAtCompileTime, 1>;
+  using ValueType = Matrix<Scalar, ValuesAtCompileTime, 1>;
+  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
 
   int m_inputs, m_values;
 

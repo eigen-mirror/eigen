@@ -1039,8 +1039,8 @@ class gebp_traits<double, double, ConjLhs_, ConjRhs_, Architecture::Target, Pack
 
 template <typename Scalar, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Conjugate, PanelMode> {
-  typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using Packet = typename packet_traits<Scalar>::type;
+  using LinearMapper = typename DataMapper::LinearMapper;
   enum { PacketSize = packet_traits<Scalar>::size };
   EIGEN_DONT_INLINE void operator()(Scalar* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride = 0,
                                     Index offset = 0) const;
@@ -1207,10 +1207,10 @@ EIGEN_DONT_INLINE void gemm_pack_rhs<Scalar, Index, DataMapper, 8, ColMajor, Con
 
 template <typename Scalar, typename Index, typename DataMapper, bool Conjugate, bool PanelMode>
 struct gemm_pack_rhs<Scalar, Index, DataMapper, 8, RowMajor, Conjugate, PanelMode> {
-  typedef typename packet_traits<Scalar>::type Packet;
-  typedef typename unpacket_traits<Packet>::half HalfPacket;
-  typedef typename unpacket_traits<typename unpacket_traits<Packet>::half>::half QuarterPacket;
-  typedef typename DataMapper::LinearMapper LinearMapper;
+  using Packet = typename packet_traits<Scalar>::type;
+  using HalfPacket = typename unpacket_traits<Packet>::half;
+  using QuarterPacket = typename unpacket_traits<typename unpacket_traits<Packet>::half>::half;
+  using LinearMapper = typename DataMapper::LinearMapper;
   enum {
     PacketSize = packet_traits<Scalar>::size,
     HalfPacketSize = unpacket_traits<HalfPacket>::size,

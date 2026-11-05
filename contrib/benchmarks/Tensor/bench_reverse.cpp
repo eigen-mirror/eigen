@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Reverse only the inner-most (contiguous) dimension. SIMD preverse case. ---
 static void BM_Reverse_Inner(benchmark::State& state) {

@@ -54,10 +54,10 @@ void hyperplane(const HyperplaneType &_plane) {
   using std::abs;
   const Index dim = _plane.dim();
   enum { Options = HyperplaneType::Options };
-  typedef typename HyperplaneType::Scalar Scalar;
-  typedef typename HyperplaneType::RealScalar RealScalar;
-  typedef Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime> MatrixType;
+  using Scalar = typename HyperplaneType::Scalar;
+  using RealScalar = typename HyperplaneType::RealScalar;
+  using VectorType = Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, 1>;
+  using MatrixType = Matrix<Scalar, HyperplaneType::AmbientDimAtCompileTime, HyperplaneType::AmbientDimAtCompileTime>;
 
   VectorType p0 = VectorType::Random(dim);
   VectorType p1 = VectorType::Random(dim);
@@ -168,7 +168,7 @@ void hyperplane(const HyperplaneType &_plane) {
 
   // casting
   const int Dim = HyperplaneType::AmbientDimAtCompileTime;
-  typedef typename GetDifferentType<Scalar>::type OtherScalar;
+  using OtherScalar = typename GetDifferentType<Scalar>::type;
   Hyperplane<OtherScalar, Dim, Options> hp1f = pl1.template cast<OtherScalar>();
   VERIFY_IS_APPROX(hp1f.template cast<Scalar>(), pl1);
   Hyperplane<Scalar, Dim, Options> hp1d = pl1.template cast<Scalar>();
@@ -178,10 +178,10 @@ void hyperplane(const HyperplaneType &_plane) {
 template <typename Scalar>
 void lines() {
   using std::abs;
-  typedef Hyperplane<Scalar, 2> HLine;
-  typedef ParametrizedLine<Scalar, 2> PLine;
-  typedef Matrix<Scalar, 2, 1> Vector;
-  typedef Matrix<Scalar, 3, 1> CoeffsType;
+  using HLine = Hyperplane<Scalar, 2>;
+  using PLine = ParametrizedLine<Scalar, 2>;
+  using Vector = Matrix<Scalar, 2, 1>;
+  using CoeffsType = Matrix<Scalar, 3, 1>;
 
   for (int i = 0; i < 10; i++) {
     Vector center = Vector::Random();
@@ -221,8 +221,8 @@ void lines() {
 template <typename Scalar>
 void planes() {
   using std::abs;
-  typedef Hyperplane<Scalar, 3> Plane;
-  typedef Matrix<Scalar, 3, 1> Vector;
+  using Plane = Hyperplane<Scalar, 3>;
+  using Vector = Matrix<Scalar, 3, 1>;
 
   for (int i = 0; i < 10; i++) {
     Vector v0 = Vector::Random();
@@ -244,8 +244,8 @@ void planes() {
 
 template <typename Scalar>
 void hyperplane_alignment() {
-  typedef Hyperplane<Scalar, 3, AutoAlign> Plane3a;
-  typedef Hyperplane<Scalar, 3, DontAlign> Plane3u;
+  using Plane3a = Hyperplane<Scalar, 3, AutoAlign>;
+  using Plane3u = Hyperplane<Scalar, 3, DontAlign>;
 
   EIGEN_ALIGN_MAX Scalar array1[4];
   EIGEN_ALIGN_MAX Scalar array2[4];

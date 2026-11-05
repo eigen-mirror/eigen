@@ -32,8 +32,8 @@ static const float matrix_function_separation = 0.1f;
 template <typename MatrixType>
 class MatrixFunctionAtomic {
  public:
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename stem_function<Scalar>::type StemFunction;
+  using Scalar = typename MatrixType::Scalar;
+  using StemFunction = typename stem_function<Scalar>::type;
 
   /** \brief Constructor
    * \param[in]  f  matrix function to compute.
@@ -52,7 +52,7 @@ class MatrixFunctionAtomic {
 
 template <typename MatrixType>
 typename NumTraits<typename MatrixType::Scalar>::Real matrix_function_compute_mu(const MatrixType& A) {
-  typedef typename plain_col_type<MatrixType>::type VectorType;
+  using VectorType = typename plain_col_type<MatrixType>::type;
   Index rows = A.rows();
   const MatrixType N = MatrixType::Identity(rows, rows) - A;
   VectorType e = VectorType::Ones(rows);
@@ -63,7 +63,7 @@ typename NumTraits<typename MatrixType::Scalar>::Real matrix_function_compute_mu
 template <typename MatrixType>
 MatrixType MatrixFunctionAtomic<MatrixType>::compute(const MatrixType& A) {
   // TODO: Use that A is upper triangular
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index rows = A.rows();
   Scalar avgEival = A.trace() / Scalar(RealScalar(rows));
   MatrixType Ashifted = A - avgEival * MatrixType::Identity(rows, rows);
@@ -128,7 +128,7 @@ typename ListOfClusters::iterator matrix_function_find_cluster(Index key, ListOf
  */
 template <typename EivalsType, typename Cluster>
 void matrix_function_partition_eigenvalues(const EivalsType& eivals, std::list<Cluster>& clusters) {
-  typedef typename EivalsType::RealScalar RealScalar;
+  using RealScalar = typename EivalsType::RealScalar;
   for (Index i = 0; i < eivals.rows(); ++i) {
     // Find cluster containing i-th ei'val, adding a new cluster if necessary
     typename std::list<Cluster>::iterator qi = matrix_function_find_cluster(i, clusters);
@@ -273,7 +273,7 @@ MatrixType matrix_function_solve_triangular_sylvester(const MatrixType& A, const
   EIGEN_INTERNAL_ASSERT_SAME_ROWS(C, A);
   EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(C, B);
 
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index m = A.rows();
   Index n = B.rows();
@@ -314,10 +314,10 @@ MatrixType matrix_function_solve_triangular_sylvester(const MatrixType& A, const
 template <typename MatrixType, typename VectorType>
 void matrix_function_compute_above_diagonal(const MatrixType& T, const VectorType& blockStart,
                                             const VectorType& clusterSize, MatrixType& fT) {
-  typedef internal::traits<MatrixType> Traits;
-  typedef typename MatrixType::Scalar Scalar;
+  using Traits = internal::traits<MatrixType>;
+  using Scalar = typename MatrixType::Scalar;
   static const int Options = MatrixType::Options;
-  typedef Matrix<Scalar, Dynamic, Dynamic, Options, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime> DynMatrixType;
+  using DynMatrixType = Matrix<Scalar, Dynamic, Dynamic, Options, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>;
 
   for (Index k = 1; k < clusterSize.rows(); k++) {
     for (Index i = 0; i < clusterSize.rows() - k; i++) {
@@ -381,13 +381,13 @@ template <typename MatrixType>
 struct matrix_function_compute<MatrixType, 0> {
   template <typename MatA, typename AtomicType, typename ResultType>
   static void run(const MatA& A, AtomicType& atomic, ResultType& result) {
-    typedef internal::traits<MatrixType> Traits;
-    typedef typename Traits::Scalar Scalar;
+    using Traits = internal::traits<MatrixType>;
+    using Scalar = typename Traits::Scalar;
     static const int Rows = Traits::RowsAtCompileTime, Cols = Traits::ColsAtCompileTime;
     static const int MaxRows = Traits::MaxRowsAtCompileTime, MaxCols = Traits::MaxColsAtCompileTime;
 
-    typedef internal::make_complex_t<Scalar> ComplexScalar;
-    typedef Matrix<ComplexScalar, Rows, Cols, 0, MaxRows, MaxCols> ComplexMatrix;
+    using ComplexScalar = internal::make_complex_t<Scalar>;
+    using ComplexMatrix = Matrix<ComplexScalar, Rows, Cols, 0, MaxRows, MaxCols>;
 
     ComplexMatrix CA = A.template cast<ComplexScalar>();
     ComplexMatrix Cresult;
@@ -403,7 +403,7 @@ template <typename MatrixType>
 struct matrix_function_compute<MatrixType, 1> {
   template <typename MatA, typename AtomicType, typename ResultType>
   static void run(const MatA& A, AtomicType& atomic, ResultType& result) {
-    typedef internal::traits<MatrixType> Traits;
+    using Traits = internal::traits<MatrixType>;
 
     // compute Schur decomposition of A
     const ComplexSchur<MatrixType> schurOfA(A);
@@ -457,11 +457,11 @@ struct matrix_function_compute<MatrixType, 1> {
 template <typename Derived>
 class MatrixFunctionReturnValue : public ReturnByValue<MatrixFunctionReturnValue<Derived> > {
  public:
-  typedef typename Derived::Scalar Scalar;
-  typedef typename internal::stem_function<Scalar>::type StemFunction;
+  using Scalar = typename Derived::Scalar;
+  using StemFunction = typename internal::stem_function<Scalar>::type;
 
  protected:
-  typedef typename internal::ref_selector<Derived>::type DerivedNested;
+  using DerivedNested = typename internal::ref_selector<Derived>::type;
 
  public:
   /** \brief Constructor.
@@ -477,14 +477,14 @@ class MatrixFunctionReturnValue : public ReturnByValue<MatrixFunctionReturnValue
    */
   template <typename ResultType>
   inline void evalTo(ResultType& result) const {
-    typedef typename internal::nested_eval<Derived, 10>::type NestedEvalType;
-    typedef internal::remove_all_t<NestedEvalType> NestedEvalTypeClean;
-    typedef internal::traits<NestedEvalTypeClean> Traits;
-    typedef internal::make_complex_t<Scalar> ComplexScalar;
-    typedef Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>
-        DynMatrixType;
+    using NestedEvalType = typename internal::nested_eval<Derived, 10>::type;
+    using NestedEvalTypeClean = internal::remove_all_t<NestedEvalType>;
+    using Traits = internal::traits<NestedEvalTypeClean>;
+    using ComplexScalar = internal::make_complex_t<Scalar>;
+    using DynMatrixType =
+        Matrix<ComplexScalar, Dynamic, Dynamic, 0, Traits::RowsAtCompileTime, Traits::ColsAtCompileTime>;
 
-    typedef internal::MatrixFunctionAtomic<DynMatrixType> AtomicType;
+    using AtomicType = internal::MatrixFunctionAtomic<DynMatrixType>;
     AtomicType atomic(m_f);
 
     internal::matrix_function_compute<typename NestedEvalTypeClean::PlainObject>::run(m_A, atomic, result);
@@ -501,7 +501,7 @@ class MatrixFunctionReturnValue : public ReturnByValue<MatrixFunctionReturnValue
 namespace internal {
 template <typename Derived>
 struct traits<MatrixFunctionReturnValue<Derived> > {
-  typedef typename Derived::PlainObject ReturnType;
+  using ReturnType = typename Derived::PlainObject;
 };
 }  // namespace internal
 
@@ -517,28 +517,28 @@ const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::matrixFunction(
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::sin() const {
   EIGEN_INTERNAL_ASSERT_SQUARE(*this);
-  typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
+  using ComplexScalar = typename internal::stem_function<Scalar>::ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_sin<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::cos() const {
   EIGEN_INTERNAL_ASSERT_SQUARE(*this);
-  typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
+  using ComplexScalar = typename internal::stem_function<Scalar>::ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_cos<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::sinh() const {
   EIGEN_INTERNAL_ASSERT_SQUARE(*this);
-  typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
+  using ComplexScalar = typename internal::stem_function<Scalar>::ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_sinh<ComplexScalar>);
 }
 
 template <typename Derived>
 const MatrixFunctionReturnValue<Derived> MatrixBase<Derived>::cosh() const {
   EIGEN_INTERNAL_ASSERT_SQUARE(*this);
-  typedef typename internal::stem_function<Scalar>::ComplexScalar ComplexScalar;
+  using ComplexScalar = typename internal::stem_function<Scalar>::ComplexScalar;
   return MatrixFunctionReturnValue<Derived>(derived(), internal::stem_function_cosh<ComplexScalar>);
 }
 

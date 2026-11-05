@@ -47,8 +47,8 @@ typedef svint32_t PacketXi __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL
 
 template <>
 struct packet_traits<numext::int32_t> : default_packet_traits {
-  typedef PacketXi type;
-  typedef PacketXi half;  // Half not implemented yet
+  using type = PacketXi;
+  using half = PacketXi;  // Half not implemented yet
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -80,8 +80,8 @@ struct packet_traits<numext::int32_t> : default_packet_traits {
 
 template <>
 struct unpacket_traits<PacketXi> {
-  typedef numext::int32_t type;
-  typedef PacketXi half;  // Half not yet implemented
+  using type = numext::int32_t;
+  using half = PacketXi;  // Half not yet implemented
   enum {
     size = sve_packet_size_selector<numext::int32_t, EIGEN_ARM64_SVE_VL>::size,
     alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
@@ -358,8 +358,8 @@ typedef svint64_t PacketXl __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_VL
 
 template <>
 struct packet_traits<numext::int64_t> : default_packet_traits {
-  typedef PacketXl type;
-  typedef PacketXl half;  // Half not implemented yet
+  using type = PacketXl;
+  using half = PacketXl;  // Half not implemented yet
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -383,8 +383,8 @@ struct packet_traits<numext::int64_t> : default_packet_traits {
 
 template <>
 struct unpacket_traits<PacketXl> {
-  typedef numext::int64_t type;
-  typedef PacketXl half;  // Half not yet implemented
+  using type = numext::int64_t;
+  using half = PacketXl;  // Half not yet implemented
   enum {
     size = sve_packet_size_selector<numext::int64_t, EIGEN_ARM64_SVE_VL>::size,
     alignment = sve_packet_alignment_selector<EIGEN_ARM64_SVE_VL>::alignment,
@@ -640,8 +640,8 @@ typedef svfloat32_t PacketXf __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef PacketXf type;
-  typedef PacketXf half;
+  using type = PacketXf;
+  using half = PacketXf;
 
   enum {
     Vectorizable = 1,
@@ -688,9 +688,9 @@ struct packet_traits<float> : default_packet_traits {
 
 template <>
 struct unpacket_traits<PacketXf> {
-  typedef float type;
-  typedef PacketXf half;  // Half not yet implemented
-  typedef PacketXi integer_packet;
+  using type = float;
+  using half = PacketXf;  // Half not yet implemented
+  using integer_packet = PacketXi;
 
   enum {
     size = sve_packet_size_selector<float, EIGEN_ARM64_SVE_VL>::size,
@@ -1022,8 +1022,8 @@ typedef svfloat64_t PacketXd __attribute__((arm_sve_vector_bits(EIGEN_ARM64_SVE_
 
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef PacketXd type;
-  typedef PacketXd half;  // Half not implemented yet
+  using type = PacketXd;
+  using half = PacketXd;  // Half not implemented yet
 
   enum {
     Vectorizable = 1,
@@ -1067,9 +1067,9 @@ struct packet_traits<double> : default_packet_traits {
 
 template <>
 struct unpacket_traits<PacketXd> {
-  typedef double type;
-  typedef PacketXd half;  // Half not yet implemented
-  typedef PacketXl integer_packet;
+  using type = double;
+  using half = PacketXd;  // Half not yet implemented
+  using integer_packet = PacketXl;
 
   enum {
     size = sve_packet_size_selector<double, EIGEN_ARM64_SVE_VL>::size,

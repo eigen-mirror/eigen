@@ -80,7 +80,7 @@ class FABSum {
  */
 template <typename Derived, typename OtherDerived>
 typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const SparseMatrixBase<OtherDerived>& other) {
-  typedef typename Derived::Scalar Scalar;
+  using Scalar = typename Derived::Scalar;
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
   EIGEN_STATIC_ASSERT_SAME_VECTOR_SIZE(Derived, OtherDerived)
@@ -128,8 +128,8 @@ typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const S
 template <typename Scalar>
 class SparseInverse {
  public:
-  typedef SparseMatrix<Scalar, ColMajor> MatrixType;
-  typedef SparseMatrix<Scalar, RowMajor> RowMatrixType;
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
+  using RowMatrixType = SparseMatrix<Scalar, RowMajor>;
 
   SparseInverse() {}
 

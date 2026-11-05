@@ -66,7 +66,7 @@ void test3dRotation(const T& tol) {
 
 template <typename MatrixType>
 void testGeneral(const MatrixType& m, const typename MatrixType::RealScalar& tol) {
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   MatrixType m1, m2, m3, m4, m5;
   RealScalar x, y;
 
@@ -104,9 +104,9 @@ void testSingular(const MatrixType& m_const, const typename MatrixType::RealScal
   // MSVC for aligned data types ...
   MatrixType& m = const_cast<MatrixType&>(m_const);
 
-  typedef typename MatrixType::RealScalar RealScalar;
+  using RealScalar = typename MatrixType::RealScalar;
   const int IsComplex = NumTraits<typename internal::traits<MatrixType>::Scalar>::IsComplex;
-  typedef std::conditional_t<IsComplex, TriangularView<MatrixType, Upper>, const MatrixType&> TriangularType;
+  using TriangularType = std::conditional_t<IsComplex, TriangularView<MatrixType, Upper>, const MatrixType&>;
   std::conditional_t<IsComplex, ComplexSchur<MatrixType>, RealSchur<MatrixType>> schur;
   MatrixType T;
 
@@ -240,8 +240,8 @@ void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealSc
   // MSVC for aligned data types ...
   MatrixType& m = const_cast<MatrixType&>(m_const);
 
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
   Scalar x;
 
   // Computing exp(x*log(m)) chains three separate Pade-based algorithms
@@ -257,9 +257,9 @@ void testLogThenExp(const MatrixType& m_const, const typename MatrixType::RealSc
   }
 }
 
-typedef Matrix<double, 3, 3, RowMajor> Matrix3dRowMajor;
-typedef Matrix<long double, 3, 3> Matrix3e;
-typedef Matrix<long double, Dynamic, Dynamic> MatrixXe;
+using Matrix3dRowMajor = Matrix<double, 3, 3, RowMajor>;
+using Matrix3e = Matrix<long double, 3, 3>;
+using MatrixXe = Matrix<long double, Dynamic, Dynamic>;
 
 EIGEN_DECLARE_TEST(matrix_power) {
   // Factors are the smallest powers of two above the worst relative error seen over ~50k randomized trials per

@@ -133,7 +133,7 @@ static void test_strided_slice_as_rhs_sycl(const Eigen::SyclDevice& sycl_device)
   IndexType sizeDim3 = 5;
   IndexType sizeDim4 = 7;
   IndexType sizeDim5 = 11;
-  typedef Eigen::DSizes<IndexType, 5> Index5;
+  using Index5 = Eigen::DSizes<IndexType, 5>;
   Index5 strides(1L, 1L, 1L, 1L, 1L);
   Index5 indicesStart(1L, 2L, 3L, 4L, 5L);
   Index5 indicesStop(2L, 3L, 4L, 5L, 6L);
@@ -202,8 +202,8 @@ static void test_strided_slice_as_rhs_sycl(const Eigen::SyclDevice& sycl_device)
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_strided_slice_write_sycl(const Eigen::SyclDevice& sycl_device) {
-  typedef Tensor<DataType, 2, DataLayout, IndexType> Tensor2f;
-  typedef Eigen::DSizes<IndexType, 2> Index2;
+  using Tensor2f = Tensor<DataType, 2, DataLayout, IndexType>;
+  using Index2 = Eigen::DSizes<IndexType, 2>;
   IndexType sizeDim1 = 7L;
   IndexType sizeDim2 = 11L;
   array<IndexType, 2> tensorRange = {{sizeDim1, sizeDim2}};
@@ -247,8 +247,8 @@ static void test_strided_slice_write_sycl(const Eigen::SyclDevice& sycl_device) 
 
 template <typename DataType, int DataLayout, typename IndexType>
 static void test_strided_slice_reverse_packet_sycl(const Eigen::SyclDevice& sycl_device) {
-  typedef Tensor<DataType, 2, DataLayout, IndexType> Tensor2;
-  typedef Eigen::DSizes<IndexType, 2> Index2;
+  using Tensor2 = Tensor<DataType, 2, DataLayout, IndexType>;
+  using Index2 = Eigen::DSizes<IndexType, 2>;
 
   const array<IndexType, 2> input_range = {{31, 37}};
   const array<IndexType, 2> slice_range = {{29, 34}};

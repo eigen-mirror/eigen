@@ -12,12 +12,12 @@
 
 template <typename MatrixType>
 void product_selfadjoint(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, 1> VectorType;
-  typedef Matrix<Scalar, 1, MatrixType::RowsAtCompileTime> RowVectorType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  using RowVectorType = Matrix<Scalar, 1, MatrixType::RowsAtCompileTime>;
 
-  typedef Matrix<Scalar, MatrixType::RowsAtCompileTime, Dynamic, RowMajor> RhsMatrixType;
+  using RhsMatrixType = Matrix<Scalar, MatrixType::RowsAtCompileTime, Dynamic, RowMajor>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -182,9 +182,9 @@ void product_selfadjoint(const MatrixType& m) {
 // at transitions (especially around the GEBP early-return threshold of 48).
 template <int>
 void product_selfadjoint_boundary() {
-  typedef double Scalar;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Scalar = double;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   const int sizes[] = {1, 2, 3, 4, 8, 16, 47, 48, 49, 64, 96, 128};
   for (int si = 0; si < 12; ++si) {

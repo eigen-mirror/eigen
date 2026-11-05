@@ -274,10 +274,10 @@ void test_multithread_contraction() {
   t_right.setRandom();
 
   // this contraction should be equivalent to a single matrix multiplication
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 2> dims{{DimPair(2, 0), DimPair(3, 1)}};
 
-  typedef Map<Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 1500, 1147);
   MapXf m_right(t_right.data(), 1147, 1400);
   Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
@@ -318,7 +318,7 @@ void test_multithread_gemv_transpose() {
       t_left.setRandom();
       t_right.setRandom();
 
-      typedef Tensor<float, 1>::DimensionPair DimPair;
+      using DimPair = Tensor<float, 1>::DimensionPair;
       Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
 
       Eigen::ThreadPool tp(4);
@@ -326,8 +326,8 @@ void test_multithread_gemv_transpose() {
       Tensor<float, 1, DataLayout> t_result(N);
       t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
 
-      typedef Map<const Matrix<float, Dynamic, Dynamic, DataLayout>> MapMat;
-      typedef Map<const Matrix<float, Dynamic, 1>> MapVec;
+      using MapMat = Map<const Matrix<float, Dynamic, Dynamic, DataLayout>>;
+      using MapVec = Map<const Matrix<float, Dynamic, 1>>;
       MapMat m_left(t_left.data(), M, N);
       MapVec m_right(t_right.data(), M);
       Matrix<float, Dynamic, 1> m_result = m_left.transpose() * m_right;
@@ -350,10 +350,10 @@ void test_contraction_corner_cases() {
   t_result = t_result.constant(NAN);
 
   // this contraction should be equivalent to a single matrix multiplication
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
 
-  typedef Map<Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 32, 500);
   MapXf m_right(t_right.data(), 32, 28 * 28);
   Matrix<float, Dynamic, Dynamic, DataLayout> m_result(500, 28 * 28);
@@ -442,7 +442,7 @@ void test_multithread_contraction_agrees_with_singlethread() {
   left += left.constant(1.5f);
   right += right.constant(1.5f);
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
@@ -480,7 +480,7 @@ struct SqrtOutputKernel {
 
 template <int DataLayout>
 static void test_multithread_contraction_with_output_kernel() {
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
 
   const int num_threads = internal::random<int>(2, 11);
   ThreadPool threads(num_threads);
@@ -499,7 +499,7 @@ static void test_multithread_contraction_with_output_kernel() {
   t_left += t_left.constant(1.0f);
   t_right += t_right.constant(1.0f);
 
-  typedef Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>> MapXf;
+  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
   MapXf m_left(t_left.data(), 1500, 248);
   MapXf m_right(t_right.data(), 248, 1400);
   Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
@@ -534,7 +534,7 @@ void test_async_multithread_contraction_agrees_with_singlethread() {
   left += left.constant(1.5f);
   right += right.constant(1.5f);
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
@@ -908,7 +908,7 @@ void test_full_contraction() {
   left += left.constant(1.5f);
   right += right.constant(1.5f);
 
-  typedef Tensor<float, 2>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 2>::DimensionPair;
   Eigen::array<DimPair, 2> dims{{DimPair(0, 0), DimPair(1, 1)}};
 
   Eigen::ThreadPool tp(internal::random<int>(2, 11));
@@ -1544,7 +1544,7 @@ void test_multithread_zero_dim_contraction() {
     Tensor<float, 2, DataLayout> t_result(10, 20);
     t_result.setConstant(123.0f);
 
-    typedef Tensor<float, 1>::DimensionPair DimPair;
+    using DimPair = Tensor<float, 1>::DimensionPair;
     Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
     t_result.device(device) = t_left.contract(t_right, dims);
@@ -1563,7 +1563,7 @@ void test_multithread_zero_dim_contraction() {
     Tensor<float, 2, DataLayout> t_result(64, 64);
     t_result.setConstant(123.0f);
 
-    typedef Tensor<float, 1>::DimensionPair DimPair;
+    using DimPair = Tensor<float, 1>::DimensionPair;
     Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
     t_result.device(device) = t_left.contract(t_right, dims);
@@ -1582,7 +1582,7 @@ void test_multithread_zero_dim_contraction() {
     Tensor<float, 2, DataLayout> t_result(5, 3);
     t_result.setConstant(123.0f);
 
-    typedef Tensor<float, 1>::DimensionPair DimPair;
+    using DimPair = Tensor<float, 1>::DimensionPair;
     Eigen::array<DimPair, 2> dims{{DimPair(1, 0), DimPair(2, 2)}};
 
     t_result.device(device) = t_left.contract(t_right, dims);
@@ -1606,7 +1606,7 @@ void test_async_multithread_zero_dim_contraction() {
   Tensor<float, 2, DataLayout> t_result(10, 20);
   t_result.setConstant(123.0f);
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   Eigen::Barrier barrier(1);
@@ -1644,7 +1644,7 @@ void test_multithread_zero_dim_contraction_with_output_kernel() {
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
   const float bias = 42.0f;
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // {10, 0} * {0, 20} -> {10, 20}
@@ -1687,7 +1687,7 @@ void test_async_multithread_zero_dim_contraction_with_output_kernel() {
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
   const float bias = 42.0f;
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // {10, 0} * {0, 20} -> {10, 20}
@@ -1735,7 +1735,7 @@ void test_multithread_zero_dim_outer_zeros() {
   ThreadPool threads(num_threads);
   Eigen::ThreadPoolDevice device(&threads, num_threads);
 
-  typedef Tensor<float, 1>::DimensionPair DimPair;
+  using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
   // Outer zero on LHS: {0, 5} * {5, 10} -> {0, 10}

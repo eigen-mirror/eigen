@@ -107,8 +107,8 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
       Index depth = IsLower ? diagSize : _depth;                                                                       \
       Index cols = _cols;                                                                                              \
                                                                                                                        \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder> MatrixLhs;                                            \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder> MatrixRhs;                                            \
+      using MatrixLhs = Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder>;                                            \
+      using MatrixRhs = Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder>;                                            \
                                                                                                                        \
       /* Non-square case - doesn't fit to BLAS ?TRMM. Fall to default triangular product or call BLAS ?GEMM*/          \
       if (rows != depth) {                                                                                             \
@@ -241,8 +241,8 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(ctrmm))
       Index depth = IsLower ? _depth : diagSize;                                                                       \
       Index cols = IsLower ? diagSize : _cols;                                                                         \
                                                                                                                        \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder> MatrixLhs;                                            \
-      typedef Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder> MatrixRhs;                                            \
+      using MatrixLhs = Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder>;                                            \
+      using MatrixRhs = Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder>;                                            \
                                                                                                                        \
       /* Non-square case - doesn't fit to BLAS ?TRMM. Fall to default triangular product or call BLAS ?GEMM*/          \
       if (cols != depth) {                                                                                             \

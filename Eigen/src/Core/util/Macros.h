@@ -1519,34 +1519,36 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(double& x) {
  * documentation in a single line.
  **/
 
-#define EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)                                                                        \
-  typedef typename Eigen::internal::traits<Derived>::Scalar                                                            \
-      Scalar; /*!< \brief Numeric type, e.g. float, double, int or std::complex<float>. */                             \
-  typedef typename Eigen::NumTraits<Scalar>::Real                                                                      \
-      RealScalar; /*!< \brief The underlying numeric type for composed scalar types. \details In cases where Scalar is \
-                     e.g. std::complex<T>, T were corresponding to RealScalar. */                                      \
-  typedef typename Base::CoeffReturnType                                                                               \
-      CoeffReturnType; /*!< \brief The return type for coefficient access. \details Depending on whether the object    \
-                          allows direct coefficient access (e.g. for a MatrixXd), this type is either 'const Scalar&'  \
-                          or simply 'Scalar' for objects that do not allow direct coefficient access. */               \
-  typedef typename Eigen::internal::ref_selector<Derived>::type Nested;                                                \
-  typedef typename Eigen::internal::traits<Derived>::StorageKind StorageKind;                                          \
-  typedef typename Eigen::internal::traits<Derived>::StorageIndex StorageIndex;                                        \
-  enum CompileTimeTraits {                                                                                             \
-    RowsAtCompileTime = Eigen::internal::traits<Derived>::RowsAtCompileTime,                                           \
-    ColsAtCompileTime = Eigen::internal::traits<Derived>::ColsAtCompileTime,                                           \
-    Flags = Eigen::internal::traits<Derived>::Flags,                                                                   \
-    SizeAtCompileTime = Base::SizeAtCompileTime,                                                                       \
-    MaxSizeAtCompileTime = Base::MaxSizeAtCompileTime,                                                                 \
-    IsVectorAtCompileTime = Base::IsVectorAtCompileTime                                                                \
-  };                                                                                                                   \
-  using Base::derived;                                                                                                 \
+#define EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)                                                                       \
+  using Scalar = typename Eigen::internal::traits<Derived>::Scalar; /*!< \brief Numeric type, e.g. float, double, int \
+                                                                       or std::complex<float>. */                     \
+  using RealScalar =                                                                                                  \
+      typename Eigen::NumTraits<Scalar>::Real; /*!< \brief The underlying numeric type for composed scalar types.     \
+                                                  \details In cases where Scalar is e.g. std::complex<T>, T were      \
+                                                  corresponding to RealScalar. */                                     \
+  using CoeffReturnType =                                                                                             \
+      typename Base::CoeffReturnType; /*!< \brief The return type for coefficient access. \details Depending on       \
+                                         whether the object allows direct coefficient access (e.g. for a MatrixXd),   \
+                                         this type is either 'const Scalar&' or simply 'Scalar' for objects that do   \
+                                         not allow direct coefficient access. */                                      \
+  using Nested = typename Eigen::internal::ref_selector<Derived>::type;                                               \
+  using StorageKind = typename Eigen::internal::traits<Derived>::StorageKind;                                         \
+  using StorageIndex = typename Eigen::internal::traits<Derived>::StorageIndex;                                       \
+  enum CompileTimeTraits {                                                                                            \
+    RowsAtCompileTime = Eigen::internal::traits<Derived>::RowsAtCompileTime,                                          \
+    ColsAtCompileTime = Eigen::internal::traits<Derived>::ColsAtCompileTime,                                          \
+    Flags = Eigen::internal::traits<Derived>::Flags,                                                                  \
+    SizeAtCompileTime = Base::SizeAtCompileTime,                                                                      \
+    MaxSizeAtCompileTime = Base::MaxSizeAtCompileTime,                                                                \
+    IsVectorAtCompileTime = Base::IsVectorAtCompileTime                                                               \
+  };                                                                                                                  \
+  using Base::derived;                                                                                                \
   using Base::const_cast_derived;
 
 // FIXME Maybe the EIGEN_DENSE_PUBLIC_INTERFACE could be removed as importing PacketScalar is rarely needed
 #define EIGEN_DENSE_PUBLIC_INTERFACE(Derived) \
   EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)     \
-  typedef typename Base::PacketScalar PacketScalar;
+  using PacketScalar = typename Base::PacketScalar;
 
 #if EIGEN_HAS_BUILTIN(__builtin_expect) || EIGEN_COMP_GNUC
 #define EIGEN_PREDICT_FALSE(x) (__builtin_expect(x, false))
@@ -1583,32 +1585,32 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void volatile_barrier(double& x) {
   CwiseBinaryOp<FUNCTOR<SCALAR, typename internal::traits<EXPR>::Scalar>, \
                 const typename internal::plain_constant_type<EXPR, SCALAR>::type, const EXPR>
 
-#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, FUNCTOR)                                                       \
-  template <typename T>                                                                                               \
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                       \
-      Derived,                                                                                                        \
-      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(           \
-          FUNCTOR, Scalar, T)>::type,                                                                                 \
-      FUNCTOR)(METHOD)(const T& scalar) const {                                                                       \
-    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, Scalar, T)>::type \
-        PromotedT;                                                                                                    \
-    return EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived, PromotedT, FUNCTOR)(                                       \
-        derived(), typename internal::plain_constant_type<Derived, PromotedT>::type(                                  \
-                       derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)));         \
+#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHERIGHT(METHOD, FUNCTOR)                                                    \
+  template <typename T>                                                                                            \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE const EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(                    \
+      Derived,                                                                                                     \
+      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(        \
+          FUNCTOR, Scalar, T)>::type,                                                                              \
+      FUNCTOR)(METHOD)(const T& scalar) const {                                                                    \
+    using PromotedT =                                                                                              \
+        typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, Scalar, T)>::type; \
+    return EIGEN_EXPR_BINARYOP_SCALAR_RETURN_TYPE(Derived, PromotedT, FUNCTOR)(                                    \
+        derived(), typename internal::plain_constant_type<Derived, PromotedT>::type(                               \
+                       derived().rows(), derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)));      \
   }
 
-#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, FUNCTOR)                                                        \
-  template <typename T>                                                                                               \
-  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(                \
-      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(           \
-          FUNCTOR, T, Scalar)>::type,                                                                                 \
-      Derived, FUNCTOR)(METHOD)(const T& scalar, const StorageBaseType& matrix) {                                     \
-    typedef typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, T, Scalar)>::type \
-        PromotedT;                                                                                                    \
-    return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedT, Derived, FUNCTOR)(                                       \
-        typename internal::plain_constant_type<Derived, PromotedT>::type(                                             \
-            matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)),       \
-        matrix.derived());                                                                                            \
+#define EIGEN_MAKE_SCALAR_BINARY_OP_ONTHELEFT(METHOD, FUNCTOR)                                                     \
+  template <typename T>                                                                                            \
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE friend const EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(             \
+      typename internal::promote_scalar_arg<Scalar EIGEN_COMMA T EIGEN_COMMA EIGEN_SCALAR_BINARY_SUPPORTED(        \
+          FUNCTOR, T, Scalar)>::type,                                                                              \
+      Derived, FUNCTOR)(METHOD)(const T& scalar, const StorageBaseType& matrix) {                                  \
+    using PromotedT =                                                                                              \
+        typename internal::promote_scalar_arg<Scalar, T, EIGEN_SCALAR_BINARY_SUPPORTED(FUNCTOR, T, Scalar)>::type; \
+    return EIGEN_SCALAR_BINARYOP_EXPR_RETURN_TYPE(PromotedT, Derived, FUNCTOR)(                                    \
+        typename internal::plain_constant_type<Derived, PromotedT>::type(                                          \
+            matrix.derived().rows(), matrix.derived().cols(), internal::scalar_constant_op<PromotedT>(scalar)),    \
+        matrix.derived());                                                                                         \
   }
 
 #define EIGEN_MAKE_SCALAR_BINARY_OP(METHOD, FUNCTOR)     \

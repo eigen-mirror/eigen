@@ -21,7 +21,7 @@ void jacobi(const MatrixType& m = MatrixType()) {
 
   enum { RowsAtCompileTime = MatrixType::RowsAtCompileTime, ColsAtCompileTime = MatrixType::ColsAtCompileTime };
 
-  typedef Matrix<JacobiScalar, 2, 1> JacobiVector;
+  using JacobiVector = Matrix<JacobiScalar, 2, 1>;
 
   const MatrixType a(MatrixType::Random(rows, cols));
 

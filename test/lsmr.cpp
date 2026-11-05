@@ -33,9 +33,9 @@ void test_lsmr_T() {
 // the dense QR least-squares solution.
 template <typename T>
 void test_lsmr_dense() {
-  typedef typename NumTraits<T>::Real RealScalar;
-  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<T, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
 
   for (int k = 0; k < g_repeat; ++k) {
     Index rows = internal::random<Index>(20, 80);
@@ -61,9 +61,9 @@ void test_lsmr_dense() {
 // so that the from-zero run needs many iterations, giving a wide margin.
 template <typename T>
 void test_lsmr_guess() {
-  typedef typename NumTraits<T>::Real RealScalar;
-  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<T, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
 
   for (int k = 0; k < g_repeat; ++k) {
     Index cols = internal::random<Index>(10, 20);
@@ -93,9 +93,9 @@ void test_lsmr_guess() {
 // returns, whereas householderQr would return some other valid LS solution.
 template <typename T>
 void test_lsmr_minnorm() {
-  typedef typename NumTraits<T>::Real RealScalar;
-  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<T, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
 
   for (int k = 0; k < g_repeat; ++k) {
     // (a) Underdetermined, full row rank: rows < cols, many exact solutions.
@@ -138,9 +138,9 @@ void test_lsmr_minnorm() {
 //   (A^T A + lambda^2 I) x = A^T b.
 template <typename T>
 void test_lsmr_damping() {
-  typedef typename NumTraits<T>::Real RealScalar;
-  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<T, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
 
   for (int k = 0; k < g_repeat; ++k) {
     Index rows = internal::random<Index>(20, 60);
@@ -184,9 +184,9 @@ void test_lsmr_extreme_rhs() {
 // least-squares solution even when btol is left loose.
 template <typename T>
 void test_lsmr_tolerances() {
-  typedef typename NumTraits<T>::Real RealScalar;
-  typedef Matrix<T, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<T, Dynamic, 1> DenseVector;
+  using RealScalar = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
 
   const RealScalar def = NumTraits<RealScalar>::epsilon();
   const RealScalar tight = def * RealScalar(100);

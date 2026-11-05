@@ -89,35 +89,35 @@ struct VectorType;
 
 template <typename Scalar>
 struct VectorType<StdVectorContainer, Scalar> {
-  typedef vector<Scalar> type;
+  using type = vector<Scalar>;
 };
 
 template <typename Scalar>
 struct VectorType<EigenVectorContainer, Scalar> {
-  typedef Matrix<Scalar, Dynamic, 1> type;
+  using type = Matrix<Scalar, Dynamic, 1>;
 };
 
 template <typename Scalar>
 struct VectorType<EigenRowVectorContainer, Scalar> {
-  typedef Matrix<Scalar, 1, Dynamic> type;
+  using type = Matrix<Scalar, 1, Dynamic>;
 };
 
 template <typename Scalar>
 struct VectorType<EigenArrayXContainer, Scalar> {
-  typedef Array<Scalar, Dynamic, 1> type;
+  using type = Array<Scalar, Dynamic, 1>;
 };
 
 template <typename Scalar>
 struct VectorType<EigenRowArrayXContainer, Scalar> {
-  typedef Array<Scalar, 1, Dynamic> type;
+  using type = Array<Scalar, 1, Dynamic>;
 };
 
 template <int ScalarContainer, int ComplexContainer, typename T>
 void test_scalar_generic(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef typename FFT<T>::Scalar Scalar;
-  typedef typename VectorType<ScalarContainer, Scalar>::type ScalarVector;
-  typedef typename VectorType<ComplexContainer, Complex>::type ComplexVector;
+  using Complex = typename FFT<T>::Complex;
+  using Scalar = typename FFT<T>::Scalar;
+  using ScalarVector = typename VectorType<ScalarContainer, Scalar>::type;
+  using ComplexVector = typename VectorType<ComplexContainer, Complex>::type;
 
   FFT<T> fft;
   ScalarVector tbuf(nfft);
@@ -191,9 +191,9 @@ void test_scalar(int nfft) {
 
 template <int ContainerA, int ContainerB, typename T>
 void test_complex_generic(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef typename VectorType<ContainerA, Complex>::type ComplexVectorA;
-  typedef typename VectorType<ContainerB, Complex>::type ComplexVectorB;
+  using Complex = typename FFT<T>::Complex;
+  using ComplexVectorA = typename VectorType<ContainerA, Complex>::type;
+  using ComplexVectorB = typename VectorType<ContainerB, Complex>::type;
 
   FFT<T> fft;
 
@@ -224,8 +224,8 @@ void test_complex_generic(int nfft) {
 
 template <typename T>
 void test_complex_strided(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef typename Eigen::Vector<Complex, Dynamic> ComplexVector;
+  using Complex = typename FFT<T>::Complex;
+  using ComplexVector = typename Eigen::Vector<Complex, Dynamic>;
   constexpr int kInputStride = 3;
   constexpr int kOutputStride = 7;
   constexpr int kInvOutputStride = 13;
@@ -284,7 +284,7 @@ void test_complex(int nfft) {
 
 template <typename T, int nrows, int ncols>
 void test_complex2d() {
-  typedef typename Eigen::FFT<T>::Complex Complex;
+  using Complex = typename Eigen::FFT<T>::Complex;
   FFT<T> fft;
   Eigen::Matrix<Complex, nrows, ncols> src, src2, dst, dst2;
 
@@ -315,8 +315,8 @@ void test_complex2d() {
 // sizes so EIGEN_RUNTIME_NO_MALLOC users aren't forced to heap-allocate.
 template <typename T>
 void test_inplace_complex(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+  using Complex = typename FFT<T>::Complex;
+  using ComplexVector = Matrix<Complex, Dynamic, 1>;
 
   ComplexVector in(nfft);
   for (int k = 0; k < nfft; ++k)
@@ -344,13 +344,13 @@ void test_inplace_complex(int nfft) {
 // a column block in the temporary contiguous FFT input.
 template <typename T>
 void test_fwd_padding(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef Matrix<T, 10, 1> FixedRealColumn;
-  typedef Matrix<T, 1, 10> FixedRealRow;
-  typedef Matrix<Complex, 10, 1> FixedComplexColumn;
-  typedef Matrix<Complex, 1, 10> FixedComplexRow;
-  typedef Matrix<T, Dynamic, 1> RealVector;
-  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+  using Complex = typename FFT<T>::Complex;
+  using FixedRealColumn = Matrix<T, 10, 1>;
+  using FixedRealRow = Matrix<T, 1, 10>;
+  using FixedComplexColumn = Matrix<Complex, 10, 1>;
+  using FixedComplexRow = Matrix<Complex, 1, 10>;
+  using RealVector = Matrix<T, Dynamic, 1>;
+  using ComplexVector = Matrix<Complex, Dynamic, 1>;
 
   FixedRealColumn real_column;
   FixedComplexColumn complex_column;
@@ -413,9 +413,9 @@ inline void test_return_by_value(int len) {
 // vice versa).
 template <typename T>
 void test_reuse_real_and_complex(int nfft) {
-  typedef typename FFT<T>::Complex Complex;
-  typedef Matrix<T, Dynamic, 1> ScalarVector;
-  typedef Matrix<Complex, Dynamic, 1> ComplexVector;
+  using Complex = typename FFT<T>::Complex;
+  using ScalarVector = Matrix<T, Dynamic, 1>;
+  using ComplexVector = Matrix<Complex, Dynamic, 1>;
 
   ScalarVector real_in(nfft);
   ComplexVector complex_in(nfft);

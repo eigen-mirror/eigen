@@ -18,18 +18,18 @@ namespace Eigen {
 namespace internal {
 template <typename RollDimensions, typename XprType>
 struct traits<TensorRollOp<RollDimensions, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename RollDimensions, typename XprType>
 struct eval<TensorRollOp<RollDimensions, XprType>, Eigen::Dense> {
-  typedef const TensorRollOp<RollDimensions, XprType>& type;
+  using type = const TensorRollOp<RollDimensions, XprType>&;
 };
 
 }  // end namespace internal
@@ -43,13 +43,13 @@ struct eval<TensorRollOp<RollDimensions, XprType>, Eigen::Dense> {
 template <typename RollDimensions, typename XprType>
 class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, WriteAccessors> {
  public:
-  typedef TensorBase<TensorRollOp<RollDimensions, XprType>, WriteAccessors> Base;
-  typedef typename Eigen::internal::traits<TensorRollOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorRollOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorRollOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorRollOp>::Index Index;
+  using Base = TensorBase<TensorRollOp<RollDimensions, XprType>, WriteAccessors>;
+  using Scalar = typename Eigen::internal::traits<TensorRollOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorRollOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorRollOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorRollOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorRollOp(const XprType& expr, const RollDimensions& roll_dims)
       : m_xpr(expr), m_roll_dims(roll_dims) {}
@@ -68,16 +68,16 @@ class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, Wr
 // Eval as rvalue
 template <typename RollDimensions, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
-  typedef TensorRollOp<RollDimensions, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorRollOp<RollDimensions, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<RollDimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -89,7 +89,7 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
     RawAccess = false
   };
 
-  typedef internal::TensorIntDivisor<Index> IndexDivisor;
+  using IndexDivisor = internal::TensorIntDivisor<Index>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
@@ -322,11 +322,11 @@ struct TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
 template <typename RollDimensions, typename ArgType, typename Device>
 struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
     : public TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> {
-  typedef TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device> Base;
-  typedef TensorRollOp<RollDimensions, ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using Base = TensorEvaluator<const TensorRollOp<RollDimensions, ArgType>, Device>;
+  using XprType = TensorRollOp<RollDimensions, ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<RollDimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
+  using Dimensions = DSizes<Index, NumDims>;
 
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
   enum {
@@ -343,11 +343,11 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
   };
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
   using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
@@ -384,8 +384,8 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
       mem = this->m_device.allocate(desc.size() * sizeof(Scalar));
       ScalarNoConst* buf = static_cast<ScalarNoConst*>(mem);
 
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>
-          TensorBlockAssignment;
+      using TensorBlockAssignment =
+          internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename TensorBlock::XprType, Index>;
       TensorBlockAssignment::Run(TensorBlockAssignment::target(desc.dimensions(), block_strides, buf), block.expr());
 
       block_buffer = buf;
@@ -418,9 +418,9 @@ struct TensorEvaluator<TensorRollOp<RollDimensions, ArgType>, Device>
       }
     }
 
-    typedef internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout> TensorBlockIO;
-    typedef typename TensorBlockIO::Dst TensorBlockIODst;
-    typedef typename TensorBlockIO::Src TensorBlockIOSrc;
+    using TensorBlockIO = internal::TensorBlockIO<ScalarNoConst, Index, NumDims, Layout>;
+    using TensorBlockIODst = typename TensorBlockIO::Dst;
+    using TensorBlockIOSrc = typename TensorBlockIO::Src;
 
     const typename TensorBlockIO::Dimensions input_strides(this->m_strides);
 

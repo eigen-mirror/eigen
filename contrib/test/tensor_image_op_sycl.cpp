@@ -42,7 +42,7 @@ static void test_image_op_sycl(const Eigen::SyclDevice& sycl_device) {
   Tensor<DataType, 3, DataLayout, IndexType> tensor3(slice_range);
   Tensor<DataType, 3, DataLayout, IndexType> tensor3_cpu(slice_range);
 
-  typedef Eigen::DSizes<IndexType, 3> Index3;
+  using Index3 = Eigen::DSizes<IndexType, 3>;
   Index3 strides1(1L, 1L, 1L);
   Index3 indicesStart1(1L, 0L, 0L);
   Index3 indicesStop1(sizeDim1, sizeDim2, sizeDim3);

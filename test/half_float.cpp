@@ -342,7 +342,7 @@ void test_trigonometric_functions() {
 }
 
 void test_array() {
-  typedef Array<half, 1, Dynamic> ArrayXh;
+  using ArrayXh = Array<half, 1, Dynamic>;
   Index size = internal::random<Index>(1, 10);
   Index i = internal::random<Index>(0, size - 1);
   ArrayXh a1 = ArrayXh::Random(size), a2 = ArrayXh::Random(size);

@@ -20,7 +20,7 @@ namespace internal {
 
 template <typename indices_, int flags_>
 struct tensor_static_symgroup_element {
-  typedef indices_ indices;
+  using indices = indices_;
   constexpr static int flags = flags_;
 };
 
@@ -33,14 +33,13 @@ tensor_static_symgroup_swapped_indices(std::integer_sequence<int, indices...>) {
 
 template <typename Gen, int N>
 struct tensor_static_symgroup_element_ctor {
-  typedef tensor_static_symgroup_element<
-      decltype(tensor_static_symgroup_swapped_indices<Gen>(std::make_integer_sequence<int, N>{})), Gen::Flags>
-      type;
+  using type = tensor_static_symgroup_element<
+      decltype(tensor_static_symgroup_swapped_indices<Gen>(std::make_integer_sequence<int, N>{})), Gen::Flags>;
 };
 
 template <int N>
 struct tensor_static_symgroup_identity_ctor {
-  typedef tensor_static_symgroup_element<std::make_integer_sequence<int, N>, 0> type;
+  using type = tensor_static_symgroup_element<std::make_integer_sequence<int, N>, 0>;
 };
 
 template <typename iib>
@@ -54,23 +53,22 @@ struct tensor_static_symgroup_multiply_helper {
 template <typename A, typename B>
 struct tensor_static_symgroup_multiply {
  private:
-  typedef typename A::indices iia;
-  typedef typename B::indices iib;
+  using iia = typename A::indices;
+  using iib = typename B::indices;
   constexpr static int ffa = A::flags;
   constexpr static int ffb = B::flags;
 
  public:
   static_assert(iia::size() == iib::size(), "Cannot multiply symmetry elements with different number of indices.");
 
-  typedef tensor_static_symgroup_element<decltype(tensor_static_symgroup_multiply_helper<iib>::helper(iia())),
-                                         ffa ^ ffb>
-      type;
+  using type =
+      tensor_static_symgroup_element<decltype(tensor_static_symgroup_multiply_helper<iib>::helper(iia())), ffa ^ ffb>;
 };
 
 template <typename A, typename B>
 struct tensor_static_symgroup_equality {
-  typedef typename A::indices iia;
-  typedef typename B::indices iib;
+  using iia = typename A::indices;
+  using iib = typename B::indices;
   constexpr static int ffa = A::flags;
   constexpr static int ffb = B::flags;
   static_assert(iia::size() == iib::size(), "Cannot compare symmetry elements with different number of indices.");
@@ -97,7 +95,7 @@ struct tensor_static_symgroup_equality {
 
 template <std::size_t NumIndices, typename... Gen>
 struct tensor_static_symgroup {
-  typedef StaticSGroup<Gen...> type;
+  using type = StaticSGroup<Gen...>;
   constexpr static std::size_t size = type::static_size;
 };
 
@@ -166,12 +164,11 @@ struct tensor_static_symgroup_do_apply<internal::type_list<>> {
 template <typename... Gen>
 class StaticSGroup {
   constexpr static std::size_t NumIndices = internal::tensor_symmetry_num_indices<Gen...>::value;
-  typedef internal::group_theory::enumerate_group_elements<
+  using group_elements = internal::group_theory::enumerate_group_elements<
       internal::tensor_static_symgroup_multiply, internal::tensor_static_symgroup_equality,
       typename internal::tensor_static_symgroup_identity_ctor<NumIndices>::type,
-      internal::type_list<typename internal::tensor_static_symgroup_element_ctor<Gen, NumIndices>::type...>>
-      group_elements;
-  typedef typename group_elements::type ge;
+      internal::type_list<typename internal::tensor_static_symgroup_element_ctor<Gen, NumIndices>::type...>>;
+  using ge = typename group_elements::type;
 
  public:
   constexpr StaticSGroup() = default;

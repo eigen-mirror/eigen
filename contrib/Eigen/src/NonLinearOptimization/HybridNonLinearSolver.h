@@ -46,7 +46,7 @@ enum Status {
 template <typename FunctorType, typename Scalar = double>
 class HybridNonLinearSolver {
  public:
-  typedef DenseIndex Index;
+  using Index = DenseIndex;
 
   HybridNonLinearSolver(FunctorType &_functor) : functor(_functor) {
     nfev = njev = iter = 0;
@@ -69,10 +69,10 @@ class HybridNonLinearSolver {
     Index nb_of_superdiagonals;
     Scalar epsfcn;
   };
-  typedef Matrix<Scalar, Dynamic, 1> FVectorType;
-  typedef Matrix<Scalar, Dynamic, Dynamic> JacobianType;
+  using FVectorType = Matrix<Scalar, Dynamic, 1>;
+  using JacobianType = Matrix<Scalar, Dynamic, Dynamic>;
   /* TODO: if eigen provides a triangular storage, use it here */
-  typedef Matrix<Scalar, Dynamic, Dynamic> UpperTriangularType;
+  using UpperTriangularType = Matrix<Scalar, Dynamic, Dynamic>;
 
   HybridNonLinearSolverSpace::Status hybrj1(FVectorType &x,
                                             const Scalar tol = numext::sqrt(NumTraits<Scalar>::epsilon()));

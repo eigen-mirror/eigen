@@ -39,8 +39,8 @@ template <typename ArrayType>
 void array_special_functions() {
   using std::abs;
   using std::sqrt;
-  typedef typename ArrayType::Scalar Scalar;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using Scalar = typename ArrayType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
 
   Scalar plusinf = std::numeric_limits<Scalar>::infinity();
   Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();

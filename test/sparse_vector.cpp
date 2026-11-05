@@ -14,11 +14,11 @@ template <typename Scalar, typename StorageIndex>
 void sparse_vector(int rows, int cols) {
   double densityMat = (std::max)(8. / (rows * cols), 0.01);
   double densityVec = (std::max)(8. / (rows), 0.1);
-  typedef Matrix<Scalar, Dynamic, Dynamic> DenseMatrix;
-  typedef Matrix<Scalar, Dynamic, 1> DenseVector;
-  typedef Matrix<DenseIndex, Dynamic, 1> DenseIndexVector;
-  typedef SparseVector<Scalar, 0, StorageIndex> SparseVectorType;
-  typedef SparseMatrix<Scalar, 0, StorageIndex> SparseMatrixType;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+  using DenseIndexVector = Matrix<DenseIndex, Dynamic, 1>;
+  using SparseVectorType = SparseVector<Scalar, 0, StorageIndex>;
+  using SparseMatrixType = SparseMatrix<Scalar, 0, StorageIndex>;
   Scalar eps = 1e-6;
 
   SparseMatrixType m1(rows, rows);

@@ -68,13 +68,13 @@ inline lapack_int call_geqp3(int matrix_layout, lapack_int m, lapack_int n, lapa
 
 template <typename MatrixType>
 struct ColPivHouseholderQR_LAPACKE_impl {
-  typedef typename MatrixType::Scalar Scalar;
-  typedef typename MatrixType::RealScalar RealScalar;
-  typedef typename internal::lapacke_helpers::translate_type_imp<Scalar>::type LapackeType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using LapackeType = typename internal::lapacke_helpers::translate_type_imp<Scalar>::type;
   static constexpr int LapackeStorage = MatrixType::IsRowMajor ? LAPACK_ROW_MAJOR : LAPACK_COL_MAJOR;
 
-  typedef typename internal::plain_diag_type<MatrixType>::type HCoeffsType;
-  typedef PermutationMatrix<Dynamic, Dynamic, lapack_int> PermutationType;
+  using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
+  using PermutationType = PermutationMatrix<Dynamic, Dynamic, lapack_int>;
 
   static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation, Index& nonzero_pivots,
                   RealScalar& maxpivot, bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p,
@@ -140,14 +140,14 @@ struct ColPivHouseholderQR_LAPACKE_impl {
   COLPIVQR_LAPACKE_COMPUTEINPLACE(Ref<EIGTYPE>) \
   COLPIVQR_LAPACKE_INIT(Ref<EIGTYPE>)
 
-typedef Matrix<float, Dynamic, Dynamic, ColMajor> MatrixXfC;
-typedef Matrix<double, Dynamic, Dynamic, ColMajor> MatrixXdC;
-typedef Matrix<std::complex<float>, Dynamic, Dynamic, ColMajor> MatrixXcfC;
-typedef Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor> MatrixXcdC;
-typedef Matrix<float, Dynamic, Dynamic, RowMajor> MatrixXfR;
-typedef Matrix<double, Dynamic, Dynamic, RowMajor> MatrixXdR;
-typedef Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor> MatrixXcfR;
-typedef Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor> MatrixXcdR;
+using MatrixXfC = Matrix<float, Dynamic, Dynamic, ColMajor>;
+using MatrixXdC = Matrix<double, Dynamic, Dynamic, ColMajor>;
+using MatrixXcfC = Matrix<std::complex<float>, Dynamic, Dynamic, ColMajor>;
+using MatrixXcdC = Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor>;
+using MatrixXfR = Matrix<float, Dynamic, Dynamic, RowMajor>;
+using MatrixXdR = Matrix<double, Dynamic, Dynamic, RowMajor>;
+using MatrixXcfR = Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>;
+using MatrixXcdR = Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>;
 
 COLPIVQR_LAPACKE(MatrixXfC)
 COLPIVQR_LAPACKE(MatrixXdC)

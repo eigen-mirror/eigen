@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <typename XprType>
 struct traits<TensorLayoutSwapOp<XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = traits<XprType>::NumDimensions;
   static constexpr int Layout = (traits<XprType>::Layout == ColMajor) ? RowMajor : ColMajor;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <typename XprType>
 struct eval<TensorLayoutSwapOp<XprType>, Eigen::Dense> {
-  typedef const TensorLayoutSwapOp<XprType>& type;
+  using type = const TensorLayoutSwapOp<XprType>&;
 };
 
 }  // end namespace internal
@@ -60,13 +60,13 @@ struct eval<TensorLayoutSwapOp<XprType>, Eigen::Dense> {
 template <typename XprType>
 class TensorLayoutSwapOp : public TensorBase<TensorLayoutSwapOp<XprType>, WriteAccessors> {
  public:
-  typedef TensorBase<TensorLayoutSwapOp<XprType>, WriteAccessors> Base;
-  typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef std::remove_const_t<typename XprType::CoeffReturnType> CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorLayoutSwapOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorLayoutSwapOp>::Index Index;
+  using Base = TensorBase<TensorLayoutSwapOp<XprType>, WriteAccessors>;
+  using Scalar = typename Eigen::internal::traits<TensorLayoutSwapOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = std::remove_const_t<typename XprType::CoeffReturnType>;
+  using Nested = typename Eigen::internal::ref_selector<TensorLayoutSwapOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorLayoutSwapOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorLayoutSwapOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorLayoutSwapOp(const XprType& expr) : m_xpr(expr) {}
 
@@ -80,10 +80,10 @@ class TensorLayoutSwapOp : public TensorBase<TensorLayoutSwapOp<XprType>, WriteA
 // Eval as rvalue
 template <typename ArgType, typename Device>
 struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
-  typedef TensorLayoutSwapOp<ArgType> XprType;
-  typedef typename XprType::Index Index;
+  using XprType = TensorLayoutSwapOp<ArgType>;
+  using Index = typename XprType::Index;
   static constexpr int NumDims = internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
-  typedef DSizes<Index, NumDims> Dimensions;
+  using Dimensions = DSizes<Index, NumDims>;
 
   static constexpr int Layout =
       (TensorEvaluator<ArgType, Device>::Layout == static_cast<int>(ColMajor)) ? RowMajor : ColMajor;
@@ -106,19 +106,19 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
       TensorEvaluator<ArgType, Device>::BlockAccess && !TensorEvaluator<ArgType, Device>::RawAccess;
   static constexpr int ArgLayout = TensorEvaluator<ArgType, Device>::Layout;
 
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
-  typedef typename TensorEvaluator<ArgType, Device>::TensorBlock ArgTensorBlock;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
+  using ArgTensorBlock = typename TensorEvaluator<ArgType, Device>::TensorBlock;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : m_impl(op.expression(), device) {
@@ -196,7 +196,7 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
     // the very same bytes. A strided destination carries no valid dense
     // expression, so it is only passed on at the root of the expression tree,
     // where the block is written once and never read back through expr().
-    typedef typename TensorBlockDesc::DestinationBuffer DestinationBuffer;
+    using DestinationBuffer = typename TensorBlockDesc::DestinationBuffer;
     const bool strided_destination = desc.destination().kind() == DestinationBuffer::kStrided;
     if (desc.destination().kind() == DestinationBuffer::kContiguous || (strided_destination && root_of_expr_ast)) {
       arg_desc.template AddDestinationBuffer<ArgLayout>(desc.destination().template data<ScalarNoConst>(),
@@ -217,8 +217,8 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
     // A lazy argument block has no buffer to share: materialize it into this
     // block's storage, evaluating in the argument's (flat-identical) layout.
     // The storage strides carry whichever destination prepareStorage accepted.
-    typedef internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>
-        ArgBlockAssign;
+    using ArgBlockAssign =
+        internal::TensorBlockAssignment<ScalarNoConst, NumDims, typename ArgTensorBlock::XprType, Index>;
     typename TensorBlock::Storage storage =
         TensorBlock::prepareStorage(desc, scratch, /*allow_strided_storage=*/root_of_expr_ast);
     ArgBlockAssign::Run(ArgBlockAssign::target(arg_dims, reversed(storage.strides()), storage.data()),
@@ -235,8 +235,8 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
 template <typename ArgType, typename Device>
 struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
     : public TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
-  typedef TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> Base;
-  typedef TensorLayoutSwapOp<ArgType> XprType;
+  using Base = TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device>;
+  using XprType = TensorLayoutSwapOp<ArgType>;
 
   static constexpr int NumDims = Base::NumDims;
   static constexpr int Layout = Base::Layout;
@@ -253,13 +253,13 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
     CoordAccess = false  // to be implemented
   };
 
-  typedef typename XprType::Index Index;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef typename Base::TensorBlockDesc TensorBlockDesc;
+  using TensorBlockDesc = typename Base::TensorBlockDesc;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
@@ -279,8 +279,8 @@ struct TensorEvaluator<TensorLayoutSwapOp<ArgType>, Device>
     // Dense strides of the swapped dimensions in this layout are exactly the
     // argument's flat strides, so the block expression can be assigned
     // directly into the argument's buffer at the block's flat offset.
-    typedef typename TensorBlock::XprType TensorBlockExpr;
-    typedef internal::TensorBlockAssignment<Scalar, NumDims, TensorBlockExpr, Index> TensorBlockAssign;
+    using TensorBlockExpr = typename TensorBlock::XprType;
+    using TensorBlockAssign = internal::TensorBlockAssignment<Scalar, NumDims, TensorBlockExpr, Index>;
 
     TensorBlockAssign::Run(TensorBlockAssign::target(desc.dimensions(), internal::strides<Layout>(this->dimensions()),
                                                      this->m_impl.data(), desc.offset()),

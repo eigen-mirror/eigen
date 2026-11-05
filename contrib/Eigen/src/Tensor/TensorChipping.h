@@ -19,18 +19,18 @@ namespace Eigen {
 namespace internal {
 template <DenseIndex DimId, typename XprType>
 struct traits<TensorChippingOp<DimId, XprType> > : public traits<XprType> {
-  typedef typename XprType::Scalar Scalar;
-  typedef traits<XprType> XprTraits;
-  typedef typename XprTraits::StorageKind StorageKind;
-  typedef typename XprTraits::Index Index;
+  using Scalar = typename XprType::Scalar;
+  using XprTraits = traits<XprType>;
+  using StorageKind = typename XprTraits::StorageKind;
+  using Index = typename XprTraits::Index;
   static constexpr int NumDimensions = XprTraits::NumDimensions - 1;
   static constexpr int Layout = XprTraits::Layout;
-  typedef typename XprTraits::PointerType PointerType;
+  using PointerType = typename XprTraits::PointerType;
 };
 
 template <DenseIndex DimId, typename XprType>
 struct eval<TensorChippingOp<DimId, XprType>, Eigen::Dense> {
-  typedef const TensorChippingOp<DimId, XprType> EIGEN_DEVICE_REF type;
+  using type = const TensorChippingOp<DimId, XprType> EIGEN_DEVICE_REF;
 };
 
 template <DenseIndex DimId>
@@ -154,13 +154,13 @@ struct chipping_packet_load<LoadMode, PacketT, ArgEvaluator, false, false, true>
 template <DenseIndex DimId, typename XprType>
 class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
  public:
-  typedef TensorBase<TensorChippingOp<DimId, XprType> > Base;
-  typedef typename Eigen::internal::traits<TensorChippingOp>::Scalar Scalar;
-  typedef typename Eigen::NumTraits<Scalar>::Real RealScalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename Eigen::internal::ref_selector<TensorChippingOp>::type Nested;
-  typedef typename Eigen::internal::traits<TensorChippingOp>::StorageKind StorageKind;
-  typedef typename Eigen::internal::traits<TensorChippingOp>::Index Index;
+  using Base = TensorBase<TensorChippingOp<DimId, XprType>>;
+  using Scalar = typename Eigen::internal::traits<TensorChippingOp>::Scalar;
+  using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using Nested = typename Eigen::internal::ref_selector<TensorChippingOp>::type;
+  using StorageKind = typename Eigen::internal::traits<TensorChippingOp>::StorageKind;
+  using Index = typename Eigen::internal::traits<TensorChippingOp>::Index;
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorChippingOp(const XprType& expr, const Index offset, const Index dim)
       : m_xpr(expr), m_offset(offset), m_dim(dim) {
@@ -183,18 +183,18 @@ class TensorChippingOp : public TensorBase<TensorChippingOp<DimId, XprType> > {
 // Eval as rvalue
 template <DenseIndex DimId, typename ArgType, typename Device>
 struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
-  typedef TensorChippingOp<DimId, ArgType> XprType;
+  using XprType = TensorChippingOp<DimId, ArgType>;
   static constexpr int NumInputDims =
       internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   static constexpr int NumDims = NumInputDims - 1;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
-  typedef StorageMemory<CoeffReturnType, Device> Storage;
-  typedef typename Storage::Type EvaluatorPointerType;
+  using Storage = StorageMemory<CoeffReturnType, Device>;
+  using EvaluatorPointerType = typename Storage::Type;
   static constexpr int Layout = TensorEvaluator<ArgType, Device>::Layout;
 
   enum {
@@ -215,16 +215,16 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
     RawAccess = false
   };
 
-  typedef std::remove_const_t<Scalar> ScalarNoConst;
+  using ScalarNoConst = std::remove_const_t<Scalar>;
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
-  typedef internal::TensorBlockScratchAllocator<Device> TensorBlockScratch;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
+  using TensorBlockScratch = internal::TensorBlockScratchAllocator<Device>;
 
-  typedef internal::TensorBlockDescriptor<NumInputDims, Index> ArgTensorBlockDesc;
-  typedef typename TensorEvaluator<const ArgType, Device>::TensorBlock ArgTensorBlock;
+  using ArgTensorBlockDesc = internal::TensorBlockDescriptor<NumInputDims, Index>;
+  using ArgTensorBlock = typename TensorEvaluator<const ArgType, Device>::TensorBlock;
 
-  typedef typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index> TensorBlock;
+  using TensorBlock = typename internal::TensorMaterializedBlock<ScalarNoConst, NumDims, Layout, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device)
@@ -499,8 +499,8 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
       // Prepare storage for the materialized chipping result.
       const typename TensorBlock::Storage block_storage = TensorBlock::prepareStorage(desc, scratch);
 
-      typedef internal::TensorBlockAssignment<ScalarNoConst, NumInputDims, typename ArgTensorBlock::XprType, Index>
-          TensorBlockAssignment;
+      using TensorBlockAssignment =
+          internal::TensorBlockAssignment<ScalarNoConst, NumInputDims, typename ArgTensorBlock::XprType, Index>;
 
       TensorBlockAssignment::Run(
           TensorBlockAssignment::target(arg_desc.dimensions(), internal::strides<Layout>(arg_desc.dimensions()),
@@ -598,16 +598,16 @@ struct TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
 template <DenseIndex DimId, typename ArgType, typename Device>
 struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
     : public TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> {
-  typedef TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device> Base;
-  typedef TensorChippingOp<DimId, ArgType> XprType;
+  using Base = TensorEvaluator<const TensorChippingOp<DimId, ArgType>, Device>;
+  using XprType = TensorChippingOp<DimId, ArgType>;
   static constexpr int NumInputDims =
       internal::array_size<typename TensorEvaluator<ArgType, Device>::Dimensions>::value;
   static constexpr int NumDims = NumInputDims - 1;
-  typedef typename XprType::Index Index;
-  typedef DSizes<Index, NumDims> Dimensions;
-  typedef typename XprType::Scalar Scalar;
-  typedef typename XprType::CoeffReturnType CoeffReturnType;
-  typedef typename PacketType<CoeffReturnType, Device>::type PacketReturnType;
+  using Index = typename XprType::Index;
+  using Dimensions = DSizes<Index, NumDims>;
+  using Scalar = typename XprType::Scalar;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+  using PacketReturnType = typename PacketType<CoeffReturnType, Device>::type;
   static constexpr int PacketSize = PacketType<CoeffReturnType, Device>::size;
 
   enum {
@@ -619,7 +619,7 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
   };
 
   //===- Tensor block evaluation strategy (see TensorBlock.h) -------------===//
-  typedef internal::TensorBlockDescriptor<NumDims, Index> TensorBlockDesc;
+  using TensorBlockDesc = internal::TensorBlockDescriptor<NumDims, Index>;
   //===--------------------------------------------------------------------===//
 
   EIGEN_STRONG_INLINE TensorEvaluator(const XprType& op, const Device& device) : Base(op, device) {}
@@ -675,9 +675,9 @@ struct TensorEvaluator<TensorChippingOp<DimId, ArgType>, Device>
       input_block_dims[i < chip_dim ? i : i + 1] = desc.dimension(i);
     }
 
-    typedef TensorReshapingOp<const DSizes<Index, NumInputDims>, const typename TensorBlock::XprType> TensorBlockExpr;
+    using TensorBlockExpr = TensorReshapingOp<const DSizes<Index, NumInputDims>, const typename TensorBlock::XprType>;
 
-    typedef internal::TensorBlockAssignment<Scalar, NumInputDims, TensorBlockExpr, Index> TensorBlockAssign;
+    using TensorBlockAssign = internal::TensorBlockAssignment<Scalar, NumInputDims, TensorBlockExpr, Index>;
 
     TensorBlockAssign::Run(
         TensorBlockAssign::target(input_block_dims, internal::strides<Layout>(this->m_impl.dimensions()),

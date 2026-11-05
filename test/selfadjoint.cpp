@@ -16,7 +16,7 @@
 
 template <typename MatrixType>
 void selfadjoint(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -60,7 +60,7 @@ void selfadjoint(const MatrixType& m) {
   // the materialized full matrix. Upper and Lower views of the same (stored-
   // full) self-adjoint matrix must return the same value; complex scalars
   // behave identically since |conj(x)| = |x|.
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   m3 = m1.template selfadjointView<Upper>();  // m3 is now fully self-adjoint
   RealScalar ref_l1 = m3.cwiseAbs().colwise().sum().maxCoeff();
   VERIFY_IS_APPROX(m3.template selfadjointView<Upper>().l1Norm(), ref_l1);
@@ -80,8 +80,8 @@ void selfadjoint(const MatrixType& m) {
 // segment would otherwise hide between the random sizes above.
 template <typename Scalar>
 void selfadjoint_l1norm_sizes() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   for (Index n : {Index(0), Index(1), Index(2), Index(15), Index(16), Index(17), Index(63), Index(64), Index(65),
                   Index(127), Index(128), Index(129)}) {
     MatrixType m = MatrixType::Random(n, n);
@@ -97,8 +97,8 @@ void selfadjoint_l1norm_sizes() {
 // land in the denormals and lose precision.
 template <typename Scalar>
 void selfadjoint_l1norm_range() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
-  typedef typename NumTraits<Scalar>::Real RealScalar;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
   Index n = 70;
   MatrixType m = MatrixType::Random(n, n);
   RealScalar big = numext::sqrt(NumTraits<RealScalar>::highest()) * RealScalar(1e3);
@@ -116,7 +116,7 @@ void selfadjoint_l1norm_range() {
 // the result from a float reference, not the size of the matrix.
 template <typename Scalar>
 void selfadjoint_l1norm_lowprec() {
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
   for (Index n : {Index(8), Index(64), Index(300)}) {
     MatrixType m = MatrixType::Random(n, n).template selfadjointView<Lower>();
     float ref = m.template cast<float>().cwiseAbs().colwise().sum().maxCoeff();
@@ -131,7 +131,7 @@ void selfadjoint_l1norm_lowprec() {
 template <typename Scalar>
 void selfadjoint_l1norm_integer() {
   for (Index n : {Index(2), Index(8)}) {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+    using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
     // Random() spans the whole range; keep the column sums representable.
     MatrixType m = (MatrixType::Random(n, n) / Scalar(NumTraits<Scalar>::highest() / 16)).eval();
     m = m.template selfadjointView<Lower>();
@@ -143,7 +143,7 @@ void selfadjoint_l1norm_integer() {
 
 template <typename MatrixType>
 void selfadjoint_l1norm_empty(const MatrixType& m) {
-  typedef typename NumTraits<typename MatrixType::Scalar>::Real RealScalar;
+  using RealScalar = typename NumTraits<typename MatrixType::Scalar>::Real;
   VERIFY_IS_EQUAL(m.template selfadjointView<Lower>().l1Norm(), RealScalar(0));
   VERIFY_IS_EQUAL(m.template selfadjointView<Upper>().l1Norm(), RealScalar(0));
 }

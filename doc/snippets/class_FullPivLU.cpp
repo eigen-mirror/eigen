@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-typedef Matrix<double, 5, 3> Matrix5x3;
-typedef Matrix<double, 5, 5> Matrix5x5;
+using Matrix5x3 = Matrix<double, 5, 3>;
+using Matrix5x5 = Matrix<double, 5, 5>;
 Matrix5x3 m = Matrix5x3::Random();
 cout << "Here is the matrix m:" << endl << m << endl;
 Eigen::FullPivLU<Matrix5x3> lu(m);

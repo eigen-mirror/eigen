@@ -5,7 +5,7 @@
 #include <Eigen/SVD>
 
 EIGEN_DECLARE_TEST(bdcsvd_fastmath) {
-  typedef Matrix<double, 6, 6> Matrix6d;
+  using Matrix6d = Matrix<double, 6, 6>;
   const double kTolerance = 16 * Matrix6d::RowsAtCompileTime * NumTraits<double>::epsilon();
 
   // A finite singular-vector coefficient grows to about 2^570. Its ordinary

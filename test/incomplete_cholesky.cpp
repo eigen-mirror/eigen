@@ -14,7 +14,7 @@
 
 template <typename T, typename I_>
 void test_incomplete_cholesky_T() {
-  typedef SparseMatrix<T, 0, I_> SparseMatrixType;
+  using SparseMatrixType = SparseMatrix<T, 0, I_>;
   ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, AMDOrdering<I_> > > cg_illt_lower_amd;
   ConjugateGradient<SparseMatrixType, Lower, IncompleteCholesky<T, Lower, NaturalOrdering<I_> > > cg_illt_lower_nat;
   ConjugateGradient<SparseMatrixType, Upper, IncompleteCholesky<T, Upper, AMDOrdering<I_> > > cg_illt_upper_amd;

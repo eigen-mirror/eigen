@@ -39,8 +39,8 @@ void diagonalview(const MatrixType& m) {
 
   // check const overloads
   const auto m2(m1);
-  typedef decltype(m1) Type1;
-  typedef decltype(m2) Type2;
+  using Type1 = decltype(m1);
+  using Type2 = decltype(m2);
   constexpr bool types_are_same = std::is_same<Type1, Type2>::value;
   VERIFY(!types_are_same);
 

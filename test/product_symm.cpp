@@ -12,11 +12,11 @@
 
 template <typename Scalar, int Size, int OtherSize>
 void symm(int size = Size, int othersize = OtherSize) {
-  typedef Matrix<Scalar, Size, Size> MatrixType;
-  typedef Matrix<Scalar, Size, OtherSize> Rhs1;
-  typedef Matrix<Scalar, OtherSize, Size> Rhs2;
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using Rhs1 = Matrix<Scalar, Size, OtherSize>;
+  using Rhs2 = Matrix<Scalar, OtherSize, Size>;
   enum { order = OtherSize == 1 ? 0 : RowMajor };
-  typedef Matrix<Scalar, Size, OtherSize, order> Rhs3;
+  using Rhs3 = Matrix<Scalar, Size, OtherSize, order>;
 
   Index rows = size;
   Index cols = size;
@@ -133,7 +133,7 @@ void symm(int size = Size, int othersize = OtherSize) {
   // destination with a non-default inner-stride
   // see bug 1741
   {
-    typedef Matrix<Scalar, Dynamic, Dynamic> MatrixX;
+    using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
     MatrixX buffer(2 * cols, 2 * othersize);
     // As for map2 below, the outer stride spans Rhs1's outer dimension, which is not rows() when
     // Rhs1 is row major.

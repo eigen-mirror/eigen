@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-typedef float Scalar;
+using Scalar = float;
 
 // --- Roll only the inner-most (contiguous) dimension. ---
 static void BM_Roll_Inner(benchmark::State& state) {

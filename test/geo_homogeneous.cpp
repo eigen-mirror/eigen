@@ -17,15 +17,15 @@ void homogeneous(void) {
      Homogeneous.h
   */
 
-  typedef Matrix<Scalar, Size, Size> MatrixType;
-  typedef Matrix<Scalar, Size, 1, ColMajor> VectorType;
+  using MatrixType = Matrix<Scalar, Size, Size>;
+  using VectorType = Matrix<Scalar, Size, 1, ColMajor>;
 
-  typedef Matrix<Scalar, Size + 1, Size> HMatrixType;
-  typedef Matrix<Scalar, Size + 1, 1> HVectorType;
+  using HMatrixType = Matrix<Scalar, Size + 1, Size>;
+  using HVectorType = Matrix<Scalar, Size + 1, 1>;
 
-  typedef Matrix<Scalar, Size, Size + 1> T1MatrixType;
-  typedef Matrix<Scalar, Size + 1, Size + 1> T2MatrixType;
-  typedef Matrix<Scalar, Size + 1, Size> T3MatrixType;
+  using T1MatrixType = Matrix<Scalar, Size, Size + 1>;
+  using T2MatrixType = Matrix<Scalar, Size + 1, Size + 1>;
+  using T3MatrixType = Matrix<Scalar, Size + 1, Size>;
 
   VectorType v0 = VectorType::Random(), ones = VectorType::Ones();
 

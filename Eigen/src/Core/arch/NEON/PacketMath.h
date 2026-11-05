@@ -42,24 +42,24 @@ namespace internal {
 // are aliases to the same underlying type __n128.
 // We thus have to wrap them to make them different C++ types.
 // (See also bug 1428)
-typedef eigen_packet_wrapper<float32x2_t, 0> Packet2f;
-typedef eigen_packet_wrapper<float32x4_t, 1> Packet4f;
-typedef eigen_packet_wrapper<int32_t, 2> Packet4c;
-typedef eigen_packet_wrapper<int8x8_t, 3> Packet8c;
-typedef eigen_packet_wrapper<int8x16_t, 4> Packet16c;
-typedef eigen_packet_wrapper<uint32_t, 5> Packet4uc;
-typedef eigen_packet_wrapper<uint8x8_t, 6> Packet8uc;
-typedef eigen_packet_wrapper<uint8x16_t, 7> Packet16uc;
-typedef eigen_packet_wrapper<int16x4_t, 8> Packet4s;
-typedef eigen_packet_wrapper<int16x8_t, 9> Packet8s;
-typedef eigen_packet_wrapper<uint16x4_t, 10> Packet4us;
-typedef eigen_packet_wrapper<uint16x8_t, 11> Packet8us;
-typedef eigen_packet_wrapper<int32x2_t, 12> Packet2i;
-typedef eigen_packet_wrapper<int32x4_t, 13> Packet4i;
-typedef eigen_packet_wrapper<uint32x2_t, 14> Packet2ui;
-typedef eigen_packet_wrapper<uint32x4_t, 15> Packet4ui;
-typedef eigen_packet_wrapper<int64x2_t, 16> Packet2l;
-typedef eigen_packet_wrapper<uint64x2_t, 17> Packet2ul;
+using Packet2f = eigen_packet_wrapper<float32x2_t, 0>;
+using Packet4f = eigen_packet_wrapper<float32x4_t, 1>;
+using Packet4c = eigen_packet_wrapper<int32_t, 2>;
+using Packet8c = eigen_packet_wrapper<int8x8_t, 3>;
+using Packet16c = eigen_packet_wrapper<int8x16_t, 4>;
+using Packet4uc = eigen_packet_wrapper<uint32_t, 5>;
+using Packet8uc = eigen_packet_wrapper<uint8x8_t, 6>;
+using Packet16uc = eigen_packet_wrapper<uint8x16_t, 7>;
+using Packet4s = eigen_packet_wrapper<int16x4_t, 8>;
+using Packet8s = eigen_packet_wrapper<int16x8_t, 9>;
+using Packet4us = eigen_packet_wrapper<uint16x4_t, 10>;
+using Packet8us = eigen_packet_wrapper<uint16x8_t, 11>;
+using Packet2i = eigen_packet_wrapper<int32x2_t, 12>;
+using Packet4i = eigen_packet_wrapper<int32x4_t, 13>;
+using Packet2ui = eigen_packet_wrapper<uint32x2_t, 14>;
+using Packet4ui = eigen_packet_wrapper<uint32x4_t, 15>;
+using Packet2l = eigen_packet_wrapper<int64x2_t, 16>;
+using Packet2ul = eigen_packet_wrapper<uint64x2_t, 17>;
 
 EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) {
   float from[4] = {a, b, c, d};
@@ -73,24 +73,24 @@ EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) {
 
 #else
 
-typedef float32x2_t Packet2f;
-typedef float32x4_t Packet4f;
-typedef eigen_packet_wrapper<int32_t, 2> Packet4c;
-typedef int8x8_t Packet8c;
-typedef int8x16_t Packet16c;
-typedef eigen_packet_wrapper<uint32_t, 5> Packet4uc;
-typedef uint8x8_t Packet8uc;
-typedef uint8x16_t Packet16uc;
-typedef int16x4_t Packet4s;
-typedef int16x8_t Packet8s;
-typedef uint16x4_t Packet4us;
-typedef uint16x8_t Packet8us;
-typedef int32x2_t Packet2i;
-typedef int32x4_t Packet4i;
-typedef uint32x2_t Packet2ui;
-typedef uint32x4_t Packet4ui;
-typedef int64x2_t Packet2l;
-typedef uint64x2_t Packet2ul;
+using Packet2f = float32x2_t;
+using Packet4f = float32x4_t;
+using Packet4c = eigen_packet_wrapper<int32_t, 2>;
+using Packet8c = int8x8_t;
+using Packet16c = int8x16_t;
+using Packet4uc = eigen_packet_wrapper<uint32_t, 5>;
+using Packet8uc = uint8x8_t;
+using Packet16uc = uint8x16_t;
+using Packet4s = int16x4_t;
+using Packet8s = int16x8_t;
+using Packet4us = uint16x4_t;
+using Packet8us = uint16x8_t;
+using Packet2i = int32x2_t;
+using Packet4i = int32x4_t;
+using Packet2ui = uint32x2_t;
+using Packet4ui = uint32x4_t;
+using Packet2l = int64x2_t;
+using Packet2ul = uint64x2_t;
 
 EIGEN_ALWAYS_INLINE Packet4f make_packet4f(float a, float b, float c, float d) { return Packet4f{a, b, c, d}; }
 EIGEN_ALWAYS_INLINE Packet2f make_packet2f(float a, float b) { return Packet2f{a, b}; }
@@ -175,8 +175,8 @@ EIGEN_STRONG_INLINE Packet4f vec4f_unpackhi(const Packet4f& a, const Packet4f& b
 
 template <>
 struct packet_traits<float> : default_packet_traits {
-  typedef Packet4f type;
-  typedef Packet2f half;
+  using type = Packet4f;
+  using half = Packet2f;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -226,8 +226,8 @@ struct packet_traits<float> : default_packet_traits {
 
 template <>
 struct packet_traits<int8_t> : default_packet_traits {
-  typedef Packet16c type;
-  typedef Packet8c half;
+  using type = Packet16c;
+  using half = Packet8c;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -251,8 +251,8 @@ struct packet_traits<int8_t> : default_packet_traits {
 
 template <>
 struct packet_traits<uint8_t> : default_packet_traits {
-  typedef Packet16uc type;
-  typedef Packet8uc half;
+  using type = Packet16uc;
+  using half = Packet8uc;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -278,8 +278,8 @@ struct packet_traits<uint8_t> : default_packet_traits {
 
 template <>
 struct packet_traits<int16_t> : default_packet_traits {
-  typedef Packet8s type;
-  typedef Packet4s half;
+  using type = Packet8s;
+  using half = Packet4s;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -303,8 +303,8 @@ struct packet_traits<int16_t> : default_packet_traits {
 
 template <>
 struct packet_traits<uint16_t> : default_packet_traits {
-  typedef Packet8us type;
-  typedef Packet4us half;
+  using type = Packet8us;
+  using half = Packet4us;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -329,8 +329,8 @@ struct packet_traits<uint16_t> : default_packet_traits {
 
 template <>
 struct packet_traits<int32_t> : default_packet_traits {
-  typedef Packet4i type;
-  typedef Packet2i half;
+  using type = Packet4i;
+  using half = Packet2i;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -354,8 +354,8 @@ struct packet_traits<int32_t> : default_packet_traits {
 
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
-  typedef Packet4ui type;
-  typedef Packet2ui half;
+  using type = Packet4ui;
+  using half = Packet2ui;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -381,8 +381,8 @@ struct packet_traits<uint32_t> : default_packet_traits {
 
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
-  typedef Packet2l type;
-  typedef Packet2l half;
+  using type = Packet2l;
+  using half = Packet2l;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -406,8 +406,8 @@ struct packet_traits<int64_t> : default_packet_traits {
 
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
-  typedef Packet2ul type;
-  typedef Packet2ul half;
+  using type = Packet2ul;
+  using half = Packet2ul;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -4766,8 +4766,8 @@ float64x2_t vreinterpretq_f64_u64(T a) {
 #endif
 
 #if EIGEN_COMP_MSVC_STRICT
-typedef eigen_packet_wrapper<float64x2_t, 18> Packet2d;
-typedef eigen_packet_wrapper<float64x1_t, 19> Packet1d;
+using Packet2d = eigen_packet_wrapper<float64x2_t, 18>;
+using Packet1d = eigen_packet_wrapper<float64x1_t, 19>;
 
 EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) {
   double from[2] = {a, b};
@@ -4775,8 +4775,8 @@ EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) {
 }
 
 #else
-typedef float64x2_t Packet2d;
-typedef float64x1_t Packet1d;
+using Packet2d = float64x2_t;
+using Packet1d = float64x1_t;
 
 EIGEN_ALWAYS_INLINE Packet2d make_packet2d(double a, double b) { return Packet2d{a, b}; }
 #endif
@@ -4800,8 +4800,8 @@ EIGEN_STRONG_INLINE Packet2d vec2d_unpackhi(const Packet2d& a, const Packet2d& b
 
 template <>
 struct packet_traits<double> : default_packet_traits {
-  typedef Packet2d type;
-  typedef Packet2d half;
+  using type = Packet2d;
+  using half = Packet2d;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,
@@ -5199,8 +5199,8 @@ EIGEN_STRONG_INLINE Packet2d pisnan<Packet2d>(const Packet2d& a) {
 // feature test macro `EIGEN_HAS_ARM64_FP16_VECTOR_ARITHMETIC` requires `EIGEN_ARCH_ARM64`
 // in addition to the ISA feature test, the guard here also only checks for ARM64.
 #if EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
-typedef float16x4_t Packet4hf;
-typedef float16x8_t Packet8hf;
+using Packet4hf = float16x4_t;
+using Packet8hf = float16x8_t;
 
 // Clang <19.1.0 does not provide `f16` intrinsics for pure data movement instructions.
 // Polyfill them with `u16`.
@@ -5231,8 +5231,8 @@ EIGEN_ALWAYS_INLINE float16x8x2_t vuzpq_f16(float16x8_t a, float16x8_t b) {
 
 template <>
 struct packet_traits<half> : default_packet_traits {
-  typedef Packet8hf type;
-  typedef Packet4hf half;
+  using type = Packet8hf;
+  using half = Packet4hf;
   enum {
     Vectorizable = 1,
     AlignedOnScalar = 1,

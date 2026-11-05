@@ -13,11 +13,11 @@ using namespace Eigen;
 #define SCALAR double
 #endif
 
-typedef SCALAR Scalar;
+using Scalar = SCALAR;
 
 static void BM_MatrixLog(benchmark::State& state) {
   int n = state.range(0);
-  typedef Matrix<Scalar, Dynamic, Dynamic> MatrixType;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Generate a matrix close to identity for stable log computation.
   MatrixType A = MatrixType::Identity(n, n) + MatrixType::Random(n, n) / Scalar(n * 2);
@@ -34,7 +34,7 @@ static void BM_MatrixLog(benchmark::State& state) {
 
 template <int N>
 static void BM_MatrixLog_Fixed(benchmark::State& state) {
-  typedef Matrix<Scalar, N, N> MatrixType;
+  using MatrixType = Matrix<Scalar, N, N>;
 
   MatrixType A = (MatrixType::Random() / Scalar(N * 4)).exp();
   MatrixType result;

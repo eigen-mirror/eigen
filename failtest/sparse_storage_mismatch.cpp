@@ -1,11 +1,11 @@
 #include "../Eigen/Sparse"
 using namespace Eigen;
 
-typedef SparseMatrix<double, ColMajor> Mat1;
+using Mat1 = SparseMatrix<double, ColMajor>;
 #ifdef EIGEN_SHOULD_FAIL_TO_BUILD
-typedef SparseMatrix<double, RowMajor> Mat2;
+using Mat2 = SparseMatrix<double, RowMajor>;
 #else
-typedef SparseMatrix<double, ColMajor> Mat2;
+using Mat2 = SparseMatrix<double, ColMajor>;
 #endif
 
 int main() {

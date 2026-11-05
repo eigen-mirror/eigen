@@ -17,16 +17,16 @@
 using namespace std;
 template <typename MatrixType>
 void permutationmatrices(const MatrixType& m) {
-  typedef typename MatrixType::Scalar Scalar;
+  using Scalar = typename MatrixType::Scalar;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime, Options = MatrixType::Options };
-  typedef PermutationMatrix<Rows> LeftPermutationType;
-  typedef Transpositions<Rows> LeftTranspositionsType;
-  typedef Matrix<int, Rows, 1> LeftPermutationVectorType;
-  typedef Map<LeftPermutationType> MapLeftPerm;
-  typedef PermutationMatrix<Cols> RightPermutationType;
-  typedef Transpositions<Cols> RightTranspositionsType;
-  typedef Matrix<int, Cols, 1> RightPermutationVectorType;
-  typedef Map<RightPermutationType> MapRightPerm;
+  using LeftPermutationType = PermutationMatrix<Rows>;
+  using LeftTranspositionsType = Transpositions<Rows>;
+  using LeftPermutationVectorType = Matrix<int, Rows, 1>;
+  using MapLeftPerm = Map<LeftPermutationType>;
+  using RightPermutationType = PermutationMatrix<Cols>;
+  using RightTranspositionsType = Transpositions<Cols>;
+  using RightPermutationVectorType = Matrix<int, Cols, 1>;
+  using MapRightPerm = Map<RightPermutationType>;
 
   Index rows = m.rows();
   Index cols = m.cols();
@@ -191,11 +191,11 @@ void permutationmatrices(const MatrixType& m) {
 
 template <typename T>
 void bug890() {
-  typedef Matrix<T, Dynamic, Dynamic> MatrixType;
-  typedef Matrix<T, Dynamic, 1> VectorType;
-  typedef Stride<Dynamic, Dynamic> S;
-  typedef Map<MatrixType, Aligned, S> MapType;
-  typedef PermutationMatrix<Dynamic> Perm;
+  using MatrixType = Matrix<T, Dynamic, Dynamic>;
+  using VectorType = Matrix<T, Dynamic, 1>;
+  using S = Stride<Dynamic, Dynamic>;
+  using MapType = Map<MatrixType, Aligned, S>;
+  using Perm = PermutationMatrix<Dynamic>;
 
   VectorType v1(2), v2(2), op(4), rhs(2);
   v1 << 666, 667;

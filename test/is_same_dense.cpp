@@ -13,8 +13,8 @@
 using internal::is_same_dense;
 
 EIGEN_DECLARE_TEST(is_same_dense) {
-  typedef Matrix<double, Dynamic, Dynamic, ColMajor> ColMatrixXd;
-  typedef Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor> ColMatrixXcd;
+  using ColMatrixXd = Matrix<double, Dynamic, Dynamic, ColMajor>;
+  using ColMatrixXcd = Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor>;
   ColMatrixXd m1(10, 10);
   ColMatrixXcd m2(10, 10);
   Ref<ColMatrixXd> ref_m1(m1);

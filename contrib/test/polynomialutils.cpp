@@ -23,9 +23,9 @@ struct increment_if_fixed_size : std::integral_constant<int, (Size == Dynamic) ?
 
 template <typename Scalar_, int Deg_>
 void realRoots_to_monicPolynomial_test(int deg) {
-  typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
-  typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
+  using Dim = internal::increment_if_fixed_size<Deg_>;
+  using PolynomialType = Matrix<Scalar_, Dim::value, 1>;
+  using EvalRootsType = Matrix<Scalar_, Deg_, 1>;
 
   PolynomialType pols(deg + 1);
   EvalRootsType roots = EvalRootsType::Random(deg);
@@ -58,9 +58,9 @@ void realRoots_to_monicPolynomial_scalar() {
 
 template <typename Scalar_, int Deg_>
 void CauchyBounds(int deg) {
-  typedef internal::increment_if_fixed_size<Deg_> Dim;
-  typedef Matrix<Scalar_, Dim::value, 1> PolynomialType;
-  typedef Matrix<Scalar_, Deg_, 1> EvalRootsType;
+  using Dim = internal::increment_if_fixed_size<Deg_>;
+  using PolynomialType = Matrix<Scalar_, Dim::value, 1>;
+  using EvalRootsType = Matrix<Scalar_, Deg_, 1>;
 
   PolynomialType pols(deg + 1);
   EvalRootsType roots = EvalRootsType::Random(deg);

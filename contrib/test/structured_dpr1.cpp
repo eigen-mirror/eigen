@@ -38,8 +38,8 @@ bool dpr1_has_gradual_underflow() {
 // epsilon-scaled bounds.
 template <typename Scalar>
 void check_dpr1(const Matrix<Scalar, Dynamic, 1>& d, Scalar rho, const Matrix<Scalar, Dynamic, 1>& z) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   const Index n = d.size();
   Mat dense = Mat(d.asDiagonal()) + rho * z * z.transpose();
@@ -71,7 +71,7 @@ void check_dpr1(const Matrix<Scalar, Dynamic, 1>& d, Scalar rho, const Matrix<Sc
 
 template <typename Scalar>
 void test_dpr1_random(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec d = Vec::Random(n), z = Vec::Random(n);
   check_dpr1<Scalar>(d, Scalar(1), z);
   check_dpr1<Scalar>(d, Scalar(-1), z);              // negative rho
@@ -83,7 +83,7 @@ void test_dpr1_random(Index n) {
 // deflation path (the secular equation requires strictly separated poles).
 template <typename Scalar>
 void test_dpr1_clustered(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec d(n), z = Vec::Random(n);
   for (Index i = 0; i < n; ++i) {
     const Index cluster = i / 3, offsetInCluster = i % 3;
@@ -138,7 +138,7 @@ void test_dpr1_skewed_deflation() {
 // Zero and tiny z entries exercise the z-deflation path.
 template <typename Scalar>
 void test_dpr1_sparse_z(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec d = Vec::Random(n);
   d.array() += Scalar(2);
   Vec z = Vec::Zero(n);
@@ -154,7 +154,7 @@ void test_dpr1_sparse_z(Index n) {
 // Edge sizes and the classic textbook case.
 template <typename Scalar>
 void test_dpr1_edges() {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   Vec d1(1), z1(1);
   d1 << Scalar(2);
@@ -182,7 +182,7 @@ void test_dpr1_edges() {
 // Unsorted input: the solver must sort internally and undo the permutation.
 template <typename Scalar>
 void test_dpr1_unsorted(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec d = Vec::Random(n), z = Vec::Random(n);
   d = d.reverse().eval();
   check_dpr1<Scalar>(d, Scalar(1.5), z);
@@ -191,7 +191,7 @@ void test_dpr1_unsorted(Index n) {
 // Rank-one matrix (all-zero diagonal): spectrum {0,...,0, rho*||z||^2}.
 template <typename Scalar>
 void test_dpr1_rank_one(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec z = Vec::Random(n);
   check_dpr1<Scalar>(Vec(Vec::Zero(n)), Scalar(2), z);
 }
@@ -199,7 +199,7 @@ void test_dpr1_rank_one(Index n) {
 // Wide dynamic range in d and rho scaling.
 template <typename Scalar>
 void test_dpr1_scaling(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   Vec d = Vec::Random(n), z = Vec::Random(n);
   d = d.cwiseProduct(Vec::LinSpaced(n, Scalar(1e-8), Scalar(1e8)));
   check_dpr1<Scalar>(d, Scalar(1e6), z);
@@ -211,7 +211,7 @@ void test_dpr1_scaling(Index n) {
 // the secular solver must handle them. Gaps span eps^1 to eps^(1/2) scales.
 template <typename Scalar>
 void test_dpr1_close_undeflated(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
   const Scalar eps = NumTraits<Scalar>::epsilon();
   Vec d(n), z(n);
   Scalar gap = Scalar(100) * eps;
@@ -229,7 +229,7 @@ void test_dpr1_close_undeflated(Index n) {
 // would overflow but rho*||z||^2 is a perfectly ordinary number.
 template <typename = void>
 void test_dpr1_huge_z() {
-  typedef Matrix<float, Dynamic, 1> Vec;
+  using Vec = Matrix<float, Dynamic, 1>;
   Vec d(1), z(1);
   d << 1.0f;
   z << 2e19f;
@@ -255,7 +255,7 @@ void test_dpr1_huge_z() {
 // sorting comparator and silently deflate everything).
 template <typename = void>
 void test_dpr1_nonfinite() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   Vec d = Vec::Random(6), z = Vec::Random(6);
   Vec dn = d;
   dn[2] = std::numeric_limits<double>::quiet_NaN();
@@ -277,7 +277,7 @@ void test_dpr1_nonfinite() {
 
 template <typename = void>
 void test_dpr1_invalid_options() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   const Vec d = Vec::LinSpaced(3, 1.0, 3.0);
   const Vec z = Vec::Ones(3);
   DPR1EigenSolver<double> es;
@@ -291,7 +291,7 @@ void test_dpr1_invalid_options() {
 // cap, and used to report NoConvergence (check_dpr1 requires Success).
 template <typename = void>
 void test_dpr1_near_deflation_root() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   Vec d(2), z(2);
   d << 0.0, 1.0;
   z << 16.0 * NumTraits<double>::epsilon(), 1.0;
@@ -303,7 +303,7 @@ void test_dpr1_near_deflation_root() {
 // eigenvalues, not Success carrying infinity.
 template <typename = void>
 void test_dpr1_overflowing_spectrum() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   const double dmax = (std::numeric_limits<double>::max)();
   Vec d(1), z(1);
   d << dmax;
@@ -340,8 +340,8 @@ void test_dpr1_overflowing_spectrum() {
 // are all normal. Verified against a dense solve of the exactly upscaled problem.
 template <typename = void>
 void test_dpr1_tiny_scale() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
   const Index n = 8;
   const double dmin = (std::numeric_limits<double>::min)();
   Vec d(n), z(n);
@@ -386,7 +386,7 @@ void test_dpr1_tiny_scale() {
 // rho itself is not: the whole update deflates and m == 0.
 template <typename = void>
 void test_dpr1_all_deflated() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   Vec d(4), z(4);
   d << 0.0, 1e17, 2e17, 3e17;
   z << 0.5, 0.5, 0.5, 0.5;

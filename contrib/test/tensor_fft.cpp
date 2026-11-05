@@ -183,7 +183,7 @@ static void test_fft_real_input_energy() {
   }
   const DSizes<ptrdiff_t, TensorRank> arr = dimensions;
 
-  typedef std::conditional_t<isComplexInput == true, std::complex<RealScalar>, RealScalar> InputScalar;
+  using InputScalar = std::conditional_t<isComplexInput == true, std::complex<RealScalar>, RealScalar>;
 
   Tensor<InputScalar, TensorRank, DataLayout> input;
   input.resize(arr);
@@ -194,7 +194,7 @@ static void test_fft_real_input_energy() {
     fft[i] = i;
   }
 
-  typedef std::conditional_t<FFTResultType == Eigen::BothParts, std::complex<RealScalar>, RealScalar> OutputScalar;
+  using OutputScalar = std::conditional_t<FFTResultType == Eigen::BothParts, std::complex<RealScalar>, RealScalar>;
   Tensor<OutputScalar, TensorRank, DataLayout> output;
   output = input.template fft<FFTResultType, FFTDirection>(fft);
 

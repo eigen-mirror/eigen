@@ -42,8 +42,8 @@ Matrix<Scalar, Dynamic, Dynamic> reference_toeplitz(const Matrix<Scalar, Dynamic
 
 template <typename Scalar>
 void test_circulant_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -80,9 +80,9 @@ void test_circulant_product(Index n) {
 
 template <typename Scalar>
 void test_circulant_solve(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Diagonally dominant => well conditioned, so the direct FFT solve is accurate.
   Vec c = Vec::Random(n);
@@ -104,10 +104,10 @@ void test_circulant_solve(Index n) {
 // C * f_k = symbol[k] * f_k, with f_k the k-th column of the inverse DFT matrix.
 template <typename Scalar>
 void test_circulant_symbol(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Complex, Dynamic, 1> ComplexVec;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using ComplexVec = Matrix<Complex, Dynamic, 1>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -124,8 +124,8 @@ void test_circulant_symbol(Index n) {
 
 template <typename Scalar>
 void test_toeplitz_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(m), r = Vec::Random(n);
   r[0] = c[0];  // diagonal entry; r[0] is ignored anyway
@@ -158,8 +158,8 @@ Matrix<Scalar, Dynamic, Dynamic> reference_hankel(const Matrix<Scalar, Dynamic, 
 
 template <typename Scalar>
 void test_hankel_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(m + n - 1);
   Hankel<Scalar> H(h.head(m), h.tail(n));
@@ -203,8 +203,8 @@ void test_hankel_product(Index m, Index n) {
 // would read freed memory if the product held a reference instead.
 template <typename Scalar>
 void test_hankel_delayed_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Hankel<Scalar>>::type>::value);
 
@@ -233,8 +233,8 @@ void test_hankel_delayed_product(Index m, Index n) {
 // interleave destination writes with right-hand-side reads.
 template <typename Scalar>
 void test_hankel_aliased_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Square so that the destination and the right-hand side can alias.
   Vec h = Vec::Random(2 * n - 1);
@@ -266,8 +266,8 @@ void test_hankel_aliased_product(Index n) {
 // resized by the assignment.
 template <typename Scalar>
 void test_hankel_aliased_expression(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(2 * n - 1);
   Hankel<Scalar> H(h.head(n), h.tail(n));
@@ -302,10 +302,10 @@ void test_hankel_aliased_expression(Index n) {
 // the operator scalar.
 template <typename RealScalar>
 void test_hankel_mixed_scalar(Index m, Index n) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec h = RVec::Random(m + n - 1);
   Hankel<RealScalar> H(h.head(m), h.tail(n));
@@ -332,9 +332,9 @@ void test_hankel_mixed_scalar(Index m, Index n) {
 // (see nonfinite_covers_reference()).
 template <typename Scalar>
 void test_hankel_nonfinite_product(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
   const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
 
@@ -370,8 +370,8 @@ void test_hankel_nonfinite_product(Index n) {
 // (the DFT shift theorem), including its sign.
 template <typename Scalar>
 void test_hankel_transpose(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(m + n - 1);
   Hankel<Scalar> H(h.head(m), h.tail(n));
@@ -405,8 +405,8 @@ void test_hankel_transpose(Index m, Index n) {
 // A real square Hankel matrix is symmetric: transpose() is an exact fixed point.
 template <typename Scalar>
 void test_hankel_symmetry(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(2 * n - 1);
   Hankel<Scalar> H(h.head(n), h.tail(n));
@@ -420,8 +420,8 @@ void test_hankel_symmetry(Index n) {
 // The column-reversed Toeplitz equivalent: toToeplitz() == H * E.
 template <typename Scalar>
 void test_hankel_to_toeplitz(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(m + n - 1);
   Hankel<Scalar> H(h.head(m), h.tail(n));
@@ -433,9 +433,9 @@ void test_hankel_to_toeplitz(Index m, Index n) {
 // Direct O(n^2) solve of a square Hankel system through the Toeplitz equivalent.
 template <typename Scalar>
 void test_hankel_solve(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // h[n-1] is the constant anti-diagonal that becomes the diagonal of the
   // Toeplitz equivalent; boosting it makes the system well conditioned.
@@ -460,9 +460,9 @@ void test_hankel_solve(Index n) {
 // Levinson algorithm is weakly stable).
 template <typename Scalar>
 void test_hankel_solve_lookahead(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(2 * n - 1);
   h[n - 1] = Scalar(0);
@@ -482,8 +482,8 @@ void test_hankel_solve_lookahead(Index n) {
 // residual stays small far beyond the point where the solution itself is lost.
 template <typename = void>
 void test_hankel_hilbert() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<double, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using Mat = Matrix<double, Dynamic, Dynamic>;
 
   auto residual = [](Index n) {
     Vec h(2 * n - 1);
@@ -511,9 +511,9 @@ void test_hankel_hilbert() {
 // least-squares solvers end to end.
 template <typename Scalar>
 void test_hankel_least_squares(Index m, Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec h = Vec::Random(m + n - 1);
   Hankel<Scalar> H(h.head(m), h.tail(n));
@@ -537,10 +537,10 @@ void test_hankel_least_squares(Index m, Index n) {
 
 template <typename Scalar, int M, int N>
 void test_hankel_fixed() {
-  typedef Matrix<Scalar, M, 1> ColVec;
-  typedef Matrix<Scalar, N, 1> RowVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, M, N> MatMN;
+  using ColVec = Matrix<Scalar, M, 1>;
+  using RowVec = Matrix<Scalar, N, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatMN = Matrix<Scalar, M, N>;
 
   Vec h = Vec::Random(M + N - 1);
   ColVec c = h.template head<M>();
@@ -569,10 +569,10 @@ void test_hankel_fixed() {
 // fixed dimension of the square operator determines the compile-time row count.
 template <typename Scalar, int N>
 void test_hankel_fixed_solve() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, N, 1> VecN;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, N, N> MatN;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VecN = Matrix<Scalar, N, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatN = Matrix<Scalar, N, N>;
 
   STATIC_CHECK((internal::remove_all_t<decltype(std::declval<const Hankel<Scalar, N, N>&>().solve(
                     std::declval<const VecN&>()))>::RowsAtCompileTime == N));
@@ -603,8 +603,8 @@ void test_hankel_fixed_solve() {
 // (index reversal / conjugation) instead of computing new FFTs.
 template <typename Scalar>
 void test_circulant_transpose(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -634,8 +634,8 @@ void test_circulant_transpose(Index n) {
 
 template <typename Scalar>
 void test_toeplitz_transpose(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // r[0] is deliberately left random (it is documented as ignored): the transposed
   // operator must take its diagonal from c[0], not from r[0].
@@ -670,8 +670,8 @@ void test_toeplitz_transpose(Index m, Index n) {
 // the product held a reference instead.
 template <typename Scalar>
 void test_circulant_delayed_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Circulant<Scalar>>::type>::value);
 
@@ -688,8 +688,8 @@ void test_circulant_delayed_product(Index n) {
 
 template <typename Scalar>
 void test_toeplitz_delayed_product(Index m, Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   STATIC_CHECK(!std::is_reference<typename internal::ref_selector<Toeplitz<Scalar>>::type>::value);
 
@@ -710,8 +710,8 @@ void test_toeplitz_delayed_product(Index m, Index n) {
 // interleaves destination writes with right-hand-side reads.
 template <typename Scalar>
 void test_circulant_aliased_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -738,8 +738,8 @@ void test_circulant_aliased_product(Index n) {
 
 template <typename Scalar>
 void test_toeplitz_aliased_product(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Square so that the destination and the right-hand side can alias.
   Vec c = Vec::Random(n), r = Vec::Random(n);
@@ -763,8 +763,8 @@ void test_toeplitz_aliased_product(Index n) {
 // resized by the assignment.
 template <typename Scalar>
 void test_structured_aliased_expression(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -800,10 +800,10 @@ void test_structured_aliased_expression(Index n) {
 // the operator scalar.
 template <typename RealScalar>
 void test_circulant_mixed_scalar(Index n) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec c = RVec::Random(n);
   Circulant<RealScalar> C(c);
@@ -828,10 +828,10 @@ void test_circulant_mixed_scalar(Index n) {
 
 template <typename RealScalar>
 void test_toeplitz_mixed_scalar(Index m, Index n) {
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<RealScalar, Dynamic, 1> RVec;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using Complex = std::complex<RealScalar>;
+  using RVec = Matrix<RealScalar, Dynamic, 1>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   RVec c = RVec::Random(m), r = RVec::Random(n);
   r[0] = c[0];
@@ -847,9 +847,9 @@ void test_toeplitz_mixed_scalar(Index m, Index n) {
 // (see nonfinite_covers_reference()).
 template <typename Scalar>
 void test_structured_nonfinite_product(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
   const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
 
@@ -899,10 +899,10 @@ void test_structured_nonfinite_product(Index n) {
 // Closed-form eigendecomposition: C * V = V * diag(eigenvalues) with V unitary.
 template <typename Scalar>
 void test_circulant_eigen(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -918,11 +918,11 @@ void test_circulant_eigen(Index n) {
 // reconstructs the matrix with unitary factors.
 template <typename Scalar>
 void test_circulant_svd(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
@@ -964,8 +964,8 @@ void test_circulant_svd(Index n) {
 // for both consistent and inconsistent right-hand sides.
 template <typename Scalar>
 void test_circulant_minnorm_solve(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Ones(n);
   Circulant<Scalar> C(c);
@@ -985,11 +985,11 @@ void test_circulant_minnorm_solve(Index n) {
 // the SVD pseudo-inverse. Scalar must be complex (the generator is an inverse DFT).
 template <typename Scalar>
 void test_circulant_rank_deficient(Index n, Index defect) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef std::complex<RealScalar> Complex;
-  typedef Matrix<Complex, Dynamic, 1> CVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Complex = std::complex<RealScalar>;
+  using CVec = Matrix<Complex, Dynamic, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   CVec s = CVec::Random(n);
   s.array() += Complex(2);  // keep the surviving moduli away from the threshold
@@ -1009,7 +1009,7 @@ void test_circulant_rank_deficient(Index n, Index defect) {
   // The SVD factors must stay unitary and reconstruct the matrix even with zero
   // singular values (exercising the arbitrary-phase completion of U and the
   // tie-handling of the shared sort).
-  typedef Matrix<Complex, Dynamic, Dynamic> CMat;
+  using CMat = Matrix<Complex, Dynamic, Dynamic>;
   Matrix<RealScalar, Dynamic, 1> sv = C.singularValues();
   VERIFY((sv.tail(defect).array() <= RealScalar(n) * NumTraits<RealScalar>::epsilon() * sv[0]).all());
   CMat U = C.matrixU(), V = C.matrixV();
@@ -1023,7 +1023,7 @@ void test_circulant_rank_deficient(Index n, Index defect) {
 // values zero. Pins the clamped-threshold boundary behavior.
 template <typename Scalar>
 void test_circulant_zero(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
 
   Circulant<Scalar> C(Vec(Vec::Zero(n)));
   VERIFY_IS_EQUAL(C.rank(), 0);
@@ -1036,7 +1036,7 @@ void test_circulant_zero(Index n) {
 // rank()) instead of being silently laundered into zeros by the rank threshold.
 template <typename = void>
 void test_circulant_nan_propagation(Index n) {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
 
   Vec c = Vec::Random(n);
   c[n / 2] = std::numeric_limits<double>::quiet_NaN();
@@ -1049,9 +1049,9 @@ void test_circulant_nan_propagation(Index n) {
 
 template <typename Scalar>
 void test_circulant_inverse(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n);
   c[0] += Scalar(RealScalar(2 * n));  // diagonally dominant => safely invertible
@@ -1068,9 +1068,9 @@ void test_circulant_inverse(Index n) {
 
 template <typename Scalar>
 void test_circulant_determinant(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Diagonal dominance keeps every eigenvalue away from zero, so the determinant
   // is well conditioned and comparable against the dense LU-based value.
@@ -1087,8 +1087,8 @@ void test_circulant_determinant(Index n) {
 // in determinant().
 template <typename = void>
 void test_circulant_determinant_scaled() {
-  typedef Matrix<double, Dynamic, 1> Vec;
-  typedef Matrix<std::complex<double>, Dynamic, 1> CVec;
+  using Vec = Matrix<double, Dynamic, 1>;
+  using CVec = Matrix<std::complex<double>, Dynamic, 1>;
   const Index n = 1000;
 
   // 653 eigenvalues `lead` and 347 eigenvalues `rest`, arranged symmetrically
@@ -1132,7 +1132,7 @@ void test_circulant_determinant_scaled() {
 // is treated as an exact zero, and non-finite entries count as non-zero.
 template <typename = void>
 void test_circulant_rank_boundaries() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   const double mn = (std::numeric_limits<double>::min)();
   const Vec b = Vec::Ones(1);
   {
@@ -1176,10 +1176,10 @@ void test_circulant_rank_boundaries() {
 // product dispatch.
 template <typename Scalar, int N>
 void test_circulant_fixed() {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, N, 1> VecN;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, N, N> MatN;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VecN = Matrix<Scalar, N, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatN = Matrix<Scalar, N, N>;
 
   VecN c = VecN::Random();
   c[0] += Scalar(RealScalar(2 * N));  // well conditioned for the solve below
@@ -1205,10 +1205,10 @@ void test_circulant_fixed() {
 
 template <typename Scalar, int M, int N>
 void test_toeplitz_fixed() {
-  typedef Matrix<Scalar, M, 1> ColVec;
-  typedef Matrix<Scalar, N, 1> RowVec;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, M, N> MatMN;
+  using ColVec = Matrix<Scalar, M, 1>;
+  using RowVec = Matrix<Scalar, N, 1>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using MatMN = Matrix<Scalar, M, N>;
 
   ColVec c = ColVec::Random();
   RowVec r = RowVec::Random();
@@ -1234,8 +1234,8 @@ void test_toeplitz_fixed() {
 
 template <typename Scalar>
 void test_matrix_free_cg(Index n) {
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Symmetric, strongly diagonally dominant circulant => SPD.
   Vec c = Vec::Zero(n);
@@ -1255,9 +1255,9 @@ void test_matrix_free_cg(Index n) {
 
 template <typename Scalar>
 void test_matrix_free_gmres(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   // Strongly diagonally dominant (nonsymmetric) Toeplitz.
   Vec c = Vec::Random(n) * Scalar(RealScalar(0.1));
@@ -1280,9 +1280,9 @@ void test_matrix_free_gmres(Index n) {
 // evaluate mat.adjoint() * v through the fast product.
 template <typename Scalar>
 void test_matrix_free_least_squares(Index m, Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(m), r = Vec::Random(n);
   c[0] += Scalar(RealScalar(4));  // boost the diagonal to bound the conditioning
@@ -1315,9 +1315,9 @@ void test_matrix_free_least_squares(Index m, Index n) {
 // with a dense LU solve.
 template <typename Scalar>
 void test_levinson_wellcond(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n), r = Vec::Random(n);
   c[0] = r[0] = Scalar(RealScalar(2 * n));
@@ -1348,7 +1348,7 @@ void test_levinson_wellcond(Index n) {
 // solution is the all-ones vector.
 template <typename = void>
 void test_levinson_lookahead() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   // Loose bound for these deliberately ill-conditioned look-ahead cases (~1e-9);
   // the look-ahead Levinson recursion is weakly stable, so the forward error is a
   // large but bounded multiple of epsilon.
@@ -1398,7 +1398,7 @@ void test_levinson_lookahead() {
 // Fixed-size Toeplitz operators also feed the solver.
 template <typename = void>
 void test_levinson_fixed() {
-  typedef Matrix<double, 12, 1> Vec12;
+  using Vec12 = Matrix<double, 12, 1>;
   Vec12 c = Vec12::Random(), r = Vec12::Random();
   c[0] = r[0] = 24.0;
   Toeplitz<double, 12, 12> T(c, r);
@@ -1419,9 +1419,9 @@ void test_levinson_fixed() {
 // solve in exactly such an expression (colwise().reverse()).
 template <typename Scalar>
 void test_levinson_solve_in_expression(Index n) {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  typedef Matrix<Scalar, Dynamic, 1> Vec;
-  typedef Matrix<Scalar, Dynamic, Dynamic> Mat;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
 
   Vec c = Vec::Random(n), r = Vec::Random(n);
   r[0] = c[0] += Scalar(RealScalar(2 * n));  // diagonally dominant => well conditioned
@@ -1442,7 +1442,7 @@ void test_levinson_solve_in_expression(Index n) {
 // A numerically singular Toeplitz must be reported through info().
 template <typename = void>
 void test_levinson_singular() {
-  typedef Matrix<double, Dynamic, 1> Vec;
+  using Vec = Matrix<double, Dynamic, 1>;
   for (Index n : {4, 9}) {
     Vec c = Vec::Ones(n), r = Vec::Ones(n);  // all-ones Toeplitz is rank 1 for n >= 2
     LookAheadLevinson<double> lev(Toeplitz<double>(c, r));

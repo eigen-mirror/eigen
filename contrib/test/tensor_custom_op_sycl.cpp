@@ -59,7 +59,7 @@ static void test_custom_unary_op_sycl(const Eigen::SyclDevice& sycl_device) {
   DataType* gpu_out_data =
       static_cast<DataType*>(sycl_device.allocate(out.dimensions().TotalSize() * sizeof(DataType)));
 
-  typedef Eigen::TensorMap<Eigen::Tensor<DataType, 2, DataLayout, IndexType> > TensorType;
+  using TensorType = Eigen::TensorMap<Eigen::Tensor<DataType, 2, DataLayout, IndexType> >;
   TensorType gpu_in1(gpu_in1_data, tensorRange);
   TensorType gpu_out(gpu_out_data, tensorResultRange);
 
@@ -97,7 +97,7 @@ struct BatchMatMul {
 
   template <typename Output, typename Device>
   void eval(const TensorType& input1, const TensorType& input2, Output& output, const Device& device) const {
-    typedef typename TensorType::DimensionPair DimPair;
+    using DimPair = typename TensorType::DimensionPair;
     array<DimPair, 1> dims;
     dims[0] = DimPair(1, 0);
     for (int64_t i = 0; i < output.dimension(2); ++i) {
@@ -123,7 +123,7 @@ static void test_custom_binary_op_sycl(const Eigen::SyclDevice& sycl_device) {
   DataType* gpu_out_data =
       static_cast<DataType*>(sycl_device.allocate(out.dimensions().TotalSize() * sizeof(DataType)));
 
-  typedef Eigen::TensorMap<Eigen::Tensor<DataType, 3, DataLayout, IndexType> > TensorType;
+  using TensorType = Eigen::TensorMap<Eigen::Tensor<DataType, 3, DataLayout, IndexType> >;
   TensorType gpu_in1(gpu_in1_data, tensorRange1);
   TensorType gpu_in2(gpu_in2_data, tensorRange2);
   TensorType gpu_out(gpu_out_data, tensorResultRange);
@@ -138,7 +138,7 @@ static void test_custom_binary_op_sycl(const Eigen::SyclDevice& sycl_device) {
   sycl_device.memcpyDeviceToHost(out.data(), gpu_out_data, (out.dimensions().TotalSize()) * sizeof(DataType));
 
   for (IndexType i = 0; i < 5; ++i) {
-    typedef typename Eigen::Tensor<DataType, 3, DataLayout, IndexType>::DimensionPair DimPair;
+    using DimPair = typename Eigen::Tensor<DataType, 3, DataLayout, IndexType>::DimensionPair;
     array<DimPair, 1> dims;
     dims[0] = DimPair(1, 0);
     Eigen::Tensor<DataType, 2, DataLayout, IndexType> reference =

@@ -38,7 +38,7 @@ inline void on_temporary_creation() {
 template <typename PlainObjectType>
 void check_const_correctness(const PlainObjectType &) {
   // verify that ref-to-const don't have LvalueBit
-  typedef std::add_const_t<PlainObjectType> ConstPlainObjectType;
+  using ConstPlainObjectType = std::add_const_t<PlainObjectType>;
   VERIFY(!(internal::traits<Ref<ConstPlainObjectType>>::Flags & LvalueBit));
   VERIFY(!(internal::traits<Ref<ConstPlainObjectType, Aligned>>::Flags & LvalueBit));
   VERIFY(!(Ref<ConstPlainObjectType>::Flags & LvalueBit));
