@@ -259,6 +259,15 @@ add_test(NAME cmake_project_version
                  -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake_project_version.cmake")
 set_property(TEST cmake_project_version PROPERTY LABELS "Official")
 
+# Not an ei_add_test either: it compares the Eigen/Version header that the
+# configure step generated, which is the one CMake installs, with the source one.
+add_test(NAME cmake_version_header
+         COMMAND ${CMAKE_COMMAND}
+                 "-DSOURCE_HEADER=${PROJECT_SOURCE_DIR}/Eigen/Version"
+                 "-DGENERATED_HEADER=${PROJECT_BINARY_DIR}/include/Eigen/Version"
+                 -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake_version_header.cmake")
+set_property(TEST cmake_version_header PROPERTY LABELS "Official")
+
 ei_add_test(clz)
 ei_add_test(rand)
 ei_add_test(realview)
