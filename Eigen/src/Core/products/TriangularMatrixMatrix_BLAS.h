@@ -75,6 +75,7 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, true)
 EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
 
 // implements col-major += alpha * op(triangular) * op(general)
+// Temporaries are ColMajor, also under EIGEN_DEFAULT_TO_ROW_MAJOR: BLAS takes column-major storage.
 #define EIGEN_BLAS_TRMM_L(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC)                                                      \
   template <typename Index, int Mode, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>  \
   struct product_triangular_matrix_matrix_trmm<EIGTYPE, Index, Mode, true, LhsStorageOrder, ConjugateLhs,              \
@@ -152,7 +153,8 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
                                                                                                                        \
       /* Set b, ldb */                                                                                                 \
       Map<const MatrixRhs, 0, OuterStride<> > rhs(_rhs, depth, cols, OuterStride<>(rhsStride));                        \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
                                                                                                                        \
       EIGEN_IF_CONSTEXPR (ConjugateRhs)                                                                                \
         b_tmp = rhs.conjugate();                                                                                       \
@@ -191,7 +193,7 @@ EIGEN_BLAS_TRMM_SPECIALIZE(scomplex, false)
                &lda, (BLASTYPE*)b, &ldb);                                                                              \
                                                                                                                        \
       /* Add op(a_triangular)*b into res*/                                                                             \
-      Map<MatrixX##EIGPREFIX, 0, OuterStride<> > res_tmp(res, rows, cols, OuterStride<>(resStride));                   \
+      Map<ColMajorMatrix, 0, OuterStride<> > res_tmp(res, rows, cols, OuterStride<>(resStride));                       \
       res_tmp = res_tmp + b_tmp;                                                                                       \
     }                                                                                                                  \
   };
@@ -288,7 +290,8 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(ctrmm))
                                                                                                                        \
       /* Set b, ldb */                                                                                                 \
       Map<const MatrixLhs, 0, OuterStride<> > lhs(_lhs, rows, depth, OuterStride<>(lhsStride));                        \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
                                                                                                                        \
       EIGEN_IF_CONSTEXPR (ConjugateLhs)                                                                                \
         b_tmp = lhs.conjugate();                                                                                       \
@@ -327,7 +330,7 @@ EIGEN_BLAS_TRMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(ctrmm))
                &lda, (BLASTYPE*)b, &ldb);                                                                              \
                                                                                                                        \
       /* Add op(a_triangular)*b into res*/                                                                             \
-      Map<MatrixX##EIGPREFIX, 0, OuterStride<> > res_tmp(res, rows, cols, OuterStride<>(resStride));                   \
+      Map<ColMajorMatrix, 0, OuterStride<> > res_tmp(res, rows, cols, OuterStride<>(resStride));                       \
       res_tmp = res_tmp + b_tmp;                                                                                       \
     }                                                                                                                  \
   };

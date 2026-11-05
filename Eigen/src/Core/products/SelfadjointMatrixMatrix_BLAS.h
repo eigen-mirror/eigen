@@ -43,6 +43,7 @@ namespace internal {
 
 /* Optimized selfadjoint matrix * matrix (?SYMM/?HEMM) product */
 
+// Temporaries are ColMajor, also under EIGEN_DEFAULT_TO_ROW_MAJOR: BLAS takes column-major storage.
 #define EIGEN_BLAS_SYMM_L(EIGTYPE, BLASTYPE, EIGPREFIX, BLASFUNC)                                                      \
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>            \
   struct product_selfadjoint_matrix<EIGTYPE, Index, LhsStorageOrder, true, ConjugateLhs, RhsStorageOrder, false,       \
@@ -66,7 +67,8 @@ namespace internal {
       BlasIndex m, n, lda, ldb, ldc;                                                                                   \
       const EIGTYPE *a, *b;                                                                                            \
       EIGTYPE beta(1);                                                                                                 \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
                                                                                                                        \
       /* Set transpose options */                                                                                      \
       /* Set m, n, k */                                                                                                \
@@ -85,7 +87,7 @@ namespace internal {
       a = _lhs;                                                                                                        \
                                                                                                                        \
       EIGEN_IF_CONSTEXPR (RhsStorageOrder == RowMajor) {                                                               \
-        Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                    \
+        Map<const ColMajorMatrix, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                        \
         b_tmp = rhs.adjoint();                                                                                         \
         b = b_tmp.data();                                                                                              \
         ldb = convert_index<BlasIndex>(b_tmp.outerStride());                                                           \
@@ -120,7 +122,8 @@ namespace internal {
       BlasIndex m, n, lda, ldb, ldc;                                                                                   \
       const EIGTYPE *a, *b;                                                                                            \
       EIGTYPE beta(1);                                                                                                 \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
       Matrix<EIGTYPE, Dynamic, Dynamic, LhsStorageOrder> a_tmp;                                                        \
                                                                                                                        \
       /* Set transpose options */                                                                                      \
@@ -151,13 +154,13 @@ namespace internal {
         b = _rhs;                                                                                                      \
       } else {                                                                                                         \
         EIGEN_IF_CONSTEXPR (RhsStorageOrder == ColMajor && ConjugateRhs) {                                             \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs, m, n, OuterStride<>(rhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > rhs(_rhs, m, n, OuterStride<>(rhsStride));                      \
           b_tmp = rhs.conjugate();                                                                                     \
         } else EIGEN_IF_CONSTEXPR (ConjugateRhs) {                                                                     \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                      \
           b_tmp = rhs.adjoint();                                                                                       \
         } else {                                                                                                       \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > rhs(_rhs, n, m, OuterStride<>(rhsStride));                      \
           b_tmp = rhs.transpose();                                                                                     \
         }                                                                                                              \
         b = b_tmp.data();                                                                                              \
@@ -206,7 +209,8 @@ EIGEN_BLAS_HEMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(chemm))
       BlasIndex m, n, lda, ldb, ldc;                                                                                   \
       const EIGTYPE *a, *b;                                                                                            \
       EIGTYPE beta(1);                                                                                                 \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
                                                                                                                        \
       /* Set m, n, k */                                                                                                \
       m = convert_index<BlasIndex>(rows);                                                                              \
@@ -224,7 +228,7 @@ EIGEN_BLAS_HEMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(chemm))
       a = _rhs;                                                                                                        \
                                                                                                                        \
       EIGEN_IF_CONSTEXPR (LhsStorageOrder == RowMajor) {                                                               \
-        Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                    \
+        Map<const ColMajorMatrix, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                        \
         b_tmp = lhs.adjoint();                                                                                         \
         b = b_tmp.data();                                                                                              \
         ldb = convert_index<BlasIndex>(b_tmp.outerStride());                                                           \
@@ -259,7 +263,8 @@ EIGEN_BLAS_HEMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(chemm))
       BlasIndex m, n, lda, ldb, ldc;                                                                                   \
       const EIGTYPE *a, *b;                                                                                            \
       EIGTYPE beta(1);                                                                                                 \
-      MatrixX##EIGPREFIX b_tmp;                                                                                        \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix b_tmp;                                                                                            \
       Matrix<EIGTYPE, Dynamic, Dynamic, RhsStorageOrder> a_tmp;                                                        \
                                                                                                                        \
       /* Set m, n, k */                                                                                                \
@@ -289,13 +294,13 @@ EIGEN_BLAS_HEMM_L(scomplex, float, cf, EIGEN_BLAS_SYM(chemm))
         b = _lhs;                                                                                                      \
       } else {                                                                                                         \
         EIGEN_IF_CONSTEXPR (LhsStorageOrder == ColMajor && ConjugateLhs) {                                             \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs, m, n, OuterStride<>(lhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > lhs(_lhs, m, n, OuterStride<>(lhsStride));                      \
           b_tmp = lhs.conjugate();                                                                                     \
         } else EIGEN_IF_CONSTEXPR (ConjugateLhs) {                                                                     \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                      \
           b_tmp = lhs.adjoint();                                                                                       \
         } else {                                                                                                       \
-          Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                  \
+          Map<const ColMajorMatrix, 0, OuterStride<> > lhs(_lhs, n, m, OuterStride<>(lhsStride));                      \
           b_tmp = lhs.transpose();                                                                                     \
         }                                                                                                              \
         b = b_tmp.data();                                                                                              \

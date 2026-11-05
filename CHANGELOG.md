@@ -17,6 +17,8 @@ New features:
 
 Bug fixes:
 - A matrix-matrix product of two `half` or two `bfloat16` matrices on the general matrix-matrix kernel rounded every multiply-add, or every depth block, to the operand type; it now sums in `float` over the whole depth and rounds each result coefficient once, which makes `half` products about 2x slower on hardware with native `half` arithmetic [#3158, !3454]
+- With `EIGEN_USE_BLAS` and `EIGEN_USE_OPENBLAS_BFLOAT16`, a `bfloat16` matrix-matrix product that reached OpenBLAS's `sbgemm` dropped the destination in `C += A * B` and added an uninitialized buffer in `C = A * B`; under `EIGEN_DEFAULT_TO_ROW_MAJOR` it also wrote its result transposed and out of bounds [#3215, !3480]
+- With `EIGEN_USE_BLAS` and `EIGEN_DEFAULT_TO_ROW_MAJOR`, matrix-matrix products that reached `?gemm` with a conjugated operand, `?symm`, `?hemm` or `?trmm` could return wrong results: the adapters' temporaries took the row-major default storage order [!3480]
 - Row-major triangular matrix-vector products could return incorrect results or double-destroy temporaries for scalars requiring initialization, and could leak some large right-hand-side buffers [!2818]
 - `MatrixBase::isLowerTriangular()` skipped the last strictly-upper coefficient of every column past the diagonal block, reporting some wide matrices as lower triangular [!2814]
 - `ArrayBase::shiftRight<N>()` and `ArrayBase::shiftLeft<N>()` did not compile in any configuration, their functors having dropped the shift count [!2814]

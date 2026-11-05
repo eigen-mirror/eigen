@@ -50,6 +50,7 @@ namespace internal {
 
 // gemm specialization
 
+// Temporaries are ColMajor, also under EIGEN_DEFAULT_TO_ROW_MAJOR: BLAS takes column-major storage.
 #define EIGEN_BLAS_GEMM_SPECIALIZATION(EIGTYPE, EIGPREFIX, BLASTYPE, BLASFUNC)                                         \
   template <typename Index, int LhsStorageOrder, bool ConjugateLhs, int RhsStorageOrder, bool ConjugateRhs>            \
   struct general_matrix_matrix_product<Index, EIGTYPE, LhsStorageOrder, ConjugateLhs, EIGTYPE, RhsStorageOrder,        \
@@ -76,7 +77,8 @@ namespace internal {
       BlasIndex m, n, k, lda, ldb, ldc;                                                                                \
       const EIGTYPE *a, *b;                                                                                            \
       EIGTYPE beta(1);                                                                                                 \
-      MatrixX##EIGPREFIX a_tmp, b_tmp;                                                                                 \
+      using ColMajorMatrix = Matrix<EIGTYPE, Dynamic, Dynamic, ColMajor>;                                              \
+      ColMajorMatrix a_tmp, b_tmp;                                                                                     \
                                                                                                                        \
       /* Set transpose options */                                                                                      \
       transa = (LhsStorageOrder == RowMajor) ? ((ConjugateLhs) ? 'C' : 'T') : 'N';                                     \
@@ -94,7 +96,7 @@ namespace internal {
                                                                                                                        \
       /* Set a, b, c */                                                                                                \
       EIGEN_IF_CONSTEXPR ((LhsStorageOrder == ColMajor) && (ConjugateLhs)) {                                           \
-        Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > lhs(lhs_, m, k, OuterStride<>(lhsStride));                    \
+        Map<const ColMajorMatrix, 0, OuterStride<> > lhs(lhs_, m, k, OuterStride<>(lhsStride));                        \
         a_tmp = lhs.conjugate();                                                                                       \
         a = a_tmp.data();                                                                                              \
         lda = convert_index<BlasIndex>(a_tmp.outerStride());                                                           \
@@ -102,7 +104,7 @@ namespace internal {
         a = lhs_;                                                                                                      \
                                                                                                                        \
       EIGEN_IF_CONSTEXPR ((RhsStorageOrder == ColMajor) && (ConjugateRhs)) {                                           \
-        Map<const MatrixX##EIGPREFIX, 0, OuterStride<> > rhs(rhs_, k, n, OuterStride<>(rhsStride));                    \
+        Map<const ColMajorMatrix, 0, OuterStride<> > rhs(rhs_, k, n, OuterStride<>(rhsStride));                        \
         b_tmp = rhs.conjugate();                                                                                       \
         b = b_tmp.data();                                                                                              \
         ldb = convert_index<BlasIndex>(b_tmp.outerStride());                                                           \
@@ -166,9 +168,9 @@ struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, Co
     float falpha = static_cast<float>(alpha);
     float fbeta = float(1.0);
 
-    using MatrixXbf16 = Matrix<Eigen::bfloat16, Dynamic, Dynamic>;
+    // ColMajor, also under EIGEN_DEFAULT_TO_ROW_MAJOR: the strides below are BLAS's.
+    using MatrixXbf16 = Matrix<Eigen::bfloat16, Dynamic, Dynamic, ColMajor>;
     MatrixXbf16 a_tmp, b_tmp;
-    MatrixXf r_tmp;
 
     /* Set transpose options */
     transa = (LhsStorageOrder == RowMajor) ? ((ConjugateLhs) ? 'C' : 'T') : 'N';
@@ -203,15 +205,14 @@ struct general_matrix_matrix_product<Index, Eigen::bfloat16, LhsStorageOrder, Co
       b = rhs_;
     }
 
-    // Evaluate to a temporary intermediate array.
-    r_tmp.resize(m, n);
+    // sbgemm updates a float C, so res <- bf16(float(res) + alpha * A * B), rounded once.
+    Map<MatrixXbf16, 0, OuterStride<> > result(res, m, n, OuterStride<>(resStride));
+    Matrix<float, Dynamic, Dynamic, ColMajor> r_tmp = result.cast<float>();
 
     EIGEN_BLAS_SYM(sbgemm)
     (&transa, &transb, &m, &n, &k, (const float*)&numext::real_ref(falpha), a, &lda, b, &ldb,
      (const float*)&numext::real_ref(fbeta), r_tmp.data(), &ldc);
 
-    // Cast to the output.
-    Map<MatrixXbf16, 0, OuterStride<> > result(res, m, n, OuterStride<>(resStride));
     result = r_tmp.cast<Eigen::bfloat16>();
   }
 };

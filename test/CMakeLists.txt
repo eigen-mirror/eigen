@@ -410,6 +410,15 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|C
   target_link_libraries(gemm_packing "-Wl,--wrap=malloc")
 endif()
 ei_add_test(blas_singleton_stride)
+ei_add_test(blas_sbgemm)
+# Under EIGEN_TEST_EXTERNAL_BLAS every test links that BLAS; otherwise this one links Eigen's own, shared: its hidden
+# visibility keeps the library's Eigen instantiations apart from the test's EIGEN_USE_BLAS ones, which the static
+# library would merge with them. Windows has no rpath to find the DLL from here.
+if(EIGEN_TEST_EXTERNAL_BLAS)
+  ei_add_test(blas_level3)
+elseif(EIGEN_BUILD_BLAS AND EIGEN_BUILD_SHARED_LIBS AND NOT WIN32 AND NOT CYGWIN)
+  ei_add_test(blas_level3 "" "eigen_blas")
+endif()
 ei_add_test(product_assign)
 ei_add_test(product_threshold)
 if(EIGEN_TEST_SME)
