@@ -246,19 +246,23 @@ EIGEN_DECLARE_TEST(dynalloc) {
     CALL_SUBTEST(check_dynaligned<Vector16f>());
   }
 
+  // A fixed-size object is aligned to the largest power of two that divides its byte size, capped at
+  // EIGEN_MAX_STATIC_ALIGN_BYTES: 64 for Vector16f even where the cap is 128.
+  constexpr int kVector16fAlignment = internal::traits<Vector16f>::Alignment;
+  STATIC_CHECK(kVector16fAlignment == (std::min)(EIGEN_MAX_STATIC_ALIGN_BYTES, int(sizeof(Vector16f))));
   {
     MyStruct foo0;
-    VERIFY(std::uintptr_t(foo0.avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(foo0.avec.data()) % kVector16fAlignment == 0);
     MyClassA fooA;
-    VERIFY(std::uintptr_t(fooA.avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(fooA.avec.data()) % kVector16fAlignment == 0);
   }
 
   // dynamic allocation, single object
   for (int i = 0; i < g_repeat * 100; ++i) {
     MyStruct *foo0 = new MyStruct();
-    VERIFY(std::uintptr_t(foo0->avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(foo0->avec.data()) % kVector16fAlignment == 0);
     MyClassA *fooA = new MyClassA();
-    VERIFY(std::uintptr_t(fooA->avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(fooA->avec.data()) % kVector16fAlignment == 0);
     delete foo0;
     delete fooA;
   }
@@ -267,9 +271,9 @@ EIGEN_DECLARE_TEST(dynalloc) {
   const int N = 10;
   for (int i = 0; i < g_repeat * 100; ++i) {
     MyStruct *foo0 = new MyStruct[N];
-    VERIFY(std::uintptr_t(foo0->avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(foo0->avec.data()) % kVector16fAlignment == 0);
     MyClassA *fooA = new MyClassA[N];
-    VERIFY(std::uintptr_t(fooA->avec.data()) % ALIGNMENT == 0);
+    VERIFY(std::uintptr_t(fooA->avec.data()) % kVector16fAlignment == 0);
     delete[] foo0;
     delete[] fooA;
   }

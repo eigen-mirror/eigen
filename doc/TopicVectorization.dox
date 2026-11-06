@@ -39,7 +39,11 @@ On CPUs, %Eigen provides vectorized kernels for the following instruction sets:
 <tr class="alt"><td>LoongArch</td><td>LSX</td><td></td></tr>
 <tr><td>RISC-V</td><td>RVV 1.0</td>
     <td>Requires \c EIGEN_RISCV64_USE_RVV10 and a fixed vector length
-        (<tt>-mrvv-vector-bits=zvl</tt>)</td></tr>
+        (<tt>-mrvv-vector-bits=zvl</tt>). \c EIGEN_MAX_ALIGN_BYTES defaults to VLEN * LMUL / 8, at
+        most 128, where LMUL is \c EIGEN_RISCV64_DEFAULT_LMUL (1, 2 or 4; default 1). This sets
+        the alignment of fixed-size objects and selects the heap allocator, so the vector length
+        and LMUL must agree across translation units: a matrix allocated under one setting and
+        freed under another can corrupt the heap</td></tr>
 <tr class="alt"><td>Qualcomm Hexagon</td><td>HVX</td><td></td></tr>
 </table>
 
