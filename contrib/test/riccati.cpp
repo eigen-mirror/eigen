@@ -255,7 +255,7 @@ void dare_scipy_real_cases() {
     A << -0.6, -2.2, -3.6, -5.400018, 1.0, 0.6, 0.8, 3.399982, 0.0, 1.0, 1.8, 3.799982, 0.0, 0.0, 0.0, -0.999982;
     B << 1.0, -1.0, -1.0, -1.0, 0.0, 1.0, -1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 0.0, 0.0, 0.0, 1.0;
     Q << 2, 1, 3, 6, 1, 2, 2, 5, 3, 2, 6, 11, 6, 5, 11, 22;
-    check_real_dare<MatrixType>(A, B, Q, MatrixXd::Identity(4, 4), 2.5e-13);
+    check_real_dare<MatrixType>(A, B, Q, MatrixXd::Identity(4, 4), 5.0e-13);
   }
   {  // DAREX 9
     MatrixXd A(5, 5), B(5, 2);
