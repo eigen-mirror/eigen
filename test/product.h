@@ -182,15 +182,44 @@ void product(const MatrixType& m) {
   VERIFY_IS_APPROX(vcres, vc2 - m1.transpose() * v1);
 
   // test scaled products
-  res = square;
-  res.noalias() = s1 * m1 * m2.transpose();
-  VERIFY_IS_APPROX(res, ((s1 * m1).eval() * m2.transpose()));
-  res = square;
-  res.noalias() += s1 * m1 * m2.transpose();
-  VERIFY_IS_APPROX(res, square + ((s1 * m1).eval() * m2.transpose()));
-  res = square;
-  res.noalias() -= s1 * m1 * m2.transpose();
-  VERIFY_IS_APPROX(res, square - ((s1 * m1).eval() * m2.transpose()));
+  EIGEN_IF_CONSTEXPR (internal::is_same<Scalar, half>::value || internal::is_same<Scalar, bfloat16>::value) {
+    using ReferenceScalar =
+        std::conditional_t<internal::is_same<Scalar, half>::value || internal::is_same<Scalar, bfloat16>::value, double,
+                           Scalar>;
+    using ReferenceMatrix = Matrix<ReferenceScalar, MatrixType::RowsAtCompileTime, MatrixType::RowsAtCompileTime>;
+    ReferenceMatrix scaled_product(rows, rows);
+    // An independent reference must not round s1*m1 to half before the dot product.
+    for (Index j = 0; j < rows; ++j)
+      for (Index i = 0; i < rows; ++i) {
+        ReferenceScalar sum = ReferenceScalar(0);
+        for (Index k = 0; k < cols; ++k) sum += ReferenceScalar(m1(i, k)) * ReferenceScalar(m2(j, k));
+        scaled_product(i, j) = ReferenceScalar(s1) * sum;
+      }
+    res = square;
+    res.noalias() = s1 * m1 * m2.transpose();
+    VERIFY(verifyProductUpdate(res.template cast<ReferenceScalar>(), scaled_product, s1, m1, m2.transpose(),
+                               RowSquareMatrixType::Zero(rows, rows)));
+    res = square;
+    res.noalias() += s1 * m1 * m2.transpose();
+    VERIFY(verifyProductUpdate(res.template cast<ReferenceScalar>(),
+                               square.template cast<ReferenceScalar>() + scaled_product, s1, m1, m2.transpose(),
+                               square));
+    res = square;
+    res.noalias() -= s1 * m1 * m2.transpose();
+    VERIFY(verifyProductUpdate(res.template cast<ReferenceScalar>(),
+                               square.template cast<ReferenceScalar>() - scaled_product, -s1, m1, m2.transpose(),
+                               square));
+  } else {
+    res = square;
+    res.noalias() = s1 * m1 * m2.transpose();
+    VERIFY_IS_APPROX(res, ((s1 * m1).eval() * m2.transpose()));
+    res = square;
+    res.noalias() += s1 * m1 * m2.transpose();
+    VERIFY_IS_APPROX(res, square + ((s1 * m1).eval() * m2.transpose()));
+    res = square;
+    res.noalias() -= s1 * m1 * m2.transpose();
+    VERIFY_IS_APPROX(res, square - ((s1 * m1).eval() * m2.transpose()));
+  }
 
   // test d ?= a+b*c rules
   res.noalias() = square + m1 * m2.transpose();

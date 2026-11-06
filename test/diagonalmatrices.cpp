@@ -21,6 +21,7 @@
 using namespace std;
 template <typename MatrixType>
 void diagonalmatrices(const MatrixType& m) {
+  using RealScalar = typename MatrixType::RealScalar;
   using Scalar = typename MatrixType::Scalar;
   enum { Rows = MatrixType::RowsAtCompileTime, Cols = MatrixType::ColsAtCompileTime };
   using VectorType = Matrix<Scalar, Rows, 1>;
@@ -184,7 +185,15 @@ void diagonalmatrices(const MatrixType& m) {
   VERIFY_IS_EQUAL(sq_m2 = sq_m1.transpose() + ldm1 + ldm2,
                   SquareMatrixType(sq_m1.transpose() + ldm1Dense + ldm2.toDenseMatrix()));
   VERIFY_IS_APPROX((sq_m1 + ldm1) * v2, (sq_m1 + ldm1Dense) * v2);
-  VERIFY_IS_APPROX((sq_m1 + ldm1).sum(), (sq_m1 + ldm1Dense).sum());
+  RealScalar sum_abs(0);
+  for (Index col = 0; col < rows; ++col)
+    for (Index row = 0; row < rows; ++row) sum_abs += numext::abs(sq_m1(row, col) + (row == col ? v1(row) : Scalar(0)));
+  // The lazy and dense reductions use different summation orders. Bound their absolute error by
+  // 2*gamma_n*sum(abs(x)), accounting also for rounding in the accumulated magnitude.
+  const RealScalar rounding = RealScalar(rows * rows) * NumTraits<RealScalar>::epsilon();
+  VERIFY(RealScalar(2) * rounding < RealScalar(1));
+  const RealScalar sum_bound = RealScalar(2) * rounding / (RealScalar(1) - RealScalar(2) * rounding) * sum_abs;
+  VERIFY(numext::abs((sq_m1 + ldm1).sum() - (sq_m1 + ldm1Dense).sum()) <= sum_bound);
   VERIFY_IS_APPROX((s1 * (sq_m1 - ldm1)).eval(), s1 * (sq_m1 - ldm1Dense));
 
   // Direct assignment writes each column as vectorized segments of the dense operand around the diagonal

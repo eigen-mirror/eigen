@@ -70,7 +70,8 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
   RealScalar scaling = m.cwiseAbs().maxCoeff();
 
   if (scaling < (std::numeric_limits<RealScalar>::min)()) {
-    VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
+    // Gershgorin: |lambda| <= n * scaling; allow a factor two for rescaling roundoff.
+    VERIFY(eiSymm.eigenvalues().cwiseAbs().maxCoeff() <= RealScalar(2) * RealScalar(n) * scaling);
   } else {
     // Columnwise residual check: for each eigenpair (lambda_i, v_i),
     //   ||A*v_i - lambda_i*v_i|| / ||A||_max <= c * n * eps
@@ -112,7 +113,7 @@ void selfadjointeigensolver_essential_check(const MatrixType& m) {
                 << eival_eps << ")\n";
     }
     if (scaling < (std::numeric_limits<RealScalar>::min)()) {
-      VERIFY(eiDirect.eigenvalues().cwiseAbs().maxCoeff() <= (std::numeric_limits<RealScalar>::min)());
+      VERIFY(eiDirect.eigenvalues().cwiseAbs().maxCoeff() <= RealScalar(2) * RealScalar(n) * scaling);
     } else {
       VERIFY_IS_APPROX(eiSymm.eigenvalues() / scaling, eiDirect.eigenvalues() / scaling);
       // TODO: the direct 3x3 solver can produce large backward errors (>>n*eps*||A||)
@@ -438,6 +439,9 @@ void selfadjointeigensolver_subnormal_coefficients() {
 
   if (!numext::is_exactly_zero(matrix2(1, 0))) {
     selfadjointeigensolver_essential_check(matrix2);
+    selfadjointeigensolver_essential_check(matrix3);
+    // Every entry is subnormal, but the nonzero eigenvalue is 3 * (3/4) * min_normal.
+    matrix3.setConstant(scaled(3.0f / 1024.0f));
     selfadjointeigensolver_essential_check(matrix3);
   }
 }

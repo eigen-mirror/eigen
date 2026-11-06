@@ -34,8 +34,8 @@ void test_chol_update(const MatrixType& symm) {
     RealScalar sigma = internal::random<RealScalar>();
     symmCpy += sigma * vec * vec.adjoint();
 
-    // we are doing some downdates, so it might be the case that the matrix is not SPD anymore
-    CholType<MatrixType, Lower> chol(symmCpy);
+    // LDLT::info() can report Success for an indefinite matrix; rank updates here require SPD inputs.
+    LLT<MatrixType, Lower> chol(symmCpy);
     if (chol.info() != Success) break;
 
     chollo.rankUpdate(vec, sigma);

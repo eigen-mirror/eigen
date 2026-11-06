@@ -102,17 +102,43 @@ void homogeneous(void) {
                    (t2.template topLeftCorner<Size, Size>() * v0 + t2.template topRightCorner<Size, 1>()) /
                        ((t2.template bottomLeftCorner<1, Size>() * v0).value() + t2(Size, Size)));
 
-  VERIFY_IS_APPROX((t2 * pts.colwise().homogeneous()).colwise().hnormalized(),
-                   (Matrix<Scalar, Size + 1, Dynamic>(t2 * pts1).colwise().hnormalized()));
+  {
+    using Wide = std::conditional_t<std::is_same<Scalar, float>::value, double, long double>;
+    const Matrix<Scalar, Size, Dynamic> normalized[] = {
+        (t2 * pts.colwise().homogeneous()).colwise().hnormalized(),
+        Matrix<Scalar, Size + 1, Dynamic>(t2 * pts1).colwise().hnormalized(),
+        (t2.lazyProduct(pts.colwise().homogeneous())).colwise().hnormalized(),
+        (pts.transpose().rowwise().homogeneous().lazyProduct(t2)).rowwise().hnormalized().transpose()};
+    // For q = fl(n/d), test |q*d-n| <= gamma*(sum|n terms| + |q|*sum|d terms|).
+    // 2*(Size+1) product/sum roundings plus division; widened reference roundoff is included.
+    const Wide rounding = Wide(2 * (Size + 1) + 1) * (Wide(NumTraits<Scalar>::epsilon()) + NumTraits<Wide>::epsilon());
+    VERIFY(rounding < Wide(1));
+    const Wide gamma = rounding / (Wide(1) - rounding);
+    for (Index path = 0; path < 4; ++path) {
+      for (Index j = 0; j < pts.cols(); ++j) {
+        Wide reference[Size + 1] = {}, magnitude[Size + 1] = {};
+        for (Index row = 0; row <= Size; ++row) {
+          for (Index k = 0; k <= Size; ++k) {
+            const Wide term = Wide(path == 3 ? t2(k, row) : t2(row, k)) * (k == Size ? Wide(1) : Wide(pts(k, j)));
+            reference[row] += term;
+            magnitude[row] += numext::abs(term);
+          }
+        }
+        for (Index row = 0; row < Size; ++row) {
+          const Wide q = Wide(normalized[path](row, j));
+          const Wide bound = gamma * (magnitude[row] + numext::abs(q) * magnitude[Size]);
+          VERIFY((numext::isfinite)(q));
+          VERIFY((numext::isfinite)(bound));
+          VERIFY(numext::abs(q * reference[Size] - reference[row]) <= bound);
+        }
+      }
+    }
+  }
 
   VERIFY_IS_APPROX((t2.lazyProduct(v0.homogeneous())).hnormalized(), (t2 * v0.homogeneous()).hnormalized());
-  VERIFY_IS_APPROX((t2.lazyProduct(pts.colwise().homogeneous())).colwise().hnormalized(),
-                   (t2 * pts1).colwise().hnormalized());
 
   VERIFY_IS_APPROX((v0.transpose().homogeneous().lazyProduct(t2)).hnormalized(),
                    (v0.transpose().homogeneous() * t2).hnormalized());
-  VERIFY_IS_APPROX((pts.transpose().rowwise().homogeneous().lazyProduct(t2)).rowwise().hnormalized(),
-                   (pts1.transpose() * t2).rowwise().hnormalized());
 
   VERIFY_IS_APPROX((t2.template triangularView<Lower>() * v0.homogeneous()).eval(),
                    (t2.template triangularView<Lower>() * hv0));

@@ -255,6 +255,9 @@ void rcod() {
   MatrixType rhs = matrix * exact_solution;
   MatrixType cod_solution = cod.solve(rhs);
   JacobiSVD<MatrixType, ComputeThinU | ComputeThinV> svd(matrix);
+  // The generated partial isometry has singular values 0 or 1; discard construction roundoff in its null space.
+  svd.setThreshold(RealScalar(0.5));
+  VERIFY_IS_EQUAL(svd.rank(), rank);
   MatrixType svd_solution = svd.solve(rhs);
   VERIFY_IS_APPROX(cod_solution, svd_solution);
 

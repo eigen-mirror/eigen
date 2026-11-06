@@ -2964,10 +2964,30 @@ void packetmath_complex() {
     }
   }
   if (PacketTraits::HasLog) {
+    const auto check_finite_log = [&]() {
+      for (int j = 0; j < size; j += PacketSize)
+        internal::pstore(data2 + j, internal::plog(internal::pload<Packet>(data1 + j)));
+      for (int i = 0; i < size; ++i) {
+        const std::complex<long double> z(data1[i].real(), data1[i].imag());
+        const std::complex<long double> expected = std::log(z);
+        // The rounded hypot loses relative accuracy in log(|z|) near |z| = 1; arg(z) keeps a relative bound.
+        const long double eps = 8 * static_cast<long double>(NumTraits<RealScalar>::epsilon());
+        if ((std::isfinite)(expected.real())) {
+          VERIFY(std::abs(static_cast<long double>(data2[i].real()) - expected.real()) <=
+                 eps * (1 + std::abs(expected.real())));
+        } else {
+          VERIFY_IS_EQUAL(data2[i].real(), static_cast<RealScalar>(expected.real()));
+        }
+        VERIFY(std::abs(static_cast<long double>(data2[i].imag()) - expected.imag()) <=
+               eps * std::abs(expected.imag()));
+      }
+    };
     for (int i = 0; i < size; ++i) {
       data1[i] = Scalar(internal::random<RealScalar>(), internal::random<RealScalar>());
     }
-    CHECK_CWISE1_N(std::log, internal::plog, size);
+    check_finite_log();
+    for (int i = 0; i < size; ++i) data1[i] = Scalar(one, (i % 2 ? -one : one) * NumTraits<RealScalar>::epsilon());
+    check_finite_log();
 
     // Test misc. corner cases.
     for (RealScalar x : {zero, one, inf}) {
