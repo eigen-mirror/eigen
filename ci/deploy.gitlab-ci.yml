@@ -3,10 +3,8 @@
 # SPDX-License-Identifier: MPL-2.0
 deploy:tag:weekly:
   stage: deploy
-  image: alpine:3.20
+  image: ${EIGEN_CI_IMAGE_LINUX_LINT}
   dependencies: []
-  before_script:
-    - apk add git
   script:
     - git tag -f weekly $CI_COMMIT_SHORT_SHA
     - git push -f "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" tag weekly

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 #
-# CI image for the checkformat lint jobs and select:tests.
+# CI image for the checkformat lint jobs, select:tests and deploy:tag:weekly.
 #
 # Kept outside ci/docker/ on purpose: everything there is hashed into the test
 # pass-cache fingerprint and forces the full affected-test suite, and nothing
@@ -17,7 +17,9 @@
 #     -t registry.gitlab.com/libeigen/eigen/alpine-lint:latest \
 #     --push ci/lint/
 
-FROM alpine:3.24.2 AS clang-format
+ARG ALPINE_VERSION=3.24.4
+
+FROM alpine:${ALPINE_VERSION} AS clang-format
 
 ARG LLVM_VERSION=17.0.6
 # SHA-256 of the release tarball; its SHA-512 matches Alpine's llvm17 APKBUILD.
@@ -49,15 +51,19 @@ RUN cmake -S llvm -B build -G Ninja \
     && install -D -m 755 build/bin/clang-format /out/clang-format \
     && install -D -m 755 clang/tools/clang-format/git-clang-format /out/git-clang-format
 
-FROM alpine:3.24.2
+FROM alpine:${ALPINE_VERSION}
 
 COPY requirements.txt /tmp/
 
+# apk add leaves packages already in the base image at their old versions, so
+# without the upgrade a rebuild would not pick up a musl, zlib or OpenSSL fix.
 # After populating the venv, drop pip, ensurepip, and the stdlib's GUI,
-# REPL-help, test and build parts.  Pruning git's HTTP transport, OpenSSL and
-# apk as well saves 5.6 MB compressed, not worth an image nobody can extend or
-# debug with apk.
-RUN apk add --no-cache python3 git \
+# REPL-help, test and build parts.  deploy:tag:weekly pushes through git's HTTP
+# transport and OpenSSL, so those stay.  So does apk: pruning all three saves
+# only 5.6 MB compressed, not worth an image nobody can extend or debug with
+# apk.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache python3 git \
     && python3 -m venv /opt/lint \
     && /opt/lint/bin/pip install --no-cache-dir -r /tmp/requirements.txt \
     && /opt/lint/bin/pip uninstall -q -y pip \
@@ -73,10 +79,12 @@ ENV PATH=/opt/lint/bin:$PATH
 
 # Fail the build, not every merge request's lint job, if the pruning above
 # removed something a tool needs.  The clang-format-17 name lets the commands
-# in .agents/ci.md run unchanged inside the image.
+# in .agents/ci.md run unchanged inside the image.  The loop only checks files
+# that are present, so name git's HTTPS helper explicitly.
 RUN ln -s clang-format /usr/local/bin/clang-format-17 \
     && clang-format --version && git --version && codespell --version && reuse --version \
     && vermin --version && apk --version \
+    && test -x /usr/libexec/git-core/git-remote-https \
     && python3 -c 'import hashlib, json, subprocess' \
     && for f in /usr/bin/* /usr/libexec/git-core/* /usr/lib/python3.*/lib-dynload/*.so; do \
          if /lib/ld-musl-x86_64.so.1 --list "$f" 2>&1 | grep -q 'Error loading'; then \
