@@ -242,6 +242,8 @@ EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& a, const Packet4i& b
 }
 
 template <>
+struct is_fused_madd<Packet4f> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   EIGEN_MSA_DEBUG;
 
@@ -984,6 +986,8 @@ EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b
   return __builtin_msa_fdiv_d(a, b);
 }
 
+template <>
+struct is_fused_madd<Packet2d> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
   EIGEN_MSA_DEBUG;

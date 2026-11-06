@@ -373,6 +373,8 @@ EIGEN_STRONG_INLINE Packet2Xf pdiv<Packet2Xf>(const Packet2Xf& a, const Packet2X
 }
 
 template <>
+struct is_fused_madd<Packet2Xf> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet2Xf pmadd(const Packet2Xf& a, const Packet2Xf& b, const Packet2Xf& c) {
   return __riscv_vfmadd_vv_f32m2(a, b, c, unpacket_traits<Packet2Xf>::size);
 }
@@ -1023,6 +1025,8 @@ EIGEN_STRONG_INLINE Packet2Xd pdiv<Packet2Xd>(const Packet2Xd& a, const Packet2X
   return __riscv_vfdiv_vv_f64m2(a, b, unpacket_traits<Packet2Xd>::size);
 }
 
+template <>
+struct is_fused_madd<Packet2Xd> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet2Xd pmadd(const Packet2Xd& a, const Packet2Xd& b, const Packet2Xd& c) {
   return __riscv_vfmadd_vv_f64m2(a, b, c, unpacket_traits<Packet2Xd>::size);

@@ -845,7 +845,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmul<half2>(const half2& a, const ha
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmadd<half2>(const half2& a, const half2& b, const half2& c) {
+struct is_fused_madd<half2> : true_type {};
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE half2 pmadd(const half2& a, const half2& b, const half2& c) {
 #if defined(EIGEN_GPU_HAS_FP16_ARITHMETIC)
   return __hfma2(a, b, c);
 #else
@@ -1130,8 +1132,9 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pselect<Packet4h2>(const Packet4
 }
 
 template <>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pmadd<Packet4h2>(const Packet4h2& a, const Packet4h2& b,
-                                                                 const Packet4h2& c) {
+struct is_fused_madd<Packet4h2> : is_fused_madd<half2> {};
+template <>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet4h2 pmadd(const Packet4h2& a, const Packet4h2& b, const Packet4h2& c) {
   return make_packet4h2(pmadd<half2>(lane_half2(a, 0), lane_half2(b, 0), lane_half2(c, 0)),
                         pmadd<half2>(lane_half2(a, 1), lane_half2(b, 1), lane_half2(c, 1)),
                         pmadd<half2>(lane_half2(a, 2), lane_half2(b, 2), lane_half2(c, 2)),

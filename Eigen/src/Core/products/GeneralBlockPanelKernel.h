@@ -793,7 +793,9 @@ class gebp_traits<std::complex<RealScalar>, RealScalar, ConjLhs_, false, Arch, P
                                      RhsPacketType& tmp, const std::true_type&) const {
 #ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
     EIGEN_UNUSED_VARIABLE(tmp);
-    c.v = pmadd(a.v, b, c.v);
+    // Conjugation is deferred to acc().
+    conj_helper<LhsPacketType, RhsPacketType, false, false> cj;
+    c = cj.pmadd(a, b, c);
 #else
     tmp = b;
     tmp = pmul(a.v, tmp);
@@ -1113,7 +1115,9 @@ class gebp_traits<RealScalar, std::complex<RealScalar>, false, ConjRhs_, Arch, P
                                      RhsPacketType& tmp, const std::true_type&) const {
 #ifdef EIGEN_HAS_SINGLE_INSTRUCTION_MADD
     EIGEN_UNUSED_VARIABLE(tmp);
-    c.v = pmadd(a, b.v, c.v);
+    // Conjugation is deferred to acc().
+    conj_helper<LhsPacketType, RhsPacketType, false, false> cj;
+    c = cj.pmadd(a, b, c);
 #else
     tmp = b;
     tmp.v = pmul(a, tmp.v);

@@ -938,9 +938,13 @@ EIGEN_STRONG_INLINE Packet8i pdiv<Packet8i>(const Packet8i& a, const Packet8i& b
 
 #ifdef EIGEN_VECTORIZE_FMA
 template <>
+struct is_fused_madd<Packet8f> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet8f pmadd(const Packet8f& a, const Packet8f& b, const Packet8f& c) {
   return _mm256_fmadd_ps(a, b, c);
 }
+template <>
+struct is_fused_madd<Packet4d> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet4d pmadd(const Packet4d& a, const Packet4d& b, const Packet4d& c) {
   return _mm256_fmadd_pd(a, b, c);

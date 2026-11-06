@@ -562,9 +562,13 @@ EIGEN_STRONG_INLINE Packet16i pdiv<Packet16i>(const Packet16i& a, const Packet16
 
 #ifdef EIGEN_VECTORIZE_FMA
 template <>
+struct is_fused_madd<Packet16f> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet16f pmadd(const Packet16f& a, const Packet16f& b, const Packet16f& c) {
   return _mm512_fmadd_ps(a, b, c);
 }
+template <>
+struct is_fused_madd<Packet8d> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet8d pmadd(const Packet8d& a, const Packet8d& b, const Packet8d& c) {
   return _mm512_fmadd_pd(a, b, c);

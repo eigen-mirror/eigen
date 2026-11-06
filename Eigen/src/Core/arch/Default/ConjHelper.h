@@ -16,10 +16,10 @@
   template <>                                                                                                       \
   struct conj_helper<PACKET_REAL, PACKET_CPLX, false, false> {                                                      \
     EIGEN_STRONG_INLINE PACKET_CPLX pmadd(const PACKET_REAL& x, const PACKET_CPLX& y, const PACKET_CPLX& c) const { \
-      return padd(c, this->pmul(x, y));                                                                             \
+      return PACKET_CPLX(Eigen::internal::pmadd<PACKET_REAL>(x, y.v, c.v));                                         \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmsub(const PACKET_REAL& x, const PACKET_CPLX& y, const PACKET_CPLX& c) const { \
-      return psub(this->pmul(x, y), c);                                                                             \
+      return PACKET_CPLX(Eigen::internal::pmsub<PACKET_REAL>(x, y.v, c.v));                                         \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmul(const PACKET_REAL& x, const PACKET_CPLX& y) const {                        \
       return PACKET_CPLX(Eigen::internal::pmul<PACKET_REAL>(x, y.v));                                               \
@@ -29,10 +29,10 @@
   template <>                                                                                                       \
   struct conj_helper<PACKET_CPLX, PACKET_REAL, false, false> {                                                      \
     EIGEN_STRONG_INLINE PACKET_CPLX pmadd(const PACKET_CPLX& x, const PACKET_REAL& y, const PACKET_CPLX& c) const { \
-      return padd(c, this->pmul(x, y));                                                                             \
+      return PACKET_CPLX(Eigen::internal::pmadd<PACKET_REAL>(x.v, y, c.v));                                         \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmsub(const PACKET_CPLX& x, const PACKET_REAL& y, const PACKET_CPLX& c) const { \
-      return psub(this->pmul(x, y), c);                                                                             \
+      return PACKET_CPLX(Eigen::internal::pmsub<PACKET_REAL>(x.v, y, c.v));                                         \
     }                                                                                                               \
     EIGEN_STRONG_INLINE PACKET_CPLX pmul(const PACKET_CPLX& x, const PACKET_REAL& y) const {                        \
       return PACKET_CPLX(Eigen::internal::pmul<PACKET_REAL>(x.v, y));                                               \

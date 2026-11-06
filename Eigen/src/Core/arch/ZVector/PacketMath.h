@@ -456,6 +456,8 @@ EIGEN_STRONG_INLINE Packet4i pmadd(const Packet4i& a, const Packet4i& b, const P
   return padd<Packet4i>(pmul<Packet4i>(a, b), c);
 }
 template <>
+struct is_fused_madd<Packet2d> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
   return vec_madd(a, b, c);
 }
@@ -864,9 +866,12 @@ EIGEN_STRONG_INLINE Packet4f pnegate<Packet4f>(const Packet4f& a) {
   return (-a);
 }
 template <>
-EIGEN_STRONG_INLINE Packet4f pmadd<Packet4f>(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+struct is_fused_madd<Packet4f> : true_type {};
+template <>
+EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_madd(a, b, c);
 }
+
 template <>
 EIGEN_STRONG_INLINE Packet4f pmin<Packet4f>(const Packet4f& a, const Packet4f& b) {
   return __builtin_s390_vfminsb(a, b, 3);  // mode 3: std::min

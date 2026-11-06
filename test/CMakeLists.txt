@@ -314,6 +314,7 @@ ei_add_test(float_conversion)
 ei_add_test(io)
 ei_add_test(packetmath "-DEIGEN_FAST_MATH=1")
 ei_add_test(packetmath_gather)
+ei_add_test(packet_madd_dispatch "${twoprod_test_flags}")
 ei_add_test(tanh_no_fast_math)
 # Generic clang vector backend tests for different vector sizes.
 include(CheckCXXSourceCompiles)
@@ -699,6 +700,8 @@ if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
 
   ei_add_test(gpu_example)
   ei_add_test(gpu_basic)
+  set_property(SOURCE gpu_basic.cu APPEND PROPERTY COMPILE_OPTIONS
+               "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:--fmad=false>")
   ei_add_test(packetmath_gpu)
 
   unset(EIGEN_ADD_TEST_FILENAME_EXTENSION)

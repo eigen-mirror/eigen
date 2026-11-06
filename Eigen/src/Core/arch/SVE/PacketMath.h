@@ -743,13 +743,10 @@ EIGEN_STRONG_INLINE PacketXf pdiv<PacketXf>(const PacketXf& a, const PacketXf& b
 }
 
 template <>
+struct is_fused_madd<PacketXf> : true_type {};
+template <>
 EIGEN_STRONG_INLINE PacketXf pmadd(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
   return svmla_f32_x(svptrue_b32(), c, a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXf pmsub(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
-  return svmla_f32_x(svptrue_b32(), svneg_f32_x(svptrue_b32(), c), a, b);
 }
 
 template <>
@@ -1128,13 +1125,10 @@ EIGEN_STRONG_INLINE PacketXd pdiv<PacketXd>(const PacketXd& a, const PacketXd& b
 }
 
 template <>
+struct is_fused_madd<PacketXd> : true_type {};
+template <>
 EIGEN_STRONG_INLINE PacketXd pmadd(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
   return svmla_f64_x(svptrue_b64(), c, a, b);
-}
-
-template <>
-EIGEN_STRONG_INLINE PacketXd pmsub(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
-  return svmla_f64_x(svptrue_b64(), svneg_f64_x(svptrue_b64(), c), a, b);
 }
 
 template <>

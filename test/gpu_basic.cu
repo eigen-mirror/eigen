@@ -984,6 +984,54 @@ struct packet_any_test {
   }
 };
 
+template <bool Wide>
+struct half_fma_variants_test {
+  EIGEN_DEVICE_FUNC void operator()(int i, const float* /*in*/, float* out) const {
+#if defined(EIGEN_GPU_COMPILE_PHASE) && defined(EIGEN_HAS_GPU_FP16)
+    using namespace Eigen::internal;
+    using Packet = std::conditional_t<Wide, Packet4h2, half2>;
+    constexpr int size = unpacket_traits<Packet>::size;
+    Eigen::half a[size], b[size], result[size];
+    for (int lane = 0; lane < size; ++lane) {
+      const float delta = lane % 2 ? 0.0078125f : 0.015625f;
+      a[lane] = Eigen::half(1.0f + delta);
+      b[lane] = Eigen::half(1.0f - delta);
+    }
+    const Packet pa = ploadu<Packet>(a), pb = ploadu<Packet>(b);
+    const Packet one = pset1<Packet>(Eigen::half(1));
+    pstoreu(result, pmsub(pa, pb, one));
+    for (int lane = 0; lane < size; ++lane) out[32 * i + lane] = float(result[lane]);
+    pstoreu(result, pnmadd(pa, pb, one));
+    for (int lane = 0; lane < size; ++lane) out[32 * i + 8 + lane] = float(result[lane]);
+    pstoreu(result, pnmsub(pa, pb, pnegate(one)));
+    for (int lane = 0; lane < size; ++lane) out[32 * i + 16 + lane] = float(result[lane]);
+    const Packet zero = pset1<Packet>(Eigen::half(0));
+    pstoreu(result, pnmsub(zero, one, zero));
+    for (int lane = 0; lane < size; ++lane)
+      out[32 * i + 24 + lane] = Eigen::numext::bit_cast<Eigen::numext::uint16_t>(result[lane]) == 0x8000 ? 1 : 0;
+#else
+    constexpr int size = Wide ? 8 : 2;
+    for (int lane = 0; lane < size; ++lane) {
+      const float delta = lane % 2 ? 0.0078125f : 0.015625f;
+      out[32 * i + lane] = -delta * delta;
+      out[32 * i + 8 + lane] = delta * delta;
+      out[32 * i + 16 + lane] = delta * delta;
+      out[32 * i + 24 + lane] = 1;
+    }
+#endif
+  }
+};
+
+template <bool Wide>
+void test_half_fma_variants() {
+  // CMake disables nvcc contraction; both deltas leave a nonzero residual only with explicit fusion.
+  Eigen::VectorXf in = Eigen::VectorXf::Zero(1);
+  Eigen::VectorXf expected = Eigen::VectorXf::Constant(32, -1), actual = expected;
+  run_on_cpu(half_fma_variants_test<Wide>(), 1, in, expected);
+  run_on_gpu(half_fma_variants_test<Wide>(), 1, in, actual);
+  for (int i = 0; i < 32; ++i) VERIFY_IS_EQUAL(actual[i], expected[i]);
+}
+
 template <typename T>
 void test_reverse() {
   using Scalar = typename T::Scalar;
@@ -1114,6 +1162,8 @@ EIGEN_DECLARE_TEST(gpu_basic) {
   CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<float>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<double>(), nthreads, in, out));
   CALL_SUBTEST(run_and_compare_to_gpu(packet_any_test<Eigen::half>(), nthreads, in, out));
+  CALL_SUBTEST(test_half_fma_variants<false>());
+  CALL_SUBTEST(test_half_fma_variants<true>());
 
   using Matrix6f = Matrix<float, 6, 6>;
   CALL_SUBTEST(run_and_compare_to_gpu(selfadjoint_rank2_update<Matrix4f, Lower>(), nthreads, in, out));

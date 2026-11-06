@@ -1663,19 +1663,40 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool predux_all(const Packet& a) {
  * The following functions might not have to be overwritten for vectorized types
  ***************************************************************************/
 
+template <typename Packet>
+EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b, const Packet& c);
+
+// pmadd<Packet> does not round a*b to the packet's scalar type before adding c.
+// Neither an architecture-wide FMA flag nor a custom pmadd overload proves this property.
+template <typename Packet>
+struct is_fused_madd : false_type {};
+
 template <typename Packet, typename EnableIf = void>
 struct pmadd_impl {
+  // Separate pmsub/pnmadd paths require pmul and psub; derived paths require pmadd and pnegate.
+  // pnmsub requires pmadd and pnegate. Opting into fusion also requires pnegate for derived subtract variants.
+  static constexpr bool Fused = is_fused_madd<Packet>::value;
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
     return padd(pmul(a, b), c);
   }
+  template <bool Fuse = Fused, std::enable_if_t<!Fuse, int> = 0>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
     return psub(pmul(a, b), c);
   }
+  template <bool Fuse = Fused, std::enable_if_t<Fuse, int> = 0>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pmsub(const Packet& a, const Packet& b, const Packet& c) {
+    return internal::pmadd<Packet>(a, b, pnegate(c));
+  }
+  template <bool Fuse = Fused, std::enable_if_t<!Fuse, int> = 0>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
     return psub(c, pmul(a, b));
   }
+  template <bool Fuse = Fused, std::enable_if_t<Fuse, int> = 0>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmadd(const Packet& a, const Packet& b, const Packet& c) {
+    return internal::pmadd<Packet>(pnegate(a), b, c);
+  }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-    return pnegate(padd(pmul(a, b), c));
+    return pnegate(internal::pmadd<Packet>(a, b, c));
   }
 };
 

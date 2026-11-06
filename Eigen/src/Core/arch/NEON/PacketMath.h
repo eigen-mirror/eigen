@@ -1056,9 +1056,13 @@ EIGEN_STRONG_INLINE Packet2ul pdiv<Packet2ul>(const Packet2ul& /*a*/, const Pack
 
 #ifdef EIGEN_VECTORIZE_FMA
 template <>
+struct is_fused_madd<Packet4f> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vfmaq_f32(c, a, b);
 }
+template <>
+struct is_fused_madd<Packet2f> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet2f pmadd(const Packet2f& a, const Packet2f& b, const Packet2f& c) {
   return vfma_f32(c, a, b);
@@ -1089,23 +1093,6 @@ EIGEN_STRONG_INLINE Packet2f pnmadd(const Packet2f& a, const Packet2f& b, const 
   return vmls_f32(c, a, b);
 }
 #endif
-template <>
-EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2f pmsub(const Packet2f& a, const Packet2f& b, const Packet2f& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-template <>
-EIGEN_STRONG_INLINE Packet4f pnmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return pnegate(pmadd(a, b, c));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2f pnmsub(const Packet2f& a, const Packet2f& b, const Packet2f& c) {
-  return pnegate(pmadd(a, b, c));
-}
-
 // No FMA instruction for int, so use MLA unconditionally.
 template <>
 EIGEN_STRONG_INLINE Packet4c pmadd(const Packet4c& a, const Packet4c& b, const Packet4c& c) {
@@ -4906,6 +4893,8 @@ EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b
 #ifdef EIGEN_VECTORIZE_FMA
 // See bug 936. See above comment about FMA for float.
 template <>
+struct is_fused_madd<Packet2d> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
   return vfmaq_f64(c, a, b);
 }
@@ -4923,14 +4912,6 @@ EIGEN_STRONG_INLINE Packet2d pnmadd(const Packet2d& a, const Packet2d& b, const 
   return vmlsq_f64(c, a, b);
 }
 #endif
-template <>
-EIGEN_STRONG_INLINE Packet2d pmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return pnegate(pnmadd(a, b, c));
-}
-template <>
-EIGEN_STRONG_INLINE Packet2d pnmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return pnegate(pmadd(a, b, c));
-}
 template <>
 EIGEN_STRONG_INLINE Packet2d pmin<Packet2d>(const Packet2d& a, const Packet2d& b) {
   return vminq_f64(a, b);
@@ -5620,10 +5601,14 @@ EIGEN_STRONG_INLINE Packet4hf pdiv<Packet4hf>(const Packet4hf& a, const Packet4h
 }
 
 template <>
+struct is_fused_madd<Packet8hf> : true_type {};
+template <>
 EIGEN_STRONG_INLINE Packet8hf pmadd(const Packet8hf& a, const Packet8hf& b, const Packet8hf& c) {
   return vfmaq_f16(c, a, b);
 }
 
+template <>
+struct is_fused_madd<Packet4hf> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet4hf pmadd(const Packet4hf& a, const Packet4hf& b, const Packet4hf& c) {
   return vfma_f16(c, a, b);
@@ -6128,20 +6113,6 @@ EIGEN_STRONG_INLINE Packet8hf pisfinite<Packet8hf>(const Packet8hf& a) {
   return vreinterpretq_f16_u16(vcltq_u16(neon_half_abs_bits(a), vdupq_n_u16(0x7c00)));
 }
 #endif
-
-#define EIGEN_MAKE_HALF_NEG_FMA(name, base, packet)                                                      \
-  template <>                                                                                            \
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE packet name(const packet& a, const packet& b, const packet& c) { \
-    return pnegate(base(a, b, c));                                                                       \
-  }                                                                                                      \
-  static_assert(true, "Trailing semicolon required")
-
-EIGEN_MAKE_HALF_NEG_FMA(pmsub, pnmadd, Packet8hf);
-EIGEN_MAKE_HALF_NEG_FMA(pmsub, pnmadd, Packet4hf);
-EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet8hf);
-EIGEN_MAKE_HALF_NEG_FMA(pnmsub, pmadd, Packet4hf);
-
-#undef EIGEN_MAKE_HALF_NEG_FMA
 
 #endif  // end EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
 

@@ -1157,11 +1157,13 @@ EIGEN_STRONG_INLINE Packet4i pdiv<Packet4i>(const Packet4i& a, const Packet4i& b
 #endif
 }
 
-// This overload is required for integer packet types.
+template <>
+struct is_fused_madd<Packet4f> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_madd(a, b, c);
 }
+// This overload is required for integer packet types.
 template <>
 EIGEN_STRONG_INLINE Packet4i pmadd(const Packet4i& a, const Packet4i& b, const Packet4i& c) {
   return a * b + c;
@@ -1175,16 +1177,11 @@ EIGEN_STRONG_INLINE Packet8us pmadd(const Packet8us& a, const Packet8us& b, cons
   return vec_madd(a, b, c);
 }
 
+#ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-#ifdef EIGEN_VECTORIZE_VSX
   return vec_msub(a, b, c);
-#else
-  return vec_madd(a, b, pnegate(c));
-#endif
 }
-
-#ifdef EIGEN_VECTORIZE_VSX
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
   return vec_nmsub(a, b, c);
@@ -3329,7 +3326,8 @@ EIGEN_STRONG_INLINE Packet2d pdiv<Packet2d>(const Packet2d& a, const Packet2d& b
   return vec_div(a, b);
 }
 
-// This overload is required for integer packet types.
+template <>
+struct is_fused_madd<Packet2d> : true_type {};
 template <>
 EIGEN_STRONG_INLINE Packet2d pmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
   return vec_madd(a, b, c);

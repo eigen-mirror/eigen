@@ -657,55 +657,18 @@ EIGEN_CLANG_PACKET_MATH_FLOAT(PacketXd)
 
 // --- Fused Multiply-Add (MADD) ---
 #if (defined(EIGEN_VECTORIZE_FMA) || defined(__FMA__)) && EIGEN_HAS_BUILTIN(__builtin_elementwise_fma)
-#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
-                                                     const PACKET_TYPE& c) {                      \
-    return __builtin_elementwise_fma(a, b, c);                                                    \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
-                                                     const PACKET_TYPE& c) {                      \
-    return __builtin_elementwise_fma(a, b, -c);                                                   \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
-                                                      const PACKET_TYPE& c) {                     \
-    return __builtin_elementwise_fma(-a, b, c);                                                   \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
-                                                      const PACKET_TYPE& c) {                     \
-    return -(__builtin_elementwise_fma(a, b, c));                                                 \
+#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                                \
+  template <>                                                                                               \
+  struct is_fused_madd<PACKET_TYPE> : true_type {};                                                         \
+  template <>                                                                                               \
+  EIGEN_STRONG_INLINE PACKET_TYPE pmadd(const PACKET_TYPE& a, const PACKET_TYPE& b, const PACKET_TYPE& c) { \
+    return __builtin_elementwise_fma(a, b, c);                                                              \
   }
-#else
-// Separate operation calls prevent default contraction during constant folding without hardware FMA.
-#define EIGEN_CLANG_PACKET_MADD(PACKET_TYPE)                                                      \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
-                                                     const PACKET_TYPE& c) {                      \
-    return padd(pmul(a, b), c);                                                                   \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b,  \
-                                                     const PACKET_TYPE& c) {                      \
-    return psub(pmul(a, b), c);                                                                   \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmadd<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
-                                                      const PACKET_TYPE& c) {                     \
-    return psub(c, pmul(a, b));                                                                   \
-  }                                                                                               \
-  template <>                                                                                     \
-  EIGEN_STRONG_INLINE PACKET_TYPE pnmsub<PACKET_TYPE>(const PACKET_TYPE& a, const PACKET_TYPE& b, \
-                                                      const PACKET_TYPE& c) {                     \
-    return pnegate(padd(pmul(a, b), c));                                                          \
-  }
-#endif
 
 EIGEN_CLANG_PACKET_MADD(PacketXf)
 EIGEN_CLANG_PACKET_MADD(PacketXd)
 #undef EIGEN_CLANG_PACKET_MADD
+#endif
 
 #define EIGEN_CLANG_PACKET_SCATTER_GATHER(PACKET_TYPE)                                                               \
   template <>                                                                                                        \

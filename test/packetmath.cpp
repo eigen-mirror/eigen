@@ -817,6 +817,58 @@ void packetmath_pnot_ptrue() {
   VERIFY(test::areEqualBits(ref, res, PacketSize, false) && "ptrue");
 }
 
+// pmsub, pnmadd and pnmsub must round a * b exactly as pmadd does: the random tests compare all four against one
+// scalar reference, so a variant that fuses differently fails them whenever a * b and c nearly cancel.
+// (1 + d)(1 - d) = 1 - d^2 rounds to 1, so a fused a * b - 1 is -d^2 and an unfused one is 0.
+template <typename Scalar, typename Packet,
+          std::enable_if_t<!std::is_same<Scalar, float>::value && !std::is_same<Scalar, double>::value, int> = 0>
+void packetmath_madd_variants_fusion() {}
+
+template <typename Scalar, typename Packet,
+          std::enable_if_t<std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value, int> = 0>
+void packetmath_madd_variants_fusion() {
+  constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+  const Scalar d = std::ldexp(Scalar(1), -(NumTraits<Scalar>::digits() / 2 + 2));
+  const Packet a = internal::pset1<Packet>(Scalar(1) + d);
+  const Packet b = internal::pset1<Packet>(Scalar(1) - d);
+  const Packet one = internal::pset1<Packet>(Scalar(1));
+  const Packet minus_one = internal::pnegate(one);
+  Scalar expected[PacketSize], actual[PacketSize];
+  internal::pstoreu(expected, internal::pmadd(a, b, minus_one));
+  internal::pstoreu(actual, internal::pmsub(a, b, one));
+  VERIFY(test::areEqual(expected, actual, PacketSize) && "pmsub");
+  internal::pstoreu(expected, internal::pmadd(internal::pnegate(a), b, one));
+  internal::pstoreu(actual, internal::pnmadd(a, b, one));
+  VERIFY(test::areEqual(expected, actual, PacketSize) && "pnmadd");
+  internal::pstoreu(expected, internal::pnegate(internal::pmadd(a, b, minus_one)));
+  internal::pstoreu(actual, internal::pnmsub(a, b, minus_one));
+  VERIFY(test::areEqual(expected, actual, PacketSize) && "pnmsub");
+}
+
+template <typename Scalar, typename Packet, std::enable_if_t<!internal::is_fused_madd<Packet>::value, int> = 0>
+void packetmath_fused_madd() {}
+
+template <typename Scalar, typename Packet, std::enable_if_t<internal::is_fused_madd<Packet>::value, int> = 0>
+void packetmath_fused_madd() {
+  constexpr int Size = internal::unpacket_traits<Packet>::size;
+  // (1+delta)*(1-delta) rounds to 1, but its fused residual is -delta^2.
+  const Scalar delta = numext::ldexp(Scalar(1), -(NumTraits<Scalar>::digits() / 2 + 1));
+  const Packet a = internal::pset1<Packet>(Scalar(1) + delta);
+  const Packet b = internal::pset1<Packet>(Scalar(1) - delta);
+  const Packet one = internal::pset1<Packet>(Scalar(1));
+  Scalar result[Size];
+  internal::pstoreu(result, internal::pmadd(a, b, internal::pnegate(one)));
+  for (int i = 0; i < Size; ++i) VERIFY_IS_EQUAL(result[i], -delta * delta);
+  internal::pstoreu(result, internal::pmsub(a, b, one));
+  for (int i = 0; i < Size; ++i) VERIFY_IS_EQUAL(result[i], -delta * delta);
+  const Packet zero = internal::pset1<Packet>(Scalar(0));
+  internal::pstoreu(result, internal::pmsub(zero, one, zero));
+  for (int i = 0; i < Size; ++i) {
+    VERIFY_IS_EQUAL(result[i], Scalar(0));
+    VERIFY(!std::signbit(static_cast<double>(result[i])));
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath() {
   using PacketTraits = internal::packet_traits<Scalar>;
@@ -1048,6 +1100,8 @@ void packetmath() {
   packetmath_float_predicates_test<Scalar, Packet>::run();
   packetmath_64bit_boundary_test<Scalar, Packet>::run();
 
+  packetmath_fused_madd<Scalar, Packet>();
+  packetmath_madd_variants_fusion<Scalar, Packet>();
   CHECK_CWISE3_IF(PacketTraits::HasMul && PacketTraits::HasAdd, REF_MADD, internal::pmadd);
   if (!std::is_same<Scalar, bool>::value && NumTraits<Scalar>::IsSigned) {
     nmsub_test<Scalar, Packet>(data1, data2, ref, PacketSize);
@@ -2552,6 +2606,75 @@ int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, Scalar& quotient) 
 }
 
 template <typename Scalar, typename Packet>
+void test_mixed_conj_helper(long) {}
+
+template <typename Scalar, typename Packet, typename RealPacket = decltype(std::declval<Packet>().v)>
+void test_mixed_conj_helper(int) {
+  using Real = typename NumTraits<Scalar>::Real;
+  static constexpr int Size = internal::unpacket_traits<Packet>::size;
+  const Real eps = NumTraits<Real>::epsilon();
+  Real infinity = (std::numeric_limits<Real>::infinity)();
+  Real nan = (std::numeric_limits<Real>::quiet_NaN)();
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(infinity);
+  EIGEN_FAST_MATH_CONSTANT_BARRIER(nan);
+  for (int mode = 0; mode < 7; ++mode) {
+    Real real[2 * Size];
+    Scalar complex[Size], accumulator[Size], expected[Size], actual[Size];
+    for (int i = 0; i < Size; ++i) {
+      real[2 * i] = real[2 * i + 1] = Real(1) + eps;
+      complex[i] = Scalar(Real(1) - eps, -(Real(1) - eps));
+      accumulator[i] = Scalar(-1, 1);
+      if (mode == 1) {
+        real[2 * i] = real[2 * i + 1] = internal::random<Real>();
+        complex[i] = internal::random<Scalar>();
+        accumulator[i] = internal::random<Scalar>();
+      } else if (mode == 2) {
+        real[2 * i] = real[2 * i + 1] = Real(0);
+        complex[i] = Scalar(Real(-0.0), Real(0));
+        accumulator[i] = Scalar(Real(-0.0), Real(0));
+      } else if (mode == 3) {
+        complex[i] = Scalar(infinity, -infinity);
+      } else if (mode == 4) {
+        complex[i] = Scalar(nan, Real(i + 1));
+      } else if (mode == 5) {
+        complex[i] = Scalar((std::numeric_limits<Real>::min)(), -(std::numeric_limits<Real>::min)());
+      } else if (mode == 6) {
+        real[2 * i] = real[2 * i + 1] = Real(2);
+        complex[i] = Scalar((std::numeric_limits<Real>::max)(), -(std::numeric_limits<Real>::max)());
+        accumulator[i] = -complex[i];
+      }
+    }
+    const RealPacket x = internal::ploadu<RealPacket>(real);
+    const Packet y = internal::ploadu<Packet>(complex), c = internal::ploadu<Packet>(accumulator);
+    internal::conj_helper<RealPacket, Packet, false, false> realFirst;
+    internal::conj_helper<Packet, RealPacket, false, false> complexFirst;
+    for (bool subtract : {false, true}) {
+      const Packet accumulator_packet = subtract ? internal::pnegate(c) : c;
+      internal::pstoreu(expected, subtract ? Packet(internal::pmsub(x, y.v, accumulator_packet.v))
+                                           : Packet(internal::pmadd(x, y.v, accumulator_packet.v)));
+      for (int order = 0; order < 2; ++order) {
+        const Packet result = subtract ? (order == 0 ? realFirst.pmsub(x, y, accumulator_packet)
+                                                     : complexFirst.pmsub(y, x, accumulator_packet))
+                                       : (order == 0 ? realFirst.pmadd(x, y, accumulator_packet)
+                                                     : complexFirst.pmadd(y, x, accumulator_packet));
+        internal::pstoreu(actual, result);
+        for (int i = 0; i < Size; ++i)
+          for (int component = 0; component < 2; ++component) {
+            const Real a = component == 0 ? numext::real(actual[i]) : numext::imag(actual[i]);
+            const Real e = component == 0 ? numext::real(expected[i]) : numext::imag(expected[i]);
+            if ((numext::isnan)(e)) {
+              VERIFY((numext::isnan)(a));
+            } else {
+              VERIFY_IS_EQUAL(a, e);
+              if (e == Real(0)) VERIFY((std::signbit)(a) == (std::signbit)(e));
+            }
+          }
+      }
+    }
+  }
+}
+
+template <typename Scalar, typename Packet>
 void packetmath_complex() {
   using PacketTraits = internal::packet_traits<Scalar>;
   using RealScalar = typename Scalar::value_type;
@@ -2574,6 +2697,7 @@ void packetmath_complex() {
   test_conj_helper<Scalar, Packet, false, true>(data1, data2, ref, pval);
   test_conj_helper<Scalar, Packet, true, false>(data1, data2, ref, pval);
   test_conj_helper<Scalar, Packet, true, true>(data1, data2, ref, pval);
+  test_mixed_conj_helper<Scalar, Packet>(0);
 
   // Test pcplxflip.
   {
