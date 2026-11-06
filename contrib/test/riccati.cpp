@@ -100,6 +100,25 @@ void check_real_dare(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, co
   check_dare<MatrixType>(A.cast<Scalar>(), B.cast<Scalar>(), Q.cast<Scalar>(), R.cast<Scalar>(), atol);
 }
 
+// Solves a real test case in the arithmetic of MatrixType and checks the kappa-free relative residual
+//   ||res||_F / (eps (||A^* X A||_F + ||X||_F + ||Q||_F + ||G||_F)) <= bound,  G = A^* X B (R + B^* X B)^-1 B^* X A,
+// which, unlike SciPy's absolute tolerance, scales with eps and with ||X||.
+template <typename MatrixType>
+void check_real_dare_relative(const MatrixXd& A, const MatrixXd& B, const MatrixXd& Q, const MatrixXd& R,
+                              double bound) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const MatrixType a = A.cast<Scalar>(), b = B.cast<Scalar>(), q = Q.cast<Scalar>(), r = R.cast<Scalar>();
+  DiscreteAlgebraicRiccatiSolver<MatrixType> dare(a, b, q, r);
+  VERIFY_IS_EQUAL(dare.info(), Success);
+  const MatrixType& X = dare.solution();
+  VERIFY_IS_EQUAL(X, X.adjoint());
+  const MatrixType AXB = a.adjoint() * X * b;
+  const MatrixType G = AXB * (r + b.adjoint() * X * b).fullPivLu().solve(AXB.adjoint());
+  const RealScalar scale = (a.adjoint() * X * a).norm() + X.norm() + q.norm() + G.norm();
+  VERIFY(dare_residual(a, b, q, r, X).norm() <= RealScalar(bound) * NumTraits<RealScalar>::epsilon() * scale);
+}
+
 // Backward error check for a computed solution X:
 //   rho = ||res||_F / (m eps (||A^* X A||_F + ||E^* X E||_F + ||Q||_F) kappa) <= 30,
 //   kappa = max(1, ||E^* X E||_F / ||Q||_F),
@@ -296,11 +315,11 @@ void dare_scipy_real_cases() {
     B(0, 0) = 1e-8;
     Q(3, 3) = 1;
     R << 0.25;
-    // In complex arithmetic the tolerance is raised: where ComplexQZ converges on the balanced pencil (GCC with SSE2),
-    // the residual is 7.6e-5, against 2.4e-8 with LAPACK's ZGGES. With AVX2 and FMA, or with Clang, ComplexQZ stalls
-    // on it, and the solver falls back to the unbalanced pencil, whose residual is close to this tolerance for any QZ
-    // (0.11 here, 5.0e-2 with ZGGES). To be tightened once ComplexQZ converges on this pencil (!3430).
-    check_real_dare<MatrixType>(A, B, Q, R, NumTraits<typename MatrixType::Scalar>::IsComplex ? 5e-2 : 1.5e-6);
+    // ||X|| = 3e7, so the relative residual is checked instead of SciPy's absolute tolerance (1.5e-6). Over GCC and
+    // Clang builds with and without AVX2 and FMA, it is 7 to 47 in real and 40 to 2.3e3 in complex arithmetic, where
+    // ComplexQZ is less accurate than LAPACK's ZGGES on this pencil. The unbalanced pencil gives 2.3e6 to 1.5e7, so the
+    // bounds also catch a fallback to it.
+    check_real_dare_relative<MatrixType>(A, B, Q, R, NumTraits<typename MatrixType::Scalar>::IsComplex ? 2e4 : 500);
   }
   {  // DAREX 15
     const Index n = 100;
