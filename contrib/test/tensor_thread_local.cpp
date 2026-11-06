@@ -105,7 +105,7 @@ void test_large_number_of_tasks_no_spill() {
 }
 
 // Lock free thread local storage is too small to fit all the unique threads,
-// and it spills to a map guarded by a mutex.
+// and it spills to a list guarded by a mutex.
 void test_large_number_of_tasks_with_spill() {
   int num_threads = internal::random<int>(4, 32);
   Eigen::ThreadPool thread_pool(num_threads);
@@ -138,9 +138,40 @@ void test_large_number_of_tasks_with_spill() {
   VERIFY_IS_EQUAL(unique_threads.size() <= (static_cast<size_t>(num_threads + 1)), true);
 }
 
+struct ReleaseCounter {
+  int* released_total;
+  void operator()(Counter& counter) { *released_total += counter.value(); }
+};
+
+void test_release_with_spill(int capacity) {
+  int num_threads = internal::random<int>(4, 16);
+  Eigen::ThreadPool thread_pool(num_threads);
+  int released_total = 0;
+  int num_tasks = 1000;
+
+  {
+    Eigen::ThreadLocal<Counter, InitCounter, ReleaseCounter> counter(capacity, InitCounter(),
+                                                                     ReleaseCounter{&released_total});
+    Eigen::Barrier barrier(num_tasks);
+    for (int i = 0; i < num_tasks; ++i) {
+      thread_pool.Schedule([&counter, &barrier]() {
+        Counter& local = counter.local();
+        local.inc();
+        VERIFY_IS_EQUAL(&local, &counter.local());
+        barrier.Notify();
+      });
+    }
+    barrier.Wait();
+  }
+
+  VERIFY_IS_EQUAL(released_total, num_tasks);
+}
+
 EIGEN_DECLARE_TEST(tensor_thread_local) {
   CALL_SUBTEST(test_simple_thread_local());
   CALL_SUBTEST(test_zero_sized_thread_local());
   CALL_SUBTEST(test_large_number_of_tasks_no_spill());
   CALL_SUBTEST(test_large_number_of_tasks_with_spill());
+  CALL_SUBTEST(test_release_with_spill(0));
+  CALL_SUBTEST(test_release_with_spill(1));
 }

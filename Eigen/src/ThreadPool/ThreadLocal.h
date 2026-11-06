@@ -11,6 +11,8 @@
 #ifndef EIGEN_THREADPOOL_THREAD_LOCAL_H
 #define EIGEN_THREADPOOL_THREAD_LOCAL_H
 
+#include <forward_list>
+
 #ifdef EIGEN_AVOID_THREAD_LOCAL
 
 #ifdef EIGEN_THREAD_LOCAL
@@ -115,7 +117,7 @@ class ThreadLocal {
 
   T& local() {
     std::thread::id this_thread = std::this_thread::get_id();
-    if (capacity_ == 0) return SpilledLocal(this_thread);
+    if (capacity_ == 0) return InsertOrSpill(this_thread, 0);
 
     std::size_t h = std::hash<std::thread::id>()(this_thread);
     const int start_idx = h % capacity_;
@@ -129,60 +131,15 @@ class ThreadLocal {
 
     // Check if we already have an element for `this_thread`.
     int idx = start_idx;
-    while (ptr_[idx].load() != nullptr) {
-      ThreadIdAndValue& record = *(ptr_[idx].load());
-      if (record.thread_id == this_thread) return record.value;
+    while (ThreadIdAndValue* record = ptr_[idx].load()) {
+      if (record->thread_id == this_thread) return record->value;
 
       idx += 1;
       if (idx >= capacity_) idx -= capacity_;
       if (idx == start_idx) break;
     }
 
-    // If we are here, it means that we found an insertion point in lookup
-    // table at `idx`, or we did a full traversal and table is full.
-
-    // If lock-free storage is full, fallback on mutex.
-    if (filled_records_.load() >= capacity_) return SpilledLocal(this_thread);
-
-    // We double check that we still have space to insert an element into a lock
-    // free storage. If old value in `filled_records_` is larger than the
-    // records capacity, it means that some other thread added an element while
-    // we were traversing lookup table.
-    int insertion_index = filled_records_.fetch_add(1, std::memory_order_relaxed);
-    if (insertion_index >= capacity_) return SpilledLocal(this_thread);
-
-    // At this point it's guaranteed that we can access to
-    // data_[insertion_index] without a data race.
-    data_[insertion_index].thread_id = this_thread;
-    initialize_(data_[insertion_index].value);
-
-    // That's the pointer we'll put into the lookup table.
-    ThreadIdAndValue* inserted = &data_[insertion_index];
-
-    // We'll use nullptr pointer to ThreadIdAndValue in a compare-and-swap loop.
-    ThreadIdAndValue* empty = nullptr;
-
-    // Now we have to find an insertion point into the lookup table. We start
-    // from the `idx` that was identified as an insertion point above, it's
-    // guaranteed that we will have an empty record somewhere in a lookup table
-    // (because we created a record in the `data_`).
-    const int insertion_idx = idx;
-
-    do {
-      // Always start search from the original insertion candidate.
-      idx = insertion_idx;
-      while (ptr_[idx].load() != nullptr) {
-        idx += 1;
-        if (idx >= capacity_) idx -= capacity_;
-        // If we did a full loop, it means that we don't have any free entries
-        // in the lookup table, and this means that something is terribly wrong.
-        eigen_assert(idx != insertion_idx);
-      }
-      // Atomic CAS of the pointer guarantees that any other thread, that will
-      // follow this pointer will see all the mutations in the `data_`.
-    } while (!ptr_[idx].compare_exchange_weak(empty, inserted));
-
-    return inserted->value;
+    return InsertOrSpill(this_thread, idx);
   }
 
   // WARN: It's not thread safe to call it concurrently with `local()`.
@@ -195,13 +152,13 @@ class ThreadLocal {
       f(record->thread_id, record->value);
     }
 
-    // We did not spill into the map based storage.
+    // We did not spill into the list based storage.
     if (filled_records_.load(std::memory_order_relaxed) < capacity_) return;
 
-    // Adds a happens before edge from the last call to SpilledLocal().
+    // Adds a happens before edge from the last call to InsertOrSpill().
     EIGEN_MUTEX_LOCK lock(mu_);
-    for (auto& kv : per_thread_map_) {
-      f(kv.first, kv.second);
+    for (auto& record : spilled_) {
+      f(record.thread_id, record.value);
     }
   }
 
@@ -215,13 +172,13 @@ class ThreadLocal {
       release_(record->value);
     }
 
-    // We did not spill into the map based storage.
+    // We did not spill into the list based storage.
     if (filled_records_.load(std::memory_order_relaxed) < capacity_) return;
 
-    // Adds a happens before edge from the last call to SpilledLocal().
+    // Adds a happens before edge from the last call to InsertOrSpill().
     EIGEN_MUTEX_LOCK lock(mu_);
-    for (auto& kv : per_thread_map_) {
-      release_(kv.second);
+    for (auto& record : spilled_) {
+      release_(record.value);
     }
   }
 
@@ -231,19 +188,65 @@ class ThreadLocal {
     T value;
   };
 
-  // Use unordered map guarded by a mutex when lock free storage is full.
-  T& SpilledLocal(std::thread::id this_thread) {
-    EIGEN_MUTEX_LOCK lock(mu_);
+  EIGEN_DONT_INLINE T& InsertOrSpill(std::thread::id this_thread, int idx) {
+    // If we are here, it means that `capacity_ == 0`, we found an insertion
+    // point in lookup table at `idx`, or we did a full traversal and table is
+    // full.
 
-    auto it = per_thread_map_.find(this_thread);
-    if (it == per_thread_map_.end()) {
-      auto result = per_thread_map_.emplace(this_thread, T());
-      eigen_assert(result.second);
-      initialize_((*result.first).second);
-      return (*result.first).second;
-    } else {
-      return it->second;
+    // If lock-free storage still has space, double check via atomic increment;
+    // if old value in `filled_records_` is at least `capacity_`, some other
+    // thread added an element while we were traversing lookup table, so we
+    // fallback on mutex below.
+    if (filled_records_.load() < capacity_) {
+      int insertion_index = filled_records_.fetch_add(1, std::memory_order_relaxed);
+      if (insertion_index < capacity_) {
+        // At this point it's guaranteed that we can access to
+        // data_[insertion_index] without a data race.
+        data_[insertion_index].thread_id = this_thread;
+        initialize_(data_[insertion_index].value);
+
+        // That's the pointer we'll put into the lookup table.
+        ThreadIdAndValue* inserted = &data_[insertion_index];
+
+        // Now we have to find an insertion point into the lookup table. We
+        // start from the `idx` that was identified as an insertion point above,
+        // it's guaranteed that we will have an empty record somewhere in a
+        // lookup table (because we created a record in the `data_`).
+        const int insertion_idx = idx;
+        ThreadIdAndValue* empty;
+
+        do {
+          // Always start search from the original insertion candidate.
+          idx = insertion_idx;
+          while (ptr_[idx].load() != nullptr) {
+            idx += 1;
+            if (idx >= capacity_) idx -= capacity_;
+            // If we did a full loop, it means that we don't have any free
+            // entries in the lookup table, and this means that something is
+            // terribly wrong.
+            eigen_assert(idx != insertion_idx);
+          }
+          // We'll use nullptr pointer to ThreadIdAndValue in a compare-and-swap
+          // loop.
+          empty = nullptr;
+          // Atomic CAS of the pointer guarantees that any other thread, that
+          // will follow this pointer will see all the mutations in the `data_`.
+        } while (!ptr_[idx].compare_exchange_weak(empty, inserted));
+
+        return inserted->value;
+      }
     }
+
+    // Use list guarded by a mutex when lock-free storage is full.
+    EIGEN_MUTEX_LOCK lock(mu_);
+    for (auto& record : spilled_) {
+      if (record.thread_id == this_thread) return record.value;
+    }
+    spilled_.emplace_front();
+    ThreadIdAndValue& inserted = spilled_.front();
+    inserted.thread_id = this_thread;
+    initialize_(inserted.value);
+    return inserted.value;
   }
 
   Initialize initialize_;
@@ -261,11 +264,11 @@ class ThreadLocal {
   // Number of records stored in the `data_`.
   std::atomic<int> filled_records_;
 
-  // We fallback on per thread map if lock-free storage is full. In practice
+  // We fallback on per thread list if lock-free storage is full. In practice
   // this should never happen, if `capacity_` is a reasonable estimate of the
   // number of threads running in a system.
-  EIGEN_MUTEX mu_;  // Protects per_thread_map_.
-  std::unordered_map<std::thread::id, T> per_thread_map_;
+  EIGEN_MUTEX mu_;  // Protects spilled_.
+  std::forward_list<ThreadIdAndValue> spilled_;
 };
 
 }  // namespace Eigen
