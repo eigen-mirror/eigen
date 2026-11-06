@@ -27,7 +27,7 @@ int encode(Index i, Index j) { return int(i * 100 + j); }
 test::IndexPair decode(Index ij) { return test::IndexPair(ij / 100, ij % 100); }
 
 template <typename T>
-bool match(const T& xpr, std::string ref, std::string str_xpr = "") {
+bool match(const T& xpr, const std::string& ref, const std::string& str_xpr = "") {
   EIGEN_UNUSED_VARIABLE(str_xpr);
   std::stringstream str;
   str << xpr;

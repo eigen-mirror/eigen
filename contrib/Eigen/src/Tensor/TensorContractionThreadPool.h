@@ -1233,7 +1233,7 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
           for (int i = 1; i < rng_size; ++i) {
             addToBuffer<Alignment>(m * n,
                                    /*src_buf=*/block_buffers[dst_block_idx + i],
-                                   /*dst_buf=*/block_buffers[dst_block_idx]);
+                                   /*tgt_buf=*/block_buffers[dst_block_idx]);
           }
         }
       }

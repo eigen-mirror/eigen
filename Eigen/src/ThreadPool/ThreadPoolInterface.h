@@ -28,7 +28,7 @@ class ThreadPoolInterface {
   virtual void ScheduleWithHint(std::function<void()> fn, int /*start*/, int /*end*/) {
     // Just defer to Schedule in case sub-classes aren't interested in
     // overriding this functionality.
-    Schedule(fn);
+    Schedule(std::move(fn));
   }
 
   // If implemented, stop processing the closures that have been enqueued.

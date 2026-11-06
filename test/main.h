@@ -44,7 +44,6 @@
 // included before any Eigen header and because the STL headers are guarded
 // against multiple inclusions, no STL header will see our own min/max macro
 // definitions.
-#include <limits>
 #include <algorithm>
 // Disable ICC's std::complex operator specializations so we can use our own.
 #define _OVERRIDE_COMPLEX_SPECIALIZATION_ 1
@@ -533,7 +532,7 @@ int main(int argc, char* argv[]) {
   }
 #endif
 
-  VERIFY(EigenTest::all().size() > 0);
+  VERIFY(!EigenTest::all().empty());
 
   for (std::size_t i = 0; i < EigenTest::all().size(); ++i) {
     const EigenTest& current_test = *EigenTest::all()[i];

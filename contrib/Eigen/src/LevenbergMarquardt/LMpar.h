@@ -138,7 +138,6 @@ void lmpar2(const QRSolver &qr, const VectorType &diag, const VectorType &qtb, t
     par = (std::max)(parl, par + parc);
   }
   if (iter == 0) par = 0.;
-  return;
 }
 }  // end namespace internal
 

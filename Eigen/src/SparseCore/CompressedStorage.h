@@ -37,6 +37,7 @@ class CompressedStorage {
   }
 
   CompressedStorage& operator=(const CompressedStorage& other) {
+    if (this == &other) return *this;
     resize(other.size());
     if (other.size() > 0) {
       internal::smart_copy(other.m_values, other.m_values + m_size, m_values);

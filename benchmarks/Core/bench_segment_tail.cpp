@@ -648,8 +648,8 @@ void add_all_prim_ct() {
 template <typename T>
 void add_slice() {
   const std::string tag = std::string("/") + type_tag<T>() + "/7";
-  for (auto entry : {std::make_pair("Slice/copy" + tag, &BM_SliceCopy<T, 7>),
-                     std::make_pair("Slice/sqrt" + tag, &BM_SliceSqrt<T, 7>)}) {
+  for (const auto& entry : {std::make_pair("Slice/copy" + tag, &BM_SliceCopy<T, 7>),
+                            std::make_pair("Slice/sqrt" + tag, &BM_SliceSqrt<T, 7>)}) {
     auto* b = benchmark::RegisterBenchmark(entry.first, entry.second);
     for (int c : {64, 1024, 4096}) b->Arg(c);
   }

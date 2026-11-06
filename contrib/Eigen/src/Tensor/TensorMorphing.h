@@ -92,8 +92,8 @@ struct TensorEvaluator<const TensorReshapingOp<NewDimensions, ArgType>, Device> 
 
   // clang-format off
   static const ReshapingKind kind =
-        (NumOutputDims == 2 && internal::index_statically_eq<NewDimensions>(/*index=*/0, /*value=*/1)) ? OneByN
-      : (NumOutputDims == 2 && internal::index_statically_eq<NewDimensions>(/*index=*/1, /*value=*/1)) ? NByOne
+        (NumOutputDims == 2 && internal::index_statically_eq<NewDimensions>(/*i=*/0, /*value=*/1)) ? OneByN
+      : (NumOutputDims == 2 && internal::index_statically_eq<NewDimensions>(/*i=*/1, /*value=*/1)) ? NByOne
       : Runtime;
   // clang-format on
 

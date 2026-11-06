@@ -10,7 +10,6 @@
 
 #include "main.h"
 
-using Eigen::placeholders::all;
 using Eigen::placeholders::last;
 using Eigen::placeholders::lastp1;
 

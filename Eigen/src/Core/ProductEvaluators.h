@@ -2141,18 +2141,19 @@ struct transposition_matrix_product {
     MatrixType mat(xpr);
     using StorageIndex = typename TranspositionType::StorageIndex;
     const Index size = tr.size();
-    StorageIndex j = 0;
 
     if (!is_same_dense(dst, mat)) dst = mat;
 
-    for (Index k = (Transposed ? size - 1 : 0); Transposed ? k >= 0 : k < size; Transposed ? --k : ++k)
-      if (Index(j = tr.coeff(k)) != k) {
+    for (Index k = (Transposed ? size - 1 : 0); Transposed ? k >= 0 : k < size; Transposed ? --k : ++k) {
+      const StorageIndex j = tr.coeff(k);
+      if (Index(j) != k) {
         EIGEN_IF_CONSTEXPR (Side == OnTheLeft) {
           dst.row(k).swap(dst.row(j));
         } else EIGEN_IF_CONSTEXPR (Side == OnTheRight) {
           dst.col(k).swap(dst.col(j));
         }
       }
+    }
   }
 };
 

@@ -13,7 +13,6 @@
 #include <Eigen/Tensor>
 
 using Eigen::Tensor;
-using Eigen::TensorMap;
 
 static void test_additions() {
   Tensor<std::complex<float>, 1> data1(3);

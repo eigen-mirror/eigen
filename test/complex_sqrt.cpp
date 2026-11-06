@@ -160,7 +160,8 @@ void complex_roots_packets() {
       roots = input.sqrt();
       signs = input.sign();
       for (Index i = 0; i < count; ++i) {
-        const auto z = std::complex<long double>(input(i).real(), input(i).imag());
+        const auto z = std::complex<long double>(static_cast<long double>(input(i).real()),
+                                                 static_cast<long double>(input(i).imag()));
         const auto root = std::sqrt(z);
         check_root_component(roots(i).real(), T(root.real()));
         check_root_component(roots(i).imag(), T(root.imag()));

@@ -1122,7 +1122,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
    * decides each factor's rank on its own instead. */
   Index rank() const {
     BDCSVD<DenseMatrix> svdA(LhsOps::denseFactor(m_A)), svdB(RhsOps::denseFactor(m_B));
-    const RealVector sa = svdA.singularValues(), sb = svdB.singularValues();
+    const RealVector &sa = svdA.singularValues(), &sb = svdB.singularValues();
     // An exactly zero factor zeroes the whole operator (and would make the
     // ratios below 0/0).
     if (sa[0] == RealScalar(0) || sb[0] == RealScalar(0)) return 0;

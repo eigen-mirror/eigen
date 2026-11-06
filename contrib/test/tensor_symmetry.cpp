@@ -16,7 +16,6 @@
 #include <map>
 #include <set>
 
-using Eigen::AntiHermiticity;
 using Eigen::AntiSymmetry;
 using Eigen::DynamicSGroup;
 using Eigen::Hermiticity;
@@ -47,7 +46,7 @@ bool isDynGroup(DynamicSGroup const& dummy) {
 // helper class for checking that the symmetry groups are correct
 struct checkIdx {
   template <typename ArrType>
-  static inline int doCheck_(ArrType e, int flags, int dummy, std::set<uint64_t>& found,
+  static inline int doCheck_(const ArrType& e, int flags, int dummy, std::set<uint64_t>& found,
                              std::map<uint64_t, int> const& expected) {
     // use decimal representation of value
     uint64_t value = e[0];
@@ -67,13 +66,13 @@ struct checkIdx {
     return dummy;
   }
 
-  static inline int run(std::vector<int> e, int flags, int dummy, std::set<uint64_t>& found,
+  static inline int run(const std::vector<int>& e, int flags, int dummy, std::set<uint64_t>& found,
                         std::map<uint64_t, int> const& expected) {
     return doCheck_(e, flags, dummy, found, expected);
   }
 
   template <std::size_t N>
-  static inline int run(std::array<int, N> e, int flags, int dummy, std::set<uint64_t>& found,
+  static inline int run(const std::array<int, N>& e, int flags, int dummy, std::set<uint64_t>& found,
                         std::map<uint64_t, int> const& expected) {
     return doCheck_(e, flags, dummy, found, expected);
   }

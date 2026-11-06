@@ -143,7 +143,6 @@ void lmpar(Matrix<Scalar, Dynamic, Dynamic> &r, const VectorXi &ipvt, const Matr
 
   /* termination. */
   if (iter == 0) par = 0.;
-  return;
 }
 
 template <typename Scalar>
@@ -261,7 +260,6 @@ void lmpar2(const ColPivHouseholderQR<Matrix<Scalar, Dynamic, Dynamic> > &qr, co
     par = (std::max)(parl, par + parc);
   }
   if (iter == 0) par = 0.;
-  return;
 }
 
 }  // end namespace internal

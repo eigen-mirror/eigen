@@ -45,8 +45,8 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
     MatrixType A = MatrixType::Random(size, size);
     RealSchur<MatrixType> schurOfA(A);
     VERIFY_IS_EQUAL(schurOfA.info(), Success);
-    MatrixType U = schurOfA.matrixU();
-    MatrixType T = schurOfA.matrixT();
+    const MatrixType& U = schurOfA.matrixU();
+    const MatrixType& T = schurOfA.matrixT();
     verifyIsQuasiTriangular(T);
     VERIFY_IS_APPROX(A, U * T * U.transpose());
   }

@@ -72,21 +72,11 @@ void BM_BccbSolve(benchmark::State& state) {
   runSolve(state, Bccb<double>(G));
 }
 
-void OneDimensional(benchmark::Benchmark* b) {
-  for (int n : {64, 97, 256, 1024, 4096})
-    for (int r : {1, 16}) b->Args({n, r});
-}
-
-void TwoDimensional(benchmark::Benchmark* b) {
-  for (int n : {16, 64, 101})
-    for (int r : {1, 16}) b->Args({n, r});
-}
-
 }  // namespace
 
-BENCHMARK(BM_CirculantProduct)->Apply(OneDimensional);
-BENCHMARK(BM_ToeplitzProduct)->Apply(OneDimensional);
-BENCHMARK(BM_HankelProduct)->Apply(OneDimensional);
-BENCHMARK(BM_CirculantSolve)->Apply(OneDimensional);
-BENCHMARK(BM_BccbProduct)->Apply(TwoDimensional);
-BENCHMARK(BM_BccbSolve)->Apply(TwoDimensional);
+BENCHMARK(BM_CirculantProduct)->ArgsProduct({{64, 97, 256, 1024, 4096}, {1, 16}});
+BENCHMARK(BM_ToeplitzProduct)->ArgsProduct({{64, 97, 256, 1024, 4096}, {1, 16}});
+BENCHMARK(BM_HankelProduct)->ArgsProduct({{64, 97, 256, 1024, 4096}, {1, 16}});
+BENCHMARK(BM_CirculantSolve)->ArgsProduct({{64, 97, 256, 1024, 4096}, {1, 16}});
+BENCHMARK(BM_BccbProduct)->ArgsProduct({{16, 64, 101}, {1, 16}});
+BENCHMARK(BM_BccbSolve)->ArgsProduct({{16, 64, 101}, {1, 16}});

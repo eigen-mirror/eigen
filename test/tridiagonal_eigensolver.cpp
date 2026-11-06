@@ -288,7 +288,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     es.computeEigenvectors();  // staged inverse-iteration pass
     VERIFY_IS_EQUAL(es.info(), Success);
     const VectorType w = es.eigenvalues();
-    const MatrixType V = es.eigenvectors();
+    const MatrixType& V = es.eigenvectors();
     VERIFY_IS_EQUAL(V.rows(), n);
     VERIFY_IS_EQUAL(V.cols(), n);
 
@@ -375,7 +375,7 @@ void tridiagonal_eigensolver_eigenvectors() {
     VERIFY_IS_EQUAL(fz.eigenvectors().cols(), Index(4));
     {
       const MatrixType Tf = dense_symmetric_tridiag(fdiag, fsub);
-      const MatrixType Vf = fz.eigenvectors();
+      const MatrixType& Vf = fz.eigenvectors();
       VERIFY((Vf.transpose() * Vf - MatrixType::Identity(4, 4)).cwiseAbs().maxCoeff() <= RealScalar(64) * eps);
       VERIFY((Tf * Vf - Vf * fz.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <=
              RealScalar(64) * eps * Tf.cwiseAbs().maxCoeff());
@@ -588,7 +588,7 @@ void tridiagonal_eigensolver_narrow() {
     VERIFY(es.eigenvectors().allFinite());
     VERIFY_IS_APPROX(es.eigenvalues()(0), RealScalar(1));
     VERIFY_IS_APPROX(es.eigenvalues()(1), RealScalar(3));
-    const MatrixType V = es.eigenvectors();
+    const MatrixType& V = es.eigenvectors();
     VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);
     const MatrixType T = dense_symmetric_tridiag(d, e);
     VERIFY((T * V - V * es.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() <= RealScalar(16) * eps);
@@ -617,7 +617,7 @@ void tridiagonal_eigensolver_narrow() {
     TridiagonalEigenSolver<RealScalar> es;
     es.computeEigenvectors(d, e, w);
     VERIFY_IS_EQUAL(es.info(), Success);
-    const MatrixType V = es.eigenvectors();
+    const MatrixType& V = es.eigenvectors();
     VERIFY_IS_EQUAL(numext::abs(V(2, 0)), RealScalar(0));
     VERIFY_IS_EQUAL(numext::abs(V(2, 1)), RealScalar(0));
     VERIFY((V.transpose() * V - MatrixType::Identity(2, 2)).cwiseAbs().maxCoeff() <= RealScalar(8) * eps);

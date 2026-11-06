@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
-#include <Eigen/Array>
+#include <Eigen/Core>
+#include <iostream>
 
-int main(int argc, char *argv[]) {
+int main() {
   std::cout.precision(2);
 
   // demo static functions
@@ -27,18 +28,18 @@ int main(int argc, char *argv[]) {
   // demo dynamic-size block()
   {
     int rows = 3, cols = 3;
-    m4.block(0, 1, 3, 3).setIdentity();
+    m4.block(0, 1, rows, cols).setIdentity();
     std::cout << "*** Step 4 ***\nm4:\n" << m4 << std::endl;
   }
 
   // demo vector blocks
-  m4.diagonal().block(1, 2).setOnes();
+  m4.diagonal().segment(1, 2).setOnes();
   std::cout << "*** Step 5 ***\nm4.diagonal():\n" << m4.diagonal() << std::endl;
-  std::cout << "m4.diagonal().start(3)\n" << m4.diagonal().start(3) << std::endl;
+  std::cout << "m4.diagonal().head(3)\n" << m4.diagonal().head(3) << std::endl;
 
   // demo coeff-wise operations
-  m4 = m4.cwise() * m4;
-  m3 = m3.cwise().cos();
+  m4 = m4.cwiseProduct(m4);
+  m3 = m3.array().cos();
   std::cout << "*** Step 6 ***\nm3:\n" << m3 << "\nm4:\n" << m4 << std::endl;
 
   // sums of coefficients
@@ -49,7 +50,7 @@ int main(int argc, char *argv[]) {
 
   // demo intelligent auto-evaluation
   m4 = m4 * m4;                              // auto-evaluates so no aliasing problem (performance penalty is low)
-  Eigen::Matrix4f other = (m4 * m4).lazy();  // forces lazy evaluation
+  Eigen::Matrix4f other = m4.lazyProduct(m4);  // forces lazy evaluation
   m4 = m4 + m4;                              // here Eigen goes for lazy evaluation, as with most expressions
   m4 = -m4 + m4 + 5 * m4;                    // same here, Eigen chooses lazy evaluation for all that.
   m4 = m4 * (m4 + m4);                       // here Eigen chooses to first evaluate m4 + m4 into a temporary.
@@ -61,4 +62,5 @@ int main(int argc, char *argv[]) {
   m4 = m4 * m4.transpose().eval();  // forces immediate evaluation of the transpose
 
   std::cout << "*** Step 8 ***\nm3:\n" << m3 << "\nm4:\n" << m4 << std::endl;
+  std::cout << "Lazy product:\n" << other << std::endl;
 }

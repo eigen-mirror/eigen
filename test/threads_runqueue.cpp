@@ -202,7 +202,7 @@ void test_stress_runqueue() {
           EIGEN_THREAD_YIELD();
           continue;
         }
-        while (stolen.size() && j < kEvents) {
+        while (!stolen.empty() && j < kEvents) {
           int v = stolen.back();
           stolen.pop_back();
           VERIFY_IS_NOT_EQUAL(v, 0);
@@ -210,7 +210,7 @@ void test_stress_runqueue() {
           j++;
         }
       }
-      while (stolen.size()) {
+      while (!stolen.empty()) {
         int v = stolen.back();
         stolen.pop_back();
         VERIFY_IS_NOT_EQUAL(v, 0);

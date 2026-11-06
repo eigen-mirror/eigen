@@ -145,15 +145,15 @@ class DynamicSGroup {
     return result;
   }
 
-  GroupElement mul(GroupElement, GroupElement) const;
-  inline GroupElement mul(Generator g1, GroupElement g2) const { return mul(ge(g1), g2); }
+  GroupElement mul(const GroupElement&, const GroupElement&) const;
+  inline GroupElement mul(Generator g1, const GroupElement& g2) const { return mul(ge(g1), g2); }
 
-  inline GroupElement mul(GroupElement g1, Generator g2) const { return mul(g1, ge(g2)); }
+  inline GroupElement mul(const GroupElement& g1, Generator g2) const { return mul(g1, ge(g2)); }
 
   inline GroupElement mul(Generator g1, Generator g2) const { return mul(ge(g1), ge(g2)); }
 
-  inline int findElement(GroupElement e) const {
-    for (auto ee : m_elements) {
+  inline int findElement(const GroupElement& e) const {
+    for (const auto& ee : m_elements) {
       if (ee.representation == e.representation) return ee.flags ^ e.flags;
     }
     return -1;
@@ -188,7 +188,7 @@ class DynamicSGroupFromTemplateArgs : public DynamicSGroup {
   inline void add_all(internal::type_list<>) {}
 };
 
-inline DynamicSGroup::GroupElement DynamicSGroup::mul(GroupElement g1, GroupElement g2) const {
+inline DynamicSGroup::GroupElement DynamicSGroup::mul(const GroupElement& g1, const GroupElement& g2) const {
   eigen_internal_assert(g1.representation.size() == m_numIndices);
   eigen_internal_assert(g2.representation.size() == m_numIndices);
 

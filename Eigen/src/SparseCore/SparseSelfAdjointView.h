@@ -479,13 +479,13 @@ void permute_symm_to_fullsymm(
   for (Index j = 0; j < size; ++j) count[j] = dest.outerIndexPtr()[j];
 
   // copy data
-  for (StorageIndex j = 0; j < size; ++j) {
-    for (MatIterator it(matEval, internal::convert_index<Index>(j)); it; ++it) {
+  for (Index j = 0; j < size; ++j) {
+    for (MatIterator it(matEval, j); it; ++it) {
       StorageIndex i = internal::convert_index<StorageIndex>(it.index());
       Index r = it.row();
       Index c = it.col();
 
-      StorageIndex jp = perm ? perm[j] : j;
+      StorageIndex jp = perm ? perm[j] : internal::convert_index<StorageIndex>(j);
       StorageIndex ip = perm ? perm[i] : i;
 
       EIGEN_IF_CONSTEXPR (Mode == int(Upper | Lower)) {

@@ -18,7 +18,6 @@
 #include "OffByOneScalar.h"
 #include <contrib/Eigen/Tensor>
 
-using Eigen::RowMajor;
 using Eigen::Tensor;
 
 // Context for evaluation on cpu

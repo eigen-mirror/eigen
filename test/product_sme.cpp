@@ -196,7 +196,7 @@ static void test_general_strided_result(int n) {
   // strides are non-unit so sme_store_za_tile uses scalar scatter.
   SmeColMajorMat<Scalar> storage = SmeColMajorMat<Scalar>::Zero(2 * n, n);
   verify_strided_result<InputMat, SmeColMajorMat<Scalar>, SmeColMajorStridedMat<Scalar>>(
-      n, storage, Stride<Dynamic, Dynamic>(/*outer=*/2 * n, /*inner=*/2));
+      n, storage, Stride<Dynamic, Dynamic>(/*outerStride=*/2 * n, /*innerStride=*/2));
 
   // Padding rows skipped by the strided Map should not be touched.
   for (int i = 0; i < n; ++i) {
@@ -211,7 +211,7 @@ static void test_rowmajor_strided_result(int n) {
   // RowMajor C path: inner stride is one, with padded columns after the Map.
   SmeRowMajorMat<Scalar> storage = SmeRowMajorMat<Scalar>::Zero(n, 2 * n);
   verify_strided_result<SmeRowMajorMat<Scalar>, SmeRowMajorMat<Scalar>, SmeRowMajorStridedMat<Scalar>>(
-      n, storage, Stride<Dynamic, Dynamic>(/*outer=*/2 * n, /*inner=*/1));
+      n, storage, Stride<Dynamic, Dynamic>(/*outerStride=*/2 * n, /*innerStride=*/1));
 
   // Padding columns skipped by the strided Map should not be touched.
   for (int i = 0; i < n; ++i) {

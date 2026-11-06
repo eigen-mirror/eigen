@@ -23,8 +23,8 @@ void schur(int size = MatrixType::ColsAtCompileTime) {
     MatrixType A = MatrixType::Random(size, size);
     ComplexSchur<MatrixType> schurOfA(A);
     VERIFY_IS_EQUAL(schurOfA.info(), Success);
-    ComplexMatrixType U = schurOfA.matrixU();
-    ComplexMatrixType T = schurOfA.matrixT();
+    const ComplexMatrixType& U = schurOfA.matrixU();
+    const ComplexMatrixType& T = schurOfA.matrixT();
     for (int row = 1; row < size; ++row) {
       for (int col = 0; col < row; ++col) {
         VERIFY(T(row, col) == (typename MatrixType::Scalar)0);

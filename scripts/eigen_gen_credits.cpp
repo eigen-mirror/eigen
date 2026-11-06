@@ -193,12 +193,12 @@ int main() {
   list<contributor>::iterator itc;
   int i = 0;
   for (itc = contributors_list.begin(); itc != contributors_list.end(); ++itc) {
-    if (itc->name.length() == 0) continue;
+    if (itc->name.empty()) continue;
     if (i % 2)
       cout << "|-\n";
     else
       cout << "|- style=\"background:#FFFFD0\"\n";
-    if (itc->url.length())
+    if (!itc->url.empty())
       cout << "| [" << itc->url << " " << itc->name << "]\n";
     else
       cout << "| " << itc->name << "\n";

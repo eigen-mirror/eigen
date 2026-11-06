@@ -171,7 +171,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
     /* --- Garbage collection ------------------------------------------- */
     if (elenk > 0 && cnz + mindeg >= nzmax) {
       for (j = 0; j < n; j++) {
-        if ((p = Cp[j]) >= 0) /* j is a live node or element */
+        p = Cp[j];
+        if (p >= 0) /* j is a live node or element */
         {
           Cp[j] = Ci[p];       /* save first entry of object */
           Ci[p] = amd_flip(j); /* first entry is now amd_flip(j) */
@@ -179,7 +180,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
       }
       for (q = 0, p = 0; p < cnz;) /* scan all of memory */
       {
-        if ((j = amd_flip(Ci[p++])) >= 0) /* found object j */
+        j = amd_flip(Ci[p++]);
+        if (j >= 0) /* found object j */
         {
           Ci[q] = Cp[j]; /* restore first entry of object */
           Cp[j] = q++;   /* new pointer to object j */
@@ -207,7 +209,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
       }
       for (k2 = 1; k2 <= ln; k2++) {
         i = Ci[pj++];
-        if ((nvi = nv[i]) <= 0) continue; /* node i dead, or seen */
+        nvi = nv[i];
+        if (nvi <= 0) continue;           /* node i dead, or seen */
         dk += nvi;                        /* degree[Lk] += size of node i */
         nv[i] = -nvi;                     /* negate nv[i] to denote i in Lk*/
         Ci[pk2++] = i;                    /* place i in Lk */
@@ -235,7 +238,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
     for (pk = pk1; pk < pk2; pk++)                               /* scan 1: find |Le\Lk| */
     {
       i = Ci[pk];
-      if ((eln = elen[i]) <= 0) continue; /* skip if elen[i] empty */
+      eln = elen[i];
+      if (eln <= 0) continue;             /* skip if elen[i] empty */
       nvi = -nv[i];                       /* nv[i] was negated */
       wnvi = mark - nvi;
       for (p = Cp[i]; p <= Cp[i] + eln - 1; p++) /* scan Ei */
@@ -279,7 +283,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
       for (p = p2 + 1; p < p4; p++) /* prune edges in Ai */
       {
         j = Ci[p];
-        if ((nvj = nv[j]) <= 0) continue; /* node j dead or in Lk */
+        nvj = nv[j];
+        if (nvj <= 0) continue;           /* node j dead or in Lk */
         d += nvj;                         /* degree(i) += |j| */
         Ci[pn++] = j;                     /* place j in node list of i */
         h += j;                           /* compute hash for node i */
@@ -347,7 +352,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
     for (p = pk1, pk = pk1; pk < pk2; pk++) /* finalize Lk */
     {
       i = Ci[pk];
-      if ((nvi = -nv[i]) <= 0) continue; /* skip if i is dead */
+      nvi = -nv[i];
+      if (nvi <= 0) continue;            /* skip if i is dead */
       nv[i] = nvi;                       /* restore nv[i] */
       d = degree[i] + dk - nvi;          /* compute external degree(i) */
       d = std::min<StorageIndex>(d, n - nel - nvi);
@@ -360,7 +366,8 @@ void minimum_degree_ordering(SparseMatrix<Scalar, ColMajor, StorageIndex>& C,
       Ci[p++] = i; /* place i in Lk */
     }
     nv[k] = nvk;                 /* # nodes absorbed into k */
-    if ((len[k] = p - pk1) == 0) /* length of adj list of element k*/
+    len[k] = p - pk1;
+    if (len[k] == 0) /* length of adj list of element k*/
     {
       Cp[k] = -1; /* k is a root of the tree */
       w[k] = 0;   /* k is now a dead element */

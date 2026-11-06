@@ -5,7 +5,6 @@
 
 #include <Eigen/Tensor>
 
-using Eigen::RowMajor;
 using Eigen::Tensor;
 
 static void test_comparison_sugar() {

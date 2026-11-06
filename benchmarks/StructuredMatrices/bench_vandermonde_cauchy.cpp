@@ -66,15 +66,10 @@ void BM_VandermondeDeterminant(benchmark::State& state) {
 
 void BM_CauchyDeterminant(benchmark::State& state) { runDeterminant(state, interlacedCauchy(state.range(0))); }
 
-void Products(benchmark::Benchmark* b) {
-  for (int n : {64, 256, 1024})
-    for (int r : {1, 16}) b->Args({n, r});
-}
-
 }  // namespace
 
-BENCHMARK(BM_VandermondeProduct)->Apply(Products);
-BENCHMARK(BM_CauchyProduct)->Apply(Products);
+BENCHMARK(BM_VandermondeProduct)->ArgsProduct({{64, 256, 1024}, {1, 16}});
+BENCHMARK(BM_CauchyProduct)->ArgsProduct({{64, 256, 1024}, {1, 16}});
 BENCHMARK(BM_CauchyProductTall)->ArgsProduct({{1 << 16, 1 << 20}, {4, 16}});
 BENCHMARK(BM_CauchyLU)->Arg(64)->Arg(256)->Arg(1024);
 BENCHMARK(BM_VandermondeDeterminant)->Arg(64)->Arg(256)->Arg(1024);

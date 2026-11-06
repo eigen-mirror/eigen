@@ -46,22 +46,17 @@ static void BM_GemmThreads(benchmark::State& state) {
 }
 
 // Pool sizes up to the core count (a larger pool only oversubscribes), keeping the smallest of each list.
-static void ThreadArgs(::benchmark::Benchmark* b, std::initializer_list<int> threads) {
+static int RegisterThreadBenchmarks() {
+  auto* capped = benchmark::RegisterBenchmark("BM_GemmThreads", &BM_GemmThreads<false>)->UseRealTime();
+  auto* uncapped = benchmark::RegisterBenchmark("BM_GemmThreads_uncapped", &BM_GemmThreads<true>)->UseRealTime();
   const int cores = static_cast<int>(std::thread::hardware_concurrency());
-  for (int n : {1024, 2048})
-    for (int t : threads)
-      if (t <= cores || t == *threads.begin()) b->Args({n, t});
+  for (int n : {1024, 2048}) {
+    for (int t : {1, 2, 4, 8, 12}) {
+      if (t <= cores || t == 1) capped->Args({n, t});
+      if (t >= 4 && (t <= cores || t == 4)) uncapped->Args({n, t});
+    }
+  }
+  return 0;
 }
 
-BENCHMARK(BM_GemmThreads<false>)
-    ->Name("BM_GemmThreads")
-    ->Apply([](::benchmark::Benchmark* b) {
-      ThreadArgs(b, {1, 2, 4, 8, 12});
-    })
-    ->UseRealTime();
-BENCHMARK(BM_GemmThreads<true>)
-    ->Name("BM_GemmThreads_uncapped")
-    ->Apply([](::benchmark::Benchmark* b) {
-      ThreadArgs(b, {4, 8, 12});
-    })
-    ->UseRealTime();
+const int registered_thread_benchmarks = RegisterThreadBenchmarks();

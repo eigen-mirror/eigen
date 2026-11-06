@@ -12,7 +12,6 @@
 
 #include <Eigen/Tensor>
 
-using Eigen::RowMajor;
 using Eigen::Tensor;
 
 using Scalar = float;

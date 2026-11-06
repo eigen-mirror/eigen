@@ -44,13 +44,8 @@ void BM_Determinant(benchmark::State& state) {
   for (auto _ : state) benchmark::DoNotOptimize(A.determinant());
 }
 
-void Shapes(benchmark::Benchmark* b) {
-  for (int n : {1000, 100000})
-    for (int k : {4, 16}) b->Args({n, k});
-}
-
 }  // namespace
 
-BENCHMARK(BM_Solve)->Apply(Shapes);
-BENCHMARK(BM_Inverse)->Apply(Shapes);
-BENCHMARK(BM_Determinant)->Apply(Shapes);
+BENCHMARK(BM_Solve)->ArgsProduct({{1000, 100000}, {4, 16}});
+BENCHMARK(BM_Inverse)->ArgsProduct({{1000, 100000}, {4, 16}});
+BENCHMARK(BM_Determinant)->ArgsProduct({{1000, 100000}, {4, 16}});

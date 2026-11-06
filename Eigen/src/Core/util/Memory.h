@@ -1074,7 +1074,7 @@ class aligned_allocator {
   size_type max_size() const { return (std::numeric_limits<std::ptrdiff_t>::max)() / sizeof(T); }
 #endif
 
-  pointer allocate(size_type num, const void* /*hint*/ = 0) {
+  pointer allocate(size_type num, const void* /*hint*/ = nullptr) {
     internal::check_size_for_overflow<T>(num);
     return static_cast<pointer>(internal::aligned_malloc(num * sizeof(T)));
   }

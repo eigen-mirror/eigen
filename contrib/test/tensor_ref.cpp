@@ -12,7 +12,6 @@
 
 #include <Eigen/Tensor>
 
-using Eigen::RowMajor;
 using Eigen::Tensor;
 
 static void test_simple_lvalue_ref() {

@@ -1574,11 +1574,11 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     // alloc
     dest.m_data.resize(count);
     // pass 2
-    for (StorageIndex j = 0; j < otherCopy.outerSize(); ++j) {
+    for (Index j = 0; j < otherCopy.outerSize(); ++j) {
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) {
         Index pos = internal::convert_index<Index>(positions.coeff(it.index()));
         positions.coeffRef(it.index()) = internal::convert_index<StorageIndex>(pos + 1);
-        dest.m_data.index(pos) = j;
+        dest.m_data.index(pos) = internal::convert_index<StorageIndex>(j);
         dest.m_data.value(pos) = it.value();
       }
     }

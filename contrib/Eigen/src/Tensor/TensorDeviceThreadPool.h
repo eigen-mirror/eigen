@@ -286,7 +286,7 @@ struct ThreadPoolDevice {
   // imbalance and we also want number of blocks to be evenly dividable across
   // threads.
   ParallelForBlock CalculateParallelForBlock(const Index n, const TensorOpCost& cost,
-                                             std::function<Index(Index)> block_align) const {
+                                             const std::function<Index(Index)>& block_align) const {
     const double block_size_f = 1.0 / CostModel::taskSize(1, cost);
     const Index max_oversharding_factor = 4;
     Index block_size = numext::mini(

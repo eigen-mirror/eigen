@@ -850,7 +850,6 @@ void triSolveKernelLxK(Scalar* A_arr, Scalar* B_arr, int64_t M, int64_t K, int64
     triSolveKernel<Scalar, vec, 2, isARowMajor, isFWDSolve, isUnitDiag>(A_arr, B_arr, K, LDA, LDB);
   else if (M == 1)
     triSolveKernel<Scalar, vec, 1, isARowMajor, isFWDSolve, isUnitDiag>(A_arr, B_arr, K, LDA, LDB);
-  return;
 }
 
 /**

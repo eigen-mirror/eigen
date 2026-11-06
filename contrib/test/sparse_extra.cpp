@@ -66,7 +66,7 @@ void sparse_extra(const SparseMatrixType& ref) {
   std::vector<Vector2i> nonzeroCoords;
   initSparse<Scalar>(density, refMat, m, 0, &zeroCoords, &nonzeroCoords);
 
-  if (zeroCoords.size() == 0 || nonzeroCoords.size() == 0) return;
+  if (zeroCoords.empty() || nonzeroCoords.empty()) return;
 
   // random setter
   //   {

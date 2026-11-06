@@ -80,7 +80,7 @@ class FFT {
   /** Forward 1D C2C FFT. */
   template <typename Derived, std::enable_if_t<NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
   ComplexVector fwd(const MatrixBase<Derived>& x) {
-    const ComplexVector input(x.derived());
+    const ComplexVector& input(x.derived());
     const int n = static_cast<int>(input.size());
     if (n == 0) return ComplexVector(0);
 
@@ -103,7 +103,7 @@ class FFT {
   template <typename Derived>
   ComplexVector inv(const MatrixBase<Derived>& X) {
     static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "inv() requires complex input");
-    const ComplexVector input(X.derived());
+    const ComplexVector& input(X.derived());
     const int n = static_cast<int>(input.size());
     if (n == 0) return ComplexVector(0);
 
@@ -129,7 +129,7 @@ class FFT {
   /** Forward 1D R2C FFT. Returns n/2+1 complex values (half-spectrum). */
   template <typename Derived, std::enable_if_t<!NumTraits<typename Derived::Scalar>::IsComplex>* = nullptr>
   ComplexVector fwd(const MatrixBase<Derived>& x) {
-    const RealVector input(x.derived());
+    const RealVector& input(x.derived());
     const int n = static_cast<int>(input.size());
     if (n == 0) return ComplexVector(0);
 
@@ -154,7 +154,7 @@ class FFT {
   template <typename Derived>
   RealVector invReal(const MatrixBase<Derived>& X, Index nfft) {
     static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "invReal() requires complex input");
-    const ComplexVector input(X.derived());
+    const ComplexVector& input(X.derived());
     const int n = static_cast<int>(nfft);
     const int n_complex = n / 2 + 1;
     eigen_assert(n == 0 || input.size() == n_complex);
@@ -184,7 +184,7 @@ class FFT {
   template <typename Derived>
   ComplexMatrix fwd2(const MatrixBase<Derived>& A) {
     static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "fwd2() requires complex input");
-    const ComplexMatrix input(A.derived());
+    const ComplexMatrix& input(A.derived());
     const int rows = static_cast<int>(input.rows());
     const int cols = static_cast<int>(input.cols());
     if (rows == 0 || cols == 0) return ComplexMatrix(rows, cols);
@@ -208,7 +208,7 @@ class FFT {
   template <typename Derived>
   ComplexMatrix inv2(const MatrixBase<Derived>& A) {
     static_assert(NumTraits<typename Derived::Scalar>::IsComplex, "inv2() requires complex input");
-    const ComplexMatrix input(A.derived());
+    const ComplexMatrix& input(A.derived());
     const int rows = static_cast<int>(input.rows());
     const int cols = static_cast<int>(input.cols());
     if (rows == 0 || cols == 0) return ComplexMatrix(rows, cols);

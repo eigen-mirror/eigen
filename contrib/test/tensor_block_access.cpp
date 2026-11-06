@@ -20,7 +20,6 @@
 using Eigen::ColMajor;
 using Eigen::Index;
 using Eigen::RowMajor;
-using Eigen::Tensor;
 using Eigen::internal::TensorBlockShapeType;
 
 static TensorOpCost zeroCost() { return {0, 0, 0}; }

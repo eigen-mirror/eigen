@@ -94,7 +94,6 @@ void r1updt(Matrix<Scalar, Dynamic, Dynamic> &s, const Matrix<Scalar, Dynamic, 1
   if (s(j, j) == 0.) {
     *sing = true;
   }
-  return;
 }
 
 }  // end namespace internal

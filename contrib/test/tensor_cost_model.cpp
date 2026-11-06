@@ -26,7 +26,7 @@ using Eigen::TensorEvaluator;
 // of costPerCoeff().
 template <typename Scalar>
 static void test_nullary_zero_bytes_loaded() {
-  Tensor<Scalar, 1> shape(/*size=*/16);
+  Tensor<Scalar, 1> shape(/*firstDimension=*/16);
   auto zeros = shape.constant(Scalar(0));
   auto sevens = shape.constant(Scalar(7));
 

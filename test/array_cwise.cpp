@@ -103,7 +103,7 @@ void special_value_pairs(Array<Scalar, Dynamic, Dynamic>& x, Array<Scalar, Dynam
 }
 
 template <typename Scalar, typename Fn, typename RefFn>
-void binary_op_test(std::string name, Fn fun, RefFn ref) {
+void binary_op_test(const std::string& name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
   Array<Scalar, Dynamic, Dynamic> lhs;
   Array<Scalar, Dynamic, Dynamic> rhs;
@@ -161,7 +161,7 @@ void binary_ops_test() {
 }
 
 template <typename Scalar, typename Fn, typename RefFn>
-void unary_op_test(std::string name, Fn fun, RefFn ref) {
+void unary_op_test(const std::string& name, Fn fun, RefFn ref) {
   const Scalar tol = test_precision<Scalar>();
   auto values = special_values<Scalar>();
   Map<Array<Scalar, Dynamic, 1>> valuesMap(values.data(), values.size());
