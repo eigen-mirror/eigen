@@ -63,9 +63,10 @@ fi
 set +x
 
 # Content-addressed pass cache (see ci/scripts/test_cache.py, which owns
-# the keying and fingerprint policy): skip tests whose executable,
-# emulator, CTest definition, and environment fingerprint match a
-# first-attempt pass recorded by an earlier run of this job.
+# the keying and fingerprint policy): skip tests whose executable (with
+# the build-directory libraries it loads), emulator, CTest definition, and
+# environment fingerprint match a first-attempt pass recorded by an earlier
+# run of this job.
 # Merge-request pipelines only: scheduled and web runs keep re-running
 # identical binaries so the clock-seeded RNG keeps exploring fresh seeds.
 # Sharded jobs must not skip -- dropping tests from the filtered list

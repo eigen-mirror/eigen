@@ -19,6 +19,7 @@ import json
 import os
 import shutil
 import stat
+import struct
 import sys
 import tempfile
 import xml.etree.ElementTree as ElementTree
@@ -210,6 +211,134 @@ def test_keying(builddir):
           "a command outside the build directory is not keyable")
 
 
+def clear_caches():
+    test_cache.file_digest.cache_clear()
+    test_cache.needed_libraries.cache_clear()
+    test_cache.build_tree_files.cache_clear()
+
+
+def write_elf(path, needed=None, is64=True, big_endian=False):
+    """A minimal ELF shared object whose dynamic section lists `needed`, or
+    one without a PT_DYNAMIC segment, like a static executable, if `needed`
+    is None.  The PT_LOAD segment maps the file at a nonzero address, so
+    reading DT_STRTAB needs the address-to-offset translation."""
+    order = ">" if big_endian else "<"
+    word = "Q" if is64 else "I"
+    entry = order + ("qQ" if is64 else "iI")
+    ehsize, phentsize = (64, 56) if is64 else (52, 32)
+    base = 0x400000
+    strtab = b"\0"
+    tags = []
+    for name in needed or ():
+        tags.append((test_cache.DT_NEEDED, len(strtab)))
+        strtab += name.encode() + b"\0"
+    phnum = 2 if needed is not None else 1
+    dynoff = ehsize + phnum * phentsize
+    stroff = dynoff + (len(tags) + 2) * struct.calcsize(entry)
+    tags += [(test_cache.DT_STRTAB, base + stroff), (test_cache.DT_NULL, 0)]
+    dynsize = stroff - dynoff
+    filesize = stroff + len(strtab)
+
+    def phdr(p_type, offset, size):
+        if is64:
+            return struct.pack(order + "IIQQQQQQ", p_type, 4, offset, base + offset, base + offset, size, size, 8)
+        return struct.pack(order + "IIIIIIII", p_type, offset, base + offset, base + offset, size, size, 4, 4)
+
+    ident = b"\x7fELF" + bytes([2 if is64 else 1, 2 if big_endian else 1, 1]) + bytes(9)
+    header = ident + struct.pack(order + "HHI" + word * 3 + "IHHHHHH", 3, 0, 1, 0, ehsize, 0, 0, ehsize,
+                                 phentsize, phnum, 0, 0, 0)
+    data = header + phdr(test_cache.PT_LOAD, 0, filesize)
+    if needed is not None:
+        data += phdr(test_cache.PT_DYNAMIC, dynoff, dynsize)
+        data += b"".join(struct.pack(entry, tag, value) for tag, value in tags) + strtab
+    with open(path, "wb") as handle:
+        handle.write(data)
+    os.chmod(path, 0o755)
+
+
+def test_needed_libraries(builddir):
+    """DT_NEEDED is read through the program headers for both ELF classes and
+    byte orders; anything else has no libraries, and a truncated ELF file
+    raises so that `plan` fails closed."""
+    path = os.path.join(builddir, "elf")
+    for is64, big_endian in ((True, False), (False, True)):
+        write_elf(path, ["libfoo.so.1", "libc.so.6"], is64, big_endian)
+        clear_caches()
+        check(test_cache.needed_libraries(path) == ("libfoo.so.1", "libc.so.6"),
+              "DT_NEEDED must be read from a %d-bit %s-endian ELF file, got %s"
+              % (64 if is64 else 32, "big" if big_endian else "little", test_cache.needed_libraries(path)))
+
+    # Linker output has the layouts write_elf does not: several PT_LOAD
+    # segments, .dynstr outside the first.  The interpreter running this
+    # links its C library: libc.so.6 (glibc) or libc.musl-<arch>.so.1 (musl,
+    # the lint image).  Not ELF, as on macOS: nothing to check.
+    interpreter = os.path.realpath(sys.executable)
+    with open(interpreter, "rb") as handle:
+        is_elf = handle.read(4) == b"\x7fELF"
+    if is_elf:
+        clear_caches()
+        names = test_cache.needed_libraries(interpreter)
+        check(any(name.startswith("libc.") for name in names),
+              "DT_NEEDED of %s must name its C library, got %s" % (interpreter, names))
+
+    write_elf(path)
+    clear_caches()
+    check(test_cache.needed_libraries(path) == (), "an ELF file without PT_DYNAMIC loads no libraries")
+
+    with open(path, "w") as handle:
+        handle.write("#!/bin/sh\nexit 0\n")
+    clear_caches()
+    check(test_cache.needed_libraries(path) == (), "a file that is not ELF loads no libraries")
+
+    write_elf(path, ["libfoo.so.1"])
+    with open(path, "r+b") as handle:
+        handle.truncate(70)
+    clear_caches()
+    try:
+        test_cache.needed_libraries(path)
+    except (struct.error, ValueError):
+        pass
+    else:
+        check(False, "a truncated ELF file must raise")
+    os.remove(path)
+
+
+def test_build_tree_libraries(builddir):
+    """A test's key covers the build-directory libraries it loads, directly or
+    through another one, and no others."""
+    for sub in ("test", "lib", "other"):
+        os.makedirs(os.path.join(builddir, sub), exist_ok=True)
+    binary = os.path.join(builddir, "test", "unit")
+    foo = os.path.join(builddir, "lib", "libfoo.so.1.0")
+    bar = os.path.join(builddir, "other", "libbar.so")
+    unrelated = os.path.join(builddir, "lib", "libunrelated.so")
+    libraries = {foo: ["libbar.so"], bar: [], unrelated: []}
+    write_elf(binary, ["libfoo.so.1", "libc.so.6"])
+    for library, needed in libraries.items():
+        write_elf(library, needed)
+    os.symlink("libfoo.so.1.0", os.path.join(builddir, "lib", "libfoo.so.1"))
+
+    clear_caches()
+    check(test_cache.build_tree_libraries([binary], builddir) == sorted([foo, bar]),
+          "the build-tree libraries must be found by DT_NEEDED name, transitively, got %s"
+          % test_cache.build_tree_libraries([binary], builddir))
+
+    unit = {"name": "unit", "command": [binary], "properties": []}
+    fp = b"fingerprint\0"
+    base = test_key(unit, fp, builddir)
+    for library, changes in ((foo, True), (bar, True), (unrelated, False)):
+        with open(library, "ab") as handle:
+            handle.write(b"rebuilt")
+        clear_caches()
+        changed = test_key(unit, fp, builddir) != base
+        check(changed == changes, "changing %s must %schange the key"
+              % (os.path.basename(library), "" if changes else "not "))
+        write_elf(library, libraries[library])
+        clear_caches()
+        check(test_key(unit, fp, builddir) == base,
+              "restoring %s must restore the key" % os.path.basename(library))
+
+
 def test_manifest_roundtrip(builddir):
     path = os.path.join(builddir, "manifest")
     write_manifest(path, {"k1": "a", "k2": "b", "k3": "c"}, 10)
@@ -283,6 +412,10 @@ def main():
         test_keyed_env(root)
         test_fingerprint_stable(root)
         test_keying(os.path.realpath(builddir))
+        libs = os.path.join(os.path.realpath(builddir), "libs")
+        os.makedirs(libs)
+        test_needed_libraries(libs)
+        test_build_tree_libraries(libs)
         test_manifest_roundtrip(builddir)
         test_record_status(builddir)
     finally:

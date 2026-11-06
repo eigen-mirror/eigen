@@ -9,8 +9,9 @@
 # `--tests-json -`) and keys every enumerated test by an environment
 # fingerprint plus the content of its definition: command elements that are
 # files (the test binary, and the emulator for cross-compiled jobs) are
-# replaced by a digest of their bytes, remaining elements and the CTest
-# properties are taken literally with build-directory paths normalized away.
+# replaced by a digest of their bytes, as are the build-directory shared
+# libraries they load; remaining elements and the CTest properties are taken
+# literally with build-directory paths normalized away.
 # Tests whose key the manifest already records as a first-attempt pass
 # become the anchored exclusion regex in --skip-regex-out; every keyable
 # test goes to --keys-out for the later `record` step.
@@ -19,10 +20,11 @@
 # outcome while its binary stays identical: the image and its C library, the
 # CONFIG_PATHS subtrees of the checked-in CI configuration, the dpkg version
 # state of every lib* package (a superset of anything a test binary can
-# dynamically load, cross sysroots included), and KEYED_ENV_PREFIXES variables
-# read directly for values set outside the tree.  Job-to-job differences are
-# already isolated by the per-job-name GitLab cache key; the fingerprint guards
-# against one job's environment drifting over time.
+# dynamically load from outside the build directory, cross sysroots included),
+# and KEYED_ENV_PREFIXES variables read directly for values set outside the
+# tree.  Job-to-job differences are already isolated by the per-job-name GitLab
+# cache key; the fingerprint guards against one job's environment drifting over
+# time.
 # A tool that is genuinely absent (e.g. no dpkg on the hand-assembled
 # riscv64 image) contributes a fixed sentinel so images with and without it
 # never share keys; unexpected errors propagate, `plan` fails, and the
@@ -47,6 +49,7 @@ import hashlib
 import json
 import os
 import re
+import struct
 import subprocess
 import sys
 import xml.etree.ElementTree as ElementTree
@@ -102,6 +105,110 @@ def file_digest(path):
         return hashlib.file_digest(f, "sha256").hexdigest()
 
 
+PT_LOAD, PT_DYNAMIC = 1, 2
+DT_NULL, DT_NEEDED, DT_STRTAB = 0, 1, 5
+
+
+@functools.lru_cache(maxsize=None)
+def needed_libraries(path):
+    """The DT_NEEDED names of an ELF file, found through its program headers
+    as the dynamic loader finds them, so any ELF class, byte order, or
+    target architecture works; () for a file that is not ELF or is
+    statically linked.  A malformed ELF file raises."""
+    with open(path, "rb") as f:
+        ident = f.read(16)
+        if ident[:4] != b"\x7fELF":
+            return ()
+        is64 = {1: False, 2: True}[ident[4]]
+        order = {1: "<", 2: ">"}[ident[5]]
+
+        def read(fmt, offset):
+            fmt = order + fmt
+            f.seek(offset)
+            return struct.unpack(fmt, f.read(struct.calcsize(fmt)))
+
+        def read_string(offset):
+            chunks = []
+            f.seek(offset)
+            while True:
+                chunk = f.read(256)
+                if not chunk:
+                    raise ValueError("%s: unterminated dynamic string" % path)
+                end = chunk.find(b"\0")
+                if end >= 0:
+                    return os.fsdecode(b"".join(chunks) + chunk[:end])
+                chunks.append(chunk)
+
+        if is64:
+            (phoff,) = read("Q", 32)
+            phentsize, phnum = read("HH", 54)
+        else:
+            (phoff,) = read("I", 28)
+            phentsize, phnum = read("HH", 42)
+        loads = []
+        dynamic = None
+        for i in range(phnum):
+            if is64:
+                p_type, _, p_offset, p_vaddr, _, p_filesz = read("IIQQQQ", phoff + i * phentsize)
+            else:
+                p_type, p_offset, p_vaddr, _, p_filesz = read("IIIII", phoff + i * phentsize)
+            if p_type == PT_LOAD:
+                loads.append((p_vaddr, p_filesz, p_offset))
+            elif p_type == PT_DYNAMIC:
+                dynamic = (p_offset, p_filesz)
+        if dynamic is None:
+            return ()
+        dynamic_offset, dynamic_size = dynamic
+        entry = "qQ" if is64 else "iI"
+        needed = []
+        strtab = None
+        for offset in range(dynamic_offset, dynamic_offset + dynamic_size, struct.calcsize(entry)):
+            tag, value = read(entry, offset)
+            if tag == DT_NULL:
+                break
+            if tag == DT_NEEDED:
+                needed.append(value)
+            elif tag == DT_STRTAB:
+                strtab = value
+        if not needed:
+            return ()
+        # DT_STRTAB holds a virtual address; the PT_LOAD segment that maps it
+        # gives its file offset.
+        for vaddr, filesz, offset in loads:
+            if strtab is not None and vaddr <= strtab < vaddr + filesz:
+                return tuple(read_string(offset + strtab - vaddr + name) for name in needed)
+        raise ValueError("%s: DT_STRTAB is not in a PT_LOAD segment" % path)
+
+
+@functools.lru_cache(maxsize=None)
+def build_tree_files(builddir):
+    """Every file name under the build directory, mapped to its paths."""
+    files = {}
+    for dirpath, _, filenames in os.walk(builddir):
+        for name in filenames:
+            files.setdefault(name, []).append(os.path.join(dirpath, name))
+    return files
+
+
+def build_tree_libraries(paths, builddir):
+    """The build-directory shared libraries that the files in `paths` load,
+    directly or through one another, as sorted real paths.  A DT_NEEDED name
+    matches every build-directory file of that name, wherever RUNPATH points,
+    so the result is a superset of what the loader picks.  Libraries outside
+    the build directory are in the fingerprint already."""
+    files = build_tree_files(builddir)
+    found = set()
+    pending = list(paths)
+    while pending:
+        for name in needed_libraries(pending.pop()):
+            for candidate in files.get(os.path.basename(name), ()):
+                library = os.path.realpath(candidate)
+                if library not in found and os.path.isfile(library):
+                    found.add(library)
+                    pending.append(library)
+    return sorted(found)
+
+
 def fingerprint(config_root):
     parts = ["image:" + os.environ.get("CI_JOB_IMAGE", "")]
     try:
@@ -148,12 +255,17 @@ def test_key(test, fingerprint_bytes, builddir):
         return None
     h = hashlib.sha256()
     h.update(fingerprint_bytes)
+    built = []
     for element in command:
         path = os.path.realpath(element)
         if os.path.isfile(path):
             h.update(b"file:" + file_digest(path).encode() + b"\0")
+            if path.startswith(builddir + os.sep):
+                built.append(path)
         else:
             h.update(b"arg:" + normalize(element, builddir).encode() + b"\0")
+    for library in build_tree_libraries(built, builddir):
+        h.update(b"lib:" + normalize(library, builddir).encode() + b"\0" + file_digest(library).encode() + b"\0")
     properties = sorted(test.get("properties", []), key=lambda p: str(p.get("name")))
     h.update(b"props:" + normalize(json.dumps(properties, sort_keys=True), builddir).encode())
     return h.hexdigest()

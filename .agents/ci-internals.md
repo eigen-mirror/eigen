@@ -50,8 +50,9 @@ without a comparison.
 In merge request pipelines, the Linux test jobs keep a content-addressed pass cache in `.testcache/`, with one GitLab
 cache per job name. [`test.linux.script.sh`](../ci/scripts/test.linux.script.sh) skips a test when an earlier merge
 request pipeline recorded a pass on the first attempt for the same executable, emulator, CTest definition, and
-environment fingerprint. The fingerprint covers the image, the `lib*` package state, `ci/scripts/` and `ci/docker/`,
-and variables that change behavior, such as `EIGEN_REPEAT` and `QEMU_CPU`. After the run, the script calls
+environment fingerprint. The key also covers the build-directory shared libraries that the executable loads, such as
+`eigen_blas`. The fingerprint covers the image, the `lib*` package state, `ci/scripts/` and `ci/docker/`, and
+variables that change behavior, such as `EIGEN_REPEAT` and `QEMU_CPU`. After the run, the script calls
 [`test_cache.py`](../ci/scripts/test_cache.py) to record the tests that passed on the first attempt. It reads their
 statuses from the dashboard run's `Test.xml`.
 
