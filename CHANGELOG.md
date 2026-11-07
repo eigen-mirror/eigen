@@ -33,6 +33,8 @@ Bug fixes:
 - Constructing or assigning an `Affine` or `Isometry` `Transform` from a (Dim+1)x(Dim+1) matrix copied its last row verbatim; the last row is now set to `[0 ... 0 1]`, as for Dim x Dim and Dim x (Dim+1) inputs [#2715, !3412]
 - `LDLT` pivoted on the diagonal of its input rather than of the remaining Schur complement, so zero pivots of a semidefinite matrix could come before non-zero ones and report `NumericalIssue`, as for `[1 1 0; 1 1 0; 0 0 1]`; a NaN or infinite pivot reported `Success`. `LDLT` now also factors dynamic-size matrices larger than 96 in blocks, with a panel width that grows as sqrt(3 n): 1.7x faster at n = 128, 3.1x at n = 1024 and 6.2x at n = 3000 [!3423]
 - `IOFormat` could insert unwanted spaces between matrix rows when using custom row separators or prefixes.
+- In Eigen's LAPACK library, `xLARFB` with `DIRECT = 'B'` applied the reflectors at the wrong rows when the implicit unit diagonal of `V` was stored as zero [!3502]
+- In Eigen's LAPACK library, `xLADIV` returned NaN or zero for operands near the overflow threshold; `xLAPY2` returned infinity for an infinite and a NaN argument; `xPOTRF` reported success for a NaN pivot; `xGESDD` returned `INFO = 0` for a matrix containing NaN, where reference LAPACK returns `-4`; `xGESDD` returned uninitialized outputs for a matrix containing Inf, and `xGESVD` zero singular values for one containing Inf or NaN, where reference LAPACK returns NaN singular values for Inf (both routines now return NaN outputs with `INFO = 0`); and `ILAVER` reported 3.4.1 instead of 3.12.1, the reference release the routines follow [!3502]
 
 Breaking changes:
 - `PaStiXSupport` now requires PaStiX 6.x; version 5 is no longer supported. `FindPASTIX.cmake` uses pkg-config metadata

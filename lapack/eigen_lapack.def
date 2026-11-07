@@ -60,7 +60,7 @@ EXPORTS
     zgetrf_
     zgetrs_
 
-    ; QR
+    ; Cholesky
     spotrf_
     spotrs_
     dpotrf_

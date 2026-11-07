@@ -11,10 +11,10 @@
 #include "lapack.h"
 
 extern "C" {
-// Returns the LAPACK version that this implementation conforms to.
+// Returns the reference LAPACK release that this implementation follows; lapack/CMakeLists.txt defines it.
 void ilaver_(int* major, int* minor, int* patch) {
-  *major = 3;
-  *minor = 4;
-  *patch = 1;
+  *major = EIGEN_LAPACK_VERSION_MAJOR;
+  *minor = EIGEN_LAPACK_VERSION_MINOR;
+  *patch = EIGEN_LAPACK_VERSION_PATCH;
 }
 }

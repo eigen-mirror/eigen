@@ -150,6 +150,18 @@ SPDX-FileCopyrightText = [
 ]
 SPDX-License-Identifier = "BSD-3-Clause-Open-MPI"
 
+# Reference LAPACK 3.12.1's TESTING/[sdcz]test.in with larger matrix sizes and
+# only the paths that reach Eigen's routines; the first line is a free-form title.
+[[annotations]]
+path = "lapack/testing/*.in"
+SPDX-FileCopyrightText = [
+    "1992-2023 The University of Tennessee and The University of Tennessee Research Foundation",
+    "2000-2023 The University of California Berkeley",
+    "2006-2023 The University of Colorado Denver",
+    "The Eigen Authors",
+]
+SPDX-License-Identifier = "BSD-3-Clause-Open-MPI"
+
 # MSVC autoexp data — mechanical pretty-print description, MPL-2.0.
 [[annotations]]
 path = "debug/msvc/eigen_autoexp_part.dat"

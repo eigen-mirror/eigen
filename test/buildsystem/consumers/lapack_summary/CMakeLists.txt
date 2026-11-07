@@ -19,28 +19,47 @@ set(EIGEN_BUILD_LAPACK ON)
 set(EIGEN_BUILD_BLAS ON)
 set(EIGEN_ENABLE_LAPACK_TESTS ON)
 set(EIGEN_INSTALL OFF)
-add_library(eigen_blas_static INTERFACE)
+add_library(eigen_blas_static STATIC IMPORTED)
+set_target_properties(eigen_blas_static PROPERTIES IMPORTED_LOCATION "${CMAKE_COMMAND}")
 add_library(Eigen3::Eigen INTERFACE IMPORTED)
 add_custom_target(buildtests)
-foreach(precision s d)
+foreach(precision s d c z)
   add_executable(xlintst${precision} IMPORTED)
   set_target_properties(xlintst${precision} PROPERTIES IMPORTED_LOCATION "${CMAKE_COMMAND}")
 endforeach()
 
 set(fixture "${CMAKE_CURRENT_BINARY_DIR}/lapack")
 set(reference "${CMAKE_CURRENT_BINARY_DIR}/lapack-reference")
-file(MAKE_DIRECTORY "${reference}/SRC" "${reference}/TESTING" "${reference}/INSTALL")
+file(MAKE_DIRECTORY "${reference}/SRC" "${reference}/TESTING" "${reference}/INSTALL" "${reference}/CMAKE")
 foreach(precision s d)
   file(WRITE "${reference}/INSTALL/${precision}roundup_lwork.f" "")
 endforeach()
+file(WRITE "${reference}/CMAKE/CheckLAPACKCompilerFlags.cmake"
+     "macro(CheckLAPACKCompilerFlags)\nendmacro()\n")
 set(FETCHCONTENT_SOURCE_DIR_EIGEN_LAPACK_REFERENCE "${reference}")
 file(GLOB sources "${EIGEN_SOURCE_DIR}/lapack/*.cpp")
 file(COPY ${sources} "${EIGEN_SOURCE_DIR}/lapack/CMakeLists.txt"
+          "${EIGEN_SOURCE_DIR}/lapack/eigen_lapack.def"
           "${EIGEN_SOURCE_DIR}/lapack/testing_summary.cmake" DESTINATION "${fixture}")
 foreach(directory MATGEN LIN EIG)
   file(MAKE_DIRECTORY "${reference}/TESTING/${directory}")
   file(WRITE "${reference}/TESTING/${directory}/CMakeLists.txt" "")
 endforeach()
+# Eigen's own inputs, whose stand-in outputs contribute one test each.
+foreach(precision s d c z)
+  file(WRITE "${fixture}/testing/${precision}test_large.in" "All tests passed ( 1 tests run)\n")
+endforeach()
+# Reference LAPACK's registrations, which Eigen's CMakeLists.txt reads.
+set(registrations "function(add_lapack_test output input target)\nendfunction()\n"
+                  "add_lapack_test(stest.out stest.in xlintsts)\n"
+                  "  add_lapack_test(dtest.out dtest.in xlintstd)\n")
+foreach(precision s d c z)
+  foreach(kind bal bak gbal gbak)
+    list(APPEND registrations "add_lapack_test(${precision}${kind}.out ${precision}${kind}.in xeigtst${precision})\n")
+  endforeach()
+endforeach()
+string(REPLACE ";" "" registrations "${registrations}")
+file(WRITE "${reference}/TESTING/CMakeLists.txt" "${registrations}")
 file(WRITE "${reference}/TESTING/stest.in" "All tests passed ( 100 tests run)\n")
 file(WRITE "${reference}/TESTING/dtest.in" "All tests passed ( 20 tests run)\n")
 # LAPACK 3.4.1 TESTING/EIG/?CHKBL, ?CHKBK, ?CHKGL and ?CHKGK summary formats.
@@ -84,3 +103,7 @@ foreach(module Python PythonInterp Python2 Python3)
 endforeach()
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_BINARY_DIR}/modules")
 add_subdirectory("${fixture}" lapack-build)
+# Without Fortran the placeholder reference sources would leave eigen_lapack_reference
+# without a linker language; nothing builds them.
+set_source_files_properties("${reference}/INSTALL/sroundup_lwork.f" "${reference}/INSTALL/droundup_lwork.f"
+                            DIRECTORY "${fixture}" PROPERTIES LANGUAGE CXX)

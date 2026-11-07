@@ -158,3 +158,8 @@ set_target_properties(blas_large_stride PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<T
 add_test(NAME blas_large_stride COMMAND blas_large_stride)
 add_dependencies(buildtests blas_large_stride)
 
+# Every BLAS test above, for a job that builds only these and the LAPACK tests.
+add_custom_target(buildtests_blas)
+get_property(blas_tests DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+list(REMOVE_ITEM blas_tests buildtests_blas)
+add_dependencies(buildtests_blas ${blas_tests})

@@ -2,46 +2,49 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-black='\E[30m'
-red='\E[31m'
-green='\E[32m'
-yellow='\E[33m'
-blue='\E[34m'
-magenta='\E[35m'
-cyan='\E[36m'
-white='\E[37m'
+set -eu
 
-if [ -f $2 ]; then
-  data=$2
-  if [ -f $1.summ ]; then rm $1.summ; fi
-  if [ -f $1.snap ]; then rm $1.snap; fi
-else
-  data=$1
-fi
+test_name=${1:?usage: runblastest.sh test-name [input-file]}
+log="$test_name.log"
+summary="$test_name.summ"
+rm -f "$summary" "$test_name.snap"
+: > "$log"
 
-if ! ./$1 < $data > /dev/null 2> .runtest.log ; then
-  echo -e  $red Test $1 failed: $black
-  echo -e $blue
-  cat .runtest.log
-  echo -e $black
+fail() {
+  echo "Test $test_name failed: $*" >&2
+  cat "$log" >&2
+  if [[ -f "$summary" ]]; then cat "$summary" >&2; fi
   exit 1
-else
-  if [ -f $1.summ ]; then
-    if [ `grep "FATAL ERROR" $1.summ | wc -l` -gt 0 ]; then
-      echo -e  $red "Test $1 failed (FATAL ERROR, read the file $1.summ for details)" $black
-      echo -e $blue
-      cat .runtest.log
-      echo -e $black
-      exit 1;
-    fi
+}
 
-    if [ `grep "FAILED THE TESTS OF ERROR-EXITS" $1.summ | wc -l` -gt 0 ]; then
-      echo -e  $red "Test $1 failed (FAILED THE TESTS OF ERROR-EXITS, read the file $1.summ for details)" $black
-      echo -e $blue
-      cat .runtest.log
-      echo -e $black
-      exit 1;
-    fi      
-  fi
-  echo -e $green Test $1 passed$black
+# Level 1 writes its results to stdout and needs no input file. Levels 2 and 3
+# name their summary file in the input deck. All three can fail with exit code 0.
+if [[ "$test_name" == [sdcz]blat1 ]]; then
+  data=/dev/null
+else
+  data=${2:-}
+  [[ -f "$data" ]] || fail "missing input file: $data"
 fi
+
+if ! "./$test_name" < "$data" > "$log" 2>&1; then
+  fail "driver exited unsuccessfully"
+fi
+
+reports=("$log")
+if [[ "$test_name" != [sdcz]blat1 ]]; then
+  [[ -f "$summary" ]] || fail "missing summary file"
+  reports+=("$summary")
+fi
+if grep -Eq '(^|[[:space:]])FAIL([[:space:]]|$)|FAILED|FATAL ERROR|SUSPECT|TESTS ABANDONED' "${reports[@]}"; then
+  fail "driver reported a failure"
+fi
+
+if [[ "$test_name" == [sdcz]blat1 ]]; then
+  cases=$(grep -c 'Test of subprogram number' "$log" || true)
+  passed=$(grep -c -- '----- PASS -----' "$log" || true)
+  [[ "$cases" -gt 0 && "$cases" -eq "$passed" ]] || fail "missing test results"
+else
+  grep -q 'PASSED THE COMPUTATIONAL TESTS' "$summary" || fail "missing computational results"
+  grep -q 'END OF TESTS' "$summary" || fail "incomplete summary"
+fi
+echo "Test $test_name passed"

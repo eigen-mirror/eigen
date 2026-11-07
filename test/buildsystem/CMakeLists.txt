@@ -29,7 +29,9 @@ add_test(NAME buildsystem_build_name
 set_tests_properties(buildsystem_build_name PROPERTIES LABELS "buildsystem" TIMEOUT 30)
 
 set(EIGEN_BUILDSYSTEM_SCENARIOS
+    blas_runner
     lapack_summary
+    lapack_symbols
     gpu_architectures
     gpu_compile_options
     gpu_flags

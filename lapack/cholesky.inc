@@ -11,7 +11,7 @@
 #include "lapack_common.h"
 #include <Eigen/Cholesky>
 
-// POTRF computes the Cholesky factorization of a real symmetric positive definite matrix A.
+// POTRF computes the Cholesky factorization of a symmetric (Hermitian) positive definite matrix A.
 EIGEN_LAPACK_FUNC(potrf)(const char *uplo, int *n, RealScalar *pa, int *lda, int *info) {
   *info = 0;
   if (UPLO(*uplo) == INVALID)
@@ -33,12 +33,21 @@ EIGEN_LAPACK_FUNC(potrf)(const char *uplo, int *n, RealScalar *pa, int *lda, int
   else
     ret = int(Eigen::internal::llt_inplace<Scalar, Eigen::Lower>::blocked(A));
 
+  // The kernel stops only at a pivot <= 0; xPOTRF also stops at a NaN pivot. Before the kernel's stop the diagonal of
+  // the factor holds the square roots of the pivots, so its first NaN there is the pivot xPOTRF reports. This does not
+  // rely on the NaN reaching the later pivots, which a kernel that skips zero operands would prevent.
+  const int stop = ret >= 0 ? ret : *n;
+  for (int j = 0; j < stop; ++j) {
+    if ((Eigen::numext::isnan)(Eigen::numext::real(A(j, j)))) {
+      *info = j + 1;
+      return;
+    }
+  }
   if (ret >= 0) *info = ret + 1;
 }
 
-// POTRS solves a system of linear equations A*X = B with a symmetric
-// positive definite matrix A using the Cholesky factorization
-// A = U**T*U or A = L*L**T computed by DPOTRF.
+// POTRS solves A X = B for a symmetric (Hermitian) positive definite matrix A, using the Cholesky factorization
+// A = U^H U or A = L L^H computed by POTRF.
 EIGEN_LAPACK_FUNC(potrs)
 (const char *uplo, int *n, int *nrhs, RealScalar *pa, int *lda, RealScalar *pb, int *ldb, int *info) {
   *info = 0;

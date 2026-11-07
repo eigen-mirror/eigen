@@ -14,7 +14,7 @@
 
 // Compute sqrt(x*x + y*y) taking care not to cause unnecessary overflow.
 extern "C" EIGEN_LAPACK_API Scalar EIGEN_BLAS_FUNC_NAME(lapy2)(Scalar* x, Scalar* y) {
-  return Eigen::numext::hypot(*x, *y);
+  return Eigen::internal::xlapy2(*x, *y);
 }
 
 // Compute sqrt(x*x + y*y + z*z) taking care not to cause unnecessary overflow.
@@ -36,7 +36,7 @@ extern "C" EIGEN_LAPACK_API Scalar EIGEN_BLAS_FUNC_NAME(lamc3)(Scalar* a, Scalar
 }
 
 // Performs complex division in real arithmetic, avoiding unnecessary overflow.
-// Consistent with LAPACK SLADIV / DLADIV (Smith's algorithm).
+// Consistent with LAPACK SLADIV / DLADIV.
 EIGEN_LAPACK_FUNC(ladiv)(const Scalar* a, const Scalar* b, const Scalar* c, const Scalar* d, Scalar* p, Scalar* q) {
   const std::complex<Scalar> res = Eigen::internal::xladiv(*a, *b, *c, *d);
   *p = Eigen::numext::real(res);
@@ -54,35 +54,20 @@ extern "C" EIGEN_LAPACK_API int EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lr_))(in
 
 #else
 
-namespace {
-template <typename T>
-struct complex_return_type;
-
-template <>
-struct complex_return_type<float> {
-  using type = eigen_lapack_complex_float;
-};
-
-template <>
-struct complex_return_type<double> {
-  using type = eigen_lapack_complex_double;
-};
-}  // namespace
+// C layout of a Fortran COMPLEX or COMPLEX*16 function result.
+using ComplexReturnType =
+    std::conditional_t<std::is_same<RealScalar, float>::value, eigen_lapack_complex_float, eigen_lapack_complex_double>;
 
 // Conjugates entries of vector x.
 EIGEN_LAPACK_FUNC(lacgv)(int* n, RealScalar* px, int* incx) {
   Eigen::internal::xlacgv(*n, reinterpret_cast<Scalar*>(px), *incx);
 }
 
-// Performs complex division avoiding unnecessary overflow.
-// Consistent with LAPACK CLADIV / ZLADIV (Smith's algorithm).
-// Note on calling convention: Returning a 2-element struct { RealScalar r, i; }
-// by value adheres to the SysV AMD64 ABI (gfortran on Linux/x86_64), consistent
-// with the return-by-value convention used for cdotc/zdotc in blas/complexdots.cpp.
-// Non-SysV environments (such as MSVC or f2c) may use hidden-pointer return conventions
-// for complex-valued Fortran functions.
-extern "C" EIGEN_LAPACK_API typename complex_return_type<RealScalar>::type EIGEN_BLAS_FUNC_NAME(ladiv)(
-    const RealScalar* px, const RealScalar* py) {
+// Performs complex division avoiding unnecessary overflow, consistent with LAPACK CLADIV / ZLADIV.
+// Returning a two-member struct by value matches a Fortran COMPLEX function result under the SysV AMD64 ABI (gfortran
+// on Linux/x86_64), as cdotc/zdotc in blas/complexdots.cpp do. Other conventions, such as MSVC's or f2c's, may return
+// complex Fortran functions through a hidden pointer instead.
+extern "C" EIGEN_LAPACK_API ComplexReturnType EIGEN_BLAS_FUNC_NAME(ladiv)(const RealScalar* px, const RealScalar* py) {
   const auto* x = reinterpret_cast<const Scalar*>(px);
   const auto* y = reinterpret_cast<const Scalar*>(py);
   const Scalar res = Eigen::internal::xladiv(*x, *y);

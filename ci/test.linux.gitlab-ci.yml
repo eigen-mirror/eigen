@@ -954,7 +954,9 @@ test:linux:buildsystem:
         - cmake/**/*
         - Eigen/Version
         - blas/CMakeLists.txt
+        - blas/testing/runblastest.sh
         - lapack/CMakeLists.txt
+        - lapack/*.cmake
         - contrib/**/CMakeLists.txt
         - unsupported/**/CMakeLists.txt
         - doc/CMakeLists.txt
@@ -971,6 +973,79 @@ test:linux:buildsystem:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+##### Reference LAPACK and BLAS Test Suites ####################################
+
+# Runs reference LAPACK's test drivers against Eigen's BLAS and LAPACK
+# libraries (EIGEN_ENABLE_LAPACK_TESTS in lapack/CMakeLists.txt), and the
+# Fortran BLAS tests under blas/testing.  It is the only job with a Fortran
+# compiler, so the only one that runs either suite.  LAPACK_Test_Summary fails
+# on any failure beyond lapack/testing_allowed_failures.txt; the job keeps the
+# observed counts in lapack/TESTING/testing_failures.txt, in that file's
+# format, and the combined driver output in testing_results.txt.
+#
+# Builds and tests in one job: the drivers need the Fortran runtime that the
+# job installs, and the summary reads files the drivers write, so a build/test
+# pair would only add an artifact round trip.  It stays off the pass cache: a
+# skipped driver would leave the summary without its output.  The drivers are
+# deterministic, so EIGEN_CI_CTEST_REPEAT allows one retry rather than three.
+# Retrying LAPACK_Test_Summary reruns every driver through its fixture, and a
+# retry that passes exits 42, which .test:linux allows to fail.
+test:linux:lapack:
+  extends: .test:linux
+  needs: []
+  variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
+    EIGEN_CI_C_COMPILER: gcc-13
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_INSTALL: gcc-13 g++-13 gfortran-13
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_Fortran_COMPILER=gfortran-13
+      -DEIGEN_ENABLE_LAPACK_TESTS=ON
+    EIGEN_CI_BUILD_TARGET: buildtests_blas buildtests_lapack
+    # Exactly the tests buildtests_blas and buildtests_lapack build: Eigen's own
+    # test/blas_* tests share the prefix but belong to the other jobs.
+    EIGEN_CI_CTEST_REGEX: "^(LAPACK[-_].*|lapack_.*|[sdcz]blat[123](_64)?|blas_ilp64|blas_large_stride)$"
+    EIGEN_CI_CTEST_ARGS: --no-tests=error
+    EIGEN_CI_TEST_CACHE: "off"
+    EIGEN_CI_CTEST_REPEAT: "1"
+  script:
+    - . ci/scripts/build.linux.script.sh
+    - . ci/scripts/test.linux.script.sh
+  cache: []
+  artifacts:
+    paths:
+      - ${EIGEN_CI_BUILDDIR}/JUnitTestResults_*.xml
+      - ${EIGEN_CI_BUILDDIR}/lapack/TESTING/testing_*.txt
+  # Both merge-request entries are namespace-guarded: the job keeps the
+  # 2xlarge runner tag of .test:linux, which a fork's runners need not offer.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen"
+      changes:
+        - lapack/**/*
+        - blas/**/*
+        - Eigen/src/Cholesky/**/*
+        - Eigen/src/Eigenvalues/**/*
+        - Eigen/src/Householder/**/*
+        - Eigen/src/Jacobi/**/*
+        - Eigen/src/LU/**/*
+        - Eigen/src/QR/**/*
+        - Eigen/src/SVD/**/*
+        - Eigen/src/Core/products/**/*
+        - Eigen/src/Core/SolveTriangular.h
+        - Eigen/src/Core/TriangularMatrix.h
+        - Eigen/src/Core/TriangularInPlace.h
+        - ci/test.linux.gitlab-ci.yml
+        - ci/scripts/build.linux.script.sh
+        - ci/scripts/test.linux.script.sh
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/(lapack|all)-tests/"
+    - !reference [.rules:libeigen:gpu-schedule-guard, rules]
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
 ##### MR Affected Tests ########################################################
 # Paired with the affected build jobs.  No CTest label is set: the regex from
 # select:tests is the only filter, so a selection spanning Official and

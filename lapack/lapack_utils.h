@@ -23,8 +23,11 @@ namespace Eigen {
 namespace internal {
 
 // Compute sqrt(x*x + y*y) taking care not to cause unnecessary overflow.
+// A NaN argument is returned, y's first, as in reference xLAPY2; hypot would return +inf for (inf, NaN).
 template <typename T>
 T xlapy2(const T x, const T y) {
+  if ((numext::isnan)(y)) return y;
+  if ((numext::isnan)(x)) return x;
   return numext::hypot(x, y);
 }
 
@@ -83,41 +86,69 @@ T xlamch(const char c) {
   }
 }
 
-// Performs complex division in real arithmetic, avoiding unnecessary intermediate overflow.
-// Consistent with LAPACK auxiliary routines SLADIV / DLADIV and CLADIV / ZLADIV
-// (algorithm due to Robert L. Smith, D. Knuth, The Art of Computer Programming, Vol. 2, p. 195).
+// Computes p + iq = (a + ib) / (c + id) without unnecessary overflow or underflow, as LAPACK's xLADIV does: the
+// robust form of Smith's algorithm from M. Baudin and R. L. Smith, "A Robust Complex Division in Scilab",
+// arXiv:1210.4539 (2012), applied after scaling operands near the overflow or underflow threshold.
 template <typename RealScalar>
-EIGEN_STRONG_INLINE std::complex<RealScalar> xladiv(const std::complex<RealScalar>& num,
-                                                    const std::complex<RealScalar>& den) {
-  const RealScalar a = numext::real(num);
-  const RealScalar b = numext::imag(num);
-  const RealScalar c = numext::real(den);
-  const RealScalar d = numext::imag(den);
+std::complex<RealScalar> xladiv(RealScalar a, RealScalar b, RealScalar c, RealScalar d) {
+  // (x + y r) t with r = d / c and t = 1 / (c + d r), evaluated so that an underflowing y r does not lose y.
+  const auto robust_term = [](RealScalar x, RealScalar y, RealScalar c_, RealScalar d_, RealScalar r, RealScalar t) {
+    if (r != RealScalar(0)) {
+      const RealScalar yr = y * r;
+      return yr != RealScalar(0) ? (x + yr) * t : x * t + (y * t) * r;
+    }
+    return (x + d_ * (y / c_)) * t;
+  };
+  // Smith's division for |d| <= |c|.
+  const auto smith = [&](RealScalar a_, RealScalar b_, RealScalar c_, RealScalar d_) {
+    const RealScalar r = d_ / c_;
+    const RealScalar t = RealScalar(1) / (c_ + d_ * r);
+    return std::complex<RealScalar>(robust_term(a_, b_, c_, d_, r, t), robust_term(b_, -a_, c_, d_, r, t));
+  };
 
-  RealScalar p, q;
-  if (numext::abs(d) < numext::abs(c)) {
-    const RealScalar e = d / c;
-    const RealScalar f = c + d * e;
-    p = (a + b * e) / f;
-    q = (b - a * e) / f;
-  } else {
-    const RealScalar e = c / d;
-    const RealScalar f = d + c * e;
-    p = (b + a * e) / f;
-    q = (-a + b * e) / f;
+  const RealScalar ab = numext::maxi(numext::abs(a), numext::abs(b));
+  const RealScalar cd = numext::maxi(numext::abs(c), numext::abs(d));
+  const RealScalar half_overflow = RealScalar(0.5) * xlamch<RealScalar>('O');
+  const RealScalar eps = xlamch<RealScalar>('E');
+  const RealScalar tiny = xlamch<RealScalar>('S') * RealScalar(2) / eps;
+  const RealScalar big_scale = RealScalar(2) / (eps * eps);
+  const bool swap = !(numext::abs(d) <= numext::abs(c));  // true for a NaN, as in the reference
+  RealScalar s = 1;
+  if (ab >= half_overflow) {
+    a *= RealScalar(0.5);
+    b *= RealScalar(0.5);
+    s *= RealScalar(2);
   }
-  return std::complex<RealScalar>(p, q);
+  if (cd >= half_overflow) {
+    c *= RealScalar(0.5);
+    d *= RealScalar(0.5);
+    s *= RealScalar(0.5);
+  }
+  if (ab <= tiny) {
+    a *= big_scale;
+    b *= big_scale;
+    s /= big_scale;
+  }
+  if (cd <= tiny) {
+    c *= big_scale;
+    d *= big_scale;
+    s *= big_scale;
+  }
+  // For |d| > |c|, divide (b + ia) by (d + ic) instead and conjugate: (a + ib) / (c + id) = conj((b + ia) / (d + ic)).
+  const std::complex<RealScalar> pq = swap ? numext::conj(smith(b, a, d, c)) : smith(a, b, c, d);
+  return std::complex<RealScalar>(numext::real(pq) * s, numext::imag(pq) * s);
 }
 
 template <typename RealScalar>
-EIGEN_STRONG_INLINE std::complex<RealScalar> xladiv(const RealScalar a, const RealScalar b, const RealScalar c,
-                                                    const RealScalar d) {
-  return xladiv(std::complex<RealScalar>(a, b), std::complex<RealScalar>(c, d));
+EIGEN_STRONG_INLINE std::complex<RealScalar> xladiv(const std::complex<RealScalar>& num,
+                                                    const std::complex<RealScalar>& den) {
+  return xladiv(numext::real(num), numext::imag(num), numext::real(den), numext::imag(den));
 }
 
 // Conjugate entries of vector x.
 template <typename T>
 void xlacgv(const int n, T* x, const int incx) {
+  if (n <= 0) return;
   using StridedVector = Map<Matrix<T, Dynamic, 1>, Unaligned, InnerStride<Dynamic> >;
   StridedVector xvec(x, n, InnerStride<Dynamic>(numext::abs(incx)));
   xvec = xvec.conjugate();

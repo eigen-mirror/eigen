@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: The Eigen Authors
+# SPDX-License-Identifier: MPL-2.0
+#
+# Failures that LAPACK_Test_Summary accepts, as "<output> <numerical errors> <other errors>".
+# An output without a line must report none. The counts are those of the test:linux:lapack
+# CI job: x86-64, GCC and GFortran 13.3, Release. See README.md and #3220.
+
+# Test 5 of xDRVEV and xDRGEV requires eigenvalues computed with and without eigenvectors to
+# agree bit for bit; the two code paths round differently.
+sed.out 44 0
+ced.out 10 0
+sgd.out 12 0
+cgd.out 5 0
+
+# Reference LAPACK 3.12.1 test defects. SCHKBL's relative error divides by MAX(A, AIN) of
+# signed entries, which is SFMIN for a negative pair (largest error Inf). SDRVRF3 scales the
+# STFSM-versus-STRSM difference by neither the solution's norm nor the matrix's condition
+# (ratio 51 > 30).
+sbal.out 1 0
+stest_rfp.out 1 0
