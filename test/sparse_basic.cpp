@@ -1398,6 +1398,79 @@ void bug1105() {
   }
 }
 
+// A short StorageIndex bounds the number of stored entries, not the outer dimension, which exceeds its range here.
+template <int Options>
+void sparse_insert_narrow_index() {
+  using SpMat = SparseMatrix<double, Options, short>;
+  const Index highest = NumTraits<short>::highest();
+  const Index n = highest + 1000;
+  SpMat m(SpMat::IsRowMajor ? n : 4, SpMat::IsRowMajor ? 4 : n);
+  // The first insertion goes into an empty matrix; the rest go below and above it.
+  const Index outers[] = {n - 1, 0, n / 2, highest + 1, 1};
+  for (Index k = 0; k < 5; ++k) {
+    const Index outer = outers[k], inner = k % 4;
+    (SpMat::IsRowMajor ? m.insert(outer, inner) : m.insert(inner, outer)) = double(k + 1);
+  }
+  // The storage grows geometrically: five entries must not reserve the whole index range.
+  VERIFY(m.data().allocatedSize() < highest);
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    if (compressed) m.makeCompressed();
+    VERIFY_IS_EQUAL(m.nonZeros(), 5);
+    for (Index k = 0; k < 5; ++k) {
+      const Index outer = outers[k], inner = k % 4;
+      VERIFY_IS_EQUAL(SpMat::IsRowMajor ? m.coeff(outer, inner) : m.coeff(inner, outer), double(k + 1));
+    }
+  }
+
+  // setZero() keeps the allocation, which must not count as stored entries.
+  SpMat refill(m.rows(), m.cols());
+  (SpMat::IsRowMajor ? refill.insert(n - 1, 1) : refill.insert(1, n - 1)) = 1.0;
+  refill.setZero();
+  (SpMat::IsRowMajor ? refill.insert(n - 1, 1) : refill.insert(1, n - 1)) = 2.0;
+  VERIFY_IS_EQUAL(refill.nonZeros(), 1);
+  VERIFY_IS_EQUAL(SpMat::IsRowMajor ? refill.coeff(n - 1, 1) : refill.coeff(1, n - 1), 2.0);
+}
+
+// insert() can store highest() entries, however much reserve() or an earlier fill allocated, and throws past that.
+template <int Options>
+void sparse_insert_full_index_range() {
+  using SpMat = SparseMatrix<double, Options, short>;
+  const Index highest = NumTraits<short>::highest();
+  const Index n = 256;
+  const auto insert = [&](SpMat& m, Index k) -> double& {
+    const Index outer = k / n, inner = k % n;
+    return SpMat::IsRowMajor ? m.insert(outer, inner) : m.insert(inner, outer);
+  };
+  const auto coeff = [&](const SpMat& m, Index k) {
+    const Index outer = k / n, inner = k % n;
+    return SpMat::IsRowMajor ? m.coeff(outer, inner) : m.coeff(inner, outer);
+  };
+
+  SpMat m(n, n);
+  m.reserve(highest);
+  insert(m, 1) = 1.0;
+  VERIFY_IS_EQUAL(m.nonZeros(), 1);
+  VERIFY_IS_EQUAL(coeff(m, 1), 1.0);
+
+  for (int fill = 0; fill < 2; ++fill) {
+    m.setZero();
+    for (Index k = 0; k < highest; ++k) insert(m, k) = double(k + 1);
+    VERIFY_IS_EQUAL(m.nonZeros(), highest);
+#ifdef EIGEN_EXCEPTIONS
+    bool threw = false;
+    try {
+      insert(m, highest) = 0.0;
+    } catch (const std::bad_alloc&) {
+      threw = true;
+    }
+    VERIFY(threw);
+    VERIFY_IS_EQUAL(m.nonZeros(), highest);
+#endif
+    VERIFY_IS_EQUAL(coeff(m, 0), 1.0);
+    VERIFY_IS_EQUAL(coeff(m, highest - 1), double(highest));
+  }
+}
+
 #ifndef EIGEN_SPARSE_TEST_INCLUDED_FROM_SPARSE_EXTRA
 
 EIGEN_DECLARE_TEST(sparse_basic) {
@@ -1434,6 +1507,10 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_5((big_sparse_triplet<SparseMatrix<double, ColMajor, long int>>(10000, 10000, 0.125)));
 
   CALL_SUBTEST_5(bug1105<0>());
+  CALL_SUBTEST_2((sparse_insert_narrow_index<ColMajor>()));
+  CALL_SUBTEST_2((sparse_insert_narrow_index<RowMajor>()));
+  CALL_SUBTEST_2((sparse_insert_full_index_range<ColMajor>()));
+  CALL_SUBTEST_2((sparse_insert_full_index_range<RowMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<float, ColMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<double, RowMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<std::complex<double>, ColMajor>()));

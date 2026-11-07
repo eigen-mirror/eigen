@@ -280,6 +280,18 @@ void test_swap_with_matrix() {
   VERIFY_IS_EQUAL(vr.coeff(1), 1.0);
 }
 
+void test_self_assignment() {
+  SparseVector<double> v(10);
+  v.insert(3) = 1;
+  v.insert(7) = -2;
+  const VectorXd ref = v.toDense();
+  const SparseVector<double>& alias = v;
+  v = alias;
+  VERIFY_IS_EQUAL(v.size(), 10);
+  VERIFY_IS_EQUAL(v.nonZeros(), 2);
+  VERIFY_IS_EQUAL(VectorXd(v.toDense()), ref);
+}
+
 EIGEN_DECLARE_TEST(sparse_vector) {
   for (int i = 0; i < g_repeat; i++) {
     int r = Eigen::internal::random<int>(1, 500), c = Eigen::internal::random<int>(1, 500);
@@ -296,6 +308,7 @@ EIGEN_DECLARE_TEST(sparse_vector) {
 
   CALL_SUBTEST_1(test_pruning());
   CALL_SUBTEST_1(test_swap_with_matrix());
+  CALL_SUBTEST_1(test_self_assignment());
   CALL_SUBTEST_1(test_empty_reductions());
   CALL_SUBTEST_1(test_empty_outer_vector_block_opens_no_iterator());
 }

@@ -305,7 +305,8 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
   inline SparseVector& operator=(const SparseVector& other) {
     if (other.isRValue()) {
       swap(other.const_cast_derived());
-    } else {
+    } else if (this != &other) {
+      // resize() clears m_data, so a self-assignment would copy an empty vector.
       resize(other.size());
       m_data = other.m_data;
     }

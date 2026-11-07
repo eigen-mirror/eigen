@@ -1720,27 +1720,30 @@ SparseMatrix<Scalar_, Options_, StorageIndex_>::insertUncompressedAtByOuterInner
   // record offset as outerIndexPtr will change
   Index dst_offset = dst - internal::convert_index<Index>(m_outerIndex[outer]);
   // allocate space for random insertion
-  if (m_data.allocatedSize() == 0) {
+  // StorageIndex can be wider than Index (long long with a 32-bit Index), so clamp its maximum to Index's.
+  using WideIndex = typename std::common_type<Index, StorageIndex>::type;
+  const Index maxSize =
+      static_cast<Index>(numext::mini<WideIndex>(NumTraits<StorageIndex>::highest(), NumTraits<Index>::highest()));
+  if (m_data.allocatedSize() == 0 && m_outerSize <= maxSize) {
     // fast method to allocate space for one element per vector in empty matrix
     m_data.resize(m_outerSize);
     std::iota(m_outerIndex, m_outerIndex + m_outerSize + 1, StorageIndex(0));
   } else {
-    // check for integer overflow: if maxReserveSize == 0, insertion is not possible
-    // StorageIndex can be wider than Index (long long with a 32-bit Index), so clamp its maximum to Index's.
-    using WideIndex = typename std::common_type<Index, StorageIndex>::type;
-    const Index maxSize =
-        static_cast<Index>(numext::mini<WideIndex>(NumTraits<StorageIndex>::highest(), NumTraits<Index>::highest()));
-    Index maxReserveSize = maxSize - m_data.allocatedSize();
-    eigen_assert(maxReserveSize > 0);
+    // The index range bounds the stored entries, m_data.size() here; setZero() and reserve() can leave
+    // allocatedSize() at the bound. A full matrix throws, as setFromTriplets() does.
+    Index maxReserveSize = maxSize - m_data.size();
+    if (maxReserveSize <= 0) internal::throw_std_bad_alloc();
     if (m_outerSize <= maxReserveSize) {
       // allocate space for one additional element per vector
       reserveInnerVectors(IndexVector::Constant(m_outerSize, 1));
     } else {
-      // handle the edge case where StorageIndex is insufficient to reserve outerSize additional elements
-      // allocate space for one additional element in the interval [outer,maxReserveSize)
+      // StorageIndex cannot hold outerSize more entries. Double the storage instead, capped by the index range, and
+      // spread the new slots over the vectors from `outer` on. Reserving the whole range at once would allocate
+      // highest() entries on the first insert into an empty matrix with an outer size past highest().
+      Index reserveSize = numext::mini(maxReserveSize, numext::maxi<Index>(m_data.size(), 1));
       using ReserveSizesOp = internal::sparse_reserve_op<StorageIndex>;
       using ReserveSizesXpr = CwiseNullaryOp<ReserveSizesOp, IndexVector>;
-      ReserveSizesXpr reserveSizesXpr(m_outerSize, 1, ReserveSizesOp(outer, m_outerSize, maxReserveSize));
+      ReserveSizesXpr reserveSizesXpr(m_outerSize, 1, ReserveSizesOp(outer, m_outerSize, reserveSize));
       reserveInnerVectors(reserveSizesXpr);
     }
   }

@@ -219,6 +219,56 @@ void sparse_permutations(const SparseMatrixType& ref) {
   VERIFY(res.isApprox(res_d) && "lower selfadjoint twisted to full");
 }
 
+// A narrow StorageIndex bounds the stored indices, not the dimensions: n exceeds its range, while every stored index
+// fits. The storage-order copy and both selfadjoint copies visit all n outer vectors.
+template <int SrcOrder, int DstOrder>
+void sparse_permutations_narrow_index() {
+  using StorageIndex = short;
+  using DstMatrix = SparseMatrix<double, DstOrder, StorageIndex>;
+  const Index n = Index(NumTraits<StorageIndex>::highest()) + 1000;
+  const std::vector<Triplet<double, StorageIndex>> entries = {{1, 1, 1.0}, {3, 1, 2.0}};
+  SparseMatrix<double, SrcOrder, StorageIndex> lower(n, n);
+  lower.setFromTriplets(entries.begin(), entries.end());
+
+  const DstMatrix copy = lower;
+  VERIFY_IS_EQUAL(copy.nonZeros(), 2);
+  VERIFY_IS_EQUAL(copy.coeff(1, 1), 1.0);
+  VERIFY_IS_EQUAL(copy.coeff(3, 1), 2.0);
+
+  const DstMatrix full = lower.template selfadjointView<Lower>();
+  VERIFY_IS_EQUAL(full.nonZeros(), 3);
+  VERIFY_IS_EQUAL(full.coeff(1, 1), 1.0);
+  VERIFY_IS_EQUAL(full.coeff(3, 1), 2.0);
+  VERIFY_IS_EQUAL(full.coeff(1, 3), 2.0);
+  VERIFY(is_sorted(full));
+
+  DstMatrix upper(n, n);
+  upper.template selfadjointView<Upper>() = lower.template selfadjointView<Lower>();
+  VERIFY_IS_EQUAL(upper.nonZeros(), 2);
+  VERIFY_IS_EQUAL(upper.coeff(1, 1), 1.0);
+  VERIFY_IS_EQUAL(upper.coeff(1, 3), 2.0);
+
+  // An entry in an outer vector beyond highest(): only its inner index has to fit, in the source and the destination.
+  constexpr int SrcMode = SrcOrder == ColMajor ? Upper : Lower;
+  constexpr int DstMode = DstOrder == ColMajor ? Upper : Lower;
+  const Index last = n - 1;
+  SparseMatrix<double, SrcOrder, StorageIndex> far(n, n);
+  (SrcOrder == ColMajor ? far.insert(1, last) : far.insert(last, 1)) = 2.0;
+  far.makeCompressed();
+  DstMatrix dst(n, n);
+  dst.template selfadjointView<DstMode>() = far.template selfadjointView<SrcMode>();
+  VERIFY_IS_EQUAL(dst.nonZeros(), 1);
+  VERIFY_IS_EQUAL(DstOrder == ColMajor ? dst.coeff(1, last) : dst.coeff(last, 1), 2.0);
+
+  // Viewed as Upper | Lower, the full copy keeps the entry in its outer vector, so with matching storage orders its
+  // inner index still fits.
+  if (int(SrcOrder) == int(DstOrder)) {
+    const DstMatrix farFull = far.template selfadjointView<Upper | Lower>();
+    VERIFY_IS_EQUAL(farFull.nonZeros(), 1);
+    VERIFY_IS_EQUAL(SrcOrder == ColMajor ? farFull.coeff(1, last) : farFull.coeff(last, 1), 2.0);
+  }
+}
+
 template <typename Scalar>
 void sparse_permutations_all(int size) {
   CALL_SUBTEST((sparse_permutations<ColMajor>(SparseMatrix<Scalar, ColMajor>(size, size))));
@@ -231,8 +281,12 @@ EIGEN_DECLARE_TEST(sparse_permutations) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
     CALL_SUBTEST_1((sparse_permutations_all<double>(s)));
-    CALL_SUBTEST_2((sparse_permutations_all<std::complex<double> >(s)));
+    CALL_SUBTEST_2((sparse_permutations_all<std::complex<double>>(s)));
   }
+  CALL_SUBTEST_1((sparse_permutations_narrow_index<ColMajor, ColMajor>()));
+  CALL_SUBTEST_1((sparse_permutations_narrow_index<ColMajor, RowMajor>()));
+  CALL_SUBTEST_1((sparse_permutations_narrow_index<RowMajor, ColMajor>()));
+  CALL_SUBTEST_1((sparse_permutations_narrow_index<RowMajor, RowMajor>()));
 
   VERIFY((std::is_same<
           internal::permutation_matrix_product<SparseMatrix<double>, OnTheRight, false, SparseShape>::ReturnType,
