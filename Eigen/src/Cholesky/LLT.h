@@ -187,7 +187,9 @@ class LLT : public SolverBase<LLT<MatrixType_, UpLo_> > {
    * The result is computed as \f$ A^{-1} = L^{-*} L^{-1} \f$ by inverting the stored factor in place and
    * squaring it, the LAPACK \c *POTRI sequence, for 2n^3/3 flops against the 2n^3 of solving with an
    * explicit identity right hand side. Beyond the destination, only a block-sized scratch panel of at most
-   * 128x128 coefficients is used, whatever the matrix size.
+   * 128x128 coefficients is used, whatever the matrix size. On the POTRI path, as in \c *POTRI, the inverted factor
+   * bounds the right residual of the stored factor: \f$ |X L - I| \f$ for \c Lower and \f$ |X U - I| \f$ for \c Upper,
+   * the latter being the left residual of \f$ L = U^* \f$.
    *
    * Fewer flops is not fewer seconds at every size: for a real scalar below
    * \c EIGEN_LLT_INVERSE_POTRI_THRESHOLD (32, or 256 where AVX-512 is enabled) the POTRI sequence runs in

@@ -108,3 +108,18 @@ static void BM_TriangularAdjointSquare(benchmark::State& state) {
   set_rate(state, potri_kernel_cost(n));
 }
 BENCHMARK(BM_TriangularAdjointSquare)->RangeMultiplier(2)->Range(8, 2048);
+
+// The upper triangle has its own kernel (the column recurrence of xTRTRI 'U'), so it is measured separately.
+static void BM_TriangularInverseInPlaceUpper(benchmark::State& state) {
+  const int n = state.range(0);
+  const MatrixType factor = LLT<MatrixType>(make_spd(n)).matrixU();
+  MatrixType x(n, n);
+  for (auto _ : state) {
+    x = factor;
+    x.triangularView<Upper>().inverseInPlace();
+    benchmark::DoNotOptimize(x.data());
+    benchmark::ClobberMemory();
+  }
+  set_rate(state, potri_kernel_cost(n));
+}
+BENCHMARK(BM_TriangularInverseInPlaceUpper)->RangeMultiplier(2)->Range(8, 2048);

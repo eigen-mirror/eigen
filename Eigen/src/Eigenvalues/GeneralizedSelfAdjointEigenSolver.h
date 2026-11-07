@@ -34,7 +34,8 @@ namespace Eigen {
  * \f$ Av = \lambda Bv \f$. In this case, the matrix \f$ A \f$ should be
  * selfadjoint and the matrix \f$ B \f$ should be positive definite.
  *
- * Only the \b lower \b triangular \b part of the input matrix is referenced.
+ * Only the \b lower \b triangular \b part of the input matrices is referenced;
+ * for complex scalars, the imaginary parts of their diagonals are ignored.
  *
  * Call the function compute() to compute the eigenvalues and eigenvectors of
  * a given matrix. Alternatively, you can use the
@@ -81,9 +82,11 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   /** \brief Constructor; computes generalized eigendecomposition of given matrix pencil.
    *
    * \param[in]  matA  Selfadjoint matrix in matrix pencil.
-   *                   Only the lower triangular part of the matrix is referenced.
+   *                   Only the lower triangular part of the matrix is referenced,
+   *                   and the imaginary part of its diagonal is ignored.
    * \param[in]  matB  Positive-definite matrix in matrix pencil.
-   *                   Only the lower triangular part of the matrix is referenced.
+   *                   Only the lower triangular part of the matrix is referenced,
+   *                   and the imaginary part of its diagonal is ignored.
    * \param[in]  options A or-ed set of flags {#ComputeEigenvectors,#EigenvaluesOnly} | {#Ax_lBx,#ABx_lx,#BAx_lx}.
    *                     Default is #ComputeEigenvectors|#Ax_lBx.
    *
@@ -115,9 +118,11 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
    *
    * \param[in,out]  matA  Selfadjoint matrix in matrix pencil.
-   *                       Only the lower triangular part of the matrix is referenced.
+   *                       Only the lower triangular part of the matrix is referenced,
+   *                       and the imaginary part of its diagonal is ignored.
    * \param[in,out]  matB  Positive-definite matrix in matrix pencil.
-   *                       Only the lower triangular part of the matrix is referenced.
+   *                       Only the lower triangular part of the matrix is referenced,
+   *                       and the imaginary part of its diagonal is ignored.
    * \param[in]  options A or-ed set of flags {#ComputeEigenvectors,#EigenvaluesOnly} | {#Ax_lBx,#ABx_lx,#BAx_lx}.
    *                     Default is #ComputeEigenvectors|#Ax_lBx.
    *
@@ -139,9 +144,11 @@ class GeneralizedSelfAdjointEigenSolver : public SelfAdjointEigenSolver<MatrixTy
   /** \brief Computes generalized eigendecomposition of given matrix pencil.
    *
    * \param[in]  matA  Selfadjoint matrix in matrix pencil.
-   *                   Only the lower triangular part of the matrix is referenced.
+   *                   Only the lower triangular part of the matrix is referenced,
+   *                   and the imaginary part of its diagonal is ignored.
    * \param[in]  matB  Positive-definite matrix in matrix pencil.
-   *                   Only the lower triangular part of the matrix is referenced.
+   *                   Only the lower triangular part of the matrix is referenced,
+   *                   and the imaginary part of its diagonal is ignored.
    * \param[in]  options A or-ed set of flags {#ComputeEigenvectors,#EigenvaluesOnly} | {#Ax_lBx,#ABx_lx,#BAx_lx}.
    *                     Default is #ComputeEigenvectors|#Ax_lBx.
    *
@@ -221,6 +228,13 @@ GeneralizedSelfAdjointEigenSolver<MatrixType>& GeneralizedSelfAdjointEigenSolver
 
   int type = (options & GenEigMask);
   if (type == 0) type = Ax_lBx;
+
+  // A selfadjoint matrix has a real diagonal. Drop the imaginary part now: the products and solves below would
+  // spread it into the off-diagonal of C, which the base solver cannot undo. The LLT factor of B ignores that of B,
+  // but LLT's rcond estimate does not.
+  EIGEN_IF_CONSTEXPR (NumTraits<typename MatrixType::Scalar>::IsComplex) {
+    m_matC.diagonal() = m_matC.diagonal().real();
+  }
 
   // In the inplace decomposition the eigenvector storage is the matrix A itself, i.e. m_matC: the products of the
   // ABx_lx and BAx_lx forms, which cannot run in place, then go through a temporary instead.

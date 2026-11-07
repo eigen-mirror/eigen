@@ -62,7 +62,8 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
  * faster and more accurate than the general purpose eigenvalue algorithms
  * implemented in EigenSolver and ComplexEigenSolver.
  *
- * Only the \b lower \b triangular \b part of the input matrix is referenced.
+ * Only the \b lower \b triangular \b part of the input matrix is referenced;
+ * for complex scalars, the imaginary part of its diagonal is ignored.
  *
  * Call the function compute() to compute the eigenvalues and eigenvectors of
  * a given matrix. Alternatively, you can use the
@@ -171,7 +172,8 @@ class SelfAdjointEigenSolver {
   /** \brief Constructor; computes eigendecomposition of given matrix.
    *
    * \param[in]  matrix  Selfadjoint matrix whose eigendecomposition is to
-   *    be computed. Only the lower triangular part of the matrix is referenced.
+   *    be computed. Only the lower triangular part of the matrix is referenced,
+   *    and the imaginary part of its diagonal is ignored.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    *
    * This constructor calls compute(const MatrixType&, int) to compute the
@@ -199,7 +201,8 @@ class SelfAdjointEigenSolver {
   /** \brief Constructor for \link InplaceDecomposition inplace decomposition \endlink
    *
    * \param[in,out]  matrix  Selfadjoint matrix whose eigendecomposition is to
-   *    be computed. Only the lower triangular part of the matrix is referenced.
+   *    be computed. Only the lower triangular part of the matrix is referenced,
+   *    and the imaginary part of its diagonal is ignored.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    *
    * When \p MatrixType is a Ref<>, the decomposition is computed within the memory of \p matrix, whose content is
@@ -217,7 +220,8 @@ class SelfAdjointEigenSolver {
   /** \brief Computes eigendecomposition of given matrix.
    *
    * \param[in]  matrix  Selfadjoint matrix whose eigendecomposition is to
-   *    be computed. Only the lower triangular part of the matrix is referenced.
+   *    be computed. Only the lower triangular part of the matrix is referenced,
+   *    and the imaginary part of its diagonal is ignored.
    * \param[in]  options Can be #ComputeEigenvectors (default) or #EigenvaluesOnly.
    * \returns    Reference to \c *this
    *
@@ -506,6 +510,12 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   // declare some aliases
   RealVectorType& diag = m_eivalues;
   EigenvectorsType& mat = m_eivec;
+
+  // A selfadjoint matrix has a real diagonal: ignore the imaginary part, as LAPACK's xLANHE and xHETRD do, so that
+  // it neither sets the scale below nor injects a NaN or Inf.
+  EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
+    mat.diagonal() = mat.diagonal().real();
+  }
 
   // Scale the matrix to O(1) to avoid overflow/underflow during tridiagonalization
   // and subsequent QR iteration. Power-of-two factors avoid rounding representable scaled coefficients.

@@ -22,9 +22,11 @@ namespace internal {
 // one block-sized panel, at most 128x128 elements whatever the matrix size, through which the in-place
 // TRMM steps run Eigen's blocked kernel, the same way optimized BLAS implement xTRMM.
 
-// Only the lower forms exist. An upper U runs the lower kernel on Transpose<MatrixType>: with
-// V = U^T, V^-1 = (U^-1)^T and V^* V = conj(U U^*) = (U U^*)^T since U U^* is self-adjoint, so the
-// lower triangle of the transposed view is the upper triangle of the original in both cases.
+// Each triangle runs its column recurrence from xTRTI2/xTRTRI, which bounds the right residual
+// |X T - I| <= c_n u |X||T| (Higham, ASNA 2nd ed., 14.2-14.3). Inverses built from it, as in xPOTRI and
+// xGETRI, rely on that bound. For LLT<Upper>, |X U - I| is the left residual of L = U^*, as in xPOTRI 'U'.
+// Intermediate products overflow in the order of the recurrence, as in xTRTRI. The self-adjoint square exists only
+// for the lower triangle; the upper one runs it on V = U^T, since V^* V = conj(U U^*) = (U U^*)^T.
 
 // Both kernels have the panel-times-trailing-block shape of the Cholesky factorization, so the block
 // size tracks llt_inplace::blocked(), but each has its own floor and its own size below which the
@@ -119,6 +121,70 @@ EIGEN_DEVICE_FUNC void triangular_inverse_lower(MatrixType& mat) {
   }
 }
 
+// Unblocked upper triangular inverse, columns left to right as in xTRTI2 so that the leading block already holds
+// X11 = U11^-1 when column j is reached: X(0:j, j) = -X11 U(0:j, j) / U(j, j), one TRMV per column. \a tmp is
+// scratch of at least n - 1 entries.
+template <unsigned int Mode, typename MatrixType, typename VectorType>
+EIGEN_DEVICE_FUNC void triangular_inverse_upper_unblocked(MatrixType& mat, VectorType& tmp) {
+  using Scalar = typename MatrixType::Scalar;
+  constexpr bool kUnitDiag = (Mode & UnitDiag) != 0;
+  const Index n = mat.rows();
+  eigen_internal_assert(n < 2 || tmp.size() >= n - 1);
+  for (Index j = 0; j < n; ++j) {
+    Scalar xj = Scalar(1);
+    EIGEN_IF_CONSTEXPR (!kUnitDiag) {
+      xj = Scalar(1) / mat.coeff(j, j);
+      mat.coeffRef(j, j) = xj;
+    }
+    if (j == 0) continue;
+    tmp.head(j).noalias() = mat.topLeftCorner(j, j).template triangularView<Mode>() * mat.col(j).head(j);
+    mat.col(j).head(j) = -xj * tmp.head(j);
+  }
+}
+
+template <unsigned int Mode, typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime == 0, int> = 0>
+EIGEN_DEVICE_FUNC void triangular_inverse_upper(MatrixType&) {}
+
+// Blocked upper triangular inverse, block columns left to right as in LAPACK xTRTRI. With
+// U = [[U11, U12], [0, U22]] the inverse is [[U11^-1, -U11^-1 U12 U22^-1], [0, U22^-1]]; walking rightwards
+// makes X11 = U11^-1 available first, so as for the lower kernel the large operation is the TRMM X11 U12.
+template <unsigned int Mode, typename MatrixType, std::enable_if_t<MatrixType::SizeAtCompileTime != 0, int> = 0>
+EIGEN_DEVICE_FUNC void triangular_inverse_upper(MatrixType& mat) {
+  EIGEN_INTERNAL_ASSERT_SQUARE(mat);
+  const Index n = mat.rows();
+  if (n < kTriangularInverseMinBlocked) {
+    using Scalar = typename MatrixType::Scalar;
+    ei_declare_aligned_stack_constructed_variable(Scalar, tmp_data, numext::maxi(n, Index(1)), 0);
+    Map<Matrix<Scalar, Dynamic, 1> > tmp(tmp_data, n);
+    triangular_inverse_upper_unblocked<Mode>(mat, tmp);
+    return;
+  }
+  const Index block_size = triangular_in_place_block_size(n, kTriangularInverseMinBlockSize);
+  typename triangular_in_place_workspace<MatrixType>::type work(block_size, block_size);
+  for (Index k = 0; k < n; k += block_size) {
+    const Index bs = numext::mini(block_size, n - k);
+    Block<MatrixType, Dynamic, Dynamic> U22(mat, k, k, bs, bs);
+    if (k > 0) {
+      Block<MatrixType, Dynamic, Dynamic> U12(mat, 0, k, k, bs);
+      Block<MatrixType, Dynamic, Dynamic> X11(mat, 0, 0, k, k);
+      // U12 <- X11 U12. Row panel r of the product reads only rows >= r of U12, so going downwards
+      // leaves every row a later panel still needs untouched.
+      for (Index r = 0; r < k; r += block_size) {
+        const Index h = numext::mini(block_size, k - r);
+        const Index below = k - r - h;
+        work.topLeftCorner(h, bs) = U12.middleRows(r, h);
+        U12.middleRows(r, h).noalias() =
+            X11.block(r, r, h, h).template triangularView<Mode>() * work.topLeftCorner(h, bs);
+        if (below > 0) U12.middleRows(r, h).noalias() += X11.block(r, r + h, h, below) * U12.bottomRows(below);
+      }
+      U22.template triangularView<Mode>().template solveInPlace<OnTheRight>(U12);
+      U12 = -U12;
+    }
+    auto tmp = work.col(0);
+    triangular_inverse_upper_unblocked<Mode>(U22, tmp);
+  }
+}
+
 template <unsigned int Mode, bool IsLower = (int(Mode) & int(Lower)) != 0>
 struct triangular_inverse_selector {
   template <typename MatrixType>
@@ -131,8 +197,7 @@ template <unsigned int Mode>
 struct triangular_inverse_selector<Mode, false> {
   template <typename MatrixType>
   EIGEN_DEVICE_FUNC static void run(MatrixType& mat) {
-    Transpose<MatrixType> matt(mat);
-    triangular_inverse_lower<(int(Mode) & int(UnitDiag)) | int(Lower)>(matt);
+    triangular_inverse_upper<Mode>(mat);
   }
 };
 

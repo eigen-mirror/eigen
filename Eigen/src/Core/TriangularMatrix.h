@@ -637,7 +637,9 @@ class TriangularViewImpl<MatrixType_, Mode_, Dense> : public TriangularBase<Tria
    *
    * This is the operation of the \c *TRTRI LAPACK routines. It costs n^3/3 flops, where solving against an
    * explicit identity right hand side costs n^3, and its only scratch is one block-sized panel of at most
-   * 128x128 coefficients, independent of the matrix size.
+   * 128x128 coefficients, independent of the matrix size. As in \c *TRTRI, the computed inverse \c X of \c T
+   * satisfies \f$ |X T - I| \le c_n\,u\,|X||T| \f$ componentwise for both triangles. The left residual
+   * follows only through \f$ T X - I = T (X T - I) T^{-1} \f$, which carries a factor of cond(T).
    *
    * \sa TriangularView::solveInPlace(), MatrixBase::inverse()
    */

@@ -641,8 +641,10 @@ void householder_small_tail() {
 
     vector.makeHouseholder(essential, tau, beta);
 
-    VERIFY_IS_EQUAL(tau, 0.0f);
-    VERIFY_IS_EQUAL(beta, largest);
+    // The tail is nonzero, so the reflector flips the sign of the head, as xLARFG's does; the essential part
+    // 1e-20 / (2 * largest) underflows to zero.
+    VERIFY_IS_EQUAL(tau, 2.0f);
+    VERIFY_IS_EQUAL(beta, -largest);
     VERIFY_IS_EQUAL(essential[0], 0.0f);
   }
 
@@ -863,6 +865,496 @@ void householder_large_components() {
     const double relative_residual = ((q * r).cast<double>() / 1e19 - scaled).norm() / scaled.norm();
     VERIFY(relative_residual <= 64 * double(NumTraits<float>::epsilon()));
   }
+}
+
+// Expected values follow reference LAPACK 3.12.1 xLARFG, whose tau is the conjugate of Eigen's:
+//   xnorm = ||tail||; xnorm = 0 and Im(alpha) = 0  =>  tau = 0, beta = alpha, for any alpha (NaN, infinity included);
+//   else beta = -sign(hypot(|alpha|, xnorm), Re(alpha)) by sign bit (-0 gives +hypot),
+//   tau = ((beta - Re(alpha)) / beta, -Im(alpha) / beta), essential = tail / (alpha - beta).
+// The test values are long double so that the exponents of the long double instantiation stay exact.
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct householder_make_scalar {
+  static Scalar run(long double re, long double) { return Scalar(re); }
+};
+template <typename Scalar>
+struct householder_make_scalar<Scalar, true> {
+  using Real = typename NumTraits<Scalar>::Real;
+  static Scalar run(long double re, long double im) { return Scalar(Real(re), Real(im)); }
+};
+
+template <typename Scalar>
+Scalar householder_make(long double re, long double im = 0) {
+  return householder_make_scalar<Scalar>::run(re, im);
+}
+
+// Powers of two for the scaled path: 2^kScaled squares below the direct construction's threshold, 2^kUnderflow
+// squares to zero, 2^kDominant squares out of range, 2^kNegligible / 2^kDominant underflows to zero, and a tail of
+// 2^kHuge scale squares out of range while its norm stays representable.
+template <typename Real>
+struct householder_exponents {
+  static constexpr int kScaled = -70;
+  static constexpr int kUnderflow = -76;
+  static constexpr int kDominant = 100;
+  static constexpr int kNegligible = -100;
+  static constexpr int kHuge = 70;
+};
+template <>
+struct householder_exponents<double> {
+  static constexpr int kScaled = -700;
+  static constexpr int kUnderflow = -700;
+  static constexpr int kDominant = 1000;
+  static constexpr int kNegligible = -1000;
+  static constexpr int kHuge = 600;
+};
+template <>
+struct householder_exponents<long double> {
+  static constexpr int kScaled = -9000;
+  static constexpr int kUnderflow = -9000;
+  static constexpr int kDominant = 9000;
+  static constexpr int kNegligible = -9000;
+  static constexpr int kHuge = 9000;
+};
+template <>
+struct householder_exponents<half> {
+  static constexpr int kScaled = -10;
+  static constexpr int kUnderflow = -13;
+  static constexpr int kDominant = 15;
+  static constexpr int kNegligible = -12;
+  static constexpr int kHuge = 8;
+};
+
+// A tail of length m = 1, ..., 5 whose Euclidean norm is exactly representable, and a y with an exactly
+// representable hypot(y, norm).
+struct HouseholderExactTail {
+  double values[5];
+  double norm;
+  double y;
+  double hypot;
+};
+
+inline const HouseholderExactTail& householder_exact_tail(Index m) {
+  static const HouseholderExactTail kTails[5] = {{{2}, 2, 1.5, 2.5},
+                                                 {{3, 4}, 5, 12, 13},
+                                                 {{2, -1, 2}, 3, 4, 5},
+                                                 {{1, -1, 1, -1}, 2, 1.5, 2.5},
+                                                 {{0, -1, 0, 2, -2}, 3, 4, 5}};
+  return kTails[m - 1];
+}
+
+template <typename Real>
+void verify_householder_real_close(const Real& actual, const Real& expected, int factor) {
+  if (numext::is_exactly_zero(expected)) {
+    VERIFY(numext::is_exactly_zero(actual));
+  } else {
+    VERIFY(numext::abs(actual - expected) <= Real(factor) * NumTraits<Real>::epsilon() * numext::abs(expected));
+  }
+}
+
+template <typename Scalar>
+void verify_householder_close(const Scalar& actual, const Scalar& expected, int factor) {
+  verify_householder_real_close(numext::real(actual), numext::real(expected), factor);
+  verify_householder_real_close(numext::imag(actual), numext::imag(expected), factor);
+}
+
+template <typename Real>
+bool householder_is_negative(const Real& x) {
+  return !numext::is_exactly_zero(numext::signbit(x));
+}
+// numext::signbit has no long double implementation.
+inline bool householder_is_negative(const long double& x) { return std::signbit(x); }
+
+template <typename Scalar>
+void verify_householder_all_nan(const Scalar& tau, typename NumTraits<Scalar>::Real beta,
+                                const Matrix<Scalar, Dynamic, 1>& essential) {
+  VERIFY((numext::isnan)(beta));
+  VERIFY((numext::isnan)(tau));
+  for (Index i = 0; i < essential.size(); ++i) VERIFY((numext::isnan)(essential[i]));
+}
+
+// A NaN in the tail propagates to beta, tau, and every essential coefficient, also when it follows zeros, which the
+// component maximum of the scaled path used to skip.
+template <typename Scalar>
+void verify_householder_nan_tail(Index m, bool nanInImaginaryPart, bool nanAmongNonzero, double head) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const long double nan = std::numeric_limits<long double>::quiet_NaN();
+  const HouseholderExactTail& tail = householder_exact_tail(m);
+  Vector x(m + 1);
+  x[0] = householder_make<Scalar>(head);
+  for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(nanAmongNonzero ? tail.values[i] : 0.0);
+  const Index nanIndex = nanAmongNonzero ? numext::maxi<Index>(m - 1, 1) : m;
+  x[nanIndex] = nanInImaginaryPart ? householder_make<Scalar>(1, nan) : householder_make<Scalar>(nan);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+  x.makeHouseholder(essential, tau, beta);
+  verify_householder_all_nan(tau, beta, essential);
+}
+
+// -0 selects beta = +norm, as the sign bit of SIGN does, with the tail unscaled, scaled, and too large to square.
+template <typename Scalar>
+void verify_householder_negative_zero_head(Index m, int exponent, bool imaginaryTail) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const HouseholderExactTail& tail = householder_exact_tail(m);
+  const long double scale = std::ldexp(1.0L, exponent);
+  Vector x(m + 1);
+  x[0] = householder_make<Scalar>(-0.0L);
+  for (Index i = 0; i < m; ++i) {
+    const long double value = tail.values[i] * scale;
+    x[i + 1] = imaginaryTail ? householder_make<Scalar>(0, value) : householder_make<Scalar>(value);
+  }
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+  x.makeHouseholder(essential, tau, beta);
+
+  // The norm and (beta - alpha) / beta = 1 are exact for these inputs.
+  VERIFY_IS_EQUAL(beta, Real(tail.norm * scale));
+  VERIFY(!householder_is_negative(beta));
+  VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1));
+  for (Index i = 0; i < m; ++i) {
+    const long double ratio = -static_cast<long double>(tail.values[i]) / tail.norm;
+    verify_householder_close(essential[i],
+                             imaginaryTail ? householder_make<Scalar>(0, ratio) : householder_make<Scalar>(ratio), 8);
+  }
+}
+
+// A complex head (-0, y) over a nonzero tail is reflected to beta = +hypot(y, norm); xLARFG's tau = (1, -y / beta),
+// and Eigen's is the conjugate.
+template <typename Scalar>
+void verify_householder_negative_zero_complex_head(Index m, int exponent) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const HouseholderExactTail& tail = householder_exact_tail(m);
+  const long double scale = std::ldexp(1.0L, exponent);
+  for (double sign : {1.0, -1.0}) {
+    const long double y = sign * tail.y;
+    Vector x(m + 1);
+    x[0] = householder_make<Scalar>(-0.0L, y * scale);
+    for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(tail.values[i] * scale);
+    Vector essential(m);
+    Scalar tau;
+    Real beta;
+    x.makeHouseholder(essential, tau, beta);
+
+    verify_householder_real_close(beta, Real(tail.hypot * scale), 2);
+    VERIFY(!householder_is_negative(beta));
+    verify_householder_close(tau, householder_make<Scalar>(1, y / tail.hypot), 4);
+    // tail / (alpha - beta) with alpha - beta = (-hypot, y) * scale.
+    const long double denominator = tail.hypot * tail.hypot + y * y;
+    for (Index i = 0; i < m; ++i)
+      verify_householder_close(
+          essential[i],
+          householder_make<Scalar>(-tail.values[i] * tail.hypot / denominator, -tail.values[i] * y / denominator), 8);
+  }
+}
+
+// With a zero tail, a real head gives tau = 0 and keeps beta = alpha, including its sign. A complex head (-0, y)
+// is reflected to beta = +|y|.
+template <typename Scalar>
+void verify_householder_zero_tail_signed_zero(Index m, int exponent) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  Vector x = Vector::Zero(m + 1);
+  x[0] = householder_make<Scalar>(-0.0L);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+  x.makeHouseholder(essential, tau, beta);
+  VERIFY(numext::is_exactly_zero(beta));
+  VERIFY(householder_is_negative(beta));
+  VERIFY(numext::is_exactly_zero(tau));
+  for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+
+  if (NumTraits<Scalar>::IsComplex) {
+    const long double scale = std::ldexp(1.0L, exponent);
+    for (double y : {2.0, -2.0}) {
+      x[0] = householder_make<Scalar>(-0.0L, y * scale);
+      x.makeHouseholder(essential, tau, beta);
+      VERIFY_IS_EQUAL(beta, Real(2.0L * scale));
+      // xLARFG: tau = (1, -y / beta); Eigen's tau is its conjugate.
+      VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1, y > 0 ? 1 : -1));
+      for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+    }
+  }
+}
+
+// A NaN head behind an exactly zero tail leaves tau = 0, so only beta is NaN. With a nonzero tail, or a complex head
+// whose imaginary part is nonzero, the reflector is NaN throughout.
+template <typename Scalar>
+void verify_householder_nan_head(Index m) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const long double nan = std::numeric_limits<long double>::quiet_NaN();
+  const HouseholderExactTail& tail = householder_exact_tail(m);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+
+  Vector x = Vector::Zero(m + 1);
+  x[0] = householder_make<Scalar>(nan);
+  x.makeHouseholder(essential, tau, beta);
+  VERIFY((numext::isnan)(beta));
+  VERIFY(numext::is_exactly_zero(tau));
+  for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+
+  x[m] = householder_make<Scalar>(1);
+  x.makeHouseholder(essential, tau, beta);
+  verify_householder_all_nan(tau, beta, essential);
+
+  // A tail whose squared norm underflows to zero is still nonzero.
+  x[m] = householder_make<Scalar>(std::ldexp(1.0L, householder_exponents<Real>::kUnderflow));
+  x.makeHouseholder(essential, tau, beta);
+  verify_householder_all_nan(tau, beta, essential);
+
+  if (NumTraits<Scalar>::IsComplex) {
+    // A nonzero or NaN imaginary part keeps the reflector: NaN throughout, over a zero and a nonzero tail alike.
+    const long double heads[3][2] = {{nan, 2.0L}, {1.0L, nan}, {nan, nan}};
+    for (const auto& head : heads) {
+      x = Vector::Zero(m + 1);
+      x[0] = householder_make<Scalar>(head[0], head[1]);
+      x.makeHouseholder(essential, tau, beta);
+      verify_householder_all_nan(tau, beta, essential);
+      for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(tail.values[i]);
+      x.makeHouseholder(essential, tau, beta);
+      verify_householder_all_nan(tau, beta, essential);
+    }
+  }
+}
+
+// A real head of either sign and infinite magnitude gives beta = -sign * inf, tau = NaN, and a zero essential part
+// (tail / (alpha - beta) = tail / inf), whatever the finite tail, as xLARFG does. Over an exactly zero tail it gives
+// tau = 0 and beta = alpha.
+template <typename Scalar>
+void verify_householder_infinite_head(Index m) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const long double inf = std::numeric_limits<long double>::infinity();
+  const HouseholderExactTail& tail = householder_exact_tail(m);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+
+  for (double sign : {1.0, -1.0}) {
+    for (int exponent : {0, householder_exponents<Real>::kScaled, householder_exponents<Real>::kHuge}) {
+      const long double scale = std::ldexp(1.0L, exponent);
+      for (long double headImag : {0.0L, 1.0L}) {
+        if (headImag != 0 && !NumTraits<Scalar>::IsComplex) continue;
+        Vector x(m + 1);
+        x[0] = householder_make<Scalar>(sign * inf, headImag);
+        for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(tail.values[i] * scale);
+        x.makeHouseholder(essential, tau, beta);
+        VERIFY((numext::isinf)(beta));
+        VERIFY_IS_EQUAL(householder_is_negative(beta), sign > 0);
+        VERIFY((numext::isnan)(tau));
+        for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+      }
+    }
+
+    Vector x = Vector::Zero(m + 1);
+    x[0] = householder_make<Scalar>(sign * inf);
+    x.makeHouseholder(essential, tau, beta);
+    VERIFY((numext::isinf)(beta));
+    VERIFY_IS_EQUAL(householder_is_negative(beta), sign < 0);
+    VERIFY(numext::is_exactly_zero(tau));
+    for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+  }
+}
+
+// A tail whose ratio to the head underflows is negligible but nonzero: the reflector flips the sign of the head
+// (tau = 2, essential part underflowing to zero) rather than being the identity.
+template <typename Scalar>
+void verify_householder_negligible_tail(Index m) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const long double dominant = std::ldexp(1.0L, householder_exponents<Real>::kDominant);
+  const long double negligible = std::ldexp(1.0L, householder_exponents<Real>::kNegligible);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+
+  for (double sign : {1.0, -1.0}) {
+    Vector x(m + 1);
+    x[0] = householder_make<Scalar>(sign * dominant);
+    for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>((i % 2 ? -1.0L : 1.0L) * negligible);
+    x.makeHouseholder(essential, tau, beta);
+    VERIFY_IS_EQUAL(beta, Real(-sign * dominant));
+    VERIFY_IS_EQUAL(tau, householder_make<Scalar>(2));
+    for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+  }
+
+  if (NumTraits<Scalar>::IsComplex) {
+    // xLARFG: tau = (1, -Im(alpha) / beta) = (1, 1) for alpha = (0, dominant); Eigen's tau is the conjugate.
+    Vector x(m + 1);
+    x[0] = householder_make<Scalar>(0, dominant);
+    for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(negligible, -negligible);
+    x.makeHouseholder(essential, tau, beta);
+    VERIFY_IS_EQUAL(beta, Real(-dominant));
+    VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1, -1));
+    for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+  }
+}
+
+// A tail with an infinite component gives xLARFG's reflector: beta = -copysign(inf, real(alpha)), tau = NaN, and an
+// essential part that is NaN where the tail is infinite (inf / inf) and zero elsewhere (finite / inf). Neither a
+// finite nor an overflowing head changes it.
+template <typename Scalar>
+void verify_householder_infinite_tail(const std::vector<std::pair<long double, long double>>& tailValues,
+                                      long double headReal, const bool* tailIsInfinite) {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const Index m = static_cast<Index>(tailValues.size());
+  Vector x(m + 1);
+  x[0] = householder_make<Scalar>(headReal);
+  for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(tailValues[i].first, tailValues[i].second);
+  Vector essential(m);
+  Scalar tau;
+  Real beta;
+  x.makeHouseholder(essential, tau, beta);
+  VERIFY((numext::isinf)(beta));
+  VERIFY(householder_is_negative(beta) == !householder_is_negative(numext::real(x[0])));
+  VERIFY((numext::isnan)(tau));
+  for (Index i = 0; i < m; ++i) {
+    if (tailIsInfinite[i]) {
+      VERIFY((numext::isnan)(essential[i]));
+    } else {
+      VERIFY(numext::is_exactly_zero(essential[i]));
+    }
+  }
+}
+
+template <typename Scalar>
+void verify_householder_infinite_tails() {
+  const long double inf = std::numeric_limits<long double>::infinity();
+  using Entries = std::vector<std::pair<long double, long double>>;
+  using Real = typename NumTraits<Scalar>::Real;
+  for (int exponent : {0, householder_exponents<Real>::kHuge}) {
+    const long double scale = std::ldexp(1.0L, exponent);
+    for (long double head : {1.0L * scale, 0.0L, -1.0L * scale}) {
+      bool second[] = {true};
+      bool middle[] = {false, true, false};
+      verify_householder_infinite_tail<Scalar>(Entries{{inf, 0}}, head, second);
+      verify_householder_infinite_tail<Scalar>(Entries{{-inf, 0}}, head, second);
+      verify_householder_infinite_tail<Scalar>(Entries{{1, 0}, {inf, 0}, {2, 0}}, head, middle);
+      if (NumTraits<Scalar>::IsComplex) {
+        verify_householder_infinite_tail<Scalar>(Entries{{0, inf}}, head, second);
+        verify_householder_infinite_tail<Scalar>(Entries{{0, -inf}}, head, second);
+        verify_householder_infinite_tail<Scalar>(Entries{{1, 1}, {0, inf}, {2, -1}}, head, middle);
+      }
+    }
+  }
+}
+
+template <typename Scalar>
+void householder_xlarfg_special_values() {
+  using Real = typename NumTraits<Scalar>::Real;
+  for (Index m : {1, 2, 4, 5}) {
+    for (double head : {1.0, 0.0}) {
+      for (bool amongNonzero : {false, true}) {
+        verify_householder_nan_tail<Scalar>(m, false, amongNonzero, head);
+        if (NumTraits<Scalar>::IsComplex) verify_householder_nan_tail<Scalar>(m, true, amongNonzero, head);
+      }
+    }
+    for (int exponent : {0, householder_exponents<Real>::kScaled, householder_exponents<Real>::kHuge}) {
+      verify_householder_negative_zero_head<Scalar>(m, exponent, false);
+      if (NumTraits<Scalar>::IsComplex) {
+        verify_householder_negative_zero_head<Scalar>(m, exponent, true);
+        verify_householder_negative_zero_complex_head<Scalar>(m, exponent);
+      }
+      verify_householder_zero_tail_signed_zero<Scalar>(m, exponent);
+    }
+    verify_householder_nan_head<Scalar>(m);
+    verify_householder_infinite_head<Scalar>(m);
+    verify_householder_negligible_tail<Scalar>(m);
+  }
+  verify_householder_infinite_tails<Scalar>();
+  // No tail: a real alpha gives tau = 0 and beta = alpha whatever it is, as xLARFG does with N = 1.
+  Real beta;
+  Scalar tau;
+  Matrix<Scalar, 1, 1> head;
+  Matrix<Scalar, 0, 1> none;
+  const long double values[2] = {std::numeric_limits<long double>::quiet_NaN(),
+                                 std::numeric_limits<long double>::infinity()};
+  for (long double value : values) {
+    head[0] = householder_make<Scalar>(value);
+    head.makeHouseholder(none, tau, beta);
+    VERIFY(!(numext::isfinite)(beta));
+    VERIFY(numext::is_exactly_zero(tau));
+  }
+  if (NumTraits<Scalar>::IsComplex) {
+    // A complex alpha with a nonzero imaginary part is reflected, as zlarfg does with N = 1:
+    // beta = -|alpha|, tau = (1, -Im(alpha) / beta) = (1, 1), and Eigen's tau is its conjugate.
+    head[0] = householder_make<Scalar>(0, 2);
+    head.makeHouseholder(none, tau, beta);
+    VERIFY_IS_EQUAL(beta, Real(-2));
+    VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1, -1));
+  }
+}
+
+// long double with the exponents above needs the range of x87 extended or binary128 precision.
+template <typename Scalar>
+void householder_xlarfg_special_values_long_double() {
+  if (std::numeric_limits<long double>::max_exponent > 8192) householder_xlarfg_special_values<Scalar>();
+}
+
+// The same cases with subnormals flushed, which must not change any of them. A negative subnormal head is a signed
+// zero to a DAZ comparison, so the sign bit decides it: beta = +norm.
+template <typename Scalar>
+void householder_xlarfg_special_values_flushed() {
+  Eigen::ScopedFlushToZero flush_to_zero(Eigen::FlushToZeroMode::Both);
+  if (!flush_to_zero.isSupported()) return;
+  householder_xlarfg_special_values<Scalar>();
+  using Real = typename NumTraits<Scalar>::Real;
+  Matrix<Scalar, 3, 1> x;
+  x << householder_make<Scalar>(-static_cast<long double>(std::numeric_limits<Real>::denorm_min())),
+      householder_make<Scalar>(3), householder_make<Scalar>(4);
+  Matrix<Scalar, 2, 1> essential;
+  Scalar tau;
+  Real beta;
+  x.makeHouseholder(essential, tau, beta);
+  VERIFY_IS_EQUAL(beta, Real(5));
+  VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1));
+}
+
+// The reflector reaches the decompositions: a NaN in a column's tail must show in the factor, a NaN head over a
+// zero tail must stay in R(k, k) without spreading to the trailing columns, and an infinite head gives R(k, k) = beta.
+template <typename Scalar>
+void householder_xlarfg_qr() {
+  using Matrix3 = Matrix<Scalar, 3, 3>;
+  const Scalar nan = householder_make<Scalar>(std::numeric_limits<long double>::quiet_NaN());
+  Matrix3 a = Matrix3::Zero();
+  a(0, 1) = householder_make<Scalar>(2);
+  a(1, 1) = householder_make<Scalar>(3);
+  a(2, 1) = householder_make<Scalar>(4);
+  a(1, 2) = householder_make<Scalar>(1);
+  a(2, 2) = householder_make<Scalar>(1);
+  Matrix3 b = a;
+
+  a(0, 0) = householder_make<Scalar>(1);
+  a(2, 0) = nan;
+  const Matrix3 factored = HouseholderQR<Matrix3>(a).matrixQR();
+  VERIFY((numext::isnan)(factored(0, 0)));
+  VERIFY((numext::isnan)(factored(2, 0)));
+  VERIFY((numext::isnan)(factored.col(1).sum()));
+
+  b(0, 0) = nan;
+  const HouseholderQR<Matrix3> qr(b);
+  const Matrix3 r = qr.matrixQR();
+  VERIFY((numext::isnan)(r(0, 0)));
+  VERIFY(numext::is_exactly_zero(qr.hCoeffs()[0]));
+  VERIFY(r.rightCols(2).allFinite());
+  VERIFY_IS_EQUAL(r(0, 1), householder_make<Scalar>(2));
+
+  // [[inf, 1], [1, 1]]: beta = -inf stays in R(0, 0), and tau = NaN poisons the trailing column, as in xLARFG.
+  Matrix<Scalar, 2, 2> c;
+  c << householder_make<Scalar>(std::numeric_limits<long double>::infinity()), householder_make<Scalar>(1),
+      householder_make<Scalar>(1), householder_make<Scalar>(1);
+  const HouseholderQR<Matrix<Scalar, 2, 2>> infQr(c);
+  VERIFY((numext::isinf)(numext::real(infQr.matrixQR()(0, 0))));
+  VERIFY(householder_is_negative(numext::real(infQr.matrixQR()(0, 0))));
+  VERIFY((numext::isnan)(infQr.hCoeffs()[0]));
+  VERIFY(numext::is_exactly_zero(infQr.matrixQR()(1, 0)));
 }
 
 template <typename Scalar, int Size, int StorageOrder>
@@ -1294,6 +1786,22 @@ EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_11(householder_blocked_right_regression<std::complex<double>>());
   CALL_SUBTEST_12(householder_small_tail<>());
   CALL_SUBTEST_13(householder_large_components<>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values<float>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values<double>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values<std::complex<float>>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values<std::complex<double>>());
+  CALL_SUBTEST_27(householder_xlarfg_qr<double>());
+  CALL_SUBTEST_27(householder_xlarfg_qr<std::complex<double>>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<float>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<double>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<std::complex<float>>());
+  CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<std::complex<double>>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values<half>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values<bfloat16>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values<std::complex<half>>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values<std::complex<bfloat16>>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values_long_double<long double>());
+  CALL_SUBTEST_28(householder_xlarfg_special_values_long_double<std::complex<long double>>());
   CALL_SUBTEST_14((householder_short_strided<float, 2, ColMajor>()));
   CALL_SUBTEST_14((householder_short_strided<float, 3, ColMajor>()));
   CALL_SUBTEST_15((householder_short_strided<double, 2, ColMajor>()));
