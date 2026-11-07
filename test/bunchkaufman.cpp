@@ -132,6 +132,9 @@ void bunchkaufman_inertia_and_conditioning(Index n) {
   // isPositive()/isNegative() agree with the true inertia.
   VERIFY(bk.isPositive() == (expect_neg == 0));
   VERIFY(bk.isNegative() == (expect_pos == 0));
+  VERIFY_IS_EQUAL(bk.numPositive(), expect_pos);
+  VERIFY_IS_EQUAL(bk.numNegative(), expect_neg);
+  VERIFY_IS_EQUAL(bk.numZero(), Index(0));
 
   // Backward-stable solve: relative residual is small even for ill-conditioned A.
   Matrix<Scalar, Dynamic, 1> b = Matrix<Scalar, Dynamic, 1>::Random(n);
@@ -217,6 +220,83 @@ void bunchkaufman_nan() {
     BunchKaufman<MatrixType> bk(A);
     VERIFY(bk.info() == NumericalIssue);
   }
+}
+
+// A non-finite pivot has no inertia, so the factorization fails and the matrix is neither semidefinite nor counted in
+// full.
+template <typename MatrixType>
+void verify_non_finite_inertia(const MatrixType& A) {
+  BunchKaufman<MatrixType, Lower> lower(A);
+  BunchKaufman<MatrixType, Upper> upper(A);
+  VERIFY(lower.info() == NumericalIssue);
+  VERIFY(upper.info() == NumericalIssue);
+  VERIFY(!lower.isPositive());
+  VERIFY(!lower.isNegative());
+  VERIFY(!upper.isPositive());
+  VERIFY(!upper.isNegative());
+  VERIFY(lower.numPositive() + lower.numNegative() + lower.numZero() < A.rows());
+  VERIFY(upper.numPositive() + upper.numNegative() + upper.numZero() < A.rows());
+  VERIFY_IS_EQUAL(lower.signDeterminant(), typename MatrixType::Scalar(0));
+  VERIFY_IS_EQUAL(upper.signDeterminant(), typename MatrixType::Scalar(0));
+}
+
+// Inertia counts of the 1x1 and 2x2 pivot paths, in the unblocked and blocked regimes, and of non-finite pivots.
+template <typename Scalar>
+void bunchkaufman_inertia_counts() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  const auto verifyCounts = [](const MatrixType& A, Index positive, Index negative, Index zero) {
+    BunchKaufman<MatrixType> bk(A);
+    VERIFY_IS_EQUAL(bk.numPositive(), positive);
+    VERIFY_IS_EQUAL(bk.numNegative(), negative);
+    VERIFY_IS_EQUAL(bk.numZero(), zero);
+    VERIFY_IS_EQUAL(bk.isPositive(), negative == 0);
+    VERIFY_IS_EQUAL(bk.isNegative(), positive == 0);
+  };
+
+  for (Index n : {6, 100}) {
+    const Index third = n / 3;
+    MatrixType A = MatrixType::Zero(n, n);
+    A.diagonal().head(third).setConstant(Scalar(2));
+    A.diagonal().segment(third, third).setConstant(Scalar(-3));
+    verifyCounts(A, third, third, n - 2 * third);
+
+    // Zero diagonal, so all of the pivots are 2x2.
+    MatrixType B = MatrixType::Zero(n, n);
+    for (Index k = 0; k + 1 < n; k += 2) B(k + 1, k) = B(k, k + 1) = Scalar(1);
+    verifyCounts(B, n / 2, n / 2, 0);
+
+    verifyCounts(MatrixType::Zero(n, n), 0, 0, n);
+    verifyCounts(MatrixType::Identity(n, n), n, 0, 0);
+    verifyCounts(-MatrixType::Identity(n, n), 0, n, 0);
+
+    for (const RealScalar value : {NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::infinity()}) {
+      // Every other pivot is positive or negative, so a test ignoring the non-finite pivot would accept this.
+      MatrixType diagonal = MatrixType::Identity(n, n);
+      diagonal(n / 2, n / 2) = Scalar(value);
+      verify_non_finite_inertia(diagonal);
+      verify_non_finite_inertia<MatrixType>(-diagonal);
+
+      MatrixType offDiagonal = MatrixType::Identity(n, n);
+      offDiagonal(1, 0) = offDiagonal(0, 1) = Scalar(value);
+      verify_non_finite_inertia(offDiagonal);
+    }
+
+    // Finite input with representable eigenvalues +-sqrt(2) M: the pivot M leaves the Schur complement -2M, which
+    // overflows.
+    const RealScalar M = RealScalar(0.6) * NumTraits<RealScalar>::highest();
+    MatrixType overflowing = MatrixType::Identity(n, n);
+    overflowing(0, 0) = overflowing(1, 0) = overflowing(0, 1) = Scalar(M);
+    overflowing(1, 1) = Scalar(-M);
+    verify_non_finite_inertia(overflowing);
+  }
+
+  BunchKaufman<Matrix<Scalar, 3, 3>> fixedSize(
+      Matrix<Scalar, 3, 3>(Matrix<Scalar, 3, 1>(Scalar(1), Scalar(-1), Scalar(0)).asDiagonal()));
+  VERIFY_IS_EQUAL(fixedSize.numPositive(), 1);
+  VERIFY_IS_EQUAL(fixedSize.numNegative(), 1);
+  VERIFY_IS_EQUAL(fixedSize.numZero(), 1);
 }
 
 // Rank-deficient PSD: A = a a^* with a of rank r < n. Reconstruct must match.
@@ -445,6 +525,9 @@ void bunchkaufman_verify_assert() {
   VERIFY_RAISES_ASSERT(bk.transpositionsP())
   VERIFY_RAISES_ASSERT(bk.isPositive())
   VERIFY_RAISES_ASSERT(bk.isNegative())
+  VERIFY_RAISES_ASSERT(bk.numPositive())
+  VERIFY_RAISES_ASSERT(bk.numNegative())
+  VERIFY_RAISES_ASSERT(bk.numZero())
   VERIFY_RAISES_ASSERT(bk.matrixLDLT())
   VERIFY_RAISES_ASSERT(bk.reconstructedMatrix())
   VERIFY_RAISES_ASSERT(bk.solve(tmp))
@@ -723,6 +806,8 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
 
     CALL_SUBTEST_7(bunchkaufman_small_cases<double>());
     CALL_SUBTEST_7(bunchkaufman_small_cases<std::complex<double> >());
+    CALL_SUBTEST_7(bunchkaufman_inertia_counts<double>());
+    CALL_SUBTEST_7(bunchkaufman_inertia_counts<std::complex<double>>());
     // Singular matrices in both the unblocked (n=8) and blocked (n=100 > blocksize) regimes.
     CALL_SUBTEST_5(bunchkaufman_singular<double>(8));
     CALL_SUBTEST_5(bunchkaufman_singular<double>(100));

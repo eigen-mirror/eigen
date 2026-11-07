@@ -65,7 +65,7 @@ inline Index bunch_kaufman_blocksize();
  * xSYTRF / xLASYF.
  *
  * This factorization also reveals the \em inertia of \f$ A \f$ (the number of positive, negative and
- * zero eigenvalues) by Sylvester's law of inertia, accessible through isPositive() / isNegative().
+ * zero eigenvalues) by Sylvester's law of inertia, accessible through numPositive(), numNegative() and numZero().
  *
  * This class supports the \link InplaceDecomposition inplace decomposition \endlink mechanism.
  *
@@ -210,17 +210,46 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
     return m_subdiag;
   }
 
-  /** \returns true if the matrix is positive semidefinite (has no strictly negative eigenvalues). */
-  inline bool isPositive() const {
+  /** \returns the number of positive eigenvalues, read off the pivots of D by Sylvester's law of inertia.
+   *
+   * The signs come from the computed pivots, so this is the inertia of a matrix close to A rather than necessarily of
+   * A. A non-finite pivot block is left out of all three counts, so they add up to rows() only if every pivot is
+   * finite; info() reports \c NumericalIssue otherwise.
+   *
+   * \sa numNegative(), numZero()
+   */
+  Index numPositive() const {
     eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-    return m_n_neg == 0;
+    return m_n_pos;
   }
 
-  /** \returns true if the matrix is negative semidefinite (has no strictly positive eigenvalues). */
-  inline bool isNegative() const {
+  /** \returns the number of negative eigenvalues. \sa numPositive() */
+  Index numNegative() const {
     eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-    return m_n_pos == 0;
+    return m_n_neg;
   }
+
+  /** \returns the number of pivots that are exactly zero.
+   *
+   * \warning A nonzero count means that A is singular to working precision, not that it is exactly singular:
+   * rounding can turn a tiny pivot into an exact zero, and equally leave a tiny pivot in place of one.
+   *
+   * \sa numPositive()
+   */
+  Index numZero() const {
+    eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+    return m_n_zero;
+  }
+
+  /** \returns true if the matrix is positive semidefinite: every pivot is finite and no eigenvalue is strictly
+   * negative.
+   */
+  bool isPositive() const { return numNegative() == 0 && numPositive() + numZero() == rows(); }
+
+  /** \returns true if the matrix is negative semidefinite: every pivot is finite and no eigenvalue is strictly
+   * positive.
+   */
+  bool isNegative() const { return numPositive() == 0 && numNegative() + numZero() == rows(); }
 
 #ifdef EIGEN_PARSED_BY_DOXYGEN
   /** \returns a solution x of \f$ A x = b \f$ using the current decomposition of A.
@@ -307,7 +336,7 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   RealScalar logAbsDeterminant() const;
 
   /** \returns the sign of the determinant of the matrix of which *this is the Bunch-Kaufman decomposition,
-   * that is, \c 1, \c -1, or \c 0 if the matrix is singular.
+   * that is, \c 1, \c -1, or \c 0 if the matrix is singular or has a non-finite pivot.
    *
    * The sign is read off the inertia rather than computed from a product, so it is exact and cannot
    * overflow: \f$ \mathrm{sign}(\det A) = (-1)^{n_-} \f$, with \f$ n_- \f$ the number of negative
@@ -331,9 +360,10 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful,
-   *          \c NumericalIssue if the factorization failed because of a zero pivot (the matrix is singular)
-   *          or because a 2x2 pivot block has no representable inverse (a NaN entry, or an off-diagonal
-   *          so much smaller than the diagonal that the scaled inverse overflows).
+   *          \c NumericalIssue if the factorization failed: a pivot block is not finite (from a non-finite
+   *          entry, or from an update overflowing on finite input), a pivot is zero (the matrix is singular),
+   *          or a 2x2 pivot block has no representable inverse (an off-diagonal so much smaller than the
+   *          diagonal that the scaled inverse overflows).
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
@@ -863,31 +893,17 @@ void BunchKaufman<MatrixType, UpLo_>::computeInertia() {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      const RealScalar denom = scaledBlockDeterminant(d11, d22, d21);
-      if (denom < RealScalar(0)) {
-        // Indefinite 2x2 block: one positive and one negative eigenvalue.
+      // Every Bunch-Kaufman 2x2 block is indefinite: det(D_k) = |d21|^2 (q - 1) with |q| < alpha^2 < 1.
+      if ((numext::isfinite)(d11) && (numext::isfinite)(d22) && (numext::isfinite)(d21)) {
         ++m_n_pos;
         ++m_n_neg;
-      } else if (numext::is_exactly_zero(denom)) {
-        const RealScalar tr = d11 + d22;
-        if (tr > RealScalar(0))
-          ++m_n_pos;
-        else if (tr < RealScalar(0))
-          ++m_n_neg;
-        else
-          ++m_n_zero;
-        ++m_n_zero;
-      } else {
-        // denom > 0: both eigenvalues share the sign of the trace.
-        if (d11 + d22 > RealScalar(0))
-          m_n_pos += 2;
-        else
-          m_n_neg += 2;
       }
       k += 2;
     } else {
       const RealScalar dk = numext::real(m_matrix.coeff(k, k));
-      if (dk > RealScalar(0))
+      if (!(numext::isfinite)(dk)) {
+        // A non-finite pivot has no inertia to count.
+      } else if (dk > RealScalar(0))
         ++m_n_pos;
       else if (dk < RealScalar(0))
         ++m_n_neg;
@@ -932,6 +948,9 @@ BunchKaufman<MatrixType, UpLo_>& BunchKaufman<MatrixType, UpLo_>::computeInPlace
   }
 
   computeInertia();
+
+  // computeInertia() leaves non-finite pivot blocks out of the counts.
+  if (m_n_pos + m_n_neg + m_n_zero < size) m_info = NumericalIssue;
 
   m_isInitialized = true;
   return *this;
@@ -1048,7 +1067,7 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::signDeterminant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  if (m_n_zero > 0) return Scalar(0);
+  if (m_n_zero > 0 || m_n_pos + m_n_neg + m_n_zero < rows()) return Scalar(0);
   return Scalar((m_n_neg % 2 == 0) ? 1 : -1);
 }
 
