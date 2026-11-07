@@ -29,6 +29,7 @@ eigen_add_benchmark(bench_gemm_scaled_complex_double bench_gemm_scaled.cpp DEFIN
 eigen_add_benchmark(bench_gemm_cast bench_gemm_cast.cpp)
 eigen_add_benchmark(bench_gemm_cast_bfloat16 bench_gemm_cast.cpp DEFINITIONS SCALAR=Eigen::bfloat16)
 eigen_add_benchmark(bench_gemv bench_gemv.cpp)
+eigen_add_benchmark(bench_gemv_custom bench_gemv_custom.cpp)
 eigen_add_benchmark(bench_gemv_degenerate bench_gemv_degenerate.cpp)
 eigen_add_benchmark(bench_vecadd bench_vecadd.cpp)
 foreach(scalar float double)

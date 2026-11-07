@@ -1054,6 +1054,11 @@ struct is_permutation_base_xpr : std::is_base_of<PermutationBase<remove_all_t<Xp
   * For mixed scalar types, opt in for both ordered pairs. Missing metadata keeps custom multiplication on the
   * conservative path; built-in arithmetic and standard complex types with arithmetic components are recognized
   * automatically. Commutative traversals may reorder and reassociate products, changing floating-point rounding.
+  * Moving scalar factors in dense GEMM additionally requires commutativity within each input scalar type and
+  * within the result scalar type.
+  * Unannotated commutative custom scalars remain supported, but the conservative dense product path may use
+  * operand/result workspaces and ordered scalar GEMV evaluation. Declare this property to retain commutative
+  * optimizations; it must not be inferred merely from the existence of multiplication or conjugation.
   *
   * By default, the following generic combinations are supported:
   <table class="manual">
