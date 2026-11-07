@@ -8,31 +8,14 @@ cmake_minimum_required(VERSION 3.18)
 #==============================================================================
 # CMake Policy issues.
 #==============================================================================
-# Allow overriding options in a parent project via `set` before including Eigen.
-if (POLICY CMP0077)
-  cmake_policy (SET CMP0077 NEW)
-endif (POLICY CMP0077)
-
-# NOTE Remove setting the policy once the minimum required CMake version is
-# increased to at least 3.21. Retain enabling the export to package registry.
-if (POLICY CMP0090)
-  # The export command does not populate package registry by default
-  cmake_policy (SET CMP0090 NEW)
-  # Unless otherwise specified, always export to package registry to ensure
-  # backwards compatibility.
-  if (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
-    set (CMAKE_EXPORT_PACKAGE_REGISTRY ON)
-  endif (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
-endif (POLICY CMP0090)
+# Preserve package-registry exports unless the caller explicitly disables them.
+if (NOT DEFINED CMAKE_EXPORT_PACKAGE_REGISTRY)
+  set (CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+endif ()
 
 # Normalize DESTINATION paths
 if (POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
-endif ()
-
-# Respect <PackageName>_ROOT variables.
-if (POLICY CMP0074)
-  cmake_policy(SET CMP0074 NEW)
 endif ()
 
 #==============================================================================
