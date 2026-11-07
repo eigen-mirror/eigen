@@ -73,6 +73,7 @@ class JacobiRotation {
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type);
   EIGEN_DEVICE_FUNC void makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::false_type);
   EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void makeGivensScaled(const Scalar& p, const Scalar& q, Scalar* r);
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void makeGivensComplexScaled(const Scalar& p, const Scalar& q, Scalar* r);
 
   Scalar m_c, m_s;
 };
@@ -160,20 +161,16 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
 // specialization for complexes
 template <typename Scalar>
 EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const Scalar& q, Scalar* r, std::true_type) {
-  if (q == Scalar(0)) {
-    m_c = numext::real(p) < 0 ? Scalar(-1) : Scalar(1);
-    m_s = 0;
-    if (r) *r = m_c * p;
-  } else if (p == Scalar(0)) {
-    // Scale by max(|Re q|, |Im q|) first: for a subnormal q, abs(q) has only a few bits and q / abs(q) is not
-    // unimodular. Unlike |q|_1, the max norm cannot overflow.
-    const Scalar qn = q / numext::maxi(numext::abs(numext::real(q)), numext::abs(numext::imag(q)));
-    m_c = 0;
-    m_s = -qn / numext::abs(qn);
-    if (r) *r = numext::abs(q);
-  } else {
-    RealScalar p1 = numext::norm1(p);
-    RealScalar q1 = numext::norm1(q);
+  // The formulas below need |p|_1 and |q|_1 to be normal and finite. A 1-norm that compares equal to zero is an exact
+  // zero or, under FTZ/DAZ, below 2 min, which is below epsilon / 4 times the other 1-norm once that is at least
+  // `negligible`; so the zero branches need no look at the representation. All other inputs, including an exact zero
+  // next to a 1-norm below `negligible`, go out of line to makeGivensComplexScaled().
+  const RealScalar p1 = numext::norm1(p);
+  const RealScalar q1 = numext::norm1(q);
+  const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar highest = NumTraits<RealScalar>::highest();
+  const RealScalar negligible = RealScalar(8) * normalMin / NumTraits<RealScalar>::epsilon();
+  if (EIGEN_PREDICT_TRUE(p1 >= normalMin && p1 <= highest && q1 >= normalMin && q1 <= highest)) {
     if (p1 >= q1) {
       Scalar ps = p / p1;
       RealScalar p2 = numext::abs2(ps);
@@ -204,6 +201,87 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
       m_s = -numext::conj(phase) * (qs / u);
       if (r) *r = phase * (q1 * u);
     }
+  } else if (p1 == RealScalar(0) && q1 >= negligible && q1 <= highest) {
+    // One component of qn = q / max(|Re q|, |Im q|) is +-1, so |qn|^2 = 1 + t^2 with |t| <= 1 is safe to form, and
+    // |q| = qMax |qn|.
+    const RealScalar qMax = numext::maxi(numext::abs(numext::real(q)), numext::abs(numext::imag(q)));
+    const Scalar qn = q / qMax;
+    const RealScalar qnAbs = numext::sqrt(numext::abs2(qn));
+    m_c = 0;
+    m_s = -qn / qnAbs;
+    if (r) *r = qMax * qnAbs;
+  } else if (q1 == RealScalar(0) && p1 >= negligible) {
+    const bool negative = numext::real(p) < RealScalar(0);
+    m_c = negative ? Scalar(-1) : Scalar(1);
+    m_s = 0;
+    if (r) *r = negative ? Scalar(-p) : p;
+  } else {
+    makeGivensComplexScaled(p, q, r);
+  }
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void JacobiRotation<Scalar>::makeGivensComplexScaled(const Scalar& p,
+                                                                                         const Scalar& q, Scalar* r) {
+  // Scale p and q by a common power of two such that their largest real or imaginary magnitude is about one; for
+  // binary scalars, the scaling goes through integer significands, which FTZ/DAZ cannot flush. Then the larger of
+  // |p|_1 and |q|_1 is normal and finite, and the smaller one is negligible wherever it is subnormal or zero. Only
+  // p = q = 0 needs its own branch; it is read from the representation, since under DAZ a subnormal compares equal to
+  // zero.
+  if (numext::is_exactly_zero_no_flush(numext::real(p)) && numext::is_exactly_zero_no_flush(numext::imag(p)) &&
+      numext::is_exactly_zero_no_flush(numext::real(q)) && numext::is_exactly_zero_no_flush(numext::imag(q))) {
+    m_c = Scalar(1);
+    m_s = Scalar(0);
+    if (r) *r = p;
+    return;
+  }
+  using Scaling = internal::safe_scaling<RealScalar>;
+  Matrix<Scalar, 2, 1> scaled(p, q);
+  const RealScalar largest = numext::maxi(numext::maxi(numext::abs(numext::real(p)), numext::abs(numext::imag(p))),
+                                          numext::maxi(numext::abs(numext::real(q)), numext::abs(numext::imag(q))));
+  const RealScalar maxCoeff = Scaling::recover_flushed_max_coeff(scaled, largest);
+  const internal::safe_scaling_factors<RealScalar> factors = Scaling::scale_to(scaled, scaled, maxCoeff);
+  const Scalar ps = scaled.x(), qs = scaled.y();
+  const RealScalar p1 = numext::norm1(ps);
+  const RealScalar q1 = numext::norm1(qs);
+  Matrix<Scalar, 1, 1> rs;
+  if (p1 >= q1) {
+    const Scalar pn = ps / p1;
+    const RealScalar p2 = numext::abs2(pn);
+    const Scalar qn = qs / p1;
+    const RealScalar q2 = numext::abs2(qn);
+
+    RealScalar u = numext::sqrt<RealScalar>(RealScalar(1) + q2 / p2);
+    if (numext::real(ps) < RealScalar(0)) u = -u;
+
+    m_c = Scalar(1) / u;
+    m_s = -qn * numext::conj(pn) * (m_c / p2);
+    rs(0) = ps * u;
+  } else {
+    const Scalar pn = ps / q1;
+    const RealScalar p2 = numext::abs2(pn);
+    const Scalar qn = qs / q1;
+    const RealScalar q2 = numext::abs2(qn);
+
+    RealScalar u = numext::sqrt<RealScalar>(p2 + q2);
+    if (numext::real(ps) < RealScalar(0)) u = -u;
+
+    // The phase of p comes from p scaled on its own, since p can be negligible next to q.
+    Scalar phase(1);
+    if (!numext::is_exactly_zero_no_flush(numext::real(p)) || !numext::is_exactly_zero_no_flush(numext::imag(p))) {
+      Matrix<Scalar, 1, 1> pv(p);
+      const RealScalar pMax = Scaling::recover_flushed_max_coeff(
+          pv, numext::maxi(numext::abs(numext::real(p)), numext::abs(numext::imag(p))));
+      Scaling::scale_to(pv, pv, pMax);
+      phase = pv(0) / numext::abs(pv(0));
+    }
+    m_c = numext::abs(pn) / u;
+    m_s = -numext::conj(phase) * (qn / u);
+    rs(0) = phase * (q1 * u);
+  }
+  if (r) {
+    Scaling::unscale_in_place(rs, maxCoeff, factors);
+    *r = rs(0);
   }
 }
 
