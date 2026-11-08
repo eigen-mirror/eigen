@@ -551,6 +551,16 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
   m_workspace.resize(dim * 2);
   m_global_iter = 0;
 
+  // Scale S and T separately by powers of two near their largest coefficients, as xGGES does, so that the iteration
+  // neither overflows nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S and T.
+  using Scaling = internal::safe_scaling<Scalar>;
+  const Scalar maxS =
+      dim == 0 ? Scalar(0) : Scaling::recover_flushed_max_coeff(m_S, m_S.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const Scalar maxT =
+      dim == 0 ? Scalar(0) : Scaling::recover_flushed_max_coeff(m_T, m_T.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const internal::safe_scaling_factors<Scalar> factorsS = Scaling::scale_in_place(m_S, maxS);
+  const internal::safe_scaling_factors<Scalar> factorsT = Scaling::scale_in_place(m_T, maxT);
+
   // entrance point: hessenberg triangular decomposition
   hessenbergTriangular();
   // compute L1 vector norms of T, S into m_normOfS, m_normOfT
@@ -625,6 +635,8 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
   // as the deflation above already does for the subdiagonal of S.
   m_T.template triangularView<StrictlyLower>().setZero();
 
+  Scaling::unscale_in_place(m_S, maxS, factorsS);
+  Scaling::unscale_in_place(m_T, maxT, factorsT);
   return *this;
 }  // end compute
 

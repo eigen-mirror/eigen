@@ -263,6 +263,82 @@ void complex_qz_jordan() {
   }
 }
 
+// push_down_zero_ST checked the entries it leaves at T(l, l) and S(l, l - 1) against an absolute epsilon instead of
+// eps ||T|| and eps ||S||, so whether this graded pencil reported NumericalIssue depended on the scale of b (#3212).
+template <typename MatrixType>
+void complex_qz_push_down_scale() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const int re[5][5] = {{0, -2, -1, -1, 2}, {1, -2, -2, 0, -2}, {1, 0, -1, 0, 0}, {-1, -1, 2, 0, -2}, {1, 2, 1, 1, 1}};
+  const int im[5][5] = {{0, -2, 2, 0, 1}, {2, 1, -1, 2, -2}, {-1, -2, 0, 2, 1}, {2, -2, 2, -1, -1}, {2, 2, -2, 1, 2}};
+  const int bre[5][5] = {
+      {0, -1, -1, -1, -1}, {-1, -2, 1, 2, -2}, {0, 0, -2, 2, -1}, {2, -1, -2, -2, 2}, {1, -2, 1, 2, -1}};
+  const int bim[5][5] = {{0, -1, 1, -2, 2}, {1, -2, -2, 1, -2}, {2, 0, 0, 1, 0}, {-2, 2, 1, 0, -2}, {1, 2, -1, -1, 2}};
+  // Rows graded by 10^-2 (float) or 10^-4 (double), so that T gets diagonal entries below eps ||T||.
+  const RealScalar step = NumTraits<RealScalar>::digits10() > 10 ? RealScalar(1e-4) : RealScalar(1e-2);
+  MatrixType a(5, 5), b(5, 5);
+  RealScalar grade = 1;
+  for (Index i = 0; i < 5; ++i, grade *= step) {
+    for (Index j = 0; j < 5; ++j) {
+      a(i, j) = Scalar(RealScalar(re[i][j]), RealScalar(im[i][j])) * grade;
+      b(i, j) = Scalar(RealScalar(bre[i][j]), RealScalar(bim[i][j])) * grade;
+    }
+  }
+  for (int e : {-10, 0, 10}) {
+    const MatrixType bs = b * std::ldexp(RealScalar(1), e);
+    ComplexQZ<MatrixType> qz(a, bs);
+    verify_complex_qz_convergence(a, bs, qz);
+  }
+}
+
+// A and B are scaled by powers of two near the ends of the exponent range, which made the iteration overflow or
+// underflow (#3212). The scaling must leave Q and Z, and S and T up to the same powers of two, unchanged.
+template <typename MatrixType>
+void complex_qz_extreme_scaling() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const Index dim = 6;
+  // Real and imaginary parts of magnitude in [1/3, 1], so that no scaled entry becomes subnormal.
+  const auto away = [](const RealScalar& x) {
+    return (x < 0 ? x - RealScalar(0.5) : x + RealScalar(0.5)) / RealScalar(1.5);
+  };
+  const auto awayFromZero = [&](const Scalar& x) { return Scalar(away(numext::real(x)), away(numext::imag(x))); };
+  const MatrixType a0 = MatrixType::Random(dim, dim).unaryExpr(awayFromZero);
+  const MatrixType b0 = MatrixType::Random(dim, dim).unaryExpr(awayFromZero);
+  const int big = std::numeric_limits<RealScalar>::max_exponent - 16;
+  const RealScalar tolerance = RealScalar(128 * dim) * NumTraits<RealScalar>::epsilon();
+  for (int ea : {0, big, -big}) {
+    for (int eb : {0, big, -big}) {
+      const MatrixType A = a0 * numext::ldexp(RealScalar(1), ea), B = b0 * numext::ldexp(RealScalar(1), eb);
+      ComplexQZ<MatrixType> qz(A, B);
+      VERIFY_IS_EQUAL(qz.info(), Success);
+      const MatrixType S = qz.matrixS() * numext::ldexp(RealScalar(1), -ea);
+      const MatrixType T = qz.matrixT() * numext::ldexp(RealScalar(1), -eb);
+      VERIFY(S.allFinite() && T.allFinite());
+      VERIFY((qz.matrixQ() * S * qz.matrixZ() - a0).norm() <= tolerance * a0.norm());
+      VERIFY((qz.matrixQ() * T * qz.matrixZ() - b0).norm() <= tolerance * b0.norm());
+    }
+  }
+}
+
+// Finite pencils whose abs-sum norm sum |t_ij| overflows, although ||B||_F does not. With that norm infinite, every
+// relative threshold eps ||T|| accepted any entry, so T(l, l) of size ||B|| was zeroed with Success. The input scaling
+// keeps the norms finite.
+template <typename MatrixType>
+void complex_qz_norm_overflow() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const MatrixType a3 = MatrixType::Random(3, 3);
+  const MatrixType b3 = MatrixType::Identity(3, 3) * Scalar(RealScalar(0.39) * NumTraits<RealScalar>::highest());
+  ComplexQZ<MatrixType> qz3(a3, b3);
+  verify_complex_qz_convergence(a3, b3, qz3);
+  const MatrixType a40 = MatrixType::Random(40, 40);
+  const MatrixType b40 =
+      MatrixType::Random(40, 40) * numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent - 6);
+  ComplexQZ<MatrixType> qz40(a40, b40);
+  verify_complex_qz_convergence(a40, b40, qz40);
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void complex_qz_no_malloc() {
@@ -323,6 +399,12 @@ EIGEN_DECLARE_TEST(complex_qz) {
   CALL_SUBTEST_10((complex_qz_scaled<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_7((complex_qz_jordan<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_jordan<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_push_down_scale<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_push_down_scale<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_extreme_scaling<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_extreme_scaling<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_norm_overflow<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_norm_overflow<MatrixXcd>()));
   CALL_SUBTEST_9((complex_qz_jordan<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_10((complex_qz_jordan<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_9((complex_qz_exceptional_shift<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));

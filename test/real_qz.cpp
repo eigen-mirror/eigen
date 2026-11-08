@@ -93,6 +93,32 @@ void real_qz_iteration_cap_regression() {
   VERIFY_IS_EQUAL(qz.info(), NoConvergence);
 }
 
+// A and B are scaled by powers of two near the ends of the exponent range, which made the iteration overflow or
+// underflow (#3212). The scaling must leave Q and Z, and S and T up to the same powers of two, unchanged.
+template <typename MatrixType>
+void real_qz_extreme_scaling() {
+  using Scalar = typename MatrixType::Scalar;
+  const Index dim = 6;
+  // Entries of magnitude in [1/3, 1], so that no scaled entry becomes subnormal.
+  const auto awayFromZero = [](const Scalar& x) { return (x < 0 ? x - Scalar(0.5) : x + Scalar(0.5)) / Scalar(1.5); };
+  const MatrixType a0 = MatrixType::Random(dim, dim).unaryExpr(awayFromZero);
+  const MatrixType b0 = MatrixType::Random(dim, dim).unaryExpr(awayFromZero);
+  const int big = std::numeric_limits<Scalar>::max_exponent - 16;
+  const Scalar tolerance = Scalar(128 * dim) * NumTraits<Scalar>::epsilon();
+  for (int ea : {0, big, -big}) {
+    for (int eb : {0, big, -big}) {
+      const MatrixType A = a0 * numext::ldexp(Scalar(1), ea), B = b0 * numext::ldexp(Scalar(1), eb);
+      RealQZ<MatrixType> qz(A, B);
+      VERIFY_IS_EQUAL(qz.info(), Success);
+      const MatrixType S = qz.matrixS() * numext::ldexp(Scalar(1), -ea);
+      const MatrixType T = qz.matrixT() * numext::ldexp(Scalar(1), -eb);
+      VERIFY(S.allFinite() && T.allFinite());
+      VERIFY((qz.matrixQ() * S * qz.matrixZ() - a0).norm() <= tolerance * a0.norm());
+      VERIFY((qz.matrixQ() * T * qz.matrixZ() - b0).norm() <= tolerance * b0.norm());
+    }
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void real_qz_no_malloc() {
@@ -121,6 +147,8 @@ void real_qz_no_malloc() {
 
 EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_2((real_qz_no_malloc<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_extreme_scaling<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_extreme_scaling<MatrixXd>()));
   CALL_SUBTEST_5((real_qz_no_malloc<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_6((real_qz_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 
