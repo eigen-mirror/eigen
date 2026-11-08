@@ -199,7 +199,9 @@ class RealQZ {
 
   /** \brief Reports whether previous computation was successful.
    *
-   * \returns \c Success if computation was successful, \c NoConvergence otherwise.
+   * \returns \c NoConvergence if an eigenvalue was not deflated within the iteration limit of setMaxIterations(), which
+   * bounds the iterations between consecutive deflations, \c NumericalIssue if S or T is not representable, and
+   * \c Success otherwise.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
@@ -551,7 +553,7 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
   m_workspace.resize(dim * 2);
   m_global_iter = 0;
 
-  // Scale S and T separately by powers of two near their largest coefficients, as xGGES does, so that the iteration
+  // Scale S and T separately by powers of two near their largest coefficients, as RealSchur does, so that the iteration
   // neither overflows nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S and T.
   using Scaling = internal::safe_scaling<Scalar>;
   const Scalar maxS =
@@ -637,6 +639,8 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
 
   Scaling::unscale_in_place(m_S, maxS, factorsS);
   Scaling::unscale_in_place(m_T, maxT, factorsT);
+  // Where Q^T A Z or Q^T B Z is not representable, unscaling overflows; Success has to mean that S and T are usable.
+  if (m_info == Success && !(m_S.allFinite() && m_T.allFinite())) m_info = NumericalIssue;
   return *this;
 }  // end compute
 

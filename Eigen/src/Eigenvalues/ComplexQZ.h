@@ -210,7 +210,10 @@ class ComplexQZ {
 
   /** \brief Reports whether the last computation was successful.
    *
-   * \returns \c Success if computation was successful, \c NoConvergence otherwise.
+   * \returns \c NoConvergence if an eigenvalue was not deflated within \c maxIters steps (QZ steps, or chases of a zero
+   * on the diagonal of T), \c NumericalIssue if an entry that a reduction step should have eliminated was left above
+   * its threshold or if S or T is not representable, and \c Success otherwise. \c maxIters bounds the steps between
+   * consecutive deflations, not their total; iterations() reports the total number of QZ steps.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
@@ -295,15 +298,18 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
   m_global_iter = 0;
   m_info = Success;
 
-  // Scale S and T separately by powers of two near their largest coefficients, as xGGES does, so that the iteration
-  // neither overflows nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S and T.
+  // Scale S and T separately by powers of two near their largest coefficients, as ComplexSchur does, so that the
+  // iteration neither overflows nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S
+  // and T. The coefficients are measured by their largest real or imaginary part, propagating NaN: the modulus of a
+  // finite coefficient can overflow, which would leave the pencil unscaled.
   using Scaling = internal::safe_scaling<RealScalar>;
-  const RealScalar maxS =
-      m_n == 0 ? RealScalar(0)
-               : Scaling::recover_flushed_max_coeff(m_S, m_S.cwiseAbs().template maxCoeff<PropagateNaN>());
-  const RealScalar maxT =
-      m_n == 0 ? RealScalar(0)
-               : Scaling::recover_flushed_max_coeff(m_T, m_T.cwiseAbs().template maxCoeff<PropagateNaN>());
+  const auto largestPart = [](const MatrixType& m) {
+    const RealScalar re = m.real().cwiseAbs().template maxCoeff<PropagateNaN>();
+    const RealScalar im = m.imag().cwiseAbs().template maxCoeff<PropagateNaN>();
+    return ((numext::isnan)(re) || (numext::isnan)(im)) ? re + im : numext::maxi(re, im);
+  };
+  const RealScalar maxS = m_n == 0 ? RealScalar(0) : Scaling::recover_flushed_max_coeff(m_S, largestPart(m_S));
+  const RealScalar maxT = m_n == 0 ? RealScalar(0) : Scaling::recover_flushed_max_coeff(m_T, largestPart(m_T));
   const internal::safe_scaling_factors<RealScalar> factorsS = Scaling::scale_in_place(m_S, maxS);
   const internal::safe_scaling_factors<RealScalar> factorsT = Scaling::scale_in_place(m_T, maxT);
 
@@ -316,6 +322,8 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
 
   Scaling::unscale_in_place(m_S, maxS, factorsS);
   Scaling::unscale_in_place(m_T, maxT, factorsT);
+  // Where Q^* A Z or Q^* B Z is not representable, unscaling overflows; Success has to mean that S and T are usable.
+  if (m_info == Success && !(m_S.allFinite() && m_T.allFinite())) m_info = NumericalIssue;
 }
 
 // This is basically taken from Eigen3::RealQZ
@@ -471,6 +479,9 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
       Index z = findSmallDiagEntry(f, l);
       if (z >= f) {
         push_down_zero_ST(z, l);
+        // Counted like a QZ step: every pass through the loop then deflates or counts towards maxIters, so the loop
+        // ends after at most n (maxIters + 1) passes even if a chase makes no progress.
+        local_iter++;
       } else {
         do_QZ_step(f, l, local_iter);
         local_iter++;
@@ -479,10 +490,8 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
     }
   }
 
-  // Preserve NumericalIssue if set
-  if (m_info != NumericalIssue) {
-    m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
-  }
+  // Part of the pencil is not reduced: that takes precedence over a NumericalIssue reported before.
+  if (l > 0) m_info = NoConvergence;
 }
 
 template <typename MatrixType_>
@@ -792,7 +801,8 @@ inline Index ComplexQZ<MatrixType_>::findSmallSubdiagEntry(Index iu) {
   while (res > 0) {
     RealScalar s = numext::abs(m_S.coeff(res - 1, res - 1)) + numext::abs(m_S.coeff(res, res));
     if (s == Scalar(0)) s = m_normOfS;
-    if (numext::abs(m_S.coeff(res, res - 1)) < NumTraits<RealScalar>::epsilon() * s) break;
+    // <=, so that an exact zero deflates also where s is 0, e.g. for S = 0.
+    if (numext::abs(m_S.coeff(res, res - 1)) <= NumTraits<RealScalar>::epsilon() * s) break;
     res--;
   }
   return res;

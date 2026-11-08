@@ -119,6 +119,24 @@ void real_qz_extreme_scaling() {
   }
 }
 
+// RealQZ returned Success with inf in S or T where Q^T A Z or Q^T B Z is not representable. For A or B = c 1 with
+// c = 0.9 highest, that triangular factor has rank one and Frobenius norm c n, so its nonzeros form a p x q block with
+// p + q <= n + 1, one of them at least 2 c n / (n + 1) > highest: info() must report NumericalIssue.
+template <typename MatrixType>
+void real_qz_unrepresentable() {
+  using Scalar = typename MatrixType::Scalar;
+  const Scalar c = Scalar(0.9) * NumTraits<Scalar>::highest();
+  for (Index n : {2, 10}) {
+    const MatrixType ones = MatrixType::Constant(n, n, c), random = MatrixType::Random(n, n);
+    RealQZ<MatrixType> qzA(ones, random), qzB(random, ones);
+    VERIFY_IS_EQUAL(qzA.info(), NumericalIssue);
+    VERIFY_IS_EQUAL(qzB.info(), NumericalIssue);
+    const MatrixType big = random * c;
+    RealQZ<MatrixType> qzBig(big, random);
+    VERIFY(qzBig.info() != Success || (qzBig.matrixS().allFinite() && qzBig.matrixT().allFinite()));
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void real_qz_no_malloc() {
@@ -149,6 +167,8 @@ EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_2((real_qz_no_malloc<MatrixXd>()));
   CALL_SUBTEST_1((real_qz_extreme_scaling<MatrixXf>()));
   CALL_SUBTEST_2((real_qz_extreme_scaling<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_unrepresentable<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_unrepresentable<MatrixXd>()));
   CALL_SUBTEST_5((real_qz_no_malloc<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_6((real_qz_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 

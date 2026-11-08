@@ -285,7 +285,7 @@ void complex_qz_push_down_scale() {
     }
   }
   for (int e : {-10, 0, 10}) {
-    const MatrixType bs = b * std::ldexp(RealScalar(1), e);
+    const MatrixType bs = b * numext::ldexp(RealScalar(1), e);
     ComplexQZ<MatrixType> qz(a, bs);
     verify_complex_qz_convergence(a, bs, qz);
   }
@@ -337,6 +337,71 @@ void complex_qz_norm_overflow() {
       MatrixType::Random(40, 40) * numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent - 6);
   ComplexQZ<MatrixType> qz40(a40, b40);
   verify_complex_qz_convergence(a40, b40, qz40);
+}
+
+// One step per eigenvalue cannot reduce this graded complex<float> pencil, so info() must report NoConvergence. It
+// reported NumericalIssue instead (#3212), raised by the absolute-epsilon check that push_down_zero_ST then made. A 1x1
+// pencil needs no step, so maxIters = 0 still reduces it.
+void complex_qz_no_convergence_status() {
+  using cf = std::complex<float>;
+  MatrixXcf a(5, 5), b(5, 5);
+  a << cf(-1, -1), cf(-2, -2), cf(2, -2), cf(0, 1), cf(-2, -1),  //
+      cf(-2, 2), cf(2, 2), cf(2, 2), cf(-1, 2), cf(-1, -1),      //
+      cf(-1, 0), cf(-2, -2), cf(-1, -1), cf(0, -2), cf(1, 1),    //
+      cf(0, 2), cf(-2, -2), cf(1, 0), cf(1, 1), cf(-1, -1),      //
+      cf(-2, -2), cf(-1, 2), cf(1, 1), cf(2, -1), cf(-1, 1);
+  b << cf(1, -2), cf(-2, 2), cf(0, 0), cf(1, -2), cf(2, -1),   //
+      cf(-1, -1), cf(2, -2), cf(-2, 1), cf(-2, 2), cf(2, -1),  //
+      cf(-2, 1), cf(0, 1), cf(1, 0), cf(1, -2), cf(1, -2),     //
+      cf(0, 1), cf(2, -1), cf(2, -1), cf(-2, 1), cf(2, 0),     //
+      cf(1, 1), cf(1, -2), cf(2, 0), cf(2, 0), cf(0, 0);
+  const float grade[] = {1.f, 1e-2f, 1e-4f, 1e-6f, 1e-8f};
+  for (Index i = 0; i < 5; ++i) {
+    a.row(i) *= grade[i];
+    b.row(i) *= grade[i];
+  }
+  ComplexQZ<MatrixXcf> limited(a, b, true, 1);
+  VERIFY_IS_EQUAL(limited.info(), NoConvergence);
+  VERIFY((limited.matrixS().diagonal(-1).array() != cf(0)).any());
+
+  const MatrixXcf a1 = MatrixXcf::Constant(1, 1, cf(2)), b1 = MatrixXcf::Constant(1, 1, cf(1));
+  ComplexQZ<MatrixXcf> scalar(a1, b1, true, 0);
+  VERIFY_IS_EQUAL(scalar.info(), Success);
+}
+
+// An exact zero on the subdiagonal of S did not deflate when |S(k-1, k-1)| + |S(k, k)| and ||S|| were both 0. With
+// A = 0 and n >= 3 the iteration made no progress: it returned NoConvergence with NaN in S and T for a nonzero B, and
+// did not return for B = 0. Both pencils are already in generalized Schur form.
+template <typename MatrixType>
+void complex_qz_zero_pencil() {
+  for (Index dim : {1, 2, 3, 5}) {
+    const MatrixType zero = MatrixType::Zero(dim, dim), random = MatrixType::Random(dim, dim);
+    for (const MatrixType* b : {&zero, &random}) {
+      ComplexQZ<MatrixType> qz(zero, *b);
+      verify_complex_qz_convergence(zero, *b, qz);
+    }
+  }
+}
+
+// ComplexQZ returned Success with inf in S or T where Q^* A Z or Q^* B Z is not representable. For A or B = c 1 with
+// c = 0.9 highest, that triangular factor has rank one and Frobenius norm c n, so its nonzeros form a p x q block with
+// p + q <= n + 1, one of them at least 2 c n / (n + 1) > highest: info() must report NumericalIssue. For A = c Random,
+// the moduli of the coefficients overflowed and left the pencil unscaled, so the iteration did not converge.
+template <typename MatrixType>
+void complex_qz_unrepresentable() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const Scalar c(RealScalar(0.9) * NumTraits<RealScalar>::highest());
+  for (Index n : {2, 10}) {
+    const MatrixType ones = MatrixType::Constant(n, n, c), random = MatrixType::Random(n, n);
+    ComplexQZ<MatrixType> qzA(ones, random), qzB(random, ones);
+    VERIFY_IS_EQUAL(qzA.info(), NumericalIssue);
+    VERIFY_IS_EQUAL(qzB.info(), NumericalIssue);
+    const MatrixType big = random * c;
+    ComplexQZ<MatrixType> qzBig(big, random);
+    VERIFY(qzBig.info() != NoConvergence);
+    VERIFY(qzBig.info() != Success || (qzBig.matrixS().allFinite() && qzBig.matrixT().allFinite()));
+  }
 }
 
 // Block Householder operations still allocate at larger sizes (issue #3163).
@@ -398,6 +463,11 @@ EIGEN_DECLARE_TEST(complex_qz) {
   CALL_SUBTEST_9((complex_qz_scaled<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_10((complex_qz_scaled<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_7((complex_qz_jordan<MatrixXcf>()));
+  CALL_SUBTEST_7(complex_qz_no_convergence_status());
+  CALL_SUBTEST_7((complex_qz_zero_pencil<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_zero_pencil<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_unrepresentable<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_unrepresentable<MatrixXcd>()));
   CALL_SUBTEST_8((complex_qz_jordan<MatrixXcd>()));
   CALL_SUBTEST_7((complex_qz_push_down_scale<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_push_down_scale<MatrixXcd>()));
