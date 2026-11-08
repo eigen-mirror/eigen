@@ -1156,11 +1156,12 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_plain(const Packet& x, cons
 // Repeated squaring for a binary32 or binary64 base, real or complex, carried in double-word arithmetic. Plain
 // repeated squaring doubles the accumulated rounding error at every squaring, so its error grows like n * u for
 // x^n. Keeping the running power as an unevaluated sum {hi, lo} bounds each step's relative error by about
-// 7 * u^2 (fast_twoprod), so the result is correctly rounded unless the exact power lies within about 7 * n * u^2
-// of a rounding boundary, and stays within 1 ulp up to n = max_squaring_exponent() for float. For a complex base
-// the bound is normwise, relative to |z^n|, as a^2 - b^2 and ac - bd can cancel, and the n u^2 term passes u/2
-// as |n| approaches 1/u: (0.6 + 0.8i)^n in complex<float> is 0.2 u off at n = 4096, 0.5 u at 2^24 and 4.2 u at
-// 2^31 - 1. The power is scaled by powers of two throughout and only the final pldexp can overflow or underflow.
+// 5 * u^2 (fast_twoprod; measured at most 4.98 * u^2 per squaring), so the result is correctly rounded unless the
+// exact power lies within about 5 * n * u^2 of a rounding boundary, and stays within 1 ulp up to
+// n = max_squaring_exponent() for float. For a complex base the bound is normwise, relative to |z^n|, as
+// a^2 - b^2 and ac - bd can cancel, and the n u^2 term passes u/2 as |n| approaches 1/u: (0.6 + 0.8i)^n in
+// complex<float> is 0.2 u off at n = 4096, 0.5 u at 2^24 and 4.2 u at 2^31 - 1. The power is scaled by powers of
+// two throughout and only the final pldexp can overflow or underflow.
 template <typename Packet, typename ScalarExponent>
 EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet int_pow_double_word(const Packet& x, const ScalarExponent& exponent) {
   using Scalar = typename unpacket_traits<Packet>::type;

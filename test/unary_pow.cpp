@@ -16,7 +16,7 @@
 
 // Integer powers of binary32 and binary64 bases, real and complex, are computed by repeated squaring in
 // double-word arithmetic: correctly rounded up to the rare cases where the exact power lies within about
-// 7 * n * u^2 of a rounding boundary. These tests check that bound against independent references, on the
+// 5 * n * u^2 of a rounding boundary. These tests check that bound against independent references, on the
 // vectorized path and on the scalar path, together with the exceptional values and signed zeros.
 
 template <typename Scalar>

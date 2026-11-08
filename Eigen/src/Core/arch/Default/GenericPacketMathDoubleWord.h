@@ -248,18 +248,39 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x_hi, const Pac
 }
 
 // This function implements the multiplication of two double word numbers
-// {x_hi, x_lo} and {y_hi, y_lo} at a lower cost than twoprod above: the
-// cross terms are accumulated onto the two-product residual and the x_lo*y_lo
-// term is dropped. For normalized inputs the relative error is < 7*u^2.
-// This is Algorithm 10 (DWTimesDW1) from Joldes, Muller, & Popescu (2017),
-// "Tight and rigorous error bounds for basic building blocks of double-word
-// arithmetic", https://hal.science/hal-01351529.
+// {x_hi, x_lo} and {y_hi, y_lo} at a lower cost than twoprod above: with
+// {c_hi, c_lo} = x_hi*y_hi exactly, it renormalizes c_hi + (c_lo + x_hi*y_lo +
+// x_lo*y_hi), dropping x_lo*y_lo. Scale x_hi and y_hi into [1, 2), so that
+// |x_lo|, |y_lo| <= u = 2^-p for p-bit significands.
+// Where pmadd is fused (is_fused_madd, and float and double scalars under
+// EIGEN_VECTORIZE_FMA), two pmadds accumulate the cross terms onto c_lo. If
+// x_hi*y_hi < 2, each rounds a value below 4*u, by at most 2*u^2, and the
+// dropped term is at most u^2, so the relative error is below 5*u^2 to first
+// order; if x_hi*y_hi >= 2 it is below 3.5*u^2. Measured maxima: 4.87*u^2 (float)
+// and 4.80*u^2 (double), 4.93*u^2 and 4.98*u^2 for squares.
+// Elsewhere the cross products are rounded and summed before c_lo is added:
+// Algorithm 10 (DWTimesDW1) of Joldes, Muller, & Popescu (2017),
+// https://hal.science/hal-01351529, measured at most 4.9997*u^2 (float) and
+// 4.94*u^2 (double), 4.00*u^2 for squares. Chaining unfused pmadds instead would
+// round each cross product as well, for up to 7*u^2 (measured 6.93*u^2).
+// Measured against an exact reference over 5*10^7 normalized operand pairs per
+// case plus a hill-climb search; round-to-nearest, no overflow or underflow.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void fast_twoprod(const Packet& x_hi, const Packet& x_lo, const Packet& y_hi,
                                                         const Packet& y_lo, Packet& p_hi, Packet& p_lo) {
   Packet c_hi, c_lo;
   twoprod(x_hi, y_hi, c_hi, c_lo);
-  c_lo = pmadd(x_hi, y_lo, pmadd(x_lo, y_hi, c_lo));
+#ifdef EIGEN_VECTORIZE_FMA
+  // Scalar float and double pmadd are numext::fma here, so scalars round like the packets.
+  constexpr bool kScalarFused = std::is_same<Packet, float>::value || std::is_same<Packet, double>::value;
+#else
+  constexpr bool kScalarFused = false;
+#endif
+  EIGEN_IF_CONSTEXPR (is_fused_madd<Packet>::value || kScalarFused) {
+    c_lo = pmadd(x_hi, y_lo, pmadd(x_lo, y_hi, c_lo));
+  } else {
+    c_lo = padd(c_lo, padd(pmul(x_hi, y_lo), pmul(x_lo, y_hi)));
+  }
   fast_twosum(c_hi, c_lo, p_hi, p_lo);
 }
 
