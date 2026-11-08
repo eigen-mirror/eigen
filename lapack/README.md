@@ -11,7 +11,8 @@ Eigen's C++ API does not use it.
   trailing underscore (`dgetrf_`), every argument passed by pointer,
   column-major matrices with a leading dimension, and complex numbers stored as
   (real, imaginary) pairs. Dimensions, pivot indices and `INFO` are 32-bit
-  `int`. Unlike Eigen's BLAS library, this library has no ILP64 build.
+  `int`, or 64-bit in the ILP64 build (`eigen_lapack_ilp64`), which exports the
+  same names and links Eigen's ILP64 BLAS library.
 - In a routine with an `INFO` argument, an invalid `i`-th argument makes the
   routine call `XERBLA` and return `INFO = -i`, as in reference LAPACK. The
   auxiliary routines have no `INFO` argument and do not check their arguments.
@@ -21,7 +22,7 @@ Eigen's C++ API does not use it.
   own.
 - The driver routines allocate their own workspace. They use `WORK` only to
   answer a workspace query (`LWORK = -1`). `xSYEV` still requires
-  `LWORK >= max(1, 3*N-1)`.
+  `LWORK >= max(1, 3*N-1)`, and `xHEEV` `LWORK >= max(1, 2*N-1)`.
 
 ## Building
 
@@ -30,7 +31,10 @@ The library is enabled with `EIGEN_BUILD_LAPACK` and requires
 project. The `lapack` target builds `eigen_lapack_static`, which links
 `eigen_blas_static`. Where the platform supports shared libraries
 (`EIGEN_BUILD_SHARED_LIBS`), it also builds `eigen_lapack`, which links
-`eigen_blas`. `EIGEN_INSTALL` installs both.
+`eigen_blas`. With `EIGEN_BUILD_LAPACK_ILP64`, which defaults to
+`EIGEN_BUILD_BLAS_ILP64`, it builds the same pair with 64-bit integers,
+`eigen_lapack_ilp64_static` and `eigen_lapack_ilp64`, which link Eigen's ILP64
+BLAS libraries. `EIGEN_INSTALL` installs them all.
 
 ## Routines
 
@@ -54,6 +58,7 @@ lists the prefixes that exist:
 | Problem | Routine | Precisions | Computes | Implemented with |
 |---|---|---|---|---|
 | Symmetric eigenproblem (SEP) | `xSYEV` | S, D | All eigenvalues and, optionally, the eigenvectors of a symmetric matrix | `SelfAdjointEigenSolver` |
+| | `xHEEV` | C, Z | The same for a Hermitian matrix; the imaginary part of its diagonal is ignored | `SelfAdjointEigenSolver` |
 | Singular value decomposition (SVD) | `xGESVD` | S, D, C, Z | `A = U Σ V^H`: the singular values and, optionally, the left and right singular vectors | `JacobiSVD` (two-sided Jacobi, not bidiagonal QR iteration) |
 | | `xGESDD` | S, D, C, Z | The same, by divide and conquer | `BDCSVD` |
 
@@ -63,7 +68,6 @@ The library has no driver for any other problem class in §2.3:
 - Linear least squares, and generalized linear least squares.
 - Nonsymmetric eigenproblems.
 - Generalized eigenvalue and singular value problems.
-- The Hermitian eigenproblem (`CHEEV`, `ZHEEV`).
 
 ### Computational routines (Users' Guide §2.4)
 
@@ -71,12 +75,25 @@ The library has no driver for any other problem class in §2.3:
 |---|---|---|---|---|
 | Linear equations (§2.4.1), general matrix | `xGETRF` | S, D, C, Z | LU factorization with partial pivoting, `A = P L U` | `PartialPivLU`'s blocked kernel |
 | | `xGETRS` | S, D, C, Z | Solves `A X = B`, `A^T X = B` or `A^H X = B` with the factors from `xGETRF` | Triangular solves |
+| | `xGETRI` | S, D, C, Z | `inv(A) = inv(U) inv(L) P^T` from the factors of `xGETRF`, blocked over `WORK` | `xTRTRI` and triangular solves |
 | Linear equations (§2.4.1), symmetric or Hermitian positive definite matrix | `xPOTRF` | S, D, C, Z | Cholesky factorization, `A = U^H U` or `A = L L^H` | `LLT`'s blocked kernel |
 | | `xPOTRS` | S, D, C, Z | Solves `A X = B` with the factor from `xPOTRF` | Triangular solves |
+| | `xPOTRI` | S, D, C, Z | `inv(A)` from the factor of `xPOTRF` | `xTRTRI`, then `xLAUUM` |
+| Linear equations (§2.4.1), symmetric or Hermitian positive semidefinite matrix | `xPSTRF` | S, D, C, Z | Cholesky factorization with complete pivoting, `P^T A P = U^H U` or `L L^H`, stopping at the numerical rank | `LDLT`'s panel kernel, pivoting on the largest diagonal entry |
+| Linear equations (§2.4.1), symmetric indefinite matrix | `xSYTRF` | S, D | Bunch-Kaufman factorization `A = U D U^T` or `L D L^T`, `D` with 1x1 and 2x2 blocks | `BunchKaufman`'s blocked kernel, with LAPACK's pivot search |
+| | `xSYTRS` | S, D | Solves `A X = B` with the factorization from `xSYTRF` | One block of the factorization at a time, without workspace, as reference LAPACK does |
+| Linear equations (§2.4.1), Hermitian indefinite matrix | `xHETRF` | C, Z | Bunch-Kaufman factorization `A = U D U^H` or `L D L^H` | `BunchKaufman`'s blocked kernel, with LAPACK's pivot search |
+| | `xHETRS` | C, Z | Solves `A X = B` with the factorization from `xHETRF` | One block of the factorization at a time, without workspace, as reference LAPACK does |
+| Linear equations (§2.4.1), triangular matrix | `xTRTRS` | S, D, C, Z | Solves `op(A) X = B`, checking for a zero diagonal entry | Triangular solves |
+| | `xTRTRI` | S, D, C, Z | `inv(A)` in place | `TriangularView::inverseInPlace()` |
+| Orthogonal factorizations (§2.4.2) | `xGEQRF` | S, D, C, Z | QR factorization `A = Q R`, `Q` as Householder reflectors | `HouseholderQR`'s blocked kernel |
+| | `xORGQR`, `xUNGQR` | S, D (ORGQR); C, Z (UNGQR) | Forms the leading columns of `Q` | Block Householder kernels |
+| | `xORMQR`, `xUNMQR` | S, D (ORMQR); C, Z (UNMQR) | `Q C`, `Q^H C`, `C Q` or `C Q^H` | Block Householder kernels |
 
-The library has no routines from §2.4.2 through §2.4.9. Those sections cover
-orthogonal factorizations and their generalized forms, the symmetric,
-nonsymmetric and generalized eigenproblems, the SVD, and the generalized SVD.
+Of §2.4.2 the library has only the QR factorization. It has no routines from
+§2.4.3 through §2.4.9, which cover generalized orthogonal factorizations, the
+symmetric, nonsymmetric and generalized eigenproblems, the SVD, and the
+generalized SVD.
 
 ### Auxiliary routines (Users' Guide, Index of Auxiliary Routines)
 
@@ -89,6 +106,7 @@ here by purpose.
 | | `xLARF` | S, D, C, Z | `H C` or `C H` for `H = I - τ v v^H` |
 | | `xLARFT` | S, D, C, Z | The triangular factor `T` of a block reflector `H = I - V T V^H` |
 | | `xLARFB` | S, D, C, Z | `H C`, `H^H C`, `C H` or `C H^H` for a block reflector `H` |
+| Triangular products | `xLAUUM` | S, D, C, Z | `U U^H` or `L^H L` in place, keeping a complex diagonal real |
 | Matrix scanning | `ILAxLR`, `ILAxLC` | S, D, C, Z | Index of the last nonzero row or column |
 | Scalar arithmetic | `xLAPY2`, `xLAPY3` | S, D | `sqrt(x^2 + y^2)` and `sqrt(x^2 + y^2 + z^2)` without unnecessary overflow |
 | | `xLADIV` | S, D, C, Z | Complex division without unnecessary overflow. S and D pass real and imaginary parts as separate arguments. |
@@ -98,14 +116,19 @@ here by purpose.
 | Version | `ILAVER` | – | The reference LAPACK release that the routines follow, 3.12.1 |
 | Timing | `SECOND`, `DSECND` | – | Process CPU time in seconds |
 
-These routines are written directly to the reference LAPACK specification
-rather than built on Eigen's decompositions. The Householder routines support
-every combination of `SIDE`, `TRANS`, `DIRECT` and `STOREV`.
+Except for `xLAUUM`, which shares its kernel with `LLT::inverse()`, these
+routines are written directly to the reference LAPACK specification rather
+than built on Eigen's decompositions. The Householder routines support every
+combination of `SIDE`, `TRANS`, `DIRECT` and `STOREV`.
 
 ## Tests
 
-`lapack_routines`, built with Eigen's other tests (`EIGEN_BUILD_TESTING`),
-checks Eigen's routines directly from C++ and needs no Fortran compiler.
+`lapack_routines` and `lapack_wrappers`, built with Eigen's other tests
+(`EIGEN_BUILD_TESTING`), check Eigen's routines directly from C++ and need no
+Fortran compiler. `lapack_wrappers` adds what reference LAPACK's tests leave
+out, such as NaN and infinite input, arguments left untouched when `INFO > 0`
+and the pivots reference LAPACK chooses; `lapack_wrappers_ilp64` runs it
+against the ILP64 library.
 
 The optional numerical tests (`EIGEN_ENABLE_LAPACK_TESTS`) require a Fortran
 compiler. CMake downloads the unmodified reference LAPACK release that
@@ -121,8 +144,8 @@ into the test-only `eigen_lapack_reference` library, which is never installed.
 `LAPACK_Test_Symbols` checks the split: Eigen defines every routine the `.def`
 file lists, defines no Fortran-callable routine it omits, and shares none with
 the reference library. On ELF platforms it also checks that the shared library
-exports every listed routine. `buildtests_lapack` builds the drivers and
-`lapack_routines`, and `buildtests_blas` the tests under `blas/testing`.
+exports every listed routine. `buildtests_lapack` builds the drivers and the
+`lapack_*` C++ tests, and `buildtests_blas` the tests under `blas/testing`.
 
 The tests and their summary run through CMake/CTest without Python.
 `LAPACK_Test_Summary` waits for the drivers and combines their output files into

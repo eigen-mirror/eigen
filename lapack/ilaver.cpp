@@ -12,7 +12,7 @@
 
 extern "C" {
 // Returns the reference LAPACK release that this implementation follows; lapack/CMakeLists.txt defines it.
-void ilaver_(int* major, int* minor, int* patch) {
+void ilaver_(EIGEN_BLAS_INT* major, EIGEN_BLAS_INT* minor, EIGEN_BLAS_INT* patch) {
   *major = EIGEN_LAPACK_VERSION_MAJOR;
   *minor = EIGEN_LAPACK_VERSION_MINOR;
   *patch = EIGEN_LAPACK_VERSION_PATCH;

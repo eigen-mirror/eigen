@@ -24,7 +24,8 @@ namespace {
 // return INFO = 0. Here NaN goes to every requested output instead, so that no vector reads as a result. INFO = 1
 // reports a failure other than a non-finite A, as INFO > 0 reports a failure to converge in the reference.
 template <typename SVD>
-int store_svd(const SVD &svd, int diag_size, RealScalar *s, Scalar *u, int ldu, Scalar *vt, int ldvt) {
+EIGEN_BLAS_INT store_svd(const SVD &svd, EIGEN_BLAS_INT diag_size, RealScalar *s, Scalar *u, EIGEN_BLAS_INT ldu,
+                         Scalar *vt, EIGEN_BLAS_INT ldvt) {
   const Eigen::ComputationInfo status = svd.info();
   const bool unfilled = status != Eigen::Success && status != Eigen::NoConvergence;
   const Scalar nan(Eigen::NumTraits<RealScalar>::quiet_NaN());
@@ -52,14 +53,14 @@ int store_svd(const SVD &svd, int diag_size, RealScalar *s, Scalar *u, int ldu, 
 
 // GESDD computes the singular values and vectors of a general M-by-N matrix A by divide and conquer.
 EIGEN_LAPACK_FUNC(gesdd)
-(const char *jobz, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu, RealScalar *rvt,
- int *ldvt, RealScalar *work, int *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int * /*iwork*/,
- int *info) {
+(const char *jobz, EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *ra, EIGEN_BLAS_INT *lda, RealScalar *s,
+ RealScalar *ru, EIGEN_BLAS_INT *ldu, RealScalar *rvt, EIGEN_BLAS_INT *ldvt, RealScalar *work, EIGEN_BLAS_INT *lwork,
+ EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) EIGEN_BLAS_INT * /*iwork*/, EIGEN_BLAS_INT *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   const char jobz_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobz)));
   jobz = &jobz_upper;
-  int diag_size = (std::min)(*m, *n);
+  EIGEN_BLAS_INT diag_size = (std::min)(*m, *n);
 
   *info = 0;
   if (*jobz != 'A' && *jobz != 'S' && *jobz != 'O' && *jobz != 'N')
@@ -68,7 +69,7 @@ EIGEN_LAPACK_FUNC(gesdd)
     *info = -2;
   else if (*n < 0)
     *info = -3;
-  else if (*lda < std::max(1, *m))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *m))
     *info = -5;
   else if (*ldu < 1 || ((*jobz == 'A' || *jobz == 'S') && *ldu < *m) || (*jobz == 'O' && *m < *n && *ldu < *m))
     *info = -8;
@@ -77,7 +78,7 @@ EIGEN_LAPACK_FUNC(gesdd)
     *info = -10;
 
   if (*info != 0) {
-    int e = -*info;
+    EIGEN_BLAS_INT e = -*info;
     return xerbla_(SCALAR_SUFFIX_UP "GESDD ", &e, kBlasNameLength);
   }
 
@@ -120,16 +121,16 @@ EIGEN_LAPACK_FUNC(gesdd)
 
 // GESVD computes the singular values and vectors of a general M-by-N matrix A by the two-sided Jacobi algorithm.
 EIGEN_LAPACK_FUNC(gesvd)
-(const char *jobu, const char *jobv, int *m, int *n, RealScalar *ra, int *lda, RealScalar *s, RealScalar *ru, int *ldu,
- RealScalar *rvt, int *ldvt, RealScalar *work, int *lwork,
- EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) int *info) {
+(const char *jobu, const char *jobv, EIGEN_BLAS_INT *m, EIGEN_BLAS_INT *n, RealScalar *ra, EIGEN_BLAS_INT *lda,
+ RealScalar *s, RealScalar *ru, EIGEN_BLAS_INT *ldu, RealScalar *rvt, EIGEN_BLAS_INT *ldvt, RealScalar *work,
+ EIGEN_BLAS_INT *lwork, EIGEN_LAPACK_ARG_IF_COMPLEX(RealScalar * /*rwork*/) EIGEN_BLAS_INT *info) {
   // TODO exploit the work buffer
   bool query_size = *lwork == -1;
   const char jobu_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobu)));
   jobu = &jobu_upper;
   const char jobv_upper = static_cast<char>(std::toupper(static_cast<unsigned char>(*jobv)));
   jobv = &jobv_upper;
-  int diag_size = (std::min)(*m, *n);
+  EIGEN_BLAS_INT diag_size = (std::min)(*m, *n);
 
   *info = 0;
   if (*jobu != 'A' && *jobu != 'S' && *jobu != 'O' && *jobu != 'N')
@@ -140,7 +141,7 @@ EIGEN_LAPACK_FUNC(gesvd)
     *info = -3;
   else if (*n < 0)
     *info = -4;
-  else if (*lda < std::max(1, *m))
+  else if (*lda < std::max<EIGEN_BLAS_INT>(1, *m))
     *info = -6;
   else if (*ldu < 1 || ((*jobu == 'A' || *jobu == 'S') && *ldu < *m))
     *info = -9;
@@ -148,7 +149,7 @@ EIGEN_LAPACK_FUNC(gesvd)
     *info = -11;
 
   if (*info != 0) {
-    int e = -*info;
+    EIGEN_BLAS_INT e = -*info;
     return xerbla_(SCALAR_SUFFIX_UP "GESVD ", &e, kBlasNameLength);
   }
 
@@ -165,7 +166,7 @@ EIGEN_LAPACK_FUNC(gesvd)
 
   PlainMatrixType mat = matrix(a, *m, *n, *lda);
 
-  int option = 0;
+  EIGEN_BLAS_INT option = 0;
   if (*jobu == 'A')
     option |= Eigen::ComputeFullU;
   else if (*jobu == 'S' || *jobu == 'O')

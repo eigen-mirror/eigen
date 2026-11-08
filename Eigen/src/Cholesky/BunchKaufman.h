@@ -62,7 +62,8 @@ inline Index bunch_kaufman_blocksize();
  *  - N. J. Higham, "Accuracy and Stability of Numerical Algorithms", 2nd ed., chapter 11.
  *
  * The blocked (level-3 BLAS) variant follows the panel/trailing-update structure of LAPACK's
- * xSYTRF / xLASYF.
+ * xSYTRF / xLASYF. As there, the pivot search takes the first of equal candidates and measures a complex
+ * candidate \f$ x \f$ by \f$ |\operatorname{Re} x| + |\operatorname{Im} x| \f$.
  *
  * This factorization also reveals the \em inertia of \f$ A \f$ (the number of positive, negative and
  * zero eigenvalues) by Sylvester's law of inertia, accessible through numPositive(), numNegative() and numZero().
@@ -438,6 +439,39 @@ inline Index bunch_kaufman_blocksize() {
 #endif
 }
 
+/** \internal The size by which the pivot search compares candidates: |x| for real x, and
+ * CABS1(x) = |re x| + |im x| for complex x, as LAPACK's xHETRF measures them with IxAMAX. CABS1(x) lies in
+ * [|x|, sqrt(2) |x|], so it changes the element-growth bound only by a constant factor, and it needs no hypot. */
+template <bool IsComplex>
+struct bunch_kaufman_magnitude {
+  template <typename VectorType>
+  static auto run(const VectorType& v) -> decltype(v.cwiseAbs()) {
+    return v.cwiseAbs();
+  }
+};
+template <>
+struct bunch_kaufman_magnitude<true> {
+  template <typename VectorType>
+  static auto run(const VectorType& v) -> decltype(v.real().cwiseAbs() + v.imag().cwiseAbs()) {
+    return v.real().cwiseAbs() + v.imag().cwiseAbs();
+  }
+};
+
+/** \internal The largest candidate size in v and, if index is given, the first position that holds it, or the last
+ * with LastOnTies. Eigen's LAPACK library computes xSYTRF with UPLO = 'U' as the lower factorization of the reversed
+ * matrix J A J, where IxAMAX's first of equal candidates is the last. */
+template <bool LastOnTies = false, typename VectorType>
+typename NumTraits<typename VectorType::Scalar>::Real bunch_kaufman_max(const VectorType& v, Index* index = nullptr) {
+  using Magnitude = bunch_kaufman_magnitude<NumTraits<typename VectorType::Scalar>::IsComplex>;
+  if (index == nullptr) return Magnitude::run(v).maxCoeff();
+  EIGEN_IF_CONSTEXPR (LastOnTies) {
+    const typename NumTraits<typename VectorType::Scalar>::Real m = Magnitude::run(v.reverse()).maxCoeff(index);
+    *index = v.size() - 1 - *index;
+    return m;
+  }
+  return Magnitude::run(v).maxCoeff(index);
+}
+
 template <int UpLo>
 struct bunch_kaufman;
 
@@ -451,7 +485,8 @@ struct bunch_kaufman<Lower> {
   //   - subdiag(k) holds D(k+1,k) for each 2x2 block starting at column k (and 0 elsewhere),
   //   - transpositions encodes the symmetric permutation P (applied in increasing index order).
   // Returns 0 on success, or the (1-based) index of the first exactly-zero pivot encountered.
-  template <typename MatrixType, typename TranspositionType, typename SubDiagType>
+  // LastOnTies takes the last of equal pivot candidates rather than the first; see bunch_kaufman_max.
+  template <bool LastOnTies = false, typename MatrixType, typename TranspositionType, typename SubDiagType>
   static Index unblocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag, Index k0 = 0) {
     using Scalar = typename MatrixType::Scalar;
     using RealScalar = typename MatrixType::RealScalar;
@@ -471,7 +506,7 @@ struct bunch_kaufman<Lower> {
       RealScalar colmax(0);
       if (k + 1 < n) {
         Index rel = 0;
-        colmax = mat.col(k).tail(n - k - 1).cwiseAbs().maxCoeff(&rel);
+        colmax = bunch_kaufman_max<LastOnTies>(mat.col(k).tail(n - k - 1), &rel);
         imax = k + 1 + rel;
       }
 
@@ -485,9 +520,9 @@ struct bunch_kaufman<Lower> {
         kp = k;
       } else {
         // rowmax = largest off-diagonal magnitude in row/column imax.
-        RealScalar rowmax = mat.row(imax).segment(k, imax - k).cwiseAbs().maxCoeff();
+        RealScalar rowmax = bunch_kaufman_max(mat.row(imax).segment(k, imax - k));
         if (imax + 1 < n) {
-          RealScalar rowmax2 = mat.col(imax).tail(n - imax - 1).cwiseAbs().maxCoeff();
+          RealScalar rowmax2 = bunch_kaufman_max(mat.col(imax).tail(n - imax - 1));
           rowmax = (numext::maxi)(rowmax, rowmax2);
         }
         if (absakk >= alpha * colmax * (colmax / rowmax)) {
@@ -601,7 +636,8 @@ struct bunch_kaufman<Lower> {
   // workspace `W` (n x nb) returns, in its first kb columns, the product L21*D restricted to the panel
   // columns, so that the caller can apply the deferred trailing update A22 <- A22 - L21 * (L21*D)^* with
   // a single level-3 (triangular) matrix product. Returns the number kb (<= nb) of columns factorized.
-  template <typename MatrixType, typename WorkspaceType, typename TranspositionType, typename SubDiagType>
+  template <bool LastOnTies = false, typename MatrixType, typename WorkspaceType, typename TranspositionType,
+            typename SubDiagType>
   static Index partial_factor(MatrixType& mat, Index k0, Index nb, WorkspaceType& W, TranspositionType& transpositions,
                               SubDiagType& subdiag, Index& info) {
     using Scalar = typename MatrixType::Scalar;
@@ -632,7 +668,7 @@ struct bunch_kaufman<Lower> {
       RealScalar colmax(0);
       if (jc + 1 < n) {
         Index rel = 0;
-        colmax = W.col(j).segment(jc + 1, n - jc - 1).cwiseAbs().maxCoeff(&rel);
+        colmax = bunch_kaufman_max<LastOnTies>(W.col(j).segment(jc + 1, n - jc - 1), &rel);
         imax = jc + 1 + rel;
       }
 
@@ -654,9 +690,9 @@ struct bunch_kaufman<Lower> {
         }
 
         RealScalar rowmax(0);
-        if (imax > jc) rowmax = W.col(j + 1).segment(jc, imax - jc).cwiseAbs().maxCoeff();
+        if (imax > jc) rowmax = bunch_kaufman_max(W.col(j + 1).segment(jc, imax - jc));
         if (imax + 1 < n) {
-          RealScalar rowmax2 = W.col(j + 1).segment(imax + 1, n - imax - 1).cwiseAbs().maxCoeff();
+          RealScalar rowmax2 = bunch_kaufman_max(W.col(j + 1).segment(imax + 1, n - imax - 1));
           rowmax = (numext::maxi)(rowmax, rowmax2);
         }
         if (absakk >= alpha * colmax * (colmax / rowmax)) {
@@ -737,12 +773,13 @@ struct bunch_kaufman<Lower> {
   }
 
   // Blocked (level-3 BLAS) Bunch-Kaufman factorization of the lower triangle of `mat`, in place.
-  template <typename MatrixType, typename TranspositionType, typename SubDiagType, typename WorkspaceType>
+  template <bool LastOnTies = false, typename MatrixType, typename TranspositionType, typename SubDiagType,
+            typename WorkspaceType>
   static Index blocked(MatrixType& mat, TranspositionType& transpositions, SubDiagType& subdiag,
                        WorkspaceType& workspace) {
     const Index n = mat.rows();
     const Index nb = bunch_kaufman_blocksize<typename MatrixType::Scalar>();
-    if (nb < 2 || n <= nb) return unblocked(mat, transpositions, subdiag, 0);
+    if (nb < 2 || n <= nb) return unblocked<LastOnTies>(mat, transpositions, subdiag, 0);
 
     // One extra workspace column holds the candidate ("imax") column examined during pivot selection.
     workspace.resize(n, nb + 1);
@@ -750,7 +787,7 @@ struct bunch_kaufman<Lower> {
     Index k = 0;
     while (k < n) {
       if (n - k > nb) {
-        const Index kb = partial_factor(mat, k, nb, workspace, transpositions, subdiag, info);
+        const Index kb = partial_factor<LastOnTies>(mat, k, nb, workspace, transpositions, subdiag, info);
         const Index rs = n - k - kb;
         if (rs > 0) {
           // Deferred trailing update of the lower triangle: A22 <- A22 - L21 * (L21*D)^*.
@@ -758,12 +795,12 @@ struct bunch_kaufman<Lower> {
               mat.block(k + kb, k, rs, kb) * workspace.block(k + kb, 0, rs, kb).adjoint();
         }
         if (kb == 0) {  // defensive: avoid an infinite loop (should not happen for nb >= 2)
-          info = (info == 0) ? unblocked(mat, transpositions, subdiag, k) : info;
+          info = (info == 0) ? unblocked<LastOnTies>(mat, transpositions, subdiag, k) : info;
           break;
         }
         k += kb;
       } else {
-        const Index info2 = unblocked(mat, transpositions, subdiag, k);
+        const Index info2 = unblocked<LastOnTies>(mat, transpositions, subdiag, k);
         if (info == 0) info = info2;
         break;
       }

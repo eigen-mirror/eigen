@@ -1,6 +1,7 @@
-; Definition file for eigen_lapack.dll.
+; Definition file for eigen_lapack.dll and eigen_lapack_ilp64.dll.
+; No LIBRARY statement: the linker names each DLL after its /OUT file, so the
+; ILP64 import library does not resolve to eigen_lapack.dll.
 
-LIBRARY eigen_lapack
 EXPORTS
     ; Utilities
     xerbla_
@@ -46,9 +47,25 @@ EXPORTS
     clarfb_
     zlarfb_
 
+    ; QR
+    sgeqrf_
+    dgeqrf_
+    cgeqrf_
+    zgeqrf_
+    sorgqr_
+    dorgqr_
+    cungqr_
+    zungqr_
+    sormqr_
+    dormqr_
+    cunmqr_
+    zunmqr_
+
     ; Eigenvalues
     ssyev_
     dsyev_
+    cheev_
+    zheev_
 
     ; LU
     sgetrf_
@@ -59,6 +76,10 @@ EXPORTS
     cgetrs_
     zgetrf_
     zgetrs_
+    sgetri_
+    dgetri_
+    cgetri_
+    zgetri_
 
     ; Cholesky
     spotrf_
@@ -69,6 +90,38 @@ EXPORTS
     cpotrs_
     zpotrf_
     zpotrs_
+    spstrf_
+    dpstrf_
+    cpstrf_
+    zpstrf_
+
+    ; Symmetric indefinite
+    ssytrf_
+    ssytrs_
+    dsytrf_
+    dsytrs_
+    chetrf_
+    chetrs_
+    zhetrf_
+    zhetrs_
+    spotri_
+    dpotri_
+    cpotri_
+    zpotri_
+
+    ; Triangular
+    strtri_
+    dtrtri_
+    ctrtri_
+    ztrtri_
+    slauum_
+    dlauum_
+    clauum_
+    zlauum_
+    strtrs_
+    dtrtrs_
+    ctrtrs_
+    ztrtrs_
 
     ; SVD
     sgesdd_
@@ -83,61 +136,3 @@ EXPORTS
     ; Time
     second_
     dsecnd_
-
-    ; Missing
-    ; csymv_
-    ; zsymv_
-    ; cspmv_
-    ; zspmv_
-    ; csyr_
-    ; zsyr_
-    ; cspr_
-    ; zspr_
-    ; sgemt_
-    ; dgemt_
-    ; cgemt_
-    ; zgemt_
-    ; sgema_
-    ; dgema_
-    ; cgema_
-    ; zgema_
-    ; sgems_
-    ; dgems_
-    ; cgems_
-    ; zgems_
-    ; sgetf2_
-    ; dgetf2_
-    ; cgetf2_
-    ; zgetf2_
-    ; slaswp_
-    ; dlaswp_
-    ; claswp_
-    ; zlaswp_
-    ; sgesv_
-    ; dgesv_
-    ; cgesv_
-    ; zgesv_
-    ; spotf2_
-    ; dpotf2_
-    ; cpotf2_
-    ; zpotf2_
-    ; slauu2_
-    ; dlauu2_
-    ; clauu2_
-    ; zlauu2_
-    ; slauum_
-    ; dlauum_
-    ; clauum_
-    ; zlauum_
-    ; strti2_
-    ; dtrti2_
-    ; ctrti2_
-    ; ztrti2_
-    ; strtri_
-    ; dtrtri_
-    ; ctrtri_
-    ; ztrtri_
-    ; spotri_
-    ; dpotri_
-    ; cpotri_
-    ; zpotri_

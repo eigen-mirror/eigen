@@ -8,6 +8,12 @@ New features:
 - Generic clang vector extension backend [!2051]
 - `ArrayBase::logicalShiftRight<N>()`, a zero-filling right shift, alongside `arithmeticShiftRight<N>()` and `logicalShiftLeft<N>()` as the spelled-out names for the existing shift operators [!2816]
 - Support building Eigen's in-tree BLAS library with 64-bit (`ILP64`) integers (`eigen_blas_ilp64` and `eigen_blas_ilp64_static`, controlled by `EIGEN_BUILD_BLAS_ILP64`)
+- Support building Eigen's in-tree LAPACK library with 64-bit (`ILP64`) integers (`eigen_lapack_ilp64` and `eigen_lapack_ilp64_static`, controlled by `EIGEN_BUILD_LAPACK_ILP64`), which link against the ILP64 BLAS library [!3504]
+- `SSYTRF`/`DSYTRF`, `CHETRF`/`ZHETRF` and their `xSYTRS`/`xHETRS` solves in Eigen's LAPACK library, computed by `BunchKaufman`'s kernel with reference LAPACK's choice of pivots [!3504]
+- `xPSTRF` in Eigen's LAPACK library, computed by `LDLT`'s complete diagonal pivoting, which stops at the numerical rank [!3504]
+- `xGETRI`, `xPOTRI`, `xTRTRI`, `xLAUUM` and `xTRTRS` in Eigen's LAPACK library, built on `TriangularView::inverseInPlace()`, the triangular product kernel of `LLT::inverse()` and the blocked triangular solves [!3504]
+- `CHEEV` and `ZHEEV` in Eigen's LAPACK library, the complex Hermitian counterparts of `SSYEV` and `DSYEV` [!3504]
+- `xGEQRF`, `xORGQR`/`xUNGQR` and `xORMQR`/`xUNMQR` in Eigen's LAPACK library, built on Eigen's blocked Householder QR and block-reflector kernels [!3504]
 - `PreconditionSquareMatrix` option, which applies JacobiSVD's QR preconditioners to square matrices. BDCSVD forwards this option to JacobiSVD for matrices smaller than the switch size [!3212]
 - `DenseBase::replicate` and `VectorwiseOp::replicate` accept `Eigen::fix<N>` factors [!3262, !3282]
 - `BunchKaufman`, the Bunch-Kaufman factorization `P A P^T = L D L^*` of a real symmetric or complex Hermitian matrix, with `D` block diagonal in 1x1 and 2x2 blocks. Unlike `LLT` and `LDLT` it is backward stable on indefinite matrices, the dense analog of LAPACK's `?sytrf` and `?hetrf`. It solves, estimates `rcond()`, computes the determinant, reveals the inertia through `isPositive()` and `isNegative()`, and supports in-place decomposition. Also available as `MatrixBase::bunchKaufman()` and `SelfAdjointView::bunchKaufman()` [!2612, !2991]

@@ -185,6 +185,27 @@ void bunchkaufman_small_cases() {
   }
 }
 
+// The pivot search measures a complex candidate by |re| + |im|, as xHETRF does, so it pivots on 2+2i
+// (|re| + |im| = 4, modulus 2.83) rather than on 3: the first 2x2 block of D couples rows 0 and 2, and its
+// off-diagonal entry is 2+2i or its conjugate rather than 3. n = 65 exceeds the panel width, so the blocked kernel's
+// search runs too; the identity on rows 3 and up leaves the first column's search unchanged.
+template <typename Scalar>
+void bunchkaufman_complex_pivot_measure() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const Scalar c(RealScalar(2), RealScalar(2));
+  for (Index n : {3, 65}) {
+    MatrixType A = MatrixType::Identity(n, n);
+    A.template topLeftCorner<3, 3>() << Scalar(0), Scalar(3), numext::conj(c), Scalar(3), Scalar(0), Scalar(1), c,
+        Scalar(1), Scalar(0);
+    BunchKaufman<MatrixType, Lower> lo(A);
+    BunchKaufman<MatrixType, Upper> up(A);
+    for (const Scalar& d21 : {lo.subDiagonal()(0), up.subDiagonal()(0)}) VERIFY(d21 == c || d21 == numext::conj(c));
+    VERIFY_IS_APPROX(A, lo.reconstructedMatrix());
+    VERIFY_IS_APPROX(A, up.reconstructedMatrix());
+  }
+}
+
 // Exactly-singular matrix: factorization succeeds structurally but reports NumericalIssue,
 // while still reconstructing the input exactly. Exercised at a small size (unblocked kernel) and a
 // size larger than the panel width (blocked kernel, where the zero pivot lands inside a panel).
@@ -846,6 +867,10 @@ EIGEN_DECLARE_TEST(bunchkaufman) {
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<double>());
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<float>());
   CALL_SUBTEST_8(bunchkaufman_blocking_boundary<std::complex<double> >());
+
+  // Complex pivot candidates measured by |re| + |im|, as in LAPACK's xHETRF.
+  CALL_SUBTEST_7(bunchkaufman_complex_pivot_measure<std::complex<double>>());
+  CALL_SUBTEST_8(bunchkaufman_complex_pivot_measure<std::complex<float>>());
 
   // Extreme-scale 2x2 pivots: the scaled (det-free) 2x2 formulas must not over/underflow.
   CALL_SUBTEST_7(bunchkaufman_extreme_scale<double>());

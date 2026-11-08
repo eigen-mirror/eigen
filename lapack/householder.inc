@@ -17,7 +17,8 @@
 
 // LARFG generates an elementary reflector H of order n, such that
 // H * [alpha, x]^T = [beta, 0]^T, H^* * H = I.
-EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, RealScalar* ptau) {
+EIGEN_LAPACK_FUNC(larfg)
+(EIGEN_BLAS_INT* n, RealScalar* palpha, RealScalar* px, EIGEN_BLAS_INT* incx, RealScalar* ptau) {
   Scalar* alpha = reinterpret_cast<Scalar*>(palpha);
   Scalar* tau = reinterpret_cast<Scalar*>(ptau);
 
@@ -26,7 +27,7 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
     return;
   }
 
-  const int m = *n - 1;
+  const EIGEN_BLAS_INT m = *n - 1;
   StridedVectorType x = make_vector(reinterpret_cast<Scalar*>(px), m, *incx);
   RealScalar xnorm = m > 0 ? x.stableNorm() : RealScalar(0);
 
@@ -39,7 +40,7 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
   RealScalar alphar = *alpha;
   RealScalar beta = -Eigen::numext::copysign(Eigen::internal::xlapy2(alphar, xnorm), alphar);
   const RealScalar safmin = Eigen::internal::xlamch<RealScalar>('S') / Eigen::internal::xlamch<RealScalar>('E');
-  int knt = 0;
+  EIGEN_BLAS_INT knt = 0;
   if (Eigen::numext::abs(beta) < safmin) {
     const RealScalar rsafmn = RealScalar(1) / safmin;
     // At most 20 passes, as in reference xLARFG.
@@ -57,7 +58,7 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
   *tau = (beta - alphar) / beta;
   x *= (RealScalar(1) / (alphar - beta));
 
-  for (int j = 0; j < knt; ++j) beta *= safmin;
+  for (EIGEN_BLAS_INT j = 0; j < knt; ++j) beta *= safmin;
   *alpha = beta;
 
 #else
@@ -72,7 +73,7 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
   RealScalar beta = -Eigen::numext::copysign(Eigen::internal::xlapy3(alphr, alphi, xnorm), alphr);
   const RealScalar safmin = Eigen::internal::xlamch<RealScalar>('S') / Eigen::internal::xlamch<RealScalar>('E');
   const RealScalar rsafmn = RealScalar(1) / safmin;
-  int knt = 0;
+  EIGEN_BLAS_INT knt = 0;
 
   if (Eigen::numext::abs(beta) < safmin) {
     // At most 20 passes, as in reference xLARFG.
@@ -93,15 +94,15 @@ EIGEN_LAPACK_FUNC(larfg)(int* n, RealScalar* palpha, RealScalar* px, int* incx, 
   // 1 / (alpha - beta) by xLADIV, as in reference xLARFG, avoiding the intermediate overflow of naive division.
   x *= Eigen::internal::xladiv(Scalar(1), *alpha - beta);
 
-  for (int j = 0; j < knt; ++j) beta *= safmin;
+  for (EIGEN_BLAS_INT j = 0; j < knt; ++j) beta *= safmin;
   *alpha = Scalar(beta, RealScalar(0));
 #endif
 }
 
 // LARF applies an elementary reflector H = I - tau * v * v^* to matrix C from either left or right.
 EIGEN_LAPACK_FUNC(larf)
-(const char* side, int* m, int* n, RealScalar* pv, int* incv, RealScalar* ptau, RealScalar* pc, int* ldc,
- RealScalar* pwork) {
+(const char* side, EIGEN_BLAS_INT* m, EIGEN_BLAS_INT* n, RealScalar* pv, EIGEN_BLAS_INT* incv, RealScalar* ptau,
+ RealScalar* pc, EIGEN_BLAS_INT* ldc, RealScalar* pwork) {
   if (*m <= 0 || *n <= 0) return;
 
   const Scalar* v = reinterpret_cast<const Scalar*>(pv);
@@ -114,15 +115,15 @@ EIGEN_LAPACK_FUNC(larf)
   const bool applyleft = (SIDE(*side) == LEFT);
 
   // Trim trailing zeros of v; for INCV < 0 its last entry is v[0].
-  int lastv = applyleft ? *m : *n;
-  int idx = *incv > 0 ? (lastv - 1) * *incv : 0;
+  EIGEN_BLAS_INT lastv = applyleft ? *m : *n;
+  EIGEN_BLAS_INT idx = *incv > 0 ? (lastv - 1) * *incv : 0;
   while (lastv > 0 && v[idx] == Scalar(0)) {
     --lastv;
     idx -= *incv;
   }
   if (lastv == 0) return;
 
-  const int lastc =
+  const EIGEN_BLAS_INT lastc =
       applyleft ? Eigen::internal::ilaxlc(lastv, *n, c, *ldc) : Eigen::internal::ilaxlr(*m, lastv, c, *ldc);
   if (lastc == 0) return;
 
@@ -154,8 +155,8 @@ using ConstStridedRowVectorType = Eigen::Map<const Eigen::Matrix<Scalar, 1, Eige
 
 // LARFT forms the triangular factor T of a block reflector H of order n.
 EIGEN_LAPACK_FUNC(larft)
-(const char* direct, const char* storev, int* n, int* k, RealScalar* pv, int* ldv, RealScalar* ptau, RealScalar* pt,
- int* ldt) {
+(const char* direct, const char* storev, EIGEN_BLAS_INT* n, EIGEN_BLAS_INT* k, RealScalar* pv, EIGEN_BLAS_INT* ldv,
+ RealScalar* ptau, RealScalar* pt, EIGEN_BLAS_INT* ldt) {
   if (*n == 0 || *k == 0) return;
 
   const Scalar* v = reinterpret_cast<const Scalar*>(pv);
@@ -169,27 +170,27 @@ EIGEN_LAPACK_FUNC(larft)
   MatrixType T_mat(reinterpret_cast<Scalar*>(pt), *k, *k, *ldt);
 
   if (forward) {
-    int prevlastv = *n;
-    for (int i = 0; i < *k; ++i) {
+    EIGEN_BLAS_INT prevlastv = *n;
+    for (EIGEN_BLAS_INT i = 0; i < *k; ++i) {
       prevlastv = Eigen::numext::maxi(prevlastv, i + 1);
       if (tau[i] == Scalar(0)) {
-        for (int j = 0; j <= i; ++j) {
+        for (EIGEN_BLAS_INT j = 0; j <= i; ++j) {
           T_mat(j, i) = Scalar(0);
         }
       } else {
-        int lastv = i;
+        EIGEN_BLAS_INT lastv = i;
         if (colwise) {
           for (lastv = *n - 1; lastv >= i + 1; --lastv) {
             if (v[lastv + i * ld] != Scalar(0)) break;
           }
-          int j = Eigen::numext::mini(lastv, prevlastv - 1);
+          EIGEN_BLAS_INT j = Eigen::numext::mini(lastv, prevlastv - 1);
           if (i > 0) {
             // T(0:i-1, i) = -tau(i) V(i:j, 0:i-1)^H V(i:j, i), with V(i, i) = 1 implicit and not read.
             ConstStridedRowVectorType V_prev_row(&v[i], i, Eigen::InnerStride<>(ld));
             T_mat.col(i).head(i).noalias() = -tau[i] * V_prev_row.conjugate().transpose();
 
             if (j > i) {
-              int len_sub = j - i;
+              EIGEN_BLAS_INT len_sub = j - i;
               ConstMatrixType V_prev_sub(&v[i + 1], len_sub, i, ld);
               ConstVectorType V_cur_sub(&v[(i + 1) + i * ld], len_sub);
               T_mat.col(i).head(i).noalias() += -tau[i] * (V_prev_sub.adjoint() * V_cur_sub);
@@ -199,14 +200,14 @@ EIGEN_LAPACK_FUNC(larft)
           for (lastv = *n - 1; lastv >= i + 1; --lastv) {
             if (v[i + lastv * ld] != Scalar(0)) break;
           }
-          int j = Eigen::numext::mini(lastv, prevlastv - 1);
+          EIGEN_BLAS_INT j = Eigen::numext::mini(lastv, prevlastv - 1);
           if (i > 0) {
             // T(0:i-1, i) = -tau(i) V(0:i-1, i:j) V(i, i:j)^H, with V(i, i) = 1 implicit and not read.
             ConstVectorType V_prev_col(&v[i * ld], i);
             T_mat.col(i).head(i).noalias() = -tau[i] * V_prev_col;
 
             if (j > i) {
-              int len_sub = j - i;
+              EIGEN_BLAS_INT len_sub = j - i;
               ConstMatrixType V_prev_sub(&v[(i + 1) * ld], i, len_sub, ld);
               ConstStridedVectorType V_cur_sub(&v[i + (i + 1) * ld], len_sub, Eigen::InnerStride<>(ld));
               T_mat.col(i).head(i).noalias() += -tau[i] * (V_prev_sub * V_cur_sub.conjugate());
@@ -216,9 +217,9 @@ EIGEN_LAPACK_FUNC(larft)
 
         if (i > 0) {
           // T(0:i-1, i) = T(0:i-1, 0:i-1) T(0:i-1, i), in place.
-          for (int r = 0; r < i; ++r) {
+          for (EIGEN_BLAS_INT r = 0; r < i; ++r) {
             Scalar sum = Scalar(0);
-            for (int c = r; c < i; ++c) {
+            for (EIGEN_BLAS_INT c = r; c < i; ++c) {
               sum += T_mat(r, c) * T_mat(c, i);
             }
             T_mat(r, i) = sum;
@@ -233,22 +234,22 @@ EIGEN_LAPACK_FUNC(larft)
       }
     }
   } else {
-    int prevlastv = 0;
-    for (int i = *k - 1; i >= 0; --i) {
+    EIGEN_BLAS_INT prevlastv = 0;
+    for (EIGEN_BLAS_INT i = *k - 1; i >= 0; --i) {
       if (tau[i] == Scalar(0)) {
-        for (int j = i; j < *k; ++j) {
+        for (EIGEN_BLAS_INT j = i; j < *k; ++j) {
           T_mat(j, i) = Scalar(0);
         }
       } else {
         if (i < *k - 1) {
-          int lastv = 0;
-          int num_vecs = *k - 1 - i;
+          EIGEN_BLAS_INT lastv = 0;
+          EIGEN_BLAS_INT num_vecs = *k - 1 - i;
           if (colwise) {
-            int diag_row = *n - *k + i;
+            EIGEN_BLAS_INT diag_row = *n - *k + i;
             for (lastv = 0; lastv < i; ++lastv) {
               if (v[lastv + i * ld] != Scalar(0)) break;
             }
-            int j = Eigen::numext::maxi(lastv, prevlastv);
+            EIGEN_BLAS_INT j = Eigen::numext::maxi(lastv, prevlastv);
 
             // T(i+1:k-1, i) = -tau(i) V(j:diag_row, i+1:k-1)^H V(j:diag_row, i), with V(diag_row, i) = 1 implicit
             // and not read.
@@ -256,17 +257,17 @@ EIGEN_LAPACK_FUNC(larft)
             T_mat.col(i).tail(num_vecs).noalias() = -tau[i] * V_rest_row.conjugate().transpose();
 
             if (diag_row > j) {
-              int len_sub = diag_row - j;
+              EIGEN_BLAS_INT len_sub = diag_row - j;
               ConstMatrixType V_rest_sub(&v[j + (i + 1) * ld], len_sub, num_vecs, ld);
               ConstVectorType V_cur_sub(&v[j + i * ld], len_sub);
               T_mat.col(i).tail(num_vecs).noalias() += -tau[i] * (V_rest_sub.adjoint() * V_cur_sub);
             }
           } else {
-            int diag_col = *n - *k + i;
+            EIGEN_BLAS_INT diag_col = *n - *k + i;
             for (lastv = 0; lastv < i; ++lastv) {
               if (v[i + lastv * ld] != Scalar(0)) break;
             }
-            int j = Eigen::numext::maxi(lastv, prevlastv);
+            EIGEN_BLAS_INT j = Eigen::numext::maxi(lastv, prevlastv);
 
             // T(i+1:k-1, i) = -tau(i) V(i+1:k-1, j:diag_col) V(i, j:diag_col)^H, with V(i, diag_col) = 1 implicit
             // and not read.
@@ -274,7 +275,7 @@ EIGEN_LAPACK_FUNC(larft)
             T_mat.col(i).tail(num_vecs).noalias() = -tau[i] * V_rest_col;
 
             if (diag_col > j) {
-              int len_sub = diag_col - j;
+              EIGEN_BLAS_INT len_sub = diag_col - j;
               ConstMatrixType V_rest_sub(&v[(i + 1) + j * ld], num_vecs, len_sub, ld);
               ConstStridedVectorType V_cur_sub(&v[i + j * ld], len_sub, Eigen::InnerStride<>(ld));
               T_mat.col(i).tail(num_vecs).noalias() += -tau[i] * (V_rest_sub * V_cur_sub.conjugate());
@@ -282,10 +283,10 @@ EIGEN_LAPACK_FUNC(larft)
           }
 
           // T(i+1:k-1, i) = T(i+1:k-1, i+1:k-1) T(i+1:k-1, i), in place.
-          for (int r = num_vecs - 1; r >= 0; --r) {
-            int row = (i + 1) + r;
+          for (EIGEN_BLAS_INT r = num_vecs - 1; r >= 0; --r) {
+            EIGEN_BLAS_INT row = (i + 1) + r;
             Scalar sum = Scalar(0);
-            for (int c = 0; c <= r; ++c) {
+            for (EIGEN_BLAS_INT c = 0; c <= r; ++c) {
               sum += T_mat(row, (i + 1) + c) * T_mat((i + 1) + c, i);
             }
             T_mat(row, i) = sum;
@@ -383,8 +384,9 @@ void apply_triangular_factor(MatrixW& W, const MatrixT& T, bool upper, bool adjo
 
 // LARFB applies a block reflector H or its transpose/adjoint to matrix C.
 EIGEN_LAPACK_FUNC(larfb)
-(const char* side, const char* trans, const char* direct, const char* storev, int* m, int* n, int* k, RealScalar* pv,
- int* ldv, RealScalar* pt, int* ldt, RealScalar* pc, int* ldc, RealScalar* pwork, int* ldwork) {
+(const char* side, const char* trans, const char* direct, const char* storev, EIGEN_BLAS_INT* m, EIGEN_BLAS_INT* n,
+ EIGEN_BLAS_INT* k, RealScalar* pv, EIGEN_BLAS_INT* ldv, RealScalar* pt, EIGEN_BLAS_INT* ldt, RealScalar* pc,
+ EIGEN_BLAS_INT* ldc, RealScalar* pwork, EIGEN_BLAS_INT* ldwork) {
   if (*m <= 0 || *n <= 0 || *k <= 0) return;
 
   const Scalar* v = reinterpret_cast<const Scalar*>(pv);
@@ -399,8 +401,8 @@ EIGEN_LAPACK_FUNC(larfb)
   // Like reference xLARFB, apply H to all of C without trimming V or C to their last nonzero rows or columns. A trim
   // would skip the NaNs and infinities the reference propagates from the rows it drops, and in the backward direction
   // it would cut off the implicit unit triangle in V's last k rows (columns), whose diagonal the caller need not store.
-  const int lastv = applyleft ? *m : *n;
-  const int lastc = applyleft ? *n : *m;
+  const EIGEN_BLAS_INT lastv = applyleft ? *m : *n;
+  const EIGEN_BLAS_INT lastc = applyleft ? *n : *m;
 
   ConstMatrixType T_mat(reinterpret_cast<const Scalar*>(pt), *k, *k, *ldt);
   MatrixType W(reinterpret_cast<Scalar*>(pwork), lastc, *k, *ldwork);

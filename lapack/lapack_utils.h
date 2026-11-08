@@ -17,6 +17,8 @@
 #include <complex>
 #include <limits>
 
+#include "../blas/blas.h"
+
 #include "../Eigen/Core"
 
 namespace Eigen {
@@ -147,7 +149,7 @@ EIGEN_STRONG_INLINE std::complex<RealScalar> xladiv(const std::complex<RealScala
 
 // Conjugate entries of vector x.
 template <typename T>
-void xlacgv(const int n, T* x, const int incx) {
+void xlacgv(const EIGEN_BLAS_INT n, T* x, const EIGEN_BLAS_INT incx) {
   if (n <= 0) return;
   using StridedVector = Map<Matrix<T, Dynamic, 1>, Unaligned, InnerStride<Dynamic> >;
   StridedVector xvec(x, n, InnerStride<Dynamic>(numext::abs(incx)));
@@ -156,7 +158,7 @@ void xlacgv(const int n, T* x, const int incx) {
 
 // Scan a matrix for its last non-zero column.
 template <typename T>
-int ilaxlc(const int m, const int n, const T* a, const int lda) {
+EIGEN_BLAS_INT ilaxlc(const EIGEN_BLAS_INT m, const EIGEN_BLAS_INT n, const T* a, const EIGEN_BLAS_INT lda) {
   if (m == 0 || n == 0) return 0;
   using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<> >;
   MatrixType a_matrix(a, m, n, OuterStride<>(lda));
@@ -167,7 +169,7 @@ int ilaxlc(const int m, const int n, const T* a, const int lda) {
   }
 
   // Now scan each column from the end, returning with the first non-zero.
-  int c = n - 1;
+  EIGEN_BLAS_INT c = n - 1;
   while (c >= 0 && (a_matrix.array().col(c) == T(0)).all()) {
     --c;
   }
@@ -176,7 +178,7 @@ int ilaxlc(const int m, const int n, const T* a, const int lda) {
 
 // Scan a matrix for its last non-zero row.
 template <typename T>
-int ilaxlr(const int m, const int n, const T* a, const int lda) {
+EIGEN_BLAS_INT ilaxlr(const EIGEN_BLAS_INT m, const EIGEN_BLAS_INT n, const T* a, const EIGEN_BLAS_INT lda) {
   if (m == 0 || n == 0) return 0;
   using MatrixType = Map<const Matrix<T, Dynamic, Dynamic, ColMajor>, Unaligned, OuterStride<> >;
   MatrixType a_matrix(a, m, n, OuterStride<>(lda));
@@ -187,7 +189,7 @@ int ilaxlr(const int m, const int n, const T* a, const int lda) {
   }
 
   // Now scan each row from the end, returning with the first non-zero.
-  int r = m - 1;
+  EIGEN_BLAS_INT r = m - 1;
   while (r >= 0 && (a_matrix.array().row(r) == T(0)).all()) {
     --r;
   }

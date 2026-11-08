@@ -94,6 +94,35 @@ if (EIGEN_BUILD_SHARED_LIBS)
   list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack)
 endif()
 
+# The 64-bit integer (ILP64) library exports the same symbol names as the 32-bit one, with EIGEN_BLAS_INT
+# (blas/blas.h) as the integer type, as eigen_blas_ilp64 does; it links against eigen_blas_ilp64.
+# blas/ may shadow a cached EIGEN_BUILD_BLAS_ILP64=ON with OFF, so test for the target it would have built.
+if(TARGET eigen_blas_ilp64_static)
+  option(EIGEN_BUILD_LAPACK_ILP64 "Toggles the building of the 64-bit integer (ILP64) Eigen Lapack library" ON)
+else()
+  set(EIGEN_BUILD_LAPACK_ILP64 OFF)
+endif()
+
+if(EIGEN_BUILD_LAPACK_ILP64)
+  add_library(eigen_lapack_ilp64_static STATIC ${EigenLapack_SRCS})
+  target_compile_definitions(eigen_lapack_ilp64_static PUBLIC "EIGEN_64BIT_BLAS")
+  target_link_libraries(eigen_lapack_ilp64_static eigen_blas_ilp64_static)
+  list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack_ilp64_static)
+
+  if(EIGEN_BUILD_SHARED_LIBS AND TARGET eigen_blas_ilp64)
+    add_library(eigen_lapack_ilp64 SHARED ${EigenLapack_SRCS} ${EIGEN_LAPACK_DEF})
+    # EIGEN_LAPACK_BUILD_DLL stays private, as EIGEN_BLAS_BUILD_DLL does for eigen_blas_ilp64.
+    target_compile_definitions(eigen_lapack_ilp64
+      PUBLIC "EIGEN_BLAS_LINK_DLL" "EIGEN_64BIT_BLAS"
+      PRIVATE "EIGEN_LAPACK_BUILD_DLL")
+    target_link_libraries(eigen_lapack_ilp64 eigen_blas_ilp64)
+    set_target_properties(eigen_lapack_ilp64 PROPERTIES CXX_VISIBILITY_PRESET hidden
+      VERSION ${EIGEN_VERSION_NUMBER}
+      SOVERSION ${EIGEN_MAJOR_VERSION})
+    list(APPEND EIGEN_LAPACK_TARGETS eigen_lapack_ilp64)
+  endif()
+endif()
+
 foreach(target IN LISTS EIGEN_LAPACK_TARGETS)
   if(EIGEN_STANDARD_LIBRARIES_TO_LINK_TO)
     target_link_libraries(${target} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
@@ -110,14 +139,22 @@ endforeach()
 
 # Checks of Eigen's routines that need no Fortran compiler.
 if(EIGEN_BUILD_TESTING)
-  add_executable(lapack_routines testing/lapack_routines.cpp)
-  target_include_directories(lapack_routines PRIVATE "${Eigen_SOURCE_DIR}/test")
-  target_link_libraries(lapack_routines eigen_lapack_static)
-  if(NOT EIGEN_LEAVE_TEST_IN_ALL_TARGET)
-    set_target_properties(lapack_routines PROPERTIES EXCLUDE_FROM_ALL ON)
+  function(eigen_add_lapack_cxx_test name source library)
+    add_executable(${name} testing/${source}.cpp)
+    target_include_directories(${name} PRIVATE "${Eigen_SOURCE_DIR}/test")
+    target_link_libraries(${name} ${library})
+    if(NOT EIGEN_LEAVE_TEST_IN_ALL_TARGET)
+      set_target_properties(${name} PROPERTIES EXCLUDE_FROM_ALL ON)
+    endif()
+    add_test(NAME ${name} COMMAND ${name})
+    add_dependencies(buildtests ${name})
+  endfunction()
+  eigen_add_lapack_cxx_test(lapack_routines lapack_routines eigen_lapack_static)
+  eigen_add_lapack_cxx_test(lapack_wrappers lapack_wrappers eigen_lapack_static)
+  if(EIGEN_BUILD_LAPACK_ILP64)
+    # The same checks through 64-bit integers.
+    eigen_add_lapack_cxx_test(lapack_wrappers_ilp64 lapack_wrappers eigen_lapack_ilp64_static)
   endif()
-  add_test(NAME lapack_routines COMMAND lapack_routines)
-  add_dependencies(buildtests lapack_routines)
 endif()
 
 

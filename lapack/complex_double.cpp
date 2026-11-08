@@ -15,7 +15,10 @@
 #define ISCOMPLEX 1
 
 #include "cholesky.inc"
+#include "triangular.inc"
 #include "lu.inc"
+#include "eigenvalues.inc"
 #include "svd.inc"
 #include "householder.inc"
+#include "qr.inc"
 #include "utilities.inc"

@@ -44,11 +44,15 @@ EIGEN_LAPACK_FUNC(ladiv)(const Scalar* a, const Scalar* b, const Scalar* c, cons
 }
 
 // Last non-zero column/row scanning for real matrices.
-extern "C" EIGEN_LAPACK_API int EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lc_))(int* m, int* n, Scalar* a, int* lda) {
+extern "C" EIGEN_LAPACK_API EIGEN_BLAS_INT EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lc_))(EIGEN_BLAS_INT* m,
+                                                                                         EIGEN_BLAS_INT* n, Scalar* a,
+                                                                                         EIGEN_BLAS_INT* lda) {
   return Eigen::internal::ilaxlc(*m, *n, a, *lda);
 }
 
-extern "C" EIGEN_LAPACK_API int EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lr_))(int* m, int* n, Scalar* a, int* lda) {
+extern "C" EIGEN_LAPACK_API EIGEN_BLAS_INT EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lr_))(EIGEN_BLAS_INT* m,
+                                                                                         EIGEN_BLAS_INT* n, Scalar* a,
+                                                                                         EIGEN_BLAS_INT* lda) {
   return Eigen::internal::ilaxlr(*m, *n, a, *lda);
 }
 
@@ -59,7 +63,7 @@ using ComplexReturnType =
     std::conditional_t<std::is_same<RealScalar, float>::value, eigen_lapack_complex_float, eigen_lapack_complex_double>;
 
 // Conjugates entries of vector x.
-EIGEN_LAPACK_FUNC(lacgv)(int* n, RealScalar* px, int* incx) {
+EIGEN_LAPACK_FUNC(lacgv)(EIGEN_BLAS_INT* n, RealScalar* px, EIGEN_BLAS_INT* incx) {
   Eigen::internal::xlacgv(*n, reinterpret_cast<Scalar*>(px), *incx);
 }
 
@@ -75,11 +79,15 @@ extern "C" EIGEN_LAPACK_API ComplexReturnType EIGEN_BLAS_FUNC_NAME(ladiv)(const 
 }
 
 // Last non-zero column/row scanning for complex matrices.
-extern "C" EIGEN_LAPACK_API int EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lc_))(int* m, int* n, RealScalar* a, int* lda) {
+extern "C" EIGEN_LAPACK_API EIGEN_BLAS_INT EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX,
+                                                                    lc_))(EIGEN_BLAS_INT* m, EIGEN_BLAS_INT* n,
+                                                                          RealScalar* a, EIGEN_BLAS_INT* lda) {
   return Eigen::internal::ilaxlc(*m, *n, reinterpret_cast<Scalar*>(a), *lda);
 }
 
-extern "C" EIGEN_LAPACK_API int EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX, lr_))(int* m, int* n, RealScalar* a, int* lda) {
+extern "C" EIGEN_LAPACK_API EIGEN_BLAS_INT EIGEN_CAT(ila, EIGEN_CAT(SCALAR_SUFFIX,
+                                                                    lr_))(EIGEN_BLAS_INT* m, EIGEN_BLAS_INT* n,
+                                                                          RealScalar* a, EIGEN_BLAS_INT* lda) {
   return Eigen::internal::ilaxlr(*m, *n, reinterpret_cast<Scalar*>(a), *lda);
 }
 

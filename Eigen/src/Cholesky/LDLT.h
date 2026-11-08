@@ -430,9 +430,11 @@ struct ldlt_inplace<Lower> {
   }
 
   // Factors columns [k0, k0 + kb) left-looking, column k pivoting on max |diag(S_k)|, S_k = A22 - L21 D L21^*
-  // (complete diagonal pivoting, as in LAPACK's xPSTF2). Invariant: mat(k0:n, k0:n) holds S_k0 off its diagonal and
-  // temp(k:n) holds diag(S_k). The caller interchanges the rows of the columns before k0.
-  template <typename MatrixType, typename TranspositionType, typename Workspace>
+  // (complete diagonal pivoting). Invariant: mat(k0:n, k0:n) holds S_k0 off its diagonal and temp(k:n) holds
+  // diag(S_k). The caller interchanges the rows of the columns before k0. PivotOnLargestValue pivots on max diag(S_k)
+  // instead, as LAPACK's xPSTRF does: on a semidefinite matrix it takes every positive pivot before a negative one at
+  // the rounding level of S_k, where max |diag(S_k)| can pick the negative one first.
+  template <bool PivotOnLargestValue = false, typename MatrixType, typename TranspositionType, typename Workspace>
   static bool factor_panel(MatrixType& mat, Index k0, Index kb, TranspositionType& transpositions, Workspace& temp,
                            SignMatrix& sign) {
     using Scalar = typename MatrixType::Scalar;
@@ -442,9 +444,13 @@ struct ldlt_inplace<Lower> {
     bool ret = true;
 
     for (Index k = k0; k < k0 + kb; ++k) {
-      // Find largest diagonal element
       Index index_of_biggest_in_corner;
-      temp.tail(size - k).real().cwiseAbs().maxCoeff(&index_of_biggest_in_corner);
+      EIGEN_IF_CONSTEXPR (PivotOnLargestValue) {
+        // NaNs are skipped, as xPSTRF's MAXLOC skips them; an all-NaN tail still yields a NaN pivot.
+        temp.tail(size - k).real().template maxCoeff<PropagateNumbers>(&index_of_biggest_in_corner);
+      } else {
+        temp.tail(size - k).real().cwiseAbs().maxCoeff(&index_of_biggest_in_corner);
+      }
       index_of_biggest_in_corner += k;
 
       transpositions.coeffRef(k) = IndexType(index_of_biggest_in_corner);
