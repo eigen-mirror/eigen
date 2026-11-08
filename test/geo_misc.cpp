@@ -460,7 +460,7 @@ void quaternion_slerp_edge_cases() {
   using Vector3 = Matrix<Scalar, 3, 1>;
   using Matrix3 = Matrix<Scalar, 3, 3>;
 
-  // The slerp formula preserves unit norm to O(epsilon^2) for unit inputs.
+  // For unit inputs, slerp's sines and sinTheta each carry O(eps) relative error, and so does the result's norm.
   Scalar tight = Scalar(32) * NumTraits<Scalar>::epsilon();
 
   // slerp with identical quaternions
@@ -481,6 +481,21 @@ void quaternion_slerp_edge_cases() {
     VERIFY(numext::abs(r1.norm() - Scalar(1)) < tight);
     VERIFY_IS_APPROX(r0.toRotationMatrix(), q0.toRotationMatrix());
     VERIFY_IS_APPROX(r1.toRotationMatrix(), q1.toRotationMatrix());
+  }
+
+  // Nearly parallel quaternions: |d| = cos(phi / 2), phi log-uniform in [4 * sqrt(eps), 0.1], from just above
+  // the lerp cutoff phi = 2 * sqrt(2 * eps). sinTheta = sqrt(1 - d * d) would have relative error up to
+  // min(eps / (8 * (1 - d * d)), (1 - |d|) / 4), exceeding tight for most phi above 0.011 (float) or 5e-7 (double).
+  const Scalar phi_min = Scalar(4) * numext::sqrt(NumTraits<Scalar>::epsilon());
+  for (int i = 0; i < 32; ++i) {
+    const Quaternionx q0 = Quaternionx::UnitRandom();
+    const Scalar phi = phi_min * numext::pow(Scalar(0.1) / phi_min, internal::random<Scalar>(Scalar(0), Scalar(1)));
+    Quaternionx q1 = q0 * Quaternionx(AngleAxisx(phi, Vector3::Random().normalized()));
+    if (i % 2 == 1) q1.coeffs() = -q1.coeffs();
+    for (Scalar t = 0; t <= Scalar(1.001); t += Scalar(0.25)) {
+      VERIFY(numext::abs(q0.slerp(t, q1).norm() - Scalar(1)) < tight);
+    }
+    VERIFY((q0.slerp(Scalar(0), q1).coeffs() - q0.coeffs()).norm() < tight);
   }
 
   // slerp with antipodal quaternions (represent same rotation)

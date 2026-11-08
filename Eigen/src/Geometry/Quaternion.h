@@ -933,7 +933,9 @@ EIGEN_DEVICE_FUNC Quaternion<typename internal::traits<Derived>::Scalar> Quatern
   } else {
     // theta is the angle between the 2 quaternions
     Scalar theta = numext::acos(absD);
-    Scalar sinTheta = numext::sqrt<Scalar>(Scalar(1) - absD * absD);
+    // 1 - absD is exact for absD >= 1/2 (Sterbenz), so sinTheta has O(eps) relative error. sqrt(1 - absD * absD)
+    // cancels as absD -> 1: relative error up to min(eps / (8 * (1 - absD^2)), (1 - absD) / 4) <= sqrt(eps) / 8.
+    Scalar sinTheta = numext::sqrt<Scalar>((Scalar(1) - absD) * (Scalar(1) + absD));
 
     scale0 = numext::sin<Scalar>((Scalar(1) - t) * theta) / sinTheta;
     scale1 = numext::sin<Scalar>(t * theta) / sinTheta;
