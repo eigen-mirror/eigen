@@ -272,9 +272,15 @@ class BlockImpl_dense<XprType, BlockRows, BlockCols, InnerPanel, true>
   EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE static auto block_data(XprType& xpr, Index startRow, Index startCol,
                                                                Index blockRows, Index blockCols)
       -> decltype(xpr.data()) {
-    return (blockRows == 0 || blockCols == 0 || xpr.data() == nullptr)
-               ? nullptr
-               : xpr.data() + startRow * xpr.rowStride() + startCol * xpr.colStride();
+    if (blockRows == 0 || blockCols == 0 || xpr.data() == nullptr) {
+      decltype(xpr.data()) data = nullptr;
+#if EIGEN_GNUC_STRICT_AT_LEAST(13, 0, 0) && defined(__ARM_FEATURE_SVE2) && !defined(EIGEN_GPU_COMPILE_PHASE)
+      // GCC 13 and later can emit WHILEWR with invalid WZR operands for known-null block pointers.
+      asm("" : "+r"(data));
+#endif
+      return data;
+    }
+    return xpr.data() + startRow * xpr.rowStride() + startCol * xpr.colStride();
   }
 
  public:

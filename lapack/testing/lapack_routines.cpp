@@ -10,6 +10,10 @@
 
 // Checks of Eigen's LAPACK routines against the reference LAPACK contract that need no Fortran compiler.
 
+// Match the linked shim's Eigen configuration before main.h enables test-only assertions and blocking.
+#include <Eigen/Dense>
+#undef EIGEN_DEFAULT_IO_FORMAT
+#define EIGEN_NO_ASSERTION_CHECKING
 #include "main.h"
 #include "../lapack.h"
 

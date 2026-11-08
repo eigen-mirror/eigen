@@ -480,6 +480,11 @@ void empty_block_data_test() {
   Map<Matrix<float, Dynamic, Dynamic, RowMajor>, 0, OuterStride<>> no_cols(buffer, 3, 0, OuterStride<>(100));
   VERIFY(no_cols.row(2).data() == nullptr);
   VERIFY(no_cols.block(2, 0, 1, 0).data() == nullptr);
+  const auto& const_no_rows = no_rows;
+  VERIFY(const_no_rows.col(2).head(0).data() == nullptr);
+  no_rows.col(2) = 2.0f * const_no_rows.col(1);
+  no_cols.row(2) = 2.0f * no_cols.row(1);
+  VERIFY(Map<VectorXf>(buffer, 16).isZero(0));
 }
 
 // A product evaluates into a temporary with direct access, but the product
