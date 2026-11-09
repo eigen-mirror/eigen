@@ -128,6 +128,10 @@ foreach(target IN LISTS EIGEN_LAPACK_TARGETS)
     target_link_libraries(${target} ${EIGEN_STANDARD_LIBRARIES_TO_LINK_TO})
   endif()
   target_link_libraries(${target} Eigen3::Eigen)
+  if(MSVC)
+    # complex_single.cpp and complex_double.cpp exceed the COFF section limit (C1128).
+    target_compile_options(${target} PRIVATE "-bigobj")
+  endif()
   add_dependencies(lapack ${target})
   if(EIGEN_INSTALL)
     install(TARGETS ${target}
@@ -149,7 +153,23 @@ if(EIGEN_BUILD_TESTING)
     add_test(NAME ${name} COMMAND ${name})
     add_dependencies(buildtests ${name})
   endfunction()
-  eigen_add_lapack_cxx_test(lapack_routines lapack_routines eigen_lapack_static)
+  # lapack_routines links the shared library where there is one. It includes test/main.h, which undefines NDEBUG and
+  # redefines eigen_assert, so its instances of Eigen's inline templates differ from the static library's, and in one
+  # program the linker keeps one instance of each for both: MSVC 14.29 built the library's
+  # gemm_product_impl::evalWithoutGemm without the argument that its own eigen_zero_impl::run never reads, and the
+  # test's run read that argument uninitialized.
+  if(TARGET eigen_lapack)
+    eigen_add_lapack_cxx_test(lapack_routines lapack_routines eigen_lapack)
+    set_target_properties(lapack_routines PROPERTIES RUNTIME_OUTPUT_DIRECTORY "$<TARGET_FILE_DIR:eigen_lapack>")
+    if(WIN32)
+      # Windows looks for eigen_lapack.dll's own dependency, eigen_blas.dll, beside the executable.
+      add_custom_command(TARGET lapack_routines POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:eigen_blas>" "$<TARGET_FILE_DIR:lapack_routines>")
+    endif()
+  else()
+    eigen_add_lapack_cxx_test(lapack_routines lapack_routines eigen_lapack_static)
+  endif()
+  # lapack_wrappers replaces Eigen's weak xerbla_, which code inside a Windows DLL would not see, so it stays static.
   eigen_add_lapack_cxx_test(lapack_wrappers lapack_wrappers eigen_lapack_static)
   if(EIGEN_BUILD_LAPACK_ILP64)
     # The same checks through 64-bit integers.
