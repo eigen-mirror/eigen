@@ -121,8 +121,6 @@ macro(ei_add_test_internal testname testname_with_suffix)
   endif()
 
   if(EIGEN_SYCL)
-    # Force include of the SYCL file at the end to avoid errors.
-    set_property(TARGET ${targetname} PROPERTY COMPUTECPP_INCLUDE_AFTER 1)
     # Link against pthread and add sycl to target
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
@@ -475,8 +473,6 @@ macro(ei_testing_print_summary)
     if(EIGEN_TEST_SYCL)
       if(EIGEN_SYCL_TRISYCL)
         message(STATUS "SYCL:              ON (using triSYCL)")
-      elseif(EIGEN_SYCL_ComputeCpp)
-        message(STATUS "SYCL:              ON (using computeCPP)")
       elseif(EIGEN_SYCL_DPCPP)
         message(STATUS "SYCL:              ON (using DPCPP)")
       endif()

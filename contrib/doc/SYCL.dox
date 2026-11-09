@@ -1,9 +1,11 @@
 /** \page SYCL_EIGEN Eigen SYCL Backend
 
-Useful information for Eigen SYCL Backend:
+Enable the SYCL tests with `EIGEN_TEST_SYCL=ON`. DPC++ is the default
+implementation; configure with a DPC++ compiler and its runtime installed.
+`EIGEN_SYCL_TRISYCL=ON` selects triSYCL instead.
 
-- <a href="https://developer.codeplay.com/computecppce/latest/getting-started-with-eigen">Getting Started with Eigen</a> 
-
-- <a href="https://developer.codeplay.com/computecppce/latest/options-for-building-eigen-sycl">Options for Building Eigen SYCL</a>  
+ComputeCpp support has been removed. Codeplay
+<a href="https://codeplay.com/portal/news/2023/07/07/the-future-of-computecpp">ended ComputeCpp support in September 2023</a>
+and recommends migrating to DPC++.
 
 */

@@ -81,7 +81,7 @@ NETLIB_COPYRIGHT_HOLDERS = (
     "The University of Colorado Denver",
 )
 
-# Apache-2.0 — TensorFlow-derived BFloat16, Codeplay FindComputeCpp.cmake.
+# Apache-2.0 — TensorFlow-derived BFloat16.
 APACHE_MARKER = b"Licensed under the Apache License"
 
 

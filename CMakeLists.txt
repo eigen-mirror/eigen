@@ -700,13 +700,14 @@ if (EIGEN_BUILD_TESTING)
   ei_gpu_testing_enable()
 
   option(EIGEN_TEST_SYCL "Add Sycl support." OFF)
+  if(EIGEN_SYCL_ComputeCpp)
+    message(FATAL_ERROR "ComputeCpp support has been removed. Use DPC++ (the default) or triSYCL instead.")
+  endif()
   if(EIGEN_TEST_SYCL)
     option(EIGEN_SYCL_DPCPP "Use the DPCPP Sycl implementation (DPCPP is default SYCL-Compiler)." ON)
     option(EIGEN_SYCL_TRISYCL "Use the triSYCL Sycl implementation." OFF)
-    option(EIGEN_SYCL_ComputeCpp "Use the ComputeCPP Sycl implementation." OFF)
 
     # Building options
-    # https://developer.codeplay.com/products/computecpp/ce/2.11.0/guides/eigen-overview/options-for-building-eigen-sycl
     option(EIGEN_SYCL_USE_DEFAULT_SELECTOR "Use sycl default selector to select the preferred device." OFF)
     option(EIGEN_SYCL_NO_LOCAL_MEM "Build for devices without dedicated shared memory." OFF)
     option(EIGEN_SYCL_LOCAL_MEM "Allow the use of local memory (enabled by default)." ON)
@@ -727,17 +728,6 @@ if (EIGEN_BUILD_TESTING)
     if(EIGEN_SYCL_TRISYCL)
       message(STATUS "Using triSYCL")
       include(FindTriSYCL)
-    elseif(EIGEN_SYCL_ComputeCpp)
-      message(STATUS "Using ComputeCPP SYCL")
-      include(FindComputeCpp)
-      set(COMPUTECPP_DRIVER_DEFAULT_VALUE OFF)
-      if (NOT MSVC)
-        set(COMPUTECPP_DRIVER_DEFAULT_VALUE ON)
-      endif()
-      option(COMPUTECPP_USE_COMPILER_DRIVER
-              "Use ComputeCpp driver instead of a 2 steps compilation"
-              ${COMPUTECPP_DRIVER_DEFAULT_VALUE}
-              )
     else() #Default SYCL compiler is DPCPP (EIGEN_SYCL_DPCPP)
       set(DPCPP_SYCL_TARGET "spir64" CACHE STRING "Default target for Intel CPU/GPU")
       message(STATUS "Using DPCPP")
