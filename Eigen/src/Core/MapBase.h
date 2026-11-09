@@ -79,7 +79,6 @@ class MapBase<Derived, ReadOnlyAccessors> : public internal::dense_xpr_base<Deri
   using Base::outerStride;
   using Base::rowStride;
 
-  // bug 217 - compile error on ICC 11.1
   using Base::operator=;
 
   using CoeffReturnType = typename Base::CoeffReturnType;

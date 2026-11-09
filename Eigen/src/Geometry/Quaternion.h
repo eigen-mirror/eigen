@@ -547,6 +547,7 @@ struct quat_product {
 #if EIGEN_ARCH_ARM && EIGEN_COMP_CLANG
     EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
       // Keep operand addresses opaque to LLVM's ARM load/store optimizer (llvm-project#223630).
+      // Fixed upstream for Clang 24 by https://github.com/llvm/llvm-project/pull/226937.
       // Register constraints avoid the spills introduced by the general optimization barrier.
       asm("" : "+r"(a_ptr), "+r"(b_ptr));
     }

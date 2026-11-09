@@ -43,12 +43,9 @@
 // Clang can check if __builtin_FILE() is supported.
 // Supported GCC versions and MSVC 2019 14.26 (1926) all have __builtin_FILE().
 //
-// For NVCC, it's more complicated.  Through trial-and-error:
-//   - nvcc+gcc supports __builtin_FILE() on host, and on device after CUDA 11.
-//   - nvcc+msvc supports __builtin_FILE() only after CUDA 11.
+// Supported NVCC toolkits provide __builtin_FILE() on both host and device.
 #if (EIGEN_HAS_BUILTIN(__builtin_FILE) && (EIGEN_COMP_CLANG || !defined(EIGEN_CUDA_ARCH))) || \
-    (EIGEN_COMP_GNUC_STRICT && (EIGEN_COMP_NVCC >= 110000 || !defined(EIGEN_CUDA_ARCH))) ||   \
-    (EIGEN_COMP_MSVC >= 1926 && (!EIGEN_COMP_NVCC || EIGEN_COMP_NVCC >= 110000))
+    (EIGEN_COMP_GNUC_STRICT && (EIGEN_COMP_NVCC || !defined(EIGEN_CUDA_ARCH))) || (EIGEN_COMP_MSVC >= 1926)
 #define EIGEN_HAS_BUILTIN_FILE 1
 #else
 #define EIGEN_HAS_BUILTIN_FILE 0

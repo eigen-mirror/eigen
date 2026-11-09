@@ -231,18 +231,8 @@
 #endif
 #endif
 
-// MSVC needs <malloc.h> for aligned allocation helpers, and 32-bit x86 uses
-// _M_IX86_FP to decide whether SSE2 is enabled.
 #if EIGEN_COMP_MSVC
-#include <malloc.h>  // for _aligned_malloc -- need it regardless of whether vectorization is enabled
-// a user reported that in 64-bit mode, MSVC doesn't care to define _M_IX86_FP.
-#if (defined(_M_IX86_FP) && (_M_IX86_FP >= 2)) || EIGEN_ARCH_x86_64
-#define EIGEN_SSE2_ON_MSVC_2008_OR_LATER
-#endif
-#else
-#if defined(__SSE2__)
-#define EIGEN_SSE2_ON_NON_MSVC
-#endif
+#include <malloc.h>  // for _alloca
 #endif
 
 #if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
@@ -271,7 +261,9 @@
 #error "EIGEN_ARM64_USE_SME and EIGEN_ARM64_NO_SME are mutually exclusive."
 #endif
 
-#if defined(EIGEN_SSE2_ON_NON_MSVC) || defined(EIGEN_SSE2_ON_MSVC_2008_OR_LATER)
+// MSVC reports SSE2 through _M_IX86_FP on 32-bit x86; x86-64 always supports SSE2.
+#if (EIGEN_COMP_MSVC && ((defined(_M_IX86_FP) && (_M_IX86_FP >= 2)) || EIGEN_ARCH_x86_64)) || \
+    (!EIGEN_COMP_MSVC && defined(__SSE2__))
 
 // Defines symbols for compile-time detection of which instructions are
 // used.

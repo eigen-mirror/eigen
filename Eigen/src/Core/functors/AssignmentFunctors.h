@@ -162,11 +162,12 @@ struct functor_traits<swap_assign_op<Scalar>> {
   enum {
     Cost = 3 * NumTraits<Scalar>::ReadCost,
     PacketAccess =
-#if defined(EIGEN_VECTORIZE_AVX) && (EIGEN_CLANG_STRICT_LESS_THAN(8, 0, 0) || EIGEN_COMP_CLANGAPPLE)
+#if defined(EIGEN_VECTORIZE_AVX) && \
+    (EIGEN_CLANG_STRICT_LESS_THAN(8, 0, 0) || (EIGEN_COMP_CLANGAPPLE && EIGEN_COMP_CLANGAPPLE < 11000000))
         // This is a partial workaround for a bug in clang generating bad code
         // when mixing 256/512 bits loads and 128 bits moves.
-        // See http://eigen.tuxfamily.org/bz/show_bug.cgi?id=1684
-        //     https://bugs.llvm.org/show_bug.cgi?id=40815
+        // See https://gitlab.com/libeigen/eigen/-/issues/1684
+        //     https://github.com/llvm/llvm-project/issues/40161
     0
 #else
         packet_traits<Scalar>::Vectorizable
