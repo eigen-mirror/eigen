@@ -149,6 +149,35 @@ inline void blas_gemm(char* ta, char* tb, int* m, int* n, int* k, double* alpha,
   dgemm_(ta, tb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
 }
 
+inline void blas_rot(int* n, float* x, int* incx, float* y, int* incy, float* c, float* s) {
+  srot_(n, x, incx, y, incy, c, s);
+}
+inline void blas_rot(int* n, double* x, int* incx, double* y, int* incy, double* c, double* s) {
+  drot_(n, x, incx, y, incy, c, s);
+}
+inline void blas_csrot(int* n, float* x, int* incx, float* y, int* incy, float* c, float* s) {
+  csrot_(n, x, incx, y, incy, c, s);
+}
+inline void blas_csrot(int* n, double* x, int* incx, double* y, int* incy, double* c, double* s) {
+  zdrot_(n, x, incx, y, incy, c, s);
+}
+inline void blas_syr2k(char* uplo, char* trans, int* n, int* k, float* alpha, float* a, int* lda, float* b, int* ldb,
+                       float* beta, float* c, int* ldc) {
+  ssyr2k_(uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+inline void blas_syr2k(char* uplo, char* trans, int* n, int* k, double* alpha, double* a, int* lda, double* b, int* ldb,
+                       double* beta, double* c, int* ldc) {
+  dsyr2k_(uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+inline void blas_her2k(char* uplo, char* trans, int* n, int* k, float* alpha, float* a, int* lda, float* b, int* ldb,
+                       float* beta, float* c, int* ldc) {
+  cher2k_(uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+inline void blas_her2k(char* uplo, char* trans, int* n, int* k, double* alpha, double* a, int* lda, double* b, int* ldb,
+                       double* beta, double* c, int* ldc) {
+  zher2k_(uplo, trans, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+
 // =========================================================================
 //  Level 1 — Real
 // =========================================================================
@@ -401,6 +430,36 @@ static void BM_hpmv(benchmark::State& state) {
   state.counters["GFLOPS"] = GflopsCounter(8.0 * n * n);
 }
 
+// ----- SROT / DROT and CSROT / ZDROT (real rotation of complex vectors) -----
+// range(1) is the increment of both vectors.
+template <typename T>
+static void BM_rot(benchmark::State& state) {
+  int n = static_cast<int>(state.range(0)), inc = static_cast<int>(state.range(1));
+  T c = T(0.6), s = T(0.8);
+  std::vector<T> x(n * inc), y(n * inc);
+  fillRand(x.data(), n * inc);
+  fillRand(y.data(), n * inc);
+  for (auto _ : state) {
+    blas_rot(&n, x.data(), &inc, y.data(), &inc, &c, &s);
+    benchmark::DoNotOptimize(x.data());
+  }
+  state.counters["GFLOPS"] = GflopsCounter(6.0 * n);
+}
+
+template <typename T>
+static void BM_csrot(benchmark::State& state) {
+  int n = static_cast<int>(state.range(0)), inc = static_cast<int>(state.range(1));
+  T c = T(0.6), s = T(0.8);
+  std::vector<T> x(2 * n * inc), y(2 * n * inc);
+  fillRand(x.data(), 2 * n * inc);
+  fillRand(y.data(), 2 * n * inc);
+  for (auto _ : state) {
+    blas_csrot(&n, x.data(), &inc, y.data(), &inc, &c, &s);
+    benchmark::DoNotOptimize(x.data());
+  }
+  state.counters["GFLOPS"] = GflopsCounter(12.0 * n);
+}
+
 // =========================================================================
 //  Level 3 — General Matrix Multiply (SGEMM / DGEMM)
 // =========================================================================
@@ -419,6 +478,44 @@ static void BM_gemm(benchmark::State& state) {
     benchmark::DoNotOptimize(c.data());
   }
   state.counters["GFLOPS"] = GflopsCounter(2.0 * n * n * n);
+}
+
+// =========================================================================
+//  Level 3 — Symmetric and Hermitian rank-2k updates (SYR2K / HER2K)
+// =========================================================================
+
+// C += alpha (A B^T + B A^T) on the upper triangle, n = k.
+template <typename T>
+static void BM_syr2k(benchmark::State& state) {
+  int n = static_cast<int>(state.range(0));
+  T alpha = T(0.7), beta = T(1.1);
+  char uplo = 'U', trans = 'N';
+  std::vector<T> a(n * n), b(n * n), c(n * n);
+  fillRand(a.data(), n * n);
+  fillRand(b.data(), n * n);
+  fillRand(c.data(), n * n);
+  for (auto _ : state) {
+    blas_syr2k(&uplo, &trans, &n, &n, &alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
+    benchmark::DoNotOptimize(c.data());
+  }
+  state.counters["GFLOPS"] = GflopsCounter(2.0 * n * n * n);
+}
+
+// T is the real type; the matrices are complex.
+template <typename T>
+static void BM_her2k(benchmark::State& state) {
+  int n = static_cast<int>(state.range(0));
+  T alpha[2] = {T(0.7), T(-0.2)}, beta = T(1.1);
+  char uplo = 'U', trans = 'N';
+  std::vector<T> a(2 * n * n), b(2 * n * n), c(2 * n * n);
+  fillRand(a.data(), 2 * n * n);
+  fillRand(b.data(), 2 * n * n);
+  fillRand(c.data(), 2 * n * n);
+  for (auto _ : state) {
+    blas_her2k(&uplo, &trans, &n, &n, alpha, a.data(), &n, b.data(), &n, &beta, c.data(), &n);
+    benchmark::DoNotOptimize(c.data());
+  }
+  state.counters["GFLOPS"] = GflopsCounter(8.0 * n * n * n);
 }
 
 // =========================================================================
@@ -444,6 +541,16 @@ BENCHMARK(BM_dotc<float>)   L1_SIZES ->Name("cdotc");
 BENCHMARK(BM_dotc<double>)  L1_SIZES ->Name("zdotc");
 
 #undef L1_SIZES
+
+// Rotations: {n, inc}
+#define ROT_SIZES ->Args({1024, 1})->Args({65536, 1})->Args({1048576, 1})->Args({65536, 2})
+
+BENCHMARK(BM_rot<float>)    ROT_SIZES ->Name("srot");
+BENCHMARK(BM_rot<double>)   ROT_SIZES ->Name("drot");
+BENCHMARK(BM_csrot<float>)  ROT_SIZES ->Name("csrot");
+BENCHMARK(BM_csrot<double>) ROT_SIZES ->Name("zdrot");
+
+#undef ROT_SIZES
 
 // --- Matrix sizes for Level 2 ---
 // GEMV: {m, n}
@@ -484,6 +591,10 @@ BENCHMARK(BM_hbmv<double>) BAND_SIZES ->Name("zhbmv");
 
 BENCHMARK(BM_gemm<float>)  GEMM_SIZES ->Name("sgemm");
 BENCHMARK(BM_gemm<double>) GEMM_SIZES ->Name("dgemm");
+BENCHMARK(BM_syr2k<float>)  GEMM_SIZES ->Name("ssyr2k");
+BENCHMARK(BM_syr2k<double>) GEMM_SIZES ->Name("dsyr2k");
+BENCHMARK(BM_her2k<float>)  GEMM_SIZES ->Name("cher2k");
+BENCHMARK(BM_her2k<double>) GEMM_SIZES ->Name("zher2k");
 
 #undef GEMM_SIZES
 

@@ -28,9 +28,7 @@ struct band_solve_triangular_selector<Index, Mode, LhsScalar, ConjLhs, RhsScalar
   static void run(Index size, Index k, const LhsScalar* _lhs, Index lhsStride, RhsScalar* _other) {
     const LhsMap lhs(_lhs, size, k + 1, OuterStride<>(lhsStride));
     RhsMap other(_other, size, 1);
-    std::conditional_t<ConjLhs, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
-                       const LhsMap&>
-        cjLhs(lhs);
+    conj_expr_if<ConjLhs, LhsMap> cjLhs(lhs);
 
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index ii = 0; ii < size; ++ii) {
@@ -59,9 +57,7 @@ struct band_solve_triangular_selector<Index, Mode, LhsScalar, ConjLhs, RhsScalar
   static void run(Index size, Index k, const LhsScalar* _lhs, Index lhsStride, RhsScalar* _other) {
     const LhsMap lhs(_lhs, k + 1, size, OuterStride<>(lhsStride));
     RhsMap other(_other, size, 1);
-    std::conditional_t<ConjLhs, const CwiseUnaryOp<typename internal::scalar_conjugate_op<LhsScalar>, LhsMap>,
-                       const LhsMap&>
-        cjLhs(lhs);
+    conj_expr_if<ConjLhs, LhsMap> cjLhs(lhs);
 
     for (Index col = 0; col < other.cols(); ++col) {
       for (Index ii = 0; ii < size; ++ii) {

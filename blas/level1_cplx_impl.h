@@ -10,10 +10,13 @@
 
 #include "common.h"
 
+namespace {
+// |Re(z)| + |Im(z)|; local to each complex translation unit, whose Scalar it depends on.
 struct scalar_norm1_op {
   using result_type = RealScalar;
   inline RealScalar operator()(const Scalar &a) const { return Eigen::numext::norm1(a); }
 };
+}  // namespace
 namespace Eigen {
 namespace internal {
 template <>
@@ -31,171 +34,95 @@ extern "C" EIGEN_BLAS_API RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX,
 
 // computes the sum of magnitudes of all vector elements or, for a complex vector x, the sum
 // res = |Rex1| + |Imx1| + |Rex2| + |Imx2| + ... + |Rexn| + |Imxn|, where x is a vector of order n
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT* n_in, RealScalar* px,
-                                                                                EIGEN_BLAS_INT* incx_in) {
+extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(asum))(EIGEN_BLAS_INT *n_in, RealScalar *px,
+                                                                                EIGEN_BLAS_INT *incx_in) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
   if (n <= 0 || incx <= 0) return 0;
 
-  // std::complex<T> is layout-compatible with T[2], so we can reinterpret
-  // a complex vector of length n as a real vector of length 2*n and use
-  // the fully vectorized cwiseAbs().sum() path.
-  if (incx == 1)
-    return make_vector(px, 2 * n).cwiseAbs().sum();
-  else {
-    // For non-unit stride, fall back to the scalar_norm1_op approach since
-    // the real components are not contiguous across complex elements.
-    Complex *x = reinterpret_cast<Complex *>(px);
-    return make_vector(x, n, std::abs(incx)).unaryExpr<scalar_norm1_op>().sum();
-  }
+  // A unit-stride complex vector is a real vector of length 2n, whose |.| sum vectorizes.
+  if (incx == 1) return make_vector(px, 2 * n).cwiseAbs().sum();
+  return make_vector(reinterpret_cast<Scalar *>(px), n, incx).unaryExpr(scalar_norm1_op()).sum();
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT* n_in, RealScalar* px,
-                                                                   EIGEN_BLAS_INT* incx_in) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amax))(EIGEN_BLAS_INT *n_in, RealScalar *px,
+                                                                   EIGEN_BLAS_INT *incx_in) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
   if (n <= 0 || incx <= 0) return 0;
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-
-  Eigen::DenseIndex ret;
-  if (incx == 1)
-    make_vector(x, n).unaryExpr<scalar_norm1_op>().maxCoeff(&ret);
-  else
-    make_vector(x, n, std::abs(incx)).unaryExpr<scalar_norm1_op>().maxCoeff(&ret);
-  return EIGEN_BLAS_INT(ret) + 1;
+  return blas_index_of_max(make_vector(reinterpret_cast<Scalar *>(px), n, incx).unaryExpr(scalar_norm1_op()));
 }
 
-extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT* n_in, RealScalar* px,
-                                                                   EIGEN_BLAS_INT* incx_in) {
+extern "C" EIGEN_BLAS_INT EIGEN_CAT(i, EIGEN_BLAS_FUNC_NAME(amin))(EIGEN_BLAS_INT *n_in, RealScalar *px,
+                                                                   EIGEN_BLAS_INT *incx_in) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
-  if (n <= 0) return 0;
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-
-  Eigen::DenseIndex ret;
-  if (incx == 1)
-    make_vector(x, n).unaryExpr<scalar_norm1_op>().minCoeff(&ret);
-  else
-    make_vector(x, n, std::abs(incx)).unaryExpr<scalar_norm1_op>().minCoeff(&ret);
-  return EIGEN_BLAS_INT(ret) + 1;
+  if (n <= 0 || incx <= 0) return 0;
+  return blas_index_of_min(make_vector(reinterpret_cast<Scalar *>(px), n, incx).unaryExpr(scalar_norm1_op()));
 }
 
 // computes a dot product of a conjugated vector with another vector.
 EIGEN_BLAS_FUNC(dotcw)
-(EIGEN_BLAS_INT* n_in, RealScalar* px, EIGEN_BLAS_INT* incx_in, RealScalar* py, EIGEN_BLAS_INT* incy_in,
- RealScalar* pres) {
-  //   std::cerr << "_dotc " << *n << " " << *incx << " " << *incy << "\n";
-  Scalar *res = reinterpret_cast<Scalar *>(pres);
-
+(EIGEN_BLAS_INT *n_in, RealScalar *px, EIGEN_BLAS_INT *incx_in, RealScalar *py, EIGEN_BLAS_INT *incy_in,
+ RealScalar *pres) {
   const Eigen::Index n = *n_in;
-  const Eigen::Index incx = *incx_in;
-  const Eigen::Index incy = *incy_in;
-
-  if (n <= 0) {
-    *res = Scalar(0);
-    return;
-  }
-
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-  Scalar *y = reinterpret_cast<Scalar *>(py);
-
-  if (incx == 1 && incy == 1)
-    *res = (make_vector(x, n).dot(make_vector(y, n)));
-  else if (incx >= 0 && incy >= 0)
-    *res = (make_vector(x, n, incx).dot(make_vector(y, n, incy)));
-  else if (incx < 0 && incy >= 0)
-    *res = (make_vector(x, n, -incx).reverse().dot(make_vector(y, n, incy)));
-  else if (incx >= 0 && incy < 0)
-    *res = (make_vector(x, n, incx).dot(make_vector(y, n, -incy).reverse()));
-  else if (incx < 0 && incy < 0)
-    *res = (make_vector(x, n, -incx).reverse().dot(make_vector(y, n, -incy).reverse()));
+  Scalar *res = reinterpret_cast<Scalar *>(pres);
+  *res = n <= 0 ? Scalar(0)
+                : apply_blas_vectors(n, reinterpret_cast<Scalar *>(px), *incx_in, reinterpret_cast<Scalar *>(py),
+                                     *incy_in, [](auto vx, auto vy) { return vx.dot(vy); });
 }
 
 // computes a vector-vector dot product without complex conjugation.
 EIGEN_BLAS_FUNC(dotuw)
-(EIGEN_BLAS_INT* n_in, RealScalar* px, EIGEN_BLAS_INT* incx_in, RealScalar* py, EIGEN_BLAS_INT* incy_in,
- RealScalar* pres) {
-  Scalar *res = reinterpret_cast<Scalar *>(pres);
-
+(EIGEN_BLAS_INT *n_in, RealScalar *px, EIGEN_BLAS_INT *incx_in, RealScalar *py, EIGEN_BLAS_INT *incy_in,
+ RealScalar *pres) {
   const Eigen::Index n = *n_in;
-  const Eigen::Index incx = *incx_in;
-  const Eigen::Index incy = *incy_in;
-
-  if (n <= 0) {
-    *res = Scalar(0);
-    return;
-  }
-
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-  Scalar *y = reinterpret_cast<Scalar *>(py);
-
-  if (incx == 1 && incy == 1)
-    *res = (make_vector(x, n).cwiseProduct(make_vector(y, n))).sum();
-  else if (incx >= 0 && incy >= 0)
-    *res = (make_vector(x, n, incx).cwiseProduct(make_vector(y, n, incy))).sum();
-  else if (incx < 0 && incy >= 0)
-    *res = (make_vector(x, n, -incx).reverse().cwiseProduct(make_vector(y, n, incy))).sum();
-  else if (incx >= 0 && incy < 0)
-    *res = (make_vector(x, n, incx).cwiseProduct(make_vector(y, n, -incy).reverse())).sum();
-  else if (incx < 0 && incy < 0)
-    *res = (make_vector(x, n, -incx).reverse().cwiseProduct(make_vector(y, n, -incy).reverse())).sum();
+  Scalar *res = reinterpret_cast<Scalar *>(pres);
+  *res = n <= 0 ? Scalar(0)
+                : apply_blas_vectors(n, reinterpret_cast<Scalar *>(px), *incx_in, reinterpret_cast<Scalar *>(py),
+                                     *incy_in, [](auto vx, auto vy) { return vx.cwiseProduct(vy).sum(); });
 }
 
-extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(EIGEN_BLAS_INT* n_in, RealScalar* px,
-                                                                                EIGEN_BLAS_INT* incx_in) {
-  //   std::cerr << "__nrm2 " << *n << " " << *incx << "\n";
+// The Euclidean norm; see the real nrm2 for the increment convention.
+extern "C" RealScalar EIGEN_CAT(REAL_SCALAR_SUFFIX, EIGEN_BLAS_FUNC_NAME(nrm2))(EIGEN_BLAS_INT *n_in, RealScalar *px,
+                                                                                EIGEN_BLAS_INT *incx_in) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
   if (n <= 0) return 0;
 
   Scalar *x = reinterpret_cast<Scalar *>(px);
-
   if (incx == 1) return make_vector(x, n).stableNorm();
-
   return make_vector(x, n, std::abs(incx)).stableNorm();
 }
 
+// Applies the real rotation (c, s) to complex vectors: the real and imaginary parts are rotated independently, as
+// real vectors of length 2n when both increments are one.
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, rot))
-(EIGEN_BLAS_INT* n_in, RealScalar* px, EIGEN_BLAS_INT* incx_in, RealScalar* py, EIGEN_BLAS_INT* incy_in, RealScalar* pc,
- RealScalar* ps) {
+(EIGEN_BLAS_INT *n_in, RealScalar *px, EIGEN_BLAS_INT *incx_in, RealScalar *py, EIGEN_BLAS_INT *incy_in, RealScalar *pc,
+ RealScalar *ps) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
   const Eigen::Index incy = *incy_in;
   if (n <= 0) return;
 
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-  Scalar *y = reinterpret_cast<Scalar *>(py);
-  RealScalar c = *pc;
-  RealScalar s = *ps;
-
-  StridedVectorType vx(make_vector(x, n, std::abs(incx)));
-  StridedVectorType vy(make_vector(y, n, std::abs(incy)));
-
-  Eigen::Reverse<StridedVectorType> rvx(vx);
-  Eigen::Reverse<StridedVectorType> rvy(vy);
-
-  // TODO implement mixed real-scalar rotations
-  if (incx < 0 && incy > 0)
-    Eigen::internal::apply_rotation_in_the_plane(rvx, vy, Eigen::JacobiRotation<Scalar>(c, s));
-  else if (incx > 0 && incy < 0)
-    Eigen::internal::apply_rotation_in_the_plane(vx, rvy, Eigen::JacobiRotation<Scalar>(c, s));
-  else
-    Eigen::internal::apply_rotation_in_the_plane(vx, vy, Eigen::JacobiRotation<Scalar>(c, s));
+  if (incx == 1 && incy == 1) {
+    apply_real_rotation(2 * n, px, 1, py, 1, *pc, *ps);
+  } else {
+    apply_real_rotation(n, px, 2 * incx, py, 2 * incy, *pc, *ps);
+    apply_real_rotation(n, px + 1, 2 * incx, py + 1, 2 * incy, *pc, *ps);
+  }
 }
 
 EIGEN_BLAS_FUNC(EIGEN_CAT(REAL_SCALAR_SUFFIX, scal))
-(EIGEN_BLAS_INT* n_in, RealScalar* palpha, RealScalar* px, EIGEN_BLAS_INT* incx_in) {
+(EIGEN_BLAS_INT *n_in, RealScalar *palpha, RealScalar *px, EIGEN_BLAS_INT *incx_in) {
   const Eigen::Index n = *n_in;
   const Eigen::Index incx = *incx_in;
-  if (n <= 0 || incx <= 0) return;
+  const RealScalar alpha = *palpha;
+  if (n <= 0 || incx <= 0 || alpha == RealScalar(1)) return;
 
-  Scalar *x = reinterpret_cast<Scalar *>(px);
-  RealScalar alpha = *palpha;
-
-  //   std::cerr << "__scal " << *n << " " << alpha << " " << *incx << "\n";
-
+  // A real factor scales each component, so it never forms 0 * Inf from the other one.
   if (incx == 1)
-    make_vector(x, n) *= alpha;
+    make_vector(px, 2 * n) *= alpha;
   else
-    make_vector(x, n, std::abs(incx)) *= alpha;
+    make_vector(reinterpret_cast<Scalar *>(px), n, incx) *= alpha;
 }

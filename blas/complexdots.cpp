@@ -11,9 +11,8 @@
 // These are thin wrappers around the worker functions (cdotcw_, etc.)
 // defined in level1_cplx_impl.h.
 //
-// Note: blas.h declares these as void, but gfortran expects complex functions
-// to return by value. We define the correct signatures here and do not include
-// blas.h to avoid the conflicting declarations.
+// gfortran returns a complex function result by value, which these functions
+// do with a struct; blas.h declares only the workers.
 
 #if defined(_WIN32)
 #if defined(EIGEN_BLAS_BUILD_DLL)
@@ -57,7 +56,7 @@ struct eigen_blas_complex_double {
 EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
-  cdotcw_(n, cx, incx, cy, incy, &res.r);
+  cdotcw_(n, cx, incx, cy, incy, reinterpret_cast<float *>(&res));
   return res;
 }
 
@@ -65,7 +64,7 @@ EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotc_(EIGEN_BLAS_INT *n, float *cx
 EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(EIGEN_BLAS_INT *n, float *cx, EIGEN_BLAS_INT *incx, float *cy,
                                                     EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_float res = {0.0f, 0.0f};
-  cdotuw_(n, cx, incx, cy, incy, &res.r);
+  cdotuw_(n, cx, incx, cy, incy, reinterpret_cast<float *>(&res));
   return res;
 }
 
@@ -73,7 +72,7 @@ EIGEN_BLAS_CDOT_API eigen_blas_complex_float cdotu_(EIGEN_BLAS_INT *n, float *cx
 EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
                                                      EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
-  zdotcw_(n, cx, incx, cy, incy, &res.r);
+  zdotcw_(n, cx, incx, cy, incy, reinterpret_cast<double *>(&res));
   return res;
 }
 
@@ -81,7 +80,7 @@ EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotc_(EIGEN_BLAS_INT *n, double *
 EIGEN_BLAS_CDOT_API eigen_blas_complex_double zdotu_(EIGEN_BLAS_INT *n, double *cx, EIGEN_BLAS_INT *incx, double *cy,
                                                      EIGEN_BLAS_INT *incy) {
   eigen_blas_complex_double res = {0.0, 0.0};
-  zdotuw_(n, cx, incx, cy, incy, &res.r);
+  zdotuw_(n, cx, incx, cy, incy, reinterpret_cast<double *>(&res));
   return res;
 }
 

@@ -9,6 +9,144 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "common.h"
 
+namespace {
+
+// The uplo triangle of the n-by-n C += alpha op(A) op(B), with op(A) n-by-k and opa, opb in {NOTR, TR, ADJ}.
+void triangular_product(int uplo, int opa, int opb, Eigen::Index n, Eigen::Index k, const Scalar &alpha,
+                        const Scalar *a, Eigen::Index lda, const Scalar *b, Eigen::Index ldb, Scalar *c,
+                        Eigen::Index ldc) {
+  using Eigen::ColMajor;
+  using Eigen::DenseIndex;
+  using Eigen::Dynamic;
+  using Eigen::Lower;
+  using Eigen::RowMajor;
+  using Eigen::Upper;
+  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
+                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
+  static const functype func[24] = {
+      // Upper-triangular result.
+      // array index: NOTR  | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      // array index: TR    | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      // array index: ADJ   | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      nullptr,
+      // array index: NOTR  | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      // array index: TR    | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      // array index: ADJ   | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Upper>::run),
+      nullptr,
+      // array index: NOTR  | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Upper>::run),
+      // array index: TR    | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Upper>::run),
+      // array index: ADJ   | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Upper>::run),
+      nullptr,
+
+      // Lower-triangular result.
+      // array index: NOTR  | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      // array index: TR    | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      // array index: ADJ   | (NOTR << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      nullptr,
+      // array index: NOTR  | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      // array index: TR    | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      // array index: ADJ   | (TR   << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
+                                                                 false, ColMajor, 1, Lower>::run),
+      nullptr,
+      // array index: NOTR  | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Lower>::run),
+      // array index: TR    | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Lower>::run),
+      // array index: ADJ   | (ADJ  << 2)
+      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
+                                                                 Conj, ColMajor, 1, Lower>::run),
+      nullptr,
+  };
+
+  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(n, n, k, 1, false);
+  func[opa + 4 * opb + 12 * uplo](n, k, a, lda, b, ldb, c, 1, ldc, alpha, blocking);
+}
+
+// The uplo triangle of the n-by-n C := beta C, column by column; beta == 0 overwrites. A real beta (herk, her2k)
+// scales the real and imaginary parts separately, so an infinite part does not make the other one NaN.
+template <typename Beta>
+void scale_triangle(int uplo, Eigen::Index n, Scalar *c, Eigen::Index ldc, const Beta &beta) {
+  if (beta == Beta(1)) return;
+  for (Eigen::Index j = 0; j < n; ++j) {
+    auto col = uplo == UP ? make_vector(c + j * ldc, j + 1) : make_vector(c + j * ldc + j, n - j);
+    if (beta == Beta(0))
+      col.setZero();
+    else
+      col *= beta;
+  }
+}
+
+// The m-by-n C := beta C; beta == 0 overwrites.
+void scale_matrix(Eigen::Index m, Eigen::Index n, Scalar *c, Eigen::Index ldc, const Scalar &beta) {
+  if (beta == Scalar(1)) return;
+  if (beta == Scalar(0))
+    matrix(c, m, n, ldc).setZero();
+  else
+    matrix(c, m, n, ldc) *= beta;
+}
+
+// C += alpha A B (side == LEFT) or alpha B A (side == RIGHT) for the m-by-n B and C and the selfadjoint A stored in
+// its uplo triangle.
+void selfadjoint_product(int side, int uplo, Eigen::Index m, Eigen::Index n, const Scalar &alpha, const Scalar *a,
+                         Eigen::Index lda, const Scalar *b, Eigen::Index ldb, Scalar *c, Eigen::Index ldc) {
+  using Eigen::ColMajor;
+  using Eigen::DenseIndex;
+  using Eigen::Dynamic;
+  using Eigen::RowMajor;
+  using Eigen::internal::product_selfadjoint_matrix;
+  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(
+      m, n, side == LEFT ? m : n, 1, false);
+
+  if (side == LEFT) {
+    if (uplo == UP)
+      product_selfadjoint_matrix<Scalar, DenseIndex, RowMajor, true, Conj, ColMajor, false, false, ColMajor, 1>::run(
+          m, n, a, lda, b, ldb, c, 1, ldc, alpha, blocking);
+    else
+      product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, true, false, ColMajor, false, false, ColMajor, 1>::run(
+          m, n, a, lda, b, ldb, c, 1, ldc, alpha, blocking);
+  } else {
+    if (uplo == UP)
+      product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, false, false, RowMajor, true, Conj, ColMajor, 1>::run(
+          m, n, b, ldb, a, lda, c, 1, ldc, alpha, blocking);
+    else
+      product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, false, false, ColMajor, true, false, ColMajor, 1>::run(
+          m, n, b, ldb, a, lda, c, 1, ldc, alpha, blocking);
+  }
+}
+
+}  // namespace
+
 EIGEN_BLAS_FUNC(gemm)
 (const char *opa, const char *opb, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k,
  const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb,
@@ -80,13 +218,7 @@ EIGEN_BLAS_FUNC(gemm)
 
   if (*m == 0 || *n == 0) return;
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      matrix(c, *m, *n, *ldc).setZero();
-    else
-      matrix(c, *m, *n, *ldc) *= beta;
-  }
-
+  scale_matrix(*m, *n, c, *ldc, beta);
   if (*k == 0) return;
 
   Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*m, *n, *k, 1,
@@ -100,80 +232,6 @@ EIGEN_BLAS_FUNC(gemmtr)
 (const char *uplo, const char *opa, const char *opb, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k,
  const RealScalar *palpha, const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pb,
  const EIGEN_BLAS_INT *ldb, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
-  using Eigen::ColMajor;
-  using Eigen::DenseIndex;
-  using Eigen::Dynamic;
-  using Eigen::Lower;
-  using Eigen::RowMajor;
-  using Eigen::Upper;
-  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
-  static const functype func[24] = {
-      // Upper-triangular result.
-      // array index: NOTR  | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      // array index: TR    | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      // array index: ADJ   | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      0,
-      // array index: NOTR  | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      // array index: TR    | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      // array index: ADJ   | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      0,
-      // array index: NOTR  | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      // array index: TR    | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      // array index: ADJ   | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      0,
-
-      // Lower-triangular result.
-      // array index: NOTR  | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      // array index: TR    | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      // array index: ADJ   | (NOTR << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      0,
-      // array index: NOTR  | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      // array index: TR    | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      // array index: ADJ   | (TR   << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      0,
-      // array index: NOTR  | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      // array index: TR    | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      // array index: ADJ   | (ADJ  << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      0,
-  };
-
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   const Scalar *b = reinterpret_cast<const Scalar *>(pb);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
@@ -201,31 +259,10 @@ EIGEN_BLAS_FUNC(gemmtr)
 
   if (*n == 0) return;
 
-  const int upper = (UPLO(*uplo) == UP);
+  scale_triangle(UPLO(*uplo), *n, c, *ldc, beta);
+  if (*k == 0 || alpha == Scalar(0)) return;
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0)) {
-      if (upper) {
-        matrix(c, *n, *n, *ldc).triangularView<Eigen::Upper>().setZero();
-      } else {
-        matrix(c, *n, *n, *ldc).triangularView<Eigen::Lower>().setZero();
-      }
-    } else {
-      if (upper) {
-        matrix(c, *n, *n, *ldc).triangularView<Eigen::Upper>() *= beta;
-      } else {
-        matrix(c, *n, *n, *ldc).triangularView<Eigen::Lower>() *= beta;
-      }
-    }
-  }
-
-  if (*k == 0) return;
-
-  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*n, *n, *k, 1,
-                                                                                                     false);
-
-  int code = OP(*opa) | ((OP(*opb) << 2) + (UPLO(*uplo) * 12));
-  func[code](*n, *k, a, *lda, b, *ldb, c, 1, *ldc, alpha, blocking);
+  triangular_product(UPLO(*uplo), OP(*opa), OP(*opb), *n, *k, alpha, a, *lda, b, *ldb, c, *ldc);
 }
 
 EIGEN_BLAS_FUNC(trsm)
@@ -355,6 +392,9 @@ EIGEN_BLAS_FUNC(trsm)
     return;
   }
 
+  // B := alpha B before the solve, as the reference does: solving first can overflow where the result does not.
+  if (alpha != Scalar(1)) matrix(b, *m, *n, *ldb) *= alpha;
+
   int code = OP(*opa) | (SIDE(*side) << 2) | (UPLO(*uplo) << 3) | (DIAG(*diag) << 4);
 
   if (SIDE(*side) == LEFT) {
@@ -366,8 +406,6 @@ EIGEN_BLAS_FUNC(trsm)
                                                                                                           false);
     func[code](*n, *m, a, *lda, b, 1, *ldb, blocking);
   }
-
-  if (alpha != Scalar(1)) matrix(b, *m, *n, *ldb) *= alpha;
 }
 
 // b = alpha*op(a)*b  for side = 'L'or'l'
@@ -544,64 +582,26 @@ EIGEN_BLAS_FUNC(symm)
     info = 12;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SYMM ", &info, kBlasNameLength);
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      matrix(c, *m, *n, *ldc).setZero();
-    else
-      matrix(c, *m, *n, *ldc) *= beta;
-  }
-
+  scale_matrix(*m, *n, c, *ldc, beta);
   if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
-  EIGEN_BLAS_INT size = (SIDE(*side) == LEFT) ? (*m) : (*n);
-  using Eigen::ColMajor;
-  using Eigen::DenseIndex;
-  using Eigen::Dynamic;
-  using Eigen::Lower;
-  using Eigen::RowMajor;
-  using Eigen::Upper;
 #if ISCOMPLEX
-  // FIXME add support for symmetric complex matrix
-  Eigen::Matrix<Scalar, Dynamic, Dynamic, ColMajor> matA(size, size);
+  // Eigen's selfadjoint kernels assume a Hermitian A, so a complex symmetric one is expanded first.
+  const Eigen::Index size = (SIDE(*side) == LEFT) ? (*m) : (*n);
+  Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> matA(size, size);
   if (UPLO(*uplo) == UP) {
-    matA.triangularView<Upper>() = matrix(a, size, size, *lda);
-    matA.triangularView<Lower>() = matrix(a, size, size, *lda).transpose();
-  } else if (UPLO(*uplo) == LO) {
-    matA.triangularView<Lower>() = matrix(a, size, size, *lda);
-    matA.triangularView<Upper>() = matrix(a, size, size, *lda).transpose();
+    matA.triangularView<Eigen::Upper>() = matrix(a, size, size, *lda);
+    matA.triangularView<Eigen::StrictlyLower>() = matrix(a, size, size, *lda).transpose();
+  } else {
+    matA.triangularView<Eigen::Lower>() = matrix(a, size, size, *lda);
+    matA.triangularView<Eigen::StrictlyUpper>() = matrix(a, size, size, *lda).transpose();
   }
   if (SIDE(*side) == LEFT)
-    matrix(c, *m, *n, *ldc) += alpha * matA * matrix(b, *m, *n, *ldb);
-  else if (SIDE(*side) == RIGHT)
-    matrix(c, *m, *n, *ldc) += alpha * matrix(b, *m, *n, *ldb) * matA;
-#else
-  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*m, *n, size, 1,
-                                                                                                     false);
-
-  if (SIDE(*side) == LEFT)
-    if (UPLO(*uplo) == UP)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, RowMajor, true, false, ColMajor, false, false,
-                                                  ColMajor, 1>::run(*m, *n, a, *lda, b, *ldb, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else if (UPLO(*uplo) == LO)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, true, false, ColMajor, false, false,
-                                                  ColMajor, 1>::run(*m, *n, a, *lda, b, *ldb, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else
-      return;
-  else if (SIDE(*side) == RIGHT)
-    if (UPLO(*uplo) == UP)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, false, false, RowMajor, true, false,
-                                                  ColMajor, 1>::run(*m, *n, b, *ldb, a, *lda, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else if (UPLO(*uplo) == LO)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, false, false, ColMajor, true, false,
-                                                  ColMajor, 1>::run(*m, *n, b, *ldb, a, *lda, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else
-      return;
+    matrix(c, *m, *n, *ldc).noalias() += alpha * matA * matrix(b, *m, *n, *ldb);
   else
-    return;
+    matrix(c, *m, *n, *ldc).noalias() += alpha * matrix(b, *m, *n, *ldb) * matA;
+#else
+  selfadjoint_product(SIDE(*side), UPLO(*uplo), *m, *n, alpha, a, *lda, b, *ldb, c, *ldc);
 #endif
 }
 
@@ -610,38 +610,6 @@ EIGEN_BLAS_FUNC(symm)
 EIGEN_BLAS_FUNC(syrk)
 (const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
  const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
-  using Eigen::ColMajor;
-  using Eigen::DenseIndex;
-  using Eigen::Dynamic;
-  using Eigen::Lower;
-  using Eigen::RowMajor;
-  using Eigen::Upper;
-#if !ISCOMPLEX
-  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
-  static const functype func[8] = {
-      // array index: NOTR  | (UP << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      // array index: TR    | (UP << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      // array index: ADJ   | (UP << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      0,
-      // array index: NOTR  | (LO << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      // array index: TR    | (LO << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, false, Scalar, ColMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      // array index: ADJ   | (LO << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      0};
-#endif
-
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
@@ -662,44 +630,12 @@ EIGEN_BLAS_FUNC(syrk)
     info = 10;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SYRK ", &info, kBlasNameLength);
 
-  if (beta != Scalar(1)) {
-    if (UPLO(*uplo) == UP)
-      if (beta == Scalar(0))
-        matrix(c, *n, *n, *ldc).triangularView<Upper>().setZero();
-      else
-        matrix(c, *n, *n, *ldc).triangularView<Upper>() *= beta;
-    else if (beta == Scalar(0))
-      matrix(c, *n, *n, *ldc).triangularView<Lower>().setZero();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() *= beta;
-  }
-
+  scale_triangle(UPLO(*uplo), *n, c, *ldc, beta);
   if (*n == 0 || *k == 0 || alpha == Scalar(0)) return;
 
-#if ISCOMPLEX
-  // FIXME add support for symmetric complex matrix
-  if (UPLO(*uplo) == UP) {
-    if (OP(*op) == NOTR)
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(a, *n, *k, *lda).transpose();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *k, *n, *lda).transpose() * matrix(a, *k, *n, *lda);
-  } else {
-    if (OP(*op) == NOTR)
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(a, *n, *k, *lda).transpose();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *k, *n, *lda).transpose() * matrix(a, *k, *n, *lda);
-  }
-#else
-  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*n, *n, *k, 1,
-                                                                                                     false);
-
-  int code = OP(*op) | (UPLO(*uplo) << 2);
-  func[code](*n, *k, a, *lda, a, *lda, c, 1, *ldc, alpha, blocking);
-#endif
+  // C += alpha A A^T or alpha A^T A, without conjugation also for complex A (TR and ADJ coincide for real A).
+  const int opa = OP(*op) == NOTR ? NOTR : TR;
+  triangular_product(UPLO(*uplo), opa, opa == NOTR ? TR : NOTR, *n, *k, alpha, a, *lda, a, *lda, c, *ldc);
 }
 
 // c = alpha*a*b' + alpha*b*a' + beta*c  for op = 'N'or'n'
@@ -731,41 +667,13 @@ EIGEN_BLAS_FUNC(syr2k)
     info = 12;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SYR2K", &info, kBlasNameLength);
 
-  using Eigen::Lower;
-  using Eigen::Upper;
-  if (beta != Scalar(1)) {
-    if (UPLO(*uplo) == UP)
-      if (beta == Scalar(0))
-        matrix(c, *n, *n, *ldc).triangularView<Upper>().setZero();
-      else
-        matrix(c, *n, *n, *ldc).triangularView<Upper>() *= beta;
-    else if (beta == Scalar(0))
-      matrix(c, *n, *n, *ldc).triangularView<Lower>().setZero();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() *= beta;
-  }
+  scale_triangle(UPLO(*uplo), *n, c, *ldc, beta);
+  if (*n == 0 || *k == 0 || alpha == Scalar(0)) return;
 
-  if (*k == 0) return;
-
-  if (OP(*op) == NOTR) {
-    if (UPLO(*uplo) == UP) {
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(b, *n, *k, *ldb).transpose() +
-          alpha * matrix(b, *n, *k, *ldb) * matrix(a, *n, *k, *lda).transpose();
-    } else if (UPLO(*uplo) == LO)
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(b, *n, *k, *ldb).transpose() +
-          alpha * matrix(b, *n, *k, *ldb) * matrix(a, *n, *k, *lda).transpose();
-  } else if (OP(*op) == TR || OP(*op) == ADJ) {
-    if (UPLO(*uplo) == UP)
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *k, *n, *lda).transpose() * matrix(b, *k, *n, *ldb) +
-          alpha * matrix(b, *k, *n, *ldb).transpose() * matrix(a, *k, *n, *lda);
-    else if (UPLO(*uplo) == LO)
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *k, *n, *lda).transpose() * matrix(b, *k, *n, *ldb) +
-          alpha * matrix(b, *k, *n, *ldb).transpose() * matrix(a, *k, *n, *lda);
-  }
+  // C += alpha A B^T + alpha B A^T, or alpha A^T B + alpha B^T A for TR and ADJ, as two triangular products.
+  const int opa = OP(*op) == NOTR ? NOTR : TR, opb = opa == NOTR ? TR : NOTR;
+  triangular_product(UPLO(*uplo), opa, opb, *n, *k, alpha, a, *lda, b, *ldb, c, *ldc);
+  triangular_product(UPLO(*uplo), opa, opb, *n, *k, alpha, b, *ldb, a, *lda, c, *ldc);
 }
 
 #if ISCOMPLEX
@@ -799,51 +707,10 @@ EIGEN_BLAS_FUNC(hemm)
     info = 12;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "HEMM ", &info, kBlasNameLength);
 
-  if (beta == Scalar(0))
-    matrix(c, *m, *n, *ldc).setZero();
-  else if (beta != Scalar(1))
-    matrix(c, *m, *n, *ldc) *= beta;
-
+  scale_matrix(*m, *n, c, *ldc, beta);
   if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
-  using Eigen::ColMajor;
-  using Eigen::DenseIndex;
-  using Eigen::Dynamic;
-  using Eigen::RowMajor;
-  using Eigen::Upper;
-
-  EIGEN_BLAS_INT size = (SIDE(*side) == LEFT) ? (*m) : (*n);
-  Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*m, *n, size, 1,
-                                                                                                     false);
-
-  if (SIDE(*side) == LEFT) {
-    if (UPLO(*uplo) == UP)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, RowMajor, true, Conj, ColMajor, false, false,
-                                                  ColMajor, 1>::run(*m, *n, a, *lda, b, *ldb, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else if (UPLO(*uplo) == LO)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, true, false, ColMajor, false, false,
-                                                  ColMajor, 1>::run(*m, *n, a, *lda, b, *ldb, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else
-      return;
-  } else if (SIDE(*side) == RIGHT) {
-    if (UPLO(*uplo) == UP)
-      matrix(c, *m, *n, *ldc) +=
-          alpha * matrix(b, *m, *n, *ldb) *
-          matrix(a, *n, *n, *lda)
-              .selfadjointView<Upper>(); /*internal::product_selfadjoint_matrix<Scalar,DenseIndex,ColMajor,false,false,
-RowMajor,true,Conj,  ColMajor, 1>
-::run(*m, *n, b, *ldb, a, *lda, c, 1, *ldc, alpha, blocking);*/
-    else if (UPLO(*uplo) == LO)
-      Eigen::internal::product_selfadjoint_matrix<Scalar, DenseIndex, ColMajor, false, false, ColMajor, true, false,
-                                                  ColMajor, 1>::run(*m, *n, b, *ldb, a, *lda, c, 1, *ldc, alpha,
-                                                                    blocking);
-    else
-      return;
-  } else {
-    return;
-  }
+  selfadjoint_product(SIDE(*side), UPLO(*uplo), *m, *n, alpha, a, *lda, b, *ldb, c, *ldc);
 }
 
 // c = alpha*a*conj(a') + beta*c  for op = 'N'or'n'
@@ -851,34 +718,6 @@ RowMajor,true,Conj,  ColMajor, 1>
 EIGEN_BLAS_FUNC(herk)
 (const char *uplo, const char *op, const EIGEN_BLAS_INT *n, const EIGEN_BLAS_INT *k, const RealScalar *palpha,
  const RealScalar *pa, const EIGEN_BLAS_INT *lda, const RealScalar *pbeta, RealScalar *pc, const EIGEN_BLAS_INT *ldc) {
-  using Eigen::ColMajor;
-  using Eigen::DenseIndex;
-  using Eigen::Dynamic;
-  using Eigen::Lower;
-  using Eigen::RowMajor;
-  using Eigen::StrictlyLower;
-  using Eigen::StrictlyUpper;
-  using Eigen::Upper;
-  using functype = void (*)(DenseIndex, DenseIndex, const Scalar *, DenseIndex, const Scalar *, DenseIndex, Scalar *,
-                            DenseIndex, DenseIndex, const Scalar &, Eigen::internal::level3_blocking<Scalar, Scalar> &);
-  static const functype func[8] = {
-      // array index: NOTR  | (UP << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Upper>::run),
-      0,
-      // array index: ADJ   | (UP << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Upper>::run),
-      0,
-      // array index: NOTR  | (LO << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, ColMajor, false, Scalar, RowMajor,
-                                                                 Conj, ColMajor, 1, Lower>::run),
-      0,
-      // array index: ADJ   | (LO << 2)
-      (Eigen::internal::general_matrix_matrix_triangular_product<DenseIndex, Scalar, RowMajor, Conj, Scalar, ColMajor,
-                                                                 false, ColMajor, 1, Lower>::run),
-      0};
-
   const Scalar *a = reinterpret_cast<const Scalar *>(pa);
   Scalar *c = reinterpret_cast<Scalar *>(pc);
   RealScalar alpha = *palpha;
@@ -899,31 +738,16 @@ EIGEN_BLAS_FUNC(herk)
     info = 10;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "HERK ", &info, kBlasNameLength);
 
-  int code = OP(*op) | (UPLO(*uplo) << 2);
+  const int uplo_code = UPLO(*uplo);
+  // The diagonal of a Hermitian C is real on exit whenever C is referenced.
+  scale_triangle(uplo_code, *n, c, *ldc, beta);
+  if (beta != RealScalar(1)) matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
+  if (*n == 0 || *k == 0 || alpha == RealScalar(0)) return;
 
-  if (beta != RealScalar(1)) {
-    if (UPLO(*uplo) == UP)
-      if (beta == Scalar(0))
-        matrix(c, *n, *n, *ldc).triangularView<Upper>().setZero();
-      else
-        matrix(c, *n, *n, *ldc).triangularView<StrictlyUpper>() *= beta;
-    else if (beta == Scalar(0))
-      matrix(c, *n, *n, *ldc).triangularView<Lower>().setZero();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<StrictlyLower>() *= beta;
-
-    if (beta != Scalar(0)) {
-      matrix(c, *n, *n, *ldc).diagonal().real() *= beta;
-      matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
-    }
-  }
-
-  if (*k > 0 && alpha != RealScalar(0)) {
-    Eigen::internal::gemm_blocking_space<ColMajor, Scalar, Scalar, Dynamic, Dynamic, Dynamic> blocking(*n, *n, *k, 1,
-                                                                                                       false);
-    func[code](*n, *k, a, *lda, a, *lda, c, 1, *ldc, alpha, blocking);
-    matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
-  }
+  // C += alpha A A^H, or alpha A^H A.
+  const int opa = OP(*op), opb = opa == NOTR ? ADJ : NOTR;
+  triangular_product(uplo_code, opa, opb, *n, *k, Scalar(alpha), a, *lda, a, *lda, c, *ldc);
+  matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
 }
 
 // c = alpha*a*conj(b') + conj(alpha)*b*conj(a') + beta*c,  for op = 'N'or'n'
@@ -955,51 +779,17 @@ EIGEN_BLAS_FUNC(her2k)
     info = 12;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "HER2K", &info, kBlasNameLength);
 
-  using Eigen::Lower;
-  using Eigen::StrictlyLower;
-  using Eigen::StrictlyUpper;
-  using Eigen::Upper;
-  if (beta != RealScalar(1)) {
-    if (UPLO(*uplo) == UP)
-      if (beta == Scalar(0))
-        matrix(c, *n, *n, *ldc).triangularView<Upper>().setZero();
-      else
-        matrix(c, *n, *n, *ldc).triangularView<StrictlyUpper>() *= beta;
-    else if (beta == Scalar(0))
-      matrix(c, *n, *n, *ldc).triangularView<Lower>().setZero();
-    else
-      matrix(c, *n, *n, *ldc).triangularView<StrictlyLower>() *= beta;
+  const int uplo_code = UPLO(*uplo);
+  scale_triangle(uplo_code, *n, c, *ldc, beta);
+  if (beta != RealScalar(1)) matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
+  if (*n == 0 || *k == 0 || alpha == Scalar(0)) return;
 
-    if (beta != Scalar(0)) {
-      matrix(c, *n, *n, *ldc).diagonal().real() *= beta;
-      matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
-    }
-  } else if (*k > 0 && alpha != Scalar(0))
-    matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
-
-  if (*k == 0) return;
-
-  if (OP(*op) == NOTR) {
-    if (UPLO(*uplo) == UP) {
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(b, *n, *k, *ldb).adjoint() +
-          Eigen::numext::conj(alpha) * matrix(b, *n, *k, *ldb) * matrix(a, *n, *k, *lda).adjoint();
-    } else if (UPLO(*uplo) == LO)
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *n, *k, *lda) * matrix(b, *n, *k, *ldb).adjoint() +
-          Eigen::numext::conj(alpha) * matrix(b, *n, *k, *ldb) * matrix(a, *n, *k, *lda).adjoint();
-  } else if (OP(*op) == ADJ) {
-    if (UPLO(*uplo) == UP)
-      matrix(c, *n, *n, *ldc).triangularView<Upper>() +=
-          alpha * matrix(a, *k, *n, *lda).adjoint() * matrix(b, *k, *n, *ldb) +
-          Eigen::numext::conj(alpha) * matrix(b, *k, *n, *ldb).adjoint() * matrix(a, *k, *n, *lda);
-    else if (UPLO(*uplo) == LO)
-      matrix(c, *n, *n, *ldc).triangularView<Lower>() +=
-          alpha * matrix(a, *k, *n, *lda).adjoint() * matrix(b, *k, *n, *ldb) +
-          Eigen::numext::conj(alpha) * matrix(b, *k, *n, *ldb).adjoint() * matrix(a, *k, *n, *lda);
-  }
-  // The two products round differently, so force the documented real diagonal on exit.
-  if (alpha != Scalar(0)) matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
+  // C += alpha A B^H + conj(alpha) B A^H, or alpha A^H B + conj(alpha) B^H A. The two products round differently,
+  // so the diagonal is made real again afterwards.
+  const int opa = OP(*op), opb = opa == NOTR ? ADJ : NOTR;
+  triangular_product(uplo_code, opa, opb, *n, *k, alpha, a, *lda, b, *ldb, c, *ldc);
+  triangular_product(uplo_code, opa, opb, *n, *k, Eigen::numext::conj(alpha), b, *ldb, a, *lda, c, *ldc);
+  matrix(c, *n, *n, *ldc).diagonal().imag().setZero();
 }
 
 #endif

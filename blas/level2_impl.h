@@ -24,6 +24,101 @@ struct general_matrix_vector_product_wrapper {
   }
 };
 
+namespace {
+
+// y += alpha A x for the n-by-n selfadjoint band matrix A with k super-diagonals in BLAS band storage: the upper
+// triangle holds A(i, j) at a[(k + i - j) + j * lda], the lower one at a[(i - j) + j * lda]. The imaginary part of
+// the diagonal is not read.
+void selfadjoint_band_product(bool upper, Eigen::Index n, Eigen::Index k, const Scalar *a, Eigen::Index lda,
+                              const Scalar *x, Scalar *y, const Scalar &alpha) {
+  using Eigen::Index;
+  if (k >= 8) {
+    // Vectorized path: use Eigen Map segments for the inner band operations.
+    ConstMatrixType band(a, k + 1, n, lda);
+    if (upper) {
+      for (Index j = 0; j < n; ++j) {
+        Index start = (std::max)(Index(0), j - k);
+        Index len = j - start;
+        Index offset = k - (j - start);
+        Scalar temp1 = alpha * x[j];
+        y[j] += Scalar(Eigen::numext::real(band(k, j))) * temp1;
+        if (len > 0) {
+          make_vector(y + start, len) += temp1 * band.col(j).segment(offset, len);
+          y[j] += alpha * band.col(j).segment(offset, len).dot(make_vector(x + start, len));
+        }
+      }
+    } else {
+      for (Index j = 0; j < n; ++j) {
+        Index len = (std::min)(n - 1, j + k) - j;
+        Scalar temp1 = alpha * x[j];
+        y[j] += Scalar(Eigen::numext::real(band(0, j))) * temp1;
+        if (len > 0) {
+          make_vector(y + j + 1, len) += temp1 * band.col(j).segment(1, len);
+          y[j] += alpha * band.col(j).segment(1, len).dot(make_vector(x + j + 1, len));
+        }
+      }
+    }
+  } else {
+    // Scalar path: for narrow bandwidth, avoid Map overhead.
+    if (upper) {
+      for (Index j = 0; j < n; ++j) {
+        Scalar temp1 = alpha * x[j];
+        Scalar temp2 = Scalar(0);
+        for (Index i = (std::max)(Index(0), j - k); i < j; ++i) {
+          Scalar aij = a[(k + i - j) + j * lda];
+          y[i] += temp1 * aij;
+          temp2 += Eigen::numext::conj(aij) * x[i];
+        }
+        y[j] += Scalar(Eigen::numext::real(a[k + j * lda])) * temp1 + alpha * temp2;
+      }
+    } else {
+      for (Index j = 0; j < n; ++j) {
+        Scalar temp1 = alpha * x[j];
+        Scalar temp2 = Scalar(0);
+        y[j] += Scalar(Eigen::numext::real(a[j * lda])) * temp1;
+        for (Index i = j + 1; i <= (std::min)(n - 1, j + k); ++i) {
+          Scalar aij = a[(i - j) + j * lda];
+          y[i] += temp1 * aij;
+          temp2 += Eigen::numext::conj(aij) * x[i];
+        }
+        y[j] += alpha * temp2;
+      }
+    }
+  }
+}
+
+// y += alpha A x for the n-by-n selfadjoint A packed column by column: column j holds rows 0..j of the upper triangle
+// or rows j..n-1 of the lower one. The imaginary part of the diagonal is not read.
+void selfadjoint_packed_product(bool upper, Eigen::Index n, const Scalar *ap, const Scalar *x, Scalar *y,
+                                const Scalar &alpha) {
+  using Eigen::Index;
+  Index kk = 0;  // the start of column j
+  if (upper) {
+    for (Index j = 0; j < n; ++j) {
+      Scalar temp1 = alpha * x[j];
+      y[j] += Scalar(Eigen::numext::real(ap[kk + j])) * temp1;
+      if (j > 0) {
+        make_vector(y, j) += temp1 * make_vector(ap + kk, j);
+        y[j] += alpha * make_vector(ap + kk, j).dot(make_vector(x, j));
+      }
+      kk += j + 1;
+    }
+  } else {
+    for (Index j = 0; j < n; ++j) {
+      Index len = n - j - 1;
+      Scalar temp1 = alpha * x[j];
+      y[j] += Scalar(Eigen::numext::real(ap[kk])) * temp1;
+      if (len > 0) {
+        make_vector(y + j + 1, len) += temp1 * make_vector(ap + kk + 1, len);
+        y[j] += alpha * make_vector(ap + kk + 1, len).dot(make_vector(x + j + 1, len));
+      }
+      kk += n - j;
+    }
+  }
+}
+
+}  // namespace
+
 EIGEN_BLAS_FUNC(gemv)
 (const char *opa, const EIGEN_BLAS_INT *m, const EIGEN_BLAS_INT *n, const RealScalar *palpha, const RealScalar *pa,
  const EIGEN_BLAS_INT *lda, const RealScalar *pb, const EIGEN_BLAS_INT *incb, const RealScalar *pbeta, RealScalar *pc,
@@ -67,22 +162,12 @@ EIGEN_BLAS_FUNC(gemv)
   int code = OP(*opa);
   if (code != NOTR) std::swap(actual_m, actual_n);
 
-  const Scalar *actual_b = get_compact_vector(b, actual_n, *incb);
-  Scalar *actual_c = get_compact_vector(c, actual_m, *incc);
+  compact_vector<Scalar> actual_c(c, actual_m, *incc);
+  scale_vector(actual_c.data(), actual_m, beta);
+  if (alpha == Scalar(0)) return;
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      make_vector(actual_c, actual_m).setZero();
-    else
-      make_vector(actual_c, actual_m) *= beta;
-  }
-
-  if (code >= 4 || func[code] == 0) return;
-
-  func[code](actual_m, actual_n, a, *lda, actual_b, 1, actual_c, 1, alpha);
-
-  if (actual_b != b) delete[] actual_b;
-  if (actual_c != c) delete[] copy_back(actual_c, c, actual_m, *incc);
+  compact_vector<const Scalar> actual_b(b, actual_n, *incb);
+  func[code](actual_m, actual_n, a, *lda, actual_b.data(), 1, actual_c.data(), 1, alpha);
 }
 
 EIGEN_BLAS_FUNC(trsv)
@@ -154,12 +239,11 @@ EIGEN_BLAS_FUNC(trsv)
     info = 8;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "TRSV ", &info, kBlasNameLength);
 
-  Scalar *actual_b = get_compact_vector(b, *n, *incb);
+  if (*n == 0) return;
 
+  compact_vector<Scalar> actual_b(b, *n, *incb);
   int code = OP(*opa) | (UPLO(*uplo) << 2) | (DIAG(*diag) << 3);
-  func[code](*n, a, *lda, actual_b);
-
-  if (actual_b != b) delete[] copy_back(actual_b, b, *n, *incb);
+  func[code](*n, a, *lda, actual_b.data());
 }
 
 EIGEN_BLAS_FUNC(trmv)
@@ -169,7 +253,6 @@ EIGEN_BLAS_FUNC(trmv)
                             Scalar *, Eigen::Index, const Scalar &);
   using Eigen::ColMajor;
   using Eigen::Lower;
-  using Eigen::OnTheLeft;
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
@@ -235,17 +318,11 @@ EIGEN_BLAS_FUNC(trmv)
 
   if (*n == 0) return;
 
-  Scalar *actual_b = get_compact_vector(b, *n, *incb);
-  Eigen::Matrix<Scalar, Eigen::Dynamic, 1> res(*n);
-  res.setZero();
-
+  compact_vector<Scalar> actual_b(b, *n, *incb);
+  Eigen::Matrix<Scalar, Eigen::Dynamic, 1> res = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>::Zero(*n);
   int code = OP(*opa) | (UPLO(*uplo) << 2) | (DIAG(*diag) << 3);
-  if (code >= 16 || func[code] == 0) return;
-
-  func[code](*n, *n, a, *lda, actual_b, 1, res.data(), 1, Scalar(1));
-
-  copy_back(res.data(), b, *n, *incb);
-  if (actual_b != b) delete[] actual_b;
+  func[code](*n, *n, a, *lda, actual_b.data(), 1, res.data(), 1, Scalar(1));
+  make_vector(actual_b.data(), *n) = res;
 }
 
 /**  GBMV  performs one of the matrix-vector operations
@@ -264,7 +341,6 @@ EIGEN_BLAS_FUNC(gbmv)
   Scalar *y = reinterpret_cast<Scalar *>(py);
   Scalar alpha = *reinterpret_cast<const Scalar *>(palpha);
   Scalar beta = *reinterpret_cast<const Scalar *>(pbeta);
-  Eigen::Index coeff_rows = Eigen::Index(*kl) + Eigen::Index(*ku) + 1;
 
   EIGEN_BLAS_INT info = 0;
   if (OP(*trans) == INVALID)
@@ -277,7 +353,7 @@ EIGEN_BLAS_FUNC(gbmv)
     info = 4;
   else if (*ku < 0)
     info = 5;
-  else if (Eigen::Index(*lda) < coeff_rows)
+  else if (*lda <= *kl || *lda - *kl <= *ku)  // lda < kl + ku + 1, without overflow
     info = 8;
   else if (*incx == 0)
     info = 10;
@@ -291,19 +367,16 @@ EIGEN_BLAS_FUNC(gbmv)
   Eigen::Index actual_n = *n;
   if (OP(*trans) != NOTR) std::swap(actual_m, actual_n);
 
-  const Scalar *actual_x = get_compact_vector(x, actual_n, *incx);
-  Scalar *actual_y = get_compact_vector(y, actual_m, *incy);
+  compact_vector<Scalar> compact_y(y, actual_m, *incy);
+  Scalar *actual_y = compact_y.data();
+  scale_vector(actual_y, actual_m, beta);
+  if (alpha == Scalar(0)) return;
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      make_vector(actual_y, actual_m).setZero();
-    else
-      make_vector(actual_y, actual_m) *= beta;
-  }
+  compact_vector<const Scalar> compact_x(x, actual_n, *incx);
+  const Scalar *actual_x = compact_x.data();
+  ConstMatrixType mat_coeffs(a, Eigen::Index(*kl) + Eigen::Index(*ku) + 1, *n, *lda);
 
-  ConstMatrixType mat_coeffs(a, coeff_rows, *n, *lda);
-
-  Eigen::Index nb = alpha == Scalar(0) ? 0 : (std::min)(Eigen::Index(*n), Eigen::Index(*m) + Eigen::Index(*ku));
+  Eigen::Index nb = (std::min)(Eigen::Index(*n), Eigen::Index(*m) + Eigen::Index(*ku));
   for (Eigen::Index j = 0; j < nb; ++j) {
     Eigen::Index start = (std::max)(Eigen::Index(0), j - Eigen::Index(*ku));
     Eigen::Index end = (std::min)(Eigen::Index(*m) - 1, j + Eigen::Index(*kl));
@@ -318,9 +391,6 @@ EIGEN_BLAS_FUNC(gbmv)
       actual_y[j] +=
           alpha * (mat_coeffs.col(j).segment(offset, len).adjoint() * make_vector(actual_x + start, len)).value();
   }
-
-  if (actual_x != x) delete[] actual_x;
-  if (actual_y != y) delete[] copy_back(actual_y, y, actual_m, *incy);
 }
 
 /**  TBMV  performs one of the matrix-vector operations
@@ -353,7 +423,7 @@ EIGEN_BLAS_FUNC(tbmv)
     info = 4;
   else if (k < 0)
     info = 5;
-  else if (lda < k + 1)
+  else if (lda <= k)
     info = 7;
   else if (*incx == 0)
     info = 9;
@@ -361,7 +431,8 @@ EIGEN_BLAS_FUNC(tbmv)
 
   if (n == 0) return;
 
-  Scalar *actual_x = get_compact_vector(x, n, *incx);
+  compact_vector<Scalar> compact_x(x, n, *incx);
+  Scalar *actual_x = compact_x.data();
 
   bool upper = (UPLO(*uplo) == UP);
   int op = OP(*opa);
@@ -478,8 +549,6 @@ EIGEN_BLAS_FUNC(tbmv)
       }
     }
   }
-
-  if (actual_x != x) delete[] copy_back(actual_x, x, n, *incx);
 }
 
 /**  DTBSV  solves one of the systems of equations
@@ -499,7 +568,6 @@ EIGEN_BLAS_FUNC(tbsv)
   using functype = void (*)(Eigen::Index, Eigen::Index, const Scalar *, Eigen::Index, Scalar *);
   using Eigen::ColMajor;
   using Eigen::Lower;
-  using Eigen::OnTheLeft;
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
@@ -542,7 +610,6 @@ EIGEN_BLAS_FUNC(tbsv)
 
   Scalar *a = reinterpret_cast<Scalar *>(pa);
   Scalar *x = reinterpret_cast<Scalar *>(px);
-  Eigen::Index coeff_rows = Eigen::Index(*k) + 1;
 
   EIGEN_BLAS_INT info = 0;
   if (UPLO(*uplo) == INVALID)
@@ -555,7 +622,7 @@ EIGEN_BLAS_FUNC(tbsv)
     info = 4;
   else if (*k < 0)
     info = 5;
-  else if (Eigen::Index(*lda) < coeff_rows)
+  else if (*lda <= *k)
     info = 7;
   else if (*incx == 0)
     info = 9;
@@ -563,16 +630,9 @@ EIGEN_BLAS_FUNC(tbsv)
 
   if (*n == 0 || (*k == 0 && DIAG(*diag) == UNIT)) return;
 
-  Eigen::Index actual_n = *n;
-
-  Scalar *actual_x = get_compact_vector(x, actual_n, *incx);
-
+  compact_vector<Scalar> actual_x(x, *n, *incx);
   int code = OP(*op) | (UPLO(*uplo) << 2) | (DIAG(*diag) << 3);
-  if (code >= 16 || func[code] == 0) return;
-
-  func[code](*n, *k, a, *lda, actual_x);
-
-  if (actual_x != x) delete[] copy_back(actual_x, x, actual_n, *incx);
+  func[code](*n, *k, a, *lda, actual_x.data());
 }
 
 /**  DTPMV  performs one of the matrix-vector operations
@@ -587,7 +647,6 @@ EIGEN_BLAS_FUNC(tpmv)
   using functype = void (*)(Eigen::Index, const Scalar *, const Scalar *, Scalar *, Scalar);
   using Eigen::ColMajor;
   using Eigen::Lower;
-  using Eigen::OnTheLeft;
   using Eigen::RowMajor;
   using Eigen::UnitDiag;
   using Eigen::Upper;
@@ -651,17 +710,11 @@ EIGEN_BLAS_FUNC(tpmv)
 
   if (*n == 0) return;
 
-  Scalar *actual_x = get_compact_vector(x, *n, *incx);
-  Eigen::Matrix<Scalar, Eigen::Dynamic, 1> res(*n);
-  res.setZero();
-
+  compact_vector<Scalar> actual_x(x, *n, *incx);
+  Eigen::Matrix<Scalar, Eigen::Dynamic, 1> res = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>::Zero(*n);
   int code = OP(*opa) | (UPLO(*uplo) << 2) | (DIAG(*diag) << 3);
-  if (code >= 16 || func[code] == 0) return;
-
-  func[code](*n, ap, actual_x, res.data(), Scalar(1));
-
-  copy_back(res.data(), x, *n, *incx);
-  if (actual_x != x) delete[] actual_x;
+  func[code](*n, ap, actual_x.data(), res.data(), Scalar(1));
+  make_vector(actual_x.data(), *n) = res;
 }
 
 /**  DTPSV  solves one of the systems of equations
@@ -741,10 +794,9 @@ EIGEN_BLAS_FUNC(tpsv)
     info = 7;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "TPSV ", &info, kBlasNameLength);
 
-  Scalar *actual_x = get_compact_vector(x, *n, *incx);
+  if (*n == 0) return;
 
+  compact_vector<Scalar> actual_x(x, *n, *incx);
   int code = OP(*opa) | (UPLO(*uplo) << 2) | (DIAG(*diag) << 3);
-  func[code](*n, ap, actual_x);
-
-  if (actual_x != x) delete[] copy_back(actual_x, x, *n, *incx);
+  func[code](*n, ap, actual_x.data());
 }

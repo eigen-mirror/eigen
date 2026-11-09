@@ -48,23 +48,17 @@ EIGEN_BLAS_FUNC(symv)
 
   if (*n == 0) return;
 
-  const Scalar *actual_x = get_compact_vector(x, *n, *incx);
-  Scalar *actual_y = get_compact_vector(y, *n, *incy);
+  compact_vector<Scalar> compact_y(y, *n, *incy);
+  Scalar *actual_y = compact_y.data();
+  scale_vector(actual_y, *n, beta);
+  if (alpha == Scalar(0)) return;
 
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      make_vector(actual_y, *n).setZero();
-    else
-      make_vector(actual_y, *n) *= beta;
-  }
+  compact_vector<const Scalar> compact_x(x, *n, *incx);
+  const Scalar *actual_x = compact_x.data();
 
   int code = UPLO(*uplo);
-  if (code >= 2 || func[code] == 0) return;
 
-  if (alpha != Scalar(0)) func[code](*n, a, *lda, actual_x, actual_y, alpha);
-
-  if (actual_x != x) delete[] actual_x;
-  if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
+  func[code](*n, a, *lda, actual_x, actual_y, alpha);
 }
 
 // C := alpha*x*x' + C
@@ -100,14 +94,11 @@ EIGEN_BLAS_FUNC(syr)
   if (*n == 0 || alpha == Scalar(0)) return;
 
   // if the increment is not 1, let's copy it to a temporary vector to enable vectorization
-  const Scalar *x_cpy = get_compact_vector(x, *n, *incx);
+  compact_vector<const Scalar> x_cpy(x, *n, *incx);
 
   int code = UPLO(*uplo);
-  if (code >= 2 || func[code] == 0) return;
 
-  func[code](*n, c, *ldc, x_cpy, x_cpy, alpha);
-
-  if (x_cpy != x) delete[] x_cpy;
+  func[code](*n, c, *ldc, x_cpy.data(), x_cpy.data(), alpha);
 }
 
 // C := alpha*x*y' + alpha*y*x' + C
@@ -140,24 +131,14 @@ EIGEN_BLAS_FUNC(syr2)
     info = 9;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SYR2 ", &info, kBlasNameLength);
 
-  if (alpha == Scalar(0)) return;
+  if (*n == 0 || alpha == Scalar(0)) return;
 
-  const Scalar *x_cpy = get_compact_vector(x, *n, *incx);
-  const Scalar *y_cpy = get_compact_vector(y, *n, *incy);
+  compact_vector<const Scalar> x_cpy(x, *n, *incx);
+  compact_vector<const Scalar> y_cpy(y, *n, *incy);
 
   int code = UPLO(*uplo);
-  if (code >= 2 || func[code] == 0) return;
 
-  func[code](*n, c, *ldc, x_cpy, y_cpy, alpha);
-
-  if (x_cpy != x) delete[] x_cpy;
-  if (y_cpy != y) delete[] y_cpy;
-
-  //   int code = UPLO(*uplo);
-  //   if(code>=2 || func[code]==0)
-  //     return 0;
-
-  //   func[code](*n, a, *inca, b, *incb, c, *ldc, alpha);
+  func[code](*n, c, *ldc, x_cpy.data(), y_cpy.data(), alpha);
 }
 
 /**  SBMV  performs the matrix-vector operation
@@ -166,9 +147,6 @@ EIGEN_BLAS_FUNC(syr2)
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n symmetric band matrix, with k super-diagonals.
- *
- *  Band storage: upper triangle stores A[i,j] at a[(k+i-j) + j*lda],
- *  lower triangle stores A[i,j] at a[(i-j) + j*lda].
  */
 EIGEN_BLAS_FUNC(sbmv)
 (char *uplo, EIGEN_BLAS_INT *n_in, EIGEN_BLAS_INT *k_in, RealScalar *palpha, RealScalar *pa, EIGEN_BLAS_INT *lda_in,
@@ -189,7 +167,7 @@ EIGEN_BLAS_FUNC(sbmv)
     info = 2;
   else if (k < 0)
     info = 3;
-  else if (lda < k + 1)
+  else if (lda <= k)
     info = 6;
   else if (*incx == 0)
     info = 8;
@@ -199,79 +177,12 @@ EIGEN_BLAS_FUNC(sbmv)
 
   if (n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  const Scalar *actual_x = get_compact_vector(x, n, *incx);
-  Scalar *actual_y = get_compact_vector(y, n, *incy);
+  compact_vector<Scalar> compact_y(y, n, *incy);
+  scale_vector(compact_y.data(), n, beta);
+  if (alpha == Scalar(0)) return;
 
-  // First form y := beta*y.
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      make_vector(actual_y, n).setZero();
-    else
-      make_vector(actual_y, n) *= beta;
-  }
-
-  if (alpha == Scalar(0)) {
-    if (actual_x != x) delete[] actual_x;
-    if (actual_y != y) delete[] copy_back(actual_y, y, n, *incy);
-    return;
-  }
-
-  if (k >= 8) {
-    // Vectorized path: use Eigen Map segments for the inner band operations.
-    ConstMatrixType band(a, k + 1, n, lda);
-    if (UPLO(*uplo) == UP) {
-      for (Eigen::Index j = 0; j < n; ++j) {
-        Eigen::Index start = (std::max)(Eigen::Index(0), j - k);
-        Eigen::Index len = j - start;
-        Eigen::Index offset = k - (j - start);
-        Scalar temp1 = alpha * actual_x[j];
-        actual_y[j] += temp1 * band(k, j);
-        if (len > 0) {
-          make_vector(actual_y + start, len) += temp1 * band.col(j).segment(offset, len);
-          actual_y[j] += alpha * band.col(j).segment(offset, len).dot(make_vector(actual_x + start, len));
-        }
-      }
-    } else {
-      for (Eigen::Index j = 0; j < n; ++j) {
-        Eigen::Index len = (std::min)(n - 1, j + k) - j;
-        Scalar temp1 = alpha * actual_x[j];
-        actual_y[j] += temp1 * band(0, j);
-        if (len > 0) {
-          make_vector(actual_y + j + 1, len) += temp1 * band.col(j).segment(1, len);
-          actual_y[j] += alpha * band.col(j).segment(1, len).dot(make_vector(actual_x + j + 1, len));
-        }
-      }
-    }
-  } else {
-    // Scalar path: for narrow bandwidth, avoid Map overhead.
-    if (UPLO(*uplo) == UP) {
-      for (Eigen::Index j = 0; j < n; ++j) {
-        Scalar temp1 = alpha * actual_x[j];
-        Scalar temp2 = Scalar(0);
-        for (Eigen::Index i = (std::max)(Eigen::Index(0), j - k); i < j; ++i) {
-          Scalar aij = a[(k + i - j) + j * lda];
-          actual_y[i] += temp1 * aij;
-          temp2 += aij * actual_x[i];
-        }
-        actual_y[j] += temp1 * a[k + j * lda] + alpha * temp2;
-      }
-    } else {
-      for (Eigen::Index j = 0; j < n; ++j) {
-        Scalar temp1 = alpha * actual_x[j];
-        Scalar temp2 = Scalar(0);
-        actual_y[j] += temp1 * a[j * lda];
-        for (Eigen::Index i = j + 1; i <= (std::min)(n - 1, j + k); ++i) {
-          Scalar aij = a[(i - j) + j * lda];
-          actual_y[i] += temp1 * aij;
-          temp2 += aij * actual_x[i];
-        }
-        actual_y[j] += alpha * temp2;
-      }
-    }
-  }
-
-  if (actual_x != x) delete[] actual_x;
-  if (actual_y != y) delete[] copy_back(actual_y, y, n, *incy);
+  compact_vector<const Scalar> compact_x(x, n, *incx);
+  selfadjoint_band_product(UPLO(*uplo) == UP, n, k, a, lda, compact_x.data(), compact_y.data(), alpha);
 }
 
 /**  SPMV  performs the matrix-vector operation
@@ -280,10 +191,6 @@ EIGEN_BLAS_FUNC(sbmv)
  *
  *  where alpha and beta are scalars, x and y are n element vectors and
  *  A is an n by n symmetric matrix, supplied in packed form.
- *
- *  Packed storage: upper triangle stores columns sequentially so that
- *  column j occupies positions kk..kk+j (where kk = j*(j+1)/2),
- *  lower triangle stores column j at positions kk..kk+(n-j-1).
  */
 EIGEN_BLAS_FUNC(spmv)
 (char *uplo, EIGEN_BLAS_INT *n, RealScalar *palpha, RealScalar *pap, RealScalar *px, EIGEN_BLAS_INT *incx,
@@ -307,51 +214,12 @@ EIGEN_BLAS_FUNC(spmv)
 
   if (*n == 0 || (alpha == Scalar(0) && beta == Scalar(1))) return;
 
-  const Scalar *actual_x = get_compact_vector(x, *n, *incx);
-  Scalar *actual_y = get_compact_vector(y, *n, *incy);
+  compact_vector<Scalar> compact_y(y, *n, *incy);
+  scale_vector(compact_y.data(), *n, beta);
+  if (alpha == Scalar(0)) return;
 
-  // First form y := beta*y.
-  if (beta != Scalar(1)) {
-    if (beta == Scalar(0))
-      make_vector(actual_y, *n).setZero();
-    else
-      make_vector(actual_y, *n) *= beta;
-  }
-
-  if (alpha == Scalar(0)) {
-    if (actual_x != x) delete[] actual_x;
-    if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
-    return;
-  }
-
-  Eigen::Index kk = 0;
-  if (UPLO(*uplo) == UP) {
-    // Upper triangle packed: column j occupies ap[kk..kk+j].
-    for (Eigen::Index j = 0; j < *n; ++j) {
-      Scalar temp1 = alpha * actual_x[j];
-      actual_y[j] += temp1 * ap[kk + j];
-      if (j > 0) {
-        make_vector(actual_y, j) += temp1 * make_vector(ap + kk, j);
-        actual_y[j] += alpha * make_vector(ap + kk, j).dot(make_vector(actual_x, j));
-      }
-      kk += j + 1;
-    }
-  } else {
-    // Lower triangle packed: column j occupies ap[kk..kk+(n-j-1)].
-    for (Eigen::Index j = 0; j < *n; ++j) {
-      Eigen::Index len = Eigen::Index(*n) - j - 1;
-      Scalar temp1 = alpha * actual_x[j];
-      actual_y[j] += temp1 * ap[kk];
-      if (len > 0) {
-        make_vector(actual_y + j + 1, len) += temp1 * make_vector(ap + kk + 1, len);
-        actual_y[j] += alpha * make_vector(ap + kk + 1, len).dot(make_vector(actual_x + j + 1, len));
-      }
-      kk += Eigen::Index(*n) - j;
-    }
-  }
-
-  if (actual_x != x) delete[] actual_x;
-  if (actual_y != y) delete[] copy_back(actual_y, y, *n, *incy);
+  compact_vector<const Scalar> compact_x(x, *n, *incx);
+  selfadjoint_packed_product(UPLO(*uplo) == UP, *n, ap, compact_x.data(), compact_y.data(), alpha);
 }
 
 /**  DSPR    performs the symmetric rank 1 operation
@@ -385,16 +253,13 @@ EIGEN_BLAS_FUNC(spr)(char *uplo, EIGEN_BLAS_INT *n, Scalar *palpha, Scalar *px, 
     info = 5;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SPR  ", &info, kBlasNameLength);
 
-  if (alpha == Scalar(0)) return;
+  if (*n == 0 || alpha == Scalar(0)) return;
 
-  Scalar *x_cpy = get_compact_vector(x, *n, *incx);
+  compact_vector<const Scalar> x_cpy(x, *n, *incx);
 
   int code = UPLO(*uplo);
-  if (code >= 2 || func[code] == 0) return;
 
-  func[code](*n, ap, x_cpy, alpha);
-
-  if (x_cpy != x) delete[] x_cpy;
+  func[code](*n, ap, x_cpy.data(), alpha);
 }
 
 /**  DSPR2  performs the symmetric rank 2 operation
@@ -431,18 +296,14 @@ EIGEN_BLAS_FUNC(spr2)
     info = 7;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "SPR2 ", &info, kBlasNameLength);
 
-  if (alpha == Scalar(0)) return;
+  if (*n == 0 || alpha == Scalar(0)) return;
 
-  Scalar *x_cpy = get_compact_vector(x, *n, *incx);
-  Scalar *y_cpy = get_compact_vector(y, *n, *incy);
+  compact_vector<const Scalar> x_cpy(x, *n, *incx);
+  compact_vector<const Scalar> y_cpy(y, *n, *incy);
 
   int code = UPLO(*uplo);
-  if (code >= 2 || func[code] == 0) return;
 
-  func[code](*n, ap, x_cpy, y_cpy, alpha);
-
-  if (x_cpy != x) delete[] x_cpy;
-  if (y_cpy != y) delete[] y_cpy;
+  func[code](*n, ap, x_cpy.data(), y_cpy.data(), alpha);
 }
 
 /**  DGER   performs the rank 1 operation
@@ -473,14 +334,11 @@ EIGEN_BLAS_FUNC(ger)
     info = 9;
   if (info) return xerbla_(SCALAR_SUFFIX_UP "GER  ", &info, kBlasNameLength);
 
-  if (alpha == Scalar(0)) return;
+  if (*m == 0 || *n == 0 || alpha == Scalar(0)) return;
 
-  Scalar *x_cpy = get_compact_vector(x, *m, *incx);
-  Scalar *y_cpy = get_compact_vector(y, *n, *incy);
+  compact_vector<const Scalar> x_cpy(x, *m, *incx);
+  compact_vector<const Scalar> y_cpy(y, *n, *incy);
 
-  Eigen::internal::general_rank1_update<Scalar, Eigen::Index, Eigen::ColMajor, false, false>::run(*m, *n, a, *lda,
-                                                                                                  x_cpy, y_cpy, alpha);
-
-  if (x_cpy != x) delete[] x_cpy;
-  if (y_cpy != y) delete[] y_cpy;
+  Eigen::internal::general_rank1_update<Scalar, Eigen::Index, Eigen::ColMajor, false, false>::run(
+      *m, *n, a, *lda, x_cpy.data(), y_cpy.data(), alpha);
 }

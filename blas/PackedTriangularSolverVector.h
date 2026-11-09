@@ -62,15 +62,6 @@ struct packed_triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft, Mo
   }
 };
 
-template <typename LhsScalar, typename RhsScalar, typename Index, int Mode, bool Conjugate, int StorageOrder>
-struct packed_triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheRight, Mode, Conjugate, StorageOrder> {
-  static void run(Index size, const LhsScalar* lhs, RhsScalar* rhs) {
-    packed_triangular_solve_vector<LhsScalar, RhsScalar, Index, OnTheLeft,
-                                   ((Mode & Upper) == Upper ? Lower : Upper) | (Mode & UnitDiag), Conjugate,
-                                   StorageOrder == RowMajor ? ColMajor : RowMajor>::run(size, lhs, rhs);
-  }
-};
-
 }  // namespace internal
 }  // namespace Eigen
 

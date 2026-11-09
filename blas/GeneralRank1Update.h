@@ -22,18 +22,11 @@ template <typename Scalar, typename Index, bool ConjLhs, bool ConjRhs>
 struct general_rank1_update<Scalar, Index, ColMajor, ConjLhs, ConjRhs> {
   static void run(Index rows, Index cols, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, Scalar alpha) {
     using OtherMap = Map<const Matrix<Scalar, Dynamic, 1> >;
-    using ConjRhsType = conj_expr_if<ConjLhs, OtherMap>;
+    using ConjLhsType = conj_expr_if<ConjLhs, OtherMap>;
     conj_if<ConjRhs> cj;
 
     for (Index i = 0; i < cols; ++i)
-      Map<Matrix<Scalar, Dynamic, 1> >(mat + stride * i, rows) += alpha * cj(v[i]) * ConjRhsType(OtherMap(u, rows));
-  }
-};
-
-template <typename Scalar, typename Index, bool ConjLhs, bool ConjRhs>
-struct general_rank1_update<Scalar, Index, RowMajor, ConjLhs, ConjRhs> {
-  static void run(Index rows, Index cols, Scalar* mat, Index stride, const Scalar* u, const Scalar* v, Scalar alpha) {
-    general_rank1_update<Scalar, Index, ColMajor, ConjRhs, ConjRhs>::run(rows, cols, mat, stride, u, v, alpha);
+      Map<Matrix<Scalar, Dynamic, 1> >(mat + stride * i, rows) += alpha * cj(v[i]) * ConjLhsType(OtherMap(u, rows));
   }
 };
 

@@ -978,8 +978,8 @@ test:linux:buildsystem:
 
 # Runs reference LAPACK's test drivers against Eigen's BLAS and LAPACK
 # libraries (EIGEN_ENABLE_LAPACK_TESTS in lapack/CMakeLists.txt), and the
-# Fortran BLAS tests under blas/testing.  It is the only job with a Fortran
-# compiler, so the only one that runs either suite.  LAPACK_Test_Summary fails
+# Fortran BLAS tests under blas/testing.  It is the only job that runs
+# either suite.  LAPACK_Test_Summary fails
 # on any failure beyond lapack/testing_allowed_failures.txt; the job keeps the
 # observed counts in lapack/TESTING/testing_failures.txt, in that file's
 # format, and the combined driver output in testing_results.txt.
@@ -1041,6 +1041,51 @@ test:linux:lapack:
         - ci/scripts/build.linux.script.sh
         - ci/scripts/test.linux.script.sh
     - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/(lapack|all)-tests/"
+    - !reference [.rules:libeigen:gpu-schedule-guard, rules]
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# blas_reference, which runs every routine of Eigen's BLAS library and of
+# netlib's on the same inputs; test:linux:lapack runs the netlib test drivers.
+# Builds its own tree because netlib's BLAS needs gfortran, which no build job
+# installs.  Not namespace-guarded: it runs on a fork's runners too.
+test:linux:blas:
+  extends: .test:linux
+  needs: []
+  variables:
+    EIGEN_CI_TARGET_ARCH: x86_64
+    EIGEN_CI_CROSS_TARGET_TRIPLE: x86_64-linux-gnu
+    EIGEN_CI_C_COMPILER: gcc-13
+    EIGEN_CI_CXX_COMPILER: g++-13
+    EIGEN_CI_INSTALL: gcc-13 g++-13 gfortran-13
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_Fortran_COMPILER=gfortran-13
+      -DEIGEN_TEST_BLAS_REFERENCE=ON
+    EIGEN_CI_BUILD_TARGET: blas_reference
+    EIGEN_CI_CTEST_REGEX: "^blas_reference$"
+    EIGEN_CI_CTEST_ARGS: --no-tests=error
+    EIGEN_CI_TEST_CACHE: "off"
+    EIGEN_CI_CTEST_REPEAT: "1"
+  script:
+    - . ci/scripts/build.linux.script.sh
+    - . ci/scripts/test.linux.script.sh
+  tags:
+    - saas-linux-large-amd64
+  cache: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - blas/**/*
+        - Eigen/Core
+        - Eigen/Jacobi
+        - Eigen/src/Core/**/*
+        - Eigen/src/Jacobi/**/*
+        - ci/test.linux.gitlab-ci.yml
+        - ci/scripts/build.linux.script.sh
+        - ci/scripts/test.linux.script.sh
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
     - !reference [.rules:libeigen:gpu-schedule-guard, rules]
     - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"

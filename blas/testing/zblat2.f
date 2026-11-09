@@ -2,14 +2,14 @@
 *
 *  =========== DOCUMENTATION ===========
 *
-* Online html documentation available at 
-*            http://www.netlib.org/lapack/explore-html/ 
+* Online html documentation available at
+*            http://www.netlib.org/lapack/explore-html/
 *
 *  Definition:
 *  ===========
 *
 *       PROGRAM ZBLAT2
-* 
+*
 *
 *> \par Purpose:
 *  =============
@@ -91,26 +91,23 @@
 *  Authors:
 *  ========
 *
-*> \author Univ. of Tennessee 
-*> \author Univ. of California Berkeley 
-*> \author Univ. of Colorado Denver 
-*> \author NAG Ltd. 
-*
-*> \date April 2012
+*> \author Univ. of Tennessee
+*> \author Univ. of California Berkeley
+*> \author Univ. of Colorado Denver
+*> \author NAG Ltd.
 *
 *> \ingroup complex16_blas_testing
 *
 *  =====================================================================
-*> SPDX-FileCopyrightText: 1992-2015 The University of Tennessee and The University of Tennessee Research Foundation
-*> SPDX-FileCopyrightText: 2000-2015 The University of California Berkeley
-*> SPDX-FileCopyrightText: 2006-2015 The University of Colorado Denver
+*> SPDX-FileCopyrightText: 1992-2023 The University of Tennessee and The University of Tennessee Research Foundation
+*> SPDX-FileCopyrightText: 2000-2023 The University of California Berkeley
+*> SPDX-FileCopyrightText: 2006-2023 The University of Colorado Denver
 *> SPDX-License-Identifier: BSD-3-Clause-Open-MPI
       PROGRAM ZBLAT2
 *
-*  -- Reference BLAS test routine (version 3.4.1) --
+*  -- Reference BLAS test routine --
 *  -- Reference BLAS is a software package provided by Univ. of Tennessee,    --
 *  -- Univ. of California Berkeley, Univ. of Colorado Denver and NAG Ltd..--
-*     April 2012
 *
 *  =====================================================================
 *
@@ -436,7 +433,7 @@
  9981 FORMAT( /' ******* FATAL ERROR - TESTS ABANDONED *******' )
  9980 FORMAT( ' ERROR-EXITS WILL NOT BE TESTED' )
 *
-*     End of ZBLAT2.
+*     End of ZBLAT2
 *
       END
       SUBROUTINE ZCHK1( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -488,7 +485,7 @@
       LOGICAL            LZE, LZERES
       EXTERNAL           LZE, LZERES
 *     .. External Subroutines ..
-      EXTERNAL           ZGBMV, ZGEMV, ZMAKE, ZMVCH
+      EXTERNAL           ZGBMV, ZGEMV, ZMAKE, ZMVCH, ZREGR1
 *     .. Intrinsic Functions ..
       INTRINSIC          ABS, MAX, MIN
 *     .. Scalars in Common ..
@@ -743,6 +740,34 @@
 *
   120 CONTINUE
 *
+*     Regression test to verify preservation of y when m zero, n nonzero.
+*
+      CALL ZREGR1( TRANS, M, N, LY, KL, KU, ALPHA, AA, LDA, XX, INCX,
+     $   BETA, YY, INCY, YS )
+      IF( FULL )THEN
+         IF( TRACE )
+     $      WRITE( NTRA, FMT = 9994 )NC, SNAME, TRANS, M, N, ALPHA, LDA,
+     $      INCX, BETA, INCY
+         IF( REWI )
+     $      REWIND NTRA
+         CALL ZGEMV( TRANS, M, N, ALPHA, AA, LDA, XX, INCX, BETA, YY,
+     $      INCY )
+      ELSE IF( BANDED )THEN
+         IF( TRACE )
+     $      WRITE( NTRA, FMT = 9995 )NC, SNAME, TRANS, M, N, KL, KU,
+     $      ALPHA, LDA, INCX, BETA, INCY
+         IF( REWI )
+     $      REWIND NTRA
+         CALL ZGBMV( TRANS, M, N, KL, KU, ALPHA, AA, LDA, XX, INCX,
+     $      BETA, YY, INCY )
+      END IF
+      NC = NC + 1
+      IF( .NOT.LZE( YS, YY, LY ) )THEN
+         WRITE( NOUT, FMT = 9998 )NARGS - 1
+         FATAL = .TRUE.
+         GO TO 130
+      END IF
+*
 *     Report result.
 *
       IF( ERRMAX.LT.THRESH )THEN
@@ -782,7 +807,7 @@
  9993 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK1.
+*     End of ZCHK1
 *
       END
       SUBROUTINE ZCHK2( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -1131,7 +1156,7 @@
  9992 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK2.
+*     End of ZCHK2
 *
       END
       SUBROUTINE ZCHK3( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -1493,7 +1518,7 @@
  9992 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK3.
+*     End of ZCHK3
 *
       END
       SUBROUTINE ZCHK4( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -1771,7 +1796,7 @@
  9993 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK4.
+*     End of ZCHK4
 *
       END
       SUBROUTINE ZCHK5( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -2056,7 +2081,7 @@
  9992 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK5.
+*     End of ZCHK5
 *
       END
       SUBROUTINE ZCHK6( SNAME, EPS, THRESH, NOUT, NTRA, TRACE, REWI,
@@ -2379,7 +2404,7 @@
  9992 FORMAT( ' ******* FATAL ERROR - ERROR-EXIT TAKEN ON VALID CALL *',
      $      '******' )
 *
-*     End of ZCHK6.
+*     End of ZCHK6
 *
       END
       SUBROUTINE ZCHKE( ISNUM, SRNAMT, NOUT )
@@ -2722,7 +2747,7 @@
  9998 FORMAT( ' ******* ', A6, ' FAILED THE TESTS OF ERROR-EXITS *****',
      $      '**' )
 *
-*     End of ZCHKE.
+*     End of ZCHKE
 *
       END
       SUBROUTINE ZMAKE( TYPE, UPLO, DIAG, M, N, A, NMAX, AA, LDA, KL,
@@ -2915,7 +2940,7 @@
       END IF
       RETURN
 *
-*     End of ZMAKE.
+*     End of ZMAKE
 *
       END
       SUBROUTINE ZMVCH( TRANS, M, N, ALPHA, A, NMAX, X, INCX, BETA, Y,
@@ -3047,7 +3072,7 @@
      $      'SULT                    COMPUTED RESULT' )
  9998 FORMAT( 1X, I7, 2( '  (', G15.6, ',', G15.6, ')' ) )
 *
-*     End of ZMVCH.
+*     End of ZMVCH
 *
       END
       LOGICAL FUNCTION LZE( RI, RJ, LR )
@@ -3077,7 +3102,7 @@
       LZE = .FALSE.
    30 RETURN
 *
-*     End of LZE.
+*     End of LZE
 *
       END
       LOGICAL FUNCTION LZERES( TYPE, UPLO, M, N, AA, AS, LDA )
@@ -3136,7 +3161,7 @@
       LZERES = .FALSE.
    80 RETURN
 *
-*     End of LZERES.
+*     End of LZERES
 *
       END
       COMPLEX*16 FUNCTION ZBEG( RESET )
@@ -3188,7 +3213,7 @@
       ZBEG = DCMPLX( ( I - 500 )/1001.0D0, ( J - 500 )/1001.0D0 )
       RETURN
 *
-*     End of ZBEG.
+*     End of ZBEG
 *
       END
       DOUBLE PRECISION FUNCTION DDIFF( X, Y )
@@ -3204,7 +3229,7 @@
       DDIFF = X - Y
       RETURN
 *
-*     End of DDIFF.
+*     End of DDIFF
 *
       END
       SUBROUTINE CHKXER( SRNAMT, INFOT, NOUT, LERR, OK )
@@ -3232,8 +3257,41 @@
  9999 FORMAT( ' ***** ILLEGAL VALUE OF PARAMETER NUMBER ', I2, ' NOT D',
      $      'ETECTED BY ', A6, ' *****' )
 *
-*     End of CHKXER.
+*     End of CHKXER
 *
+      END
+      SUBROUTINE ZREGR1( TRANS, M, N, LY, KL, KU, ALPHA, A, LDA, X,
+     $   INCX, BETA, Y, INCY, YS )
+*
+*  Input initialization for regression test.
+*
+*     .. Scalar Arguments ..
+      CHARACTER*1        TRANS
+      INTEGER            LY, M, N, KL, KU, LDA, INCX, INCY
+      COMPLEX*16         ALPHA, BETA
+*     .. Array Arguments ..
+      COMPLEX*16         A(LDA,*), X(*), Y(*), YS(*)
+*     .. Local Scalars ..
+      INTEGER            I
+*     .. Intrinsic Functions ..
+      INTRINSIC          DBLE, DCMPLX
+*     .. Executable Statements ..
+      TRANS = 'T'
+      M = 0
+      N = 5
+      KL = 0
+      KU = 0
+      ALPHA = DCMPLX( 1.0D0 )
+      LDA = MAX( 1, M )
+      INCX = 1
+      BETA = DCMPLX( -0.7D0, -0.8D0 )
+      INCY = 1
+      LY = ABS( INCY )*N
+      DO 10 I = 1, LY
+         Y( I ) = DCMPLX( 42.0D0, DBLE( I ) )
+         YS( I ) = Y( I )
+  10  CONTINUE
+      RETURN
       END
       SUBROUTINE XERBLA( SRNAME, INFO )
 *
@@ -3288,4 +3346,3 @@
 *     End of XERBLA
 *
       END
-

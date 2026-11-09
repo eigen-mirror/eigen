@@ -329,14 +329,21 @@ elif [[ -n "${EIGEN_CI_BUILD_TARGET}" && "${EIGEN_CI_BUILD_TARGET}" != *[[:space
   # Suppress xtrace while extracting and shuffling the target list
   # to avoid dumping ~1200 lines to the CI log.
   { set +x; } 2>/dev/null
-  deps=$(ninja -t query "${EIGEN_CI_BUILD_TARGET}" 2>/dev/null \
-         | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+  # Only a phony edge's inputs are targets to build.  A link edge lists object
+  # files and the `|`/`||` markers before its implicit and order-only inputs, so
+  # an executable such as blas_reference resolves to its link output
+  # blas/testing/blas_reference and no further.
+  phony_inputs() {
+    ninja -t query "$1" 2>/dev/null \
+      | awk '/^  input:/{found = ($2 == "phony"); next} /^  outputs:/{found=0}
+             found && /^    / && $1 != "|" && $1 != "||" {print $1}'
+  }
+  deps=$(phony_inputs "${EIGEN_CI_BUILD_TARGET}")
   # CMake custom targets like BuildOfficial have an intermediate phony
   # (e.g. test/BuildOfficial) that holds the real dependencies.  If we
   # got exactly one dep, resolve it one more level.
   if [[ $(echo "$deps" | wc -l) -eq 1 ]] && [[ -n "$deps" ]]; then
-    inner=$(ninja -t query "$deps" 2>/dev/null \
-            | awk '/^  input:/{found=1; next} /^  outputs:/{found=0} found && /^    /{print $1}')
+    inner=$(phony_inputs "$deps")
     if [[ -n "$inner" ]]; then
       deps="$inner"
     fi

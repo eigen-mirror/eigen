@@ -14,7 +14,7 @@
 namespace Eigen {
 namespace internal {
 
-/* Optimized matrix += alpha * uv'
+/* Optimized matrix += alpha * vv', with the left v conjugated if ConjLhs and the right one if ConjRhs.
  * The matrix is in packed form.
  */
 template <typename Scalar, typename Index, int StorageOrder, int UpLo, bool ConjLhs, bool ConjRhs>
@@ -25,25 +25,17 @@ struct selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo, ConjLhs, C
   using RealScalar = typename NumTraits<Scalar>::Real;
   static void run(Index size, Scalar* mat, const Scalar* vec, RealScalar alpha) {
     using OtherMap = Map<const Matrix<Scalar, Dynamic, 1> >;
-    using ConjRhsType = conj_expr_if<ConjLhs, OtherMap>;
+    using ConjLhsType = conj_expr_if<ConjLhs, OtherMap>;
     conj_if<ConjRhs> cj;
 
     for (Index i = 0; i < size; ++i) {
-      Map<Matrix<Scalar, Dynamic, 1> >(mat, UpLo == Lower ? size - i : (i + 1)) +=
-          alpha * cj(vec[i]) * ConjRhsType(OtherMap(vec + (UpLo == Lower ? i : 0), UpLo == Lower ? size - i : (i + 1)));
+      // Column i holds rows [start, start + len).
+      const Index start = UpLo == Lower ? i : 0, len = UpLo == Lower ? size - i : i + 1;
+      Map<Matrix<Scalar, Dynamic, 1> >(mat, len) += alpha * cj(vec[i]) * ConjLhsType(OtherMap(vec + start, len));
       // FIXME This should be handled outside.
-      mat[UpLo == Lower ? 0 : i] = numext::real(mat[UpLo == Lower ? 0 : i]);
-      mat += UpLo == Lower ? size - i : (i + 1);
+      mat[i - start] = numext::real(mat[i - start]);
+      mat += len;
     }
-  }
-};
-
-template <typename Scalar, typename Index, int UpLo, bool ConjLhs, bool ConjRhs>
-struct selfadjoint_packed_rank1_update<Scalar, Index, RowMajor, UpLo, ConjLhs, ConjRhs> {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  static void run(Index size, Scalar* mat, const Scalar* vec, RealScalar alpha) {
-    selfadjoint_packed_rank1_update<Scalar, Index, ColMajor, UpLo == Lower ? Upper : Lower, ConjRhs, ConjLhs>::run(
-        size, mat, vec, alpha);
   }
 };
 

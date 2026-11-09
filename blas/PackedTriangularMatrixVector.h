@@ -43,7 +43,7 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
       }
       lhs += IsLower ? size - i : i + 1;
     }
-  };
+  }
 };
 
 template <typename Index, int Mode, typename LhsScalar, bool ConjLhs, typename RhsScalar, bool ConjRhs>
@@ -74,7 +74,7 @@ struct packed_triangular_matrix_vector_product<Index, Mode, LhsScalar, ConjLhs, 
       }
       lhs += IsLower ? i + 1 : size - i;
     }
-  };
+  }
 };
 
 }  // namespace internal
