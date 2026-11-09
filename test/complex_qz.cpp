@@ -385,14 +385,16 @@ void complex_qz_zero_pencil() {
 
 // ComplexQZ returned Success with inf in S or T where Q^* A Z or Q^* B Z is not representable. For A or B = c 1 with
 // c = 0.9 highest, that triangular factor has rank one and Frobenius norm c n, so its nonzeros form a p x q block with
-// p + q <= n + 1, one of them at least 2 c n / (n + 1) > highest: info() must report NumericalIssue. For A = c Random,
-// the moduli of the coefficients overflowed and left the pencil unscaled, so the iteration did not converge.
+// p + q <= n + 1, one of them of modulus at least 2 c n / (n + 1). Its larger part is then at least
+// sqrt(2) c n / (n + 1), above highest for n >= 4; n = 2 can leave both parts finite. So info() must report
+// NumericalIssue. For A = c Random, the moduli of the coefficients overflowed and left the pencil unscaled, so the
+// iteration did not converge.
 template <typename MatrixType>
 void complex_qz_unrepresentable() {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
   const Scalar c(RealScalar(0.9) * NumTraits<RealScalar>::highest());
-  for (Index n : {2, 10}) {
+  for (Index n : {5, 10}) {
     const MatrixType ones = MatrixType::Constant(n, n, c), random = MatrixType::Random(n, n);
     ComplexQZ<MatrixType> qzA(ones, random), qzB(random, ones);
     VERIFY_IS_EQUAL(qzA.info(), NumericalIssue);
