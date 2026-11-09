@@ -1150,6 +1150,34 @@ void generalizedselfadjointeigensolver_no_malloc() {
 
 #if defined(EIGEN_TEST_PART_20) || defined(EIGEN_TEST_PART_22) || defined(EIGEN_TEST_PART_23) || \
     defined(EIGEN_TEST_PART_ALL)
+// A finite off-diagonal coefficient whose modulus overflows made the scale infinite, and compute() reported
+// NoConvergence. max |lambda| >= |A(1, 0)| > highest overflows, so the eigenvectors are checked against the finite
+// eigenvalues of A 2^-8, which runs the same iteration on matrices a power of two apart.
+template <typename MatrixType>
+void selfadjoint_overflowing_modulus(Index size) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar big = RealScalar(0.9) * NumTraits<RealScalar>::highest();
+  const MatrixType r = MatrixType::Random(size, size) * Scalar(numext::ldexp(big, -11));
+  MatrixType A = r + r.adjoint();
+  A(1, 0) = Scalar(big, big);
+  A(0, 1) = numext::conj(A(1, 0));
+  const RealScalar down = numext::ldexp(RealScalar(1), -8);
+  const MatrixType scaledA = A * down;
+  SelfAdjointEigenSolver<MatrixType> eig(A), scaled(scaledA);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY_IS_EQUAL(scaled.info(), Success);
+  // O(n eps) rounding in the unitary transformations; stableNorm, since the squared coefficients overflow.
+  const RealScalar tolerance = RealScalar(64 * size) * NumTraits<RealScalar>::epsilon();
+  const auto& lambda = scaled.eigenvalues();
+  const RealScalar normA = lambda.cwiseAbs().maxCoeff();
+  VERIFY(!eig.eigenvalues().allFinite());
+  verify_values_match_scaled(eig.eigenvalues(), lambda, down, tolerance);
+  const MatrixType& V = eig.eigenvectors();
+  VERIFY((scaledA * V - V * lambda.asDiagonal()).stableNorm() <= tolerance * normA);
+  VERIFY(V.isUnitary(tolerance));
+}
+
 template <typename = void>
 void selfadjoint_iterative_scaling_rounding() {
   Matrix4f matrix = Matrix4f::Zero();
@@ -1513,6 +1541,8 @@ void direct_selfadjoint_low_precision_boundary() {
 
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_20(selfadjoint_iterative_scaling_rounding<>());
+  CALL_SUBTEST_20((selfadjoint_overflowing_modulus<MatrixXcf>(6)));
+  CALL_SUBTEST_22((selfadjoint_overflowing_modulus<MatrixXcd>(9)));
   CALL_SUBTEST_20((selfadjoint_iterative_scaling_blocks<float, ColMajor>()));
   CALL_SUBTEST_22((selfadjoint_iterative_scaling_blocks<double, RowMajor>()));
   CALL_SUBTEST_23((selfadjoint_iterative_scaling_blocks<std::complex<float>, RowMajor>()));

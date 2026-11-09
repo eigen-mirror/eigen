@@ -399,6 +399,22 @@ bool isMinusInf(const T& x) {
   return x < NumTraits<T>::lowest();
 }
 
+// values were computed for an input, and scaled for that input times down = 2^-k. values * down must match scaled to
+// tolerance * max |scaled|, and a value may overflow only where |scaled| / down exceeds highest, keeping its sign.
+template <typename Derived, typename OtherDerived>
+void verify_values_match_scaled(const MatrixBase<Derived>& values, const MatrixBase<OtherDerived>& scaled,
+                                const typename Derived::Scalar& down, const typename Derived::Scalar& tolerance) {
+  using Scalar = typename Derived::Scalar;
+  const Scalar bound = tolerance * scaled.cwiseAbs().maxCoeff();
+  for (Index i = 0; i < values.size(); ++i) {
+    const Scalar v = values.coeff(i), s = scaled.coeff(i);
+    if ((numext::isinf)(v))
+      VERIFY(numext::abs(s) >= NumTraits<Scalar>::highest() * down * (Scalar(1) - tolerance) && (v > 0) == (s > 0));
+    else
+      VERIFY(numext::abs(v * down - s) <= bound);
+  }
+}
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_TEST_NUMERICAL_TEST_HELPERS_H

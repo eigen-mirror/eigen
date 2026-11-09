@@ -463,6 +463,32 @@ void svd_check_flushed_subnormal(const SvdType& svd, const SvdType& scaled, cons
   svd_check_scaled_residual(m, svd, k);
 }
 
+// A finite complex coefficient whose modulus overflows made the input scale infinite, and the SVD reported
+// InvalidInput. sigma_0 >= |m(0, 1)| > highest overflows, so U and V are checked against the finite singular values of
+// m 2^-8, which runs the same iteration on work matrices a power of two apart.
+template <typename MatrixType>
+void svd_overflowing_modulus(Index size) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar big = RealScalar(0.9) * NumTraits<RealScalar>::highest();
+  MatrixType m = MatrixType::Random(size, size) * Scalar(numext::ldexp(big, -10));
+  m(0, 1) = Scalar(big, big);
+  const RealScalar down = numext::ldexp(RealScalar(1), -8);
+  const MatrixType scaledInput = m * down;
+  SVD_STATIC_OPTIONS(MatrixType, ComputeThinU | ComputeThinV) svd(m), scaled(scaledInput);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  VERIFY_IS_EQUAL(scaled.info(), Success);
+  // O(n eps) rounding in the unitary transformations; stableNorm, since the squared coefficients overflow.
+  const RealScalar tolerance = RealScalar(64 * size) * NumTraits<RealScalar>::epsilon();
+  const auto& sigma = scaled.singularValues();
+  VERIFY(!(numext::isfinite)(svd.singularValues()(0)));
+  verify_values_match_scaled(svd.singularValues(), sigma, down, tolerance);
+  VERIFY((svd.matrixU() * sigma.asDiagonal() * svd.matrixV().adjoint() - scaledInput).stableNorm() <=
+         tolerance * sigma(0));
+  VERIFY(svd.matrixU().isUnitary(tolerance));
+  VERIFY(svd.matrixV().isUnitary(tolerance));
+}
+
 // Regression test for bug 286: JacobiSVD loops indefinitely with some
 // matrices containing denormal numbers.
 template <typename>

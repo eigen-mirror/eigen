@@ -581,6 +581,14 @@ struct safe_scaling_operations {
     return recover_flushed_max_coeff_impl(src, maxCoeff, bool_constant<kPreserveSubnormalInputs>());
   }
 
+  // max_ij max(|Re a_ij|, |Im a_ij|), propagating NaN and recovered like recover_flushed_max_coeff(); zero for an
+  // empty src. Unlike max_ij |a_ij|, it is finite for every finite src, and it is within a factor sqrt(2) of it.
+  template <typename Src>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar max_abs_component(const Src& src) {
+    if (src.size() == 0) return Scalar(0);
+    return recover_flushed_max_coeff(src, src.realView().cwiseAbs().template maxCoeff<PropagateNaN>());
+  }
+
   // The position of the largest magnitude in a real vector whose maxCoeff(&position) read zero or subnormal,
   // rescanned from the representation like recover_flushed_max_coeff(); the position maxCoeff() reported where there
   // is no representation path.

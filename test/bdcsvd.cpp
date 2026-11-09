@@ -622,6 +622,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   // CALL_SUBTEST_9( svd_preallocate<void>() );
 
   CALL_SUBTEST_45(svd_underoverflow<void>());
+  CALL_SUBTEST_45((svd_overflowing_modulus<MatrixXcf>(6)));
+  CALL_SUBTEST_45((svd_overflowing_modulus<MatrixXcd>(20)));
   CALL_SUBTEST_70(bdcsvd_power_of_two_scaling<>());
   CALL_SUBTEST_71((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_80((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));

@@ -423,6 +423,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_55(svd_preallocate<void>());
 
   CALL_SUBTEST_56(svd_underoverflow<void>());
+  CALL_SUBTEST_56((svd_overflowing_modulus<MatrixXcf>(6)));
+  CALL_SUBTEST_56((svd_overflowing_modulus<MatrixXcd>(6)));
   CALL_SUBTEST_56(jacobisvd_power_of_two_scaling<>());
   CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXf>(5, 4)));
   CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXd>(4, 5)));

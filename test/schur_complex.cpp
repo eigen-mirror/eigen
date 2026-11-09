@@ -201,6 +201,42 @@ void schur_dynamic_range(Index size) {
                    ComplexMatrixType(U * T * U.adjoint() * invHuge));
 }
 
+// A finite coefficient whose modulus overflows made the scale infinite, so the matrix was left unscaled, and the
+// iteration overflowed into NoConvergence for about a third of these matrices. Both the copying and the in-place
+// decomposition scale. A column of T can overflow where a part of U^* A U exceeds highest; every other column must
+// satisfy A u_j = U t_j, checked at the scale 2^-8, where the squared coefficients do not overflow.
+template <typename MatrixType>
+void schur_overflowing_modulus(Index size) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar big = RealScalar(0.9) * NumTraits<RealScalar>::highest();
+  const RealScalar down = numext::ldexp(RealScalar(1), -8);
+  // O(n eps) rounding in the unitary transformations.
+  const RealScalar tolerance = RealScalar(64 * size) * NumTraits<RealScalar>::epsilon();
+  for (int trial = 0; trial < 30; ++trial) {
+    MatrixType A = MatrixType::Random(size, size) * Scalar(numext::ldexp(big, -10));
+    A(0, size - 1) = Scalar(big, big);
+    const MatrixType scaledA = A * down;
+    const auto verify = [&](const MatrixType& U, const MatrixType& T) {
+      VERIFY(U.isUnitary(tolerance));
+      VERIFY(T.template triangularView<StrictlyLower>().toDenseMatrix().isZero(0));
+      for (Index j = 0; j < size; ++j) {
+        if (!T.col(j).allFinite()) continue;
+        VERIFY((scaledA * U.col(j) - U * (T.col(j) * down)).stableNorm() <= tolerance * scaledA.stableNorm());
+      }
+    };
+    ComplexSchur<MatrixType> schurOfA(A);
+    VERIFY_IS_EQUAL(schurOfA.info(), Success);
+    verify(schurOfA.matrixU(), schurOfA.matrixT());
+
+    MatrixType inPlace = A;
+    Ref<MatrixType> ref(inPlace);
+    ComplexSchur<Ref<MatrixType>> schurInPlace(ref);
+    VERIFY_IS_EQUAL(schurInPlace.info(), Success);
+    verify(schurInPlace.matrixU(), inPlace);
+  }
+}
+
 // A NaN must not be scaled away. maxCoeff has to propagate it, or a matrix that is zero apart from a NaN looks like
 // the zero matrix and reports a successful decomposition. Which coefficient carries the NaN matters, because the
 // default max reduction keeps whichever operand it visits first.
@@ -303,6 +339,8 @@ EIGEN_DECLARE_TEST(schur_complex) {
   CALL_SUBTEST_8((schur_dynamic_range<Matrix4cd>(4)));
   CALL_SUBTEST_8((schur_dynamic_range<MatrixXcf>(8)));
   CALL_SUBTEST_8((schur_dynamic_range<MatrixXf>(8)));
+  CALL_SUBTEST_8((schur_overflowing_modulus<MatrixXcf>(8)));
+  CALL_SUBTEST_8((schur_overflowing_modulus<MatrixXcd>(8)));
 
   CALL_SUBTEST_9((schur_nan_only<Matrix4cd>(4)));
   CALL_SUBTEST_9((schur_nan_only<MatrixXcf>(8)));
