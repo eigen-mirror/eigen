@@ -197,9 +197,7 @@ class ComplexQZ {
   template <typename InputTypeA, typename InputTypeB>
   void compute(const EigenBase<InputTypeA>& A, const EigenBase<InputTypeB>& B, bool computeQZ = true);
 
-  /** \brief Compute the decomposition of sparse complex input matrices.
-   * Main difference to the compute(...) method is that it computes a
-   * SparseQR decomposition of B
+  /** \brief Computes the decomposition of sparse input matrices, as compute() does for their dense copies.
    *
    * \param[in] A         Matrix A.
    * \param[in] B         Matrix B.
@@ -261,10 +259,6 @@ class ComplexQZ {
   // are in hessenberg-triangular form
   void reduceHessenbergTriangular();
 
-  // Sparse variant of the above method.
-  template <typename SparseMatrixType_>
-  void hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B);
-
   void computeNorms();
 
   Index findSmallSubdiagEntry(Index l);
@@ -299,10 +293,10 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
   m_global_iter = 0;
   m_info = Success;
 
-  // Scale S and T separately by powers of two near their largest coefficients, as ComplexSchur does, so that the
-  // iteration neither overflows nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S
-  // and T. The coefficients are measured by their largest real or imaginary part, propagating NaN: the modulus of a
-  // finite coefficient can overflow, which would leave the pencil unscaled.
+  // Scale S and T separately by powers of two near their largest coefficients, so that the iteration neither overflows
+  // nor underflows. The scaling is exact: it leaves Q and Z unchanged and is undone on S and T. The coefficients are
+  // measured by their largest real or imaginary part, propagating NaN: the modulus of a finite coefficient can
+  // overflow, which would leave the pencil unscaled.
   using Scaling = internal::safe_scaling<RealScalar>;
   const RealScalar maxS = Scaling::max_abs_component(m_S);
   const RealScalar maxT = Scaling::max_abs_component(m_T);
@@ -379,78 +373,15 @@ void ComplexQZ<MatrixType_>::hessenbergTriangular() {
 
 template <typename MatrixType>
 template <typename SparseMatrixType_>
-void ComplexQZ<MatrixType>::hessenbergTriangularSparse(const SparseMatrixType_& A, const SparseMatrixType_& B) {
-  m_S = A.toDense();
-
-  SparseQR<SparseMatrix<Scalar, ColMajor>, NaturalOrdering<Index>> sparseQR;
-
-  eigen_assert(B.isCompressed() &&
-               "SparseQR requires a sparse matrix in compressed mode."
-               "Call .makeCompressed() before passing it to SparseQR");
-
-  // Computing QR decomposition of T...
-  sparseQR.setPivotThreshold(RealScalar(0));  // This prevents the algorithm from doing pivoting
-  sparseQR.compute(B);
-  // perform QR decomposition of T, overwrite T with R, save Q
-  m_T = sparseQR.matrixR();
-  m_T.template triangularView<StrictlyLower>().setZero();
-
-  if (m_computeQZ) m_Q = sparseQR.matrixQ();
-
-  // overwrite S with Q* S
-  m_S = sparseQR.matrixQ().adjoint() * m_S;
-
-  if (m_computeQZ) m_Z = MatrixType::Identity(m_n, m_n);
-
-  // reduce S to upper Hessenberg with Givens rotations
-  for (Index j = 0; j <= m_n - 3; j++) {
-    for (Index i = m_n - 1; i >= j + 2; i--) {
-      JacobiRotation<Scalar> G;
-      // kill S(i,j)
-      if (m_S.coeff(i, j) != Scalar(0)) {
-        // This is the adapted code
-        G.makeGivens(m_S.coeff(i - 1, j), m_S.coeff(i, j), &m_S.coeffRef(i - 1, j));
-        m_S.coeffRef(i, j) = Scalar(0);
-        m_T.rightCols(m_n - i + 1).applyOnTheLeft(i - 1, i, G.adjoint());
-        m_S.rightCols(m_n - j - 1).applyOnTheLeft(i - 1, i, G.adjoint());
-        // This is what we want to achieve
-        if (!is_negligible(m_S(i, j))) {
-          m_info = ComputationInfo::NumericalIssue;
-        }
-        m_S(i, j) = Scalar(0);
-        // update Q
-        if (m_computeQZ) m_Q.applyOnTheRight(i - 1, i, G);
-      }
-
-      if (!numext::is_exactly_zero(m_T.coeff(i, i - 1))) {
-        // Compute rotation and update matrix T
-        G.makeGivens(m_T.coeff(i, i), m_T.coeff(i, i - 1), &m_T.coeffRef(i, i));
-        m_T.topRows(i).applyOnTheRight(i - 1, i, G.adjoint());
-        m_T.coeffRef(i, i - 1) = Scalar(0);
-        // Update matrix S
-        m_S.applyOnTheRight(i - 1, i, G.adjoint());
-        // update Z
-        if (m_computeQZ) m_Z.applyOnTheLeft(i - 1, i, G);
-      }
-    }
-  }
-}
-
-template <typename MatrixType>
-template <typename SparseMatrixType_>
 void ComplexQZ<MatrixType>::computeSparse(const SparseMatrixType_& A, const SparseMatrixType_& B, bool computeQZ) {
-  m_computeQZ = computeQZ;
-  m_n = A.rows();
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(A, "A is not a square matrix");
   EIGEN_INTERNAL_ASSERT_SAME_SHAPE_MSG(A, B, "B is not a square matrix or B is not of the same size as A");
-  m_isInitialized = true;
-  m_global_iter = 0;
-  m_info = Success;
-  hessenbergTriangularSparse(A, B);
-
-  // We assume that we already have that A is upper-Hessenberg and B is
-  // upper-triangular. This is what the hessenbergTriangular(...) method does
-  reduceHessenbergTriangular();
+  // S, T, Q and Z are dense and the iteration costs O(n^3), so a sparse QR of B would save no order of work. The dense
+  // reduction is also backward stable where SparseQR's reflectors are not (they form sums of squares unscaled), and it
+  // does not drop a column of B that holds a NaN.
+  m_S = A.toDense();
+  m_T = B.toDense();
+  computeInPlace(computeQZ);
 }
 
 template <typename MatrixType_>
@@ -460,7 +391,7 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
   unsigned int local_iter = 0;
   computeNorms();
 
-  while (l > 0 && local_iter < m_maxIters) {
+  while (l > 0) {
     f = findSmallSubdiagEntry(l);
 
     // Subdiag entry is small -> can be safely set to 0
@@ -476,17 +407,18 @@ void ComplexQZ<MatrixType_>::reduceHessenbergTriangular() {
       l -= 2;
       local_iter = 0;
     } else {
+      // The limit is checked before a step rather than before the deflation test, so a deflation the last allowed
+      // step produces is still found. Every pass deflates or takes a step, so the loop ends after at most
+      // n (maxIters + 1) passes even if a chase makes no progress.
+      if (local_iter >= m_maxIters) break;
       Index z = findSmallDiagEntry(f, l);
       if (z >= f) {
         push_down_zero_ST(z, l);
-        // Counted like a QZ step: every pass through the loop then deflates or counts towards maxIters, so the loop
-        // ends after at most n (maxIters + 1) passes even if a chase makes no progress.
-        local_iter++;
       } else {
         do_QZ_step(f, l, local_iter);
-        local_iter++;
         m_global_iter++;
       }
+      local_iter++;
     }
   }
 

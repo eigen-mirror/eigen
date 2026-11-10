@@ -73,24 +73,80 @@ void real_qz(const MatrixType& m) {
   VERIFY_IS_APPROX(qz.matrixZ() * qz.matrixZ().adjoint(), MatrixType::Identity(dim, dim));
 }
 
-// Regression test for the iteration-cap accounting bug in
-// RealQZ::compute. On a 3x3 all-zero pencil (a degenerate case observed
-// in production), every iteration of the inner while loop took the
-// pushDownZero branch and made no progress: pushDownZero(2, 0, 2) is a
-// no-op because its inner for(zz=z; zz<l; ++zz) loop runs zero times
-// and the trailing Givens rotation operates on already-zero entries.
-// Before the fix, local_iter was not incremented on the pushDownZero
-// branch, so the m_maxIters cap never engaged and compute() looped
-// indefinitely. After the fix, every "no convergence yet" iteration
-// counts toward the cap, so the loop exits with NoConvergence.
 template <typename MatrixType>
-void real_qz_iteration_cap_regression() {
-  MatrixType A = MatrixType::Zero(3, 3);
-  MatrixType B = MatrixType::Zero(3, 3);
+void verify_real_qz(const MatrixType& a, const MatrixType& b, const RealQZ<MatrixType>& qz) {
+  using Scalar = typename MatrixType::Scalar;
+  // Accumulated rounding in the orthogonal transformations is O(n eps).
+  const Scalar tolerance = Scalar(128 * a.rows()) * NumTraits<Scalar>::epsilon();
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  VERIFY((a - qz.matrixQ() * qz.matrixS() * qz.matrixZ()).norm() <= tolerance * a.norm());
+  VERIFY((b - qz.matrixQ() * qz.matrixT() * qz.matrixZ()).norm() <= tolerance * b.norm());
+  VERIFY(qz.matrixQ().isUnitary(tolerance));
+  VERIFY(qz.matrixZ().isUnitary(tolerance));
+  // T is upper triangular and S quasi-triangular, with T diagonal on each 2x2 diagonal block of S.
+  VERIFY(qz.matrixT().template triangularView<StrictlyLower>().toDenseMatrix().isZero(0));
+  for (Index j = 0; j + 2 < a.cols(); ++j) VERIFY(qz.matrixS().col(j).tail(a.rows() - j - 2).isZero(0));
+  for (Index i = 0; i + 1 < a.rows(); ++i) {
+    if (qz.matrixS()(i + 1, i) == Scalar(0)) continue;
+    VERIFY_IS_EQUAL(qz.matrixT()(i, i + 1), Scalar(0));
+    if (i + 2 < a.rows()) VERIFY_IS_EQUAL(qz.matrixS()(i + 2, i + 1), Scalar(0));
+  }
+}
+
+// On a 3x3 all-zero pencil every pass through the iteration took the pushDownZero branch without progress; when that
+// branch did not count towards the iteration limit, compute() never returned. It then reported NoConvergence: an exact
+// zero on the subdiagonal of S did not deflate when |S(k-1, k-1)| + |S(k, k)| and ||S|| were both 0. For A = 0 and
+// n >= 3 that also failed with a nonzero B, and GeneralizedEigenSolver's eigenvalues with it. Both pencils are already
+// in generalized Schur form.
+template <typename MatrixType>
+void real_qz_zero_pencil() {
+  for (Index dim : {1, 2, 3, 5}) {
+    const MatrixType zero = MatrixType::Zero(dim, dim), random = MatrixType::Random(dim, dim);
+    for (const MatrixType* b : {&zero, &random}) {
+      RealQZ<MatrixType> qz(zero, *b);
+      verify_real_qz(zero, *b, qz);
+    }
+    GeneralizedEigenSolver<MatrixType> eig(zero, random, false);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+    VERIFY((eig.alphas().array() == typename MatrixType::Scalar(0)).all());
+  }
+}
+
+// A pencil that never deflates must still return: every pass through the iteration either deflates or counts towards
+// the limit, chases of a zero on the diagonal of T included. With B = 0 every pass takes that branch.
+template <typename MatrixType>
+void real_qz_nan_pencil_terminates() {
+  using Scalar = typename MatrixType::Scalar;
+  for (Index n : {3, 5}) {
+    MatrixType a = MatrixType::Random(n, n);
+    a(n - 1, 0) = NumTraits<Scalar>::quiet_NaN();
+    const MatrixType b = MatrixType::Zero(n, n);
+    RealQZ<MatrixType> qz(a, b);
+    VERIFY(qz.info() != Success);
+  }
+}
+
+// setMaxIterations() bounds the steps between deflations. A 1x1 or 2x2 pencil needs no step, so a limit of 0 reduces
+// it. A 3x3 pencil with T(0, 0) = 0 needs one chase of that zero, which deflates the infinite eigenvalue, and no
+// QR-like step: a limit of 1 reduces it. The limit used to be checked before that deflation was found.
+template <typename MatrixType>
+void real_qz_iteration_limit() {
+  for (Index n : {1, 2}) {
+    const MatrixType a = MatrixType::Random(n, n), b = MatrixType::Random(n, n);
+    RealQZ<MatrixType> qz(n);
+    qz.setMaxIterations(0);
+    qz.compute(a, b);
+    verify_real_qz(a, b, qz);
+  }
+  // Already Hessenberg-triangular, so the reduction keeps T(0, 0) exactly 0.
+  MatrixType a = MatrixType::Random(3, 3), b = MatrixType::Random(3, 3).template triangularView<Upper>();
+  a(2, 0) = 0;
+  b(0, 0) = 0;
   RealQZ<MatrixType> qz(3);
-  qz.setMaxIterations(50);
-  qz.compute(A, B);
-  VERIFY_IS_EQUAL(qz.info(), NoConvergence);
+  qz.setMaxIterations(1);
+  qz.compute(a, b);
+  verify_real_qz(a, b, qz);
+  VERIFY_IS_EQUAL(qz.iterations(), 0);
 }
 
 // A and B are scaled by powers of two near the ends of the exponent range, which made the iteration overflow or
@@ -280,6 +336,12 @@ EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_2((real_qz_ill_conditioned_block<MatrixXd>()));
   CALL_SUBTEST_1((real_qz_split_order<MatrixXf>()));
   CALL_SUBTEST_2((real_qz_split_order<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_zero_pencil<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_zero_pencil<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_nan_pencil_terminates<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_nan_pencil_terminates<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_iteration_limit<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_iteration_limit<MatrixXd>()));
   CALL_SUBTEST_5((real_qz_no_malloc<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_6((real_qz_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 
@@ -296,8 +358,6 @@ EIGEN_DECLARE_TEST(real_qz) {
     CALL_SUBTEST_4(real_qz(Matrix2d()));
     CALL_SUBTEST_5((real_qz(Matrix<float, Dynamic, Dynamic, RowMajor>(17, 17))));
     CALL_SUBTEST_6((real_qz(Matrix<double, Dynamic, Dynamic, RowMajor>(17, 17))));
-
-    CALL_SUBTEST_2(real_qz_iteration_cap_regression<MatrixXd>());
   }
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);

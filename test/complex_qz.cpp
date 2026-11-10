@@ -339,9 +339,10 @@ void complex_qz_norm_overflow() {
   verify_complex_qz_convergence(a40, b40, qz40);
 }
 
-// One step per eigenvalue cannot reduce this graded complex<float> pencil, so info() must report NoConvergence. It
-// reported NumericalIssue instead (#3212), raised by the absolute-epsilon check that push_down_zero_ST then made. A 1x1
-// pencil needs no step, so maxIters = 0 still reduces it.
+// maxIters bounds the steps between deflations. One step per eigenvalue cannot reduce this graded complex<float>
+// pencil, so info() must report NoConvergence. A 1x1 or 2x2 pencil needs no step, so maxIters = 0 reduces it. A 3x3
+// pencil with T(0, 0) = 0 needs one chase of that zero, which deflates the infinite eigenvalue, and no QZ step:
+// maxIters = 1 reduces it. The limit used to be checked before that deflation was found.
 void complex_qz_no_convergence_status() {
   using cf = std::complex<float>;
   MatrixXcf a(5, 5), b(5, 5);
@@ -364,9 +365,33 @@ void complex_qz_no_convergence_status() {
   VERIFY_IS_EQUAL(limited.info(), NoConvergence);
   VERIFY((limited.matrixS().diagonal(-1).array() != cf(0)).any());
 
-  const MatrixXcf a1 = MatrixXcf::Constant(1, 1, cf(2)), b1 = MatrixXcf::Constant(1, 1, cf(1));
-  ComplexQZ<MatrixXcf> scalar(a1, b1, true, 0);
-  VERIFY_IS_EQUAL(scalar.info(), Success);
+  for (Index n : {1, 2}) {
+    const MatrixXcf an = MatrixXcf::Random(n, n), bn = MatrixXcf::Random(n, n);
+    ComplexQZ<MatrixXcf> small(an, bn, true, 0);
+    verify_complex_qz_convergence(an, bn, small);
+  }
+
+  // Already Hessenberg-triangular, so the reduction keeps T(0, 0) exactly 0.
+  MatrixXcf a3 = MatrixXcf::Random(3, 3), b3 = MatrixXcf::Random(3, 3).triangularView<Upper>();
+  a3(2, 0) = cf(0);
+  b3(0, 0) = cf(0);
+  ComplexQZ<MatrixXcf> chase(a3, b3, true, 1);
+  verify_complex_qz_convergence(a3, b3, chase);
+  VERIFY_IS_EQUAL(chase.iterations(), 0u);
+}
+
+// A pencil that never deflates must still return: every pass through the iteration either deflates or counts towards
+// maxIters, chases of a zero on the diagonal of T included. With B = 0 every pass used to take that branch.
+template <typename MatrixType>
+void complex_qz_nan_pencil_terminates() {
+  using RealScalar = typename MatrixType::RealScalar;
+  for (Index n : {3, 5}) {
+    MatrixType a = MatrixType::Random(n, n);
+    a(n - 1, 0) = NumTraits<RealScalar>::quiet_NaN();
+    const MatrixType b = MatrixType::Zero(n, n);
+    ComplexQZ<MatrixType> qz(a, b);
+    VERIFY(qz.info() != Success);
+  }
 }
 
 // An exact zero on the subdiagonal of S did not deflate when |S(k-1, k-1)| + |S(k, k)| and ||S|| were both 0. With
@@ -433,6 +458,84 @@ void complex_qz_nonfinite_input() {
   }
 }
 
+// computeSparse() did not compile: SparseQR's ordering took Index, not the storage index. Its SparseQR path also
+// skipped compute()'s scaling, lost backward stability where its unscaled sums of squares underflow, and dropped a NaN
+// column of B with Success. It now reduces the dense copies.
+template <typename MatrixType, typename SparseMatrixType>
+void complex_qz_sparse() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const auto computeSparse = [](const MatrixType& a, const MatrixType& b) {
+    const SparseMatrixType as = a.sparseView(), bs = b.sparseView();
+    ComplexQZ<MatrixType> qz(a.rows());
+    qz.computeSparse(as, bs);
+    return qz;
+  };
+  for (Index n : {1, 2, 5, 12}) {
+    MatrixType a = MatrixType::Random(n, n), b = MatrixType::Random(n, n);
+    for (Index j = 0; j < n; ++j)
+      for (Index i = 0; i < n; ++i)
+        if ((i + 2 * j) % 3 == 0) {
+          a(i, j) = Scalar(0);
+          if (i != j) b(i, j) = Scalar(0);
+        }
+    verify_complex_qz_convergence(a, b, computeSparse(a, b));
+    // Uncompressed input.
+    SparseMatrixType as = a.sparseView(), bs = b.sparseView();
+    as.uncompress();
+    bs.uncompress();
+    ComplexQZ<MatrixType> qz(n);
+    qz.computeSparse(as, bs);
+    verify_complex_qz_convergence(a, b, qz);
+    // Singular B: an infinite eigenvalue.
+    MatrixType singular = b;
+    singular.col(n / 2).setZero();
+    verify_complex_qz_convergence(a, singular, computeSparse(a, singular));
+  }
+
+  const Index dim = 6;
+  const MatrixType a0 = MatrixType::Random(dim, dim), b0 = MatrixType::Random(dim, dim);
+  const int big = std::numeric_limits<RealScalar>::max_exponent - 16;
+  const RealScalar tolerance = RealScalar(128 * dim) * NumTraits<RealScalar>::epsilon();
+  for (int ea : {big, -big}) {
+    for (int eb : {big, -big}) {
+      const ComplexQZ<MatrixType> qz =
+          computeSparse(a0 * numext::ldexp(RealScalar(1), ea), b0 * numext::ldexp(RealScalar(1), eb));
+      VERIFY_IS_EQUAL(qz.info(), Success);
+      const MatrixType S = qz.matrixS() * numext::ldexp(RealScalar(1), -ea);
+      const MatrixType T = qz.matrixT() * numext::ldexp(RealScalar(1), -eb);
+      VERIFY((qz.matrixQ() * S * qz.matrixZ() - a0).norm() <= tolerance * a0.norm());
+      VERIFY((qz.matrixQ() * T * qz.matrixZ() - b0).norm() <= tolerance * b0.norm());
+      VERIFY(qz.matrixQ().isUnitary(tolerance));
+      VERIFY(qz.matrixZ().isUnitary(tolerance));
+    }
+  }
+
+  // Column parts of B far below its largest coefficient, real and complex.
+  const RealScalar tiny = numext::sqrt((std::numeric_limits<RealScalar>::min)()) * NumTraits<RealScalar>::epsilon();
+  MatrixType a3 = MatrixType::Random(3, 3), graded = MatrixType::Identity(3, 3);
+  graded(1, 1) = Scalar(0);
+  graded(2, 1) = Scalar(tiny);
+  verify_complex_qz_convergence(a3, graded, computeSparse(a3, graded));
+  graded = MatrixType::Identity(3, 3);
+  graded(1, 1) = Scalar(tiny, tiny);
+  verify_complex_qz_convergence(a3, graded, computeSparse(a3, graded));
+
+  for (Index k : {0, 2}) {
+    MatrixType withNaN = MatrixType::Identity(3, 3);
+    withNaN(k, k) = Scalar(NumTraits<RealScalar>::quiet_NaN());
+    VERIFY(computeSparse(a3, withNaN).info() != Success);
+  }
+
+  // As in complex_qz_unrepresentable.
+  const Scalar c(RealScalar(0.9) * NumTraits<RealScalar>::highest());
+  for (Index n : {5, 10}) {
+    const MatrixType ones = MatrixType::Constant(n, n, c), random = MatrixType::Random(n, n);
+    VERIFY_IS_EQUAL(computeSparse(ones, random).info(), NumericalIssue);
+    VERIFY_IS_EQUAL(computeSparse(random, ones).info(), NumericalIssue);
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void complex_qz_no_malloc() {
@@ -493,6 +596,11 @@ EIGEN_DECLARE_TEST(complex_qz) {
   CALL_SUBTEST_10((complex_qz_scaled<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_7((complex_qz_jordan<MatrixXcf>()));
   CALL_SUBTEST_7(complex_qz_no_convergence_status());
+  CALL_SUBTEST_7((complex_qz_sparse<MatrixXcf, SparseMatrix<std::complex<float>>>()));
+  CALL_SUBTEST_8((complex_qz_sparse<MatrixXcd, SparseMatrix<std::complex<double>, ColMajor, long>>()));
+  CALL_SUBTEST_8((complex_qz_sparse<MatrixXcd, SparseMatrix<std::complex<double>, RowMajor>>()));
+  CALL_SUBTEST_7((complex_qz_nan_pencil_terminates<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_nan_pencil_terminates<MatrixXcd>()));
   CALL_SUBTEST_7((complex_qz_zero_pencil<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_zero_pencil<MatrixXcd>()));
   CALL_SUBTEST_7((complex_qz_unrepresentable<MatrixXcf>()));

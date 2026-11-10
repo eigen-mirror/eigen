@@ -199,9 +199,9 @@ class RealQZ {
 
   /** \brief Reports whether previous computation was successful.
    *
-   * \returns \c NoConvergence if an eigenvalue was not deflated within the iteration limit of setMaxIterations(), which
-   * bounds the iterations between consecutive deflations, \c NumericalIssue if S or T is not representable, and
-   * \c Success otherwise.
+   * \returns \c NoConvergence if an eigenvalue was not deflated within the iteration limit of setMaxIterations()
+   * (QR-like steps, or chases of a zero on the diagonal of T), which bounds the iterations between consecutive
+   * deflations, \c NumericalIssue if S or T is not representable, and \c Success otherwise.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "RealQZ is not initialized.");
@@ -307,7 +307,8 @@ inline Index RealQZ<MatrixType>::findSmallSubdiagEntry(Index iu) {
   while (res > 0) {
     Scalar s = numext::abs(m_S.coeff(res - 1, res - 1)) + numext::abs(m_S.coeff(res, res));
     if (numext::is_exactly_zero(s)) s = m_normOfS;
-    if (numext::abs(m_S.coeff(res, res - 1)) < NumTraits<Scalar>::epsilon() * s) break;
+    // <=, so that an exact zero deflates also where s is 0, e.g. for S = 0.
+    if (numext::abs(m_S.coeff(res, res - 1)) <= NumTraits<Scalar>::epsilon() * s) break;
     res--;
   }
   return res;
@@ -604,7 +605,7 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
 
   Index l = dim - 1, f, local_iter = 0;
 
-  while (l > 0 && local_iter < m_maxIters) {
+  while (l > 0) {
     f = findSmallSubdiagEntry(l);
     // now rows and columns f..l (including) decouple from the rest of the problem
     if (f > 0) m_S.coeffRef(f, f - 1) = Scalar(0.0);
@@ -619,6 +620,9 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
       local_iter = 0;
     } else  // No convergence yet
     {
+      // The limit is checked before a step rather than before the deflation test, so a deflation the last allowed
+      // step produces is still found.
+      if (local_iter >= m_maxIters) break;
       // if there's zero on diagonal of T, we can isolate an eigenvalue with Givens rotations
       Index z = findSmallDiagEntry(f, l);
       if (z >= f) {
@@ -636,8 +640,7 @@ RealQZ<MatrixType>& RealQZ<MatrixType>::computeInPlace(bool computeQZ) {
       local_iter++;
     }
   }
-  // check if we converged before reaching iterations limit
-  m_info = (local_iter < m_maxIters) ? Success : NoConvergence;
+  m_info = l > 0 ? NoConvergence : Success;
 
   // For each non triangular 2x2 diagonal block of S,
   //    reduce the respective 2x2 diagonal block of T to positive diagonal form using 2x2 SVD.
