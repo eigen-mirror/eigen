@@ -211,9 +211,10 @@ class ComplexQZ {
   /** \brief Reports whether the last computation was successful.
    *
    * \returns \c NoConvergence if an eigenvalue was not deflated within \c maxIters steps (QZ steps, or chases of a zero
-   * on the diagonal of T), \c NumericalIssue if an entry that a reduction step should have eliminated was left above
-   * its threshold or if S or T is not representable, and \c Success otherwise. \c maxIters bounds the steps between
-   * consecutive deflations, not their total; iterations() reports the total number of QZ steps.
+   * on the diagonal of T); otherwise \c NumericalIssue if an entry that a reduction step should have eliminated was
+   * left above its threshold, if A or B is not finite, or if S or T is not representable; and \c Success otherwise.
+   * \c maxIters bounds the steps between consecutive deflations, not their total; iterations() reports the total
+   * number of QZ steps.
    */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "ComplexQZ is not initialized.");
@@ -317,8 +318,12 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
 
   Scaling::unscale_in_place(m_S, maxS, factorsS);
   Scaling::unscale_in_place(m_T, maxT, factorsT);
+  // A non-finite A or B is left unscaled and can still leave S and T finite: an infinite S(k, k-1) passes
+  // |S(k, k-1)| <= eps (|S(k-1, k-1)| + |S(k, k)|) where that sum is infinite, or eps m_normOfS = inf where it is 0,
+  // and is set to 0.
+  const bool finiteInput = (numext::isfinite)(maxS) && (numext::isfinite)(maxT);
   // Where Q^* A Z or Q^* B Z is not representable, unscaling overflows; Success has to mean that S and T are usable.
-  if (m_info == Success && !(m_S.allFinite() && m_T.allFinite())) m_info = NumericalIssue;
+  if (m_info == Success && !(finiteInput && m_S.allFinite() && m_T.allFinite())) m_info = NumericalIssue;
 }
 
 // This is basically taken from Eigen3::RealQZ

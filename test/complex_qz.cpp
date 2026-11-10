@@ -406,6 +406,33 @@ void complex_qz_unrepresentable() {
   }
 }
 
+// An infinite subdiagonal entry of A passed the deflation test |S(k, k-1)| <= eps (|S(k-1, k-1)| + |S(k, k)|) between
+// diagonal entries 0.9 highest, whose sum overflows, or eps ||S|| = inf between zero diagonal entries. It was set
+// to 0, so info() reported Success for finite S and T that are not a decomposition of A. A non-finite A or B must not
+// report Success.
+template <typename MatrixType>
+void complex_qz_nonfinite_input() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar inf = NumTraits<RealScalar>::infinity(), nan = NumTraits<RealScalar>::quiet_NaN();
+  for (const RealScalar diagonal : {RealScalar(0), RealScalar(0.9) * NumTraits<RealScalar>::highest()}) {
+    for (Index n : {2, 4}) {
+      const MatrixType identity = MatrixType::Identity(n, n);
+      for (const Scalar entry : {Scalar(inf, 0), Scalar(0, -inf), Scalar(nan, 0)}) {
+        MatrixType a = identity;
+        a(n - 2, n - 2) = a(n - 1, n - 1) = Scalar(diagonal);
+        a(n - 1, n - 2) = entry;
+        const ComputationInfo info = ComplexQZ<MatrixType>(a, identity).info();
+        if ((numext::isnan)(entry))
+          VERIFY(info != Success);
+        else
+          VERIFY_IS_EQUAL(info, NumericalIssue);
+        VERIFY(ComplexQZ<MatrixType>(identity, a).info() != Success);
+      }
+    }
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void complex_qz_no_malloc() {
@@ -470,6 +497,8 @@ EIGEN_DECLARE_TEST(complex_qz) {
   CALL_SUBTEST_8((complex_qz_zero_pencil<MatrixXcd>()));
   CALL_SUBTEST_7((complex_qz_unrepresentable<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_unrepresentable<MatrixXcd>()));
+  CALL_SUBTEST_7((complex_qz_nonfinite_input<MatrixXcf>()));
+  CALL_SUBTEST_8((complex_qz_nonfinite_input<MatrixXcd>()));
   CALL_SUBTEST_8((complex_qz_jordan<MatrixXcd>()));
   CALL_SUBTEST_7((complex_qz_push_down_scale<MatrixXcf>()));
   CALL_SUBTEST_8((complex_qz_push_down_scale<MatrixXcd>()));
