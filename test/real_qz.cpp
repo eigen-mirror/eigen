@@ -137,6 +137,113 @@ void real_qz_unrepresentable() {
   }
 }
 
+template <typename MatrixType>
+void verify_real_qz_backward_error(const MatrixType& a, const MatrixType& b) {
+  using Scalar = typename MatrixType::Scalar;
+  // Accumulated rounding in the orthogonal transformations is O(n eps).
+  const Scalar tolerance = Scalar(128 * a.rows()) * NumTraits<Scalar>::epsilon();
+  const RealQZ<MatrixType> qz(a, b);
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  VERIFY((a - qz.matrixQ() * qz.matrixS() * qz.matrixZ()).norm() <= tolerance * a.norm());
+  VERIFY((b - qz.matrixQ() * qz.matrixT() * qz.matrixZ()).norm() <= tolerance * b.norm());
+  VERIFY(qz.matrixQ().isUnitary(tolerance));
+  VERIFY(qz.matrixZ().isUnitary(tolerance));
+}
+
+// RealQZ split a 2x2 block with real eigenvalues through S T^-1: with a diagonal entry delta of T in the block, the
+// backward error grew like eps / delta, to 1e-3 relative for double at delta = 1e-12. The 3x3 pencils first move
+// T(0, 0) = 0 to the bottom. A nearly scalar block a = lambda0 b + O(g) has a close pair of eigenvalues, which a
+// discriminant formed without a shift resolves only to O(eps / g): the split must keep both its accuracy and its
+// classification as real or complex. The backward error must stay O(n eps).
+template <typename MatrixType>
+void real_qz_ill_conditioned_block() {
+  using Scalar = typename MatrixType::Scalar;
+  using Complex = std::complex<Scalar>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  for (const Scalar delta : {numext::sqrt(eps), Scalar(1024) * eps}) {
+    for (int kind = 0; kind < 3; ++kind) {
+      const Index n = kind < 2 ? 2 : 3;
+      for (int repeat = 0; repeat < 20; ++repeat) {
+        MatrixType a = MatrixType::Random(n, n), b = MatrixType::Random(n, n).template triangularView<Upper>();
+        if (kind == 0) b(1, 1) = delta;
+        if (kind == 1) b(0, 0) = delta;
+        if (kind == 2) {
+          a(2, 0) = Scalar(0);
+          b(0, 0) = Scalar(0);
+          b(2, 2) = delta;
+        }
+        verify_real_qz_backward_error(a, b);
+      }
+    }
+  }
+
+  // b = I: a = [1 t; s t 1] is already Hessenberg-triangular, with the eigenvalues 1 +- t (s = 1, split) or 1 +- i t
+  // (s = -1). The pencil is normal, so the eigenvalue error is bounded by the backward error: a few eps.
+  for (const Scalar t : {Scalar(1e-2), numext::sqrt(eps), Scalar(16) * eps}) {
+    for (const int s : {1, -1}) {
+      MatrixType a(2, 2);
+      a << Scalar(1), t, Scalar(s) * t, Scalar(1);
+      const MatrixType b = MatrixType::Identity(2, 2);
+      verify_real_qz_backward_error(a, b);
+      VERIFY_IS_EQUAL(numext::is_exactly_zero(RealQZ<MatrixType>(a, b).matrixS()(1, 0)), s > 0);
+      const Complex shift = s > 0 ? Complex(t, 0) : Complex(0, t);
+      const Complex plus = Scalar(1) + shift, minus = Scalar(1) - shift;
+      const GeneralizedEigenSolver<MatrixType> solver(a, b, false);
+      const auto lambda = solver.eigenvalues().eval();
+      const Scalar error = numext::mini(numext::maxi(numext::abs(lambda(0) - plus), numext::abs(lambda(1) - minus)),
+                                        numext::maxi(numext::abs(lambda(0) - minus), numext::abs(lambda(1) - plus)));
+      VERIFY(error <= Scalar(16) * eps);
+    }
+  }
+
+  // a = lambda0 b + g E for a random E and a triangular b whose diagonal entries have random signs and moduli in
+  // delta [1, 2]: the largest entry of b is on its diagonal for delta = 1, often off it for delta = 1/4, and off it for
+  // delta = sqrt(eps).
+  for (const Scalar delta : {Scalar(1), Scalar(0.25), numext::sqrt(eps)}) {
+    for (const Scalar g : {numext::sqrt(eps), Scalar(16) * eps}) {
+      for (int repeat = 0; repeat < 20; ++repeat) {
+        MatrixType b = MatrixType::Random(2, 2).template triangularView<Upper>();
+        for (Index k = 0; k < 2; ++k)
+          b(k, k) = delta * (internal::random<bool>() ? Scalar(1) : Scalar(-1)) *
+                    internal::random<Scalar>(Scalar(1), Scalar(2));
+        const Scalar lambda0 = internal::random<Scalar>(Scalar(0.5), Scalar(1.5));
+        verify_real_qz_backward_error(MatrixType(lambda0 * b + g * MatrixType::Random(2, 2)), b);
+      }
+    }
+  }
+
+  // a = [1 0; 1/2 1], b = I: a double eigenvalue 1, which the split leaves exact.
+  MatrixType a(2, 2);
+  a << Scalar(1), Scalar(0), Scalar(0.5), Scalar(1);
+  const RealQZ<MatrixType> qz(a, MatrixType::Identity(2, 2));
+  VERIFY_IS_EQUAL(qz.info(), Success);
+  VERIFY_IS_EQUAL(qz.matrixS()(1, 0), Scalar(0));
+  VERIFY_IS_EQUAL(qz.matrixS()(0, 0), qz.matrixT()(0, 0));
+  VERIFY_IS_EQUAL(qz.matrixS()(1, 1), qz.matrixT()(1, 1));
+}
+
+// The split of a block with real eigenvalues puts the eigenvalue near (S T^-1)(0, 0) on top: here the eigenvalues are
+// about top = a(0, 0) / b(0, 0) and 1, for every sign of the diagonal of b and of b(0, 1), with the largest entry of b
+// on or off its diagonal.
+template <typename MatrixType>
+void real_qz_split_order() {
+  using Scalar = typename MatrixType::Scalar;
+  for (int k = 0; k < 16; ++k) {
+    const Scalar s0 = (k & 1) ? Scalar(-1) : Scalar(1), s1 = (k & 2) ? Scalar(-1) : Scalar(1);
+    const Scalar b01 = ((k & 4) ? Scalar(-1) : Scalar(1)) * ((k & 8) ? Scalar(1) : Scalar(0.25));
+    for (const Scalar top : {Scalar(2), Scalar(-2)}) {
+      MatrixType a(2, 2), b(2, 2);
+      b << s0 * Scalar(0.5), b01, Scalar(0), s1 * Scalar(0.5);
+      a << top * b(0, 0), Scalar(0.3), Scalar(1e-3), b(1, 1);
+      const RealQZ<MatrixType> qz(a, b);
+      VERIFY_IS_EQUAL(qz.info(), Success);
+      VERIFY_IS_EQUAL(qz.matrixS()(1, 0), Scalar(0));
+      const Scalar lambda = qz.matrixS()(0, 0) / qz.matrixT()(0, 0);
+      VERIFY(numext::abs(lambda - top) < numext::abs(lambda - Scalar(1)));
+    }
+  }
+}
+
 // Block Householder operations still allocate at larger sizes (issue #3163).
 template <typename MatrixType>
 void real_qz_no_malloc() {
@@ -169,6 +276,10 @@ EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_2((real_qz_extreme_scaling<MatrixXd>()));
   CALL_SUBTEST_1((real_qz_unrepresentable<MatrixXf>()));
   CALL_SUBTEST_2((real_qz_unrepresentable<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_ill_conditioned_block<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_ill_conditioned_block<MatrixXd>()));
+  CALL_SUBTEST_1((real_qz_split_order<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_split_order<MatrixXd>()));
   CALL_SUBTEST_5((real_qz_no_malloc<Matrix<float, Dynamic, Dynamic, RowMajor>>()));
   CALL_SUBTEST_6((real_qz_no_malloc<Matrix<double, Dynamic, Dynamic, RowMajor>>()));
 

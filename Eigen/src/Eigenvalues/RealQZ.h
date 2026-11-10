@@ -331,31 +331,65 @@ inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
   if (numext::is_exactly_zero(numext::abs(m_S.coeff(i + 1, i)))) return;
   Index j = findSmallDiagEntry(i, i + 1);
   if (j == i - 1) {
-    // block of (S T^{-1})
-    Matrix2s STi = m_T.template block<2, 2>(i, i).template triangularView<Upper>().template solve<OnTheRight>(
-        m_S.template block<2, 2>(i, i));
-    Scalar p = Scalar(0.5) * (STi(0, 0) - STi(1, 1));
-    Scalar q = p * p + STi(1, 0) * STi(0, 1);
-    if (q >= 0) {
-      Scalar z = numext::sqrt(q);
-      // one QR-like iteration for ABi - lambda I
-      // is enough - when we know exact eigenvalue in advance,
-      // convergence is immediate
+    // As LAPACK's xLAGV2, without S T^-1, which loses accuracy as T nears singularity: for an eigenvalue alpha / beta
+    // of the blocks (A, B), scaled to largest entry 1, the right rotation moves a null vector y of
+    // H ~ beta A - alpha B, orthogonal to the larger row of H, into the first column. Then A y || B y, and the left
+    // rotation zeroes B(1, 0) if |beta| >= |alpha|, otherwise A(1, 0). The eigenvalues come from the shifted pencil
+    // (D, B), after xLAG2:
+    //   D = sigma_b A - sigma_a B,  sigma_b (beta A - alpha B) = beta D - w B,  w = sigma_b alpha - sigma_a beta,
+    // with (sigma_a, sigma_b) = (A, B)(p, q) at the largest entry of B. (D - mu B)(p, q) = -mu sigma_b, |sigma_b| = 1,
+    // so (D, B) is never nearly scalar, which keeps a close pair of eigenvalues accurate, and |sigma_a| <= 1 bounds the
+    // rounding of D by eps (|A| + |B|).
+    const Matrix2s blockS = m_S.template block<2, 2>(i, i);
+    const Matrix2s blockT = m_T.template block<2, 2>(i, i).template triangularView<Upper>();
+    const Matrix2s A = blockS / blockS.cwiseAbs().maxCoeff(), B = blockT / blockT.cwiseAbs().maxCoeff();
+    Index p, q;
+    B.cwiseAbs().maxCoeff(&p, &q);
+    const Scalar sigmaA = A(p, q), sigmaB = B(p, q);
+    Matrix2s D = sigmaB * A - sigmaA * B;
+    D(p, q) = Scalar(0);
+    // det(beta D - w B) = c2 w^2 + c1 w beta + c0 beta^2.
+    const Scalar c2 = B(0, 0) * B(1, 1);
+    const Scalar c1 = D(1, 0) * B(0, 1) - D(0, 0) * B(1, 1) - D(1, 1) * B(0, 0);
+    const Scalar c0 = D(0, 0) * D(1, 1) - D(0, 1) * D(1, 0);
+    const Scalar discriminant = c1 * c1 - Scalar(4) * c2 * c0;
+    if (discriminant >= Scalar(0)) {
+      // The roots (w, beta) = (r, c2) and (c0, r), r = -(c1 + sign(c1) sqrt(discriminant)) / 2, or (0, c2) twice if
+      // r = 0. (r, c2) has the larger w / beta iff sign(c1) c2 < 0: the larger alpha / beta if sigma_b > 0, else the
+      // smaller.
+      const Scalar root = numext::sqrt(discriminant);
+      const bool c1Negative = c1 < Scalar(0);
+      const Scalar r = Scalar(-0.5) * (c1Negative ? c1 - root : c1 + root);
+      const bool firstIsLarger = (c1Negative == (c2 > Scalar(0))) == (sigmaB > Scalar(0));
+      // Deflate first the larger eigenvalue if (S T^-1)(0, 0) >= (S T^-1)(1, 1), otherwise the smaller: a nearly
+      // triangular block then keeps its diagonal order. That difference has the sign of
+      // (A(0, 0) B(1, 1) - A(1, 1) B(0, 0) + A(1, 0) B(0, 1)) c2.
+      const bool deflateLarger = (A(0, 0) * B(1, 1) - A(1, 1) * B(0, 0) + A(1, 0) * B(0, 1)) * c2 >= Scalar(0);
+      Scalar w = r, beta = c2;
+      if (!numext::is_exactly_zero(r) && deflateLarger != firstIsLarger) {
+        w = c0;
+        beta = r;
+      }
+      // The eigenvalue is (alpha, sigma_b beta), |sigma_b| = 1.
+      const Scalar alpha = w + sigmaA * beta;
+      const Matrix2s H = beta * D - w * B;
+
       JRs G;
-      if (p >= 0)
-        G.makeGivens(p + z, STi(1, 0));
+      if (H.row(0).cwiseAbs().maxCoeff() >= H.row(1).cwiseAbs().maxCoeff())
+        G.makeGivens(H(0, 1), -H(0, 0));
       else
-        G.makeGivens(p - z, STi(1, 0));
+        G.makeGivens(H(1, 1), -H(1, 0));
+      m_S.topRows(i + 2).applyOnTheRight(i, i + 1, G);
+      m_T.topRows(i + 2).applyOnTheRight(i, i + 1, G);
+      if (m_computeQZ) m_Z.applyOnTheLeft(i, i + 1, G.adjoint());
+
+      if (numext::abs(beta) >= numext::abs(alpha))
+        G.makeGivens(m_T.coeff(i, i), m_T.coeff(i + 1, i));
+      else
+        G.makeGivens(m_S.coeff(i, i), m_S.coeff(i + 1, i));
       m_S.rightCols(dim - i).applyOnTheLeft(i, i + 1, G.adjoint());
       m_T.rightCols(dim - i).applyOnTheLeft(i, i + 1, G.adjoint());
-      // update Q
       if (m_computeQZ) m_Q.applyOnTheRight(i, i + 1, G);
-
-      G.makeGivens(m_T.coeff(i + 1, i + 1), m_T.coeff(i + 1, i));
-      m_S.topRows(i + 2).applyOnTheRight(i + 1, i, G);
-      m_T.topRows(i + 2).applyOnTheRight(i + 1, i, G);
-      // update Z
-      if (m_computeQZ) m_Z.applyOnTheLeft(i + 1, i, G.adjoint());
 
       m_S.coeffRef(i + 1, i) = Scalar(0.0);
       m_T.coeffRef(i + 1, i) = Scalar(0.0);
