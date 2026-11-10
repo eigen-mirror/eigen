@@ -1436,32 +1436,38 @@ EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
 }
 template <>
 EIGEN_STRONG_INLINE Packet16c ploaddup<Packet16c>(const int8_t* from) {
-  Packet16c tmp = pload<Packet16c>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_b(tmp, tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8s ploaddup<Packet8s>(const int16_t* from) {
-  Packet8s tmp = pload<Packet8s>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_h(tmp, tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int32_t* from) {
-  Packet4i tmp = pload<Packet4i>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_w(tmp, tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16uc ploaddup<Packet16uc>(const uint8_t* from) {
-  Packet16uc tmp = pload<Packet16uc>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_b(tmp, tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet8us ploaddup<Packet8us>(const uint16_t* from) {
-  Packet8us tmp = pload<Packet8us>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_h(tmp, tmp);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4ui ploaddup<Packet4ui>(const uint32_t* from) {
-  Packet4ui tmp = pload<Packet4ui>(from);
+  __m128i tmp = {};
+  memcpy(&tmp, from, sizeof(tmp) / 2);
   return __lsx_vilvl_w(tmp, tmp);
 }
 template <>

@@ -619,14 +619,15 @@ EIGEN_STRONG_INLINE Packet2d ploadu<Packet2d>(const double* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int* from) {
-  Packet4i p = pload<Packet4i>(from);
-  return vec_perm(p, p, p16uc_DUPLICATE32_HI);
+  unsigned long long bits;
+  memcpy(&bits, from, sizeof(bits));
+  const Packet4i p = reinterpret_cast<Packet4i>(vec_splats(bits));
+  return vec_mergeh(p, p);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  Packet2d p = pload<Packet2d>(from);
-  return vec_perm(p, p, p16uc_PSET64_HI);
+  return pset1<Packet2d>(from[0]);
 }
 
 template <>
@@ -936,8 +937,10 @@ EIGEN_STRONG_INLINE float pfirst<Packet4f>(const Packet4f& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4f ploaddup<Packet4f>(const float* from) {
-  Packet4f p = pload<Packet4f>(from);
-  return vec_perm(p, p, p16uc_DUPLICATE32_HI);
+  unsigned long long bits;
+  memcpy(&bits, from, sizeof(bits));
+  const Packet4f p = reinterpret_cast<Packet4f>(vec_splats(bits));
+  return vec_mergeh(p, p);
 }
 
 template <>

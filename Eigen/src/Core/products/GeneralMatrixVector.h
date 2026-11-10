@@ -25,9 +25,21 @@ namespace Eigen {
 
 namespace internal {
 
-template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEBPPacketFull>
+template <typename Scalar, typename NativePacket, typename ResultPacket, bool Mixed>
+struct gemv_operand_packet {
+  using type = NativePacket;
+};
+
+template <typename Scalar, typename NativePacket, typename ResultPacket>
+struct gemv_operand_packet<Scalar, NativePacket, ResultPacket, true> {
+  using type = std::conditional_t<std::is_same<Scalar, typename unpacket_traits<ResultPacket>::type>::value,
+                                  ResultPacket, typename unpacket_traits<ResultPacket>::as_real>;
+};
+
+template <typename LhsScalar, typename RhsScalar, int PacketSize_ = GEBPPacketFull, bool EnableMixedPackets = true>
 class gemv_traits {
   using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
+  using RealScalar = typename NumTraits<ResScalar>::Real;
 
 #define PACKET_DECL_COND_POSTFIX(postfix, name, packet_size)                               \
   using name##Packet##postfix =                                                            \
@@ -41,16 +53,30 @@ class gemv_traits {
 #undef PACKET_DECL_COND_POSTFIX
 
  public:
+  static constexpr bool MixedRealComplex =
+      EnableMixedPackets && (std::is_same<RealScalar, float>::value || std::is_same<RealScalar, double>::value) &&
+      std::is_same<ResScalar, std::complex<RealScalar>>::value &&
+      ((std::is_same<LhsScalar, ResScalar>::value && std::is_same<RhsScalar, RealScalar>::value) ||
+       (std::is_same<LhsScalar, RealScalar>::value && std::is_same<RhsScalar, ResScalar>::value)) &&
+      unpacket_traits<ResPacket_>::vectorizable;
   enum {
-    Vectorizable = unpacket_traits<LhsPacket_>::vectorizable && unpacket_traits<RhsPacket_>::vectorizable &&
-                   int(unpacket_traits<LhsPacket_>::size) == int(unpacket_traits<RhsPacket_>::size),
-    LhsPacketSize = Vectorizable ? unpacket_traits<LhsPacket_>::size : 1,
-    RhsPacketSize = Vectorizable ? unpacket_traits<RhsPacket_>::size : 1,
+    Vectorizable =
+        MixedRealComplex || (unpacket_traits<LhsPacket_>::vectorizable && unpacket_traits<RhsPacket_>::vectorizable &&
+                             int(unpacket_traits<LhsPacket_>::size) == int(unpacket_traits<RhsPacket_>::size)),
+    // Real component packets duplicate each coefficient, so both operands advance by the complex packet size.
+    LhsPacketSize = Vectorizable ? (MixedRealComplex ? int(unpacket_traits<ResPacket_>::size)
+                                                     : int(unpacket_traits<LhsPacket_>::size))
+                                 : 1,
+    RhsPacketSize = Vectorizable ? (MixedRealComplex ? int(unpacket_traits<ResPacket_>::size)
+                                                     : int(unpacket_traits<RhsPacket_>::size))
+                                 : 1,
     ResPacketSize = Vectorizable ? unpacket_traits<ResPacket_>::size : 1
   };
 
-  using LhsPacket = std::conditional_t<Vectorizable, LhsPacket_, LhsScalar>;
-  using RhsPacket = std::conditional_t<Vectorizable, RhsPacket_, RhsScalar>;
+  using LhsPacket = std::conditional_t<
+      Vectorizable, typename gemv_operand_packet<LhsScalar, LhsPacket_, ResPacket_, MixedRealComplex>::type, LhsScalar>;
+  using RhsPacket = std::conditional_t<
+      Vectorizable, typename gemv_operand_packet<RhsScalar, RhsPacket_, ResPacket_, MixedRealComplex>::type, RhsScalar>;
   using ResPacket = std::conditional_t<Vectorizable, ResPacket_, ResScalar>;
 };
 
@@ -62,6 +88,42 @@ template <typename Scalar, typename Index, int Order, int Alignment>
 struct gemv_mapper_is_contiguous<blas_data_mapper<Scalar, Index, Order, Alignment, 1>, Order> : std::true_type {};
 template <typename Scalar, typename Index, int Order>
 struct gemv_mapper_is_contiguous<const_blas_data_mapper<Scalar, Index, Order>, Order> : std::true_type {};
+
+template <typename Packet, typename OtherPacket, int Order, int Alignment,
+          bool Duplicate = (std::is_same<typename unpacket_traits<Packet>::type, float>::value ||
+                            std::is_same<typename unpacket_traits<Packet>::type, double>::value) &&
+                           std::is_same<typename unpacket_traits<OtherPacket>::type,
+                                        std::complex<typename unpacket_traits<Packet>::type>>::value &&
+                           (unpacket_traits<Packet>::size == 2 * unpacket_traits<OtherPacket>::size)>
+struct gemv_packet_loader {
+  template <typename Mapper, typename Index, typename ColIndex>
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE Packet run(const Mapper& mapper, Index i, ColIndex j) {
+    return mapper.template load<Packet, Alignment>(i, j);
+  }
+};
+
+template <typename Packet, typename OtherPacket, int Order, int Alignment>
+struct gemv_packet_loader<Packet, OtherPacket, Order, Alignment, true> {
+  template <typename Mapper, typename Index, typename ColIndex>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Mapper& mapper, Index i, ColIndex j) {
+    return run(mapper, i, j, gemv_mapper_is_contiguous<Mapper, Order>());
+  }
+
+ private:
+  template <typename Mapper, typename Index, typename ColIndex>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Mapper& mapper, Index i, ColIndex j, std::true_type) {
+    return ploaddup<Packet>(&mapper(i, j));
+  }
+
+  template <typename Mapper, typename Index, typename ColIndex>
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Packet run(const Mapper& mapper, Index i, ColIndex j, std::false_type) {
+    typename unpacket_traits<Packet>::type values[unpacket_traits<Packet>::size];
+    for (Index k = 0; k < unpacket_traits<OtherPacket>::size; ++k) {
+      values[2 * k] = values[2 * k + 1] = mapper(i + (Order == ColMajor ? k : 0), j + (Order == RowMajor ? k : 0));
+    }
+    return ploadu<Packet>(values);
+  }
+};
 
 // Whether the GEMV kernels finish a partial packet with masked segment loads. Segment loads zero the lanes outside
 // the segment, which the row-major kernel relies on before its horizontal reduction.
@@ -95,8 +157,8 @@ struct gemv_segment_loader<Packet, Order, Mapper, true> {
  *
  * Mixing type logic: C += alpha * A * B
  *  |  A  |  B  |alpha| comments
- *  |real |cplx |cplx | no vectorization
- *  |real |cplx |real | alpha is converted to a cplx when calling the run function, no vectorization
+ *  |real |cplx |cplx | real coefficients are duplicated into component packets
+ *  |real |cplx |real | alpha is converted to a cplx when calling the run function
  *  |cplx |real |cplx | invalid, the caller has to do tmp: = A * B; C += alpha*tmp
  *  |cplx |real |real | optimal case, vectorization possible via real-cplx mul
  *
@@ -167,7 +229,10 @@ struct gemv_colmajor_unroller {
                                                               const LhsMapper& lhs, Index i, Index j,
                                                               const RhsPacket& b0, ConjHelper& pcj) {
     int unused[] = {
-        0, ((c[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + LhsStride * K, j), b0, c[K])), 0)...};
+        0,
+        ((c[K] = pcj.pmadd(
+              gemv_packet_loader<LhsPacket, RhsPacket, ColMajor, Alignment>::run(lhs, i + LhsStride * K, j), b0, c[K])),
+         0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 
@@ -359,7 +424,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
           ResPacketHalf c0 = pzero(ResPacketHalf{});
           for (Index j = j2; j < jend; j += 1) {
             RhsPacketHalf b0 = pset1<RhsPacketHalf>(rhs(j, 0));
-            c0 = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i + 0, j), b0, c0);
+            c0 = pcj_half.pmadd(
+                gemv_packet_loader<LhsPacketHalf, RhsPacketHalf, ColMajor, LhsAlignment>::run(lhs, i + 0, j), b0, c0);
           }
           pstoreu(res + i + ResPacketSizeHalf * 0,
                   pmadd(c0, palpha_half, ploadu<ResPacketHalf>(res + i + ResPacketSizeHalf * 0)));
@@ -371,7 +437,9 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
           ResPacketQuarter c0 = pzero(ResPacketQuarter{});
           for (Index j = j2; j < jend; j += 1) {
             RhsPacketQuarter b0 = pset1<RhsPacketQuarter>(rhs(j, 0));
-            c0 = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i + 0, j), b0, c0);
+            c0 = pcj_quarter.pmadd(
+                gemv_packet_loader<LhsPacketQuarter, RhsPacketQuarter, ColMajor, LhsAlignment>::run(lhs, i + 0, j), b0,
+                c0);
           }
           pstoreu(res + i + ResPacketSizeQuarter * 0,
                   pmadd(c0, palpha_quarter, ploadu<ResPacketQuarter>(res + i + ResPacketSizeQuarter * 0)));
@@ -395,7 +463,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
  *
  * Mixing type logic:
  *  - alpha is always a complex (or converted to a complex)
- *  - no vectorization
+ *  - mixed operands use matching complex/component packets
  */
 template <typename Index, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, typename RhsScalar,
           typename RhsMapper, bool ConjugateRhs, int Version>
@@ -523,16 +591,16 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
               c4 = pzero(ResPacket{}), c5 = pzero(ResPacket{}), c6 = pzero(ResPacket{}), c7 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
-      RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
+      RhsPacket b0 = gemv_packet_loader<RhsPacket, LhsPacket, ColMajor, Unaligned>::run(rhs, j, 0);
 
-      c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, c0);
-      c1 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 1, j), b0, c1);
-      c2 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 2, j), b0, c2);
-      c3 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 3, j), b0, c3);
-      c4 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 4, j), b0, c4);
-      c5 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 5, j), b0, c5);
-      c6 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 6, j), b0, c6);
-      c7 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 7, j), b0, c7);
+      c0 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 0, j), b0, c0);
+      c1 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 1, j), b0, c1);
+      c2 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 2, j), b0, c2);
+      c3 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 3, j), b0, c3);
+      c4 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 4, j), b0, c4);
+      c5 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 5, j), b0, c5);
+      c6 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 6, j), b0, c6);
+      c7 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 7, j), b0, c7);
     }
     if (UseSegment && segmentCount > 0) {
       RhsPacket b0 = RhsSegmentLoader::run(rhs, fullColBlockEnd, 0, segmentCount);
@@ -579,12 +647,12 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{}), c2 = pzero(ResPacket{}), c3 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
-      RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
+      RhsPacket b0 = gemv_packet_loader<RhsPacket, LhsPacket, ColMajor, Unaligned>::run(rhs, j, 0);
 
-      c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, c0);
-      c1 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 1, j), b0, c1);
-      c2 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 2, j), b0, c2);
-      c3 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 3, j), b0, c3);
+      c0 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 0, j), b0, c0);
+      c1 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 1, j), b0, c1);
+      c2 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 2, j), b0, c2);
+      c3 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 3, j), b0, c3);
     }
     if (UseSegment && segmentCount > 0) {
       RhsPacket b0 = RhsSegmentLoader::run(rhs, fullColBlockEnd, 0, segmentCount);
@@ -615,10 +683,10 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResPacket c0 = pzero(ResPacket{}), c1 = pzero(ResPacket{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
-      RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
+      RhsPacket b0 = gemv_packet_loader<RhsPacket, LhsPacket, ColMajor, Unaligned>::run(rhs, j, 0);
 
-      c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 0, j), b0, c0);
-      c1 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i + 1, j), b0, c1);
+      c0 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 0, j), b0, c0);
+      c1 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i + 1, j), b0, c1);
     }
     if (UseSegment && segmentCount > 0) {
       RhsPacket b0 = RhsSegmentLoader::run(rhs, fullColBlockEnd, 0, segmentCount);
@@ -643,8 +711,8 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResPacketQuarter c0_q = pzero(ResPacketQuarter{});
 
     for (Index j = 0; j < fullColBlockEnd; j += LhsPacketSize) {
-      RhsPacket b0 = rhs.template load<RhsPacket, Unaligned>(j, 0);
-      c0 = pcj.pmadd(lhs.template load<LhsPacket, LhsAlignment>(i, j), b0, c0);
+      RhsPacket b0 = gemv_packet_loader<RhsPacket, LhsPacket, ColMajor, Unaligned>::run(rhs, j, 0);
+      c0 = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsPacket, RowMajor, LhsAlignment>::run(lhs, i, j), b0, c0);
     }
     if (UseSegment && segmentCount > 0) {
       RhsPacket b0 = RhsSegmentLoader::run(rhs, fullColBlockEnd, 0, segmentCount);
@@ -653,15 +721,18 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResScalar cc0 = predux(c0);
     EIGEN_IF_CONSTEXPR (HasHalf && !UseSegment) {
       for (Index j = fullColBlockEnd; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
-        RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
-        c0_h = pcj_half.pmadd(lhs.template load<LhsPacketHalf, LhsAlignment>(i, j), b0, c0_h);
+        RhsPacketHalf b0 = gemv_packet_loader<RhsPacketHalf, LhsPacketHalf, ColMajor, Unaligned>::run(rhs, j, 0);
+        c0_h = pcj_half.pmadd(gemv_packet_loader<LhsPacketHalf, RhsPacketHalf, RowMajor, LhsAlignment>::run(lhs, i, j),
+                              b0, c0_h);
       }
       cc0 += predux(c0_h);
     }
     EIGEN_IF_CONSTEXPR (HasQuarter && !UseSegment) {
       for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
-        RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
-        c0_q = pcj_quarter.pmadd(lhs.template load<LhsPacketQuarter, LhsAlignment>(i, j), b0, c0_q);
+        RhsPacketQuarter b0 =
+            gemv_packet_loader<RhsPacketQuarter, LhsPacketQuarter, ColMajor, Unaligned>::run(rhs, j, 0);
+        c0_q = pcj_quarter.pmadd(
+            gemv_packet_loader<LhsPacketQuarter, RhsPacketQuarter, RowMajor, LhsAlignment>::run(lhs, i, j), b0, c0_q);
       }
       cc0 += predux(c0_q);
     }
@@ -680,7 +751,10 @@ struct gemv_small_cols_unroller {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE void madd_impl(std::integer_sequence<int, K...>, AccPacket* acc,
                                                               const LhsMapper& lhs, Index i, Index j, const RhsType& b0,
                                                               ConjHelper& pcj) {
-    int unused[] = {0, ((acc[K] = pcj.pmadd(lhs.template load<LhsPacket, Alignment>(i + K, j), b0, acc[K])), 0)...};
+    int unused[] = {
+        0, ((acc[K] = pcj.pmadd(gemv_packet_loader<LhsPacket, RhsType, RowMajor, Alignment>::run(lhs, i + K, j), b0,
+                                acc[K])),
+            0)...};
     EIGEN_UNUSED_VARIABLE(unused);
   }
 
@@ -773,7 +847,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResPacketHalf h[N];
     Unroll::init_zero(h);
     for (Index j = 0; j < halfColBlockEnd; j += LhsPacketSizeHalf) {
-      RhsPacketHalf b0 = rhs.template load<RhsPacketHalf, Unaligned>(j, 0);
+      RhsPacketHalf b0 = gemv_packet_loader<RhsPacketHalf, LhsPacketHalf, ColMajor, Unaligned>::run(rhs, j, 0);
       Unroll::template madd<LhsPacketHalf, ResPacketHalf, LhsAlignment>(h, lhs, i, j, b0, pcj_half);
     }
     Unroll::predux_accum(cc, h);
@@ -782,7 +856,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
     ResPacketQuarter q[N];
     Unroll::init_zero(q);
     for (Index j = halfColBlockEnd; j < quarterColBlockEnd; j += LhsPacketSizeQuarter) {
-      RhsPacketQuarter b0 = rhs.template load<RhsPacketQuarter, Unaligned>(j, 0);
+      RhsPacketQuarter b0 = gemv_packet_loader<RhsPacketQuarter, LhsPacketQuarter, ColMajor, Unaligned>::run(rhs, j, 0);
       Unroll::template madd<LhsPacketQuarter, ResPacketQuarter, LhsAlignment>(q, lhs, i, j, b0, pcj_quarter);
     }
     Unroll::predux_accum(cc, q);

@@ -1021,6 +1021,7 @@ EIGEN_DEVICE_FUNC inline Packet pload1(const typename unpacket_traits<Packet>::t
  */
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet ploaddup(const typename unpacket_traits<Packet>::type* from) {
+  static_assert(unpacket_traits<Packet>::size <= 2, "Wider packets require a coefficient-duplicating ploaddup");
   return pload1<Packet>(from);
 }
 

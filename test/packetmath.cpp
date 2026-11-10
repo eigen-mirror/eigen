@@ -2608,8 +2608,40 @@ int pdiv_complex_exceptions(const Scalar& x, const Scalar& y, Scalar& quotient) 
 template <typename Scalar, typename Packet>
 void test_mixed_conj_helper(long) {}
 
+template <typename Scalar, typename Packet, typename RealPacket, bool ConjLhs, bool ConjRhs>
+void test_mixed_conj_helper_conjugation() {
+  using Real = typename NumTraits<Scalar>::Real;
+  constexpr int Size = internal::unpacket_traits<Packet>::size;
+  Scalar values[Size], actual[Size];
+  for (int i = 0; i < Size; ++i) values[i] = Scalar(Real(i + 1), Real(i + 2));
+  const Packet y = internal::ploadu<Packet>(values);
+  const RealPacket x = internal::pset1<RealPacket>(Real(2));
+  const Packet c = internal::pset1<Packet>(Scalar(3, 4));
+  internal::conj_helper<RealPacket, Packet, ConjLhs, ConjRhs> real_first;
+  internal::conj_helper<Packet, RealPacket, ConjLhs, ConjRhs> complex_first;
+  for (int operation = 0; operation < 3; ++operation) {
+    for (bool reverse : {false, true}) {
+      const Packet result = operation == 0   ? (reverse ? complex_first.pmul(y, x) : real_first.pmul(x, y))
+                            : operation == 1 ? (reverse ? complex_first.pmadd(y, x, c) : real_first.pmadd(x, y, c))
+                                             : (reverse ? complex_first.pmsub(y, x, c) : real_first.pmsub(x, y, c));
+      internal::pstoreu(actual, result);
+      for (int i = 0; i < Size; ++i) {
+        const Scalar value = (reverse ? ConjLhs : ConjRhs) ? numext::conj(values[i]) : values[i];
+        const Scalar expected = Real(2) * value + (operation == 0   ? Scalar(0)
+                                                   : operation == 1 ? Scalar(3, 4)
+                                                                    : Scalar(-3, -4));
+        VERIFY_IS_APPROX(actual[i], expected);
+      }
+    }
+  }
+}
+
 template <typename Scalar, typename Packet, typename RealPacket = decltype(std::declval<Packet>().v)>
 void test_mixed_conj_helper(int) {
+  test_mixed_conj_helper_conjugation<Scalar, Packet, RealPacket, false, false>();
+  test_mixed_conj_helper_conjugation<Scalar, Packet, RealPacket, false, true>();
+  test_mixed_conj_helper_conjugation<Scalar, Packet, RealPacket, true, false>();
+  test_mixed_conj_helper_conjugation<Scalar, Packet, RealPacket, true, true>();
   using Real = typename NumTraits<Scalar>::Real;
   static constexpr int Size = internal::unpacket_traits<Packet>::size;
   const Real eps = NumTraits<Real>::epsilon();

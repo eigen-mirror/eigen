@@ -1245,10 +1245,7 @@ EIGEN_ALWAYS_INLINE Packet4f pload_real(const Packet4f& src) { return src; }
 EIGEN_ALWAYS_INLINE Packet2d pload_real(const Packet2d& src) { return src; }
 
 /** \internal load a vector from a real-only vector location */
-EIGEN_ALWAYS_INLINE Packet4f pload_real_full(float* src) {
-  Packet4f ret = ploadu<Packet4f>(src);
-  return vec_mergeh(ret, ret);
-}
+EIGEN_ALWAYS_INLINE Packet4f pload_real_full(float* src) { return ploaddup<Packet4f>(src); }
 
 EIGEN_ALWAYS_INLINE Packet2d pload_real_full(double* src) { return pload_real(src); }
 
@@ -2043,7 +2040,8 @@ template <typename Scalar, typename LhsScalar, typename LhsMapper, bool Conjugat
           typename RhsScalar, typename RhsMapper, bool ConjugateRhs, bool RhsIsReal, typename ResScalar>
 EIGEN_STRONG_INLINE void gemv_complex_col(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                           ResScalar* res, Index resIncr, ResScalar alpha) {
-  using Traits = gemv_traits<LhsScalar, RhsScalar>;
+  // This kernel expands real packets itself rather than using the generic mixed-packet loaders.
+  using Traits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketFull, false>;
 
   using LhsPacket = typename Traits::LhsPacket;
   using RhsPacket = typename Traits::RhsPacket;
@@ -2716,7 +2714,8 @@ template <typename Scalar, typename LhsScalar, typename LhsMapper, bool Conjugat
           typename RhsScalar, typename RhsMapper, bool ConjugateRhs, bool RhsIsReal, typename ResScalar>
 EIGEN_STRONG_INLINE void gemv_complex_row(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                           ResScalar* res, Index resIncr, ResScalar alpha) {
-  using Traits = gemv_traits<LhsScalar, RhsScalar>;
+  // This kernel expands real packets itself rather than using the generic mixed-packet loaders.
+  using Traits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketFull, false>;
 
   using LhsPacket = typename Traits::LhsPacket;
   using RhsPacket = typename Traits::RhsPacket;

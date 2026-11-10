@@ -1573,11 +1573,15 @@ EIGEN_ALWAYS_INLINE Packet16uc ploadu_partial<Packet16uc>(const unsigned char* f
 
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet ploaddup_common(const __UNPACK_TYPE__(Packet) * from) {
-  Packet p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet>(from);
-  else
-    p = ploadu<Packet>(from);
+  // Only the first half of a packet is readable.
+#ifdef EIGEN_VECTORIZE_VSX
+  unsigned long long bits;
+  memcpy(&bits, from, sizeof(bits));
+  const Packet p = reinterpret_cast<Packet>(vec_splats(bits));
+#else
+  Packet p = reinterpret_cast<Packet>(vec_splat_s32(0));
+  memcpy(&p, from, sizeof(Packet) / 2);
+#endif
   return vec_mergeh(p, p);
 }
 template <>
@@ -1591,22 +1595,12 @@ EIGEN_STRONG_INLINE Packet4i ploaddup<Packet4i>(const int* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet8s ploaddup<Packet8s>(const short int* from) {
-  Packet8s p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet8s>(from);
-  else
-    p = ploadu<Packet8s>(from);
-  return vec_mergeh(p, p);
+  return ploaddup_common<Packet8s>(from);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet8us ploaddup<Packet8us>(const unsigned short int* from) {
-  Packet8us p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet8us>(from);
-  else
-    p = ploadu<Packet8us>(from);
-  return vec_mergeh(p, p);
+  return ploaddup_common<Packet8us>(from);
 }
 
 template <>
@@ -1636,22 +1630,12 @@ EIGEN_STRONG_INLINE Packet8bf ploadquad<Packet8bf>(const bfloat16* from) {
 
 template <>
 EIGEN_STRONG_INLINE Packet16c ploaddup<Packet16c>(const signed char* from) {
-  Packet16c p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet16c>(from);
-  else
-    p = ploadu<Packet16c>(from);
-  return vec_mergeh(p, p);
+  return ploaddup_common<Packet16c>(from);
 }
 
 template <>
 EIGEN_STRONG_INLINE Packet16uc ploaddup<Packet16uc>(const unsigned char* from) {
-  Packet16uc p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet16uc>(from);
-  else
-    p = ploadu<Packet16uc>(from);
-  return vec_mergeh(p, p);
+  return ploaddup_common<Packet16uc>(from);
 }
 
 template <>
@@ -3468,12 +3452,7 @@ EIGEN_ALWAYS_INLINE Packet2d ploadu_partial<Packet2d>(const double* from, const 
 
 template <>
 EIGEN_STRONG_INLINE Packet2d ploaddup<Packet2d>(const double* from) {
-  Packet2d p;
-  if ((std::ptrdiff_t(from) % 16) == 0)
-    p = pload<Packet2d>(from);
-  else
-    p = ploadu<Packet2d>(from);
-  return vec_splat_dbl<0>(p);
+  return pset1<Packet2d>(from[0]);
 }
 
 template <>

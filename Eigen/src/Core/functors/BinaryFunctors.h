@@ -143,8 +143,8 @@ struct functor_is_commutative<scalar_product_op<RealScalar, std::complex<RealSca
 // which GCC lowers to the slow libgcc __mul?c3 call. The packet path (packetOp/predux) is inherited
 // unchanged -- it already uses pmul -- so the vectorized reduction and its precision are identical to
 // scalar_product_op (this only matters for the non-vectorized scalar tail). Used by the coeff-based
-// product's coeff(); pmul requires matching operand types, so mixed types fall back to operator*
-// (which is cheap for real*complex and never hits the complex*complex libcall).
+// product's coeff(); pmul requires matching operand types, so mixed types use internal::mul,
+// which also keeps real*complex multiplication component-wise with MSVC's standard library.
 template <typename LhsScalar, typename RhsScalar>
 struct fast_mult_op : scalar_product_op<LhsScalar, RhsScalar> {
   using result_type = typename scalar_product_op<LhsScalar, RhsScalar>::result_type;
@@ -157,7 +157,7 @@ struct fast_mult_op : scalar_product_op<LhsScalar, RhsScalar> {
     return pmul(a, b);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE result_type mul(const LhsScalar& a, const RhsScalar& b, std::false_type) const {
-    return a * b;
+    return internal::mul(a, b);
   }
 };
 template <typename LhsScalar, typename RhsScalar>
