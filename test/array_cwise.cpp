@@ -348,6 +348,8 @@ void float_pow_test_impl() {
     abs_base_vals.push_back(internal::random<Base>(Base(0), Base(10)));
     abs_exponent_vals.push_back(internal::random<Exponent>(Exponent(0), Exponent(10)));
   }
+  // For float and the smallest normal base, this exponent lies near a subnormal rounding boundary.
+  abs_exponent_vals.push_back(Exponent(1.1245369911193847656));
   const Index num_repeats = internal::packet_traits<Base>::size + 1;
   ArrayX<Base> bases(num_repeats), eigenPow(num_repeats);
   bool all_pass = true;
@@ -391,7 +393,11 @@ void float_pow_test_impl() {
 #endif
 
             bool both_nan = (numext::isnan)(a) && (numext::isnan)(e);
-            bool exact_or_approx = (a == e) || internal::isApprox(a, e, tol);
+            // Two rounded subnormal results can differ by denorm_min even when the relative budget is smaller.
+            const Base min_normal = (std::numeric_limits<Base>::min)();
+            const bool subnormal_rounding = numext::abs(a) <= min_normal && numext::abs(e) <= min_normal &&
+                                            numext::abs(a - e) <= (std::numeric_limits<Base>::denorm_min)();
+            bool exact_or_approx = (a == e) || internal::isApprox(a, e, tol) || subnormal_rounding;
             bool same_sign = (bool)numext::signbit(e) == (bool)numext::signbit(a);
             bool success = both_nan || (exact_or_approx && same_sign);
             all_pass &= success;

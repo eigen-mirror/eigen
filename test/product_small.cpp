@@ -35,8 +35,8 @@ const TC &ref_prod(TC &C, const TA &A, const TB &B) {
   return C;
 }
 
-// The sweeps below compare an optimized product against ref_prod() with verifyProduct() rather than
-// VERIFY_IS_APPROX. Both sides accumulate k terms in the working precision, so each carries rounding
+// The product sweeps and lazy updates use verifyProduct()/verifyProductUpdate() rather than VERIFY_IS_APPROX.
+// Both sides accumulate k terms in the working precision, so each carries rounding
 // proportional to the magnitude of the summands, i.e. to |A|*|B| -- not to the result. Measuring the
 // error relative to the result, as VERIFY_IS_APPROX does, is meaningless once the sum cancels: at
 // bfloat16 precision a 10-term dot product can lose every significant digit, and the apparent
@@ -55,8 +55,11 @@ test_lazy_single(int rows, int cols, int depth) {
   B.setRandom();
   Matrix<T, Rows, Cols, OC> C(rows, cols);
   C.setRandom();
+  const Matrix<T, Rows, Cols, OC> C0(C);
   Matrix<T, Rows, Cols, OC> D(C);
-  VERIFY_IS_APPROX(C += A.lazyProduct(B), ref_prod(D, A, B));
+  C += A.lazyProduct(B);
+  ref_prod(D, A, B);
+  VERIFY(verifyProductUpdate(C, D, T(1), A, B, C0));
 }
 
 void test_dynamic_bool() {
