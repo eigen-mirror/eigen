@@ -20,6 +20,36 @@
 
 namespace Eigen {
 
+namespace internal {
+
+// T_i = diag(a, b) = s diag(a', b') with |a'|, |b'| <= 1, for a complex pair; returns beta = (s a') b' = a b'. float
+// and double take s = 2^e, the power of two at or above max(|a|, |b|), through the representation, so a' and b' are
+// exact and s need not be representable. Other scalars need not provide frexp or ldexp: s = max(|a|, |b|).
+template <typename RealScalar>
+RealScalar generalized_eigen_split_pair_diagonal(const RealScalar& a, const RealScalar& b, RealScalar& aScaled,
+                                                 RealScalar& bScaled, true_type) {
+  int e = 0;
+  const RealScalar maxT = max_preserving_subnormals(abs_preserving_subnormals(a), abs_preserving_subnormals(b));
+  if (numext::equal_strict(frexp_preserving_subnormals(maxT, e), RealScalar(0.5))) --e;
+  aScaled = ldexp_preserving_subnormals(a, -e);
+  bScaled = ldexp_preserving_subnormals(b, -e);
+  return ldexp_preserving_subnormals(aScaled, e) * bScaled;
+}
+template <typename RealScalar>
+RealScalar generalized_eigen_split_pair_diagonal(const RealScalar& a, const RealScalar& b, RealScalar& aScaled,
+                                                 RealScalar& bScaled, false_type) {
+  const RealScalar maxT = numext::maxi(numext::abs(a), numext::abs(b));
+  aScaled = a;
+  bScaled = b;
+  if (!numext::is_exactly_zero(maxT)) {
+    aScaled /= maxT;
+    bScaled /= maxT;
+  }
+  return a * bScaled;
+}
+
+}  // namespace internal
+
 /** \eigenvalues_module \ingroup Eigenvalues_Module
  *
  *
@@ -376,21 +406,34 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
         }
         ++i;
       } else {
-        // We need to extract the generalized eigenvalues of the pair of a general 2x2 block S and a positive diagonal
-        // 2x2 block T Then taking beta=T_00*T_11, we can avoid any division, and alpha is the eigenvalues of A = (U^-1
-        // * S * U) * diag(T_11,T_00):
+        // The 2x2 pencil (S_i, T_i), T_i = diag(a, b), has the eigenvalues eig(S_i diag(b, a)) / (a b). With
+        // T_i = s diag(a', b'), s >= max(|a|, |b|) (see generalized_eigen_split_pair_diagonal()),
+        //   alpha = eig(M), M = S_i diag(b', a'),  beta = (s a') b' = a b',
+        // so |a'|, |b'| <= 1, |M| <= |S_i|, |alpha| ~ |S_i| and |beta| ~ min(|a|, |b|), as alpha = S(i, i) and
+        // beta = T(i, i) for a real eigenvalue; a b over- or underflows with |T_i|^2. The discriminant p^2 + m01 m10
+        // is formed relative to its largest term, as in LAPACK's xLANV2. For a complex pair p^2 and m01 m10 have
+        // opposite signs, so p, z and m11 + p are at most |S_i|, and alpha is finite whenever S_i is.
+        // NOTE: using diagonal() instead of coeff(i,i) works around an MSVC bug.
+        const RealScalar a = mT.diagonal().coeff(i), b = mT.diagonal().coeff(i + 1);
+        RealScalar aScaled, bScaled;
+        const RealScalar beta = m_betas.coeffRef(i) = m_betas.coeffRef(i + 1) =
+            internal::generalized_eigen_split_pair_diagonal(
+                a, b, aScaled, bScaled,
+                internal::bool_constant<internal::use_subnormal_preserving_scaling<RealScalar, RealScalar>::value>());
 
-        // T =  [a 0]
-        //      [0 b]
-        RealScalar a = mT.diagonal().coeff(i), b = mT.diagonal().coeff(i + 1);
-        const RealScalar beta = m_betas.coeffRef(i) = m_betas.coeffRef(i + 1) = a * b;
-
-        // ^^ NOTE: using diagonal()(i) instead of coeff(i,i) workarounds a MSVC bug.
-        Matrix<RealScalar, 2, 2> S2 = mS.template block<2, 2>(i, i) * Matrix<Scalar, 2, 1>(b, a).asDiagonal();
-
-        Scalar p = Scalar(0.5) * (S2.coeff(0, 0) - S2.coeff(1, 1));
-        Scalar z = numext::sqrt(numext::abs(p * p + S2.coeff(1, 0) * S2.coeff(0, 1)));
-        const ComplexScalar alpha = ComplexScalar(S2.coeff(1, 1) + p, (beta > 0) ? z : -z);
+        const Matrix<RealScalar, 2, 2> M =
+            mS.template block<2, 2>(i, i) * Matrix<RealScalar, 2, 1>(bScaled, aScaled).asDiagonal();
+        const RealScalar p = RealScalar(0.5) * M.coeff(0, 0) - RealScalar(0.5) * M.coeff(1, 1);
+        const RealScalar m01 = M.coeff(0, 1), m10 = M.coeff(1, 0);
+        const RealScalar bcMax = numext::maxi(numext::abs(m01), numext::abs(m10));
+        const RealScalar bcMin = numext::mini(numext::abs(m01), numext::abs(m10));
+        const RealScalar scale = numext::maxi(numext::abs(p), bcMax);
+        RealScalar z(0);
+        if (!numext::is_exactly_zero(scale)) {
+          const RealScalar bcMinSigned = ((m01 < RealScalar(0)) == (m10 < RealScalar(0))) ? bcMin : -bcMin;
+          z = numext::sqrt(scale) * numext::sqrt(numext::abs((p / scale) * p + (bcMax / scale) * bcMinSigned));
+        }
+        const ComplexScalar alpha = ComplexScalar(M.coeff(1, 1) + p, (beta > 0) ? z : -z);
         m_alphas.coeffRef(i) = numext::conj(alpha);
         m_alphas.coeffRef(i + 1) = alpha;
 

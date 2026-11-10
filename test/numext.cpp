@@ -337,6 +337,15 @@ void check_adl_template_math_dispatch() {
 
   GeneralizedEigenSolver<Mat4> gesolver(ns4, spd4);
   VERIFY_IS_EQUAL(gesolver.info(), Success);
+  VERIFY((gesolver.eigenvalues().imag().array() != S(0)).any());
+  // A scalar without frexp scales a complex pair's T_i = diag(a, b) by max(|a|, |b|). With B scaled by 2^514, a b
+  // overflows; the eigenvalues are those of (ns4, spd4) times 2^-450.
+  GeneralizedEigenSolver<Mat4> gesolver_scaled(ns4 * S(std::ldexp(1.0, 64)), spd4 * S(std::ldexp(1.0, 514)), false);
+  VERIFY_IS_EQUAL(gesolver_scaled.info(), Success);
+  for (Index k = 0; k < 4; ++k) {
+    const CS lambda = gesolver_scaled.eigenvalues()(k) * S(std::ldexp(1.0, 450));
+    VERIFY_LE((gesolver.eigenvalues().array() - lambda).cwiseAbs().minCoeff().v, kTol * numext::abs(lambda).v);
+  }
 
   ComplexSchur<Mat2> cschur_real(a);
   VERIFY_IS_EQUAL(cschur_real.info(), Success);
