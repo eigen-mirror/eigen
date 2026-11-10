@@ -24,7 +24,8 @@ namespace internal {
 /** \internal
  *
  * Self-contained deterministic pseudo-random generator (SplitMix64) producing reproducible
- * values in the open interval (-1, 1). Used to seed the inverse-iteration start vectors.
+ * values in [-1, 1). Used to seed the inverse-iteration start vectors and for
+ * RealQZ's exceptional shifts.
  *
  * \c internal::random draws from the global \c rand() state, which is neither reproducible
  * across runs nor safe to call from several threads; a deterministic generator instead keeps
@@ -43,7 +44,7 @@ struct inverse_iteration_rng {
     // collapse under the cluster reorthogonalization.
     state += 0x9E3779B97F4A7C15ULL;
     const numext::uint64_t z = splitmix64_mix(state);
-    // Top 32 bits give a uniform integer in [0, 2^32); map to [0, 1) and then to (-1, 1).
+    // Top 32 bits give a uniform integer in [0, 2^32); map to [0, 1) and then to [-1, 1).
     // RealScalar must be float or wider: a narrower scalar overflows RealScalar(hi) to infinity
     // (inf * 0 = NaN start vectors), which is why TridiagonalEigenSolver computes scalars narrower
     // than float in float (see its ComputeScalar) and none of this code ever runs on them.
