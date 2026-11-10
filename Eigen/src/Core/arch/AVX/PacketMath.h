@@ -234,7 +234,7 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   using type = Packet8i;
   using half = Packet4i;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 8 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, HasFastIntDiv = 1, size = 8 };
 };
 template <>
 struct packet_traits<uint32_t> : default_packet_traits {
@@ -251,6 +251,7 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasCmp = 1,
     HasMin = 1,
     HasMax = 1,
+    HasFastIntDiv = 1,
     HasShift = 1
   };
 };
@@ -260,7 +261,14 @@ template <>
 struct packet_traits<int64_t> : default_packet_traits {
   using type = Packet4l;
   using half = Packet2l;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 4 };
+  // The 64-bit kernels take multiply-add constants.
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasCmp = 1,
+    HasFastIntDiv = int_div::use_multiply_add<uint64_t>::value,
+    size = 4
+  };
 };
 template <>
 struct packet_traits<uint64_t> : default_packet_traits {
@@ -277,6 +285,7 @@ struct packet_traits<uint64_t> : default_packet_traits {
     HasTranspose = 0,
     HasNegate = 0,
     HasCmp = 1,
+    HasFastIntDiv = int_div::use_multiply_add<uint64_t>::value,
     HasShift = 1
   };
 };
@@ -3113,6 +3122,82 @@ inline void pstoreuSegment<uint64_t, Packet4ul>(uint64_t* to, const Packet4ul& f
 #endif  // EIGEN_VECTORIZE_AVX512VL
 
 /*---------------- end load/store segment support ----------------*/
+
+/*---------------- division by an invariant integer ----------------*/
+
+// pudiv_magic and psdiv_signed_magic (IntegerDivision.h); see the kernels in SSE/PacketMath.h.
+#ifdef EIGEN_VECTORIZE_AVX2
+// Per-lane shifts by broadcast counts: one uop, where a count in an xmm register costs two on Intel cores.
+EIGEN_STRONG_INLINE __m256i pudiv_magic_epu32(const __m256i& a, uint32_t magic, uint32_t addend, int shift) {
+  __m256i m = _mm256_set1_epi32(static_cast<int>(magic));
+  __m256i c = _mm256_set1_epi64x(static_cast<long long>(addend));
+  __m256i even = _mm256_shuffle_epi32(_mm256_add_epi64(_mm256_mul_epu32(a, m), c), 0xF5);
+  __m256i odd = _mm256_add_epi64(_mm256_mul_epu32(_mm256_shuffle_epi32(a, 0xF5), m), c);
+  return _mm256_srlv_epi32(_mm256_blend_epi32(even, odd, 0xAA), _mm256_set1_epi32(shift));
+}
+
+EIGEN_STRONG_INLINE __m256i psdiv_signed_magic_epi32(const __m256i& a, uint32_t magic, int shift, int /*total_shift*/,
+                                                     const __m256i& divisor_sign) {
+  __m256i m = _mm256_set1_epi32(static_cast<int>(magic));
+  __m256i even = _mm256_shuffle_epi32(_mm256_mul_epi32(a, m), 0xF5);
+  __m256i odd = _mm256_mul_epi32(_mm256_shuffle_epi32(a, 0xF5), m);
+  __m256i t = _mm256_add_epi32(a, _mm256_blend_epi32(even, odd, 0xAA));
+  __m256i q = _mm256_sub_epi32(_mm256_srav_epi32(t, _mm256_set1_epi32(shift)), _mm256_srai_epi32(a, 31));
+  return _mm256_sub_epi32(_mm256_xor_si256(q, divisor_sign), divisor_sign);
+}
+#else
+// AVX without AVX2 has no 256-bit integer arithmetic: divide the two 128-bit halves.
+EIGEN_STRONG_INLINE __m256i pudiv_magic_epu32(const __m256i& a, uint32_t magic, uint32_t addend, int shift) {
+  __m128i lo = pudiv_magic_epu32(_mm256_castsi256_si128(a), magic, addend, shift);
+  __m128i hi = pudiv_magic_epu32(_mm256_extractf128_si256(a, 1), magic, addend, shift);
+  return _mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1);
+}
+
+EIGEN_STRONG_INLINE __m256i psdiv_signed_magic_epi32(const __m256i& a, uint32_t magic, int shift, int total_shift,
+                                                     const __m256i& divisor_sign) {
+  __m128i sign = _mm256_castsi256_si128(divisor_sign);
+  __m128i lo = psdiv_signed_magic_epi32(_mm256_castsi256_si128(a), magic, shift, total_shift, sign);
+  __m128i hi = psdiv_signed_magic_epi32(_mm256_extractf128_si256(a, 1), magic, shift, total_shift, sign);
+  return _mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1);
+}
+#endif
+
+template <>
+EIGEN_STRONG_INLINE Packet8i psdiv_signed_magic<Packet8i>(const Packet8i& a, uint32_t magic, int shift, int total_shift,
+                                                          const Packet8i& divisor_sign) {
+  return psdiv_signed_magic_epi32(a, magic, shift, total_shift, divisor_sign);
+}
+template <>
+EIGEN_STRONG_INLINE Packet8ui pudiv_magic<Packet8ui>(const Packet8ui& a, uint32_t magic, uint32_t addend, int shift) {
+  return pudiv_magic_epu32(a, magic, addend, shift);
+}
+
+// The multiply-add form, as in SSE/PacketMath.h: x86 only.
+#if defined(EIGEN_VECTORIZE_AVX2) && EIGEN_ARCH_i386_OR_x86_64
+EIGEN_STRONG_INLINE __m256i pudiv_magic_epu64(const __m256i& a, uint64_t magic, uint64_t addend, int shift) {
+  __m256i m_lo = _mm256_set1_epi64x(static_cast<long long>(magic));
+  __m256i m_hi = _mm256_set1_epi64x(static_cast<long long>(magic >> 32));
+  __m256i c_lo = _mm256_set1_epi64x(static_cast<long long>(addend & 0xffffffffu));
+  __m256i c_hi = _mm256_set1_epi64x(static_cast<long long>(addend >> 32));
+  __m256i a_hi = _mm256_srli_epi64(a, 32);
+  __m256i u0 = _mm256_add_epi64(_mm256_mul_epu32(a, m_lo), c_lo);
+  __m256i u = _mm256_add_epi64(_mm256_mul_epu32(a_hi, m_lo), _mm256_srli_epi64(u0, 32));
+  __m256i w = _mm256_add_epi64(
+      _mm256_add_epi64(_mm256_mul_epu32(a, m_hi), _mm256_blend_epi32(u, _mm256_setzero_si256(), 0xAA)), c_hi);
+  __m256i t = _mm256_add_epi64(_mm256_add_epi64(_mm256_mul_epu32(a_hi, m_hi), _mm256_srli_epi64(u, 32)),
+                               _mm256_srli_epi64(w, 32));
+  return _mm256_srlv_epi64(t, _mm256_set1_epi64x(shift));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4l pudiv_magic<Packet4l>(const Packet4l& a, uint64_t magic, uint64_t addend, int shift) {
+  return pudiv_magic_epu64(a, magic, addend, shift);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4ul pudiv_magic<Packet4ul>(const Packet4ul& a, uint64_t magic, uint64_t addend, int shift) {
+  return pudiv_magic_epu64(a, magic, addend, shift);
+}
+#endif  // EIGEN_VECTORIZE_AVX2 && EIGEN_ARCH_i386_OR_x86_64
 
 }  // end namespace internal
 

@@ -373,6 +373,9 @@ class DenseBase
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator/=(const Scalar& other);
   template <bool Enable = internal::complex_array_access<Scalar>::value, typename = std::enable_if_t<Enable>>
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& operator/=(const RealScalar& other);
+  // A template: naming IntDivider<Scalar> directly would instantiate it during overload resolution for a /= 2.0.
+  template <typename DividerScalar>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& operator/=(const IntDivider<DividerScalar>& divider);
 
   using EvalReturnType = internal::add_const_on_value_type_t<typename internal::eval<Derived>::type>;
   /** \returns the matrix or vector obtained by evaluating this expression.

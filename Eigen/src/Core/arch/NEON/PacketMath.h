@@ -341,6 +341,7 @@ struct packet_traits<int32_t> : default_packet_traits {
     HasSub = 1,
     HasShift = 1,
     HasMul = 1,
+    HasFastIntDiv = 1,
     HasNegate = 1,
     HasAbs = 1,
     HasArg = 0,
@@ -366,6 +367,7 @@ struct packet_traits<uint32_t> : default_packet_traits {
     HasSub = 1,
     HasShift = 1,
     HasMul = 1,
+    HasFastIntDiv = 1,
     HasNegate = 0,
     HasAbs = 1,
     HasArg = 0,
@@ -6115,6 +6117,50 @@ EIGEN_STRONG_INLINE Packet8hf pisfinite<Packet8hf>(const Packet8hf& a) {
 #endif
 
 #endif  // end EIGEN_ARCH_ARM64 && EIGEN_HAS_ARM64_FP16
+
+/*---------------- division by an invariant integer ----------------*/
+
+// pudiv_magic and psdiv_signed_magic (IntegerDivision.h) for 32-bit lanes. vshl by a negative count shifts right.
+template <>
+EIGEN_STRONG_INLINE Packet4ui pudiv_magic<Packet4ui>(const Packet4ui& a, uint32_t magic, uint32_t addend, int shift) {
+  uint32x2_t m = vdup_n_u32(magic);
+  uint64x2_t c = vdupq_n_u64(addend);
+  uint64x2_t lo = vmlal_u32(c, vget_low_u32(a), m);
+  uint64x2_t hi = vmlal_u32(c, vget_high_u32(a), m);
+#if EIGEN_ARCH_ARM64
+  uint32x4_t t = vuzp2q_u32(vreinterpretq_u32_u64(lo), vreinterpretq_u32_u64(hi));
+#else
+  uint32x4_t t = vcombine_u32(vshrn_n_u64(lo, 32), vshrn_n_u64(hi, 32));
+#endif
+  return vshlq_u32(t, vdupq_n_s32(-shift));
+}
+template <>
+EIGEN_STRONG_INLINE Packet2ui pudiv_magic<Packet2ui>(const Packet2ui& a, uint32_t magic, uint32_t addend, int shift) {
+  uint32x2_t t = vshrn_n_u64(vmlal_u32(vdupq_n_u64(addend), a, vdup_n_u32(magic)), 32);
+  return vshl_u32(t, vdup_n_s32(-shift));
+}
+
+template <>
+EIGEN_STRONG_INLINE Packet4i psdiv_signed_magic<Packet4i>(const Packet4i& a, uint32_t magic, int shift,
+                                                          int /*total_shift*/, const Packet4i& divisor_sign) {
+  int32x2_t m = vdup_n_s32(static_cast<int32_t>(magic));
+  int64x2_t lo = vmull_s32(vget_low_s32(a), m);
+  int64x2_t hi = vmull_s32(vget_high_s32(a), m);
+#if EIGEN_ARCH_ARM64
+  int32x4_t t = vuzp2q_s32(vreinterpretq_s32_s64(lo), vreinterpretq_s32_s64(hi));
+#else
+  int32x4_t t = vcombine_s32(vshrn_n_s64(lo, 32), vshrn_n_s64(hi, 32));
+#endif
+  int32x4_t q = vsubq_s32(vshlq_s32(vaddq_s32(a, t), vdupq_n_s32(-shift)), vshrq_n_s32(a, 31));
+  return vsubq_s32(veorq_s32(q, divisor_sign), divisor_sign);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2i psdiv_signed_magic<Packet2i>(const Packet2i& a, uint32_t magic, int shift,
+                                                          int /*total_shift*/, const Packet2i& divisor_sign) {
+  int32x2_t t = vshrn_n_s64(vmull_s32(a, vdup_n_s32(static_cast<int32_t>(magic))), 32);
+  int32x2_t q = vsub_s32(vshl_s32(vadd_s32(a, t), vdup_n_s32(-shift)), vshr_n_s32(a, 31));
+  return vsub_s32(veor_s32(q, divisor_sign), divisor_sign);
+}
 
 }  // end namespace internal
 

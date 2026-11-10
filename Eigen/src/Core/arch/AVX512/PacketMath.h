@@ -230,14 +230,21 @@ template <>
 struct packet_traits<int> : default_packet_traits {
   using type = Packet16i;
   using half = Packet8i;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, size = 16 };
+  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, HasDiv = 1, HasFastIntDiv = 1, size = 16 };
 };
 
 template <>
 struct packet_traits<int64_t> : default_packet_traits {
   using type = Packet8l;
   using half = Packet4l;
-  enum { Vectorizable = 1, AlignedOnScalar = 1, HasCmp = 1, size = 8 };
+  // The 64-bit kernel takes multiply-add constants.
+  enum {
+    Vectorizable = 1,
+    AlignedOnScalar = 1,
+    HasCmp = 1,
+    HasFastIntDiv = int_div::use_multiply_add<uint64_t>::value,
+    size = 8
+  };
 };
 
 template <>
@@ -3478,6 +3485,38 @@ inline void pstoreuSegment<Eigen::half, Packet8h>(Eigen::half* to, const Packet8
 #endif  // EIGEN_VECTORIZE_AVX512VL
 
 /*---------------- end load/store segment support ----------------*/
+
+/*---------------- division by an invariant integer ----------------*/
+
+// psdiv_signed_magic and pudiv_magic (IntegerDivision.h); see the kernels in SSE/PacketMath.h.
+template <>
+EIGEN_STRONG_INLINE Packet16i psdiv_signed_magic<Packet16i>(const Packet16i& a, uint32_t magic, int shift,
+                                                            int /*total_shift*/, const Packet16i& divisor_sign) {
+  __m512i m = _mm512_set1_epi32(static_cast<int>(magic));
+  __m512i even = _mm512_shuffle_epi32(_mm512_mul_epi32(a, m), _MM_PERM_DDBB);
+  __m512i odd = _mm512_mul_epi32(_mm512_shuffle_epi32(a, _MM_PERM_DDBB), m);
+  __m512i t = _mm512_add_epi32(a, _mm512_mask_blend_epi32(0xAAAA, even, odd));
+  __m512i q = _mm512_sub_epi32(_mm512_srav_epi32(t, _mm512_set1_epi32(shift)), _mm512_srai_epi32(a, 31));
+  return _mm512_sub_epi32(_mm512_xor_si512(q, divisor_sign), divisor_sign);
+}
+
+// The multiply-add form, as in SSE/PacketMath.h: x86 only.
+#if EIGEN_ARCH_i386_OR_x86_64
+template <>
+EIGEN_STRONG_INLINE Packet8l pudiv_magic<Packet8l>(const Packet8l& a, uint64_t magic, uint64_t addend, int shift) {
+  __m512i m_lo = _mm512_set1_epi64(static_cast<long long>(magic));
+  __m512i m_hi = _mm512_set1_epi64(static_cast<long long>(magic >> 32));
+  __m512i c_lo = _mm512_set1_epi64(static_cast<long long>(addend & 0xffffffffu));
+  __m512i c_hi = _mm512_set1_epi64(static_cast<long long>(addend >> 32));
+  __m512i a_hi = _mm512_srli_epi64(a, 32);
+  __m512i u0 = _mm512_add_epi64(_mm512_mul_epu32(a, m_lo), c_lo);
+  __m512i u = _mm512_add_epi64(_mm512_mul_epu32(a_hi, m_lo), _mm512_srli_epi64(u0, 32));
+  __m512i w = _mm512_add_epi64(_mm512_add_epi64(_mm512_mul_epu32(a, m_hi), _mm512_maskz_mov_epi32(0x5555, u)), c_hi);
+  __m512i t = _mm512_add_epi64(_mm512_add_epi64(_mm512_mul_epu32(a_hi, m_hi), _mm512_srli_epi64(u, 32)),
+                               _mm512_srli_epi64(w, 32));
+  return _mm512_srlv_epi64(t, _mm512_set1_epi64(shift));
+}
+#endif  // EIGEN_ARCH_i386_OR_x86_64
 
 }  // end namespace internal
 

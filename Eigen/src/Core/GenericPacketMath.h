@@ -69,6 +69,7 @@ struct default_packet_traits {
     HasCmp = 0,
 
     HasDiv = 0,
+    HasFastIntDiv = 0,
     HasReciprocal = 0,
     HasSqrt = 0,
     HasRsqrt = 0,

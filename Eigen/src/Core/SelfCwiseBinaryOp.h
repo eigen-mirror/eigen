@@ -46,6 +46,14 @@ EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::ope
   return derived();
 }
 
+template <typename Derived>
+template <typename DividerScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Derived& DenseBase<Derived>::operator/=(
+    const IntDivider<DividerScalar>& divider) {
+  internal::call_assignment(derived(), divider.divide(derived()));
+  return derived();
+}
+
 }  // end namespace Eigen
 
 #endif  // EIGEN_SELFCWISEBINARYOP_H
