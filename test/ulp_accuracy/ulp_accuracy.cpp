@@ -298,11 +298,18 @@ struct WorkQueue {
   }
 
   // Claim the next chunk. Returns false when no work remains.
+  // The CAS keeps next_lin <= range_hi_lin + 1. A fetch_add would advance it past range_hi_lin by up to
+  // (num_threads + 1) * chunk_size, which can exceed INT64_MAX for double, where
+  // INT64_MAX - scalar_to_linear(inf) = 2^52 - 1.
   bool claim(Scalar& chunk_lo, Scalar& chunk_hi) {
-    int64_t lo_lin = next_lin.fetch_add(chunk_size, std::memory_order_relaxed);
-    if (lo_lin > range_hi_lin) return false;
-    int64_t hi_lin = lo_lin + chunk_size - 1;
-    if (hi_lin > range_hi_lin) hi_lin = range_hi_lin;
+    int64_t lo_lin = next_lin.load(std::memory_order_relaxed);
+    int64_t hi_lin;
+    do {
+      if (lo_lin > range_hi_lin) return false;
+      // hi_lin = min(lo_lin + chunk_size - 1, range_hi_lin); range_hi_lin - lo_lin may exceed INT64_MAX.
+      uint64_t span = static_cast<uint64_t>(range_hi_lin) - static_cast<uint64_t>(lo_lin);
+      hi_lin = span < static_cast<uint64_t>(chunk_size) ? range_hi_lin : lo_lin + (chunk_size - 1);
+    } while (!next_lin.compare_exchange_weak(lo_lin, hi_lin + 1, std::memory_order_relaxed));
     chunk_lo = linear_to_scalar(lo_lin, Scalar(0));
     chunk_hi = linear_to_scalar(hi_lin, Scalar(0));
     return true;
