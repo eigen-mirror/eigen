@@ -330,6 +330,24 @@ class GeneralizedEigenSolver {
 
  private:
   GeneralizedEigenSolver& computeFromQZ(bool computeEigenvectors);
+
+  // Solves m x = r with complete pivoting, replacing a pivot of modulus below smin by smin, after LAPACK's xLALN2.
+  template <typename T>
+  static Matrix<T, 2, 1> solveWithPerturbedPivots(const Matrix<T, 2, 2>& m, const Matrix<T, 2, 1>& r,
+                                                  const RealScalar& smin) {
+    Index row, col;
+    m.cwiseAbs().maxCoeff(&row, &col);
+    const Index otherRow = 1 - row, otherCol = 1 - col;
+    T pivot = m.coeff(row, col);
+    if (numext::abs(pivot) < smin) pivot = T(smin);
+    const T multiplier = m.coeff(otherRow, col) / pivot;
+    T otherPivot = m.coeff(otherRow, otherCol) - multiplier * m.coeff(row, otherCol);
+    if (numext::abs(otherPivot) < smin) otherPivot = T(smin);
+    Matrix<T, 2, 1> x;
+    x.coeffRef(otherCol) = (r.coeff(otherRow) - multiplier * r.coeff(row)) / otherPivot;
+    x.coeffRef(col) = (r.coeff(row) - m.coeff(row, otherCol) * x.coeff(otherCol)) / pivot;
+    return x;
+  }
 };
 
 template <typename MatrixType>
@@ -364,6 +382,47 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
     ComplexVectorType& cv = m_tmp;
     const MatrixType& mS = m_realQZ.matrixS();
     const MatrixType& mT = m_realQZ.matrixT();
+    // The back substitutions follow LAPACK's xTGEVC, with
+    //   (alpha, beta) -> (alpha / (t max|S|) * r / max|T|,  beta / (t max|T|) * r / max|S|),
+    //   t = max(|beta| / max|T|, |alpha| / max|S|, min),
+    //   r = max(1, min(max(max|S|, max|T|) min / eps, min(max|S|, max|T|) highest / 2)),
+    // so that |beta| |S(j, k)| <= r and |alpha| |T(j, k)| <= r. With r = 1, 1 / max|S| is subnormal for max|S| > 1 /
+    // min and flushes to 0 under FTZ. r / max|S| and r / max|T| are at most highest / 2 and, unless max|S| / max|T| or
+    // max|T| / max|S| exceeds highest eps / (2 min), at least min / eps, so the scaled beta underflows only where
+    // |beta| / (t max|T|) < eps, and likewise alpha. A pivot beta S(j, j) - alpha T(j, j) of modulus below
+    //   smin_j = max(eps sum_k (|beta| |S(j, k)| + |alpha| |T(j, k)|), min),  k over the columns of the solve,
+    // the larger of its two rows' for a 2x2 block, is replaced by smin_j: it is 0 where eigenvalue j repeats eigenvalue
+    // i, or for beta = 0 = T(j, j). Unlike xTGEVC's floor eps ||.||, the row sums leave accurate small 1x1 pivots of a
+    // graded pencil alone, down to a scaled pivot of min. Row j's numerator is at most max |v| smin_j / eps, so a step
+    // multiplies max |v| by at most 3 / eps (solveWithPerturbedPivots for a 2x2 block), and v is divided by max |v|
+    // once that exceeds 1 / eps, which keeps it finite.
+    const RealScalar eps = NumTraits<RealScalar>::epsilon();
+    const RealScalar big = RealScalar(1) / eps;
+    const RealScalar smallestNormal = RealScalar((std::numeric_limits<RealScalar>::min)());
+    const RealScalar maxS = computeEigenvectors && size > 0
+                                ? numext::maxi(RealScalar(mS.cwiseAbs().maxCoeff()), smallestNormal)
+                                : smallestNormal;
+    const RealScalar maxT = computeEigenvectors && size > 0
+                                ? numext::maxi(RealScalar(mT.cwiseAbs().maxCoeff()), smallestNormal)
+                                : smallestNormal;
+    // Compares against wanted / halfHighest rather than forming min(max|S|, max|T|) highest / 2, which overflows.
+    const RealScalar wanted = numext::maxi(maxS, maxT) * (smallestNormal / eps);
+    const RealScalar halfHighest = NumTraits<RealScalar>::highest() / RealScalar(2);
+    const RealScalar smaller = numext::mini(maxS, maxT);
+    const RealScalar bound =
+        numext::maxi(RealScalar(1), smaller < wanted / halfHighest ? RealScalar(smaller * halfHighest) : wanted);
+    const RealScalar scaleS = bound / maxS, scaleT = bound / maxT;
+    const auto scaleDivisor = [&](const RealScalar& absAlpha, const RealScalar& absBeta) {
+      return numext::maxi(numext::maxi(RealScalar(absBeta / maxT), RealScalar(absAlpha / maxS)), smallestNormal);
+    };
+    const auto pivotFloor = [&](Index row, Index first, Index last, const RealScalar& absAlpha,
+                                const RealScalar& absBeta) {
+      const Index count = last - first + 1;
+      return numext::maxi(RealScalar(eps * (absBeta * mS.row(row).segment(first, count).cwiseAbs() +
+                                            absAlpha * mT.row(row).segment(first, count).cwiseAbs())
+                                               .sum()),
+                          smallestNormal);
+    };
 
     Index i = 0;
     while (i < size) {
@@ -374,31 +433,39 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
         if (computeEigenvectors) {
           v.setConstant(Scalar(0.0));
           v.coeffRef(i) = Scalar(1.0);
-          // For singular eigenvalues do nothing more
-          if (numext::abs(m_betas.coeffRef(i)) >= (std::numeric_limits<RealScalar>::min)()) {
-            // Non-singular eigenvalue
-            const Scalar alpha = numext::real(m_alphas.coeffRef(i));
-            const Scalar beta = m_betas.coeffRef(i);
-            for (Index j = i - 1; j >= 0; j--) {
-              const Index st = j + 1;
-              const Index sz = i - j;
-              if (j > 0 && mS.coeff(j, j - 1) != Scalar(0)) {
-                // 2x2 block
-                Matrix<Scalar, 2, 1> rhs = (alpha * mT.template block<2, Dynamic>(j - 1, st, 2, sz) -
-                                            beta * mS.template block<2, Dynamic>(j - 1, st, 2, sz))
-                                               .lazyProduct(v.segment(st, sz));
-                Matrix<Scalar, 2, 2> lhs =
-                    beta * mS.template block<2, 2>(j - 1, j - 1) - alpha * mT.template block<2, 2>(j - 1, j - 1);
-                v.template segment<2>(j - 1) = lhs.partialPivLu().solve(rhs);
-                j--;
-              } else {
-                v.coeffRef(j) = -v.segment(st, sz)
-                                     .transpose()
-                                     .cwiseProduct(beta * mS.block(j, st, 1, sz) - alpha * mT.block(j, st, 1, sz))
-                                     .sum() /
-                                (beta * mS.coeffRef(j, j) - alpha * mT.coeffRef(j, j));
-              }
+          const Scalar alpha = numext::real(m_alphas.coeffRef(i)), beta = m_betas.coeffRef(i);
+          const RealScalar divisor = scaleDivisor(numext::abs(alpha), numext::abs(beta));
+          const Scalar scaledAlpha = alpha / divisor / maxS * scaleT, scaledBeta = beta / divisor / maxT * scaleS;
+          const RealScalar absAlpha = numext::abs(scaledAlpha), absBeta = numext::abs(scaledBeta);
+          for (Index j = i - 1; j >= 0; j--) {
+            const Index st = j + 1;
+            const Index sz = i - j;
+            RealScalar largest;
+            if (j > 0 && mS.coeff(j, j - 1) != Scalar(0)) {
+              // 2x2 block
+              Matrix<Scalar, 2, 1> rhs = (scaledAlpha * mT.template block<2, Dynamic>(j - 1, st, 2, sz) -
+                                          scaledBeta * mS.template block<2, Dynamic>(j - 1, st, 2, sz))
+                                             .lazyProduct(v.segment(st, sz));
+              Matrix<Scalar, 2, 2> lhs = scaledBeta * mS.template block<2, 2>(j - 1, j - 1) -
+                                         scaledAlpha * mT.template block<2, 2>(j - 1, j - 1);
+              const RealScalar smin = numext::maxi(pivotFloor(j - 1, j - 1, i, absAlpha, absBeta),
+                                                   pivotFloor(j, j - 1, i, absAlpha, absBeta));
+              v.template segment<2>(j - 1) = solveWithPerturbedPivots(lhs, rhs, smin);
+              largest = v.template segment<2>(j - 1).cwiseAbs().maxCoeff();
+              j--;
+            } else {
+              Scalar pivot = scaledBeta * mS.coeff(j, j) - scaledAlpha * mT.coeff(j, j);
+              const RealScalar smin = pivotFloor(j, j, i, absAlpha, absBeta);
+              if (numext::abs(pivot) < smin) pivot = Scalar(smin);
+              v.coeffRef(j) =
+                  -v.segment(st, sz)
+                       .transpose()
+                       .cwiseProduct(scaledBeta * mS.block(j, st, 1, sz) - scaledAlpha * mT.block(j, st, 1, sz))
+                       .sum() /
+                  pivot;
+              largest = numext::abs(v.coeff(j));
             }
+            if (largest > big) v /= largest;
           }
           m_eivec.col(i).real().noalias() = m_realQZ.matrixZ().transpose() * v;
           m_eivec.col(i).real().normalize();
@@ -441,28 +508,44 @@ GeneralizedEigenSolver<MatrixType>& GeneralizedEigenSolver<MatrixType>::computeF
           // Compute eigenvector in position (i+1) and then position (i) is just the conjugate
           cv.setZero();
           cv.coeffRef(i + 1) = Scalar(1.0);
+          const RealScalar divisor = scaleDivisor(numext::abs(alpha), numext::abs(beta));
+          const ComplexScalar scaledAlpha = alpha / divisor / maxS * scaleT;
+          const RealScalar scaledBeta = beta / divisor / maxT * scaleS;
+          const RealScalar absAlpha = numext::abs(scaledAlpha), absBeta = numext::abs(scaledBeta);
           // here, the "static_cast" works around expression template issues.
-          cv.coeffRef(i) = -(static_cast<Scalar>(beta * mS.coeffRef(i, i + 1)) - alpha * mT.coeffRef(i, i + 1)) /
-                           (static_cast<Scalar>(beta * mS.coeffRef(i, i)) - alpha * mT.coeffRef(i, i));
+          cv.coeffRef(i) =
+              -(static_cast<Scalar>(scaledBeta * mS.coeffRef(i, i + 1)) - scaledAlpha * mT.coeffRef(i, i + 1)) /
+              (static_cast<Scalar>(scaledBeta * mS.coeffRef(i, i)) - scaledAlpha * mT.coeffRef(i, i));
+          if (numext::abs(cv.coeff(i)) > big) cv /= numext::abs(cv.coeff(i));
           for (Index j = i - 1; j >= 0; j--) {
             const Index st = j + 1;
             const Index sz = i + 1 - j;
+            RealScalar largest;
             if (j > 0 && mS.coeff(j, j - 1) != Scalar(0)) {
               // 2x2 block
-              Matrix<ComplexScalar, 2, 1> rhs = (alpha * mT.template block<2, Dynamic>(j - 1, st, 2, sz) -
-                                                 beta * mS.template block<2, Dynamic>(j - 1, st, 2, sz))
+              Matrix<ComplexScalar, 2, 1> rhs = (scaledAlpha * mT.template block<2, Dynamic>(j - 1, st, 2, sz) -
+                                                 scaledBeta * mS.template block<2, Dynamic>(j - 1, st, 2, sz))
                                                     .lazyProduct(cv.segment(st, sz));
-              Matrix<ComplexScalar, 2, 2> lhs =
-                  beta * mS.template block<2, 2>(j - 1, j - 1) - alpha * mT.template block<2, 2>(j - 1, j - 1);
-              cv.template segment<2>(j - 1) = lhs.partialPivLu().solve(rhs);
+              Matrix<ComplexScalar, 2, 2> lhs = scaledBeta * mS.template block<2, 2>(j - 1, j - 1) -
+                                                scaledAlpha * mT.template block<2, 2>(j - 1, j - 1);
+              const RealScalar smin = numext::maxi(pivotFloor(j - 1, j - 1, i + 1, absAlpha, absBeta),
+                                                   pivotFloor(j, j - 1, i + 1, absAlpha, absBeta));
+              cv.template segment<2>(j - 1) = solveWithPerturbedPivots(lhs, rhs, smin);
+              largest = cv.template segment<2>(j - 1).cwiseAbs().maxCoeff();
               j--;
             } else {
-              cv.coeffRef(j) = cv.segment(st, sz)
-                                   .transpose()
-                                   .cwiseProduct(beta * mS.block(j, st, 1, sz) - alpha * mT.block(j, st, 1, sz))
-                                   .sum() /
-                               (alpha * mT.coeffRef(j, j) - static_cast<Scalar>(beta * mS.coeffRef(j, j)));
+              ComplexScalar pivot = scaledAlpha * mT.coeff(j, j) - static_cast<Scalar>(scaledBeta * mS.coeff(j, j));
+              const RealScalar smin = pivotFloor(j, j, i + 1, absAlpha, absBeta);
+              if (numext::abs(pivot) < smin) pivot = ComplexScalar(smin);
+              cv.coeffRef(j) =
+                  cv.segment(st, sz)
+                      .transpose()
+                      .cwiseProduct(scaledBeta * mS.block(j, st, 1, sz) - scaledAlpha * mT.block(j, st, 1, sz))
+                      .sum() /
+                  pivot;
+              largest = numext::abs(cv.coeff(j));
             }
+            if (largest > big) cv /= largest;
           }
           m_eivec.col(i + 1).noalias() = m_realQZ.matrixZ().transpose() * cv;
           m_eivec.col(i + 1).normalize();
