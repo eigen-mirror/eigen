@@ -33,7 +33,7 @@ void test_signed_32bit() {
     }
   }
 
-  // Optimized divide by 2 or more
+  // The div_gt_one argument is accepted and ignored.
   for (int32_t i = 2; i < 25000; ++i) {
     const Eigen::internal::TensorIntDivisor<int32_t, true> div(i);
 
@@ -129,6 +129,58 @@ void test_specific() {
   VERIFY_IS_EQUAL(result, result_op);
 }
 
+// Divisors and numerators up to the largest non-negative index, 2^(k-1) - 1.
+template <typename T>
+void test_full_range() {
+  const T highest = static_cast<T>((std::numeric_limits<std::make_signed_t<T>>::max)());
+  const T divisors[] = {T(1),           T(2),   T(3), T(7), T(10), T(highest / 3), T(highest / 2), T(highest / 2 + 1),
+                        T(highest - 1), highest};
+  for (T d : divisors) {
+    const Eigen::internal::TensorIntDivisor<T> div(d);
+    const T q = T(highest / d);
+    // Both sides of the quotient boundaries j * d, and the ends of the range.
+    for (T j : {T(0), T(1), T(q / 2), T(q - 1), q}) {
+      for (int offset = -2; offset <= 2; ++offset) {
+        const T base = T(j * d);
+        if (offset < 0 && base < T(-offset)) continue;
+        if (offset > 0 && T(highest - base) < T(offset)) continue;
+        const T num = T(base + T(offset));
+        VERIFY_IS_EQUAL(num / div, T(num / d));
+      }
+    }
+    for (T num : {T(0), T(1), T(highest / 2), T(highest - 1), highest}) {
+      VERIFY_IS_EQUAL(div.divide(num), T(num / d));
+    }
+    for (int i = 0; i < 1000; ++i) {
+      const T num = internal::random<T>(T(0), highest);
+      VERIFY_IS_EQUAL(num / div, T(num / d));
+    }
+  }
+}
+
+// Every divisor of a 16-bit index. The computed quotient and floor(n / d) are both nondecreasing in n, so agreeing at
+// n = j d - 1 and n = j d for every j makes them agree at every n.
+void test_all_divisors_16bit() {
+  const int highest = (std::numeric_limits<int16_t>::max)();
+  for (int d = 1; d <= highest; ++d) {
+    const Eigen::internal::TensorIntDivisor<int16_t> div(static_cast<int16_t>(d));
+    VERIFY_IS_EQUAL(int16_t(0) / div, int16_t(0));
+    VERIFY_IS_EQUAL(static_cast<int16_t>(highest) / div, static_cast<int16_t>(highest / d));
+    for (int boundary = d; boundary <= highest; boundary += d) {
+      VERIFY_IS_EQUAL(static_cast<int16_t>(boundary - 1) / div, static_cast<int16_t>(boundary / d - 1));
+      VERIFY_IS_EQUAL(static_cast<int16_t>(boundary) / div, static_cast<int16_t>(boundary / d));
+    }
+  }
+}
+
+void test_default_constructed() {
+  const Eigen::internal::TensorIntDivisor<Eigen::Index> div;
+  const Eigen::Index highest = (std::numeric_limits<Eigen::Index>::max)();
+  for (Eigen::Index num : {Eigen::Index(0), Eigen::Index(1), Eigen::Index(12345), highest}) {
+    VERIFY_IS_EQUAL(num / div, num);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_intdiv) {
   CALL_SUBTEST_1(test_signed_32bit());
   CALL_SUBTEST_2(test_unsigned_32bit());
@@ -137,4 +189,13 @@ EIGEN_DECLARE_TEST(tensor_intdiv) {
   CALL_SUBTEST_5(test_powers_32bit());
   CALL_SUBTEST_6(test_powers_64bit());
   CALL_SUBTEST_7(test_specific());
+  CALL_SUBTEST_8(test_full_range<int8_t>());
+  CALL_SUBTEST_8(test_full_range<uint8_t>());
+  CALL_SUBTEST_8(test_full_range<int16_t>());
+  CALL_SUBTEST_8(test_full_range<int32_t>());
+  CALL_SUBTEST_8(test_full_range<uint32_t>());
+  CALL_SUBTEST_8(test_full_range<int64_t>());
+  CALL_SUBTEST_8(test_full_range<uint64_t>());
+  CALL_SUBTEST_8(test_default_constructed());
+  CALL_SUBTEST_8(test_all_divisors_16bit());
 }
