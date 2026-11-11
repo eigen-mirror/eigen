@@ -752,7 +752,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Other</th></tr>
 <tr><td>logistic</td> <td>7</td>     <td>0.040</td> <td>97.0%</td> <td></td></tr>
 <tr><td>sqrt</td>     <td>0</td>     <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt</td></tr>
-<tr><td>cbrt</td>     <td>2</td>     <td>0.552</td> <td>49.1%</td> <td></td></tr>
+<tr><td>cbrt</td>     <td>1</td>     <td>0.117</td> <td>88.3%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note6 "6"</td></tr>
 <tr><td>rsqrt</td>    <td>&infin;</td> <td>0.114</td> <td>88.2%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note4 "4"</td></tr>
 </table>
 
@@ -789,7 +789,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Other</th></tr>
 <tr><td>logistic</td> <td>3</td>       <td>0.008</td> <td>99.2%</td> <td></td></tr>
 <tr><td>sqrt</td>     <td>0</td>       <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt</td></tr>
-<tr><td>cbrt</td>     <td>2</td>       <td>0.119</td> <td>88.1%</td> <td></td></tr>
+<tr><td>cbrt</td>     <td>1</td>       <td>0.115</td> <td>88.5%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note6 "6"</td></tr>
 <tr><td>rsqrt</td>    <td>&infin;</td> <td>0.135</td> <td>86.5%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note4 "4"</td></tr>
 </table>
 
@@ -828,6 +828,13 @@ The mean error excluding these outliers is well below 1 ULP.
 The vectorized erf for double returns NaN for &plusmn;&infin; instead of the correct &plusmn;1.
 This produces an infinite max ULP error at a single input value. Excluding &plusmn;&infin;,
 the max error is 3 ULP and the mean is 0.050 ULP.
+
+\anchor CoeffwiseMathFunctionsAccuracy_note6
+<b>6. cbrt with a fused multiply-add:</b>
+On targets whose packet multiply-add is fused (FMA on x86, NEON on AArch64, SVE, ...), the last
+Halley step of cbrt evaluates its residual to working precision. With AVX2 and FMA the max error
+is still 1 ULP, but 97.9% of float results are exact, and so are all but about one in a million
+double results.
 
 */
 

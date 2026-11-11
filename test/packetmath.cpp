@@ -1256,6 +1256,72 @@ EIGEN_DONT_INLINE void preciprocal_out_of_line(const Scalar* in, Scalar* out) {
   internal::pstoreu(out, internal::preciprocal(internal::ploadu<Packet>(in)));
 }
 
+// Positive inputs and their correctly rounded cube roots, for the scalar types whose pcbrt Eigen implements.
+template <typename Scalar>
+void cbrt_reference_cases(std::vector<Scalar>&, std::vector<Scalar>&) {}
+
+// Every 4099th positive normal float. Rounding the double cube root to float is correct unless the root lies within
+// the double result's own error of a tie.
+template <>
+void cbrt_reference_cases<float>(std::vector<float>& x, std::vector<float>& root) {
+  const uint32_t first = numext::bit_cast<uint32_t>((std::numeric_limits<float>::min)());
+  const uint32_t last = numext::bit_cast<uint32_t>((std::numeric_limits<float>::max)());
+  for (uint32_t bits = first; bits <= last - 4099; bits += 4099) {
+    x.push_back(numext::bit_cast<float>(bits));
+    root.push_back(static_cast<float>(std::cbrt(static_cast<double>(x.back()))));
+  }
+}
+
+// MPFR 4.2.2, 256-bit precision, rounded to binary64. Each root is at least 0.1 ulp from a rounding tie, and a last
+// Halley step that rounds x^3 before subtracting y returns its other neighbor.
+template <>
+void cbrt_reference_cases<double>(std::vector<double>& x, std::vector<double>& root) {
+  const double cases[][2] = {
+      {0.18013416222233058, 0.5647618619185174},          {0.15310688445153733, 0.53497264186131777},
+      {0.15327741726952843, 0.53517118843475819},         {0.47482197432657092, 0.78014788688707715},
+      {0.31625373373598953, 0.68131071713251545},         {0.47658648258417335, 0.78111307369155669},
+      {0.5537246322732402, 0.82116660850981227},          {0.53370972142842854, 0.81115099358485165},
+      {0.92197392523616761, 0.97328391543183956},         {9.3498428247815258e+307, 4.5387344090125383e+102},
+      {1.6780155976763964e+308, 5.5156749509509581e+102}, {3.4858015377988128e-308, 3.2666370667011993e-103},
+      {2.6005499141127416e-308, 2.9627049150169423e-103}, {1.2715447178055326e-308, 2.3340521001251932e-103},
+      {5.7180867200970447e-309, 1.7882033844618994e-103}, {8.4742647400368931e-309, 2.0387658128141908e-103},
+      {6.1291250874326263e+127, 3.9427523107707106e+42},  {4.9356702477391164e+127, 3.6681637292595391e+42},
+      {5.1224989971400593e-173, 3.7138750997329156e-58},  {4.0116356813955878e-173, 3.4232648056458648e-58},
+  };
+  for (const auto& c : cases) {
+    x.push_back(c[0]);
+    root.push_back(c[1]);
+  }
+}
+
+// pcbrt stays within one ulp of the correctly rounded cube root. With a fused pmadd the last Halley step evaluates
+// its residual to working precision, and the double cases must then round correctly.
+template <typename Scalar, typename Packet>
+void packetmath_cbrt_accuracy() {
+  constexpr bool kHasCbrt = internal::packet_traits<Scalar>::HasCbrt;
+  if (!kHasCbrt) return;
+  const test::packet_helper<kHasCbrt, Packet> h;
+  std::vector<Scalar> x, root;
+  cbrt_reference_cases<Scalar>(x, root);
+  const uint64_t budget = (std::is_same<Scalar, double>::value && internal::is_fused_madd<Packet>::value) ? 0 : 1;
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data2[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  const size_t count = x.size();
+  for (size_t start = 0; start < count; start += static_cast<size_t>(PacketSize)) {
+    for (int i = 0; i < PacketSize; ++i) {
+      // Alternate the sign from lane to lane; the last packet wraps around.
+      const size_t k = (start + static_cast<size_t>(i)) % count;
+      const Scalar sign = (k % 2 == 0) ? Scalar(1) : Scalar(-1);
+      data1[i] = sign * x[k];
+      ref[i] = sign * root[k];
+    }
+    h.store(data2, internal::pcbrt(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, budget) && "pcbrt");
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   using PacketTraits = internal::packet_traits<Scalar>;
@@ -1265,6 +1331,8 @@ void packetmath_real() {
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4] = {};
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4] = {};
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4] = {};
+
+  if (g_first_pass) packetmath_cbrt_accuracy<Scalar, Packet>();
 
   // Negate with -0.
   if (PacketTraits::HasNegate) {

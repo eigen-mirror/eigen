@@ -35,6 +35,28 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_halley_iteration
   return pnmadd(x_k, r, x_k);
 }
 
+// The last Halley step, the only one whose rounding error reaches the result. Where pmadd is fused,
+// x_k_sq + x_k_sq_lo = x_k^2 exactly and num = fl(fl(x_k_sq * x_k - y) + x_k_sq_lo * x_k) is within
+// 2u |x_k^3 - y| + u^2 y of x_k^3 - y for the unit roundoff u; cbrt_halley_iteration_step loses up to 2u y to the
+// two roundings of x_k^3. The result's relative error is then 2/3 e^3 for a relative error e in x_k, plus the
+// rounding of the final pnmadd.
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_last_halley_iteration_step(const Packet& x_k,
+                                                                                           const Packet& y) {
+  EIGEN_IF_CONSTEXPR (is_fused_madd<Packet>::value) {
+    using Scalar = typename unpacket_traits<Packet>::type;
+    const Packet x_k_sq = pmul(x_k, x_k);
+    const Packet x_k_sq_lo = pmsub(x_k, x_k, x_k_sq);
+    const Packet x_k_cb = pmul(x_k_sq, x_k);
+    const Packet denom = pmadd(pset1<Packet>(Scalar(2)), x_k_cb, y);
+    const Packet num = pmadd(x_k_sq_lo, x_k, pmsub(x_k_sq, x_k, y));
+    const Packet r = pdiv(num, denom);
+    return pnmadd(x_k, r, x_k);
+  } else {
+    return cbrt_halley_iteration_step(x_k, y);
+  }
+}
+
 // Decompose the input such that x^(1/3) = y^(1/3) * 2^e_div3, and y is in the
 // interval [0.125,1].
 template <typename Packet>
@@ -86,7 +108,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
 // where e_div3 = ceil(e/3) and e_mod3 = e - 3*e_div3.
 //
 // The cube root of the second term y = (s * 2^e_mod3)^(1/3) is coarsely
-// approximated using a cubic polynomial and subsequently refined using a
+// approximated using a quartic polynomial and subsequently refined using a
 // single step of Halley's iteration, and finally the two terms are combined
 // using pldexp_fast.
 //
@@ -97,7 +119,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet cbrt_special_cases_an
 // among several alternatives tried, but is probably not "optimal" on all
 // platforms.
 //
-// This is accurate to 2 ULP.
+// Measured over every float in [1/8, 1), the error is at most 0.58 ULP where
+// pmadd is fused and 0.98 ULP elsewhere.
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Packet& x) {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -108,14 +131,14 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Pac
   Packet e_div3;
   const Packet y = cbrt_decompose(pabs(x), e_div3);
 
-  // Compute initial approximation accurate to 5.22e-3.
-  // The polynomial was computed using Rminimax.
-  constexpr float alpha[] = {5.9220016002655029296875e-01f, -1.3859539031982421875e+00f, 1.4581282138824462890625e+00f,
-                             3.408401906490325927734375e-01f};
-  Packet r = ppolevl<Packet, 3>::run(y, alpha);
+  // Initial approximation with relative error <= 1.87e-3, which one Halley step reduces to 0.07 ULP. Sollya 8.0:
+  //   fpminimax(x^(1/3), 4, [|single...|], [1/8; 1], relative, floating);
+  constexpr float alpha[] = {-0.884942114353179931640625f, 2.4534566402435302734375f, -2.6808016300201416015625f,
+                             1.7967746257781982421875f, 0.31364738941192626953125f};
+  Packet r = ppolevl<Packet, 4>::run(y, alpha);
 
   // Take one step of Halley's iteration.
-  r = cbrt_halley_iteration_step(r, y);
+  r = cbrt_last_halley_iteration_step(r, y);
 
   // Finally multiply by 2^(e_div3)
   r = pldexp_fast(r, e_div3);
@@ -128,7 +151,8 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_float(const Pac
 // The algorithm is identical to the one for float except that a different initial
 // approximation is used for y^(1/3) and two Halley iteration steps are performed.
 //
-// This is accurate to 1 ULP.
+// Measured, the result is within 1 ULP of the correctly rounded one, and where
+// pmadd is fused it is correctly rounded for all but about one input in a million.
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Packet& x) {
   using Scalar = typename unpacket_traits<Packet>::type;
@@ -139,16 +163,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcbrt_double(const Pa
   Packet e_div3;
   const Packet y = cbrt_decompose(pabs(x), e_div3);
 
-  // Compute initial approximation accurate to 0.016.
-  // The polynomial was computed using Rminimax.
-  constexpr double alpha[] = {-4.69470621553356115551736138513660989701747894287109375e-01,
-                              1.072314636518546304699839311069808900356292724609375e+00,
-                              3.81249427609571867048288140722434036433696746826171875e-01};
-  Packet r = ppolevl<Packet, 2>::run(y, alpha);
+  // Initial approximation with relative error <= 5.22e-3, which two Halley steps reduce to 6e-22. Sollya 8.0:
+  //   fpminimax(x^(1/3), 3, [|double...|], [1/8; 1], relative, floating);
+  constexpr double alpha[] = {
+      0.59218535776880332210936330739059485495090484619140625, -1.3859252584188996859637654779362492263317108154296875,
+      1.4581131468387165117661652402603067457675933837890625, 0.340841899750747245878557123432983644306659698486328125};
+  Packet r = ppolevl<Packet, 3>::run(y, alpha);
 
   // Take two steps of Halley's iteration.
   r = cbrt_halley_iteration_step(r, y);
-  r = cbrt_halley_iteration_step(r, y);
+  r = cbrt_last_halley_iteration_step(r, y);
 
   // Finally multiply by 2^(e_div3).
   r = pldexp_fast(r, e_div3);
