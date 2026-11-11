@@ -65,7 +65,7 @@ class TranspositionsBase {
 
   /** Sets \c *this to represents an identity transformation */
   void setIdentity() {
-    for (StorageIndex i = 0; i < indices().size(); ++i) coeffRef(i) = i;
+    for (Index i = 0; i < indices().size(); ++i) coeffRef(i) = internal::convert_index<StorageIndex>(i);
   }
 
   // FIXME: do we want such methods ?

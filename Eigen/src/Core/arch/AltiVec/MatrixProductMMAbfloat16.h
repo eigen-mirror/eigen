@@ -231,7 +231,7 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16(const float* res) {
 
 template <typename DataMapper, const Index size>
 EIGEN_ALWAYS_INLINE void convertArrayF32toBF16Col(float* result, Index col, Index rows, const DataMapper& res) {
-  const DataMapper res2 = res.getSubMapper(0, col);
+  const DataMapper res2 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
   Index row;
   float* result2 = result + col * rows;
   for (row = 0; row + 8 <= rows; row += 8, result2 += 8) {
@@ -241,14 +241,15 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16Col(float* result, Index col, Inde
     for (Index j = 0; j < size; j++) {
       block.packet[j] = convertF32toBF16(result2 + j * rows);
     }
-    res2.template storePacketBlock<Packet8bf, size>(row, 0, block);
+    res2.template storePacketBlock<Packet8bf, size>(convert_index<mapper_index_t<DataMapper>>(row), 0, block);
   }
   // extra rows
   if (row < rows) {
     BFLOAT16_UNROLL
-    for (Index j = 0; j < size; j++) {
+    for (int j = 0; j < size; j++) {
       Packet8bf fp16 = convertF32toBF16(result2 + j * rows);
-      res2.template storePacketPartial<Packet8bf>(row, j, fp16, rows & 7);
+      res2.template storePacketPartial<Packet8bf>(convert_index<mapper_index_t<DataMapper>>(row), j, fp16,
+                                                  convert_index<mapper_index_t<DataMapper>>(rows & 7));
     }
   }
 }
@@ -369,9 +370,10 @@ void gemmMMAbfloat16(const DataMapper& res, const bfloat16* indexA, const bfloat
 #if !EIGEN_ALTIVEC_DISABLE_MMA
 template <Index num_acc, typename LhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void loadVecLoop(Index k, LhsMapper& lhs, Packet8bf (&a0)[num_acc], Packet8bf b1) {
-  a0[k + 0] = lhs.template loadPacket<Packet8bf>(k * 4, 0);
+  const auto row = convert_index<mapper_index_t<LhsMapper>>(k * 4);
+  a0[k + 0] = lhs.template loadPacket<Packet8bf>(row, 0);
   if (!zero) {
-    b1 = lhs.template loadPacket<Packet8bf>(k * 4, 1);
+    b1 = lhs.template loadPacket<Packet8bf>(row, 1);
   }
   if (num_acc > (k + 1)) {
     a0[k + 1] = vec_mergel(a0[k + 0].m_val, b1.m_val);
@@ -393,7 +395,8 @@ template <Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool
 EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __vector_quad (&quad_acc)[num_acc]) {
   Packet8bf a0[num_acc];
   Packet8bf b1 = pset1<Packet8bf>(Eigen::bfloat16(0));
-  Packet8bf b0 = loadColData<RhsMapper, linear>(rhs, j);
+  const auto col = convert_index<mapper_index_t<LhsMapper>>(j);
+  Packet8bf b0 = loadColData<RhsMapper, linear>(rhs, col);
 
   if (zero) {
     b0 = vec_mergeh(b0.m_val, b1.m_val);
@@ -401,7 +404,7 @@ EIGEN_ALWAYS_INLINE void vecColLoop(Index j, LhsMapper& lhs, RhsMapper& rhs, __v
 
   using LhsSubMapper = typename LhsMapper::SubMapper;
 
-  LhsSubMapper lhs2 = lhs.getSubMapper(0, j);
+  LhsSubMapper lhs2 = lhs.getSubMapper(0, col);
   BFLOAT16_UNROLL
   for (Index k = 0; k < num_acc; k += 2) {
     loadVecLoop<num_acc, LhsSubMapper, zero>(k, lhs2, a0, b1);
@@ -427,7 +430,7 @@ void colVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, RhsMa
 
     using LhsSubMapper = typename LhsMapper::SubMapper;
 
-    LhsSubMapper lhs2 = lhs.getSubMapper(row, 0);
+    LhsSubMapper lhs2 = lhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(row), 0);
     for (Index j = 0; j + 2 <= cend; j += 2) {
       vecColLoop<num_acc, LhsSubMapper, RhsMapper, false, linear>(j, lhs2, rhs, quad_acc);
     }
@@ -507,7 +510,7 @@ struct UseMMAStride : std::false_type {
                                       const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    RhsSubMapper rhs2 = rhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(j2), 0);
     calcVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
   }
 };
@@ -520,7 +523,7 @@ struct UseMMAStride<RhsMapper, LhsMapper,
                                       const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    RhsSubMapper rhs2 = rhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(j2), 0);
     if (rhs.stride() == 1) {
       calcVecColLoops<LhsMapper, RhsSubMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     } else {
@@ -556,7 +559,7 @@ void gemvMMA_bfloat16_col(Index rows, Index cols, const LhsMapper& alhs, const R
 
     using LhsSubMapper = typename LhsMapper::SubMapper;
 
-    LhsSubMapper lhs2 = lhs.getSubMapper(0, j2);
+    LhsSubMapper lhs2 = lhs.getSubMapper(0, convert_index<mapper_index_t<LhsMapper>>(j2));
     UseMMAStride<RhsMapper, LhsSubMapper>::run(j2, jend, rows, lhs2, rhs2, pAlpha, result);
   }
 
@@ -603,18 +606,21 @@ template <Index num_acc, typename LhsMapper, typename RhsMapper, bool extra>
 EIGEN_ALWAYS_INLINE void multVecLoop(__vector_quad (&quad_acc)[num_acc], const LhsMapper& lhs, RhsMapper& rhs, Index j,
                                      Index extra_cols) {
   Packet8bf a0[num_acc], b0;
+  using MapperIndex = mapper_index_t<LhsMapper>;
+  const MapperIndex col = convert_index<MapperIndex>(j);
+  const MapperIndex extraCols = convert_index<MapperIndex>(extra_cols);
 
   if (extra) {
-    b0 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
+    b0 = rhs.template loadPacketPartial<Packet8bf>(col, extraCols);
   } else {
-    b0 = rhs.template loadPacket<Packet8bf>(j);
+    b0 = rhs.template loadPacket<Packet8bf>(col);
   }
 
-  const LhsMapper lhs2 = lhs.getSubMapper(0, j);
+  const LhsMapper lhs2 = lhs.getSubMapper(0, col);
   BFLOAT16_UNROLL
-  for (Index k = 0; k < num_acc; k++) {
+  for (int k = 0; k < num_acc; k++) {
     if (extra) {
-      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
+      a0[k] = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extraCols);
     } else {
       a0[k] = lhs2.template loadPacket<Packet8bf>(k, 0);
     }
@@ -648,7 +654,7 @@ void colVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMappe
 
     zeroAccumulators<num_acc>(quad_acc);
 
-    const LhsMapper lhs2 = lhs.getSubMapper(row, 0);
+    const LhsMapper lhs2 = lhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(row), 0);
     vecLoop<num_acc, LhsMapper, RhsMapper>(cols, lhs2, rhs, quad_acc, extra_cols);
 
     disassembleAccumulators<num_acc>(quad_acc, acc);

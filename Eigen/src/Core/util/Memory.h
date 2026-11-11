@@ -561,7 +561,7 @@ EIGEN_DEVICE_FUNC inline Index first_aligned(const Scalar* array, Index size) {
     return 0;
   } else EIGEN_IF_CONSTEXPR (Alignment <= ScalarSize) {
     // Stepping by sizeof(Scalar) preserves address modulo Alignment, so either element 0 is aligned or none is.
-    return (std::uintptr_t(array) & (Alignment - 1)) ? size : 0;
+    return (std::uintptr_t(array) & (std::uintptr_t(Alignment) - 1)) ? size : 0;
   } else EIGEN_IF_CONSTEXPR ((Alignment % ScalarSize) != 0) {
     // The requested alignment is not a multiple of the scalar size. Consequently, no element of the array is well
     // aligned.

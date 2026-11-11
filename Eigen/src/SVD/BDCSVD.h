@@ -118,7 +118,7 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
    * The default constructor is useful in cases in which the user intends to
    * perform decompositions via BDCSVD::compute(const MatrixType&).
    */
-  BDCSVD() : m_isTranspose(false), m_numIters(0) {}
+  BDCSVD() : m_numIters(0) {}
 
   /** \brief Default Constructor with memory preallocation
    *
@@ -259,7 +259,8 @@ class BDCSVD : public SVDBase<BDCSVD<MatrixType_, Options_> > {
   void allocate(Index rows, Index cols, unsigned int computationOptions);
   void allocate_small(Index rows, Index cols, unsigned int computationOptions);
   internal::bdcsvd_impl<RealScalar> m_impl;
-  bool m_isTranspose, m_useQrDecomp;
+  bool m_isTranspose = false;
+  bool m_useQrDecomp = false;
   // Only PreconditionSquareMatrix is forwarded: BDCSVD's QR bits configure its own R-bidiagonalization, and smallSvd
   // needs its QR preconditioner to reduce non-square inputs. The unitaries are requested at runtime in allocate().
   JacobiSVD<MatrixX, (Options & int(PreconditionSquareMatrix))> smallSvd;

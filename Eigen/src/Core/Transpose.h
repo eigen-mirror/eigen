@@ -277,8 +277,11 @@ void BlockedInPlaceTranspose(MatrixType& m) {
   }
   // Blocks rather than row()/col(): with a zero-sized fixed dimension those are not vectors and head() would not
   // compile.
+  constexpr int TailSize = MatrixType::RowsAtCompileTime == 0 || MatrixType::ColsAtCompileTime == 0 ? Dynamic : 1;
   for (Index row = row_start; row < m.rows(); ++row) {
-    m.matrix().block(row, 0, 1, row).swap(m.matrix().block(0, row, row, 1).transpose());
+    m.matrix()
+        .template block<TailSize, Dynamic>(row, 0, 1, row)
+        .swap(m.matrix().template block<Dynamic, TailSize>(0, row, row, 1).transpose());
   }
 }
 

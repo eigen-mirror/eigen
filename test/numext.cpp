@@ -902,8 +902,9 @@ void check_complex_divide() {
 #if EIGEN_COMP_MSVC
 #pragma float_control(precise, on, push)
 #pragma fenv_access(on)
-#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64) && !defined(__GPUCC__) && \
-    !defined(__SYCL_DEVICE_ONLY__)
+#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || (EIGEN_ARCH_ARM64 && EIGEN_COMP_CLANG >= 1600)) && \
+    !defined(__GPUCC__) && !defined(__SYCL_DEVICE_ONLY__)
+// AArch64 strict floating-point support was enabled in Clang 16.
 #pragma STDC FENV_ACCESS ON
 #endif
 
@@ -990,8 +991,8 @@ void check_narrow_fma_nonfinite() {
 #if EIGEN_COMP_MSVC
 #pragma fenv_access(off)
 #pragma float_control(pop)
-#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM_OR_ARM64) && !defined(__GPUCC__) && \
-    !defined(__SYCL_DEVICE_ONLY__)
+#elif EIGEN_COMP_CLANG && (EIGEN_ARCH_i386_OR_x86_64 || (EIGEN_ARCH_ARM64 && EIGEN_COMP_CLANG >= 1600)) && \
+    !defined(__GPUCC__) && !defined(__SYCL_DEVICE_ONLY__)
 #pragma STDC FENV_ACCESS OFF
 #endif
 

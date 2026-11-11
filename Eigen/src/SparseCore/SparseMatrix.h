@@ -1562,15 +1562,15 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
       for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) ++dest.m_outerIndex[it.index()];
 
     // prefix sum
-    StorageIndex count = 0;
+    Index count = 0;
     IndexVector positions(dest.outerSize());
     for (Index j = 0; j < dest.outerSize(); ++j) {
       StorageIndex tmp = dest.m_outerIndex[j];
-      dest.m_outerIndex[j] = count;
-      positions[j] = count;
+      dest.m_outerIndex[j] = internal::convert_index<StorageIndex>(count);
+      positions[j] = internal::convert_index<StorageIndex>(count);
       count += tmp;
     }
-    dest.m_outerIndex[dest.outerSize()] = count;
+    dest.m_outerIndex[dest.outerSize()] = internal::convert_index<StorageIndex>(count);
     // alloc
     dest.m_data.resize(count);
     // pass 2

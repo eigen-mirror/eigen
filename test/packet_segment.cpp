@@ -150,7 +150,7 @@ struct packet_segment_test_impl {
       }
     }
   }
-  static void verify_invalid_range(Index begin, Index count) {
+  static EIGEN_DONT_INLINE void verify_invalid_range(Index begin, Index count) {
     VectorX<Scalar> data = VectorX<Scalar>::Zero(PacketSize);
     const Packet a = internal::pset1<Packet>(Scalar(0));
     VERIFY_RAISES_ASSERT(internal::ploaduSegment<Packet>(data.data(), begin, count));

@@ -12,9 +12,18 @@
 #endif
 #endif
 
+#if defined(EIGEN_TEST_PART_2) && defined(__GNUC__) && !defined(__clang__)
+// This simulated device pass runs on GCC, which does not recognize SYCL's unroll pragma.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#endif
+
 // AdaptiveCpp defines this flag even without Eigen's explicit SYCL integration.
 #define SYCL_DEVICE_ONLY
 #include "main.h"
+#if defined(EIGEN_TEST_PART_2) && defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #include "fp_control.h"
 #if !defined(EIGEN_TEST_PART_2)
 #include <contrib/Eigen/Tensor>

@@ -416,7 +416,7 @@ template <typename Scalar, typename Packet, typename RhsPacket, typename DataMap
 EIGEN_ALWAYS_INLINE void gemmMMA_cols(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index depth,
                                       Index strideA, Index offsetA, Index strideB, Index offsetB, Index col, Index rows,
                                       Index remaining_rows, const Packet& pAlpha, const Packet& pMask) {
-  const DataMapper res30 = res.getSubMapper(0, col);
+  const DataMapper res30 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
   const DataMapper res31 = (accItr > 1) ? res30.getSubMapper(0, accRows * 1) : res30;
   const DataMapper res32 = (accItr > 2) ? res30.getSubMapper(0, accRows * 2) : res30;
   const DataMapper res33 = (accItr > 2) ? res30.getSubMapper(0, accRows * 3) : res30;
@@ -826,7 +826,7 @@ EIGEN_ALWAYS_INLINE void gemmMMA_complex_cols(const DataMapper& res, const Scala
                                               Index depth, Index strideA, Index offsetA, Index strideB, Index offsetB,
                                               Index col, Index rows, Index remaining_rows, const Packet& pAlphaReal,
                                               const Packet& pAlphaImag, const Packet& pMask) {
-  const DataMapper res30 = res.getSubMapper(0, col);
+  const DataMapper res30 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
   const DataMapper res31 = (accItr > 1) ? res30.getSubMapper(0, accRows * 1) : res30;
   const DataMapper res32 = (accItr > 2) ? res30.getSubMapper(0, accRows * 2) : res30;
   const DataMapper res33 = (accItr > 2) ? res30.getSubMapper(0, accRows * 3) : res30;

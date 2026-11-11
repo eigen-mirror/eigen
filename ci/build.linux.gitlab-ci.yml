@@ -433,6 +433,8 @@ build:linux:cuda-12.6:clang-19:
     EIGEN_CI_C_COMPILER: clang-19
     EIGEN_CI_CXX_COMPILER: clang++-19
     EIGEN_CI_TEST_CUDA_CLANG: "on"
+    # This job deliberately exercises 12.6 beyond Clang 19's last partially supported toolkit (12.5).
+    EIGEN_CI_CUDA_CXX_FLAGS: "-Wno-unknown-cuda-version"
     EIGEN_CI_CUDA_COMPUTE_ARCH: "50;53;89;90"
 
 # ---- CUDA 13 ----------------------------------------------------------------
@@ -781,6 +783,11 @@ build:linux:cross:ppc64le:clang-16:default:
     EIGEN_CI_C_COMPILER: clang-16
     EIGEN_CI_CXX_COMPILER: clang++-16
     EIGEN_CI_CROSS_INSTALL: g++-14-powerpc64le-linux-gnu clang-16 qemu-user-static
+    # Reject implicit vector reinterpretations instead of Clang's deprecated lax-conversion extension.
+    EIGEN_CI_ADDITIONAL_ARGS: >-
+      -DCMAKE_SYSTEM_NAME=Linux
+      -DCMAKE_CROSSCOMPILING_EMULATOR=qemu-ppc64le-static;-L;/usr/powerpc64le-linux-gnu
+      -DCMAKE_CXX_FLAGS=-fno-lax-vector-conversions
 
 ######## loongarch64 #################################################
 

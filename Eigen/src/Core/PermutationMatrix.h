@@ -125,7 +125,8 @@ class PermutationBase : public EigenBase<Derived> {
   template <typename OtherDerived>
   Derived& operator=(const TranspositionsBase<OtherDerived>& tr) {
     setIdentity(tr.size());
-    for (Index k = size() - 1; k >= 0; --k) applyTranspositionOnTheRight(k, tr.coeff(k));
+    for (Index k = size() - 1; k >= 0; --k)
+      applyTranspositionOnTheRight(k, internal::convert_index<Index>(tr.coeff(k)));
     return derived();
   }
 
@@ -166,8 +167,7 @@ class PermutationBase : public EigenBase<Derived> {
 
   /** Sets *this to be the identity permutation matrix */
   EIGEN_DEVICE_FUNC void setIdentity() {
-    StorageIndex n = StorageIndex(size());
-    for (StorageIndex i = 0; i < n; ++i) indices().coeffRef(i) = i;
+    for (Index i = 0; i < size(); ++i) indices().coeffRef(i) = internal::convert_index<StorageIndex>(i);
   }
 
   /** Sets *this to be the identity permutation matrix of given size.

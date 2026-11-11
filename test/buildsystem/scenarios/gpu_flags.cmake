@@ -42,3 +42,10 @@ foreach(clang OFF ON)
                      "-DENV_FLAG=1 -DINIT_FLAG=1 -DPLATFORM_FLAG=1" "-DNORMAL_FLAGS=")
   endforeach()
 endforeach()
+
+set(clang OFF)
+set(custom "")
+foreach(version 12.0 13.0)
+  check_cuda_flags("nvcc-${version}" "" "" "" "-DPLATFORM_FLAG=1" "-DPLATFORM_FLAG=1"
+                   "-DTEST_NVCC_VERSION=${version}")
+endforeach()

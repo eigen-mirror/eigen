@@ -360,8 +360,10 @@ EIGEN_ALWAYS_INLINE void pger_vecMMA_acc(__vector_quad* acc, __vector_pair& a, c
 #endif
 
 template <typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
-EIGEN_STRONG_INLINE void gemv_col(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs, ResScalar* res,
-                                  Index resIncr, ResScalar alpha) {
+EIGEN_STRONG_INLINE void gemv_col(mapper_index_t<LhsMapper> rows, mapper_index_t<LhsMapper> cols, const LhsMapper& alhs,
+                                  const RhsMapper& rhs, ResScalar* res, mapper_index_t<LhsMapper> resIncr,
+                                  ResScalar alpha) {
+  using Index = mapper_index_t<LhsMapper>;
   using Traits = gemv_traits<LhsScalar, RhsScalar>;
 
   using LhsPacket = typename Traits::LhsPacket;
@@ -470,10 +472,11 @@ static Packet16uc p16uc_MERGE16_32_V2 = {2, 3, 18, 19, 2, 3, 18, 19, 2, 3, 18, 1
 
 template <Index num_acc, typename LhsMapper, bool zero>
 EIGEN_ALWAYS_INLINE void loadVecLoopVSX(Index k, LhsMapper& lhs, Packet4f (&a0)[num_acc][2]) {
-  Packet8bf c0 = lhs.template loadPacket<Packet8bf>(k * 4, 0);
+  const auto row = convert_index<mapper_index_t<LhsMapper>>(k * 4);
+  Packet8bf c0 = lhs.template loadPacket<Packet8bf>(row, 0);
   Packet8bf b1;
   EIGEN_IF_CONSTEXPR (!zero) {
-    b1 = lhs.template loadPacket<Packet8bf>(k * 4, 1);
+    b1 = lhs.template loadPacket<Packet8bf>(row, 1);
 
     a0[k + 0][1] = oneConvertBF16Hi(b1.m_val);
   }
@@ -499,6 +502,7 @@ EIGEN_ALWAYS_INLINE void multVecVSX(Packet4f (&acc)[num_acc][2], Packet4f (&a0)[
 template <typename RhsMapper, bool linear>
 struct loadColData_impl {
   // linear == false
+  template <typename Index>
   static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j) {
     const Index n = unpacket_traits<Packet8bf>::size;
     EIGEN_ALIGN16 bfloat16 to[n];
@@ -513,12 +517,13 @@ struct loadColData_impl {
 template <typename RhsMapper>
 struct loadColData_impl<RhsMapper, true> {
   // linear == true
+  template <typename Index>
   static EIGEN_ALWAYS_INLINE Packet8bf run(RhsMapper& rhs, Index j) {
     return rhs.template loadPacket<Packet8bf>(j + 0, 0);
   }
 };
 
-template <typename RhsMapper, bool linear>
+template <typename RhsMapper, bool linear, typename Index>
 EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j) {
   return loadColData_impl<RhsMapper, linear>::run(rhs, j);
 }
@@ -526,7 +531,8 @@ EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j) {
 template <Index num_acc, typename LhsMapper, typename RhsMapper, bool zero, bool linear>
 EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, Packet4f (&acc)[num_acc][2]) {
   Packet4f a0[num_acc][2], b0[2];
-  Packet8bf b2 = loadColData<RhsMapper, linear>(rhs, j);
+  const auto col = convert_index<mapper_index_t<LhsMapper>>(j);
+  Packet8bf b2 = loadColData<RhsMapper, linear>(rhs, col);
 
   b0[0] = oneConvertBF16Perm(b2.m_val, p16uc_MERGE16_32_V1);
   EIGEN_IF_CONSTEXPR (!zero) {
@@ -535,7 +541,7 @@ EIGEN_ALWAYS_INLINE void vecColLoopVSX(Index j, LhsMapper& lhs, RhsMapper& rhs, 
 
   using LhsSubMapper = typename LhsMapper::SubMapper;
 
-  LhsSubMapper lhs2 = lhs.getSubMapper(0, j);
+  LhsSubMapper lhs2 = lhs.getSubMapper(0, col);
   for (Index k = 0; k < num_acc; k += 2) {
     loadVecLoopVSX<num_acc, LhsSubMapper, zero>(k, lhs2, a0);
   }
@@ -567,7 +573,7 @@ void colVSXVecColLoopBody(Index& row, Index cend, Index rows, LhsMapper& lhs, Rh
 
     using LhsSubMapper = typename LhsMapper::SubMapper;
 
-    LhsSubMapper lhs2 = lhs.getSubMapper(row, 0);
+    LhsSubMapper lhs2 = lhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(row), 0);
     for (Index j = 0; j + 2 <= cend; j += 2) {
       vecColLoopVSX<num_acc, LhsSubMapper, RhsMapper, false, linear>(j, lhs2, rhs, acc);
     }
@@ -701,7 +707,7 @@ struct UseStride : std::false_type {
                                       const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    RhsSubMapper rhs2 = rhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(j2), 0);
     calcVSXVecColLoops<LhsMapper, RhsSubMapper, false>(jend - j2, rows, lhs, rhs2, pAlpha, result);
   }
 };
@@ -714,7 +720,7 @@ struct UseStride<RhsMapper, LhsMapper,
                                       const Packet4f& pAlpha, float* result) {
     using RhsSubMapper = typename RhsMapper::SubMapper;
 
-    RhsSubMapper rhs2 = rhs.getSubMapper(j2, 0);
+    RhsSubMapper rhs2 = rhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(j2), 0);
     if (rhs.stride() == 1) {
       calcVSXVecColLoops<LhsMapper, RhsSubMapper, true>(jend - j2, rows, lhs, rhs2, pAlpha, result);
     } else {
@@ -750,7 +756,7 @@ void gemv_bfloat16_col(Index rows, Index cols, const LhsMapper& alhs, const RhsM
 
     using LhsSubMapper = typename LhsMapper::SubMapper;
 
-    LhsSubMapper lhs2 = lhs.getSubMapper(0, j2);
+    LhsSubMapper lhs2 = lhs.getSubMapper(0, convert_index<mapper_index_t<LhsMapper>>(j2));
     UseStride<RhsMapper, LhsSubMapper>::run(j2, jend, rows, lhs2, rhs2, pAlpha, result);
   }
 
@@ -826,22 +832,25 @@ EIGEN_ALWAYS_INLINE void multVSXVecLoop(Packet4f (&acc)[num_acc][2], const LhsMa
                                         Index extra_cols) {
   Packet4f a0[num_acc][2], b0[2];
   Packet8bf a1, b1;
+  using MapperIndex = mapper_index_t<LhsMapper>;
+  const MapperIndex col = convert_index<MapperIndex>(j);
+  const MapperIndex extraCols = convert_index<MapperIndex>(extra_cols);
 
   if (extra) {
-    b1 = rhs.template loadPacketPartial<Packet8bf>(j, extra_cols);
+    b1 = rhs.template loadPacketPartial<Packet8bf>(col, extraCols);
 #ifndef _ARCH_PWR9
     b1 = loadPacketPartialZero(b1.m_val, extra_cols);
 #endif
   } else {
-    b1 = rhs.template loadPacket<Packet8bf>(j);
+    b1 = rhs.template loadPacket<Packet8bf>(col);
   }
   b0[0] = oneConvertBF16Hi(b1.m_val);
   b0[1] = oneConvertBF16Lo(b1.m_val);
 
-  const LhsMapper lhs2 = lhs.getSubMapper(0, j);
-  for (Index k = 0; k < num_acc; k++) {
+  const LhsMapper lhs2 = lhs.getSubMapper(0, col);
+  for (int k = 0; k < num_acc; k++) {
     if (extra) {
-      a1 = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extra_cols);
+      a1 = lhs2.template loadPacketPartial<Packet8bf>(k, 0, extraCols);
 #ifndef _ARCH_PWR9
       a1 = loadPacketPartialZero(a1.m_val, extra_cols);
 #endif
@@ -879,7 +888,7 @@ void colVSXVecLoopBody(Index& row, Index cols, Index rows, LhsMapper& lhs, RhsMa
 
     zeroAccumulators<num_acc, 2>(acc);
 
-    const LhsMapper lhs2 = lhs.getSubMapper(row, 0);
+    const LhsMapper lhs2 = lhs.getSubMapper(convert_index<mapper_index_t<LhsMapper>>(row), 0);
     vecVSXLoop<num_acc, LhsMapper, RhsMapper>(cols, lhs2, rhs, acc, extra_cols);
 
     addResultsVSX<num_acc>(acc);
@@ -1409,7 +1418,7 @@ EIGEN_ALWAYS_INLINE void pstoreu_pmadd_complex(const PResPacket& c0, const PResP
 
 /** \internal load lhs packet */
 template <typename Scalar, typename LhsScalar, typename LhsMapper, typename LhsPacket>
-EIGEN_ALWAYS_INLINE LhsPacket loadLhsPacket(LhsMapper& lhs, Index i, Index j) {
+EIGEN_ALWAYS_INLINE LhsPacket loadLhsPacket(LhsMapper& lhs, mapper_index_t<LhsMapper> i, mapper_index_t<LhsMapper> j) {
   EIGEN_IF_CONSTEXPR (sizeof(Scalar) == sizeof(LhsScalar)) {
     const LhsScalar& src = lhs(i + 0, j);
     return LhsPacket(pload_real_full(const_cast<LhsScalar*>(&src)));
@@ -2038,8 +2047,10 @@ EIGEN_ALWAYS_INLINE void disassembleResults(__vector_quad* c0, PacketBlock<Scala
 
 template <typename Scalar, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, bool LhsIsReal,
           typename RhsScalar, typename RhsMapper, bool ConjugateRhs, bool RhsIsReal, typename ResScalar>
-EIGEN_STRONG_INLINE void gemv_complex_col(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
-                                          ResScalar* res, Index resIncr, ResScalar alpha) {
+EIGEN_STRONG_INLINE void gemv_complex_col(mapper_index_t<LhsMapper> rows, mapper_index_t<LhsMapper> cols,
+                                          const LhsMapper& alhs, const RhsMapper& rhs, ResScalar* res,
+                                          mapper_index_t<LhsMapper> resIncr, ResScalar alpha) {
+  using Index = mapper_index_t<LhsMapper>;
   // This kernel expands real packets itself rather than using the generic mixed-packet loaders.
   using Traits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketFull, false>;
 
@@ -2371,8 +2382,10 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(const ResPacket& a,
   }
 
 template <typename LhsScalar, typename LhsMapper, typename RhsScalar, typename RhsMapper, typename ResScalar>
-EIGEN_STRONG_INLINE void gemv_row(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs, ResScalar* res,
-                                  Index resIncr, ResScalar alpha) {
+EIGEN_STRONG_INLINE void gemv_row(mapper_index_t<LhsMapper> rows, mapper_index_t<LhsMapper> cols, const LhsMapper& alhs,
+                                  const RhsMapper& rhs, ResScalar* res, mapper_index_t<LhsMapper> resIncr,
+                                  ResScalar alpha) {
+  using Index = mapper_index_t<LhsMapper>;
   using Traits = gemv_traits<LhsScalar, RhsScalar>;
 
   using LhsPacket = typename Traits::LhsPacket;
@@ -2712,8 +2725,10 @@ EIGEN_ALWAYS_INLINE ScalarBlock<ResScalar, 2> predux_complex(PResPacket& a0, PRe
 
 template <typename Scalar, typename LhsScalar, typename LhsMapper, bool ConjugateLhs, bool LhsIsReal,
           typename RhsScalar, typename RhsMapper, bool ConjugateRhs, bool RhsIsReal, typename ResScalar>
-EIGEN_STRONG_INLINE void gemv_complex_row(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
-                                          ResScalar* res, Index resIncr, ResScalar alpha) {
+EIGEN_STRONG_INLINE void gemv_complex_row(mapper_index_t<LhsMapper> rows, mapper_index_t<LhsMapper> cols,
+                                          const LhsMapper& alhs, const RhsMapper& rhs, ResScalar* res,
+                                          mapper_index_t<LhsMapper> resIncr, ResScalar alpha) {
+  using Index = mapper_index_t<LhsMapper>;
   // This kernel expands real packets itself rather than using the generic mixed-packet loaders.
   using Traits = gemv_traits<LhsScalar, RhsScalar, GEBPPacketFull, false>;
 

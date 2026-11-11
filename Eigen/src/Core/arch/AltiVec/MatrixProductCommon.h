@@ -18,6 +18,9 @@ namespace Eigen {
 
 namespace internal {
 
+template <typename Mapper>
+using mapper_index_t = decltype(std::declval<const Mapper&>().stride());
+
 template <typename Scalar, typename Packet, typename DataMapper, const Index accRows, const Index accCols>
 EIGEN_ALWAYS_INLINE void gemm_extra_row(const DataMapper& res, const Scalar* lhs_base, const Scalar* rhs_base,
                                         Index depth, Index strideA, Index offsetA, Index strideB, Index row, Index rows,
@@ -68,7 +71,7 @@ EIGEN_ALWAYS_INLINE void outputVecColResults(Packet4f (&acc)[num_acc][size], flo
 template <Index num_acc, Index size = 4>
 EIGEN_ALWAYS_INLINE void outputVecResults(Packet4f (&acc)[num_acc][size], float* result, const Packet4f& pAlpha);
 
-template <typename RhsMapper, bool linear>
+template <typename RhsMapper, bool linear, typename Index>
 EIGEN_ALWAYS_INLINE Packet8bf loadColData(RhsMapper& rhs, Index j);
 
 template <typename Packet>

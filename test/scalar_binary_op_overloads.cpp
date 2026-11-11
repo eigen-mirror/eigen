@@ -103,8 +103,8 @@ double operator*(const EigenBaseScalar<Kind>& lhs, double rhs) {
 }
 
 struct PrivateMatrixScalar : private Eigen::Matrix2d {
-  PrivateMatrixScalar() = default;
-  explicit PrivateMatrixScalar(double value) : value(value) {}
+  PrivateMatrixScalar() : Eigen::Matrix2d(Eigen::Matrix2d::Zero()) {}
+  explicit PrivateMatrixScalar(double value) : Eigen::Matrix2d(Eigen::Matrix2d::Zero()), value(value) {}
   using Eigen::Matrix2d::derived;
   double value = 0;
 };

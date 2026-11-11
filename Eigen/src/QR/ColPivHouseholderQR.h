@@ -319,7 +319,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
   RealRowVectorType m_colNormsUpdated;
   RealRowVectorType m_colNormsDirect;
   bool m_isInitialized;
-  Index m_det_p;
+  Index m_det_p = 1;
 };
 
 template <typename MatrixType, typename PermutationIndex>

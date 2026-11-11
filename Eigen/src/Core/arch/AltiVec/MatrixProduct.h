@@ -380,6 +380,7 @@ EIGEN_ALWAYS_INLINE void storeBlock(Scalar* to, PacketBlock<Packet, N>& block) {
 template <typename Scalar, typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate,
           bool PanelMode, bool UseLhs>
 struct dhs_cpack {
+  using Index = mapper_index_t<DataMapper>;
   template <bool transpose>
   EIGEN_ALWAYS_INLINE void dhs_cblock(PacketBlock<PacketC, 8>& cblock, PacketBlock<Packet, 4>& block,
                                       const Packet16uc& permute) {
@@ -556,6 +557,7 @@ struct dhs_cpack {
 // General template for lhs & rhs packing.
 template <typename Scalar, typename DataMapper, typename Packet, int StorageOrder, bool PanelMode, bool UseLhs>
 struct dhs_pack {
+  using Index = mapper_index_t<DataMapper>;
   template <Index n>
   EIGEN_ALWAYS_INLINE void dhs_copy(Scalar* blockA, const DataMapper& lhs2, Index& i, Index& ri, Index depth,
                                     const Index vectorSize) {
@@ -659,6 +661,7 @@ struct dhs_pack {
 // General template for lhs packing, float64 specialization.
 template <typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, true> {
+  using Index = mapper_index_t<DataMapper>;
   template <Index n>
   EIGEN_ALWAYS_INLINE void dhs_copy(double* blockA, const DataMapper& lhs2, Index& i, Index& ri, Index depth,
                                     const Index vectorSize) {
@@ -736,6 +739,7 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, true> {
 // General template for rhs packing, float64 specialization.
 template <typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false> {
+  using Index = mapper_index_t<DataMapper>;
   template <Index n>
   EIGEN_ALWAYS_INLINE void dhs_copy(double* blockB, const DataMapper& rhs2, Index& i, Index& ri, Index depth,
                                     const Index vectorSize) {
@@ -835,6 +839,7 @@ struct dhs_pack<double, DataMapper, Packet2d, StorageOrder, PanelMode, false> {
 // General template for lhs packing, bfloat16 specialization.
 template <typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true> {
+  using Index = mapper_index_t<DataMapper>;
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockA, const DataMapper& lhs, Index depth, Index rows, Index stride,
                                       Index offset) {
     const Index vectorSize = quad_traits<bfloat16>::vectorsize;
@@ -1178,6 +1183,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, true> 
 // General template for rhs packing, bfloat16 specialization.
 template <typename DataMapper, int StorageOrder, bool PanelMode>
 struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false> {
+  using Index = mapper_index_t<DataMapper>;
   EIGEN_STRONG_INLINE void operator()(bfloat16* blockB, const DataMapper& rhs, Index depth, Index cols, Index stride,
                                       Index offset) {
     const Index vectorSize = quad_traits<bfloat16>::vectorsize;
@@ -1305,6 +1311,7 @@ struct dhs_pack<bfloat16, DataMapper, Packet8bf, StorageOrder, PanelMode, false>
 // General template for lhs complex packing, float64 specialization.
 template <typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, true> {
+  using Index = mapper_index_t<DataMapper>;
   EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockAt, const DataMapper& lhs2, Index& i, Index& rir, Index& rii,
                                      Index depth, const Index vectorSize) {
     PacketBlock<Packet, 2> blockr, blocki;
@@ -1415,6 +1422,7 @@ struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, P
 // General template for rhs complex packing, float64 specialization.
 template <typename DataMapper, typename Packet, typename PacketC, int StorageOrder, bool Conjugate, bool PanelMode>
 struct dhs_cpack<double, DataMapper, Packet, PacketC, StorageOrder, Conjugate, PanelMode, false> {
+  using Index = mapper_index_t<DataMapper>;
   EIGEN_ALWAYS_INLINE void dhs_ccopy(double* blockBt, const DataMapper& rhs2, Index& i, Index& rir, Index& rii,
                                      Index depth, const Index vectorSize) {
     for (; i < depth; i++) {
@@ -1613,22 +1621,25 @@ EIGEN_ALWAYS_INLINE void bscalec(PacketBlock<Packet, N>& aReal, PacketBlock<Pack
 template <typename DataMapper, typename Packet, const Index accCols, int StorageOrder, bool Complex, int N, bool full>
 EIGEN_ALWAYS_INLINE void bload(PacketBlock<Packet, N*(Complex ? 2 : 1)>& acc, const DataMapper& res, Index row,
                                Index col) {
+  using MapperIndex = mapper_index_t<DataMapper>;
+  const MapperIndex mapperRow = convert_index<MapperIndex>(row);
+  const MapperIndex mapperCol = convert_index<MapperIndex>(col);
   EIGEN_IF_CONSTEXPR (StorageOrder == RowMajor) {
     for (int M = 0; M < N; M++) {
-      acc.packet[M] = res.template loadPacket<Packet>(row + M, col);
+      acc.packet[M] = res.template loadPacket<Packet>(mapperRow + M, mapperCol);
     }
     EIGEN_IF_CONSTEXPR (Complex) {
       for (int M = 0; M < N; M++) {
-        acc.packet[M + N] = res.template loadPacket<Packet>(row + M, col + accCols);
+        acc.packet[M + N] = res.template loadPacket<Packet>(mapperRow + M, mapperCol + MapperIndex(accCols));
       }
     }
   } else {
     for (int M = 0; M < N; M++) {
-      acc.packet[M] = res.template loadPacket<Packet>(row, col + M);
+      acc.packet[M] = res.template loadPacket<Packet>(mapperRow, mapperCol + M);
     }
     EIGEN_IF_CONSTEXPR (Complex && full) {
       for (int M = 0; M < N; M++) {
-        acc.packet[M + N] = res.template loadPacket<Packet>(row + accCols, col + M);
+        acc.packet[M + N] = res.template loadPacket<Packet>(mapperRow + MapperIndex(accCols), mapperCol + M);
       }
     }
   }
@@ -1636,8 +1647,9 @@ EIGEN_ALWAYS_INLINE void bload(PacketBlock<Packet, N*(Complex ? 2 : 1)>& acc, co
 
 template <typename DataMapper, typename Packet, int N>
 EIGEN_ALWAYS_INLINE void bstore(PacketBlock<Packet, N>& acc, const DataMapper& res, Index row) {
+  const auto mapperRow = convert_index<mapper_index_t<DataMapper>>(row);
   for (int M = 0; M < N; M++) {
-    res.template storePacket<Packet>(row, M, acc.packet[M]);
+    res.template storePacket<Packet>(mapperRow, M, acc.packet[M]);
   }
 }
 
@@ -1645,22 +1657,27 @@ EIGEN_ALWAYS_INLINE void bstore(PacketBlock<Packet, N>& acc, const DataMapper& r
 template <typename DataMapper, typename Packet, const Index accCols, bool Complex, Index N, bool full>
 EIGEN_ALWAYS_INLINE void bload_partial(PacketBlock<Packet, N*(Complex ? 2 : 1)>& acc, const DataMapper& res, Index row,
                                        Index elements) {
+  using MapperIndex = mapper_index_t<DataMapper>;
+  const MapperIndex mapperRow = convert_index<MapperIndex>(row);
+  const MapperIndex mapperElements = convert_index<MapperIndex>(elements);
   EIGEN_IF_CONSTEXPR (Complex && full) {
-    for (Index M = 0; M < N; M++) {
-      acc.packet[M] = res.template loadPacket<Packet>(row, M);
-      acc.packet[M + N] = res.template loadPacketPartial<Packet>(row + accCols, M, elements);
+    for (int M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacket<Packet>(mapperRow, M);
+      acc.packet[M + N] = res.template loadPacketPartial<Packet>(mapperRow + MapperIndex(accCols), M, mapperElements);
     }
   } else {
-    for (Index M = 0; M < N; M++) {
-      acc.packet[M] = res.template loadPacketPartial<Packet>(row, M, elements);
+    for (int M = 0; M < N; M++) {
+      acc.packet[M] = res.template loadPacketPartial<Packet>(mapperRow, M, mapperElements);
     }
   }
 }
 
 template <typename DataMapper, typename Packet, Index N>
 EIGEN_ALWAYS_INLINE void bstore_partial(PacketBlock<Packet, N>& acc, const DataMapper& res, Index row, Index elements) {
-  for (Index M = 0; M < N; M++) {
-    res.template storePacketPartial<Packet>(row, M, acc.packet[M], elements);
+  const auto mapperRow = convert_index<mapper_index_t<DataMapper>>(row);
+  const auto mapperElements = convert_index<mapper_index_t<DataMapper>>(elements);
+  for (int M = 0; M < N; M++) {
+    res.template storePacketPartial<Packet>(mapperRow, M, acc.packet[M], mapperElements);
   }
 }
 
@@ -2105,7 +2122,7 @@ template <typename Scalar, typename Packet, typename DataMapper, const Index acc
 EIGEN_ALWAYS_INLINE void gemm_cols(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, Index depth,
                                    Index strideA, Index offsetA, Index strideB, Index offsetB, Index col, Index rows,
                                    Index remaining_rows, const Packet& pAlpha, const Packet& pMask) {
-  const DataMapper res3 = res.getSubMapper(0, col);
+  const DataMapper res3 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
 
   const Scalar* rhs_base = blockB + col * strideB + MICRO_NEW_ROWS * offsetB;
   const Scalar* lhs_base = blockA + accCols * offsetA;
@@ -2544,7 +2561,7 @@ EIGEN_ALWAYS_INLINE void gemm_complex_cols(const DataMapper& res, const Scalar* 
                                            Index depth, Index strideA, Index offsetA, Index strideB, Index offsetB,
                                            Index col, Index rows, Index remaining_rows, const Packet& pAlphaReal,
                                            const Packet& pAlphaImag, const Packet& pMask) {
-  const DataMapper res3 = res.getSubMapper(0, col);
+  const DataMapper res3 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
 
   const Scalar* rhs_base = blockB + advanceCols * col * strideB + MICRO_NEW_ROWS * offsetB;
   const Scalar* lhs_base = blockA + accCols * offsetA;
@@ -3053,18 +3070,19 @@ EIGEN_ALWAYS_INLINE void calcVSXColLoops(const bfloat16*& indexA, const float* i
   }
 }
 
-template <const Index size, typename DataMapper>
+template <const Index size, typename DataMapper, typename MapperIndex>
 EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float* result, Index rows, const DataMapper& src) {
   constexpr Index extra = ((size < 4) ? 4 : size);
   while (i + size <= rows) {
     PacketBlock<Packet8bf, (size + 7) / 8> r32;
-    r32.packet[0] = src.template loadPacket<Packet8bf>(i + 0);
+    const MapperIndex mapperRow = convert_index<MapperIndex>(i);
+    r32.packet[0] = src.template loadPacket<Packet8bf>(mapperRow);
     EIGEN_IF_CONSTEXPR (size >= 16) {
-      r32.packet[1] = src.template loadPacket<Packet8bf>(i + 8);
+      r32.packet[1] = src.template loadPacket<Packet8bf>(mapperRow + 8);
     }
     EIGEN_IF_CONSTEXPR (size >= 32) {
-      r32.packet[2] = src.template loadPacket<Packet8bf>(i + 16);
-      r32.packet[3] = src.template loadPacket<Packet8bf>(i + 24);
+      r32.packet[2] = src.template loadPacket<Packet8bf>(mapperRow + 16);
+      r32.packet[3] = src.template loadPacket<Packet8bf>(mapperRow + 24);
     }
     storeConvertBlockBF16<size>(result + i, r32, rows & 3);
     i += extra;
@@ -3075,14 +3093,15 @@ EIGEN_ALWAYS_INLINE void convertBF16toF32(Index& i, float* result, Index rows, c
 template <typename DataMapper>
 EIGEN_ALWAYS_INLINE void convertArrayBF16toF32(float* result, Index cols, Index rows, const DataMapper& src) {
   using LinearMapper = typename DataMapper::LinearMapper;
+  using MapperIndex = mapper_index_t<DataMapper>;
   for (Index j = 0; j < cols; j++, result += rows) {
-    const LinearMapper src2 = src.getLinearMapper(0, j);
+    const LinearMapper src2 = src.getLinearMapper(0, convert_index<MapperIndex>(j));
     Index i = 0;
-    convertBF16toF32<32, LinearMapper>(i, result, rows, src2);
-    convertBF16toF32<16, LinearMapper>(i, result, rows, src2);
-    convertBF16toF32<8, LinearMapper>(i, result, rows, src2);
-    convertBF16toF32<4, LinearMapper>(i, result, rows, src2);
-    convertBF16toF32<1, LinearMapper>(i, result, rows, src2);
+    convertBF16toF32<32, LinearMapper, MapperIndex>(i, result, rows, src2);
+    convertBF16toF32<16, LinearMapper, MapperIndex>(i, result, rows, src2);
+    convertBF16toF32<8, LinearMapper, MapperIndex>(i, result, rows, src2);
+    convertBF16toF32<4, LinearMapper, MapperIndex>(i, result, rows, src2);
+    convertBF16toF32<1, LinearMapper, MapperIndex>(i, result, rows, src2);
   }
 }
 
@@ -3092,7 +3111,7 @@ EIGEN_ALWAYS_INLINE Packet8bf convertF32toBF16VSX(const float* res) {
 
 template <typename DataMapper, const Index size>
 EIGEN_ALWAYS_INLINE void convertArrayF32toBF16ColVSX(float* result, Index col, Index rows, const DataMapper& res) {
-  const DataMapper res2 = res.getSubMapper(0, col);
+  const DataMapper res2 = res.getSubMapper(0, convert_index<mapper_index_t<DataMapper>>(col));
   Index row;
   float* result2 = result + col * rows;
   for (row = 0; row + 8 <= rows; row += 8, result2 += 8) {
@@ -3101,13 +3120,14 @@ EIGEN_ALWAYS_INLINE void convertArrayF32toBF16ColVSX(float* result, Index col, I
     for (Index j = 0; j < size; j++) {
       block.packet[j] = convertF32toBF16VSX(result2 + j * rows);
     }
-    res2.template storePacketBlock<Packet8bf, size>(row, 0, block);
+    res2.template storePacketBlock<Packet8bf, size>(convert_index<mapper_index_t<DataMapper>>(row), 0, block);
   }
   // extra rows
   if (row < rows) {
-    for (Index j = 0; j < size; j++) {
+    for (int j = 0; j < size; j++) {
       Packet8bf fp16 = convertF32toBF16VSX(result2 + j * rows);
-      res2.template storePacketPartial<Packet8bf>(row, j, fp16, rows & 7);
+      res2.template storePacketPartial<Packet8bf>(convert_index<mapper_index_t<DataMapper>>(row), j, fp16,
+                                                  convert_index<mapper_index_t<DataMapper>>(rows & 7));
     }
   }
 }

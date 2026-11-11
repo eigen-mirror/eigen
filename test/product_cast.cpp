@@ -260,6 +260,7 @@ void float_accumulation_workspace() {
 }
 
 EIGEN_DECLARE_TEST(product_cast) {
+  EIGEN_UNUSED_VARIABLE(kCastTemporaries);
   using MatrixXhalf = Matrix<half, Dynamic, Dynamic>;
   using internal::gemm_accumulates_in_float;
   using internal::gemm_operand_traits;

@@ -36,7 +36,8 @@ void check_degenerate_gemv(const Lhs& lhs, const Rhs& rhs) {
       Wide sum(0);
       long double magnitude = 0;
       for (Index k = 0; k < lhs.cols(); ++k) {
-        const Wide term = Wide(alpha) * internal::cast<typename Lhs::Scalar, Wide>(lhs.coeff(i, k)) *
+        const Wide term = internal::cast<Scalar, Wide>(alpha) *
+                          internal::cast<typename Lhs::Scalar, Wide>(lhs.coeff(i, k)) *
                           internal::cast<typename Rhs::Scalar, Wide>(rhs.coeff(k, 0));
         sum += term;
         magnitude += numext::abs(term);

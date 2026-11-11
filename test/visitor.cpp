@@ -747,6 +747,11 @@ template <int Options>
 void checkFindCoeffWithoutPacketCmp() {
   using S = NoPacketCmpScalar;
   Matrix<S, Dynamic, Dynamic, Options> m(5, 7);
+  using Column = decltype(m.col(0));
+  STATIC_CHECK((int(internal::evaluator<Column>::Alignment) == int(Unaligned)));
+  // A fixed outer stride reaches the remainder expression even when the packet alignment is zero.
+  using FixedColumn = decltype(std::declval<Matrix<S, 6, 6>&>().col(0));
+  STATIC_CHECK((int(internal::evaluator<FixedColumn>::Alignment) == int(Unaligned)));
   for (Index k = 0; k < m.size(); ++k) m(k) = S(double((k * 11) % m.size()));
   const S lo(-1), hi(100);
   m(3, 2) = lo;

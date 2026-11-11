@@ -1471,7 +1471,8 @@ struct evaluator<Block<ArgType, BlockRows, BlockCols, InnerPanel>>
 
     PacketAlignment = unpacket_traits<PacketScalar>::alignment,
     Alignment0 = (IsInnerPanel && (OuterStrideAtCompileTime != Dynamic) && (OuterStrideAtCompileTime != 0) &&
-                  (((OuterStrideAtCompileTime * int(sizeof(Scalar))) % int(PacketAlignment)) == 0))
+                  (((OuterStrideAtCompileTime * int(sizeof(Scalar))) %
+                    (int(PacketAlignment) != 0 ? int(PacketAlignment) : 1)) == 0))
                      ? int(PacketAlignment)
                      : 0,
     Alignment = plain_enum_min(evaluator<ArgType>::Alignment, Alignment0)

@@ -120,6 +120,10 @@ macro(ei_gpu_testing_enable)
       unset(eigen_cuda_flags_initialized)
       if(CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
         string(APPEND CMAKE_CUDA_FLAGS " --expt-relaxed-constexpr -Xcudafe \"--display_error_number\"")
+        if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+          # CUDA 13 emits these during code generation despite DisableStupidWarnings.h's pragma.
+          string(APPEND CMAKE_CUDA_FLAGS " --diag-suppress=20014")
+        endif()
       endif()
       message(STATUS "CUDA tests: ${CMAKE_CUDA_COMPILER_ID} ${CMAKE_CUDA_COMPILER_VERSION}, "
                      "architectures ${CMAKE_CUDA_ARCHITECTURES}")

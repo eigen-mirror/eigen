@@ -622,7 +622,7 @@ void redux_runtime_contiguous() {
     long double sum_abs = 0;
     RealScalar rmin = numext::real(data(0)), rmax = numext::real(data(0)), rsqn(0);
     for (Index k = 0; k < n; ++k) {
-      const ReferenceScalar value(data(k));
+      const ReferenceScalar value = static_cast<ReferenceScalar>(data(k));
       rs += value;
       sum_abs += numext::abs(value);
       rp *= data_for_prod(k);
@@ -666,7 +666,7 @@ void redux_runtime_contiguous() {
     long double row_sum_abs = 0;
     RealScalar row_sqn(0);
     for (Index j = 0; j < n; ++j) {
-      const ReferenceScalar value(r(0, j));
+      const ReferenceScalar value = static_cast<ReferenceScalar>(r(0, j));
       row_sum += value;
       row_sum_abs += numext::abs(value);
       row_sqn += numext::abs2(r(0, j));
@@ -682,7 +682,7 @@ void redux_runtime_contiguous() {
       long double matrix_sum_abs = 0;
       for (Index j = 0; j < M.cols(); ++j)
         for (Index i = 0; i < M.rows(); ++i) {
-          const ReferenceScalar value(M(i, j));
+          const ReferenceScalar value = static_cast<ReferenceScalar>(M(i, j));
           matrix_sum += value;
           matrix_sum_abs += numext::abs(value);
         }
@@ -700,7 +700,7 @@ void redux_runtime_contiguous() {
     long double sum_abs2 = 0;
     RealScalar rsqn2(0);
     for (Index k = 0; k < n; ++k) {
-      const ReferenceScalar value(data(2 * k));
+      const ReferenceScalar value = static_cast<ReferenceScalar>(data(2 * k));
       rs2 += value;
       sum_abs2 += numext::abs(value);
       rsqn2 += numext::abs2(data(2 * k));

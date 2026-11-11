@@ -3000,7 +3000,8 @@ void packetmath_complex() {
       for (int j = 0; j < size; j += PacketSize)
         internal::pstore(data2 + j, internal::plog(internal::pload<Packet>(data1 + j)));
       for (int i = 0; i < size; ++i) {
-        const std::complex<long double> z(data1[i].real(), data1[i].imag());
+        const std::complex<long double> z(static_cast<long double>(data1[i].real()),
+                                          static_cast<long double>(data1[i].imag()));
         const std::complex<long double> expected = std::log(z);
         // The rounded hypot loses relative accuracy in log(|z|) near |z| = 1; arg(z) keeps a relative bound.
         const long double eps = 8 * static_cast<long double>(NumTraits<RealScalar>::epsilon());

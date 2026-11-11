@@ -626,9 +626,9 @@ static void test_large_contraction_with_output_kernel() {
 
 // Tensors whose StorageIndex is narrower than Eigen::Index instantiate the GEBP kernel with that index type, which
 // the architecture-specific kernels have to support.
-template <int DataLayout, typename Scalar>
+template <int DataLayout, typename Scalar, typename StorageIndex = int>
 static void test_narrow_index_contraction() {
-  using TensorType = Tensor<Scalar, 2, DataLayout, int>;
+  using TensorType = Tensor<Scalar, 2, DataLayout, StorageIndex>;
   using NarrowDimPair = typename TensorType::DimensionPair;
 
   TensorType t_left(53, 37);
@@ -641,15 +641,25 @@ static void test_narrow_index_contraction() {
   using MapType = Map<Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout>>;
   MapType m_left(t_left.data(), 53, 37);
   MapType m_right(t_right.data(), 37, 41);
-  Eigen::Matrix<Scalar, Dynamic, Dynamic, DataLayout> m_result(53, 41);
+  using ReferenceScalar = std::conditional_t<std::is_same<Scalar, bfloat16>::value, float, Scalar>;
+  Eigen::Matrix<ReferenceScalar, Dynamic, Dynamic, DataLayout> m_result(53, 41);
 
   Eigen::array<NarrowDimPair, 1> dims{{NarrowDimPair(1, 0)}};
 
   t_result = t_left.contract(t_right, dims);
-  m_result = m_left * m_right;
+  m_result = m_left.template cast<ReferenceScalar>() * m_right.template cast<ReferenceScalar>();
 
   for (int i = 0; i < t_result.size(); ++i) {
-    VERIFY_IS_APPROX(t_result.data()[i], m_result.data()[i]);
+    VERIFY_IS_APPROX(t_result.data()[i], Scalar(m_result.data()[i]));
+  }
+
+  t_right.resize(37, 1);
+  t_right.setRandom();
+  t_result = t_left.contract(t_right, dims);
+  MapType m_vector(t_right.data(), 37, 1);
+  m_result = m_left.template cast<ReferenceScalar>() * m_vector.template cast<ReferenceScalar>();
+  for (int i = 0; i < t_result.size(); ++i) {
+    VERIFY_IS_APPROX(t_result.data()[i], Scalar(m_result.data()[i]));
   }
 }
 
@@ -1092,6 +1102,10 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, std::complex<float>>()));
   CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, std::complex<double>>()));
   CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, std::complex<double>>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, bfloat16>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, bfloat16>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<ColMajor, bfloat16, Index>()));
+  CALL_SUBTEST_9((test_narrow_index_contraction<RowMajor, bfloat16, Index>()));
 
   // Zero-dimension contraction tests:
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, float>()));

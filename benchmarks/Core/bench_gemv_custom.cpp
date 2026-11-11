@@ -166,7 +166,7 @@ static void BM_CustomGemv(benchmark::State& state) {
 }
 
 #define EIGEN_BENCH_CUSTOM_GEMV(Order, Kind, Left) \
-  BENCHMARK_TEMPLATE(BM_CustomGemv, Order, Kind, Left)->ArgsProduct({{16, 64, 256, 2048}, {0, 1}})
+  BENCHMARK_TEMPLATE(BM_CustomGemv, Order, Kind, Left)->ArgsProduct({{16, 17, 64, 256, 2048}, {0, 1}})
 EIGEN_BENCH_CUSTOM_GEMV(Eigen::ColMajor, 0, false);
 EIGEN_BENCH_CUSTOM_GEMV(Eigen::RowMajor, 0, false);
 EIGEN_BENCH_CUSTOM_GEMV(Eigen::ColMajor, 0, true);

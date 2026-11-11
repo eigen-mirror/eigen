@@ -60,4 +60,5 @@ EIGEN_DECLARE_TEST(first_aligned) {
   some_non_vectorizable_type array_nonvec[100];
   test_first_aligned_helper(array_nonvec, 100);
   test_none_aligned_helper(array_nonvec, 100);
+  VERIFY_IS_EQUAL(internal::first_aligned<Unaligned>(array_nonvec, 100), 0);
 }

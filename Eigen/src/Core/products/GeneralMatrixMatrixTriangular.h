@@ -65,10 +65,11 @@ struct general_matrix_matrix_triangular_product<Index, LhsScalar, LhsStorageOrde
                                                 RhsStorageOrder, ConjugateRhs, ColMajor, ResInnerStride, UpLo,
                                                 Version> {
   using ResScalar = typename ScalarBinaryOpTraits<LhsScalar, RhsScalar>::ReturnType;
-  static EIGEN_STRONG_INLINE void run(Index size, Index depth, const LhsScalar* lhs_, Index lhsStride,
-                                      const RhsScalar* rhs_, Index rhsStride, ResScalar* res_, Index resIncr,
-                                      Index resStride, const ResScalar& alpha,
-                                      level3_blocking<LhsScalar, RhsScalar>& blocking) {
+  // Inlining into callers' loops can accumulate the packing buffers' stack allocations.
+  static EIGEN_DONT_INLINE void run(Index size, Index depth, const LhsScalar* lhs_, Index lhsStride,
+                                    const RhsScalar* rhs_, Index rhsStride, ResScalar* res_, Index resIncr,
+                                    Index resStride, const ResScalar& alpha,
+                                    level3_blocking<LhsScalar, RhsScalar>& blocking) {
     if (size == 0) {
       return;
     }

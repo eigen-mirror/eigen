@@ -453,7 +453,7 @@ void inner_panel_inference_test() {
   ColMajor8 a = ColMajor8::Random();
   RowMajor8 b = RowMajor8::Random();
   Index j = internal::random<Index>(0, 4);
-  VERIFY(internal::evaluator<decltype(a.block<8, 4>(0, j))>::Flags & LinearAccessBit);
+  VERIFY((internal::evaluator<decltype(a.block<8, 4>(0, j))>::Flags & LinearAccessBit) != 0);
   check_inner_panel_like(a.block<8, 4>(0, j), a.middleCols<4>(j));
   check_inner_panel_like(b.block<4, 8>(j, 0), b.middleRows<4>(j));
   check_inner_panel_like((a + a).block<8, 4>(0, j), (a + a).middleCols<4>(j));

@@ -585,10 +585,13 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
       EIGEN_UNROLL_LOOP
       for (int r = 0; r < Block; ++r) out(i + r) += unit_alpha ? sums.values[r] : alpha * sums.values[r];
     }
-    for (; i < size; ++i) {
-      Scalar sum = term(i, 0);
-      for (Index k = 1; k < depth; ++k) sum += term(i, k);
-      out(i) += unit_alpha ? sum : alpha * sum;
+    constexpr int OutputSize = OnRight ? int(traits<Lhs>::RowsAtCompileTime) : int(traits<Rhs>::ColsAtCompileTime);
+    EIGEN_IF_CONSTEXPR (OutputSize == Dynamic || OutputSize % Block != 0) {
+      for (; i < size; ++i) {
+        Scalar sum = term(i, 0);
+        for (Index k = 1; k < depth; ++k) sum += term(i, k);
+        out(i) += unit_alpha ? sum : alpha * sum;
+      }
     }
   }
 

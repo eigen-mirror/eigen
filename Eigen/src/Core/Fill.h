@@ -120,20 +120,20 @@ struct eigen_zero_impl<Xpr, /*use_memset*/ true> {
   using Scalar = typename Xpr::Scalar;
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst) {
     Index size = dst.size();
+    if (size <= 0) return;
     EIGEN_IF_CONSTEXPR (Xpr::MaxSizeAtCompileTime != Dynamic) {
       if (size > Xpr::MaxSizeAtCompileTime) {
         eigen_internal_assert(false && "invalid dense object size");
         return;
       }
     }
-    const std::ptrdiff_t num_bytes = size * static_cast<std::ptrdiff_t>(sizeof(Scalar));
-    if (num_bytes <= 0) return;
+    const std::size_t num_bytes = static_cast<std::size_t>(size) * sizeof(Scalar);
     void* dst_ptr = static_cast<void*>(dst.data());
 #ifndef EIGEN_NO_DEBUG
     eigen_assert((dst_ptr != nullptr) && "null pointer dereference error!");
 #endif
     EIGEN_USING_STD(memset);
-    memset(dst_ptr, 0, static_cast<std::size_t>(num_bytes));
+    memset(dst_ptr, 0, num_bytes);
   }
   template <typename SrcXpr>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Xpr& dst, const SrcXpr& src) {

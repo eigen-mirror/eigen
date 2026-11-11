@@ -451,7 +451,8 @@ struct unaligned_dense_assignment_loop<PacketType, DstAlignment, SrcAlignment, /
                                        /*Skip*/ false> {
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel, Index start, Index end) {
-    for (Index index = start; index < end; ++index) kernel.assignCoeff(index);
+    const Index count = end - start;
+    for (Index offset = 0; offset < count; ++offset) kernel.assignCoeff(start + offset);
   }
   template <typename Kernel>
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE constexpr void run(Kernel& kernel, Index outer, Index innerStart,
@@ -707,34 +708,35 @@ struct dense_assignment_loop_impl<Kernel, SliceVectorizedTraversal, NoUnrolling>
 #if EIGEN_UNALIGNED_VECTORIZE
     EIGEN_IF_CONSTEXPR (DstIsAligned) {
       runUnaligned(kernel, innerSize, outerSize);
-      return;
-    }
+    } else
 #endif
-    const Scalar* dst_ptr = kernel.dstDataPtr();
-    const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
-    Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
+    {
+      const Scalar* dst_ptr = kernel.dstDataPtr();
+      const Index alignedStep = Alignable ? (PacketSize - kernel.outerStride() % PacketSize) % PacketSize : 0;
+      Index alignedStart = ((!Alignable) || DstIsAligned) ? 0 : internal::first_aligned<Alignment>(dst_ptr, innerSize);
 
-    if (alignedStep == 0) {
-      runInvariant(kernel, alignedStart, innerSize, outerSize);
-      return;
-    }
+      if (alignedStep == 0) {
+        runInvariant(kernel, alignedStart, innerSize, outerSize);
+        return;
+      }
 #if EIGEN_UNALIGNED_VECTORIZE
-    runUnaligned(kernel, innerSize, outerSize);
+      runUnaligned(kernel, innerSize, outerSize);
 #else
-    for (Index outer = 0; outer < outerSize; ++outer) {
-      const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
+      for (Index outer = 0; outer < outerSize; ++outer) {
+        const Index alignedEnd = alignedStart + numext::round_down(innerSize - alignedStart, PacketSize);
 
-      head_loop::run(kernel, outer, 0, alignedStart);
+        head_loop::run(kernel, outer, 0, alignedStart);
 
-      // do the vectorizable part of the assignment
-      for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
-        kernel.template assignPacketByOuterInner<Alignment, Unaligned, PacketType>(outer, inner);
+        // do the vectorizable part of the assignment
+        for (Index inner = alignedStart; inner < alignedEnd; inner += PacketSize)
+          kernel.template assignPacketByOuterInner<Alignment, Unaligned, PacketType>(outer, inner);
 
-      tail_loop::run(kernel, outer, alignedEnd, innerSize);
+        tail_loop::run(kernel, outer, alignedEnd, innerSize);
 
-      alignedStart = numext::mini((alignedStart + alignedStep) % PacketSize, innerSize);
-    }
+        alignedStart = numext::mini((alignedStart + alignedStep) % PacketSize, innerSize);
+      }
 #endif
+    }
   }
 };
 

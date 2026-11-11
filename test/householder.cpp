@@ -926,17 +926,17 @@ struct householder_exponents<half> {
 // A tail of length m = 1, ..., 5 whose Euclidean norm is exactly representable, and a y with an exactly
 // representable hypot(y, norm).
 struct HouseholderExactTail {
-  double values[5];
-  double norm;
-  double y;
-  double hypot;
+  long double values[5];
+  long double norm;
+  long double y;
+  long double hypot;
 };
 
 inline const HouseholderExactTail& householder_exact_tail(Index m) {
-  static const HouseholderExactTail kTails[5] = {{{2}, 2, 1.5, 2.5},
+  static const HouseholderExactTail kTails[5] = {{{2}, 2, 1.5L, 2.5L},
                                                  {{3, 4}, 5, 12, 13},
                                                  {{2, -1, 2}, 3, 4, 5},
-                                                 {{1, -1, 1, -1}, 2, 1.5, 2.5},
+                                                 {{1, -1, 1, -1}, 2, 1.5L, 2.5L},
                                                  {{0, -1, 0, 2, -2}, 3, 4, 5}};
   return kTails[m - 1];
 }
@@ -974,14 +974,14 @@ void verify_householder_all_nan(const Scalar& tau, typename NumTraits<Scalar>::R
 // A NaN in the tail propagates to beta, tau, and every essential coefficient, also when it follows zeros, which the
 // component maximum of the scaled path used to skip.
 template <typename Scalar>
-void verify_householder_nan_tail(Index m, bool nanInImaginaryPart, bool nanAmongNonzero, double head) {
+void verify_householder_nan_tail(Index m, bool nanInImaginaryPart, bool nanAmongNonzero, long double head) {
   using Real = typename NumTraits<Scalar>::Real;
   using Vector = Matrix<Scalar, Dynamic, 1>;
   const long double nan = std::numeric_limits<long double>::quiet_NaN();
   const HouseholderExactTail& tail = householder_exact_tail(m);
   Vector x(m + 1);
   x[0] = householder_make<Scalar>(head);
-  for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(nanAmongNonzero ? tail.values[i] : 0.0);
+  for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(nanAmongNonzero ? tail.values[i] : 0.0L);
   const Index nanIndex = nanAmongNonzero ? numext::maxi<Index>(m - 1, 1) : m;
   x[nanIndex] = nanInImaginaryPart ? householder_make<Scalar>(1, nan) : householder_make<Scalar>(nan);
   Vector essential(m);
@@ -1028,7 +1028,7 @@ void verify_householder_negative_zero_complex_head(Index m, int exponent) {
   using Vector = Matrix<Scalar, Dynamic, 1>;
   const HouseholderExactTail& tail = householder_exact_tail(m);
   const long double scale = std::ldexp(1.0L, exponent);
-  for (double sign : {1.0, -1.0}) {
+  for (long double sign : {1.0L, -1.0L}) {
     const long double y = sign * tail.y;
     Vector x(m + 1);
     x[0] = householder_make<Scalar>(-0.0L, y * scale);
@@ -1069,7 +1069,7 @@ void verify_householder_zero_tail_signed_zero(Index m, int exponent) {
 
   if (NumTraits<Scalar>::IsComplex) {
     const long double scale = std::ldexp(1.0L, exponent);
-    for (double y : {2.0, -2.0}) {
+    for (long double y : {2.0L, -2.0L}) {
       x[0] = householder_make<Scalar>(-0.0L, y * scale);
       x.makeHouseholder(essential, tau, beta);
       VERIFY_IS_EQUAL(beta, Real(2.0L * scale));
@@ -1136,7 +1136,7 @@ void verify_householder_infinite_head(Index m) {
   Scalar tau;
   Real beta;
 
-  for (double sign : {1.0, -1.0}) {
+  for (long double sign : {1.0L, -1.0L}) {
     for (int exponent : {0, householder_exponents<Real>::kScaled, householder_exponents<Real>::kHuge}) {
       const long double scale = std::ldexp(1.0L, exponent);
       for (long double headImag : {0.0L, 1.0L}) {
@@ -1174,7 +1174,7 @@ void verify_householder_negligible_tail(Index m) {
   Scalar tau;
   Real beta;
 
-  for (double sign : {1.0, -1.0}) {
+  for (long double sign : {1.0L, -1.0L}) {
     Vector x(m + 1);
     x[0] = householder_make<Scalar>(sign * dominant);
     for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>((i % 2 ? -1.0L : 1.0L) * negligible);
@@ -1250,7 +1250,7 @@ template <typename Scalar>
 void householder_xlarfg_special_values() {
   using Real = typename NumTraits<Scalar>::Real;
   for (Index m : {1, 2, 4, 5}) {
-    for (double head : {1.0, 0.0}) {
+    for (long double head : {1.0L, 0.0L}) {
       for (bool amongNonzero : {false, true}) {
         verify_householder_nan_tail<Scalar>(m, false, amongNonzero, head);
         if (NumTraits<Scalar>::IsComplex) verify_householder_nan_tail<Scalar>(m, true, amongNonzero, head);

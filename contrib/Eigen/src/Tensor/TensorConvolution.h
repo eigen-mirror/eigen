@@ -535,6 +535,12 @@ struct GetKernelSize<Dynamic> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE int operator()(const int kernelSize) const { return kernelSize; }
 };
 
+#if EIGEN_COMP_CLANG
+#pragma clang diagnostic push
+// Runtime tile bounds can prevent full unrolling; the hints are best-effort.
+#pragma clang diagnostic ignored "-Wpass-failed"
+#endif
+
 template <typename InputEvaluator, typename Index, typename InputDims, int StaticKernelSize>
 __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel1D(
     InputEvaluator eval, const internal::IndexMapper<Index, InputDims, 1, InputEvaluator::Layout> indexMapper,
@@ -652,6 +658,10 @@ __global__ EIGEN_HIP_LAUNCH_BOUNDS_1024 void EigenConvolutionKernel2D(
     __syncthreads();
   }
 }
+
+#if EIGEN_COMP_CLANG
+#pragma clang diagnostic pop
+#endif
 
 // Oversized kernels cannot stage even one output's input footprint in shared memory.
 template <typename InputEvaluator, typename Index, typename InputDims>
