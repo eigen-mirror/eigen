@@ -45,6 +45,7 @@ Makefile
 CLAUDE.md
 .claude/*
 !.claude/settings.json
+!.claude/rules/
 .DS_Store
 .ccache/
 .ccache-bin/

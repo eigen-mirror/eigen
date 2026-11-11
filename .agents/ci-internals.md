@@ -39,11 +39,9 @@ results template also registers `JUnitTestResults_*.xml` through `artifacts:repo
 failures in the job's Tests tab and in the merge request widget, not only in the log. A job that needs neither, such as
 `test:linux:buildsystem`, extends the base alone and publishes nothing.
 
-A job that failed and then passed on retry still reports the failed first attempt. The report is converted from the
-dashboard file `Test.xml`, and the retry runs `--rerun-failed` without `-T test`, so it never rewrites that file. The
-job exits 42 to mark the soft failure. The merge request widget can compare results only against a base-branch report
-from a job with the same name. Default-branch pushes run only a small subset of jobs, so most jobs show a summary
-without a comparison.
+A job that failed and then passed on retry still reports the failed first attempt and exits 42; [`ci.md`](ci.md)
+describes what a reader of the report sees. The cause is that the report is converted from the dashboard file
+`Test.xml`, and the retry runs `--rerun-failed` without `-T test`, so it never rewrites that file.
 
 ## The Pass Cache
 
@@ -76,14 +74,35 @@ consequences:
 - When you move a job to a runner pool whose CPU differs, you should also clear the cache, because the fingerprint does
   not see a job's `tags:`. The key cannot tell two hosts in the same tag pool apart either.
 
+## The ccache Pool
+
+Build jobs keep a second GitLab cache: the ccache pool, which holds `.ccache/`. Its key is
+`$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache`. The pool is the job's own slug, except in the `:affected` tier:
+a job there compiles a subset of another job's targets with the same flags, and uses that job's slug. The scope is
+`-mr<iid>` in a merge request pipeline, `-<ref slug>` in other pipelines off the default branch, and empty on the
+default branch. So only default-branch builds write the unscoped pool, and `fallback_keys` names that pool. A restore
+replaces `.ccache/` rather than merging into it. If every pipeline shared one pool, the last pipeline to write it would
+win. When merge requests on unrelated bases shared a pool, they overwrote each other's objects and compiled at a 0.35%
+hit rate. GitLab appends its clear-cache index and `-protected` or `-non_protected` to both the key and the fallback
+key. A merge request pipeline started by a Developer therefore cannot read the pool that the scheduled builds fill.
+
+Two tiers opt out of scoping by setting `EIGEN_CI_CCACHE_SCOPE` back to `""` in the job. The smoke tier
+(`.smoketest:build`) runs only on merge request events. With a scoped key, each merge request would get its own pool,
+and nothing would write the shared one. Windows opts out because its runner has no distributed cache: a separate
+archive for each merge request would pile up on its disk without limit.
+
+Any self-hosted runner without `[runners.cache]` keeps one archive per key forever. The script
+[`prune_runner_cache.py`](../ci/scripts/prune_runner_cache.py) caps such a directory (`--max-gb`, LRU by mtime) and
+drops superseded clear-cache generations (`--stale-index-below`). Its unit tests,
+[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:lint`.
+
 ## Tier Rules
 
 The `affected-tests` and `all-tests` labels each turn off the smoke jobs (`.rules:libeigen:smoketest`). Both tiers test
 more deeply than the fixed smoke list, on the same native runners, so the smoke jobs would add cost but no coverage. The
 smoke jobs are turned off only in the `libeigen` namespace, because the affected and full tiers have no jobs in a fork.
 In merge request pipelines, `.rules:libeigen:nvhpc` runs the NVHPC build and test pair only when the `nvhpc-tests`
-label is set. When the pair was part of the `all-tests` matrix, its compiler frontend used roughly a quarter of the
-project's hosted-runner minutes.
+label is set; [`ci.md`](ci.md#test-tiers-on-merge-requests) gives the cost that moved the pair out of `all-tests`.
 
 Under `affected-tests`, either of two independent triggers adds a platform beyond the four unconditional jobs: a change
 under the platform's backend directory, detected through `rules:changes:`, or a label, read from
@@ -113,11 +132,11 @@ Windows read them through `EIGEN_CI_BUILD_TARGET_FILE` and `EIGEN_CI_CTEST_REGEX
 [`build.windows.script.ps1`](../ci/scripts/build.windows.script.ps1) and
 [`test.windows.script.ps1`](../ci/scripts/test.windows.script.ps1).
 
-The selector follows the textual `#include` graph and ignores preprocessor guards, so it selects a strict superset of
-the tests that actually compile a changed file. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims
-force the full suite, because they invalidate the mapping itself. The `ci/*.gitlab-ci.yml` files only orchestrate jobs
-and cannot change which test includes which header, so they select nothing. Neither do the clang-tidy and lint images
-under `ci/tidy/` and `ci/lint/`. Git rename detection is disabled for the input diff, so the selector sees both the old
+[`ci.md`](ci.md#test-tiers-on-merge-requests) states what the selector guarantees and which changes force the full
+suite or select nothing. The reasons are these. Changes to CMake, `ci/scripts/`, `ci/docker/`, or the BLAS/LAPACK shims
+invalidate the mapping from sources to tests itself. The `ci/*.gitlab-ci.yml` files, and the clang-tidy and lint images
+under `ci/tidy/` and `ci/lint/`, only orchestrate jobs and cannot change which test includes which header. Git rename
+detection is disabled for the input diff, so the selector sees both the old
 and the new path of a moved file. An old path absent from the current graph safely forces the full suite.
 
 The selector maps sources to targets by reading the test registrations in the CMake files. The registrations include

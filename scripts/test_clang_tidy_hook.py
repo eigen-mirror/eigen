@@ -243,6 +243,43 @@ def test_hook_mode_reports_broken_unit_without_blocking():
     assert code == 2 and not out and "modernize-use-using" in err, (code, out, err)
 
 
+def test_commit_targets():
+    """At commit time, a file edited since the commit and the files past the
+    limit are named as unchecked instead of linted at the wrong lines."""
+    with tempfile.TemporaryDirectory(prefix="tidy_commit_test_") as tmp:
+        tmp = os.path.realpath(tmp)
+        commit = ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "x"]
+        names = ["Eigen/src/Core/F%02d.h" % i for i in range(clang_tidy_hook.HOOK_MAX_FILES + 2)]
+
+        def write(rel, text):
+            os.makedirs(os.path.dirname(os.path.join(tmp, rel)), exist_ok=True)
+            with open(os.path.join(tmp, rel), "w") as handle:
+                handle.write(text)
+
+        subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+        for name in names:
+            write(name, "int a;\n")
+        write("doc/Page.dox", "text\n")
+        subprocess.run(["git", "add", "."], cwd=tmp, check=True)
+        subprocess.run(commit, cwd=tmp, check=True)
+        for name in names:
+            write(name, "int a;\nint b;\n")
+        write("doc/Page.dox", "text\nmore\n")
+        subprocess.run(["git", "add", "."], cwd=tmp, check=True)
+        subprocess.run(commit, cwd=tmp, check=True)
+        write(names[0], "int inserted;\nint a;\nint b;\n")
+
+        payload = {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, "cwd": tmp}
+        targets, unchecked = clang_tidy_hook.hook_targets(payload)
+        assert targets == {tmp: {name: {2} for name in names[1:clang_tidy_hook.HOOK_MAX_FILES + 1]}}, targets
+        assert unchecked == [(names[0], "changed since the commit"),
+                             (names[-1], "over the hook's %d-file limit" % clang_tidy_hook.HOOK_MAX_FILES)], unchecked
+        notice = clang_tidy_hook.unchecked_notice(unchecked)
+        assert names[0] in notice and names[-1] in notice and "file limit" in notice, notice
+        # The same commit is not linted twice.
+        assert clang_tidy_hook.hook_targets(payload) == ({}, [])
+
+
 def test_new_src_header_is_checked():
     """A private header absent from its umbrella must still be parsed."""
     if shutil.which("clang-tidy") is None:

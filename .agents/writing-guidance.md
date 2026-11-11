@@ -38,5 +38,35 @@ misreads guidance when a sentence buries an instruction or a condition, not when
 - Use the active voice when the actor matters: "CI runs the job" names the actor, and "the job is run" does not.
 - Treat a sentence of more than about 25 words as a signal, not a limit. It usually holds two instructions or an inline
   list; split it, or move the list into bullets.
+
+## What To Write, And Where
+
+- Before you add a sentence, ask whether a capable model would get this wrong in this repository without it. Keep what
+  the tree cannot tell the reader: a failure that already happened here, a constraint whose reason is not visible, a
+  fact about CI or a downstream user. Leave out advice about C++, benchmarking, or numerical analysis that holds in
+  any repository; the reader has it already, and it buries the sentences that matter.
+- State each rule in one guide, the guide for the task that needs it. Elsewhere, link to that statement. A second copy
+  drifts from the first, and a reader cannot tell which one is current.
 - `AGENTS.md` is loaded for every task, so keep it to what every task needs. Put the rest in the topic guide for the
-  tasks that need it.
+  tasks that need it. Keep `AGENTS.md` under 24 KiB: Codex stops loading project instructions at 32 KiB by default, and
+  a user-level instruction file counts toward the same limit.
+- When a procedure needs more than a few lines of shell, check it in as a script and name the script. A script can be
+  run and tested. A recipe in prose is copied with mistakes, and nothing notices when it stops working.
+- Name a file by its repository path, in a code span or a link.
+  [`scripts/check_agent_guides.py`](../scripts/check_agent_guides.py) checks that those paths and link targets exist,
+  and that `AGENTS.md` stays under its size limit. It cannot check a file that is named only in prose.
+
+## Loading A Guide
+
+A guide helps only the sessions that read it. Two mechanisms get it read:
+
+- The work-area table in [`AGENTS.md`](../AGENTS.md#scope-and-precedence) is in every session's context. Every harness
+  depends on it. When you add a guide, add its row.
+- A pointer under `.claude/rules/` names, in its `paths:` list, the files that a guide governs. Claude Code shows the
+  pointer to the model when it first reads a matching file. When you add a guide, add its pointer. Write the pointer
+  as a link, never as an `@` import. Claude Code loads an import at session start even when the rule that holds it is
+  path-scoped (measured with CLI 2.1.322), so an import would put the guide in every session's context.
+
+Do not add an `AGENTS.md` below the repository root as a third mechanism. Codex reads one only when the session starts
+in that directory or below it. Claude Code skips one when the checkout has a `CLAUDE.md` (measured with CLI 2.1.322).
+Under `Eigen/`, the file would also be installed with the headers and read by Doxygen.

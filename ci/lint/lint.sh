@@ -47,7 +47,8 @@ scripts() {
   rc=0
   for t in scripts/test_affected_tests.py ci/scripts/test_test_cache.py \
            ci/scripts/test_prune_runner_cache.py scripts/test_check_style.py \
-           scripts/test_clang_tidy_hook.py scripts/test_tidy_compile_db.py; do
+           scripts/test_clang_tidy_hook.py scripts/test_tidy_compile_db.py \
+           scripts/test_check_agent_guides.py; do
     echo "== $t"
     python3 "$t" || rc=1
   done
@@ -62,6 +63,8 @@ scripts() {
 # closed, but a wrong answer is silent, so their tests block; so does REUSE.
 check scripts blocking scripts
 check reuse blocking reuse lint
+# A guide that names a moved or deleted file misdirects every agent that reads it.
+check guides blocking python3 scripts/check_agent_guides.py
 check format advisory git clang-format --diff --commit "$base"
 check spelling advisory codespell --config setup.cfg
 

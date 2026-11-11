@@ -186,12 +186,17 @@ reviews:
           Missing guards typically compile fine on the developer's machine
           and break CI on narrower ISA targets — flag any unguarded
           intrinsic.
-        - **Backend symmetry.** New packet operations should be specialized
-          across **every** backend that supports the type, with
-          `arch/Default/` providing scalar fallbacks. A missing or divergent
-          backend specialization usually shows up first in
-          `test/packetmath.cpp` or `contrib/test/special_packetmath.cpp`
-          — flag PRs that add a packet op in one backend without the others.
+        - **Silent fallbacks, not symmetry.** A new packet operation needs a
+          correct generic fallback in `GenericPacketMath.h` where one is
+          possible, and a specialization only in the backends that support
+          it; do not ask for one in every backend (`arch/Default/` holds
+          shared vector implementations, not scalar fallbacks). Do flag a
+          `p*` call from code that every backend instantiates when some
+          backend reaches a generic fallback that is the identity or acts on
+          one lane: the generic `preverse` returns its argument, so the
+          result is silently wrong rather than a build failure. Divergent
+          specializations usually show up first in `test/packetmath.cpp` or
+          `contrib/test/special_packetmath.cpp`.
     - path: "{Eigen/ThreadPool,Eigen/src/ThreadPool/**}"
       instructions: |
         Eigen's work-stealing thread pool — umbrella header `Eigen/ThreadPool`
@@ -251,9 +256,10 @@ reviews:
         standard exactly; do not suggest deviating from netlib semantics.
     - path: "lapack/**"
       instructions: |
-        The .f sources are vendored netlib LAPACK reference; do not review
-        them. The C++ wrappers should faithfully implement the LAPACK
-        contract.
+        The reference LAPACK sources and test drivers are not in the tree:
+        CMake downloads the pinned netlib release. Do not ask for them to be
+        copied in or patched, and flag a change to the pinned release. The
+        C++ wrappers should faithfully implement the LAPACK contract.
     - path: "ci/**"
       instructions: |
         GitLab CI configuration. Be conservative -- do not suggest

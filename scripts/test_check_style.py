@@ -11,18 +11,23 @@ not depend on the checked-out tree.
 Usage: python3 scripts/test_check_style.py
 """
 
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from check_style import (
     added_from_structured_patch,
     added_lines_from_diff,
+    check_files,
+    doxygen_excludes,
     find_findings,
     hook_added_line_numbers,
+    hook_commit_added,
     run_diff_mode,
 )
 
@@ -213,6 +218,52 @@ def test_multiline_literals():
     assert_clean("Eigen/src/Core/Foo.h", 'auto s = R"(if constexpr NULL typedef)";\n')
 
 
+def test_documentation_checks():
+    message = "ref target followed by a colon"
+    # Doxygen comments in C++ and every line of a .dox page are checked.
+    assert_flags("Eigen/src/Core/Foo.h", "/** \\returns \\ref adjoint: the adjoint */\nint x;\n", message)
+    assert_flags("Eigen/src/Core/Foo.h", "/// See @ref MatrixBase::cross():\nint x;\n", message)
+    assert_flags("doc/Page.dox", "See \\ref TopicAliasing: it explains\n", message)
+    assert_clean("Eigen/src/Core/Foo.h", "/// \\ref MatrixBase::cross() and \\ref adjoint. The\nint x;\n")
+    assert_clean("doc/Page.dox", "\\ref TopicAliasing \"aliasing\": see \\ref a, \\ref b::c\n")
+    # An ordinary comment and code are not Doxygen input.
+    assert_clean("Eigen/src/Core/Foo.h", "// \\ref adjoint: the adjoint\nint x;\n")
+    # Pre-existing lines are not reported.
+    assert_clean("doc/Page.dox", "\\ref adjoint: old\nnew text\n", added={2})
+
+    excludes = doxygen_excludes(
+        "INPUT = x\n"
+        "EXCLUDE                = ${Eigen_SOURCE_DIR}/doc/examples \\\n"
+        "                         ${Eigen_SOURCE_DIR}/contrib/Eigen/src/StructuredMatrices/README.md\n"
+        "\n"
+        "#                        ${Eigen_SOURCE_DIR}/Eigen/src/Core/products \\\n"
+        "EXCLUDE_PATTERNS       = CMake* \\\n"
+        "                         *.txt\n"
+        "EXCLUDE_SYMBOLS        = Kernel\n")
+    assert excludes == (["doc/examples", "contrib/Eigen/src/StructuredMatrices/README.md"], ["CMake*", "*.txt"])
+
+    def markdown(rel_path, text):
+        lines = text.splitlines()
+        return [m for _, m in find_findings(rel_path, lines, set(range(1, len(lines) + 1)), excludes)]
+
+    readme = "contrib/Eigen/src/Tensor/README.md"
+    assert any("in-page link" in m for m in markdown(readme, "See [storage](#storage-order).\n"))
+    assert any("GitLab math" in m for m in markdown(readme, "The bound $`c n \\varepsilon`$ holds.\n"))
+    assert not markdown(readme, "See [the guide](../README.md#storage) and `$x`.\n")
+    assert not markdown(readme, "```\n[x](#y) $`z`$\n```\n")
+    # A heading that carries the id as a Doxygen anchor resolves.
+    assert not markdown(readme, "See [storage](#tensor_storage).\n\n## Storage order {#tensor_storage}\n")
+    # The colon check stops at the end of the reference name.
+    assert_clean("doc/Page.dox", "the view (see \\ref TutorialReshape):\n")
+    # Markdown that Doxygen does not read: excluded by path, by pattern, or outside its inputs.
+    link = "See [storage](#storage-order).\n"
+    assert not markdown("contrib/Eigen/src/StructuredMatrices/README.md", link)
+    assert not markdown("doc/examples/README.md", link)
+    assert not markdown("Eigen/CMakeNotes.md", link)
+    assert not markdown(".agents/ci.md", link)
+    assert not markdown("README.md", link)
+
+
 def test_hook_line_mapping():
     content = "int x;\nint changed;\nconst char* p = NULL;\n"
     # A snippet with a trailing newline covers only its own line, not the next.
@@ -331,6 +382,93 @@ def test_diff_mode_merge_base_and_untracked():
         # The unterminated replacement maps to line 1 despite the markers.
         noeol = [(l, m) for p, l, m in results if p == "Eigen/src/Core/NoEol.h"]
         assert noeol and noeol[0][0] == 1 and "static constexpr" in noeol[0][1], results
+
+
+SCRIPTS = os.path.dirname(os.path.abspath(__file__))
+
+
+def commit_repository(tmp):
+    """A repository whose last commit adds a flagged line to a header and a
+    Doxygen page, as a shell edit followed by ``git commit`` leaves it."""
+    def sh(*args):
+        subprocess.run(args, cwd=tmp, check=True, capture_output=True)
+
+    def write(rel, text):
+        path = os.path.join(tmp, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as handle:
+            handle.write(text)
+
+    commit = ("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m")
+    sh("git", "init", "-q", "-b", "main")
+    write("Eigen/src/Core/Old.h", "int old;\n")
+    sh("git", "add", ".")
+    sh(*commit, "base")
+    write("Eigen/src/Core/Old.h", "int old;\nstd::integral_constant<bool, true> b;\n")
+    write("doc/Page.dox", "/** \\page P Title\n\\ref adjoint: the adjoint\n*/\n")
+    sh("git", "add", ".")
+    sh(*commit, "change")
+
+
+def run_script(script, args, stdin_text):
+    done = subprocess.run([sys.executable, os.path.join(SCRIPTS, script)] + args, input=stdin_text,
+                          capture_output=True, text=True)
+    return done.returncode, done.stdout, done.stderr
+
+
+def test_commit_is_checked():
+    with tempfile.TemporaryDirectory(prefix="check_style_test_") as tmp:
+        commit_repository(tmp)
+        tmp = os.path.realpath(tmp)
+
+        def call(command, cwd=tmp):
+            return {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd}
+
+        # A change left out of the commit is not the commit's: explicit staging makes that the usual case.
+        with open(os.path.join(tmp, "Eigen/src/Core/Old.h"), "w") as handle:
+            handle.write("enum { Uncommitted = 0 };\nint old;\nstd::integral_constant<bool, true> b;\n")
+        with open(os.path.join(tmp, "Eigen/src/Core/Untracked.h"), "w") as handle:
+            handle.write("enum { Untracked = 0 };\n")
+        (root, per_file), = hook_commit_added(call("git add Eigen doc && git commit -m change"))
+        assert root == tmp and per_file == {"Eigen/src/Core/Old.h": {2}, "doc/Page.dox": {1, 2, 3}}, per_file
+        assert [(path, line) for path, line, _ in check_files(per_file, root, rev="HEAD")] == [
+            ("Eigen/src/Core/Old.h", 2), ("doc/Page.dox", 2)]
+        # The work tree is found through `cd` and `-C` as well as the call's cwd.
+        outside = os.path.dirname(tmp)
+        assert [r for r, _ in hook_commit_added(call("cd '%s' && git commit -m x" % tmp, outside))] == [tmp]
+        assert [r for r, _ in hook_commit_added(call("git -C %s commit -m x" % tmp, outside))] == [tmp]
+        # Not a commit, not a shell call, a HEAD too old to be this call's, and a root commit.
+        assert hook_commit_added(call("git status && echo commit")) == []
+        assert hook_commit_added({"tool_name": "Edit", "tool_input": {"command": "git commit"}, "cwd": tmp}) == []
+        assert hook_commit_added(call("git commit -m x"), now=time.time() + 3600) == []
+        assert hook_commit_added(call("git commit-tree HEAD^{tree}")) == []
+        # A named hook reports each commit once, however many later commands mention `commit`.
+        assert len(hook_commit_added(call("git commit -m x"), hook="probe")) == 1
+        assert hook_commit_added(call("git log --grep commit"), hook="probe") == []
+        assert len(hook_commit_added(call("git commit -m x"), hook="other")) == 1
+        # A merge commit, whose first-parent diff holds the whole merged branch, and a root commit.
+        git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+        merge = subprocess.run(git + ["commit-tree", "HEAD^{tree}", "-p", "HEAD", "-p", "HEAD~1", "-m", "merge"],
+                               cwd=tmp, check=True, capture_output=True, text=True).stdout.strip()
+        subprocess.run(["git", "update-ref", "HEAD", merge], cwd=tmp, check=True)
+        assert hook_commit_added(call("git commit -m merge")) == []
+        subprocess.run(["git", "update-ref", "-d", "HEAD"], cwd=tmp, check=True)
+        subprocess.run(git + ["commit", "-q", "-m", "root"], cwd=tmp, check=True, capture_output=True)
+        assert hook_commit_added(call("git commit -m root")) == []
+
+
+def test_hook_reports_a_commit():
+    with tempfile.TemporaryDirectory(prefix="check_style_test_") as tmp:
+        commit_repository(tmp)
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m change"}, "cwd": tmp})
+        code, out, err = run_script("check_style.py", ["--claude-hook"], payload)
+        assert code == 2 and not out and "bool_constant" in err and "doc/Page.dox:2" in err, (code, out, err)
+        assert run_script("check_style.py", ["--claude-hook"], payload) == (0, "", ""), "reported a commit twice"
+    # With nothing to say, including a payload that cannot be read, each hook is silent and exits 0.
+    quiet = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}, "cwd": SCRIPTS})
+    for script in ("check_style.py", "clang_tidy_hook.py"):
+        assert run_script(script, ["--claude-hook"], "not json") == (0, "", ""), script
+        assert run_script(script, ["--claude-hook"], quiet) == (0, "", ""), script
 
 
 def main():

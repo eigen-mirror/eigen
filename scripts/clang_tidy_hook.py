@@ -24,6 +24,10 @@ LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
 headers directly, which trips Eigen's internal-header guard, and a PostToolUse
 payload is not a unified diff.
 
+``--claude-hook`` runs it as a Claude Code PostToolUse hook: after an edit it
+lints the lines the edit added, and after a shell command that committed, the
+lines the commit added.
+
 No compilation database is required: ``-std=c++14 -I<repo>`` parses any file
 in the C++14 trees, with ``test/`` added for the test sources and
 ``contrib/`` for the contrib ones, which keeps the hook usable in a
@@ -45,7 +49,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from style_common import (REPO_ROOT, diff_added_lines, hook_edit_snippets,  # noqa: E402
+from style_common import (REPO_ROOT, diff_added_lines, git, hook_commit_added, hook_edit_snippets,  # noqa: E402
                           hook_post_image_and_added, is_cxx_path, line_filter_json)
 
 # Parsing an umbrella costs about a second, so keep the hook off trees whose
@@ -64,6 +68,9 @@ PLEASE_INCLUDE = re.compile(r'"Please include ([^ "]+)')
 ISA_BACKEND = re.compile(r"/arch/(?!Default/)[^/]+/")
 GATE_CONDITION = re.compile(r"#\s*(?:ifdef\s+(EIGEN_USE_\w+)|if\s+defined\s*\(\s*(EIGEN_USE_\w+)\s*\))$")
 TIMEOUT_SECONDS = 30
+# The files one commit-time hook run lints: each takes up to TIMEOUT_SECONDS,
+# and .claude/settings.json gives the whole hook 300 s.
+HOOK_MAX_FILES = 8
 
 
 def module_of(rel_path):
@@ -243,35 +250,72 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
     return diagnostics, skipped
 
 
+def hook_targets(payload):
+    """Return (targets, unchecked) for the lines a hook payload's edit, or the
+    commit its shell command made, added: ``targets`` is {root: {rel_path:
+    added line numbers}}, and ``unchecked`` a list of (rel_path, reason) for
+    committed files the hook leaves out."""
+    targets, unchecked = {}, []
+    for root, per_file in hook_commit_added(payload, hook="clang-tidy"):
+        paths = sorted(path for path in per_file if is_cxx_path(path) and path.startswith(CHECKED_TREES))
+        # clang-tidy reads the work tree, where an edit made since the commit
+        # moves the lines the commit's numbers name.
+        changed = set(git(root, "diff", "--name-only", "HEAD", "--", *paths).stdout.splitlines()) if paths else set()
+        unchecked += [(path, "changed since the commit") for path in paths if path in changed]
+        paths = [path for path in paths if path not in changed]
+        budget = HOOK_MAX_FILES - sum(len(files) for files in targets.values())
+        paths, over_limit = paths[:budget], paths[budget:]
+        unchecked += [(path, "over the hook's %d-file limit" % HOOK_MAX_FILES) for path in over_limit]
+        if paths:
+            targets[root] = {path: per_file[path] for path in paths}
+    rel_path, snippets = hook_edit_snippets(payload)
+    if rel_path is not None and is_cxx_path(rel_path) and rel_path.startswith(CHECKED_TREES):
+        _, added, exact = hook_post_image_and_added(payload, rel_path, snippets)
+        # Without real line numbers a line filter would point at the wrong
+        # lines; silence beats a misplaced diagnostic.
+        if exact and added:
+            targets[REPO_ROOT] = {rel_path: added}
+    return targets, unchecked
+
+
+def unchecked_notice(unchecked):
+    """One line naming the files that were not checked, grouped by reason."""
+    reasons = {}
+    for path, reason in unchecked:
+        reasons.setdefault(reason, []).append(path)
+    return "clang-tidy: not checked — " + "; ".join(
+        "%s (%s)" % (", ".join(paths[:4] + (["..."] if len(paths) > 4 else [])), reason)
+        for reason, paths in reasons.items())
+
+
 def run_hook_mode(tidy=None):
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
-    rel_path, snippets = hook_edit_snippets(payload)
-    if rel_path is None or not is_cxx_path(rel_path) or not rel_path.startswith(CHECKED_TREES):
-        return 0
-    _, added, exact = hook_post_image_and_added(payload, rel_path, snippets)
-    if not exact or not added:
-        # Without real line numbers a line filter would point at the wrong
-        # lines; silence beats a misplaced diagnostic.
-        return 0
-    diagnostics, skipped = run_clang_tidy({rel_path: added}, tidy=tidy)
+    targets, unchecked = hook_targets(payload)
+    diagnostics, checked = [], []
+    for root, per_file in targets.items():
+        found, skipped = run_clang_tidy(per_file, root=root, tidy=tidy)
+        diagnostics.extend(found or [])
+        unchecked += [(path, "the translation unit did not compile") for path, reason in skipped
+                      if reason == "translation unit did not compile"]
+        checked.extend(sorted(per_file))
     if not diagnostics:
-        broken = [reason for path, reason in (skipped or []) if reason == "translation unit did not compile"]
-        if broken:
+        if unchecked:
             # A header edited mid-refactor routinely fails to parse on its own,
             # so show the user a non-blocking notice rather than feeding Claude
             # an error with no finding to act on.
-            message = "clang-tidy (%s): not checked — the translation unit did not compile." % rel_path
-            sys.stdout.write(json.dumps({"systemMessage": message}) + "\n")
-            return 0
+            sys.stdout.write(json.dumps({"systemMessage": unchecked_notice(unchecked)}) + "\n")
         return 0
-    sys.stderr.write("clang-tidy (%s) — added lines only:\n" % rel_path)
+    names = checked[:4] + (["..."] if len(checked) > 4 else [])
+    sys.stderr.write("clang-tidy (%s) — added lines only:\n" % ", ".join(names))
     for line in diagnostics[:8]:
         sys.stderr.write("  %s\n" % line)
     if len(diagnostics) > 8:
         sys.stderr.write("  ... and %d more\n" % (len(diagnostics) - 8))
+    if unchecked:
+        sys.stderr.write(unchecked_notice(unchecked) + "\n")
     sys.stderr.write("Advisory: these are Eigen conventions from .clang-tidy; keep a flagged construct "
                      "only if it is justified, and say why at the construct.\n")
     return 2

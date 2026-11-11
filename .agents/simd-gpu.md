@@ -22,9 +22,8 @@ interface used by evaluators.
   consistent with the implementation. A capability flag must not advertise an unavailable or semantically different
   operation.
 - Preserve scalar-remainder behavior and unaligned paths. Packet-sized inputs alone do not cover an evaluator.
-- Standard mathematical functions should match the scalar contract for special values. Measure ordinary-input error
-  in ULPs against an appropriate scalar or higher-precision reference. Where the platform exposes the IEEE 754
-  behaviors, test NaN, infinities, signed zero, subnormals, and domain boundaries explicitly.
+- For a packet math function, follow [`numerics.md`](numerics.md#packet-accuracy): special values match the scalar
+  contract, and finite-input error is measured in ULPs.
 
 A missing specialization is not always a compile error. Some generic fallbacks in `Eigen/src/Core/GenericPacketMath.h`
 are the identity or a single-lane version of the real operation; the generic `preverse`, for example, returns its
@@ -43,13 +42,9 @@ code. Under SYCL device compilation it supplies the flattening and inlining attr
 itself decide whether a function is callable from the device. Preserve it on coefficient accessors, evaluators,
 functors, small helpers, constructors, and operators reached from device code.
 
-- Keep device code allocation-free unless the specific backend and API deliberately provide an allocator.
-- Avoid host-only standard-library calls, exceptions, RTTI assumptions, and function-local static state on device
-  paths.
+- Keep device paths free of allocation, host-only standard-library calls, exceptions, RTTI, and function-local static
+  state, unless the specific backend and API deliberately provide the facility.
 - Define configuration macros before the first Eigen public header.
-- Keep the index configuration consistent across translation units that exchange Eigen objects.
-- Include public module headers in tests and examples. Implementation headers under `Eigen/src/` and
-  `contrib/Eigen/src/` are not user include points.
 
 ## Three GPU models
 
@@ -107,5 +102,5 @@ GPU work in this module runs asynchronously, so refactors that would be harmless
   integration target enabled by the local toolkit.
 - Report backends or hardware that were unavailable. Do not claim cross-backend validation from a host-only build.
 
-Performance-sensitive packet or GPU changes require a representative benchmark under identical compiler flags,
-device state, and workload conditions. Correctness tests are not performance evidence.
+A performance-sensitive packet or GPU change needs a benchmark; follow [`benchmarking.md`](benchmarking.md).
+Correctness tests are not performance evidence.

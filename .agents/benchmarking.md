@@ -94,11 +94,7 @@ timer measures only the main thread and misses the worker threads. When total CP
   with no case for the affected configuration, measures something else while the results still look fine. Check
   hand-written `bytes_per_second` and items multipliers against the operation. A wrong count silently rescales every
   reported rate.
-- Keep allocation, input generation, validation, and unrelated setup outside the timed region. Prevent dead-code
-  elimination with Google Benchmark's `DoNotOptimize` and `ClobberMemory` where appropriate.
-- Validate results outside the measured loop. A faster incorrect kernel is not a useful result.
-- Use enough work per iteration to dominate timer noise without hiding important small-problem behavior. Report
-  meaningful rates or byte/operation counters when they improve interpretation.
+- Check the result against a reference, outside the timed region. A faster incorrect kernel is not a useful result.
 - Compare the change against the relevant baseline with identical compiler, optimization, ISA, dependency, and
   benchmark arguments. Record the commit, hardware, compiler, flags, and command needed to reproduce the result.
 

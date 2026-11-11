@@ -40,6 +40,9 @@ The wording of a rule sets its strength:
   give that reason in your report.
 - *May* grants permission. For possibility, the guides write *can* or *might*.
 
+A sub-agent or a fresh session does not inherit the guides you have read. When you delegate work, name in the brief
+each guide that the work needs.
+
 ## Non-negotiable rules
 
 1. **Preserve existing work.** Start with `git status --short`. Never discard, overwrite, reformat, or stage unrelated
@@ -83,7 +86,12 @@ The wording of a rule sets its strength:
    to any other external system only when the user has asked for that action. Otherwise, stop after the local commit and
    ask. Recommend the `affected-tests` label with the relevant platform labels, or with `all-platforms` for broader
    coverage; see [`.agents/ci.md`](.agents/ci.md). Do not add `all-tests` without the user's explicit permission for
-   that label.
+   that label. Permission to push, rebase, address review, or validate a merge request does not grant it.
+9. **Establish a claim before you make it.** To establish what code does, read the function body and the branch
+   actually taken. Never rely on a comment or a Doxygen block for this; it can be stale or describe an adjacent case.
+   Confirming that a path or symbol exists proves nothing about behavior. To claim something about every case,
+   enumerate the cases; do not infer them from a few instances. Report as validated only what ran, and name the commit
+   it ran on.
 
 ## Standard workflow
 
@@ -214,6 +222,10 @@ cmake -G Ninja -S . -B build
 cmake --build build --target <test-name>
 ctest --test-dir build -R '^<test-name>$' --output-on-failure --no-tests=error
 ```
+
+Compiling one test translation unit can take about 4 GiB of memory;
+[`cmake/EigenTestPartGroups.cmake`](cmake/EigenTestPartGroups.cmake) records the measurements. Set the build's `-j`
+from the available memory, not from the core count.
 
 For one part of a split test, such as `foo_3`, build that exact target and match it exactly with CTest. Keep
 `--no-tests=error`, because without it a filter that matches nothing exits 0. The generated `buildtests.sh` and

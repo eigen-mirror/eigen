@@ -2,14 +2,17 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-"""Advisory style check for added C++ code, for what clang-tidy cannot say.
+"""Advisory style check for added lines, for what clang-tidy cannot say.
 
 Flags the problems that recur in this repository's code reviews and that no
 clang-tidy check states: narration-comment verbosity (see the comment rules in
 ``AGENTS.md``), ``enum`` constant blocks, ``std::integral_constant<bool,...>``,
 C++17-and-later constructs in the C++14 trees, ``std::`` math in library
 headers where ``numext::`` is required, and SME streaming helpers without a
-ZA attribute.  Conventions clang-tidy *can* state
+ZA attribute.  In documentation it flags the constructs that fail the blocking
+documentation job (``.agents/docs.md``): a ``\\ref`` target followed by a
+colon, in Doxygen comments and ``.dox`` pages, and in-page links and GitLab
+math in the Markdown files Doxygen reads.  Conventions clang-tidy *can* state
 live in ``.clang-tidy`` and are checked by ``clang_tidy_hook.py`` against the
 same added lines.  Only lines a change ADDS are reported, but each file's
 complete post-image is lexed so surrounding context — an enclosing block
@@ -21,11 +24,14 @@ case keep it and state the reason where the construct is.
 
 Modes:
   --diff BASE     check lines added relative to ``merge-base(BASE, HEAD)``,
-                  including uncommitted changes and untracked C++ files;
+                  including uncommitted changes and untracked source files;
                   exit 1 if findings
   --claude-hook   run as a Claude Code PostToolUse hook: read the tool-call
-                  JSON from stdin and check the text the edit added; exit 2
-                  if findings so the harness feeds them back to the model
+                  JSON from stdin; exit 2 if findings so the harness feeds
+                  them back to the model.  After an edit it checks the text
+                  the edit added.  After a shell command that committed it
+                  checks the lines the commit added, which is where a file
+                  changed through the shell is first seen.
 
 The Claude Code hook is registered for this repository in
 ``.claude/settings.json``.  Other agents and humans can run the diff mode
@@ -33,6 +39,8 @@ directly, e.g. ``python3 scripts/check_style.py --diff origin/master``.
 """
 
 import argparse
+import fnmatch
+import functools
 import json
 import os
 import re
@@ -41,7 +49,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from style_common import (REPO_ROOT, added_lines_from_diff, added_from_structured_patch,  # noqa: E402,F401
-                          diff_added_lines, hook_added_line_numbers, hook_edit_snippets,
+                          diff_added_lines, hook_added_line_numbers, hook_commit_added, hook_edit_snippets,
                           hook_post_image_and_added, is_cxx_path, read_post_image)
 
 # Trees whose headers and tests must compile as C++14 (see AGENTS.md rule 3).
@@ -126,6 +134,21 @@ CXX14_CHECKS = [
 # not expressible as a matcher — designated initializers do not parse in C++14,
 # so there is no AST for a check to match.
 DESIGNATED_MSG = "designated initializer: C++20-only; use aggregate assignment with /*name=*/ comments"
+
+# Documentation checks.  Each construct fails build:linux:docs, which no default
+# merge request pipeline runs, so it otherwise surfaces on master after the merge.
+REF_COLON = (
+    r"[\\@]ref\s+~?\w+(?:::~?\w+)*(?:\(\))?:(?=\s|$)",
+    "\\ref target followed by a colon: Doxygen reads the colon as part of the name, and the unresolved "
+    "reference fails the docs build; follow the target with a space, comma, or period")
+IN_PAGE_LINK = re.compile(r"\]\(#([^)\s]*)\)")
+IN_PAGE_LINK_MSG = ("in-page link in Markdown that Doxygen reads: [text](#heading) is an unresolved \\ref, which "
+                    "fails the docs build, unless the heading carries that id as {#id}")
+HEADING_ID = re.compile(r"\{#([\w-]+)\}|[\\@]anchor\s+([\w-]+)")
+GITLAB_MATH = (r"\$`", "GitLab math in Markdown that Doxygen reads: Doxygen does not render it and can fail on it; "
+                       "write the file for Doxygen or add it to EXCLUDE in doc/Doxyfile.in")
+# Doxygen's inputs (EIGEN_DOXY_INPUT in doc/CMakeLists.txt); FILE_PATTERNS is *.
+DOXYGEN_INPUT_TREES = ("doc/", "Eigen/", "contrib/doc/", "contrib/Eigen/")
 
 
 RAW_PREFIX = re.compile(r"(?:^|[^0-9A-Za-z_])(?:u8|u|U|L)?R$")
@@ -342,29 +365,100 @@ def check_conventions(rel_path, code_lines, added, findings):
             break
 
 
-def find_findings(rel_path, lines, added):
+def doxygen_excludes(doxyfile_text):
+    """Return (paths, patterns): the repository-relative paths in ``EXCLUDE``
+    and the wildcards in ``EXCLUDE_PATTERNS`` of a ``doc/Doxyfile.in``."""
+    values = {"EXCLUDE": [], "EXCLUDE_PATTERNS": []}
+    key = None  # the key a continued line belongs to
+    for raw in doxyfile_text.splitlines():
+        line = raw.strip()
+        match = re.match(r"(EXCLUDE|EXCLUDE_PATTERNS)\s*=\s*(.*)$", line)
+        if match:
+            key, line = match.groups()
+        elif key is None:
+            continue
+        values[key].extend(line.rstrip("\\").split())
+        if not line.endswith("\\"):
+            key = None
+    paths = [value.replace("${Eigen_SOURCE_DIR}/", "") for value in values["EXCLUDE"]]
+    return paths, values["EXCLUDE_PATTERNS"]
+
+
+def is_doxygen_markdown(rel_path, excludes):
+    """Return whether Doxygen reads the Markdown file ``rel_path``, given
+    ``excludes`` as ``doxygen_excludes`` returns them."""
+    if not rel_path.endswith(".md") or not rel_path.startswith(DOXYGEN_INPUT_TREES):
+        return False
+    paths, patterns = excludes
+    if any(rel_path == path or rel_path.startswith(path + "/") for path in paths):
+        return False
+    name = os.path.basename(rel_path)
+    return not any(fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(rel_path, pattern) for pattern in patterns)
+
+
+@functools.cache
+def repository_doxygen_excludes():
+    return doxygen_excludes(read_post_image(REPO_ROOT, "doc/Doxyfile.in") or "")
+
+
+def check_patterns(checks, texts, added, findings):
+    """Report the first added line each pattern matches; ``texts[n - 1]`` is
+    line ``n``'s text, or None where the check does not apply."""
+    for pattern, message in checks:
+        rx = re.compile(pattern)
+        for line_no in sorted(added):
+            if texts[line_no - 1] is not None and rx.search(texts[line_no - 1]):
+                findings.append((line_no, message))
+                break
+
+
+def check_markdown(lines, added, findings):
+    """Flag GitLab math and in-page links to an undeclared id on added lines
+    outside fenced code blocks."""
+    texts, fenced = [], False
+    for line in lines:
+        fence = line.lstrip().startswith(("```", "~~~"))
+        fenced = fenced != fence
+        texts.append(None if fenced or fence else line)
+    check_patterns([GITLAB_MATH], texts, added, findings)
+    ids = set()
+    for text in texts:
+        for heading_id, anchor in HEADING_ID.findall(text or ""):
+            ids.add(heading_id or anchor)
+    for line_no in sorted(added):
+        targets = IN_PAGE_LINK.findall(texts[line_no - 1] or "")
+        if any(target not in ids for target in targets):
+            findings.append((line_no, IN_PAGE_LINK_MSG))
+            break
+
+
+def find_findings(rel_path, lines, added, excludes=None):
     """Check one file: ``lines`` is the complete post-image, ``added`` the set
     of 1-based line numbers the change added.  Returns [(line_no, message)]."""
-    if not is_cxx_path(rel_path):
-        return []
     added = {n for n in added if 1 <= n <= len(lines) and lines[n - 1].strip()}
     if not added:
         return []
-    code_lines, comment_only, doxygen_only = lex_lines(lines)
     findings = []
-    check_comments(comment_only, doxygen_only, added, findings)
-    check_conventions(rel_path, code_lines, added, findings)
+    if is_cxx_path(rel_path):
+        code_lines, comment_only, doxygen_only = lex_lines(lines)
+        check_comments(comment_only, doxygen_only, added, findings)
+        check_conventions(rel_path, code_lines, added, findings)
+        doxygen = [text if is_doxygen else None for text, is_doxygen in zip(comment_only, doxygen_only)]
+        check_patterns([REF_COLON], doxygen, added, findings)
+    elif rel_path.endswith(".dox"):
+        check_patterns([REF_COLON], lines, added, findings)
+    elif is_doxygen_markdown(rel_path, repository_doxygen_excludes() if excludes is None else excludes):
+        check_markdown(lines, added, findings)
     findings.sort()
     return findings
 
 
-def run_diff_mode(base, root=REPO_ROOT):
-    """Return [(rel_path, line_no, message)] for lines added since
-    merge-base(base, HEAD), including untracked C++ files."""
-    per_file = diff_added_lines(base, root)
+def check_files(per_file, root=REPO_ROOT, rev=None):
+    """Return [(rel_path, line_no, message)] for {rel_path: added line numbers},
+    reading each file from the work tree, or from commit ``rev`` when given."""
     results = []
     for rel_path in sorted(per_file):
-        text = read_post_image(root, rel_path)
+        text = read_post_image(root, rel_path, rev)
         if text is None:  # deleted or unreadable
             continue
         for line_no, message in find_findings(rel_path, text.splitlines(), per_file[rel_path]):
@@ -372,26 +466,37 @@ def run_diff_mode(base, root=REPO_ROOT):
     return results
 
 
+def run_diff_mode(base, root=REPO_ROOT):
+    """Return [(rel_path, line_no, message)] for lines added since
+    merge-base(base, HEAD), including untracked source files."""
+    return check_files(diff_added_lines(base, root), root)
+
+
 def run_hook_mode():
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
+    feedback = []
+    for root, per_file in hook_commit_added(payload, hook="check-style"):
+        results = check_files(per_file, root, rev="HEAD")
+        if results:
+            feedback.append("style check (lines added by the commit in %s) — review before proceeding:\n" % root)
+            feedback.extend("  - %s:%d: %s\n" % result for result in results[:8])
     rel_path, snippets = hook_edit_snippets(payload)
-    if rel_path is None:
+    if rel_path is not None:
+        # The hook runs after the edit, so the file on disk is the post-image; it is
+        # lexed whole so enclosing comments and initializers classify correctly.
+        lines, added, _ = hook_post_image_and_added(payload, rel_path, snippets)
+        findings = find_findings(rel_path, lines, added)
+        if findings:
+            feedback.append("style check (%s) — review before proceeding:\n" % rel_path)
+            feedback.extend("  - %s\n" % message for _, message in findings[:8])
+    if not feedback:
         return 0
-    # The hook runs after the edit, so the file on disk is the post-image; it is
-    # lexed whole so enclosing comments and initializers classify correctly.
-    lines, added, _ = hook_post_image_and_added(payload, rel_path, snippets)
-    findings = find_findings(rel_path, lines, added)
-    if findings:
-        sys.stderr.write("style check (%s) — review before proceeding:\n" % rel_path)
-        for _, message in findings[:8]:
-            sys.stderr.write("  - %s\n" % message)
-        sys.stderr.write("Advisory: keep a flagged construct only if it is justified, and say why at the "
-                         "construct.\n")
-        return 2
-    return 0
+    feedback.append("Advisory: keep a flagged construct only if it is justified, and say why at the construct.\n")
+    sys.stderr.write("".join(feedback))
+    return 2
 
 
 def main():

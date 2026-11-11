@@ -1,12 +1,13 @@
 # SPDX-FileCopyrightText: The Eigen Authors
 # SPDX-License-Identifier: MPL-2.0
 
-# clang-format, codespell, REUSE and the unit tests of the pipeline's Python
-# helpers, in one job: each is seconds of work behind a runner start-up, image
-# pull and clone that separate jobs paid four times.  REUSE and the helper
-# tests block; clang-format and codespell are advisory, so their failures alone
-# exit 3 and render the job as a warning.  lint-report.xml names the failing
-# check in the merge request widget.
+# clang-format, codespell, REUSE, the agent-guidance path check and the unit
+# tests of the pipeline's Python helpers, in one job: each is seconds of work
+# behind a runner start-up, image pull and clone that separate jobs would each
+# pay.  REUSE, the guidance check and the helper tests block; clang-format and
+# codespell are advisory, so their failures alone exit 3 and render the job as
+# a warning.  lint-report.xml names the failing check in the merge request
+# widget.
 checkformat:lint:
   stage: checkformat
   image: ${EIGEN_CI_IMAGE_LINUX_LINT}

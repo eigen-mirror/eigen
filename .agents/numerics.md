@@ -13,9 +13,8 @@ are the source of truth; this file defines the review standard rather than an al
   and function-specific boundary behavior must follow the contract. For ordinary finite inputs, the C++ standard
   generally does not promise correctly rounded elementary functions, so Eigen's documented or established ULP
   budget is the relevant target.
-- Do not use `VERIFY_IS_APPROX` as the acceptance criterion for a newly designed numerical kernel. Its defaults in
-  [`test/numerical_test_helpers.h`](../test/numerical_test_helpers.h) are deliberately loose test-framework
-  tolerances, not machine-epsilon or ULP bounds.
+- Do not use `VERIFY_IS_APPROX` as the acceptance criterion for a newly designed numerical kernel.
+  [`testing.md`](testing.md#numerical-assertions) gives its tolerances and the form a bound takes instead.
 - Scale coverage with the change. A narrow fix needs focused regression cases and nearby coverage; a new algorithm
   or shared kernel needs broad conditioning, scalar-type, and backend coverage.
 
@@ -67,11 +66,6 @@ Exercise structures relevant to the algorithm: well-conditioned, ill-conditioned
 rank-deficient, clustered/repeated spectra, extreme scaling, and the matrix properties promised by the API. Useful
 families include Hilbert, Vandermonde, Wilkinson, Toeplitz/KMS, banded, defective or near-defective, and barely
 positive-definite matrices. Check error/status reporting as well as successful results.
-
-When you apply a uniform transformation or a built-in operation to a small structured submatrix, use a fixed-size
-block expression, such as `T.template block<2, 2>(i, i).determinant()`, so the mathematical structure and compile-time
-dimensions remain explicit. This is especially useful for Schur blocks, pivots, and small panels. Use coefficient
-access instead when the entries require distinct formulas.
 
 Where LAPACK has a counterpart, require comparable backward stability, conditioning behavior, pivoting robustness,
 and test-category coverage. Do not require identical internal steps, pivot order, eigenvector signs/phases, or

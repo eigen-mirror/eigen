@@ -13,9 +13,6 @@ coverage needs additional labels, listed in the platform table below. The `docs-
 documentation job, which no default merge request pipeline runs. A green default merge request pipeline is not proof
 that every supported configuration was exercised.
 
-Do not add `all-tests` without the user's explicit permission for that label. Permission to push, rebase, address
-review, or validate a merge request does not authorize it.
-
 A pipeline is evidence only for the commit it ran on. After a push, amend, or rebase, check which SHA the pipeline and
 the merge request point at before citing either. A green run on a superseded revision proves nothing about the current
 head. Likewise, a reported failure should be reproduced at the current head.
@@ -31,25 +28,8 @@ Three things to know when reading a test report:
    test job that reports "No tests were found", is therefore expected rather than a regression. Scheduled and web
    pipelines never skip tests, and setting `EIGEN_CI_TEST_CACHE: "off"` in a job opts it out.
 
-Build jobs keep a second GitLab cache: the ccache pool, which holds `.ccache/`. Its key is
-`$EIGEN_CI_CCACHE_POOL$EIGEN_CI_CCACHE_SCOPE-ccache`. The pool is the job's own slug, except in the `:affected` tier:
-a job there compiles a subset of another job's targets with the same flags, and uses that job's slug. The scope is
-`-mr<iid>` in a merge request pipeline, `-<ref slug>` in other pipelines off the default branch, and empty on the
-default branch. So only default-branch builds write the unscoped pool, and `fallback_keys` names that pool. A restore
-replaces `.ccache/` rather than merging into it. If every pipeline shared one pool, the last pipeline to write it would
-win. When merge requests on unrelated bases shared a pool, they overwrote each other's objects and compiled at a 0.35%
-hit rate. GitLab appends its clear-cache index and `-protected` or `-non_protected` to both the key and the fallback
-key. A merge request pipeline started by a Developer therefore cannot read the pool that the scheduled builds fill.
-
-Two tiers opt out of scoping by setting `EIGEN_CI_CCACHE_SCOPE` back to `""` in the job. The smoke tier
-(`.smoketest:build`) runs only on merge request events. With a scoped key, each merge request would get its own pool,
-and nothing would write the shared one. Windows opts out because its runner has no distributed cache: a separate
-archive for each merge request would pile up on its disk without limit.
-
-Any self-hosted runner without `[runners.cache]` keeps one archive per key forever. The script
-[`prune_runner_cache.py`](../ci/scripts/prune_runner_cache.py) caps such a directory (`--max-gb`, LRU by mtime) and
-drops superseded clear-cache generations (`--stale-index-below`). Its unit tests,
-[`test_prune_runner_cache.py`](../ci/scripts/test_prune_runner_cache.py), run in `checkformat:lint`.
+Build jobs also restore a ccache pool. [`ci-internals.md`](ci-internals.md#the-ccache-pool) explains how it is keyed and
+why a merge request pipeline cannot read every pool.
 
 ## Test Tiers On Merge Requests
 
@@ -59,7 +39,7 @@ Three tiers, in increasing cost:
 |---|---|---|
 | smoke | every merge request with neither label below | the fixed list in [`cmake/EigenSmokeTestList.cmake`](../cmake/EigenSmokeTestList.cmake), usually one part per test, at baseline ISA on x86-64, aarch64 and riscv64, under gcc and clang |
 | affected | `affected-tests` label | every test the diff can reach, all parts, on x86-64 (gcc AVX2, clang baseline) and aarch64 (gcc, clang), plus any platform the diff or a `*-tests` label selects |
-| full | `all-tests` label (requires explicit user permission) | the whole suite across the entire compiler and ISA matrix, minus the NVHPC pair below |
+| full | `all-tests` label (needs the user's explicit permission; rule 8 in [`AGENTS.md`](../AGENTS.md#non-negotiable-rules)) | the whole suite across the entire compiler and ISA matrix, minus the NVHPC pair below |
 
 One configuration sits outside all three tiers: the NVHPC (`nvc++`) build and test jobs. The `nvc++` frontend is so slow
 that the two NVHPC builds alone once took roughly a quarter of the project's hosted-runner minutes. They run on
@@ -213,30 +193,49 @@ codespell --config setup.cfg path/to/changed-file
 reuse lint
 python3 scripts/check_style.py --diff <base-sha>
 python3 scripts/clang_tidy_hook.py --diff <base-sha>   # needs clang-tidy
+python3 scripts/check_agent_guides.py                  # after moving a file or editing a guide
 ```
 
-The two Python scripts report only on the lines a change adds, and both are advisory. `check_style.py` covers the
+The first two Python scripts report only on the lines a change adds, and both are advisory. `check_style.py` covers the
 conventions clang-tidy cannot express: comment verbosity, and the declaration forms that `.clang-tidy` has
-`CustomChecks` queries for but does not enable yet (see its commented-out block). `clang_tidy_hook.py` runs
+`CustomChecks` queries for but does not enable yet (see its commented-out block). It also flags the documentation
+constructs that fail the blocking documentation job; see [`docs.md`](docs.md). `clang_tidy_hook.py` runs
 clang-tidy itself, limited to added lines with `--line-filter`. It needs no build directory. Instead it generates a
 driver source file that includes the module's umbrella header and then the edited `Eigen/src` header, as
 `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when clang-tidy is not installed, and shows
 the user a non-blocking notice when a file's translation unit does not compile.
 
-Claude Code sessions run both automatically through the hooks registered in `.claude/settings.json`. `check_style.py`
-runs after every Edit or Write. `clang_tidy_hook.py` runs only for `.h`, `.cpp`, `.cu` and `.inc` files, in the
-background, because parsing a module takes 10–30 s. Its findings arrive as a reminder after the edit has returned, and
-they name the file they apply to. After changing either script, run their unit tests,
-[`scripts/test_check_style.py`](../scripts/test_check_style.py) and
+Claude Code sessions run both scripts automatically, through the hooks registered in `.claude/settings.json`. The
+hooks fire at two points:
+
+- **After a file edit.** Both scripts check the lines the edit added. `clang_tidy_hook.py` runs in the background,
+  because parsing a module takes 10–30 s. Its findings arrive as a reminder after the edit has returned, and they
+  name the file they apply to.
+- **After a shell command that committed.** Both scripts check the lines the commit added. A file changed through
+  the shell (`sed -i`, a heredoc, `git apply`) fires no edit hook, so the commit is the first point at which a hook
+  sees those lines. Findings the edit hook already reported appear again here. Each hook reports a commit once,
+  and skips merge commits. `clang_tidy_hook.py` lints the work tree, so it skips a file edited again since the
+  commit. It also stops after eight files, to stay inside the hook's time limit. A notice names the files it left
+  out.
+
+With another harness, or before committing a file that was changed through the shell, run the two `--diff` commands
+above by hand. After changing a hook script, run its unit test:
+[`scripts/test_check_style.py`](../scripts/test_check_style.py) or
 [`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py); `checkformat:lint` runs them too.
+
+[`scripts/check_agent_guides.py`](../scripts/check_agent_guides.py) checks the guidance itself: every relative link
+and every repository path that `AGENTS.md`, a guide under `.agents/`, or a pointer under `.claude/` names must exist.
+It is blocking in `checkformat:lint`. When a change moves or deletes a file that a guide names, update the guide in
+the same merge request.
 
 The whole-tree codespell invocation used by CI can expose pre-existing findings. Do not modify unrelated files merely to
 make a local broad scan clean.
 
-`checkformat:lint` runs clang-format, codespell, REUSE, and the Python helper tests through
-[`ci/lint/lint.sh`](../ci/lint/lint.sh), with `vermin` checking that the helpers still run on Python 3.12. REUSE and
-the helper tests are blocking. A clang-format or codespell failure alone only marks the job as a warning, and any
-failure in `checkformat:clangtidy` is also only a warning. Treat their diagnostics as review findings anyway.
+`checkformat:lint` runs clang-format, codespell, REUSE, the guidance check, and the Python helper tests through
+[`ci/lint/lint.sh`](../ci/lint/lint.sh), with `vermin` checking that the helpers still run on Python 3.12. REUSE, the
+guidance check, and the helper tests are blocking. A clang-format or codespell failure alone only marks the job as a
+warning, and any failure in `checkformat:clangtidy` is also only a warning. Treat their diagnostics as review findings
+anyway.
 
 Source files carry the inline SPDX header that [`conventions.md`](conventions.md) records. Files that cannot carry
 one need coverage in [`REUSE.toml`](../REUSE.toml). The repository helper scans tracked files by default, so pass new
@@ -253,41 +252,21 @@ Test builds compile with the warning set in the top-level [`CMakeLists.txt`](../
 new warning therefore turns up only in a build log. Do not add a warning. When a new warning is a compiler false
 positive, keep the code and say so in the merge request rather than suppressing it. Read the build-job logs of the
 merge request pipeline, and compare them against a scheduled or web pipeline on the target branch. Those pipelines run
-every build job, while default-branch pushes run only a few. Prefer one at the merge request's base commit; the newest
-scheduled pipeline can be days older, and the master changes in between then show up in the diff:
+every build job, while default-branch pushes run only a few.
+[`scripts/ci_warning_diff.sh`](../scripts/ci_warning_diff.sh) does the comparison:
 
 ```bash
-base=$(glab api "projects/libeigen%2Feigen/merge_requests/<iid>" |
-  python3 -c 'import json, sys; print(json.load(sys.stdin)["diff_refs"]["base_sha"])')
-glab api "projects/libeigen%2Feigen/pipelines?sha=$base&per_page=100" |       # base pipeline id, if one exists
-  python3 -c 'import json, sys; print(*[p["id"] for p in json.load(sys.stdin) if p["source"] in ("schedule", "web")][:1])'
-glab api "projects/libeigen%2Feigen/pipelines?ref=master&source=schedule&per_page=1"    # otherwise the newest scheduled
-warnings() {  # warnings() <pipeline-id>: one line per build job and warning site
-  glab api --paginate "projects/libeigen%2Feigen/pipelines/$1/jobs?per_page=100" | python3 -c '
-import json, sys
-s, d, i = sys.stdin.read(), json.JSONDecoder(), 0
-while i < len(s):
-    page, i = d.raw_decode(s, i)
-    for j in page:
-        if j["stage"] == "build" and j["status"] in ("success", "failed"): print(j["id"], j["name"])' |
-  while read -r id name; do
-    name=${name%:affected}
-    glab api "projects/libeigen%2Feigen/jobs/$id/trace" |
-      sed -E 's/\x1b\[[0-9;]*[mK]//g; s/\r//; s/^[0-9-]+T[0-9:.]+Z [0-9A-Z]+ //' |
-      grep -E ': warning[: #]|warning C[0-9]{4}' |
-      sed -E "s|\\\\|/|g; s|^.*/eigen/||; s|:[0-9]+:[0-9]+:|:|; s|\([0-9]+\)||; s|^|$name: |"
-  done | sort -u
-}
-diff <(warnings <base-id>) <(warnings <mr-id>)
+scripts/ci_warning_diff.sh <mr-iid>                            # needs glab and python3
+scripts/ci_warning_diff.sh <base-pipeline-id> <mr-pipeline-id>
 ```
 
-The normalization strips what differs between runs of the same warning: the `:affected` suffix that merge request
-build jobs carry, the runners' per-line timestamps, line numbers in both the `file:12:3:` and the MSVC/nvcc
-`file(12):` forms, and the checkout prefix, which on Windows is a backslash path with a per-run runner directory.
-Without it, every warning in a merge request pipeline reads as new. A warning in a changed file that
-appears on both sides can still come from a changed line, so check those as well. The default merge request
-pipeline builds only the smoke targets. Most warnings below appear only in configurations that the `affected-tests`
-labels enable.
+Given a merge request, the script prefers a pipeline at the merge request's base commit. When none ran there, it
+falls back to the newest scheduled pipeline, which can be days older, and says so: the master changes in between then
+show up in the diff. It normalizes away what differs between two runs of the same warning (line numbers, timestamps,
+the checkout prefix, the `:affected` job suffix), so a line marked `>` is a warning that only the merge request
+pipeline has. A warning in a changed file that appears on both sides can still come from a changed line, so check
+those as well. The default merge request pipeline builds only the smoke targets. Most warnings below appear only in
+configurations that the `affected-tests` labels enable.
 
 Many warnings show up in only one configuration, so an x86-64 build that compiles cleanly proves little:
 
