@@ -1234,6 +1234,38 @@ void check_twoprod_full_range() {
   }
 }
 
+// numext::madd fuses as EIGEN_SCALAR_MADD_USE_FMA says, except a long double without an fma instruction.
+template <typename T>
+void check_scalar_madd_fusion() {
+  // (1 + eps)(1 - eps) - 1 is -eps^2 fused and 0 unfused.
+  const T eps = NumTraits<T>::epsilon();
+  const T x = T(1) + eps, y = T(1) - eps;
+  if (internal::scalar_madd_uses_fma<T>::value) {
+    VERIFY_IS_EQUAL(numext::madd<T>(x, y, T(-1)), T(-eps * eps));
+  } else if (std::numeric_limits<T>::digits > std::numeric_limits<double>::digits &&
+             !internal::has_fast_fma<T>::value) {
+    // Checked unfused only for a format wider than double with no fma instruction: elsewhere the compiler may
+    // contract x * y + z into an instruction has_fast_fma does not know of.
+    VERIFY_IS_EQUAL(numext::madd<T>(x, y, T(-1)), T(0));
+    VERIFY_IS_EQUAL(internal::pmadd<T>(x, y, T(-1)), T(0));
+  }
+}
+
+void check_scalar_madd_fusion_policy() {
+  VERIFY_IS_EQUAL(internal::scalar_madd_uses_fma<float>::value, bool(EIGEN_SCALAR_MADD_USE_FMA));
+  VERIFY_IS_EQUAL(internal::scalar_madd_uses_fma<double>::value, bool(EIGEN_SCALAR_MADD_USE_FMA));
+#if EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM64
+  // Neither architecture has an fma instruction for x87 extended or binary128.
+  if (std::numeric_limits<long double>::digits != std::numeric_limits<double>::digits) {
+    VERIFY(!internal::has_fast_fma<long double>::value);
+    VERIFY(!internal::scalar_madd_uses_fma<long double>::value);
+  }
+#endif
+  check_scalar_madd_fusion<float>();
+  check_scalar_madd_fusion<double>();
+  check_scalar_madd_fusion<long double>();
+}
+
 #ifdef EIGEN_VECTORIZE_FMA
 // Custom scalars can return a lazy expression from unary minus.
 struct TwoprodScalar {
@@ -1833,6 +1865,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST_1(check_twoprod<float>());
     CALL_SUBTEST_1(check_twoprod<double>());
     CALL_SUBTEST_1(check_twoprod<long double>());
+    CALL_SUBTEST_1(check_scalar_madd_fusion_policy());
     CALL_SUBTEST_1(check_twoprod<half>());
     CALL_SUBTEST_1(check_twoprod<bfloat16>());
     CALL_SUBTEST_1(check_twoprod_full_range<float>());

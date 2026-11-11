@@ -76,23 +76,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 #else
 
 // Dekker's product requires separately rounded operations. GCC's C++ default -ffp-contract=fast may fuse
-// fl(x*y) into its consumers, so use fma for scalar types that <cmath> advertises as fast.
+// fl(x*y) into its consumers, so use fma for scalar types where it is an instruction (has_fast_fma).
 // This does not prevent contraction in the remaining scalar or packet fallback paths.
-template <typename Scalar>
-struct has_fast_fma : std::false_type {};
-#ifdef FP_FAST_FMAF
-template <>
-struct has_fast_fma<float> : std::true_type {};
-#endif
-#ifdef FP_FAST_FMA
-template <>
-struct has_fast_fma<double> : std::true_type {};
-#endif
-#ifdef FP_FAST_FMAL
-template <>
-struct has_fast_fma<long double> : std::true_type {};
-#endif
-
 template <typename Scalar, std::enable_if_t<has_fast_fma<Scalar>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low(const Scalar& x, const Scalar& y, const Scalar& xy) {
   return twoprod_low_fma(x, y, xy);

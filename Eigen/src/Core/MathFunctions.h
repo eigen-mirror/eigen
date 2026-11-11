@@ -1113,14 +1113,45 @@ struct madd_impl {
   }
 };
 
-#if EIGEN_SCALAR_MADD_USE_FMA
+// Whether fma on Scalar is an instruction rather than a libm routine. x87 extended and IBM double-double long double
+// have no fma instruction, nor does binary128 on most targets.
 template <typename Scalar>
-struct madd_impl<Scalar, std::enable_if_t<has_fma<Scalar>::value>> {
+struct has_fast_fma : std::false_type {};
+#if defined(EIGEN_VECTORIZE_FMA) || defined(FP_FAST_FMAF) || defined(__FP_FAST_FMAF)
+template <>
+struct has_fast_fma<float> : std::true_type {};
+#endif
+#if defined(EIGEN_VECTORIZE_FMA) || defined(FP_FAST_FMA) || defined(__FP_FAST_FMA)
+template <>
+struct has_fast_fma<double> : std::true_type {};
+#endif
+#if defined(FP_FAST_FMAL) || defined(__FP_FAST_FMAL)
+template <>
+struct has_fast_fma<long double> : std::true_type {};
+#else
+// A long double with double's format is as fast as double.
+template <>
+struct has_fast_fma<long double>
+    : bool_constant<std::numeric_limits<long double>::digits == std::numeric_limits<double>::digits &&
+                    has_fast_fma<double>::value> {};
+#endif
+
+// Whether numext::madd fuses Scalar: as EIGEN_SCALAR_MADD_USE_FMA says, except that long double is fused only where
+// its fma is an instruction, because scalar GEBP through libm's fmal is far slower than the unfused product and sum.
+// has_fma<Scalar> is passed as a type, not a value, so it is instantiated only when selected, never when
+// EIGEN_SCALAR_MADD_USE_FMA is 0.
+template <typename Scalar>
+struct scalar_madd_uses_fma
+    : std::conditional_t<bool(EIGEN_SCALAR_MADD_USE_FMA) &&
+                             (!std::is_same<Scalar, long double>::value || has_fast_fma<Scalar>::value),
+                         has_fma<Scalar>, std::false_type> {};
+
+template <typename Scalar>
+struct madd_impl<Scalar, std::enable_if_t<scalar_madd_uses_fma<Scalar>::value>> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar run(const Scalar& x, const Scalar& y, const Scalar& z) {
     return fma_impl<Scalar>::run(x, y, z);
   }
 };
-#endif
 
 // Representation properties shared by operations that inspect an IEEE-style binary floating-point value.
 template <typename Scalar>

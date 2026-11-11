@@ -679,9 +679,10 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 /** Whether numext::madd uses std::fma for scalars. Defaults to the hardware: fused where a single
  * instruction exists, which keeps the scalar and vectorized paths consistent, and unfused otherwise,
- * where software fma costs 2-3x on Intel and up to 30x on WASM. Error-free transformations such as
+ * where software fma costs 2-3x on Intel and up to 30x on WASM. A long double without an fma instruction
+ * (internal::has_fast_fma) is never fused. Error-free transformations such as
  * internal::twoprod ignore this setting: they call numext::fma when EIGEN_VECTORIZE_FMA is enabled
- * or FP_FAST_FMA* advertises a fast scalar fma, and use Dekker's product elsewhere.
+ * or internal::has_fast_fma holds for the scalar, and use Dekker's product elsewhere.
  * Resolved here rather than in Macros.h, which Eigen/Core includes first, because the architecture
  * branches above settle EIGEN_VECTORIZE_FMA -- the ARM one only a few lines up.
  */

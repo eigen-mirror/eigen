@@ -20,6 +20,8 @@ eigen_add_benchmark(bench_gemm_complex bench_gemm.cpp
     DEFINITIONS "SCALAR=std::complex<float>" EIGEN_BENCH_COMPLEX_SCALAR)
 eigen_add_benchmark(bench_gemm_complex_double bench_gemm.cpp
     DEFINITIONS "SCALAR=std::complex<double>" EIGEN_BENCH_COMPLEX_SCALAR)
+# The scalar GEBP path: numext::madd must not call a software fmal under FMA.
+eigen_add_benchmark(bench_gemm_long_double bench_gemm.cpp DEFINITIONS "SCALAR=long double")
 eigen_add_benchmark(bench_gemm_threads bench_gemm_threads.cpp)
 eigen_add_benchmark(bench_gemm_threads_double bench_gemm_threads.cpp DEFINITIONS SCALAR=double)
 eigen_add_benchmark(bench_gemm_scaled bench_gemm_scaled.cpp)

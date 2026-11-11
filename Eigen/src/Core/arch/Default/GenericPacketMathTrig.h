@@ -637,7 +637,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
 #ifdef EIGEN_VECTORIZE_FMA
   constexpr float kClamp = 8.01773357391357422f;
 #else
-  constexpr bool kUsesFma = is_scalar<T>::value && bool(EIGEN_SCALAR_MADD_USE_FMA) && has_fma<T>::value;
+  constexpr bool kUsesFma = is_scalar<T>::value && scalar_madd_uses_fma<T>::value;
   constexpr float kClamp = kUsesFma ? 8.01773357391357422f : 7.90738964080810547f;
 #endif
   const T plus_clamp = pset1<T>(kClamp);
@@ -737,7 +737,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_double(const T& a_x)
 #ifdef EIGEN_VECTORIZE_FMA
   constexpr double kClamp = 17.6610191624600077;
 #else
-  constexpr bool kUsesFma = is_scalar<T>::value && bool(EIGEN_SCALAR_MADD_USE_FMA) && has_fma<T>::value;
+  constexpr bool kUsesFma = is_scalar<T>::value && scalar_madd_uses_fma<T>::value;
   constexpr double kClamp = kUsesFma ? 17.6610191624600077 : 17.714196154005176;
 #endif
   const T plus_clamp = pset1<T>(kClamp);
