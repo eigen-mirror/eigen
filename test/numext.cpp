@@ -844,8 +844,9 @@ void check_complex_exp2() {
   }
   // A large finite b has no accurate phase left, but b ln(2) is finite: the result keeps the modulus 2^a. With cos
   // and sin each within a few ulps, |w| = 2 sqrt(cos^2 + sin^2) is within a few ulps of 2, and ulp(2) = 2 eps.
+  // highest() * 0.75, not highest() / 3: IBM double-double division overflows internally and returns NaN there.
   const T eps = NumTraits<T>::epsilon();
-  for (const T b : {NumTraits<T>::highest(), NumTraits<T>::highest() / T(3), T(1) / (eps * eps * eps)}) {
+  for (const T b : {NumTraits<T>::highest(), NumTraits<T>::highest() * T(0.75), T(1) / (eps * eps * eps)}) {
     const Complex w = numext::exp2(Complex(T(1), b));
     VERIFY((numext::isfinite)(w.real()) && (numext::isfinite)(w.imag()));
     VERIFY(numext::abs(numext::abs(w) - T(2)) <= T(16) * eps);

@@ -420,8 +420,10 @@ void test_dplr_determinant_capacitance() {
   }
 }
 
-// The capacitance and the solve are bit-identical to the plain Woodbury
-// evaluation.
+// The capacitance and the solve match the plain Woodbury evaluation. They
+// run the same expressions, but not bit-identically: GCC can version a loop
+// on a runtime alias check whose vector and scalar bodies contract FMAs
+// differently, so the bits depend on where the buffers were allocated.
 template <typename Scalar>
 void test_dplr_capacitance_plain(Index n, Index k) {
   using Vec = Matrix<Scalar, Dynamic, 1>;
@@ -436,13 +438,13 @@ void test_dplr_capacitance_plain(Index n, Index k) {
   const Vec dinv = d.cwiseInverse();
   Mat capRef = Mat::Identity(k, k);
   capRef.noalias() += V.adjoint() * dinv.asDiagonal() * U;
-  VERIFY_IS_CWISE_EQUAL(A.capacitance(), capRef);
+  VERIFY_IS_APPROX(A.capacitance(), capRef);
 
   Vec b = Vec::Random(n);
   PartialPivLU<Mat> capLU(capRef);
   Vec xRef = dinv.asDiagonal() * b;
   xRef.noalias() -= dinv.asDiagonal() * (U * capLU.solve(V.adjoint() * xRef));
-  VERIFY_IS_CWISE_EQUAL(A.solve(b), xRef);
+  VERIFY_IS_APPROX(A.solve(b), xRef);
 }
 
 // A fixed correction rank of zero is a compile-level regression: the operator
