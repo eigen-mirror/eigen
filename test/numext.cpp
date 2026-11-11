@@ -482,7 +482,10 @@ void check_adl_sparse_iterative_solvers() {
   MINRES<SparseMatrix<S>> minres(sp_spd);
   VERIFY_LE(adl_max_abs(spd4 * minres.solve(b4) - b4), 1e-8);
 
+  // The shadow space is random. For a nearly degenerate one the recurrence residual drifts from b - A x, which
+  // residual replacement corrects.
   IDRS<SparseMatrix<S>> idrs(sp_ns);
+  idrs.setResidualUpdate(true);
   VERIFY_LE(adl_max_abs(ns4 * idrs.solve(b4) - b4), 1e-8);
 
   IDRSTABL<SparseMatrix<S>> idrstabl(sp_ns);

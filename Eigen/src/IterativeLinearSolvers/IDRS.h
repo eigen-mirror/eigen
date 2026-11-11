@@ -120,10 +120,44 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   VectorType t(N), v(N);
   Scalar om = 1.;
 
+  const auto restart = [&]() {
+    G.setZero();
+    U.setZero();
+    M.setIdentity();
+  };
+
+  // r and x follow separate recurrences, and A U(:,k) = G(:,k) holds only up to the rounding error of the
+  // bi-orthogonalization, which grows with cond(A) and with the cancellation in G(:,k). The recurrence residual can
+  // then fall below the tolerance while b - A x does not. Accept convergence only when b - A x confirms it, and restart
+  // from the current iterate otherwise. A restart counts as an iteration, which bounds their number. A residual that is
+  // not finite ends the iteration, and the caller reports NoConvergence.
+  const auto done = [&]() {
+    if (!(numext::isfinite)(normr)) {
+      return true;
+    }
+    if (normr > tolb) {
+      return false;
+    }
+    if (smoothing) {
+      x = x_s;
+    }
+    r.noalias() = b - A * x;
+    normr = r.stableNorm();
+    if (normr <= tolb) {
+      return true;
+    }
+    if (smoothing) {
+      r_s = r;
+    }
+    restart();
+    ++iter;
+    return false;
+  };
+
   // Main iteration loop, build G-spaces:
   iter = 0;
 
-  while (normr > tolb && iter < maxit) {
+  while (!done() && iter < maxit) {
     // New right hand size for small system:
     VectorType f = (r.adjoint() * P).adjoint();
 
@@ -142,11 +176,20 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       G.col(k).noalias() = A * U.col(k);
 
       // Bi-Orthogonalise the new basis vectors:
-      for (Index i = 0; i < k - 1; ++i) {
+      const RealScalar normg = G.col(k).stableNorm();
+      for (Index i = 0; i < k; ++i) {
         // alpha =  ( P(:,i)'*G(:,k) )/M(i,i);
         Scalar alpha = P.col(i).dot(G.col(k)) / M(i, i);
         G.col(k) = G.col(k) - alpha * G.col(i);
         U.col(k) = U.col(k) - alpha * U.col(i);
+      }
+
+      if (k > 0 && G.col(k).stableNorm() <= mp * normg) {
+        // G(:,k) was in the span of the earlier directions: the Krylov space is exhausted. What is left of G(:,k) is
+        // the rounding error of the loop above, for which A U(:,k) = G(:,k) no longer holds. Restart from the current
+        // iterate with the omega step below.
+        restart();
+        break;
       }
 
       // New column of M = P'*G  (first k-1 entries are zero)
@@ -187,8 +230,8 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
       }
     }  // end for
 
-    if (normr < tolb || iter == maxit) {
-      break;
+    if (normr < tolb) {
+      continue;
     }
 
     // Now we have sufficient vectors in G_j to compute residual in G_j+1
@@ -282,9 +325,10 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
  * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
- * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
+ * number of iterations and \f$ 8 \sqrt{n}\, \epsilon \f$ for the tolerance, see tolerance().
  *
- * The tolerance corresponds to the relative residual error: |Ax-b|/|b|
+ * The tolerance corresponds to the relative residual error: |Ax-b|/|b|. The solver reports Success only when
+ * \f$ \| b - A x \| \f$, computed from the returned x, meets it.
  *
  * \b Performance: when using sparse matrices, best performance is achieved for a row-major sparse matrix format.
  * Moreover, in this case multi-threading can be exploited if the user code is compiled with OpenMP enabled.
@@ -319,7 +363,7 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
 
  public:
   /** Default constructor. */
-  IDRS() = default;
+  IDRS() { Base::m_tolerance = RealScalar(-1); }
 
   /**     Initialize the solver with matrix \a A for further \c Ax=b solving.
 
@@ -332,7 +376,25 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
           matrix A, or modify a copy of A.
   */
   template <typename MatrixDerived>
-  explicit IDRS(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
+  explicit IDRS(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {
+    Base::m_tolerance = RealScalar(-1);
+  }
+
+  /** \returns the tolerance set by setTolerance(), or by default \f$ 8 \sqrt{n}\, \epsilon \f$ for an n x n matrix.
+   *
+   * The default is the smallest relative residual that b - A x, evaluated in floating point, can confirm reliably.
+   * With m nonzeros in a row of A, each component carries a rounding error of order
+   * \f$ \sqrt{m+1}\, u\, (|b_i| + (|A| |x|)_i) \f$ (Higham and Mary, A new approach to probabilistic rounding error
+   * analysis, SIAM J. Sci. Comput. 41(5), 2019), so \f$ \|b - A x\| / \|b\| \f$ cannot be certified much below
+   * \f$ \sqrt{m+1}\, \epsilon \f$ even for a well-conditioned A, and m + 1 is at most about n. The factor 8 leaves
+   * room for \f$ \| |A| |x| \| \f$ exceeding \f$ \|b\| \f$. A tolerance below this level, or below about
+   * \f$ \epsilon\, \|A\| \|x\| / \|b\| \f$ for an ill-conditioned A, can end in NoConvergence after maxIterations().
+   */
+  RealScalar tolerance() const {
+    return Base::m_tolerance >= RealScalar(0)
+               ? Base::m_tolerance
+               : RealScalar(8) * numext::sqrt(RealScalar(Base::cols())) * NumTraits<RealScalar>::epsilon();
+  }
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:
@@ -342,12 +404,13 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
   template <typename Rhs, typename Dest>
   void _solve_vector_with_guess_impl(const Rhs& b, Dest& x) const {
     m_iterations = Base::maxIterations();
-    m_error = Base::m_tolerance;
+    const RealScalar tol = tolerance();
+    m_error = tol;
 
     bool ret = internal::idrs(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, m_S, m_smoothing, m_angle,
                               m_residual);
 
-    m_info = (!ret) ? NumericalIssue : m_error <= Base::m_tolerance ? Success : NoConvergence;
+    m_info = (!ret) ? NumericalIssue : m_error <= tol ? Success : NoConvergence;
   }
 
   /** Sets the parameter S, indicating the dimension of the shadow space. Default is 4*/
