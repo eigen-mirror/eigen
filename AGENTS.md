@@ -169,40 +169,12 @@ and `.eval()` can all consume an expression.
   inside the loop body allocates on every iteration. So does every subexpression in the loop body that materializes a
   temporary.
 
-### Scalar, index, and storage genericity
+### Scalar genericity and public APIs
 
-Use `Eigen::Index` for dimensions and counts, but remember that its underlying type is configurable. Use `NumTraits` for
-scalar properties, and Eigen's `numext` helpers when the code must support custom scalars or device code. Do not:
+Before you write new code, read [`.agents/conventions.md`](.agents/conventions.md). It holds the rules for index and
+scalar types, storage-order flags, the Eigen base a generic API accepts, passing fixed-size objects, and assertions.
 
-- store sizes or loop counts in `Scalar`;
-- hard-code `float`/`double` without an API reason;
-- narrow a value to the `int` a vendor API takes without checking the range.
-
-Test the real, complex, integer, and narrow or custom scalar types that the operation's documented domain covers.
-Commutativity, exactness, the tie behavior of `min`/`max`, and other algebraic properties of the built-in types need
-not hold for every `Scalar`. Establish such a property for each scalar category, and leave custom scalars on the
-conservative path.
-
-Propagate storage-order and expression flags deliberately. `RowMajorBit`, fixed versus dynamic dimensions, alignment,
-and vectorization eligibility affect evaluators and fast paths. Eigen alignment depends on configuration and
-architecture; do not hard-code an assumed byte value. When configuration-sensitive behavior changes semantics or ABI,
-cover it in tests.
-
-### Public APIs and diagnostics
-
-For generic APIs, accept the least restrictive established Eigen base (`EigenBase`, `DenseBase`, `MatrixBase`,
-`ArrayBase`, or a suitable `Ref`) that preserves the intended semantics. When the function writes to an expression
-argument, follow the established patterns nearby. Do not cast away constness from genuinely const storage. When you add
-a non-template definition or object to a public header and an ODR regression is plausible, add a link test that
-includes the header from multiple translation units.
-
-Pass fixed-size vectorizable Eigen objects by reference rather than by value. C++17 passes over-aligned objects by value
-safely, but the supported C++14 configurations cannot rely on that. See
-[`doc/PassingByValue.dox`](doc/PassingByValue.dox).
-
-Use `eigen_assert` for runtime preconditions that are part of Eigen's public debug behavior, and `eigen_internal_assert`
-for internal invariants, which are checked only when `EIGEN_INTERNAL_DEBUGGING` is defined. Use the local compile-time
-assertion style that gives the clearest diagnostic.
+### Comments
 
 Comments should explain non-obvious mathematics, invariants, compatibility constraints, or provenance rather than
 narrating the code. Keep comments concise and proportional to the code's complexity. Avoid tutorial-style prose,
