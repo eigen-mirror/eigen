@@ -866,11 +866,11 @@ static void test_sharded_by_inner_dim_cost_model() {
   using ContractionEval = TensorEvaluator<const decltype(expr), Eigen::ThreadPoolDevice>;
   ContractionEval eval(expr, device);
 
-  // Scale k by the packet width so the parallel cost (6.6e4..2.6e5 cycles across FMA and panel-width regimes) sits
-  // between the old hardcoded threshold (~5.7e4 cycles) and the TensorCostModel threshold (~4.0e5 cycles) under every
-  // SIMD width.
+  // Scale k by the packet width, up to 16 scalars, so the cost stays moderate and below the sharding threshold of
+  // 2 * kStartupCycles = 2.0e5 cycles at every packet width, with or without FMA: at most 1.8e5 cycles for the
+  // float shape and 1.7e5 for the bfloat16 shape.
   const Index f32_packet_size = PacketType<float, Eigen::ThreadPoolDevice>::size;
-  const Index moderate_f32_k = 64 * f32_packet_size;
+  const Index moderate_f32_k = 64 * numext::mini<Index>(f32_packet_size, 16);
   VERIFY_IS_EQUAL(eval.numThreadsInnerDim(32, 64, moderate_f32_k), 1);
   VERIFY(!ContractionEval::shardByInnerDim(32, 64, moderate_f32_k, /*num_threads=*/1,
                                            eval.numThreadsInnerDim(32, 64, moderate_f32_k)));
@@ -882,7 +882,7 @@ static void test_sharded_by_inner_dim_cost_model() {
   using Bf16ContractionEval = TensorEvaluator<const decltype(bf16_expr), Eigen::ThreadPoolDevice>;
   Bf16ContractionEval bf16_eval(bf16_expr, device);
   const Index bf16_packet_size = PacketType<Eigen::bfloat16, Eigen::ThreadPoolDevice>::size;
-  const Index moderate_bf16_k = 64 * bf16_packet_size;
+  const Index moderate_bf16_k = 64 * numext::mini<Index>(bf16_packet_size, 16);
   VERIFY_IS_EQUAL(bf16_eval.numThreadsInnerDim(16, 128, moderate_bf16_k), 1);
   VERIFY(!Bf16ContractionEval::shardByInnerDim(16, 128, moderate_bf16_k, /*num_threads=*/1,
                                                bf16_eval.numThreadsInnerDim(16, 128, moderate_bf16_k)));
@@ -892,6 +892,19 @@ static void test_sharded_by_inner_dim_cost_model() {
   const int nt_k = eval.numThreadsInnerDim(2, 10, deep_f32_k);
   VERIFY(nt_k > 1);
   VERIFY(ContractionEval::shardByInnerDim(2, 10, deep_f32_k, /*num_threads=*/1, nt_k));
+
+  // Issue #3233: with few columns, packing the lhs costs as much as the kernel, so these shapes hold enough work to
+  // shard by k with or without FMA. On a wide pool, the thread count must still leave each thread the steps that
+  // shardByInnerDim() requires, and must be the number of blocks that run, which the minimum block size bounds.
+  Eigen::ThreadPoolDevice wide_device(&threads, 112);
+  ContractionEval wide_eval(expr, wide_device);
+  for (Index m : {256, 1024}) {
+    const int skinny_nt_k = wide_eval.numThreadsInnerDim(m, 4, 1536);
+    VERIFY(skinny_nt_k > 1);
+    VERIFY(ContractionEval::shardByInnerDim(m, 4, 1536, /*num_threads=*/1, skinny_nt_k));
+    VERIFY_IS_EQUAL(numext::div_ceil<Index>(1536, ContractionEval::innerDimBlockSize(1536, skinny_nt_k)),
+                    Index(skinny_nt_k));
+  }
 }
 
 template <int DataLayout>
