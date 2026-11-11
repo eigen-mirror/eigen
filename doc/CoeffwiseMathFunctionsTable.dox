@@ -740,7 +740,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Exponential / Logarithmic</th></tr>
 <tr><td>exp</td>   <td>1</td>  <td>0.018</td> <td>98.2%</td> <td></td></tr>
 <tr><td>exp2</td>  <td>6</td>  <td>0.034</td> <td>97.3%</td> <td></td></tr>
-<tr><td>expm1</td> <td>5</td>  <td>0.060</td> <td>94.6%</td> <td></td></tr>
+<tr><td>expm1</td> <td>2</td>  <td>0.003</td> <td>99.7%</td> <td></td></tr>
 <tr><td>log</td>   <td>3</td>  <td>0.120</td> <td>88.0%</td> <td></td></tr>
 <tr><td>log1p</td> <td>5</td>  <td>0.134</td> <td>87.5%</td> <td></td></tr>
 <tr><td>log10</td> <td>2</td>  <td>0.007</td> <td>99.3%</td> <td></td></tr>
@@ -777,7 +777,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Exponential / Logarithmic</th></tr>
 <tr><td>exp</td>   <td>2</td>   <td>0.001</td> <td>99.9%</td> <td></td></tr>
 <tr><td>exp2</td>  <td>214</td> <td>0.107</td> <td>99.6%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note2 "2"</td></tr>
-<tr><td>expm1</td> <td>3</td>   <td>0.010</td> <td>99.1%</td> <td></td></tr>
+<tr><td>expm1</td> <td>2</td>   <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
 <tr><td>log</td>   <td>2</td>   <td>0.147</td> <td>85.3%</td> <td></td></tr>
 <tr><td>log1p</td> <td>3</td>   <td>0.097</td> <td>90.6%</td> <td></td></tr>
 <tr><td>log10</td> <td>2</td>   <td>0.001</td> <td>99.9%</td> <td></td></tr>

@@ -442,29 +442,6 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p(const P
   return pselect(por(small_mask, inf_mask), x, log_large);
 }
 
-/** \internal \returns exp(x)-1 computed using W. Kahan's formula.
-    See: http://www.plunk.org/~hatch/rightway.php
- */
-template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& x) {
-  using ScalarType = typename unpacket_traits<Packet>::type;
-  const Packet one = pset1<Packet>(ScalarType(1));
-  const Packet neg_one = pset1<Packet>(ScalarType(-1));
-  Packet u = pexp(x);
-  Packet one_mask = pcmp_eq(u, one);
-  Packet u_minus_one = psub(u, one);
-  Packet neg_one_mask = pcmp_eq(u_minus_one, neg_one);
-  Packet logu = plog(u);
-  // The following comparison is to catch the case where
-  // exp(x) = +inf. It is written in this way to avoid having
-  // to form the constant +inf, which depends on the packet
-  // type.
-  Packet pos_inf_mask = pcmp_eq(logu, u);
-  Packet expm1 = pmul(u_minus_one, pdiv(x, logu));
-  expm1 = pselect(pos_inf_mask, u, expm1);
-  return pselect(one_mask, x, pselect(neg_one_mask, neg_one, expm1));
-}
-
 // exp(r) for r in [-ln(2)/2, ln(2)/2], by a 6th order minimax polynomial.
 template <typename Packet>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_float_reduced(const Packet& r) {
@@ -482,6 +459,26 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_float_reduced(const Packet& r)
   const Packet p_low = padd(r, cst_one);
   const Packet y = pmadd(r, p_odd, p_even);
   return pmadd(r2, y, p_low);
+}
+
+// expm1(r) for r in [-ln(2)/2, ln(2)/2], as r + r^2 P(r). The 5th order polynomial P is Sollya's fpminimax for the
+// relative error of expm1(r), 2^-31; the kernel of pexp_float_reduced, fitted for exp(r), is off by 2^-25 here.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexpm1_float_reduced(const Packet& r) {
+  const Packet cst_p2 = pset1<Packet>(0.5f);
+  const Packet cst_p3 = pset1<Packet>(0.1666666567325592041015625f);
+  const Packet cst_p4 = pset1<Packet>(4.16664779186248779296875e-2f);
+  const Packet cst_p5 = pset1<Packet>(8.333566598594188690185546875e-3f);
+  const Packet cst_p6 = pset1<Packet>(1.393371261656284332275390625e-3f);
+  const Packet cst_p7 = pset1<Packet>(1.97434448637068271636962890625e-4f);
+
+  const Packet r2 = pmul(r, r);
+  Packet p_even = pmadd(r2, cst_p6, cst_p4);
+  Packet p_odd = pmadd(r2, cst_p7, cst_p5);
+  p_even = pmadd(r2, p_even, cst_p2);
+  p_odd = pmadd(r2, p_odd, cst_p3);
+  const Packet y = pmadd(r, p_odd, p_even);
+  return pmadd(r2, y, r);
 }
 
 // Exponential function. Works by writing "x = m*log(2) + r" where
@@ -573,6 +570,38 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexp_double_reduced(const Packet& g
   return pmadd(cst_2, pdiv(px, psub(qx, px)), cst_1);
 }
 
+// expm1(r) for r in [-ln(2)/2, ln(2)/2], as r + r^2 P(r). The 10th order polynomial P is Sollya's fpminimax for the
+// relative error of expm1(r), 2^-61. The rational interpolant of pexp_double_reduced without its leading 1 would lose
+// up to 5 ulp here, where no 1 hides the rounding errors of its quotient.
+template <typename Packet>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet pexpm1_double_reduced(const Packet& r) {
+  const Packet cst_p2 = pset1<Packet>(0.5);
+  const Packet cst_p3 = pset1<Packet>(0.16666666666666677);
+  const Packet cst_p4 = pset1<Packet>(0.04166666666666661);
+  const Packet cst_p5 = pset1<Packet>(0.008333333333321436);
+  const Packet cst_p6 = pset1<Packet>(0.0013888888888923816);
+  const Packet cst_p7 = pset1<Packet>(0.00019841269886601229);
+  const Packet cst_p8 = pset1<Packet>(2.480158723753082e-05);
+  const Packet cst_p9 = pset1<Packet>(2.7557243734579987e-06);
+  const Packet cst_p10 = pset1<Packet>(2.7557352849435147e-07);
+  const Packet cst_p11 = pset1<Packet>(2.510920369520403e-08);
+  const Packet cst_p12 = pset1<Packet>(2.0889530999828774e-09);
+
+  // Even and odd powers in two chains for a shorter dependency chain.
+  const Packet r2 = pmul(r, r);
+  Packet p_even = pmadd(r2, cst_p12, cst_p10);
+  Packet p_odd = pmadd(r2, cst_p11, cst_p9);
+  p_even = pmadd(r2, p_even, cst_p8);
+  p_odd = pmadd(r2, p_odd, cst_p7);
+  p_even = pmadd(r2, p_even, cst_p6);
+  p_odd = pmadd(r2, p_odd, cst_p5);
+  p_even = pmadd(r2, p_even, cst_p4);
+  p_odd = pmadd(r2, p_odd, cst_p3);
+  p_even = pmadd(r2, p_even, cst_p2);
+  const Packet y = pmadd(r, p_odd, p_even);
+  return pmadd(r2, y, r);
+}
+
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Packet _x) {
   const Packet cst_exp_hi = pset1<Packet>(709.784);
@@ -619,6 +648,61 @@ template <typename Packet>
 struct pexp_reduced_impl<Packet, double> {
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& r) { return pexp_double_reduced(r); }
 };
+
+// The reduced-argument kernel of expm1 and the two parts of ln(2) of its Cody-Waite reduction, those of pexp_float and
+// pexp_double.
+template <typename Packet, typename Scalar = typename unpacket_traits<Packet>::type>
+struct pexpm1_reduced_impl;
+template <typename Packet>
+struct pexpm1_reduced_impl<Packet, float> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& r) { return pexpm1_float_reduced(r); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float ln2_hi() { return 0.693359375f; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE float ln2_lo() { return -2.12194440e-4f; }
+};
+template <typename Packet>
+struct pexpm1_reduced_impl<Packet, double> {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet run(const Packet& r) { return pexpm1_double_reduced(r); }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double ln2_hi() { return 0.693145751953125; }
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE double ln2_lo() { return 1.42860682030941723212e-6; }
+};
+
+/** \internal \returns exp(x)-1.
+    With n = rint(x / ln(2)) and r = x - n ln(2), expm1(x) = 2^n (expm1(r) + (1 - 2^-n)): expm1(r) comes from a
+    kernel fitted for the relative error of expm1, so nothing cancels, and for |x| < ln(2)/2, where n = 0, the result
+    is that kernel's.
+ */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const Packet& _x) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Impl = pexpm1_reduced_impl<Packet>;
+  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+  constexpr int digits = std::numeric_limits<Scalar>::digits;
+  const Packet one = pset1<Packet>(Scalar(1));
+  // Above max_cap the result is inf, and below min_cap it rounds to -1.
+  const Scalar max_cap = Scalar(max_exponent + 1) * Scalar(EIGEN_LN2);
+  const Scalar min_cap = -Scalar(digits + 2) * Scalar(EIGEN_LN2);
+  const Packet x = pmax(pmin(_x, pset1<Packet>(max_cap)), pset1<Packet>(min_cap));
+
+  const Packet n = print(pmul(x, pset1<Packet>(Scalar(EIGEN_LOG2E))));
+  Packet r = pnmadd(n, pset1<Packet>(Impl::ln2_hi()), x);
+  r = pnmadd(n, pset1<Packet>(Impl::ln2_lo()), r);
+  const Packet em1 = Impl::run(r);
+
+  // c = 1 - 2^-n, exact while it has at most `digits` bits. Beyond that, 2^-n is below half an ulp of 1 for a
+  // positive n, hence the cap, and 1 is below half an ulp of 2^-n for a negative one.
+  const Packet c = psub(one, pldexp_fast(one, pnegate(pmin(n, pset1<Packet>(Scalar(digits + 2))))));
+  // 2^n (em1 + c) in two steps: 2^n itself overflows for the largest n. The barrier keeps -ffast-math from forming
+  // 2^(n - 1) 2, which overflows for n = max_exponent.
+  Packet y = pldexp_fast(padd(em1, c), psub(n, one));
+  pbarrier(y);
+  y = pmul(y, pset1<Packet>(Scalar(2)));
+  // Below epsilon / 4 in magnitude, x is the result to a quarter of an ulp; returning it keeps the sign of zero and
+  // the subnormals.
+  y = pselect(pcmp_lt(pabs(_x), pset1<Packet>(Scalar(0.25) * NumTraits<Scalar>::epsilon())), _x, y);
+  // A NaN input propagates through the clamp or this max, as in pexp, depending on the NaN convention of pmin and
+  // pmax. expm1(x) >= x, so otherwise the max only replaces a y that rounding left below x, with the closer x.
+  return pmax(y, _x);
+}
 
 // 2^f for |f| <= 1/2: f ln(2) = r_hi + r_lo with ln(2) = ln2_hi + ln2_lo, and exp(r) = exp(r_hi) (1 + r_lo) +
 // O(r_lo^2).

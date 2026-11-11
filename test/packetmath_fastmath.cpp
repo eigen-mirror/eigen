@@ -313,6 +313,47 @@ void verify_ldexp_beyond_exponent_range() {
   }
 }
 
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void expm1_packet(const Scalar* a, Scalar* output) {
+  Eigen::internal::pstoreu<Scalar, Packet>(output, Eigen::internal::pexpm1(Eigen::internal::ploadu<Packet>(a)));
+}
+
+// expm1 scales by 2^(n - 1) and then by 2, because 2^n overflows for n = max_exponent although the result is finite;
+// the two factors must not be reassociated. Arguments with rint(x / ln(2)) = max_exponent and their correctly rounded
+// expm1 (MPFR). The ulp distance is taken on the bits, since -ffinite-math-only folds a test for inf, and bounded by
+// 1024: reassociation elsewhere costs accuracy, as in pexp (161 ulps for double with GCC 15 for SSE2), while an inf is
+// more than 10^5 ulps away.
+template <typename Scalar>
+struct expm1_near_overflow_cases;
+template <>
+struct expm1_near_overflow_cases<float> {
+  static float x(int i) { return i == 0 ? 88.4000015f : 88.6999969f; }
+  static float ref(int i) { return i == 0 ? 2.46395559e+38f : 3.32597686e+38f; }
+};
+template <>
+struct expm1_near_overflow_cases<double> {
+  static double x(int i) { return i == 0 ? 709.5 : 709.7; }
+  static double ref(int i) { return i == 0 ? 1.3549863193146328e+308 : 1.6549840276802644e+308; }
+};
+
+template <typename Scalar>
+void verify_expm1_near_overflow() {
+  using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
+  using Cases = expm1_near_overflow_cases<Scalar>;
+  using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int packet_size = Eigen::internal::packet_traits<Scalar>::size;
+  const Scalar x[2] = {Cases::x(0), Cases::x(1)};
+  const Scalar ref[2] = {Cases::ref(0), Cases::ref(1)};
+  Scalar a[packet_size], output[packet_size];
+  for (int i = 0; i < packet_size; ++i) a[i] = x[i % 2];
+  expm1_packet<Scalar, Packet>(a, output);
+  for (int i = 0; i < packet_size; ++i) {
+    const Bits actual = Eigen::numext::bit_cast<Bits>(output[i]);
+    const Bits expected = Eigen::numext::bit_cast<Bits>(ref[i % 2]);
+    VERIFY((actual > expected ? actual - expected : expected - actual) <= Bits(1024));
+  }
+}
+
 template <typename Scalar,
           bool HasIntegerBits =
               !std::is_void<typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type>::value>
@@ -348,6 +389,8 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
   CALL_SUBTEST(verify_ldexp_beyond_exponent_range<float>());
   CALL_SUBTEST(verify_ldexp_beyond_exponent_range<double>());
+  CALL_SUBTEST(verify_expm1_near_overflow<float>());
+  CALL_SUBTEST(verify_expm1_near_overflow<double>());
 
 #if defined(EIGEN_VECTORIZE_AVX512)
 #if !defined(EIGEN_VECTORIZE_AVX512FP16)

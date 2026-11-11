@@ -1323,6 +1323,112 @@ void packetmath_cbrt_accuracy() {
   }
 }
 
+// Arguments and their correctly rounded expm1, MPFR 4.2.2 at 256-bit precision, each at least 0.1 ulp from a rounding
+// tie: tiny arguments on both sides of the threshold below which x is returned, both sides of the points +-ln(2)/2
+// where the multiple of ln(2) in the reduction changes, and the ends of the range, where the result is -1 or near the
+// overflow threshold.
+template <typename Scalar>
+void expm1_reference_cases(std::vector<Scalar>&, std::vector<Scalar>&) {}
+
+template <>
+void expm1_reference_cases<float>(std::vector<float>& x, std::vector<float>& ref) {
+  const float cases[][2] = {
+      {1.00000001e-10f, 1.00000001e-10f},
+      {-3.0999999e-08f, -3.0999999e-08f},
+      {2.50000003e-08f, 2.50000003e-08f},
+      {0.00100000005f, 0.00100050017f},
+      {-0.0199999996f, -0.0198013261f},
+      {0.346500009f, 0.414109498f},
+      {0.346700013f, 0.414392352f},
+      {-0.346500009f, -0.292841196f},
+      {-0.346700013f, -0.292982608f},
+      {0.5f, 0.648721278f},
+      {1.0f, 1.71828187f},
+      {-1.0f, -0.63212055f},
+      {1.5f, 3.48168898f},
+      {3.0f, 19.085537f},
+      {-5.0f, -0.993262053f},
+      {10.3999996f, 32858.6133f},
+      {17.3999996f, 36034940.0f},
+      {18.0f, 65659968.0f},
+      {40.0f, 2.3538527e+17f},
+      {88.0f, 1.65163627e+38f},
+      {88.6999969f, 3.32597686e+38f},
+      {-10.0f, -0.999954581f},
+      {-16.5f, -0.99999994f},
+      {-17.5f, -1.0f},
+      {-18.5f, -1.0f},
+      {-30.0f, -1.0f},
+      {-104.0f, -1.0f},
+  };
+  for (const auto& c : cases) {
+    x.push_back(c[0]);
+    ref.push_back(c[1]);
+  }
+}
+
+template <>
+void expm1_reference_cases<double>(std::vector<double>& x, std::vector<double>& ref) {
+  const double cases[][2] = {
+      {9.9999999999999995e-21, 9.9999999999999995e-21},
+      {-6.0000000000000001e-17, -6.0000000000000001e-17},
+      {4.9999999999999999e-17, 4.9999999999999999e-17},
+      {0.001, 0.0010005001667083417},
+      {-0.02, -0.019801326693244699},
+      {0.34599999999999997, 0.41340261581767701},
+      {0.3468, 0.41453379031980275},
+      {-0.34599999999999997, -0.29248751289349828},
+      {-0.34670000000000001, -0.29298259833435258},
+      {0.51000000000000001, 0.66529119494588629},
+      {1.0, 1.7182818284590453},
+      {-1.0, -0.63212055882855767},
+      {1.5, 3.481689070338065},
+      {3.0, 19.085536923187668},
+      {-5.0, -0.99326205300091452},
+      {20.0, 485165194.40979028},
+      {36.399999999999999, 6431601699236622.0},
+      {37.0, 11719142372802610.0},
+      {100.0, 2.6881171418161356e+43},
+      {700.0, 1.0142320547350045e+304},
+      {709.70000000000005, 1.6549840276802644e+308},
+      {-20.0, -0.99999999793884642},
+      {-36.0, -0.99999999999999978},
+      {-37.5, -1.0},
+      {-40.0, -1.0},
+      {-745.0, -1.0},
+  };
+  for (const auto& c : cases) {
+    x.push_back(c[0]);
+    ref.push_back(c[1]);
+  }
+}
+
+// pexpm1 stays within 2 ulps of the correctly rounded value over the whole range. A different case goes into every
+// lane, so that the reductions of neighboring lanes differ.
+template <typename Scalar, typename Packet>
+void packetmath_expm1_accuracy() {
+  constexpr bool kHasExpm1 = internal::packet_traits<Scalar>::HasExpm1;
+  if (!kHasExpm1) return;
+  const test::packet_helper<kHasExpm1, Packet> h;
+  std::vector<Scalar> x, expected;
+  expm1_reference_cases<Scalar>(x, expected);
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data2[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  const size_t count = x.size();
+  for (size_t start = 0; start < count; start += static_cast<size_t>(PacketSize)) {
+    for (int i = 0; i < PacketSize; ++i) {
+      // The last packet wraps around.
+      const size_t k = (start + static_cast<size_t>(i)) % count;
+      data1[i] = x[k];
+      ref[i] = expected[k];
+    }
+    h.store(data2, internal::pexpm1(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, 2) && "pexpm1");
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   using PacketTraits = internal::packet_traits<Scalar>;
@@ -1334,6 +1440,7 @@ void packetmath_real() {
   EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4] = {};
 
   if (g_first_pass) packetmath_cbrt_accuracy<Scalar, Packet>();
+  if (g_first_pass) packetmath_expm1_accuracy<Scalar, Packet>();
 
   // Negate with -0.
   if (PacketTraits::HasNegate) {
