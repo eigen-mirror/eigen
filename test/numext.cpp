@@ -777,6 +777,15 @@ void check_complex_exp2_accuracy() {
     const T got = numext::exp2(std::complex<T>(a, b)).imag();
     VERIFY(numext::abs(W(got) - ref) <= W(4) * W(NumTraits<T>::epsilon()) * numext::abs(ref));
   }
+  // The same for the smallest normal phases, whose product b ln(2) has a denormal rounding error.
+  for (const T scale : {T(1.5), T(2), T(3), T(1) / NumTraits<T>::epsilon()}) {
+    const T b_normal = (std::numeric_limits<T>::min)() * scale;
+    for (const T a : {T(100), emax - T(4)}) {
+      const W ref = std::exp2(W(a)) * std::sin(W(b_normal) * W(EIGEN_LN2));
+      const T got = numext::exp2(std::complex<T>(a, b_normal)).imag();
+      VERIFY(numext::abs(W(got) - ref) <= W(4) * W(NumTraits<T>::epsilon()) * numext::abs(ref));
+    }
+  }
 #endif
 }
 
@@ -829,6 +838,15 @@ void check_complex_exp2() {
       VERIFY_IS_EQUAL((std::signbit)(w_conj.real()), (std::signbit)(conj_w.real()));
       VERIFY_IS_EQUAL((std::signbit)(w_conj.imag()), (std::signbit)(conj_w.imag()));
     }
+  }
+  // A large finite b has no accurate phase left, but b ln(2) is finite: the result keeps the modulus 2^a. With cos
+  // and sin each within a few ulps, |w| = 2 sqrt(cos^2 + sin^2) is within a few ulps of 2, and ulp(2) = 2 eps.
+  const T eps = NumTraits<T>::epsilon();
+  for (const T b : {NumTraits<T>::highest(), NumTraits<T>::highest() / T(3), T(1) / (eps * eps * eps)}) {
+    const Complex w = numext::exp2(Complex(T(1), b));
+    VERIFY((numext::isfinite)(w.real()) && (numext::isfinite)(w.imag()));
+    VERIFY(numext::abs(numext::abs(w) - T(2)) <= T(16) * eps);
+    VERIFY_IS_EQUAL(numext::exp2(Complex(T(1), -b)), numext::conj(w));
   }
   // An imaginary part that underflows keeps the sign of sin(b ln(2)): sin(-ln(2)) < 0 < sin(-5 ln(2)).
   VERIFY((std::signbit)(numext::exp2(Complex(emin - T(2) * digits, T(-1))).imag()));
@@ -1166,6 +1184,49 @@ void check_twoprod() {
   check_twoprod_pair(T(1) + epsilon, T(1) - epsilon);
   for (int k = 0; k < 100; ++k) {
     check_twoprod_pair(internal::random<T>(T(-1), T(1)), internal::random<T>(T(-1), T(1)));
+  }
+}
+
+// twoprod_full_range returns the FMA residual wherever the product is normal, also for an x that Veltkamp's splitting
+// would overflow on, or whose partial products in Dekker's algorithm would underflow.
+template <typename T>
+void check_twoprod_full_range_pair(const T& x, const T& y) {
+  if (!(numext::isfinite)(T(x * y))) return;
+  T hi, lo;
+  internal::twoprod_full_range(x, y, hi, lo);
+  VERIFY_IS_EQUAL(hi, x * y);
+  EIGEN_USING_STD(fma);
+  const T residual = fma(x, y, -hi);
+  // 32-bit ARM flushes subnormals, so a denormal residual is not comparable there.
+  const bool comparable =
+      !EIGEN_ARCH_ARM || numext::abs(residual) >= (std::numeric_limits<T>::min)() || numext::is_exactly_zero(residual);
+  if (numext::abs(hi) >= (std::numeric_limits<T>::min)() && comparable) {
+    VERIFY_IS_EQUAL(lo, residual);
+  } else {
+    VERIFY((numext::isfinite)(lo));
+  }
+}
+
+template <typename T>
+void check_twoprod_full_range() {
+  const T eps = NumTraits<T>::epsilon();
+  const T highest = NumTraits<T>::highest(), lowest_normal = (std::numeric_limits<T>::min)();
+  for (const T y : {T(EIGEN_LN2), T(0.5), T(2), internal::random<T>(T(0.5), T(1)), -internal::random<T>(T(1), T(2))}) {
+    // The ends of the range and both rescaling thresholds.
+    for (const T x :
+         {highest, highest / T(3), highest * eps * eps, lowest_normal / (eps * eps), lowest_normal,
+          T(2) * lowest_normal, T(3) * lowest_normal, lowest_normal / T(64), (std::numeric_limits<T>::denorm_min)()}) {
+      for (const T x_near : {x, T(x * (T(1) + eps)), T(x * (T(1) - eps))}) {
+        check_twoprod_full_range_pair(x_near, y);
+        check_twoprod_full_range_pair(T(-x_near), y);
+      }
+    }
+    // Every binade of x, the denormal ones included.
+    for (int e = std::numeric_limits<T>::min_exponent - std::numeric_limits<T>::digits;
+         e < std::numeric_limits<T>::max_exponent; ++e) {
+      EIGEN_USING_STD(ldexp);
+      for (int k = 0; k < 4; ++k) check_twoprod_full_range_pair(T(ldexp(internal::random<T>(T(1), T(2)), e)), y);
+    }
   }
 }
 
@@ -1770,6 +1831,9 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST_1(check_twoprod<long double>());
     CALL_SUBTEST_1(check_twoprod<half>());
     CALL_SUBTEST_1(check_twoprod<bfloat16>());
+    CALL_SUBTEST_1(check_twoprod_full_range<float>());
+    CALL_SUBTEST_1(check_twoprod_full_range<double>());
+    CALL_SUBTEST_1(check_twoprod_full_range<long double>());
     CALL_SUBTEST_1(check_twoprod_contraction<float>());
     CALL_SUBTEST_1(check_twoprod_contraction<double>());
 #ifdef EIGEN_VECTORIZE_FMA

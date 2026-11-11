@@ -155,6 +155,57 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 
 #endif  // EIGEN_VECTORIZE_FMA
 
+// Whether twoprod_full_range takes Dekker's product for Scalar rather than a software FMA: a binary IEEE format with
+// highest eps^6 >= min, so that an operand rescaled by eps^2 or 1 / eps^2 lands where the product is exact. libstdc++
+// reports is_iec559 for IBM double-double too, whose operations are not correctly rounded; emin = 1 - emax excludes it.
+// Other scalars keep the FMA, and so do GPU and SYCL devices, which fuse natively and have no optimization barrier.
+#if defined(EIGEN_VECTORIZE_FMA) || defined(EIGEN_GPUCC) || defined(EIGEN_USE_SYCL)
+template <typename Scalar>
+struct twoprod_full_range_uses_dekker : std::false_type {};
+#else
+template <typename Scalar>
+struct twoprod_full_range_uses_dekker
+    : bool_constant<!has_fast_fma<Scalar>::value && std::numeric_limits<Scalar>::is_iec559 &&
+                    std::numeric_limits<Scalar>::radix == 2 &&
+                    std::numeric_limits<Scalar>::min_exponent == 3 - std::numeric_limits<Scalar>::max_exponent &&
+                    std::numeric_limits<Scalar>::max_exponent - std::numeric_limits<Scalar>::min_exponent >=
+                        6 * std::numeric_limits<Scalar>::digits> {};
+
+// Veltkamp's splitting of x overflows for |x| > highest / 2^ceil(digits / 2), and Dekker's partial products lose bits
+// to underflow once ulp(x) ulp(y) < denorm_min. With 1/2 <= |y| <= 2, neither happens for min / eps^2 <= |x| <=
+// highest eps^2. Outside that interval x and p_hi are rescaled by a power of two, which keeps p_hi = fl(x y) while
+// p_hi is normal, and p_lo then takes the single rounding of fma(x, y, -p_hi).
+template <typename Scalar, std::enable_if_t<twoprod_full_range_uses_dekker<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod_full_range_impl(const Scalar& x, const Scalar& y, Scalar& p_hi,
+                                                                   Scalar& p_lo) {
+  const Scalar eps2 = NumTraits<Scalar>::epsilon() * NumTraits<Scalar>::epsilon();
+  const Scalar abs_x = numext::abs(x);
+  Scalar hi = x * y;
+  pbarrier(hi);
+  p_hi = hi;
+  if (abs_x > NumTraits<Scalar>::highest() * eps2) {
+    p_lo = twoprod_low<Scalar, true>(Scalar(x * eps2), y, Scalar(hi * eps2)) / eps2;
+  } else if (abs_x < (std::numeric_limits<Scalar>::min)() / eps2) {
+    p_lo = twoprod_low<Scalar, true>(Scalar(x / eps2), y, Scalar(hi / eps2)) * eps2;
+  } else {
+    p_lo = twoprod_low<Scalar, true>(x, y, hi);
+  }
+}
+#endif
+
+template <typename Scalar, std::enable_if_t<!twoprod_full_range_uses_dekker<Scalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod_full_range_impl(const Scalar& x, const Scalar& y, Scalar& p_hi,
+                                                                   Scalar& p_lo) {
+  p_hi = x * y;
+  p_lo = twoprod_low_fma(x, y, p_hi);
+}
+
+// Declared in MathFunctions.h, for the scalar functions there.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC void twoprod_full_range(const Scalar& x, const Scalar& y, Scalar& p_hi, Scalar& p_lo) {
+  twoprod_full_range_impl(x, y, p_hi, p_lo);
+}
+
 // This function implements the addition of two double word numbers
 // represented by {x_hi, x_lo} and {y_hi, y_lo}, with operands of either sign
 // and magnitude: Knuth's two-sum of the high parts is error-free, the low

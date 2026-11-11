@@ -2302,6 +2302,12 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar twoprod_low_fma(const Scalar& x, co
   return numext::fma(x, y, Scalar(-xy));
 }
 
+// p_hi = fl(x * y) and p_lo = fl(x * y - p_hi), for 1/2 <= |y| <= 2 and every x for which p_hi is normal. Unlike
+// twoprod_low_fma, it takes Dekker's product on targets without an FMA instruction where that is exact for Scalar.
+// Defined with the other error-free transformations in arch/Default/GenericPacketMathDoubleWord.h.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC void twoprod_full_range(const Scalar& x, const Scalar& y, Scalar& p_hi, Scalar& p_lo);
+
 template <typename T>
 EIGEN_DEVICE_FUNC bool isfinite_impl(const std::complex<T>& x) {
   EIGEN_IF_CONSTEXPR ((std::is_floating_point<T>::value)) {
@@ -2528,8 +2534,9 @@ struct complex_exp2_impl {
     // exp2(conj(z)) = conj(exp2(z)) should hold exactly.
     const bool negative = b < RealScalar(0);
     const RealScalar abs_b = numext::abs(b);
-    const RealScalar t_hi = abs_b * ln2_hi;
-    const RealScalar t_lo = twoprod_low_fma(abs_b, ln2_hi, t_hi) + abs_b * ln2_lo;
+    RealScalar t_hi, t_lo;
+    twoprod_full_range(abs_b, ln2_hi, t_hi, t_lo);
+    t_lo += abs_b * ln2_lo;
     // |t_lo| <= ulp(t_hi) / 2, so the Taylor terms below are exact to rounding unless |t| exceeds about 2 / sqrt(eps).
     // The phase is within an ulp of b ln(2) while |t| < 1 / eps.
     RealScalar sin_lo = t_lo;
@@ -2553,7 +2560,9 @@ struct complex_exp2_impl {
       // A denormal t has lost bits that 2^a can bring back. There cos(t) = 1 and sin(t) = t, taken from b 2^digits.
       const int p = NumTraits<RealScalar>::digits();
       const RealScalar b_p = numext::ldexp(abs_b, p);
-      const RealScalar im = numext::ldexp(m * numext::fma(b_p, ln2_hi, b_p * ln2_lo), e - p);
+      RealScalar u_hi, u_lo;
+      twoprod_full_range(b_p, ln2_hi, u_hi, u_lo);
+      const RealScalar im = numext::ldexp(m * (u_hi + (u_lo + b_p * ln2_lo)), e - p);
       return ComplexScalar(numext::ldexp(m, e), negative ? -im : im);
     }
     const RealScalar re = e == 0 ? m * c : numext::ldexp(m * c, e);
