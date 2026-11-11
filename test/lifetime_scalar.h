@@ -17,7 +17,7 @@ using Index = Eigen::Index;
 
 struct Failure : std::exception {};
 
-// Counts its lifetime events in statics: live objects, and copy and move constructions and assignments.
+// Counts its lifetime events in static counters: live objects, and copy and move constructions and assignments.
 // Constructing from an int (or by default) throws Failure if live >= max_live, copy or move construction if
 // live >= max_live_on_copy, so at most max_live objects result from the former. Throwing needs EIGEN_EXCEPTIONS.
 // Construction checks that the object is aligned to Alignment.
