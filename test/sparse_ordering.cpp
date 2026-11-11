@@ -93,6 +93,38 @@ void test_amd_uncompressed() {
   verify_is_permutation(perm);
 }
 
+// Node 0 is adjacent to the `degree` highest-numbered nodes, every other node only to itself.
+template <typename Idx>
+PermutationMatrix<Dynamic, Dynamic, Idx> amd_of_star(Idx n, Idx degree) {
+  std::vector<Triplet<double, Idx> > triplets;
+  triplets.reserve(n + 2 * degree);
+  for (Idx j = 0; j < n; ++j) triplets.emplace_back(j, j, 1.0);
+  for (Idx j = n - degree; j < n; ++j) {
+    triplets.emplace_back(0, j, 1.0);
+    triplets.emplace_back(j, 0, 1.0);
+  }
+  SparseMatrix<double, ColMajor, Idx> A(n, n);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  PermutationMatrix<Dynamic, Dynamic, Idx> perm;
+  AMDOrdering<Idx> ord;
+  ord(A, perm);
+  return perm;
+}
+
+void test_amd_hash_overflow() {
+  // Node 0 stays below AMD's dense threshold 10*sqrt(n) (its column also holds the diagonal), and its supervariable
+  // hash, the sum of its neighbours' indices, exceeds INT_MAX. With a signed int hash this overflowed, h % n was
+  // negative and hhead[h] was written out of bounds. The ordering does not depend on the hash values, so the int and
+  // the 64-bit orderings must agree.
+  const int n = 400000;
+  const int degree = int(10 * std::sqrt(double(n))) - 2;
+  VERIFY(double(degree) * double(n - degree) > double(NumTraits<int>::highest()));
+  PermutationMatrix<Dynamic, Dynamic, int> perm = amd_of_star<int>(n, degree);
+  verify_is_permutation(perm);
+  PermutationMatrix<Dynamic, Dynamic, std::int64_t> perm64 = amd_of_star<std::int64_t>(n, degree);
+  VERIFY_IS_EQUAL(perm.indices().cast<std::int64_t>().eval(), perm64.indices());
+}
+
 EIGEN_DECLARE_TEST(sparse_ordering) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_colamd_uncompressed<double>());
@@ -100,4 +132,5 @@ EIGEN_DECLARE_TEST(sparse_ordering) {
     CALL_SUBTEST_3(test_amd_uncompressed<double>());
     CALL_SUBTEST_4(test_colamd_mixed_index_types());
   }
+  CALL_SUBTEST_5(test_amd_hash_overflow());
 }
