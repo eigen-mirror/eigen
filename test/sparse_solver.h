@@ -110,6 +110,15 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
                                                             Stride<Eigen::Dynamic, 2>(2 * xm.outerStride(), 2));
     outm = solver.solve(bm);
     VERIFY(outm.isApprox(refX, test_precision<Scalar>()));
+
+    // Test a right-hand side with non-unit strides.
+    Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> bstore(2 * db.rows(), 2 * db.cols());
+    bstore.setZero();
+    Eigen::Map<DenseRhs, 0, Stride<Eigen::Dynamic, 2>> bstrided(bstore.data(), db.rows(), db.cols(),
+                                                                Stride<Eigen::Dynamic, 2>(2 * db.outerStride(), 2));
+    bstrided = db;
+    dx = solver.solve(bstrided);
+    VERIFY(dx.isApprox(refX, test_precision<Scalar>()));
   }
 
   // if not too large, do some extra check:
@@ -397,6 +406,12 @@ int generate_sparse_spd_problem(Solver&, typename Solver::MatrixType& A, typenam
     halfA = A;
   else
     halfA.template selfadjointView<Solver::UpLo>().rankUpdate(M);
+
+  // With FMA contraction, m * conj(m) leaves a rounding-level imaginary part on the diagonal of M M^H.
+  // CHOLMOD's simplicial factorizations reject a non-real diagonal as not positive definite.
+  A.diagonal() = A.diagonal().real().template cast<Scalar>();
+  halfA.diagonal() = halfA.diagonal().real().template cast<Scalar>();
+  dA.diagonal() = dA.diagonal().real().template cast<Scalar>();
 
   return size;
 }

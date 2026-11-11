@@ -590,11 +590,17 @@ bool UmfPackLU<MatrixType>::_solve_impl(const MatrixBase<BDerived> &b, MatrixBas
     x_tmp.resize(x.rows());
     x_ptr = x_tmp.data();
   }
+  Matrix<Scalar, Dynamic, 1> b_tmp;
   for (int j = 0; j < rhsCols; ++j) {
     if (x.innerStride() == 1) x_ptr = &x.col(j).coeffRef(0);
+    const Scalar *b_ptr = b.derived().data() + j * b.derived().outerStride();
+    if (b.innerStride() != 1) {
+      b_tmp = b.col(j);
+      b_ptr = b_tmp.data();
+    }
     StorageIndex errorCode =
         umfpack_solve(UMFPACK_A, mp_matrix.outerIndexPtr(), mp_matrix.innerIndexPtr(), mp_matrix.valuePtr(), x_ptr,
-                      &b.const_cast_derived().col(j).coeffRef(0), m_numeric, m_control.data(), m_umfpackInfo.data());
+                      const_cast<Scalar *>(b_ptr), m_numeric, m_control.data(), m_umfpackInfo.data());
     if (x.innerStride() != 1) x.col(j) = x_tmp;
     if (errorCode != 0) return false;
   }

@@ -316,7 +316,6 @@ void PardisoImpl<Derived>::_solve_impl(const MatrixBase<BDerived>& b, MatrixBase
                "Row-major right hand sides are not supported");
   eigen_assert(((MatrixBase<XDerived>::Flags & RowMajorBit) == 0 || nrhs == 1) &&
                "Row-major matrices of unknowns are not supported");
-  eigen_assert(((nrhs == 1) || b.outerStride() == b.rows()));
 
   //  switch (transposed) {
   //    case SvNoTrans    : m_iparm[11] = 0 ; break;
@@ -327,21 +326,28 @@ void PardisoImpl<Derived>::_solve_impl(const MatrixBase<BDerived>& b, MatrixBase
   //      m_iparm[11] = 0;
   //  }
 
+  // PARDISO reads b and writes x as contiguous column-major arrays, and cannot solve in place.
+  const bool b_contiguous = b.derived().rowStride() == 1 && (nrhs == 1 || b.derived().colStride() == m_size);
+  const bool x_contiguous = x.derived().rowStride() == 1 && (nrhs == 1 || x.derived().colStride() == m_size);
+  Matrix<Scalar, Dynamic, Dynamic, ColMajor> b_tmp, x_tmp;
   Scalar* rhs_ptr = const_cast<Scalar*>(b.derived().data());
-  Matrix<Scalar, Dynamic, Dynamic, ColMajor> tmp;
-
-  // Pardiso cannot solve in-place
-  if (rhs_ptr == x.derived().data()) {
-    tmp = b;
-    rhs_ptr = tmp.data();
+  if (!b_contiguous || rhs_ptr == x.derived().data()) {
+    b_tmp = b;
+    rhs_ptr = b_tmp.data();
+  }
+  Scalar* x_ptr = x.derived().data();
+  if (!x_contiguous) {
+    x_tmp.resize(m_size, nrhs);
+    x_ptr = x_tmp.data();
   }
 
   Index error;
   error = internal::pardiso_run_selector<StorageIndex>::run(
       m_pt, 1, 1, m_type, 33, internal::convert_index<StorageIndex>(m_size), m_matrix.valuePtr(),
       m_matrix.outerIndexPtr(), m_matrix.innerIndexPtr(), m_perm.data(), internal::convert_index<StorageIndex>(nrhs),
-      m_iparm.data(), m_msglvl, rhs_ptr, x.derived().data());
+      m_iparm.data(), m_msglvl, rhs_ptr, x_ptr);
 
+  if (!x_contiguous) x.derived() = x_tmp;
   manageErrorCode(error);
 }
 
