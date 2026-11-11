@@ -67,10 +67,9 @@ struct traits<SparseMatrix<Scalar_, Options_, StorageIndex_>> {
 
 template <typename Scalar_, int Options_, typename StorageIndex_, int DiagIndex>
 struct traits<Diagonal<SparseMatrix<Scalar_, Options_, StorageIndex_>, DiagIndex>> {
-  using MatrixType = SparseMatrix<Scalar_, Options_, StorageIndex_>;
-  using MatrixTypeNested = typename ref_selector<MatrixType>::type;
-  using MatrixTypeNested_ = std::remove_reference_t<MatrixTypeNested>;
-
+  // No member may be named MatrixType or XprType: expression traits derive from this class as
+  // traits<Xpr<MatrixType>> : traits<MatrixType>, and MSVC in permissive mode looks unqualified names up in dependent
+  // bases, where such a member hides the template parameter.
   using Scalar = Scalar_;
   using StorageKind = Dense;
   using StorageIndex = StorageIndex_;

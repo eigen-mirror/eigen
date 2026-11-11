@@ -860,6 +860,13 @@ void sparse_basic(const SparseMatrixType& ref) {
     m2.diagonal() += refMat2.diagonal();
     refMat2.diagonal() += refMat2.diagonal();
     VERIFY_IS_APPROX(m2, refMat2);
+
+    // traits<Transpose<D>> and traits<CwiseUnaryView<Op, D>> derive from traits<D> for D = Diagonal<SparseMatrix>.
+    VERIFY_IS_APPROX(m2.diagonal().real(), refMat2.diagonal().real().eval());
+    VERIFY_IS_APPROX(m2.diagonal().transpose(), refMat2.diagonal().transpose().eval());
+    m2.diagonal().real() *= RealScalar(2);
+    refMat2.diagonal().real() *= RealScalar(2);
+    VERIFY_IS_APPROX(m2, refMat2);
   }
 
   // test diagonal to sparse
