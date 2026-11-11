@@ -167,7 +167,9 @@ void complex_roots_packets() {
       for (Index i = 0; i < count; ++i) {
         const auto z = std::complex<long double>(static_cast<long double>(input(i).real()),
                                                  static_cast<long double>(input(i).imag()));
-        const auto root = std::sqrt(z);
+        // Evaluate the reference root with numext::sqrt: libc++ std::sqrt uses std::polar, which yields a
+        // small non-zero real component from cosl(pi/2) on negative real inputs.
+        const auto root = numext::sqrt(z);
         check_root_component(roots(i).real(), T(root.real()));
         check_root_component(roots(i).imag(), T(root.imag()));
         const C expected = z == std::complex<long double>(0) ? C(0) : C(z / std::abs(z));
