@@ -24,15 +24,6 @@ Matrix<Scalar, Dynamic, Dynamic> reference_ksum(const Matrix<Scalar, Dynamic, Dy
          reference_kron<Scalar>(Mat::Identity(A.rows(), A.rows()), B);
 }
 
-template <typename Scalar>
-SparseMatrix<Scalar> random_sparse(Index n) {
-  Matrix<Scalar, Dynamic, Dynamic> dense = Matrix<Scalar, Dynamic, Dynamic>::Random(n, n);
-  for (Index j = 0; j < n; ++j)
-    for (Index i = 0; i < n; ++i)
-      if (internal::random<int>(0, 1) == 0) dense(i, j) = Scalar(0);
-  return dense.sparseView();
-}
-
 // The 1-D second-difference matrix tridiag(-1, 2, -1) of order n, in sparse form.
 SparseMatrix<double> second_difference(Index n) {
   SparseMatrix<double> D(n, n);
@@ -88,7 +79,7 @@ void test_ksum_product(Index n1, Index n2) {
   using Id = internal::kron_identity_factor<Scalar, Dynamic, Dynamic>;
 
   const Mat A = Mat::Random(n1, n1);
-  const Sparse S = random_sparse<Scalar>(n2);
+  const Sparse S = random_sparse<Scalar>(n2, n2);
   const Mat Sd = S;
   const Diag D(Vec::Random(n2));
   const Mat Dd = D.toDenseMatrix();
@@ -168,7 +159,7 @@ void test_ksum_nested(Index n1, Index n2, Index n3) {
   using Id = internal::kron_identity_factor<Scalar, Dynamic, Dynamic>;
 
   const Mat A = Mat::Random(n1, n1), C = Mat::Random(n3, n3);
-  const Sparse B = random_sparse<Scalar>(n2);
+  const Sparse B = random_sparse<Scalar>(n2, n2);
   const Mat Bd = B;
   const Mat ref = reference_ksum<Scalar>(A, reference_ksum<Scalar>(Bd, C));
 

@@ -17,6 +17,7 @@
 
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 using Eigen::Tensor;
 using DimPair = Tensor<float, 1>::DimensionPair;
@@ -26,38 +27,20 @@ void test_gpu_contraction(int m_size, int k_size, int n_size) {
   Tensor<float, 2, DataLayout> t_left(m_size, k_size);
   Tensor<float, 2, DataLayout> t_right(k_size, n_size);
   Tensor<float, 2, DataLayout> t_result(m_size, n_size);
-  Tensor<float, 2, DataLayout> t_result_gpu(m_size, n_size);
   Eigen::array<DimPair, 1> dims{DimPair(1, 0)};
 
   t_left.setRandom();
   t_right.setRandom();
 
-  std::size_t t_left_bytes = t_left.size() * sizeof(float);
-  std::size_t t_right_bytes = t_right.size() * sizeof(float);
-  std::size_t t_result_bytes = t_result.size() * sizeof(float);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_t_left = fixture.fromHost(t_left);
+  auto gpu_t_right = fixture.fromHost(t_right);
+  auto gpu_t_result = fixture.tensor<float, 2, Eigen::Aligned, DataLayout>(m_size, n_size);
 
-  float* d_t_left;
-  float* d_t_right;
-  float* d_t_result;
-
-  gpuMalloc((void**)(&d_t_left), t_left_bytes);
-  gpuMalloc((void**)(&d_t_right), t_right_bytes);
-  gpuMalloc((void**)(&d_t_result), t_result_bytes);
-
-  gpuMemcpy(d_t_left, t_left.data(), t_left_bytes, gpuMemcpyHostToDevice);
-  gpuMemcpy(d_t_right, t_right.data(), t_right_bytes, gpuMemcpyHostToDevice);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>> gpu_t_left(d_t_left, Eigen::array<int, 2>{m_size, k_size});
-  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>> gpu_t_right(d_t_right, Eigen::array<int, 2>{k_size, n_size});
-  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>> gpu_t_result(d_t_result, Eigen::array<int, 2>{m_size, n_size});
-
-  gpu_t_result.device(gpu_device) = gpu_t_left.contract(gpu_t_right, dims);
+  gpu_t_result.device(fixture.device()) = gpu_t_left.contract(gpu_t_right, dims);
   t_result = t_left.contract(t_right, dims);
 
-  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  const auto t_result_gpu = fixture.toHost(gpu_t_result);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     // Absolute slack for accumulation-order differences between device and host contractions.
     if (numext::abs(t_result(i) - t_result_gpu(i)) < 1024 * NumTraits<float>::epsilon()) {
@@ -69,10 +52,6 @@ void test_gpu_contraction(int m_size, int k_size, int n_size) {
     std::cout << "mismatch detected at index " << i << ": " << t_result(i) << " vs " << t_result_gpu(i) << std::endl;
     assert(false);
   }
-
-  gpuFree((void*)d_t_left);
-  gpuFree((void*)d_t_right);
-  gpuFree((void*)d_t_result);
 }
 
 template <int DataLayout, typename Scalar = float>
@@ -85,40 +64,23 @@ void test_gpu_contraction_zero_k(int m_size, int n_size) {
   t_result_gpu.setConstant(Scalar(123));
   Eigen::array<DimPair, 1> dims{DimPair(1, 0)};
 
-  std::size_t t_left_bytes = (std::max)(t_left.size(), DenseIndex(1)) * sizeof(Scalar);
-  std::size_t t_right_bytes = (std::max)(t_right.size(), DenseIndex(1)) * sizeof(Scalar);
-  std::size_t t_result_bytes = t_result.size() * sizeof(Scalar);
-
-  Scalar* d_t_left;
-  Scalar* d_t_right;
-  Scalar* d_t_result;
-
-  gpuMalloc((void**)(&d_t_left), t_left_bytes);
-  gpuMalloc((void**)(&d_t_right), t_right_bytes);
-  gpuMalloc((void**)(&d_t_result), t_result_bytes);
-
   // Prefill the device output with a nonzero value to verify that the GPU path actively zeroes the output buffer.
-  gpuMemcpy(d_t_result, t_result_gpu.data(), t_result_bytes, gpuMemcpyHostToDevice);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_t_result = fixture.fromHost(t_result_gpu);
+  // The empty operands still get one element of storage each, so that their device pointers are not null.
+  auto left_storage = fixture.tensor<Scalar, 1>(1);
+  auto right_storage = fixture.tensor<Scalar, 1>(1);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_left(left_storage.data(), m_size, k_size);
+  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_right(right_storage.data(), k_size, n_size);
 
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_left(d_t_left, Eigen::array<int, 2>{m_size, k_size});
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_right(d_t_right, Eigen::array<int, 2>{k_size, n_size});
-  Eigen::TensorMap<Eigen::Tensor<Scalar, 2, DataLayout>> gpu_t_result(d_t_result, Eigen::array<int, 2>{m_size, n_size});
-
-  gpu_t_result.device(gpu_device) = gpu_t_left.contract(gpu_t_right, dims);
+  gpu_t_result.device(fixture.device()) = gpu_t_left.contract(gpu_t_right, dims);
   t_result = t_left.contract(t_right, dims);
 
-  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  t_result_gpu = fixture.toHost(gpu_t_result);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     VERIFY_IS_EQUAL(t_result(i), Scalar(0));
     VERIFY_IS_EQUAL(t_result_gpu(i), Scalar(0));
   }
-
-  gpuFree((void*)d_t_left);
-  gpuFree((void*)d_t_right);
-  gpuFree((void*)d_t_result);
 }
 
 template <int DataLayout>
@@ -126,38 +88,20 @@ void test_gpu_contraction_double(int m_size, int k_size, int n_size) {
   Tensor<double, 2, DataLayout> t_left(m_size, k_size);
   Tensor<double, 2, DataLayout> t_right(k_size, n_size);
   Tensor<double, 2, DataLayout> t_result(m_size, n_size);
-  Tensor<double, 2, DataLayout> t_result_gpu(m_size, n_size);
   Eigen::array<Tensor<double, 1>::DimensionPair, 1> dims{Tensor<double, 1>::DimensionPair(1, 0)};
 
   t_left.setRandom();
   t_right.setRandom();
 
-  std::size_t t_left_bytes = t_left.size() * sizeof(double);
-  std::size_t t_right_bytes = t_right.size() * sizeof(double);
-  std::size_t t_result_bytes = t_result.size() * sizeof(double);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_t_left = fixture.fromHost(t_left);
+  auto gpu_t_right = fixture.fromHost(t_right);
+  auto gpu_t_result = fixture.tensor<double, 2, Eigen::Aligned, DataLayout>(m_size, n_size);
 
-  double* d_t_left;
-  double* d_t_right;
-  double* d_t_result;
-
-  gpuMalloc((void**)(&d_t_left), t_left_bytes);
-  gpuMalloc((void**)(&d_t_right), t_right_bytes);
-  gpuMalloc((void**)(&d_t_result), t_result_bytes);
-
-  gpuMemcpy(d_t_left, t_left.data(), t_left_bytes, gpuMemcpyHostToDevice);
-  gpuMemcpy(d_t_right, t_right.data(), t_right_bytes, gpuMemcpyHostToDevice);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<double, 2, DataLayout>> gpu_t_left(d_t_left, Eigen::array<int, 2>{m_size, k_size});
-  Eigen::TensorMap<Eigen::Tensor<double, 2, DataLayout>> gpu_t_right(d_t_right, Eigen::array<int, 2>{k_size, n_size});
-  Eigen::TensorMap<Eigen::Tensor<double, 2, DataLayout>> gpu_t_result(d_t_result, Eigen::array<int, 2>{m_size, n_size});
-
-  gpu_t_result.device(gpu_device) = gpu_t_left.contract(gpu_t_right, dims);
+  gpu_t_result.device(fixture.device()) = gpu_t_left.contract(gpu_t_right, dims);
   t_result = t_left.contract(t_right, dims);
 
-  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  const auto t_result_gpu = fixture.toHost(gpu_t_result);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     if (std::abs(t_result(i) - t_result_gpu(i)) < 524288 * NumTraits<double>::epsilon()) {
       continue;
@@ -168,10 +112,6 @@ void test_gpu_contraction_double(int m_size, int k_size, int n_size) {
     std::cout << "mismatch detected at index " << i << ": " << t_result(i) << " vs " << t_result_gpu(i) << std::endl;
     assert(false);
   }
-
-  gpuFree((void*)d_t_left);
-  gpuFree((void*)d_t_right);
-  gpuFree((void*)d_t_result);
 }
 
 template <int DataLayout>
@@ -183,47 +123,25 @@ void test_scalar(int m_size, int k_size, int n_size) {
   Tensor<float, 2, DataLayout> t_left(m_size, k_size);
   Tensor<float, 2, DataLayout> t_right(k_size, n_size);
   Tensor<float, 0, DataLayout> t_result;
-  Tensor<float, 0, DataLayout> t_result_gpu;
   Eigen::array<DimPair, 2> dims{DimPair(0, 0), DimPair(1, 1)};
 
   t_left.setRandom();
   t_right.setRandom();
 
-  std::size_t t_left_bytes = t_left.size() * sizeof(float);
-  std::size_t t_right_bytes = t_right.size() * sizeof(float);
-  std::size_t t_result_bytes = sizeof(float);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_t_left = fixture.fromHost(t_left);
+  auto gpu_t_right = fixture.fromHost(t_right);
+  auto gpu_t_result = fixture.tensor<float, 0, Eigen::Aligned, DataLayout>();
 
-  float* d_t_left;
-  float* d_t_right;
-  float* d_t_result;
-
-  gpuMalloc((void**)(&d_t_left), t_left_bytes);
-  gpuMalloc((void**)(&d_t_right), t_right_bytes);
-  gpuMalloc((void**)(&d_t_result), t_result_bytes);
-
-  gpuMemcpy(d_t_left, t_left.data(), t_left_bytes, gpuMemcpyHostToDevice);
-  gpuMemcpy(d_t_right, t_right.data(), t_right_bytes, gpuMemcpyHostToDevice);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>> gpu_t_left(d_t_left, m_size, k_size);
-  Eigen::TensorMap<Eigen::Tensor<float, 2, DataLayout>> gpu_t_right(d_t_right, k_size, n_size);
-  Eigen::TensorMap<Eigen::Tensor<float, 0, DataLayout>> gpu_t_result(d_t_result);
-
-  gpu_t_result.device(gpu_device) = gpu_t_left.contract(gpu_t_right, dims);
+  gpu_t_result.device(fixture.device()) = gpu_t_left.contract(gpu_t_right, dims);
   t_result = t_left.contract(t_right, dims);
 
-  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  const auto t_result_gpu = fixture.toHost(gpu_t_result);
   if (numext::abs(t_result() - t_result_gpu()) > 1024 * NumTraits<float>::epsilon() &&
       !Eigen::internal::isApprox(t_result(), t_result_gpu(), 1024 * NumTraits<float>::epsilon())) {
     std::cout << "mismatch detected: " << t_result() << " vs " << t_result_gpu() << std::endl;
     assert(false);
   }
-
-  gpuFree((void*)d_t_left);
-  gpuFree((void*)d_t_right);
-  gpuFree((void*)d_t_result);
 }
 
 template <int DataLayout>

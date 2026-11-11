@@ -91,13 +91,6 @@ static void test_narrowing_dimensions() {
   VERIFY_RAISES_ASSERT((Eigen::DSizes<std::ptrdiff_t, 3>(2, 3, std::size_t(-1))));
 }
 
-// A volatile pointer forces odr-use even when optimization could fold the value.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
-}
-
 static void test_dimension_constants_odr_use() {
   VERIFY_IS_EQUAL((read_through_address(Eigen::Sizes<2, 3>::total_size)), std::ptrdiff_t(6));
   VERIFY_IS_EQUAL((read_through_address(Eigen::Sizes<2, 3>::count)), std::ptrdiff_t(2));

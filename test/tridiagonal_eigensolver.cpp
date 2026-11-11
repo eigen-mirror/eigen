@@ -779,19 +779,16 @@ void tridiagonal_eigensolver_staged_small_block() {
   VERIFY((block.transpose() * block - MatrixType::Identity(nb, nb)).cwiseAbs().maxCoeff() <= cross_cluster_bound);
 }
 
-// Which of `excepts` f() raises, run with the floating-point environment held; -1 if it cannot be held.
+// Runs f() and checks that it raises neither FE_OVERFLOW nor FE_INVALID, where <cfenv> defines them.
 template <typename Func>
-int fp_exceptions_raised_by(int excepts, const Func& f) {
-  std::fenv_t environment;
-  if (std::feholdexcept(&environment) != 0) {
-    std::cout << "SKIP: floating-point exception check: feholdexcept failed.\n";
-    f();
-    return -1;
-  }
+void verify_no_overflow_or_invalid(const Func& f) {
+#if defined(FE_OVERFLOW) && defined(FE_INVALID)
+  const int raised = fp_exceptions_raised_by(FE_OVERFLOW | FE_INVALID, f);
+  if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+#else
+  std::cout << "SKIP: overflow and invalid flag check: FE_OVERFLOW or FE_INVALID is unavailable.\n";
   f();
-  const int raised = std::fetestexcept(excepts);
-  VERIFY_IS_EQUAL(std::fesetenv(&environment), 0);
-  return raised;
+#endif
 }
 
 // The gate deciding whether to re-bisect a block's shifts compares their error bound with the block's gap without
@@ -799,7 +796,6 @@ int fp_exceptions_raised_by(int excepts, const Func& f) {
 // an exact shift's vanishing LU pivot has an infinite reciprocal by design.
 template <typename Scalar>
 void tridiagonal_eigensolver_block_gate_fp_exceptions() {
-#if defined(FE_OVERFLOW) && defined(FE_INVALID)
   using VectorType = Matrix<Scalar, Dynamic, 1>;
   // diag(sqrt(highest), tridiag(1, 2, 1)_4), staged: (shift error / gap)^3 overflows. The block's vectors are still
   // those of the block solved alone.
@@ -811,8 +807,7 @@ void tridiagonal_eigensolver_block_gate_fp_exceptions() {
   local.computeEigenvalues(d.tail(nb).eval(), e.tail(nb - 1).eval());
   local.computeEigenvectors();
   staged.computeEigenvalues(d, e);
-  int raised = fp_exceptions_raised_by(FE_OVERFLOW | FE_INVALID, [&] { staged.computeEigenvectors(); });
-  if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+  verify_no_overflow_or_invalid([&] { staged.computeEigenvectors(); });
   VERIFY_IS_EQUAL(staged.info(), Success);
   VERIFY_IS_EQUAL(staged.eigenvectors().bottomLeftCorner(nb, nb), local.eigenvectors());
 
@@ -825,12 +820,8 @@ void tridiagonal_eigensolver_block_gate_fp_exceptions() {
   es << Scalar(0), a;
   w << -a, a, Scalar(1);
   TridiagonalEigenSolver<Scalar> supplied;
-  raised = fp_exceptions_raised_by(FE_OVERFLOW | FE_INVALID, [&] { supplied.computeEigenvectors(ds, es, w); });
-  if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+  verify_no_overflow_or_invalid([&] { supplied.computeEigenvectors(ds, es, w); });
   VERIFY_IS_EQUAL(supplied.info(), Success);
-#else
-  std::cout << "SKIP: block gate exception check: FE_OVERFLOW or FE_INVALID is unavailable.\n";
-#endif
 }
 
 // d and e against their power-of-two scaled copies, computed beforehand, in every flush-to-zero mode: eigenvalues to
@@ -938,14 +929,7 @@ void tridiagonal_eigensolver_block_assignment_overflow() {
       staged.computeEigenvalues(d, e);
       VERIFY_IS_EQUAL(staged.info(), Success);
       const VectorType w = staged.eigenvalues();
-#if defined(FE_OVERFLOW) && defined(FE_INVALID)
-      const int raised = fp_exceptions_raised_by(
-          FE_OVERFLOW | FE_INVALID, [&] { tridiagonal_staged_and_supplied_eigenvectors(staged, supplied, d, e, w); });
-      if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
-#else
-      std::cout << "SKIP: block assignment overflow flag check: FE_OVERFLOW or FE_INVALID is unavailable.\n";
-      tridiagonal_staged_and_supplied_eigenvectors(staged, supplied, d, e, w);
-#endif
+      verify_no_overflow_or_invalid([&] { tridiagonal_staged_and_supplied_eigenvectors(staged, supplied, d, e, w); });
       for (const TridiagonalEigenSolver<Scalar>* es : {&staged, &supplied}) {
         VERIFY_IS_EQUAL(es->info(), Success);
         const MatrixType& V = es->eigenvectors();

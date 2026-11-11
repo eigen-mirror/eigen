@@ -10,17 +10,9 @@
 #include "main.h"
 
 #include <contrib/Eigen/StructuredMatrices>
+#include "structured_test_helpers.h"
 
 using namespace Eigen;
-
-template <typename Scalar, int Options = ColMajor>
-SparseMatrix<Scalar, Options> random_sparse(Index rows, Index cols) {
-  Matrix<Scalar, Dynamic, Dynamic> dense = Matrix<Scalar, Dynamic, Dynamic>::Random(rows, cols);
-  for (Index j = 0; j < cols; ++j)
-    for (Index i = 0; i < rows; ++i)
-      if (internal::random<int>(0, 1) == 0) dense(i, j) = Scalar(0);
-  return dense.sparseView();
-}
 
 // The view must iterate exactly the entries the sparse materialization stores,
 // in increasing inner index, and behave as that matrix in every sparse

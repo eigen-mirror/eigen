@@ -13,36 +13,19 @@
 
 #include "main.h"
 
-// Small integer entries keep every sum exact in any order, so each BLAS product must equal the coefficient-based
-// lazyProduct exactly.
-template <typename Scalar>
-std::enable_if_t<!NumTraits<Scalar>::IsComplex, Scalar> blas_level3_value() {
-  return Scalar(internal::random<int>(-3, 3));
-}
-template <typename Scalar>
-std::enable_if_t<NumTraits<Scalar>::IsComplex, Scalar> blas_level3_value() {
-  using Real = typename NumTraits<Scalar>::Real;
-  return Scalar(Real(internal::random<int>(-3, 3)), Real(internal::random<int>(-3, 3)));
-}
-
-template <typename MatrixType>
-MatrixType blas_level3_operand(Index rows, Index cols) {
-  MatrixType m(rows, cols);
-  for (Index j = 0; j < cols; ++j)
-    for (Index i = 0; i < rows; ++i) m(i, j) = blas_level3_value<typename MatrixType::Scalar>();
-  return m;
-}
+// Integer entries in [-3, 3] keep every sum exact in any order, so each BLAS product must equal the
+// coefficient-based lazyProduct exactly.
 
 template <typename Scalar, int LhsOrder, int RhsOrder, int DstOrder>
 void blas_level3_gemm(Index rows, Index depth, Index cols) {
   using Lhs = Matrix<Scalar, Dynamic, Dynamic, LhsOrder>;
   using Rhs = Matrix<Scalar, Dynamic, Dynamic, RhsOrder>;
   using Dst = Matrix<Scalar, Dynamic, Dynamic, DstOrder>;
-  const Lhs a = blas_level3_operand<Lhs>(rows, depth);
-  const Lhs a_t = blas_level3_operand<Lhs>(depth, rows);
-  const Rhs b = blas_level3_operand<Rhs>(depth, cols);
-  const Rhs b_t = blas_level3_operand<Rhs>(cols, depth);
-  const Dst c = blas_level3_operand<Dst>(rows, cols);
+  const Lhs a = RandomIntegerMatrix<Lhs>(rows, depth, -3, 3);
+  const Lhs a_t = RandomIntegerMatrix<Lhs>(depth, rows, -3, 3);
+  const Rhs b = RandomIntegerMatrix<Rhs>(depth, cols, -3, 3);
+  const Rhs b_t = RandomIntegerMatrix<Rhs>(cols, depth, -3, 3);
+  const Dst c = RandomIntegerMatrix<Dst>(rows, cols, -3, 3);
   Dst dst(rows, cols);
 
   dst.noalias() = a * b;
@@ -64,8 +47,8 @@ void blas_level3_symm(Index rows, Index cols) {
   using Other = Matrix<Scalar, Dynamic, Dynamic, OtherOrder>;
   using Dst = Matrix<Scalar, Dynamic, Dynamic, DstOrder>;
   using Real = typename NumTraits<Scalar>::Real;
-  Selfadjoint s_left = blas_level3_operand<Selfadjoint>(rows, rows);
-  Selfadjoint s_right = blas_level3_operand<Selfadjoint>(cols, cols);
+  Selfadjoint s_left = RandomIntegerMatrix<Selfadjoint>(rows, rows, -3, 3);
+  Selfadjoint s_right = RandomIntegerMatrix<Selfadjoint>(cols, cols, -3, 3);
   // ?hemm reads only the real part of the diagonal.
   s_left.diagonal() = s_left.diagonal().real().template cast<Scalar>();
   s_right.diagonal() = s_right.diagonal().real().template cast<Scalar>();
@@ -73,8 +56,8 @@ void blas_level3_symm(Index rows, Index cols) {
   const Selfadjoint upper_left = s_left.template selfadjointView<Upper>();
   const Selfadjoint lower_right = s_right.template selfadjointView<Lower>();
   const Selfadjoint upper_right = s_right.template selfadjointView<Upper>();
-  const Other b = blas_level3_operand<Other>(rows, cols);
-  const Dst c = blas_level3_operand<Dst>(rows, cols);
+  const Other b = RandomIntegerMatrix<Other>(rows, cols, -3, 3);
+  const Dst c = RandomIntegerMatrix<Dst>(rows, cols, -3, 3);
   Dst dst(rows, cols);
 
   dst.noalias() = s_left.template selfadjointView<Lower>() * b;
@@ -111,10 +94,10 @@ void blas_level3_trmm(Index rows, Index cols) {
   using Triangular = Matrix<Scalar, Dynamic, Dynamic, TriangularOrder>;
   using Other = Matrix<Scalar, Dynamic, Dynamic, OtherOrder>;
   using Dst = Matrix<Scalar, Dynamic, Dynamic, DstOrder>;
-  const Triangular t_left = blas_level3_operand<Triangular>(rows, rows);
-  const Triangular t_right = blas_level3_operand<Triangular>(cols, cols);
-  const Other b = blas_level3_operand<Other>(rows, cols);
-  const Dst c = blas_level3_operand<Dst>(rows, cols);
+  const Triangular t_left = RandomIntegerMatrix<Triangular>(rows, rows, -3, 3);
+  const Triangular t_right = RandomIntegerMatrix<Triangular>(cols, cols, -3, 3);
+  const Other b = RandomIntegerMatrix<Other>(rows, cols, -3, 3);
+  const Dst c = RandomIntegerMatrix<Dst>(rows, cols, -3, 3);
   blas_level3_trmm_mode<Lower>(t_left, t_right, b, c);
   blas_level3_trmm_mode<Upper>(t_left, t_right, b, c);
   blas_level3_trmm_mode<UnitLower>(t_left, t_right, b, c);

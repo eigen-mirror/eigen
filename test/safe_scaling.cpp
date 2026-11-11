@@ -208,12 +208,10 @@ void check_custom_scalar_scaling_exceptions() {
   Matrix<Scalar, 2, 1> input;
   input << Scalar(denorm), Scalar(twiceDenorm);
   Matrix<Scalar, 2, 1> scaled;
-  std::fenv_t savedEnvironment;
-  if (std::feholdexcept(&savedEnvironment) != 0) return;
-  const auto factors = Scaling::scale_to(scaled, input, Scalar(twiceDenorm));
-  const int overflow = std::fetestexcept(FE_OVERFLOW);
-  std::fesetenv(&savedEnvironment);
-  VERIFY_IS_EQUAL(overflow, 0);
+  internal::safe_scaling_factors<Scalar> factors;
+  const int overflow =
+      fp_exceptions_raised_by(FE_OVERFLOW, [&] { factors = Scaling::scale_to(scaled, input, Scalar(twiceDenorm)); });
+  if (overflow >= 0) VERIFY_IS_EQUAL(overflow, 0);
   VERIFY_IS_EQUAL(scaled(0), Scalar(0.5));
   VERIFY_IS_EQUAL(scaled(1), Scalar(1));
   Matrix<Scalar, 2, 1> restored;

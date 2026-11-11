@@ -15,13 +15,11 @@ set(def "${WORK_DIR}/eigen_lapack.def")
 set(exports "LIBRARY eigen_lapack\nEXPORTS\n    dgesv_\n    dpotrf_\n    xerbla_\n")
 function(check_symbols what expected_result expected def_contents reference)
   file(WRITE "${def}" "${def_contents}")
-  bs_run(WHAT "LAPACK symbol check: ${what}" EXPECT_RESULT ${expected_result} OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK symbol check: ${what}" EXPECT_RESULT ${expected_result}
+         MATCHES "${expected}"
          COMMAND "${CMAKE_COMMAND}" "-DNM=${NM}" "-DDEF_FILE=${def}"
                  "-DEIGEN_LAPACK=${EIGEN_LAPACK}" "-DEIGEN_BLAS=${EIGEN_BLAS}" "-DREFERENCE=${reference}"
                  ${ARGN} -P "${EIGEN_SOURCE_DIR}/lapack/testing_symbols.cmake")
-  if(NOT output MATCHES "${expected}")
-    bs_fail("wrong LAPACK symbol check result for ${what}: ${output}")
-  endif()
 endfunction()
 
 # Passing requires counting the weak xerbla_, and ignoring the reference library's

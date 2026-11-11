@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <Eigen/Core>
+#include "product_test_helpers.h"
 
 template <int LhsOrder, int RhsOrder, int ResOrder>
 void double_gemm_tiles() {
@@ -20,27 +20,15 @@ void double_gemm_tiles() {
         const Index size = outer_stride * (ResOrder == ColMajor ? n : m) + 2;
         for (double alpha : {1.0, -0.75}) {
           VectorXd storage = VectorXd::Random(size);
-          VectorXd reference = storage;
+          const VectorXd original = storage;
           Map<Res, Unaligned, Stride<Dynamic, Dynamic>> c(storage.data() + 1, m, n,
                                                           Stride<Dynamic, Dynamic>(outer_stride, 2));
-          Map<Res, Unaligned, Stride<Dynamic, Dynamic>> expected(reference.data() + 1, m, n,
-                                                                 Stride<Dynamic, Dynamic>(outer_stride, 2));
-          VectorXd bounds = VectorXd::Zero(size);
-          for (Index j = 0; j < n; ++j) {
-            for (Index i = 0; i < m; ++i) {
-              double sum = 0;
-              double scale = numext::abs(expected(i, j));
-              for (Index p = 0; p < k; ++p) {
-                sum += a(i, p) * b(p, j);
-                scale += numext::abs(alpha) * numext::abs(a(i, p)) * numext::abs(b(p, j));
-              }
-              expected(i, j) += alpha * sum;
-              // Bound both evaluations of C0 + alpha*A*B, including packing and accumulation.
-              bounds(&expected(i, j) - reference.data()) = 8 * (k + 1) * NumTraits<double>::epsilon() * scale;
-            }
-          }
+          const Res c0 = c;
+          const Res expected = c0 + alpha * a.lazyProduct(b);
           c.noalias() += alpha * a * b;
-          VERIFY(((storage - reference).cwiseAbs().array() <= bounds.array()).all());
+          VERIFY(verifyProductUpdateCoeffwise(c, expected, alpha, a, b, c0));
+          VERIFY(strided_block_gaps_untouched(storage, original, 1, ResOrder == ColMajor ? m : n,
+                                              ResOrder == ColMajor ? n : m, 2, outer_stride));
         }
       }
     }
@@ -55,24 +43,17 @@ void double_syrk_tiles() {
     for (Index k : {7, 8, 9, 17, 65}) {
       const Mat a = Mat::Random(n, k);
       Mat c = Mat::Random(n, n);
-      Mat expected = c;
-      Mat bounds = Mat::Zero(n, n);
+      const Mat c0 = c;
       const double alpha = -0.75;
-      for (Index j = 0; j < n; ++j) {
-        for (Index i = 0; i < n; ++i) {
-          if ((UpLo == Lower && i < j) || (UpLo == Upper && i > j)) continue;
-          double sum = 0;
-          double scale = numext::abs(c(i, j));
-          for (Index p = 0; p < k; ++p) {
-            sum += a(i, p) * a(j, p);
-            scale += numext::abs(alpha) * numext::abs(a(i, p)) * numext::abs(a(j, p));
-          }
-          expected(i, j) += alpha * sum;
-          bounds(i, j) = 8 * (k + 1) * NumTraits<double>::epsilon() * scale;
-        }
-      }
+      const Mat expected = c0 + alpha * a.lazyProduct(a.transpose());
       c.template selfadjointView<UpLo>().rankUpdate(a, alpha);
-      VERIFY(((c - expected).cwiseAbs().array() <= bounds.array()).all());
+      // Only the UpLo triangle is updated.
+      const Mat actual = c.template triangularView<UpLo>();
+      const Mat actual_c0 = c0.template triangularView<UpLo>();
+      const Mat expected_triangle = expected.template triangularView<UpLo>();
+      VERIFY(verifyProductUpdateCoeffwise(actual, expected_triangle, alpha, a, a.transpose(), actual_c0));
+      constexpr int Opposite = UpLo == Lower ? StrictlyUpper : StrictlyLower;
+      VERIFY(bitwise_equal(Mat(c.template triangularView<Opposite>()), Mat(c0.template triangularView<Opposite>())));
     }
   }
 }

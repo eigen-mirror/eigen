@@ -80,6 +80,23 @@ function(bs_run)
   endif()
 endfunction()
 
+# bs_run that also fails the scenario unless the command's merged output matches the regular expression MATCHES
+# and, when EXCLUDES is given, does not match EXCLUDES.  Other arguments are bs_run's.
+function(bs_run_expect_output)
+  cmake_parse_arguments(PARSE_ARGV 0 BSO "" "WHAT;EXPECT_RESULT;MATCHES;EXCLUDES" "COMMAND")
+  set(expect_result 0)
+  if(DEFINED BSO_EXPECT_RESULT)
+    set(expect_result "${BSO_EXPECT_RESULT}")
+  endif()
+  bs_run(WHAT "${BSO_WHAT}" EXPECT_RESULT "${expect_result}" OUTPUT_VARIABLE output COMMAND ${BSO_COMMAND})
+  if(NOT output MATCHES "${BSO_MATCHES}")
+    bs_fail("${BSO_WHAT}: output does not match /${BSO_MATCHES}/\n----\n${output}\n----")
+  endif()
+  if(DEFINED BSO_EXCLUDES AND output MATCHES "${BSO_EXCLUDES}")
+    bs_fail("${BSO_WHAT}: output matches /${BSO_EXCLUDES}/\n----\n${output}\n----")
+  endif()
+endfunction()
+
 # Eigen's own project() call enables C as well as CXX, so a nested configure of
 # Eigen needs both compilers.  An image whose compilers are versioned names such
 # as gcc-10/g++-10, with no plain cc on PATH, has none to detect on its own.

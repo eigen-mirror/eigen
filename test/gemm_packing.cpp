@@ -5,6 +5,7 @@
 #define EIGEN_NO_DEBUG_SMALL_PRODUCT_BLOCKS
 #include "main.h"
 #include <Eigen/Core>
+#include "lifetime_scalar.h"
 
 #ifdef EIGEN_TEST_WRAP_MALLOC
 static volatile bool count_packing_allocations = false;
@@ -72,35 +73,16 @@ void packing_alignment_fallback() {
   VERIFY(packing.blockB() == nullptr);
 }
 
-struct PackingScalar {
-  static Index live;
-  static Index remaining;
-  int value = 0;
-  PackingScalar() {
-#ifdef EIGEN_EXCEPTIONS
-    if (remaining == 0) throw std::bad_alloc();
-#endif
-    --remaining;
-    ++live;
-  }
-  ~PackingScalar() { --live; }
-};
-Index PackingScalar::live = 0;
-Index PackingScalar::remaining = 0;
-
-namespace Eigen {
-template <>
-struct NumTraits<PackingScalar> : GenericNumTraits<PackingScalar> {
-  static constexpr bool RequireInitialization = true;
-};
-}  // namespace Eigen
+using PackingScalar = lifetime_scalar::LifetimeScalar<>;
 
 #ifdef EIGEN_EXCEPTIONS
 template <typename LhsScalar, typename RhsScalar>
-bool packing_throws_bad_alloc(std::size_t sizeA, std::size_t sizeB) {
+bool packing_construction_throws(std::size_t sizeA, std::size_t sizeB) {
   try {
     internal::gemm_packing_space<LhsScalar, RhsScalar> packing(sizeA, sizeB, nullptr, nullptr);
   } catch (const std::bad_alloc&) {
+    return true;
+  } catch (const lifetime_scalar::Failure&) {
     return true;
   }
   return false;
@@ -109,7 +91,7 @@ bool packing_throws_bad_alloc(std::size_t sizeA, std::size_t sizeB) {
 
 void packing_lifetimes() {
   const std::size_t size = EIGEN_STACK_ALLOCATION_LIMIT / sizeof(PackingScalar) + 3;
-  PackingScalar::remaining = Index(2 * size);
+  PackingScalar::max_live = Index(2 * size);
   {
     internal::gemm_packing_space<PackingScalar, PackingScalar> packing(size, size, nullptr, nullptr);
     VERIFY_IS_EQUAL(PackingScalar::live, Index(2 * size));
@@ -119,13 +101,13 @@ void packing_lifetimes() {
   // Throw while constructing A's first element, A's second, B's first, and B's second; size >= 3 even when
   // EIGEN_STACK_ALLOCATION_LIMIT is 0.
   for (Index count : {Index(0), Index(1), Index(size), Index(size + 1)}) {
-    PackingScalar::remaining = count;
-    VERIFY((packing_throws_bad_alloc<PackingScalar, PackingScalar>(size, size)));
+    PackingScalar::max_live = count;
+    VERIFY((packing_construction_throws<PackingScalar, PackingScalar>(size, size)));
     VERIFY_IS_EQUAL(PackingScalar::live, Index(0));
   }
   const std::size_t max_bytes = (std::numeric_limits<std::ptrdiff_t>::max)();
   for (std::size_t sizeA : {max_bytes, max_bytes / 2})
-    VERIFY((packing_throws_bad_alloc<char, char>(sizeA, max_bytes / 2 + 2)));
+    VERIFY((packing_construction_throws<char, char>(sizeA, max_bytes / 2 + 2)));
 #endif
 }
 

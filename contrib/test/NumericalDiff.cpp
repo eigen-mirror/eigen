@@ -9,55 +9,7 @@
 #include "main.h"
 #include <contrib/Eigen/NumericalDiff>
 
-// Generic functor
-template <typename Scalar_, int NX = Dynamic, int NY = Dynamic>
-struct Functor {
-  using Scalar = Scalar_;
-  enum { InputsAtCompileTime = NX, ValuesAtCompileTime = NY };
-  using InputType = Matrix<Scalar, InputsAtCompileTime, 1>;
-  using ValueType = Matrix<Scalar, ValuesAtCompileTime, 1>;
-  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
-
-  int m_inputs, m_values;
-
-  Functor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
-  Functor(int inputs_, int values_) : m_inputs(inputs_), m_values(values_) {}
-
-  int inputs() const { return m_inputs; }
-  int values() const { return m_values; }
-};
-
-struct my_functor : Functor<double> {
-  my_functor(void) : Functor<double>(3, 15) {}
-  int operator()(const VectorXd &x, VectorXd &fvec) const {
-    double tmp1, tmp2, tmp3;
-    double y[15] = {1.4e-1, 1.8e-1, 2.2e-1, 2.5e-1, 2.9e-1, 3.2e-1, 3.5e-1, 3.9e-1,
-                    3.7e-1, 5.8e-1, 7.3e-1, 9.6e-1, 1.34,   2.1,    4.39};
-
-    for (int i = 0; i < values(); i++) {
-      tmp1 = i + 1;
-      tmp2 = 16 - i - 1;
-      tmp3 = (i >= 8) ? tmp2 : tmp1;
-      fvec[i] = y[i] - (x[0] + tmp1 / (x[1] * tmp2 + x[2] * tmp3));
-    }
-    return 0;
-  }
-
-  int actual_df(const VectorXd &x, MatrixXd &fjac) const {
-    double tmp1, tmp2, tmp3, tmp4;
-    for (int i = 0; i < values(); i++) {
-      tmp1 = i + 1;
-      tmp2 = 16 - i - 1;
-      tmp3 = (i >= 8) ? tmp2 : tmp1;
-      tmp4 = (x[1] * tmp2 + x[2] * tmp3);
-      tmp4 = tmp4 * tmp4;
-      fjac(i, 0) = -1;
-      fjac(i, 1) = tmp1 * tmp2 / tmp4;
-      fjac(i, 2) = tmp1 * tmp3 / tmp4;
-    }
-    return 0;
-  }
-};
+#include "lm_test_functors.h"
 
 // Scaling by a power of two is exact, so the difference quotients of this map equal the scales
 // iff each divisor is the representable step actually applied to x.
@@ -95,64 +47,40 @@ struct step_size_functor_abs : Functor<double> {
   }
 };
 
-void test_forward() {
-  VectorXd x(3);
+// Checks the numerical Jacobian of lmder_functor at x against the analytic one and returns the largest error.
+template <NumericalDiffMode Mode>
+double check_lmder_jacobian(const VectorXd &x) {
   MatrixXd jac(15, 3);
   MatrixXd actual_jac(15, 3);
-  my_functor functor;
+  lmder_functor functor;
 
-  x << 0.082, 1.13, 2.35;
+  functor.df(x, actual_jac);
 
-  // real one
-  functor.actual_df(x, actual_jac);
-  //    std::cout << actual_jac << std::endl << std::endl;
-
-  // using NumericalDiff
-  NumericalDiff<my_functor> numDiff(functor);
+  NumericalDiff<lmder_functor, Mode> numDiff(functor);
   numDiff.df(x, jac);
-  //    std::cout << jac << std::endl;
 
   VERIFY_IS_APPROX(jac, actual_jac);
+  return (jac - actual_jac).cwiseAbs().maxCoeff();
+}
+
+void test_forward() {
+  VectorXd x(3);
+  x << 0.082, 1.13, 2.35;
+  check_lmder_jacobian<Forward>(x);
 }
 
 void test_central() {
   VectorXd x(3);
-  MatrixXd jac(15, 3);
-  MatrixXd actual_jac(15, 3);
-  my_functor functor;
-
   x << 0.082, 1.13, 2.35;
-
-  // real one
-  functor.actual_df(x, actual_jac);
-
-  // using NumericalDiff
-  NumericalDiff<my_functor, Central> numDiff(functor);
-  numDiff.df(x, jac);
-
-  VERIFY_IS_APPROX(jac, actual_jac);
-
   // With the default changed to cbrt(epsilon), the maximum error has become lower
   // This verifies we get the new, lower maximum error.
-  VERIFY_LE((jac - actual_jac).cwiseAbs().maxCoeff(), 1e-10);
+  VERIFY_LE(check_lmder_jacobian<Central>(x), 1e-10);
 }
 
 void test_small() {
   VectorXd x(3);
-  MatrixXd jac(15, 3);
-  MatrixXd actual_jac(15, 3);
-  my_functor functor;
-
   x << 0.082, 1.13, 1e-8;
-
-  // real one
-  functor.actual_df(x, actual_jac);
-
-  // using NumericalDiff
-  NumericalDiff<my_functor, Central> numDiff(functor);
-  numDiff.df(x, jac);
-
-  VERIFY_IS_APPROX(jac, actual_jac);
+  check_lmder_jacobian<Central>(x);
 }
 
 template <NumericalDiffMode Mode>
@@ -171,100 +99,51 @@ void test_step_alignment(double epsfcn) {
   VERIFY_IS_EQUAL(jac, expected);
 }
 
-void test_step_size() {
+// The one-by-one Jacobian of `diff` at x0 must equal `expected`.
+template <typename Functor_, NumericalDiffMode Mode>
+void check_step(NumericalDiff<Functor_, Mode> &diff, double x0, double expected) {
+  VectorXd x(1);
+  x << x0;
+  MatrixXd jac(1, 1);
+  diff.df(x, jac);
+  MatrixXd expected_jac(1, 1);
+  expected_jac << expected;
+  VERIFY_IS_APPROX(jac, expected_jac);
+}
+
+// step_size_functor probes the relative step about x = 1000 and step_size_functor_abs the absolute step about x = 0.
+// default_tol is the mode's default for both; rel_only_eps is a relative tolerance passed to the constructor alone.
+template <NumericalDiffMode Mode>
+void check_step_size(double rel_only_eps, double default_tol) {
   step_size_functor functor;
   step_size_functor_abs functor_abs;
-  VectorXd x(1);
-  MatrixXd jac(1, 1);
-  MatrixXd expected(1, 1);
 
-  // Test that setting relative step size and absolute step sizes gives the expected answer
-  NumericalDiff<step_size_functor> numDiffBothSet(functor);
-  numDiffBothSet.setRelTol(1e-4);
-  numDiffBothSet.setAbsTol(1e-6);
-  x << 1000.0;
-  numDiffBothSet.df(x, jac);
-  expected << 1e-1;  // rel_tol * 1000.0
-  VERIFY_IS_APPROX(jac, expected);
+  // Setting relative step size and absolute step sizes gives the expected answer.
+  NumericalDiff<step_size_functor, Mode> both_set(functor);
+  both_set.setRelTol(1e-4);
+  both_set.setAbsTol(1e-6);
+  check_step(both_set, 1000.0, 1e-1);  // rel_tol * 1000.0
+  NumericalDiff<step_size_functor_abs, Mode> both_set_abs(functor_abs);
+  both_set_abs.setRelTol(1e-4);
+  both_set_abs.setAbsTol(1e-6);
+  check_step(both_set_abs, 0.0, 1e-6);  // abs_tol
 
-  NumericalDiff<step_size_functor_abs> numDiffBothSetAbs(functor_abs);
-  numDiffBothSetAbs.setRelTol(1e-4);
-  numDiffBothSetAbs.setAbsTol(1e-6);
-  x << 0.0;
-  numDiffBothSetAbs.df(x, jac);
-  expected << 1e-6;  // abs_tol
-  VERIFY_IS_APPROX(jac, expected);
+  // Setting the relative step size only gives abs_tol = rel_tol.
+  NumericalDiff<step_size_functor, Mode> rel_only(functor, rel_only_eps);
+  check_step(rel_only, 1000.0, 1e-1);  // rel_tol * 1000.0
+  NumericalDiff<step_size_functor_abs, Mode> rel_only_abs(functor_abs, rel_only_eps);
+  check_step(rel_only_abs, 0.0, 1e-4);  // abs_tol = rel_tol
 
-  // Test that setting relative step size only gives abs_tol = rel_tol
-  NumericalDiff<step_size_functor> numDiffRelOnly(functor, 1e-8);
-  x << 1000.0;
-  expected << 1e-1;  // rel_tol * 1000.0
-  numDiffRelOnly.df(x, jac);
-  VERIFY_IS_APPROX(jac, expected);
+  // Setting neither gives rel_tol = abs_tol = default_tol.
+  NumericalDiff<step_size_functor, Mode> defaults(functor);
+  check_step(defaults, 1000.0, 1000.0 * default_tol);
+  NumericalDiff<step_size_functor_abs, Mode> defaults_abs(functor_abs);
+  check_step(defaults_abs, 0.0, default_tol);
+}
 
-  NumericalDiff<step_size_functor_abs> numDiffRelOnlyAbs(functor_abs, 1e-8);
-  x << 0.0;
-  numDiffRelOnlyAbs.df(x, jac);
-  expected << 1e-4;  // abs_tol = rel_tol
-  VERIFY_IS_APPROX(jac, expected);
-
-  // Test that setting neither gives rel_tol = abs_tol = sqrt(eps)
-  NumericalDiff<step_size_functor> numDiffDefaults(functor);
-  x << 1000.0;
-  expected << 1000.0 * std::sqrt(std::numeric_limits<double>::epsilon());  // 1000.0 * rel_tol
-  numDiffDefaults.df(x, jac);
-  VERIFY_IS_APPROX(jac, expected);
-
-  NumericalDiff<step_size_functor_abs> numDiffDefaultsAbs(functor_abs);
-  x << 0.0;
-  numDiffDefaultsAbs.df(x, jac);
-  expected << std::sqrt(std::numeric_limits<double>::epsilon());  // abs_tol = rel_tol
-  VERIFY_IS_APPROX(jac, expected);
-
-  // Run the same tests, but for central differences
-
-  // Test that setting relative step size and absolute step sizes gives the expected answer
-  NumericalDiff<step_size_functor, Central> numDiffCentralBothSet(functor);
-  numDiffCentralBothSet.setRelTol(1e-4);
-  numDiffCentralBothSet.setAbsTol(1e-6);
-  x << 1000.0;
-  numDiffCentralBothSet.df(x, jac);
-  expected << 1e-1;  // rel_tol * 1000.0
-  VERIFY_IS_APPROX(jac, expected);
-
-  NumericalDiff<step_size_functor_abs, Central> numDiffCentralBothSetAbs(functor_abs);
-  numDiffCentralBothSetAbs.setRelTol(1e-4);
-  numDiffCentralBothSetAbs.setAbsTol(1e-6);
-  x << 0.0;
-  numDiffCentralBothSetAbs.df(x, jac);
-  expected << 1e-6;  // abs_tol
-  VERIFY_IS_APPROX(jac, expected);
-
-  // Test that setting relative step size only gives abs_tol = rel_tol
-  NumericalDiff<step_size_functor, Central> numDiffCentralRelOnly(functor, 1e-12);
-  x << 1000.0;
-  expected << 1e-1;  // rel_tol * 1000.0
-  numDiffCentralRelOnly.df(x, jac);
-  VERIFY_IS_APPROX(jac, expected);
-
-  NumericalDiff<step_size_functor_abs, Central> numDiffCentralRelOnlyAbs(functor_abs, 1e-12);
-  x << 0.0;
-  numDiffCentralRelOnlyAbs.df(x, jac);
-  expected << 1e-4;  // abs_tol = rel_tol
-  VERIFY_IS_APPROX(jac, expected);
-
-  // Test that setting neither gives rel_tol = abs_tol = cbrt(eps)
-  NumericalDiff<step_size_functor, Central> numDiffCentralDefaults(functor);
-  x << 1000.0;
-  expected << 1000.0 * std::cbrt(std::numeric_limits<double>::epsilon());  // 1000.0 * rel_tol
-  numDiffCentralDefaults.df(x, jac);
-  VERIFY_IS_APPROX(jac, expected);
-
-  NumericalDiff<step_size_functor_abs, Central> numDiffCentralDefaultsAbs(functor_abs);
-  x << 0.0;
-  numDiffCentralDefaultsAbs.df(x, jac);
-  expected << std::cbrt(std::numeric_limits<double>::epsilon());  // abs_tol = rel_tol
-  VERIFY_IS_APPROX(jac, expected);
+void test_step_size() {
+  check_step_size<Forward>(1e-8, std::sqrt(std::numeric_limits<double>::epsilon()));
+  check_step_size<Central>(1e-12, std::cbrt(std::numeric_limits<double>::epsilon()));
 }
 
 // Test functor to ensure constructors work. The operator returns a1 at

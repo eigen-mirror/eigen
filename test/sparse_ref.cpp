@@ -147,32 +147,6 @@ void verify_slice_coeffs(XprType &xpr, MatrixType &storage, int variant) {
   VERIFY_IS_EQUAL(storage.coeff(2, 2), updated1);
 }
 
-template <typename MatrixType, typename XprType>
-float innerpanel_coeff(const XprType &xpr, Index outer, Index inner) {
-  if ((MatrixType::Flags & RowMajorBit) == RowMajorBit) return xpr.coeff(outer, inner);
-  return xpr.coeff(inner, outer);
-}
-
-template <typename MatrixType, typename XprType>
-void set_innerpanel_coeff(XprType &xpr, Index outer, Index inner, float value) {
-  if ((MatrixType::Flags & RowMajorBit) == RowMajorBit)
-    xpr.coeffRef(outer, inner) = value;
-  else
-    xpr.coeffRef(inner, outer) = value;
-}
-
-template <typename MatrixType>
-float storage_innerpanel_coeff(const MatrixType &storage, Index outer, Index inner) {
-  if ((MatrixType::Flags & RowMajorBit) == RowMajorBit) return storage.coeff(outer + 1, inner);
-  return storage.coeff(inner, outer + 1);
-}
-
-template <typename MatrixType>
-float storage_innervector_coeff(const MatrixType &storage, Index outer, Index inner) {
-  if ((MatrixType::Flags & RowMajorBit) == RowMajorBit) return storage.coeff(outer, inner);
-  return storage.coeff(inner, outer);
-}
-
 template <typename XprType, typename MatrixType>
 void verify_noncompressed_middle_binding(XprType &xpr, MatrixType &storage, int variant) {
   struct Entry {
@@ -192,14 +166,14 @@ void verify_noncompressed_middle_binding(XprType &xpr, MatrixType &storage, int 
   VERIFY(!const_middle.isCompressed());
   VERIFY_IS_EQUAL(const_middle.nonZeros(), 4);
   for (const auto &entry : expected) {
-    VERIFY_IS_EQUAL(innerpanel_coeff<MatrixType>(middle, entry.outer, entry.inner), entry.value);
-    VERIFY_IS_EQUAL(innerpanel_coeff<MatrixType>(const_middle, entry.outer, entry.inner), entry.value);
+    VERIFY_IS_EQUAL(coeff_by_outer(middle, entry.outer, entry.inner), entry.value);
+    VERIFY_IS_EQUAL(coeff_by_outer(const_middle, entry.outer, entry.inner), entry.value);
   }
 
-  set_innerpanel_coeff<MatrixType>(middle, 0, 1, updated0);
-  set_innerpanel_coeff<MatrixType>(middle, 1, 0, updated1);
-  VERIFY_IS_EQUAL(storage_innerpanel_coeff(storage, 0, 1), updated0);
-  VERIFY_IS_EQUAL(storage_innerpanel_coeff(storage, 1, 0), updated1);
+  coeffRef_by_outer(middle, 0, 1) = updated0;
+  coeffRef_by_outer(middle, 1, 0) = updated1;
+  VERIFY_IS_EQUAL(coeff_by_outer(storage, 1, 1), updated0);
+  VERIFY_IS_EQUAL(coeff_by_outer(storage, 2, 0), updated1);
 }
 
 template <typename XprType, typename MatrixType>
@@ -226,8 +200,8 @@ void verify_noncompressed_inner_vector_binding(XprType &xpr, MatrixType &storage
   auto coeffs = inner.coeffs();
   coeffs[0] = updated0;
   coeffs[1] = updated1;
-  VERIFY_IS_EQUAL(storage_innervector_coeff(storage, 2, 0), updated0);
-  VERIFY_IS_EQUAL(storage_innervector_coeff(storage, 2, 2), updated1);
+  VERIFY_IS_EQUAL(coeff_by_outer(storage, 2, 0), updated0);
+  VERIFY_IS_EQUAL(coeff_by_outer(storage, 2, 2), updated1);
 }
 
 void check_ref_slice_coeffs() {

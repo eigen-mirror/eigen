@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <cfenv>
 
@@ -501,13 +502,14 @@ void checkAnyRaisesNoInvalid() {
   for (Index size : {2 * PacketSize, 3 * PacketSize, 8 * PacketSize, 9 * PacketSize + 3}) {
     Array<Scalar, Dynamic, 1> a(size);
     for (Index i = 0; i < size; ++i) a(i) = numext::bit_cast<Scalar>((i / PacketSize) % 2 ? one : two);
-#if defined(FE_ALL_EXCEPT) && defined(FE_INVALID)
-    std::feclearexcept(FE_ALL_EXCEPT);
-    VERIFY(anyOfArray(a));
-    VERIFY_IS_EQUAL(std::fetestexcept(FE_INVALID) & FE_INVALID, 0);
+    bool any = false;
+#ifdef FE_INVALID
+    const int invalid = fp_exceptions_raised_by(FE_INVALID, [&] { any = anyOfArray(a); });
+    if (invalid >= 0) VERIFY_IS_EQUAL(invalid, 0);
 #else
-    VERIFY(anyOfArray(a));
+    any = anyOfArray(a);
 #endif
+    VERIFY(any);
   }
 }
 
@@ -522,15 +524,19 @@ EIGEN_DONT_INLINE bool quotientIsZero(const ArrayType& a, const ArrayType& b) {
 
 template <typename ArrayType>
 void checkQuotientRaisesNoInvalid(const ArrayType& a, const ArrayType& b) {
-#if defined(FE_ALL_EXCEPT) && defined(FE_INVALID)
-  std::feclearexcept(FE_ALL_EXCEPT);
-  VERIFY(quotientAllFinite(a, b));
-  VERIFY(!quotientIsZero(a, b) || a.size() == 0);
-  VERIFY_IS_EQUAL(std::fetestexcept(FE_INVALID) & FE_INVALID, 0);
+  bool finite = false, zero = true;
+#ifdef FE_INVALID
+  const int invalid = fp_exceptions_raised_by(FE_INVALID, [&] {
+    finite = quotientAllFinite(a, b);
+    zero = quotientIsZero(a, b);
+  });
+  if (invalid >= 0) VERIFY_IS_EQUAL(invalid, 0);
 #else
-  VERIFY(quotientAllFinite(a, b));
-  VERIFY(!quotientIsZero(a, b) || a.size() == 0);
+  finite = quotientAllFinite(a, b);
+  zero = quotientIsZero(a, b);
 #endif
+  VERIFY(finite);
+  VERIFY(!zero || a.size() == 0);
 }
 
 // A segment shorter than a packet is tested with one masked load only where the expression loads its coefficients:

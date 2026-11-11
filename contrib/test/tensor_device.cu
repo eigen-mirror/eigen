@@ -17,6 +17,7 @@
 #include "main.h"
 #include "OffByOneScalar.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 using Eigen::Tensor;
 
@@ -438,12 +439,11 @@ void test_gpu() {
 
 // Forcing an empty tensor allocates a zero-byte temporary, null on the GPU, and frees it.
 void test_gpu_empty_eval() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-  Eigen::TensorMap<Eigen::Tensor<float, 1>> in(static_cast<float*>(nullptr), 0), out(static_cast<float*>(nullptr), 0);
-  out.device(gpu_device) = in.eval() * 2.f;
-  gpu_device.deallocate(gpu_device.allocate(0));
-  gpu_device.synchronize();
+  tensor_test::GpuTensorTestFixture fixture;
+  auto in = fixture.tensor<float, 1, Eigen::Unaligned>(0);
+  auto out = fixture.tensor<float, 1, Eigen::Unaligned>(0);
+  out.device(fixture.device()) = in.eval() * 2.f;
+  fixture.device().deallocate(fixture.device().allocate(0));
 }
 
 // The attribute cache has to agree with the properties struct on every field both carry, and the accessors built

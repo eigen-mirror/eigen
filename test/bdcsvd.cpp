@@ -83,6 +83,24 @@ void bdcsvd_asserts(const MatrixType& input = MatrixType()) {
   svd_verify_assert<MatrixType>(m);
 }
 
+// The dense upper bidiagonal matrix with the given diagonal and superdiagonal.
+template <typename RealScalar>
+Matrix<RealScalar, Dynamic, Dynamic> bidiagonal_matrix(const Matrix<RealScalar, Dynamic, 1>& diagonal,
+                                                       const Matrix<RealScalar, Dynamic, 1>& superdiagonal) {
+  const Index n = diagonal.size();
+  Matrix<RealScalar, Dynamic, Dynamic> B = Matrix<RealScalar, Dynamic, Dynamic>::Zero(n, n);
+  B.diagonal() = diagonal;
+  if (n > 1) B.template diagonal<1>() = superdiagonal;
+  return B;
+}
+
+// ||B - U S V^T|| <= bound ||B||.
+template <typename MatrixType, typename SvdType>
+void verify_bidiagonal_reconstruction(const MatrixType& B, const SvdType& svd, typename MatrixType::RealScalar bound) {
+  VERIFY((B - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
+         bound * B.norm());
+}
+
 template <typename MatrixType>
 void bdcsvd_check_convergence(const MatrixType& input) {
   BDCSVD<MatrixType, Eigen::ComputeThinU | Eigen::ComputeThinV> svd(input);
@@ -119,9 +137,7 @@ void verify_bidiagonal_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
   VERIFY_IS_APPROX(bdcsvd.matrixV().transpose() * bdcsvd.matrixV(), MatrixXr::Identity(n, n));
 
   // Reconstruction: U * S * V^T should equal the original bidiagonal.
-  MatrixXr B = MatrixXr::Zero(n, n);
-  B.diagonal() = diag;
-  if (n > 1) B.diagonal(1) = superdiag;
+  const MatrixXr B = bidiagonal_matrix(diag, superdiag);
   MatrixXr recon = bdcsvd.matrixU() * sv.asDiagonal() * bdcsvd.matrixV().transpose();
   VERIFY_IS_APPROX(recon, B);
 
@@ -135,12 +151,9 @@ template <typename RealScalar, int Options = 0>
 void verify_bidiagonal_vs_matrix_svd(const Matrix<RealScalar, Dynamic, 1>& diag,
                                      const Matrix<RealScalar, Dynamic, 1>& superdiag) {
   using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic>;
-  const Index n = diag.size();
 
   // Build dense bidiagonal matrix.
-  MatrixXr B = MatrixXr::Zero(n, n);
-  B.diagonal() = diag;
-  if (n > 1) B.diagonal(1) = superdiag;
+  const MatrixXr B = bidiagonal_matrix(diag, superdiag);
 
   BDCSVD<MatrixXr, Options> bidiag_svd(diag, superdiag);
   BDCSVD<MatrixXr, Options> matrix_svd(B);
@@ -217,9 +230,7 @@ void bdcsvd_switch_size() {
   // The bidiagonal entry point allocates through the same path.
   const VectorXd diag = VectorXd::Random(20);
   const VectorXd superdiag = VectorXd::Random(19);
-  MatrixXd bidiag = MatrixXd::Zero(20, 20);
-  bidiag.diagonal() = diag;
-  bidiag.diagonal(1) = superdiag;
+  const MatrixXd bidiag = bidiagonal_matrix(diag, superdiag);
   BDCSVD<MatrixXd, ComputeFullU | ComputeFullV> bidiag_svd(bidiag.rows(), bidiag.cols());
   bidiag_svd.setSwitchSize(32);
   bidiag_svd.compute(diag, superdiag);
@@ -345,9 +356,7 @@ void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
   const int k = 60;
   const Vec ds = diagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
   const Vec ss = superdiagonal.unaryExpr(internal::scale_by_exponent_op<RealScalar>(k));
-  Mat B = Mat::Zero(n, n);
-  B.diagonal() = diagonal;
-  B.diagonal(1) = superdiagonal;
+  const Mat B = bidiagonal_matrix(diagonal, superdiagonal);
   BDCSVD<Mat, ComputeFullU | ComputeFullV> scaled;
   scaled.setSwitchSize(switchSize);
   scaled.compute(ds, ss);
@@ -411,7 +420,6 @@ void bdcsvd_secular_extrapolation() {
   using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
   using Vec = Matrix<RealScalar, Dynamic, 1>;
   for (Index n : {31, 32, 33, 63, 64, 65, 127, 128, 129}) {
-    Mat bidiagonal = Mat::Zero(n, n);
     Vec diagonal = Vec::Random(n), superdiagonal = Vec::Random(n - 1);
     for (int kind = 0; kind < 3; ++kind) {
       if (kind == 1) {
@@ -422,14 +430,12 @@ void bdcsvd_secular_extrapolation() {
         superdiagonal.setRandom();
         for (Index i = 0; i + 1 < n; i += 7) superdiagonal(i) = RealScalar(0);
       }
-      bidiagonal.diagonal() = diagonal;
-      bidiagonal.template diagonal<1>() = superdiagonal;
+      const Mat bidiagonal = bidiagonal_matrix(diagonal, superdiagonal);
       BDCSVD<Mat, ComputeFullU | ComputeFullV> svd(diagonal, superdiagonal);
       VERIFY_IS_EQUAL(svd.info(), Success);
       // Reconstruction and orthogonality each accumulate O(n * epsilon) rounding.
       const RealScalar bound = RealScalar(64 * n) * NumTraits<RealScalar>::epsilon();
-      VERIFY((bidiagonal - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
-             bound * bidiagonal.norm());
+      verify_bidiagonal_reconstruction(bidiagonal, svd, bound);
       const Mat identity = Mat::Identity(n, n);
       VERIFY((svd.matrixU().transpose() * svd.matrixU() - identity).norm() <= bound);
       VERIFY((svd.matrixV().transpose() * svd.matrixV() - identity).norm() <= bound);
@@ -459,17 +465,13 @@ void bdcsvd_secular_close_poles() {
   BDCSVD<Mat, ComputeFullU | ComputeFullV> svd;
   svd.setSwitchSize(3);
   Vec diagonal(3), superdiagonal(2);
-  Mat bidiagonal = Mat::Zero(3, 3);
   for (int ia = 60; ia <= 120; ++ia) {
     for (int ib = 10; ib <= 50; ++ib) {
       diagonal << RealScalar(0), numext::sqrt(RealScalar(2) * w * RealScalar(ia) / RealScalar(100)), p + w;
       superdiagonal << p, numext::sqrt(RealScalar(2) * w * RealScalar(ib) / RealScalar(100));
-      bidiagonal.diagonal() = diagonal;
-      bidiagonal.template diagonal<1>() = superdiagonal;
       svd.compute(diagonal, superdiagonal);
       VERIFY_IS_EQUAL(svd.info(), Success);
-      VERIFY((bidiagonal - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
-             bound * bidiagonal.norm());
+      verify_bidiagonal_reconstruction(bidiagonal_matrix(diagonal, superdiagonal), svd, bound);
     }
   }
 }
@@ -486,19 +488,14 @@ void bdcsvd_secular_exact_root() {
   const RealScalar bound = RealScalar(64) * NumTraits<RealScalar>::epsilon();
   BDCSVD<Mat, ComputeFullU | ComputeFullV> svd;
   svd.setSwitchSize(3);
-  Mat bidiagonal;
   Vec diagonal, superdiagonal;
   for (int i = 0; i < 100000; ++i) {
     const Index n = 3 + i % 6;
     diagonal = Vec::Random(n);
     superdiagonal = Vec::Random(n - 1);
-    bidiagonal.setZero(n, n);
-    bidiagonal.diagonal() = diagonal;
-    bidiagonal.template diagonal<1>() = superdiagonal;
     svd.compute(diagonal, superdiagonal);
     VERIFY_IS_EQUAL(svd.info(), Success);
-    VERIFY((bidiagonal - svd.matrixU() * svd.singularValues().asDiagonal() * svd.matrixV().transpose()).norm() <=
-           bound * bidiagonal.norm());
+    verify_bidiagonal_reconstruction(bidiagonal_matrix(diagonal, superdiagonal), svd, bound);
   }
 }
 

@@ -140,117 +140,75 @@ static void check_ostream() {
   check_ostream_impl<Scalar>::run();
 }
 
-static std::string format_2x2(const std::string& rowSeparator = "\n", const std::string& rowPrefix = "[",
-                              const std::string& rowSuffix = "]", const std::string& matPrefix = "",
-                              const std::string& matSuffix = "", int flags = 0) {
+struct IOFormatCase {
+  std::string rowSeparator, rowPrefix, rowSuffix, matPrefix, matSuffix;
+  int flags;
+  std::string expected;
+};
+
+static void check_ioformat() {
+  const IOFormatCase cases[] = {
+      // standard
+      {"\n", "[", "]", "", "", 0,
+       "[ 6473,    27]\n"
+       "[    1, 22334]"},
+      // row separator with newlines
+      {"\nNext\n", "[", "]", "", "", 0,
+       "[ 6473,    27]\n"
+       "Next\n"
+       "[    1, 22334]"},
+      {"\nNext\n  ", "[", "]", "Matrix = [", "]", 0,
+       "Matrix = [[ 6473,    27]\n"
+       "Next\n"
+       "          [    1, 22334]]"},
+      // newline in the row prefix and suffix
+      {"\n", "[\n", "]", "", "", 0,
+       "[\n"
+       " 6473,    27]\n"
+       "[\n"
+       "    1, 22334]"},
+      {"\n", "[", "\n]", "", "", 0,
+       "[ 6473,    27\n"
+       "]\n"
+       "[    1, 22334\n"
+       "]"},
+      // rows on the same line, and a separator that indents the next row
+      {", ", "[", "]", "[", "]", 0, "[[ 6473,    27], [    1, 22334]]"},
+      {",\n  ", "[", "]", "Matrix = [", "]", 0,
+       "Matrix = [[ 6473,    27],\n"
+       "          [    1, 22334]]"},
+      // row prefix that starts with a newline, without a row separator
+      {"", "\n[", "]", "Matrix =", "", 0,
+       "Matrix =\n"
+       "[ 6473,    27]\n"
+       "[    1, 22334]"},
+      // newline in the matrix prefix
+      {"\n", "[", "]", "Matrix =\n [", "].", 0,
+       "Matrix =\n"
+       " [[ 6473,    27]\n"
+       "  [    1, 22334]]."},
+      // row suffix with a newline followed by a row separator
+      {", ", "[", "\n]", "Matrix = [", "]", 0,
+       "Matrix = [[ 6473,    27\n"
+       "],        [    1, 22334\n"
+       "]]"},
+      // DontAlignCols
+      {"\n", "[", "]", "Matrix = [", "].", DontAlignCols,
+       "Matrix = [[6473, 27]\n"
+       "[1, 22334]]."},
+      // a row separator that is longer than the indentation
+      {"\n ---carried--- ", "[", "]", "Matrix [", "]", 0,
+       "Matrix [[ 6473,    27]\n"
+       " ---carried--- [    1, 22334]]"},
+  };
   const auto matrix = (Matrix2i() << 6473, 27, 1, 22334).finished();
-  std::ostringstream ss;
-  const IOFormat fmt(StreamPrecision, flags, ", ", rowSeparator, rowPrefix, rowSuffix, matPrefix, matSuffix);
-  ss << matrix.format(fmt);
-  return ss.str();
-}
-
-static void check_ioformat_standard() {
-  const std::string found = format_2x2();
-  const std::string expected =
-      "[ 6473,    27]\n"
-      "[    1, 22334]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_separator_newline() {
-  const std::string found = format_2x2("\nNext\n");
-  const std::string expected =
-      "[ 6473,    27]\n"
-      "Next\n"
-      "[    1, 22334]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_separator_multiple_newlines() {
-  const std::string found = format_2x2("\nNext\n  ", "[", "]", "Matrix = [", "]");
-  const std::string expected =
-      "Matrix = [[ 6473,    27]\n"
-      "Next\n"
-      "          [    1, 22334]]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_prefix_newline() {
-  const std::string found = format_2x2("\n", "[\n", "]");
-  const std::string expected =
-      "[\n"
-      " 6473,    27]\n"
-      "[\n"
-      "    1, 22334]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_suffix_newline() {
-  const std::string found = format_2x2("\n", "[", "\n]");
-  const std::string expected =
-      "[ 6473,    27\n"
-      "]\n"
-      "[    1, 22334\n"
-      "]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_rows_same_line() {
-  const std::string found = format_2x2(", ", "[", "]", "[", "]");
-  const std::string expected = "[[ 6473,    27], [    1, 22334]]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_separator_indent() {
-  const std::string found = format_2x2(",\n  ", "[", "]", "Matrix = [", "]");
-  const std::string expected =
-      "Matrix = [[ 6473,    27],\n"
-      "          [    1, 22334]]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_prefix_only_newline() {
-  const std::string found = format_2x2("", "\n[", "]", "Matrix =");
-  const std::string expected =
-      "Matrix =\n"
-      "[ 6473,    27]\n"
-      "[    1, 22334]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_mat_prefix_newline() {
-  const std::string found = format_2x2("\n", "[", "]", "Matrix =\n [", "].");
-  const std::string expected =
-      "Matrix =\n"
-      " [[ 6473,    27]\n"
-      "  [    1, 22334]].";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_row_suffix_separator() {
-  const std::string found = format_2x2(", ", "[", "\n]", "Matrix = [", "]");
-  const std::string expected =
-      "Matrix = [[ 6473,    27\n"
-      "],        [    1, 22334\n"
-      "]]";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_dont_align_cols() {
-  const std::string found = format_2x2("\n", "[", "]", "Matrix = [", "].", DontAlignCols);
-  const std::string expected =
-      "Matrix = [[6473, 27]\n"
-      "[1, 22334]].";
-  VERIFY_IS_EQUAL(found, expected);
-}
-
-static void check_ioformat_carried_exceeds_indent() {
-  const std::string found = format_2x2("\n ---carried--- ", "[", "]", "Matrix [", "]");
-  const std::string expected =
-      "Matrix [[ 6473,    27]\n"
-      " ---carried--- [    1, 22334]]";
-  VERIFY_IS_EQUAL(found, expected);
+  for (const IOFormatCase& c : cases) {
+    std::ostringstream ss;
+    const IOFormat fmt(StreamPrecision, c.flags, ", ", c.rowSeparator, c.rowPrefix, c.rowSuffix, c.matPrefix,
+                       c.matSuffix);
+    ss << matrix.format(fmt);
+    VERIFY_IS_EQUAL(ss.str(), c.expected);
+  }
 }
 
 EIGEN_DECLARE_TEST(io) {
@@ -266,16 +224,5 @@ EIGEN_DECLARE_TEST(io) {
   CALL_SUBTEST(check_ostream<Eigen::numext::uint32_t>());
   CALL_SUBTEST(check_ostream<Eigen::numext::int64_t>());
   CALL_SUBTEST(check_ostream<Eigen::numext::uint64_t>());
-  CALL_SUBTEST(check_ioformat_standard());
-  CALL_SUBTEST(check_ioformat_row_separator_newline());
-  CALL_SUBTEST(check_ioformat_row_separator_multiple_newlines());
-  CALL_SUBTEST(check_ioformat_row_prefix_newline());
-  CALL_SUBTEST(check_ioformat_row_suffix_newline());
-  CALL_SUBTEST(check_ioformat_rows_same_line());
-  CALL_SUBTEST(check_ioformat_row_separator_indent());
-  CALL_SUBTEST(check_ioformat_row_prefix_only_newline());
-  CALL_SUBTEST(check_ioformat_mat_prefix_newline());
-  CALL_SUBTEST(check_ioformat_row_suffix_separator());
-  CALL_SUBTEST(check_ioformat_dont_align_cols());
-  CALL_SUBTEST(check_ioformat_carried_exceeds_indent());
+  CALL_SUBTEST(check_ioformat());
 }

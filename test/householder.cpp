@@ -497,21 +497,6 @@ void verify_low_precision_complex_zero_tail() {
   VERIFY_IS_EQUAL(numext::imag(essential[0]), zero);
 }
 
-template <typename RealScalar>
-void verify_complex_nan_head() {
-  using Scalar = std::complex<RealScalar>;
-  const RealScalar nan = NumTraits<RealScalar>::quiet_NaN();
-  Matrix<Scalar, 2, 1> vector;
-  vector << Scalar(1, nan), Scalar(0, 0);
-  Matrix<Scalar, 1, 1> essential;
-  Scalar tau;
-  RealScalar beta;
-
-  vector.makeHouseholder(essential, tau, beta);
-
-  VERIFY((numext::isnan)(beta));
-}
-
 template <typename = void>
 void verify_custom_complex_small_tail() {
   using Scalar = reordered_complex::Complex<float>;
@@ -633,40 +618,6 @@ void householder_small_tail() {
   }
 
   {
-    const float largest = (std::numeric_limits<float>::max)();
-    Vector2f vector(largest, 1e-20f);
-    VectorXf essential(1);
-    float tau;
-    float beta;
-
-    vector.makeHouseholder(essential, tau, beta);
-
-    // The tail is nonzero, so the reflector flips the sign of the head, as xLARFG's does; the essential part
-    // 1e-20 / (2 * largest) underflows to zero.
-    VERIFY_IS_EQUAL(tau, 2.0f);
-    VERIFY_IS_EQUAL(beta, -largest);
-    VERIFY_IS_EQUAL(essential[0], 0.0f);
-  }
-
-  {
-    const float largest = (std::numeric_limits<float>::max)();
-    const Vector2cf vector(std::complex<float>(0.0f, largest), std::complex<float>(1e-20f, 0.0f));
-    VectorXcf essential(1);
-    std::complex<float> tau;
-    float beta;
-
-    vector.makeHouseholder(essential, tau, beta);
-
-    VERIFY_IS_EQUAL(tau, std::complex<float>(1.0f, -1.0f));
-    VERIFY_IS_EQUAL(beta, -largest);
-    VERIFY_IS_EQUAL(essential[0], std::complex<float>(0.0f, 0.0f));
-    Vector2cf householder;
-    householder << std::complex<float>(1.0f, 0.0f), essential;
-    const Matrix2cf transform = Matrix2cf::Identity() - tau * householder * householder.adjoint();
-    VERIFY_IS_APPROX(transform.adjoint() * transform, Matrix2cf::Identity());
-  }
-
-  {
     volatile float denormInput = (std::numeric_limits<float>::denorm_min)();
     const float denorm = denormInput;
     // Subnormal operands are indistinguishable from zero when the target flushes them.
@@ -723,8 +674,6 @@ void householder_small_tail() {
   verify_complex_zero_tail<double>(1e-160);
   verify_low_precision_complex_zero_tail<half>();
   verify_low_precision_complex_zero_tail<bfloat16>();
-  verify_complex_nan_head<float>();
-  verify_complex_nan_head<double>();
   verify_custom_complex_small_tail<>();
 
   {
@@ -1168,31 +1117,35 @@ template <typename Scalar>
 void verify_householder_negligible_tail(Index m) {
   using Real = typename NumTraits<Scalar>::Real;
   using Vector = Matrix<Scalar, Dynamic, 1>;
-  const long double dominant = std::ldexp(1.0L, householder_exponents<Real>::kDominant);
   const long double negligible = std::ldexp(1.0L, householder_exponents<Real>::kNegligible);
   Vector essential(m);
   Scalar tau;
   Real beta;
 
-  for (long double sign : {1.0L, -1.0L}) {
-    Vector x(m + 1);
-    x[0] = householder_make<Scalar>(sign * dominant);
-    for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>((i % 2 ? -1.0L : 1.0L) * negligible);
-    x.makeHouseholder(essential, tau, beta);
-    VERIFY_IS_EQUAL(beta, Real(-sign * dominant));
-    VERIFY_IS_EQUAL(tau, householder_make<Scalar>(2));
-    for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
-  }
+  // The largest head also makes alpha - beta = 2 |alpha| overflow, which leaves the essential part zero all the same.
+  const long double heads[2] = {std::ldexp(1.0L, householder_exponents<Real>::kDominant),
+                                static_cast<long double>(NumTraits<Real>::highest())};
+  for (long double dominant : heads) {
+    for (long double sign : {1.0L, -1.0L}) {
+      Vector x(m + 1);
+      x[0] = householder_make<Scalar>(sign * dominant);
+      for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>((i % 2 ? -1.0L : 1.0L) * negligible);
+      x.makeHouseholder(essential, tau, beta);
+      VERIFY_IS_EQUAL(beta, Real(-sign * dominant));
+      VERIFY_IS_EQUAL(tau, householder_make<Scalar>(2));
+      for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+    }
 
-  if (NumTraits<Scalar>::IsComplex) {
-    // xLARFG: tau = (1, -Im(alpha) / beta) = (1, 1) for alpha = (0, dominant); Eigen's tau is the conjugate.
-    Vector x(m + 1);
-    x[0] = householder_make<Scalar>(0, dominant);
-    for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(negligible, -negligible);
-    x.makeHouseholder(essential, tau, beta);
-    VERIFY_IS_EQUAL(beta, Real(-dominant));
-    VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1, -1));
-    for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+    if (NumTraits<Scalar>::IsComplex) {
+      // xLARFG: tau = (1, -Im(alpha) / beta) = (1, 1) for alpha = (0, dominant); Eigen's tau is the conjugate.
+      Vector x(m + 1);
+      x[0] = householder_make<Scalar>(0, dominant);
+      for (Index i = 0; i < m; ++i) x[i + 1] = householder_make<Scalar>(negligible, -negligible);
+      x.makeHouseholder(essential, tau, beta);
+      VERIFY_IS_EQUAL(beta, Real(-dominant));
+      VERIFY_IS_EQUAL(tau, householder_make<Scalar>(1, -1));
+      for (Index i = 0; i < m; ++i) VERIFY(numext::is_exactly_zero(essential[i]));
+    }
   }
 }
 

@@ -14,6 +14,7 @@
 #include "random_without_cast_overflow.h"
 #include "fp_control.h"
 #include "packetmath_data_movement.h"
+#include "trig_reduction_cases.h"
 
 using internal::unpacket_traits;
 
@@ -1773,19 +1774,22 @@ void packetmath_real() {
       h.store(data2, internal::pcos(h.load(data1)));
       VERIFY_IS_EQUAL(data2[0], Scalar(1));
 
-      // Doubles near multiples k pi/2, with |x - k pi/2| from 6e-19 to 9e-7 for |k| from 29 to 6e13: the reduction
-      // needs pi/2 to far beyond double precision, with or without FMA.
+      // Doubles near multiples k pi/2, for |k| up to 6e13 and |x - k pi/2| down to 6e-19: the reduction needs pi/2 to
+      // far beyond double precision, with or without FMA. The MPFR reference table is shared with
+      // trig_reduction_fastmath.
       EIGEN_IF_CONSTEXPR (std::is_same<Scalar, double>::value) {
-        const double hard_cases[] = {-45.553093477052002, -364.42474781641602, 857879.41830474522, 956274858.90980339,
-                                     -93293944418765.062};
-        const Scalar tol = Scalar(4) * NumTraits<Scalar>::epsilon();
-        for (const double x : hard_cases) {
-          for (int i = 0; i < PacketSize; ++i) data1[i] = Scalar(x);
-          h.store(data2, internal::psin(h.load(data1)));
-          h.store(data2 + PacketSize, internal::pcos(h.load(data1)));
-          const Scalar sin_x = Scalar(std::sin(data1[0])), cos_x = Scalar(std::cos(data1[0]));
-          VERIFY(numext::abs(data2[0] - sin_x) <= tol * numext::abs(sin_x));
-          VERIFY(numext::abs(data2[PacketSize] - cos_x) <= tol * numext::abs(cos_x));
+        for (int i = 0; i < test::kNumTrigReductionCases; ++i) {
+          for (const double sign : {1.0, -1.0}) {
+            for (int k = 0; k < PacketSize; ++k) {
+              data1[k] = Scalar(sign * test::kTrigReductionCases[i][0]);
+              ref[k] = Scalar(sign * test::kTrigReductionCases[i][1]);
+              ref[PacketSize + k] = Scalar(test::kTrigReductionCases[i][2]);
+            }
+            h.store(data2, internal::psin(h.load(data1)));
+            h.store(data2 + PacketSize, internal::pcos(h.load(data1)));
+            VERIFY(test::areWithinUlps(ref, data2, PacketSize, 4));
+            VERIFY(test::areWithinUlps(ref + PacketSize, data2 + PacketSize, PacketSize, 4));
+          }
         }
       }
     }
@@ -2386,29 +2390,11 @@ void test_conj_helper(Scalar* data1, Scalar* data2, Scalar* ref, Scalar* pval) {
 }
 
 // The FE_DIVBYZERO, FE_INVALID and FE_OVERFLOW flags raised by op(operands, results), where operands are copies of
-// in[0, NumIn) and results are copied to out[0, NumOut). The operands are read from, and the results written to,
-// volatile objects after feholdexcept and before fetestexcept, which keeps the compiler from folding op or moving it
-// across the flag accesses: glibc marks those functions leaf, so data that only escapes through a pointer may be moved
-// across them. The objects themselves must be volatile: GCC 10 at -O3 drops volatile-qualified accesses to the
-// caller's non-volatile arrays, and with them an op whose results the caller never reads.
+// in[0, NumIn) and results are copied to out[0, NumOut); none where the environment cannot be held.
 template <int NumIn, int NumOut, typename Scalar, typename Op>
 int raised_exceptions(const Scalar* in, Scalar* out, Op op) {
-  Scalar operands[NumIn], results[NumOut];
-  volatile unsigned char staged_operands[sizeof(operands)], staged_results[sizeof(results)];
-  const unsigned char* in_bytes = reinterpret_cast<const unsigned char*>(in);
-  for (std::size_t k = 0; k < sizeof(operands); ++k) staged_operands[k] = in_bytes[k];
-  std::fenv_t saved_environment;
-  if (std::feholdexcept(&saved_environment) != 0) return 0;
-  unsigned char* operand_bytes = reinterpret_cast<unsigned char*>(operands);
-  for (std::size_t k = 0; k < sizeof(operands); ++k) operand_bytes[k] = staged_operands[k];
-  op(operands, results);
-  const unsigned char* result_bytes = reinterpret_cast<const unsigned char*>(results);
-  for (std::size_t k = 0; k < sizeof(results); ++k) staged_results[k] = result_bytes[k];
-  const int raised = std::fetestexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW);
-  std::fesetenv(&saved_environment);
-  unsigned char* out_bytes = reinterpret_cast<unsigned char*>(out);
-  for (std::size_t k = 0; k < sizeof(results); ++k) out_bytes[k] = staged_results[k];
-  return raised;
+  return (std::max)(
+      0, fp_exceptions_raised_by_staged<NumIn, NumOut>(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW, in, out, op));
 }
 
 template <typename Scalar, typename Packet, bool HasExp = internal::packet_traits<Scalar>::HasExp>
@@ -3318,15 +3304,17 @@ void packetmath_binary_sign_subnormals() {
   }
 }
 
-template <typename Scalar>
-void packetmath_binary_sign_flushed() {
+// Calls test() with subnormal inputs flushed to zero, where the hardware can.
+template <typename Test>
+void packetmath_with_flushed_inputs(Test test) {
   ScopedFlushToZero flush;
   if (!flush.isSupported()) return;
 #if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
+  // FTZ flushes results; DAZ makes float comparisons read subnormal inputs as zero.
   _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
 #endif
   VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
-  packetmath_binary_sign_subnormals<Scalar>();
+  test();
 }
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
@@ -3352,17 +3340,6 @@ void packetmath_bfloat16_sign_bits() {
       VERIFY_IS_EQUAL(numext::bit_cast<numext::uint16_t>(output[i]), expected);
     }
   }
-}
-
-void packetmath_bfloat16_sign_bits_flushed() {
-  ScopedFlushToZero flush_to_zero;
-  if (!flush_to_zero.isSupported()) return;
-#if EIGEN_ARCH_i386_OR_x86_64 && defined(_MM_SET_DENORMALS_ZERO_MODE)
-  // FTZ flushes results; DAZ makes float comparisons read subnormal inputs as zero.
-  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
-  packetmath_bfloat16_sign_bits();
 }
 #endif
 
@@ -3562,13 +3539,13 @@ EIGEN_DECLARE_TEST(packetmath) {
 
   CALL_SUBTEST_1(packetmath_binary_sign_subnormals<float>());
   CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
-  CALL_SUBTEST_1(packetmath_binary_sign_flushed<float>());
-  CALL_SUBTEST_2(packetmath_binary_sign_flushed<double>());
+  CALL_SUBTEST_1(packetmath_with_flushed_inputs(packetmath_binary_sign_subnormals<float>));
+  CALL_SUBTEST_2(packetmath_with_flushed_inputs(packetmath_binary_sign_subnormals<double>));
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
     defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
   CALL_SUBTEST_15(packetmath_bfloat16_sign_bits());
-  CALL_SUBTEST_15(packetmath_bfloat16_sign_bits_flushed());
+  CALL_SUBTEST_15(packetmath_with_flushed_inputs(packetmath_bfloat16_sign_bits));
 #endif
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \

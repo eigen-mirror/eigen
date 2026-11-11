@@ -334,34 +334,15 @@ template <typename Scalar>
 void test_hankel_nonfinite_product(Index n) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Vec = Matrix<Scalar, Dynamic, 1>;
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
-  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
 
   Vec h = Vec::Random(2 * n - 1);
   Hankel<Scalar> H(h.head(n), h.tail(n));
-  Mat dense = reference_hankel<Scalar>(h, n, n);
-
-  Vec x = Vec::Random(n);
-  x[n / 4] = Scalar(inf);
-  VERIFY(nonfinite_covers_reference((H * x).eval(), reference_product_ieee(dense, x)));
-  Vec xn = Vec::Random(n);
-  xn[n - 1] = Scalar(nan);
-  VERIFY(nonfinite_covers_reference((H * xn).eval(), reference_product_ieee(dense, xn)));
-
-  Mat Xm(n, 2);
-  Xm.col(0) = Vec::Random(n);
-  Xm.col(1) = x;
-  Mat Ym = H * Xm;
-  VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(nonfinite_covers_reference(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  check_nonfinite_rhs_product(H, reference_hankel<Scalar>(h, n, n), n / 4);
 
   Vec h2 = Vec::Random(2 * n - 1);
-  h2[1] = Scalar(-inf);
+  h2[1] = Scalar(-std::numeric_limits<RealScalar>::infinity());
   Hankel<Scalar> H2(h2.head(n), h2.tail(n));
-  Mat dense2 = reference_hankel<Scalar>(h2, n, n);
-  Vec x2 = Vec::Random(n);
-  VERIFY(nonfinite_covers_reference((H2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  check_nonfinite_data_product(H2, reference_hankel<Scalar>(h2, n, n));
 }
 
 // The transposed / adjoint / conjugated Hankel operators agree with the dense
@@ -851,39 +832,21 @@ void test_structured_nonfinite_product(Index n) {
   using Vec = Matrix<Scalar, Dynamic, 1>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
   const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
-  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
 
   Vec c = Vec::Random(n);
   Circulant<Scalar> C(c);
-  Mat dense = reference_circulant<Scalar>(c);
-
-  Vec x = Vec::Random(n);
-  x[n / 2] = Scalar(inf);
-  VERIFY(nonfinite_covers_reference((C * x).eval(), reference_product_ieee(dense, x)));
-  Vec xn = Vec::Random(n);
-  xn[n - 1] = Scalar(nan);
-  VERIFY(nonfinite_covers_reference((C * xn).eval(), reference_product_ieee(dense, xn)));
-
-  Mat Xm(n, 2);
-  Xm.col(0) = Vec::Random(n);
-  Xm.col(1) = x;
-  Mat Ym = C * Xm;
-  VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(nonfinite_covers_reference(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
+  const Vec x = check_nonfinite_rhs_product(C, reference_circulant<Scalar>(c), n / 2);
 
   Vec c2 = Vec::Random(n);
   c2[1] = Scalar(-inf);
   Circulant<Scalar> C2(c2);
-  Mat dense2 = reference_circulant<Scalar>(c2);
-  Vec x2 = Vec::Random(n);
-  VERIFY(nonfinite_covers_reference((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  check_nonfinite_data_product(C2, reference_circulant<Scalar>(c2));
 
   Vec tc = Vec::Random(n), tr = Vec::Random(n);
   tr[0] = tc[0];
   tr[n / 2] = Scalar(inf);
   Toeplitz<Scalar> T(tc, tr);
-  Mat denseT = reference_toeplitz<Scalar>(tc, tr);
-  VERIFY(nonfinite_covers_reference((T * x2).eval(), reference_product_ieee(denseT, x2)));
+  check_nonfinite_data_product(T, reference_toeplitz<Scalar>(tc, tr));
 
   Mat B(n, 2);
   B.col(0) = Vec::Random(n);
@@ -1540,13 +1503,6 @@ void test_structured_flushed_subnormal_scaling() {
     for (Index i = 0; i < n; ++i) VERIFY(structured_same_bits(shrunk(i), expectedDown(i)));
   };
   forEachFlushToZeroMode([&](FlushToZeroMode) { check(); });
-}
-
-// A volatile pointer forces odr-use even when optimization could fold the value.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
 }
 
 template <typename Operator>

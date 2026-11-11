@@ -1030,18 +1030,6 @@ void test_kron_diag_matrix_free_cg(Index n1, Index n2) {
 
 // ---- Sparse factors ---------------------------------------------------------
 
-// A random sparse test matrix with about half of its entries stored, drawn
-// densely so that the dense reference is exact.
-template <typename Scalar, int Options = ColMajor>
-SparseMatrix<Scalar, Options> random_sparse(Index rows, Index cols) {
-  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  Mat dense = Mat::Random(rows, cols);
-  for (Index j = 0; j < cols; ++j)
-    for (Index i = 0; i < rows; ++i)
-      if (internal::random<int>(0, 1) == 0) dense(i, j) = Scalar(0);
-  return dense.sparseView();
-}
-
 // A random sparse factor made diagonally dominant by the shifts 2n, 4n, ...,
 // 2n^2: the Gershgorin discs are disjoint, so it is nonsingular, well
 // conditioned and diagonalizable with distinct eigenvalues (a half-zeroed

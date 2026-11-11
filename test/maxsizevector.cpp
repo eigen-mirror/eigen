@@ -3,112 +3,68 @@
 
 #include "main.h"
 
-#ifdef EIGEN_EXCEPTIONS
-#include <exception>  // std::exception
-#endif
-
 #include <Eigen/src/Core/util/MaxSizeVector.h>
+#include "lifetime_scalar.h"
 
-struct Foo {
-  static Index object_count;
-  static Index object_limit;
-  static Index copy_limit;
-  EIGEN_ALIGN_TO_BOUNDARY(128) int dummy;
-
-  Foo(int x = 0) : dummy(x) {
-#ifdef EIGEN_EXCEPTIONS
-    // TODO: Is this the correct way to handle this?
-    if (Foo::object_count > Foo::object_limit) {
-      std::cout << "\nThrow!\n";
-      throw Foo::Fail();
-    }
-#endif
-    std::cout << '+';
-    ++Foo::object_count;
-    eigen_assert((std::uintptr_t(this) & (127)) == 0);
-  }
-  Foo(const Foo&) {
-#ifdef EIGEN_EXCEPTIONS
-    if (Foo::object_count > Foo::copy_limit) throw Foo::Fail();
-#endif
-    std::cout << 'c';
-    ++Foo::object_count;
-    eigen_assert((std::uintptr_t(this) & (127)) == 0);
-  }
-
-  ~Foo() {
-    std::cout << '~';
-    --Foo::object_count;
-  }
-#ifdef EIGEN_EXCEPTIONS
-  class Fail : public std::exception {};
-#endif
-};
-
-Index Foo::object_count = 0;
-Index Foo::object_limit = 0;
-Index Foo::copy_limit = NumTraits<Index>::highest();
+using Foo = lifetime_scalar::LifetimeScalar<128>;
+using lifetime_scalar::Failure;
 
 EIGEN_DECLARE_TEST(maxsizevector) {
   using VectorX = MaxSizeVector<Foo>;
   // A copy would share, and then free twice, the owned buffer.
   VERIFY(!std::is_copy_constructible<VectorX>::value);
   VERIFY(!std::is_copy_assignable<VectorX>::value);
-  Foo::object_count = 0;
   for (int r = 0; r < g_repeat; r++) {
     Index rows = internal::random<Index>(3, 30);
-    Foo::object_limit = internal::random<Index>(0, rows - 2);
-    std::cout << "object_limit = " << Foo::object_limit << std::endl;
+    Foo::max_live = internal::random<Index>(0, rows - 2) + 1;
 #ifdef EIGEN_EXCEPTIONS
     bool exception_raised = false;
     try {
-      std::cout << "\nVectorX m(" << rows << ");\n";
       VectorX vect(rows);
       for (int i = 0; i < rows; ++i) vect.push_back(Foo());
       VERIFY(false);  // not reached if exceptions are enabled
-    } catch (const Foo::Fail&) {
+    } catch (const Failure&) {
       exception_raised = true;
     }
     VERIFY(exception_raised);
 #endif
-    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+    VERIFY_IS_EQUAL(Index(0), Foo::live);
 
     {
-      Foo::object_limit = rows + 1;
+      Foo::max_live = rows + 2;
       VectorX vect2(rows, Foo());
-      VERIFY_IS_EQUAL(Foo::object_count, rows);
+      VERIFY_IS_EQUAL(Foo::live, rows);
     }
-    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+    VERIFY_IS_EQUAL(Index(0), Foo::live);
 #ifdef EIGEN_EXCEPTIONS
     // A copy throwing partway through the fill destroys exactly the copies already made.
     exception_raised = false;
-    Foo::copy_limit = rows / 2;
+    Foo::max_live_on_copy = rows / 2 + 1;
     try {
       VectorX vect3(rows, Foo());
-    } catch (const Foo::Fail&) {
+    } catch (const Failure&) {
       exception_raised = true;
     }
-    Foo::copy_limit = NumTraits<Index>::highest();
+    Foo::max_live_on_copy = Foo::kUnlimited;
     VERIFY(exception_raised);
-    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+    VERIFY_IS_EQUAL(Index(0), Foo::live);
 
     // A throwing push_back leaves the vector unchanged.
     {
       VectorX vect4(rows);
       vect4.push_back(Foo());
       exception_raised = false;
-      Foo::copy_limit = 0;
+      Foo::max_live_on_copy = 1;
       try {
         vect4.push_back(Foo());
-      } catch (const Foo::Fail&) {
+      } catch (const Failure&) {
         exception_raised = true;
       }
-      Foo::copy_limit = NumTraits<Index>::highest();
+      Foo::max_live_on_copy = Foo::kUnlimited;
       VERIFY(exception_raised);
       VERIFY_IS_EQUAL(vect4.size(), size_t(1));
     }
-    VERIFY_IS_EQUAL(Index(0), Foo::object_count);
+    VERIFY_IS_EQUAL(Index(0), Foo::live);
 #endif
-    std::cout << '\n';
   }
 }

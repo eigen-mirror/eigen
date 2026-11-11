@@ -875,7 +875,7 @@ void selfadjointeigensolver_imaginary_diagonal() {
     } else if (n == 2) {
       clean << Scalar(1), Scalar(RealScalar(0.5)), Scalar(RealScalar(0.5)), Scalar(1);
     } else {
-      MatrixType unitary = HouseholderQR<MatrixType>(MatrixType::Random(n, n)).householderQ();
+      const MatrixType unitary = generateRandomUnitaryMatrix<MatrixType>(n);
       clean = unitary * expected.template cast<Scalar>().asDiagonal() * unitary.adjoint();
       clean = ((clean + clean.adjoint()) / RealScalar(2)).eval();
     }

@@ -581,19 +581,6 @@ bool check_if_equal_or_nans(const std::complex<T>& actual, const std::complex<U>
          check_if_equal_or_nans(numext::imag(actual), numext::imag(expected));
 }
 
-template <typename T, typename U>
-bool test_is_equal_or_nans(const T& actual, const U& expected) {
-  if (check_if_equal_or_nans(actual, expected)) {
-    return true;
-  }
-
-  // false:
-  std::cerr << "\n    actual   = " << actual << "\n    expected = " << expected << "\n\n";
-  return false;
-}
-
-#define VERIFY_IS_EQUAL_OR_NANS(a, b) VERIFY(test_is_equal_or_nans(a, b))
-
 template <typename T>
 struct check_copysign_impl {
   static void run() {
@@ -1016,21 +1003,17 @@ void check_complex_divide() {
 #pragma STDC FENV_ACCESS ON
 #endif
 
-// The exceptions numext::divide(a, b) raises. Volatile operands and results keep the division between the flag
-// calls, where the compiler can neither fold it nor move it.
+// The exceptions numext::divide(a, b) raises, or -1 where the environment cannot be held.
 template <typename T>
 EIGEN_DONT_INLINE int complex_divide_exceptions(const std::complex<T>& a, const std::complex<T>& b) {
-  volatile T parts[4] = {a.real(), a.imag(), b.real(), b.imag()};
-  std::fenv_t environment;
-  if (std::feholdexcept(&environment) != 0) return -1;
-  // MSVC's std::complex<T>(const T&, const T&) cannot bind a volatile T, so read each part into a temporary.
-  const std::complex<T> q =
-      numext::divide(std::complex<T>(T(parts[0]), T(parts[1])), std::complex<T>(T(parts[2]), T(parts[3])));
-  volatile T result[2] = {q.real(), q.imag()};
-  EIGEN_UNUSED_VARIABLE(result);
-  const int exceptions = std::fetestexcept(FE_OVERFLOW | FE_UNDERFLOW | FE_INVALID | FE_DIVBYZERO);
-  std::fesetenv(&environment);
-  return exceptions;
+  const T operands[4] = {a.real(), a.imag(), b.real(), b.imag()};
+  T quotient[2];
+  return fp_exceptions_raised_by_staged<4, 2>(
+      FE_OVERFLOW | FE_UNDERFLOW | FE_INVALID | FE_DIVBYZERO, operands, quotient, [](const T* in, T* out) {
+        const std::complex<T> q = numext::divide(std::complex<T>(in[0], in[1]), std::complex<T>(in[2], in[3]));
+        out[0] = q.real();
+        out[1] = q.imag();
+      });
 }
 
 // Smith's ratio d / c is +-1 for |c| = |d|: its sign must not come from c * d, which overflows, or underflows
@@ -1047,28 +1030,17 @@ void check_complex_divide_exceptions() {
         Complex(-small, small), Complex(small, -small), Complex(-small, -small), Complex(two, zero),
         Complex(-two, zero), Complex(zero, two), Complex(zero, -two)}) {
     const int exceptions = complex_divide_exceptions(Complex(T(1), T(0)), b);
-    if (exceptions == -1) {
-      std::cout << "SKIP: complex division exception check: feholdexcept failed.\n";
-      return;
-    }
-    VERIFY_IS_EQUAL(exceptions, 0);
+    if (exceptions >= 0) VERIFY_IS_EQUAL(exceptions, 0);
   }
 }
 
-// numext::fma(a, b, c) for half or bfloat16, and whether it raised FE_INVALID. The operands and the result pass
-// through volatile bit patterns, which keeps the fma between the flag calls.
+// numext::fma(a, b, c) for half or bfloat16, and whether it raised FE_INVALID (-1 where the environment cannot be
+// held).
 template <typename T>
 EIGEN_DONT_INLINE int narrow_fma_invalid(const T& a, const T& b, const T& c, T& result) {
-  using Bits = numext::uint16_t;
-  volatile Bits bits[3] = {numext::bit_cast<Bits>(a), numext::bit_cast<Bits>(b), numext::bit_cast<Bits>(c)};
-  std::fenv_t environment;
-  if (std::feholdexcept(&environment) != 0) return -1;
-  volatile Bits result_bits = numext::bit_cast<Bits>(numext::fma(
-      numext::bit_cast<T>(Bits(bits[0])), numext::bit_cast<T>(Bits(bits[1])), numext::bit_cast<T>(Bits(bits[2]))));
-  const int invalid = std::fetestexcept(FE_INVALID);
-  std::fesetenv(&environment);
-  result = numext::bit_cast<T>(Bits(result_bits));
-  return invalid;
+  const T operands[3] = {a, b, c};
+  return fp_exceptions_raised_by_staged<3, 1>(FE_INVALID, operands, &result,
+                                              [](const T* in, T* out) { out[0] = numext::fma(in[0], in[1], in[2]); });
 }
 
 // An infinite or NaN operand gives the IEEE fma without FE_INVALID, except for inf * 0 and inf - inf.
@@ -1081,17 +1053,13 @@ void check_narrow_fma_nonfinite() {
   for (const auto& operands : quiet) {
     T result;
     const int invalid = narrow_fma_invalid(operands[0], operands[1], operands[2], result);
-    if (invalid == -1) {
-      std::cout << "SKIP: fma exception check: feholdexcept failed.\n";
-      return;
-    }
-    VERIFY_IS_EQUAL(invalid, 0);
+    if (invalid >= 0) VERIFY_IS_EQUAL(invalid, 0);
     VERIFY(check_if_equal_or_nans(result, operands[3]));
   }
   const T invalid_operands[][3] = {{inf, zero, one}, {zero, -inf, one}, {inf, one, -inf}, {-inf, two, inf}};
   for (const auto& operands : invalid_operands) {
     T result;
-    if (narrow_fma_invalid(operands[0], operands[1], operands[2], result) == -1) return;
+    narrow_fma_invalid(operands[0], operands[1], operands[2], result);
     VERIFY((numext::isnan)(result));
   }
 }
@@ -1280,32 +1248,7 @@ struct check_sqrt_impl<std::complex<T>> {
       VERIFY_IS_APPROX(sqrtx * sqrtx, x);
     }
 
-    // Corner cases.
-    const T zero = T(0);
-    const T one = T(1);
-    const T inf = std::numeric_limits<T>::infinity();
-    const T nan = std::numeric_limits<T>::quiet_NaN();
-
-    // Set of corner cases from https://en.cppreference.com/w/cpp/numeric/complex/sqrt
-    const int kNumCorners = 20;
-    const ComplexT corners[kNumCorners][2] = {
-        {ComplexT(zero, zero), ComplexT(zero, zero)},  {ComplexT(-zero, zero), ComplexT(zero, zero)},
-        {ComplexT(zero, -zero), ComplexT(zero, zero)}, {ComplexT(-zero, -zero), ComplexT(zero, zero)},
-        {ComplexT(one, inf), ComplexT(inf, inf)},      {ComplexT(nan, inf), ComplexT(inf, inf)},
-        {ComplexT(one, -inf), ComplexT(inf, -inf)},    {ComplexT(nan, -inf), ComplexT(inf, -inf)},
-        {ComplexT(-inf, one), ComplexT(zero, inf)},    {ComplexT(inf, one), ComplexT(inf, zero)},
-        {ComplexT(-inf, -one), ComplexT(zero, -inf)},  {ComplexT(inf, -one), ComplexT(inf, -zero)},
-        {ComplexT(-inf, nan), ComplexT(nan, inf)},     {ComplexT(inf, nan), ComplexT(inf, nan)},
-        {ComplexT(zero, nan), ComplexT(nan, nan)},     {ComplexT(one, nan), ComplexT(nan, nan)},
-        {ComplexT(nan, zero), ComplexT(nan, nan)},     {ComplexT(nan, one), ComplexT(nan, nan)},
-        {ComplexT(nan, -one), ComplexT(nan, nan)},     {ComplexT(nan, nan), ComplexT(nan, nan)},
-    };
-
-    for (int i = 0; i < kNumCorners; ++i) {
-      const ComplexT& x = corners[i][0];
-      const ComplexT sqrtx = corners[i][1];
-      VERIFY_IS_EQUAL_OR_NANS(numext::sqrt(x), sqrtx);
-    }
+    // The IEEE corner cases are in complex_sqrt.
   }
 };
 
@@ -1343,8 +1286,6 @@ struct check_rsqrt_impl<std::complex<T>> {
     using ComplexT = std::complex<T>;
     const T zero = T(0);
     const T one = T(1);
-    const T inf = std::numeric_limits<T>::infinity();
-    const T nan = std::numeric_limits<T>::quiet_NaN();
 
     for (int i = 0; i < 1000; ++i) {
       const ComplexT x = internal::random<ComplexT>();
@@ -1353,26 +1294,7 @@ struct check_rsqrt_impl<std::complex<T>> {
       VERIFY_IS_APPROX(rsqrtx * rsqrtx, invx);
     }
 
-    // Explicit values: complex division in a 1/sqrt reference is compiler-specific and changes under fast-math.
-    const int kNumCorners = 20;
-    const ComplexT corners[kNumCorners][2] = {
-        {ComplexT(zero, zero), ComplexT(inf, nan)},   {ComplexT(-zero, zero), ComplexT(inf, nan)},
-        {ComplexT(zero, -zero), ComplexT(inf, nan)},  {ComplexT(-zero, -zero), ComplexT(inf, nan)},
-        {ComplexT(one, inf), ComplexT(zero, -zero)},  {ComplexT(nan, inf), ComplexT(zero, -zero)},
-        {ComplexT(one, -inf), ComplexT(zero, zero)},  {ComplexT(nan, -inf), ComplexT(zero, zero)},
-        {ComplexT(-inf, one), ComplexT(zero, -zero)}, {ComplexT(inf, one), ComplexT(zero, -zero)},
-        {ComplexT(-inf, -one), ComplexT(zero, zero)}, {ComplexT(inf, -one), ComplexT(zero, zero)},
-        {ComplexT(-inf, nan), ComplexT(zero, -zero)}, {ComplexT(inf, nan), ComplexT(zero, -zero)},
-        {ComplexT(zero, nan), ComplexT(nan, nan)},    {ComplexT(one, nan), ComplexT(nan, nan)},
-        {ComplexT(nan, zero), ComplexT(nan, nan)},    {ComplexT(nan, one), ComplexT(nan, nan)},
-        {ComplexT(nan, -one), ComplexT(nan, nan)},    {ComplexT(nan, nan), ComplexT(nan, nan)},
-    };
-
-    for (int i = 0; i < kNumCorners; ++i) {
-      const ComplexT& x = corners[i][0];
-      const ComplexT& rsqrtx = corners[i][1];
-      VERIFY_IS_EQUAL_OR_NANS(numext::rsqrt(x), rsqrtx);
-    }
+    // The IEEE corner cases are in complex_sqrt.
   }
 };
 
@@ -1563,13 +1485,6 @@ void check_zero_no_flush() {
   }
 }
 
-// Stores the address of value, so a static data member passed here is odr-used at every optimization level.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
-}
-
 // In C++14 this links only with the out-of-class definitions of the constants.
 template <typename Scalar>
 void check_binary_floating_point_traits_odr_use() {
@@ -1699,8 +1614,6 @@ void check_scalar_tanh_saturation() {
   VERIFY_IS_EQUAL(internal::ptanh_float(-20.0f), -1.0f);
   VERIFY_IS_EQUAL(internal::ptanh_double(20.0), 1.0);
   VERIFY_IS_EQUAL(internal::ptanh_double(-20.0), -1.0);
-  VERIFY_IS_EQUAL(numext::tanh(20.0f), 1.0f);
-  VERIFY_IS_EQUAL(numext::tanh(-20.0f), -1.0f);
 }
 
 namespace bit_cast_test_detail {

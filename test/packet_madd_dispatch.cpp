@@ -99,6 +99,19 @@ void generic_pnmsub_dispatch() {
   VERIFY_IS_EQUAL(internal::pnmsub(2u, 3u, 4u), (std::numeric_limits<unsigned>::max)() - 9u);
 }
 
+// op() under FE_UPWARD and under FE_DOWNWARD, where it must give the expected result of that mode.
+template <typename Op>
+void verify_directed_roundings(const Op& op, float expected_upward, float expected_downward) {
+  std::fenv_t environment;
+  if (std::fegetenv(&environment) != 0) return;
+  for (int mode : {FE_UPWARD, FE_DOWNWARD}) {
+    if (std::fesetround(mode) != 0) continue;
+    const float result = op();
+    std::fesetenv(&environment);
+    VERIFY_IS_EQUAL(result, mode == FE_UPWARD ? expected_upward : expected_downward);
+  }
+}
+
 template <typename Packet>
 EIGEN_DONT_INLINE float generic_pmsub_value(float a, float b, float c) {
   return internal::pmsub(Packet{a}, Packet{b}, Packet{c}).value;
@@ -129,14 +142,8 @@ void generic_pmsub_dispatch() {
       }
     }
   }
-  std::fenv_t environment;
-  if (std::fegetenv(&environment) != 0) return;
-  for (int mode : {FE_UPWARD, FE_DOWNWARD}) {
-    if (std::fesetround(mode) != 0) continue;
-    const float result = generic_pmsub_value<Fused>(1, 1, -NumTraits<float>::epsilon() / 4);
-    std::fesetenv(&environment);
-    VERIFY_IS_EQUAL(result, mode == FE_UPWARD ? 1 + NumTraits<float>::epsilon() : 1.0f);
-  }
+  verify_directed_roundings([] { return generic_pmsub_value<Fused>(1, 1, -NumTraits<float>::epsilon() / 4); },
+                            1 + NumTraits<float>::epsilon(), 1.0f);
 }
 
 template <typename Packet>
@@ -190,14 +197,8 @@ void generic_pnmadd_dispatch() {
       }
     }
   }
-  std::fenv_t environment;
-  if (std::fegetenv(&environment) != 0) return;
-  for (int mode : {FE_UPWARD, FE_DOWNWARD}) {
-    if (std::fesetround(mode) != 0) continue;
-    const float result = generic_pnmadd_value<Fused>(1, 1, NumTraits<float>::epsilon() / 4);
-    std::fesetenv(&environment);
-    VERIFY_IS_EQUAL(result, mode == FE_UPWARD ? -1 + NumTraits<float>::epsilon() / 2 : -1.0f);
-  }
+  verify_directed_roundings([] { return generic_pnmadd_value<Fused>(1, 1, NumTraits<float>::epsilon() / 4); },
+                            -1 + NumTraits<float>::epsilon() / 2, -1.0f);
 }
 
 template <typename Scalar, typename Packet>

@@ -2,61 +2,21 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
-#include <memory>
+#include "guard_page_buffer.h"
 
 #if defined(__GNUC__) && __GNUC__ >= 6
 #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 
-#if defined(__unix__) || defined(__APPLE__)
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
-
-template <typename Scalar>
-class loaddup_boundary_buffer {
- public:
-  explicit loaddup_boundary_buffer(Index count) {
-#if defined(__unix__) || defined(__APPLE__)
-    page_ = std::size_t(sysconf(_SC_PAGESIZE));
-    VERIFY(std::size_t(count) * sizeof(Scalar) <= page_);
-    allocation_ = mmap(nullptr, 2 * page_, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    VERIFY(allocation_ != MAP_FAILED);
-    char* end = static_cast<char*>(allocation_) + page_;
-    VERIFY_IS_EQUAL(mprotect(end, page_, PROT_NONE), 0);
-    data_ = reinterpret_cast<Scalar*>(end) - count;
-#else
-    storage_.reset(new Scalar[count]);
-    data_ = storage_.get();
-#endif
-  }
-  ~loaddup_boundary_buffer() {
-#if defined(__unix__) || defined(__APPLE__)
-    VERIFY_IS_EQUAL(munmap(allocation_, 2 * page_), 0);
-#endif
-  }
-  Scalar* data() const { return data_; }
-
- private:
-  loaddup_boundary_buffer(const loaddup_boundary_buffer&) = delete;
-  loaddup_boundary_buffer& operator=(const loaddup_boundary_buffer&) = delete;
-  Scalar* data_ = nullptr;
-#if defined(__unix__) || defined(__APPLE__)
-  void* allocation_ = nullptr;
-  std::size_t page_ = 0;
-#else
-  std::unique_ptr<Scalar[]> storage_;
-#endif
-};
-
 template <typename Scalar, typename Packet = typename internal::packet_traits<Scalar>::type,
           int Size = internal::unpacket_traits<Packet>::size>
 void loaddup_boundary() {
   constexpr int Count = (Size + 1) / 2;
-  loaddup_boundary_buffer<Scalar> buffer(Count);
-  for (Index i = 0; i < Count; ++i) buffer.data()[i] = Scalar(i + 1);
+  const test::GuardPageBuffer buffer(Count * sizeof(Scalar));
+  Scalar* const data = buffer.place_at_end<Scalar>(Count);
+  for (Index i = 0; i < Count; ++i) data[i] = Scalar(i + 1);
   Scalar actual[Size];
-  internal::pstoreu(actual, internal::ploaddup<Packet>(buffer.data()));
+  internal::pstoreu(actual, internal::ploaddup<Packet>(data));
   for (Index i = 0; i < Size; ++i) {
     const Index source = i / 2;
     VERIFY_IS_EQUAL(actual[i], Scalar(source + 1));
@@ -81,8 +41,8 @@ template <typename Real, int Rows, int Cols, int Order>
 void mixed_product_loaddup_boundary() {
   using Complex = std::complex<Real>;
   using MatrixType = Matrix<Real, Rows, Cols, Order>;
-  loaddup_boundary_buffer<Real> buffer(Rows * Cols);
-  Map<MatrixType, Unaligned> lhs(buffer.data());
+  const test::GuardPageBuffer buffer(Rows * Cols * sizeof(Real));
+  Map<MatrixType, Unaligned> lhs(buffer.place_at_end<Real>(Rows * Cols));
   for (Index j = 0; j < Cols; ++j)
     for (Index i = 0; i < Rows; ++i) lhs(i, j) = Real(i + j + 1);
   Matrix<Complex, Cols, 1> rhs;

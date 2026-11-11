@@ -379,30 +379,15 @@ void test_bccb_nonfinite_product(Index n2, Index n1) {
   Mat G = Mat::Random(n2, n1);
   Bccb<Scalar> C(G);
   Mat dense = reference_bccb<Scalar>(G);
-
-  Vec x = Vec::Random(N);
-  x[N / 2] = Scalar(inf);
-  VERIFY(nonfinite_covers_reference((C * x).eval(), reference_product_ieee(dense, x)));
-  Vec xn = Vec::Random(N);
-  xn[N - 1] = Scalar(nan);
-  VERIFY(nonfinite_covers_reference((C * xn).eval(), reference_product_ieee(dense, xn)));
+  const Vec x = check_nonfinite_rhs_product(C, dense, N / 2);
   Vec xz = Vec::Zero(N);
   xz[0] = Scalar(nan);
   VERIFY(nonfinite_covers_reference((C * xz).eval(), reference_product_ieee(dense, xz)));
 
-  Mat Xm(N, 2);
-  Xm.col(0) = Vec::Random(N);
-  Xm.col(1) = x;
-  Mat Ym = C * Xm;
-  VERIFY_IS_APPROX(Ym.col(0).eval(), (dense * Xm.col(0)).eval());
-  VERIFY(nonfinite_covers_reference(Ym.col(1).eval(), reference_product_ieee(dense, Vec(Xm.col(1)))));
-
   Mat G2 = Mat::Random(n2, n1);
   G2(n2 / 2, n1 / 2) = Scalar(-inf);
   Bccb<Scalar> C2(G2);
-  Mat dense2 = reference_bccb<Scalar>(G2);
-  Vec x2 = Vec::Random(N);
-  VERIFY(nonfinite_covers_reference((C2 * x2).eval(), reference_product_ieee(dense2, x2)));
+  check_nonfinite_data_product(C2, reference_bccb<Scalar>(G2));
 
   Mat Gd = Mat::Random(n2, n1);
   Gd(0, 0) += Scalar(RealScalar(2 * N));

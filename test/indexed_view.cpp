@@ -18,13 +18,11 @@ using Eigen::placeholders::lastN;
 using Eigen::placeholders::lastp1;
 #include <array>
 
-namespace test {
 using IndexPair = std::pair<Index, Index>;
-}
 
 int encode(Index i, Index j) { return int(i * 100 + j); }
 
-test::IndexPair decode(Index ij) { return test::IndexPair(ij / 100, ij % 100); }
+IndexPair decode(Index ij) { return IndexPair(ij / 100, ij % 100); }
 
 template <typename T>
 bool match(const T& xpr, const std::string& ref, const std::string& str_xpr = "") {
@@ -71,7 +69,7 @@ void check_indexed_view() {
   ArrayXXi A = ArrayXXi::NullaryExpr(n, n, std::ref(encode));
 
   for (Index i = 0; i < n; ++i)
-    for (Index j = 0; j < n; ++j) VERIFY(decode(A(i, j)) == test::IndexPair(i, j));
+    for (Index j = 0; j < n; ++j) VERIFY(decode(A(i, j)) == IndexPair(i, j));
 
   Array4i eii(4);
   eii << 3, 1, 6, 5;

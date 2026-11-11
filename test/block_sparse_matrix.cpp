@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "sparse.h"
+#include "sparse_test_helpers.h"
 #include "CustomComplex.h"
 
 using namespace Eigen;
@@ -694,16 +695,7 @@ template <typename Scalar, int Options>
 void test_block_sparse_isapprox_extreme_scales() {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using BSM = BlockSparseMatrix<Scalar, Options, 2, 2>;
-  const RealScalar highest = NumTraits<RealScalar>::highest();
-  const RealScalar min = (std::numeric_limits<RealScalar>::min)();
-  const RealScalar scales[] = {RealScalar(1),
-                               highest / RealScalar(2),
-                               highest / RealScalar(8),
-                               numext::sqrt(highest),
-                               RealScalar(1) / numext::sqrt(highest),
-                               min * RealScalar(16),
-                               std::numeric_limits<RealScalar>::denorm_min() * RealScalar(64)};
-  for (const RealScalar s : scales) {
+  for (const RealScalar s : extreme_scales<RealScalar>()) {
     SparseMatrix<Scalar, Options> sparse(4, 6);
     sparse.insert(0, 0) = Scalar(s);
     sparse.insert(1, 1) = Scalar(-2 * s);

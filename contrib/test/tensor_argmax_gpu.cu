@@ -14,53 +14,31 @@
 
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 using Eigen::Tensor;
 
 template <int Layout>
 void test_gpu_simple_argmax() {
   Tensor<double, 3, Layout> in(Eigen::array<DenseIndex, 3>{72, 53, 97});
-  Tensor<DenseIndex, 0, Layout> out_max;
-  Tensor<DenseIndex, 0, Layout> out_min;
   in.setRandom();
   in *= in.constant(100.0);
   in(0, 0, 0) = -1000.0;
   in(71, 52, 96) = 1000.0;
 
-  std::size_t in_bytes = in.size() * sizeof(double);
-  std::size_t out_bytes = out_max.size() * sizeof(DenseIndex);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_in = fixture.fromHost(in);
+  auto gpu_out_max = fixture.tensor<DenseIndex, 0, Aligned, Layout>();
+  auto gpu_out_min = fixture.tensor<DenseIndex, 0, Aligned, Layout>();
 
-  double* d_in;
-  DenseIndex* d_out_max;
-  DenseIndex* d_out_min;
-  gpuMalloc((void**)(&d_in), in_bytes);
-  gpuMalloc((void**)(&d_out_max), out_bytes);
-  gpuMalloc((void**)(&d_out_min), out_bytes);
+  gpu_out_max.device(fixture.device()) = gpu_in.argmax();
+  gpu_out_min.device(fixture.device()) = gpu_in.argmin();
 
-  gpuMemcpy(d_in, in.data(), in_bytes, gpuMemcpyHostToDevice);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<double, 3, Layout>, Aligned> gpu_in(d_in, Eigen::array<DenseIndex, 3>{72, 53, 97});
-  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 0, Layout>, Aligned> gpu_out_max(d_out_max);
-  Eigen::TensorMap<Eigen::Tensor<DenseIndex, 0, Layout>, Aligned> gpu_out_min(d_out_min);
-
-  gpu_out_max.device(gpu_device) = gpu_in.argmax();
-  gpu_out_min.device(gpu_device) = gpu_in.argmin();
-
-  assert(gpuMemcpyAsync(out_max.data(), d_out_max, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-         gpuSuccess);
-  assert(gpuMemcpyAsync(out_min.data(), d_out_min, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-         gpuSuccess);
-  assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+  const auto out_max = fixture.toHost(gpu_out_max);
+  const auto out_min = fixture.toHost(gpu_out_min);
 
   VERIFY_IS_EQUAL(out_max(), 72 * 53 * 97 - 1);
   VERIFY_IS_EQUAL(out_min(), 0);
-
-  gpuFree(d_in);
-  gpuFree(d_out_max);
-  gpuFree(d_out_min);
 }
 
 template <int DataLayout>
@@ -98,28 +76,13 @@ void test_gpu_argmax_dim() {
       }
     }
 
-    std::size_t in_bytes = tensor.size() * sizeof(float);
-    std::size_t out_bytes = tensor_arg.size() * sizeof(DenseIndex);
+    tensor_test::GpuTensorTestFixture fixture;
+    auto gpu_in = fixture.fromHost(tensor);
+    auto gpu_out = fixture.tensor<DenseIndex, 3, Aligned, DataLayout>(tensor_arg.dimensions());
 
-    float* d_in;
-    DenseIndex* d_out;
-    gpuMalloc((void**)(&d_in), in_bytes);
-    gpuMalloc((void**)(&d_out), out_bytes);
+    gpu_out.device(fixture.device()) = gpu_in.argmax(dim);
 
-    gpuMemcpy(d_in, tensor.data(), in_bytes, gpuMemcpyHostToDevice);
-
-    Eigen::GpuStreamDevice stream;
-    Eigen::GpuDevice gpu_device(&stream);
-
-    Eigen::TensorMap<Eigen::Tensor<float, 4, DataLayout>, Aligned> gpu_in(d_in,
-                                                                          Eigen::array<DenseIndex, 4>{2, 3, 5, 7});
-    Eigen::TensorMap<Eigen::Tensor<DenseIndex, 3, DataLayout>, Aligned> gpu_out(d_out, out_shape);
-
-    gpu_out.device(gpu_device) = gpu_in.argmax(dim);
-
-    assert(gpuMemcpyAsync(tensor_arg.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-           gpuSuccess);
-    assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+    tensor_arg = fixture.toHost(gpu_out);
 
     VERIFY_IS_EQUAL(tensor_arg.size(), size_t(2 * 3 * 5 * 7 / tensor.dimension(dim)));
 
@@ -144,21 +107,16 @@ void test_gpu_argmax_dim() {
       }
     }
 
-    gpuMemcpy(d_in, tensor.data(), in_bytes, gpuMemcpyHostToDevice);
+    fixture.device().memcpyHostToDevice(gpu_in.data(), tensor.data(), tensor.size() * sizeof(float));
 
-    gpu_out.device(gpu_device) = gpu_in.argmax(dim);
+    gpu_out.device(fixture.device()) = gpu_in.argmax(dim);
 
-    assert(gpuMemcpyAsync(tensor_arg.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-           gpuSuccess);
-    assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+    tensor_arg = fixture.toHost(gpu_out);
 
     for (DenseIndex n = 0; n < tensor_arg.size(); ++n) {
       // Expect max to be in the last index of the reduced dimension
       VERIFY_IS_EQUAL(tensor_arg.data()[n], tensor.dimension(dim) - 1);
     }
-
-    gpuFree(d_in);
-    gpuFree(d_out);
   }
 }
 
@@ -197,28 +155,13 @@ void test_gpu_argmin_dim() {
       }
     }
 
-    std::size_t in_bytes = tensor.size() * sizeof(float);
-    std::size_t out_bytes = tensor_arg.size() * sizeof(DenseIndex);
+    tensor_test::GpuTensorTestFixture fixture;
+    auto gpu_in = fixture.fromHost(tensor);
+    auto gpu_out = fixture.tensor<DenseIndex, 3, Aligned, DataLayout>(tensor_arg.dimensions());
 
-    float* d_in;
-    DenseIndex* d_out;
-    gpuMalloc((void**)(&d_in), in_bytes);
-    gpuMalloc((void**)(&d_out), out_bytes);
+    gpu_out.device(fixture.device()) = gpu_in.argmin(dim);
 
-    gpuMemcpy(d_in, tensor.data(), in_bytes, gpuMemcpyHostToDevice);
-
-    Eigen::GpuStreamDevice stream;
-    Eigen::GpuDevice gpu_device(&stream);
-
-    Eigen::TensorMap<Eigen::Tensor<float, 4, DataLayout>, Aligned> gpu_in(d_in,
-                                                                          Eigen::array<DenseIndex, 4>{2, 3, 5, 7});
-    Eigen::TensorMap<Eigen::Tensor<DenseIndex, 3, DataLayout>, Aligned> gpu_out(d_out, out_shape);
-
-    gpu_out.device(gpu_device) = gpu_in.argmin(dim);
-
-    assert(gpuMemcpyAsync(tensor_arg.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-           gpuSuccess);
-    assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+    tensor_arg = fixture.toHost(gpu_out);
 
     VERIFY_IS_EQUAL(tensor_arg.size(), 2 * 3 * 5 * 7 / tensor.dimension(dim));
 
@@ -243,21 +186,16 @@ void test_gpu_argmin_dim() {
       }
     }
 
-    gpuMemcpy(d_in, tensor.data(), in_bytes, gpuMemcpyHostToDevice);
+    fixture.device().memcpyHostToDevice(gpu_in.data(), tensor.data(), tensor.size() * sizeof(float));
 
-    gpu_out.device(gpu_device) = gpu_in.argmin(dim);
+    gpu_out.device(fixture.device()) = gpu_in.argmin(dim);
 
-    assert(gpuMemcpyAsync(tensor_arg.data(), d_out, out_bytes, gpuMemcpyDeviceToHost, gpu_device.stream()) ==
-           gpuSuccess);
-    assert(gpuStreamSynchronize(gpu_device.stream()) == gpuSuccess);
+    tensor_arg = fixture.toHost(gpu_out);
 
     for (DenseIndex n = 0; n < tensor_arg.size(); ++n) {
       // Expect max to be in the last index of the reduced dimension
       VERIFY_IS_EQUAL(tensor_arg.data()[n], tensor.dimension(dim) - 1);
     }
-
-    gpuFree(d_in);
-    gpuFree(d_out);
   }
 }
 

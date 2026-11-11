@@ -73,23 +73,12 @@ void reductionIdentityArguments() {
   VERIFY_IS_EQUAL(rvalueConversions, 2);
 }
 
+// Complex scalars are unordered and not convertible to bool, so these reductions apply only to the others.
 template <typename MatrixType>
-void zeroReduction(const MatrixType& m) {
-  // Reductions that must hold for zero sized objects
+void zeroOrderedReduction(const MatrixType& m, std::true_type) {
   VERIFY(m.all());
   VERIFY(!m.any());
-  VERIFY(m.prod() == 1);
-  VERIFY(m.sum() == 0);
-  VERIFY(m.norm() == 0);
-  VERIFY(m.squaredNorm() == 0);
-  EIGEN_IF_CONSTEXPR (!NumTraits<typename MatrixType::Scalar>::IsInteger) {
-    VERIFY(m.template lpNorm<Infinity>() == 0);
-    VERIFY(m.hypotNorm() == 0);
-    VERIFY(m.stableNorm() == 0);
-  }
   VERIFY(m.count() == 0);
-  VERIFY(m.allFinite());
-  VERIFY(!m.hasNaN());
   VERIFY_RAISES_ASSERT(m.minCoeff());
   VERIFY_RAISES_ASSERT(m.maxCoeff());
   Index i, j;
@@ -99,6 +88,27 @@ void zeroReduction(const MatrixType& m) {
   VERIFY_RAISES_ASSERT(m.maxCoeff(&i, &j));
   VERIFY_RAISES_ASSERT(m.reshaped().minCoeff(&i));
   VERIFY_RAISES_ASSERT(m.reshaped().maxCoeff(&i));
+}
+
+template <typename MatrixType>
+void zeroOrderedReduction(const MatrixType&, std::false_type) {}
+
+template <typename MatrixType>
+void zeroReduction(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  // Reductions that must hold for zero sized objects
+  VERIFY(m.prod() == Scalar(1));
+  VERIFY(m.sum() == Scalar(0));
+  VERIFY(m.norm() == 0);
+  VERIFY(m.squaredNorm() == 0);
+  EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsInteger) {
+    VERIFY(m.template lpNorm<Infinity>() == 0);
+    VERIFY(m.hypotNorm() == 0);
+    VERIFY(m.stableNorm() == 0);
+  }
+  VERIFY(m.allFinite());
+  VERIFY(!m.hasNaN());
+  zeroOrderedReduction(m, internal::bool_constant<!NumTraits<Scalar>::IsComplex>());
 }
 
 template <typename MatrixType>
@@ -150,17 +160,6 @@ void zeroSizedMatrix() {
   }
 }
 
-// Complex extrema are unordered; check only reductions with defined empty identities.
-template <typename MatrixType>
-void zeroComplexReduction(const MatrixType& m) {
-  using Scalar = typename MatrixType::Scalar;
-  VERIFY_IS_EQUAL(m.sum(), Scalar(0));
-  VERIFY_IS_EQUAL(m.prod(), Scalar(1));
-  VERIFY_IS_EQUAL(m.template lpNorm<Infinity>(), 0.0);
-  VERIFY_IS_EQUAL(m.hypotNorm(), 0.0);
-  VERIFY_IS_EQUAL(m.stableNorm(), 0.0);
-}
-
 template <typename VectorType>
 void zeroSizedVector() {
   VectorType t1;
@@ -195,9 +194,9 @@ EIGEN_DECLARE_TEST(zerosized) {
   zeroSizedVector<VectorXf>();
   zeroSizedVector<Matrix<float, 0, 1> >();
   zeroSizedVector<Matrix<float, 1, 0> >();
-  zeroComplexReduction(MatrixXcd(0, 3));
-  zeroComplexReduction(MatrixXcd(3, 0));
-  zeroComplexReduction(Matrix<std::complex<double>, 0, 0>());
-  zeroComplexReduction(Matrix<std::complex<double>, 0, 3>());
-  zeroComplexReduction(Matrix<std::complex<double>, 3, 0>());
+  zeroReduction(MatrixXcd(0, 3));
+  zeroReduction(MatrixXcd(3, 0));
+  zeroReduction(Matrix<std::complex<double>, 0, 0>());
+  zeroReduction(Matrix<std::complex<double>, 0, 3>());
+  zeroReduction(Matrix<std::complex<double>, 3, 0>());
 }

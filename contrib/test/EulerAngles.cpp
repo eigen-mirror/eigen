@@ -302,13 +302,6 @@ void eulerangles_data_constructor() {
   VERIFY_IS_APPROX(e.gamma(), gamma);
 }
 
-// A volatile pointer forces odr-use even when optimization could fold the value.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
-}
-
 template <typename System>
 void eulerangles_axes_odr_use(int alpha, int beta, int gamma) {
   VERIFY_IS_EQUAL(read_through_address(System::AlphaAxis), alpha);

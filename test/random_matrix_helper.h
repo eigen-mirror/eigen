@@ -299,4 +299,26 @@ MatrixType RandomMatrix(Eigen::Index rows, Eigen::Index cols, Scalar min, Scalar
   return M;
 }
 
+// Integer-valued entries in [min_value, max_value], so that sums of products stay exact in any order while they
+// fit the scalar's integers. A complex scalar gets independent integer real and imaginary parts.
+template <typename Scalar>
+std::enable_if_t<!Eigen::NumTraits<Scalar>::IsComplex, Scalar> randomIntegerValued(int min_value, int max_value) {
+  return Scalar(Eigen::internal::random<int>(min_value, max_value));
+}
+template <typename Scalar>
+std::enable_if_t<Eigen::NumTraits<Scalar>::IsComplex, Scalar> randomIntegerValued(int min_value, int max_value) {
+  using Real = typename Eigen::NumTraits<Scalar>::Real;
+  const Real re = Real(Eigen::internal::random<int>(min_value, max_value));
+  return Scalar(re, Real(Eigen::internal::random<int>(min_value, max_value)));
+}
+
+template <typename MatrixType>
+MatrixType RandomIntegerMatrix(Eigen::Index rows, Eigen::Index cols, int min_value, int max_value) {
+  MatrixType M(rows, cols);
+  for (Eigen::Index j = 0; j < cols; ++j)
+    for (Eigen::Index i = 0; i < rows; ++i)
+      M.coeffRef(i, j) = randomIntegerValued<typename MatrixType::Scalar>(min_value, max_value);
+  return M;
+}
+
 #endif  // EIGEN_RANDOM_MATRIX_HELPER

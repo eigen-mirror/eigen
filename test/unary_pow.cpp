@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <cfenv>
 #include <cmath>
@@ -52,13 +53,11 @@ std::vector<Scalar> log_uniform_bases(int lo, int hi, int count) {
 template <typename ArrayType, typename Exponent>
 int pow_exceptions(const ArrayType& x, const Exponent& n, ArrayType& y) {
   using Packet = typename internal::packet_traits<typename ArrayType::Scalar>::type;
-  std::fenv_t saved_environment;
-  const bool environment_saved =
-      internal::unary_pow::flushes_subnormals<Packet>::value && std::feholdexcept(&saved_environment) == 0;
-  y = x.pow(n);
-  const int exceptions = environment_saved ? std::fetestexcept(FE_INVALID | FE_OVERFLOW) : 0;
-  if (environment_saved) std::fesetenv(&saved_environment);
-  return exceptions;
+  if (!internal::unary_pow::flushes_subnormals<Packet>::value) {
+    y = x.pow(n);
+    return 0;
+  }
+  return (std::max)(0, fp_exceptions_raised_by(FE_INVALID | FE_OVERFLOW, [&] { y = x.pow(n); }));
 }
 
 // Reference: pow in the next wider format, so its own rounding is negligible for float; for double, the

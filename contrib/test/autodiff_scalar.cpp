@@ -116,48 +116,14 @@ void check_min_max_equal_values() {
   VERIFY_IS_EQUAL((max)(b, a).derivatives(), b.derivatives());
 }
 
+// The overflow and infinity edges of atan'. The rest of its battery runs through CHECK_AUTODIFF_MATH below.
 template <typename Derivatives>
-void check_atan() {
+void check_atan_extremes() {
   using Scalar = typename Derivatives::Scalar;
   using AD = AutoDiffScalar<Derivatives>;
   using std::atan;
   const Scalar tolerance = Scalar(8) * NumTraits<Scalar>::epsilon();
   Derivatives seed(2);
-  seed << Scalar(2), Scalar(-3);
-  const Scalar values[] = {Scalar(-3),
-                           Scalar(-1),
-                           Scalar(-0.5),
-                           Scalar(-0.0),
-                           Scalar(0),
-                           Scalar(0.5),
-                           Scalar(1),
-                           Scalar(3),
-                           std::nextafter(Scalar(1), Scalar(0)),
-                           std::nextafter(Scalar(1), Scalar(2)),
-                           internal::random<Scalar>(Scalar(-8), Scalar(8))};
-  for (Scalar value : values) {
-    AD x(value, seed);
-    const AD result = atan(x);
-    const AD dispatched = numext::atan(x);
-    VERIFY_IS_EQUAL(result.value(), atan(value));
-    VERIFY_IS_EQUAL(bool((numext::signbit)(result.value())), bool((numext::signbit)(atan(value))));
-    for (Index i = 0; i < seed.size(); ++i) {
-      const long double v = static_cast<long double>(value);
-      const Scalar expected = static_cast<Scalar>(static_cast<long double>(seed(i)) / (1 + v * v));
-      VERIFY(numext::abs(result.derivatives()(i) - expected) <= tolerance * numext::abs(expected));
-    }
-    VERIFY_IS_EQUAL(dispatched.value(), result.value());
-    VERIFY_IS_EQUAL(dispatched.derivatives(), result.derivatives());
-    const AutoDiffScalar<Derivatives&> referenced(value, seed);
-    const AD from_reference = atan(referenced);
-    VERIFY_IS_EQUAL(from_reference.derivatives(), result.derivatives());
-    const AD composed = atan(Scalar(2) * x - x);
-    VERIFY_IS_EQUAL(composed.value(), result.value());
-    VERIFY_IS_EQUAL(composed.derivatives(), result.derivatives());
-    const auto deferred = atan(x);
-    const Derivatives derivatives = deferred.derivatives();
-    VERIFY_IS_EQUAL(derivatives, result.derivatives());
-  }
 
   // The derivative stays normal even though x*x overflows and its reciprocal underflows.
   const Scalar largest = (NumTraits<Scalar>::highest)();
@@ -172,35 +138,7 @@ void check_atan() {
 
   seed << Scalar(2), Scalar(-3);
   for (Scalar sign : {Scalar(-1), Scalar(1)}) {
-    const AD result = atan(AD(sign * NumTraits<Scalar>::infinity(), seed));
-    VERIFY_IS_EQUAL(result.value(), atan(sign * NumTraits<Scalar>::infinity()));
-    VERIFY(result.derivatives().isZero());
-  }
-  const AD nan_result = atan(AD(NumTraits<Scalar>::quiet_NaN(), seed));
-  VERIFY((numext::isnan)(nan_result.value()));
-  VERIFY((numext::isnan)(nan_result.derivatives()(0)));
-  VERIFY((numext::isnan)(nan_result.derivatives()(1)));
-
-  const AD constant = atan(AD(Scalar(0.5)));
-  VERIFY(constant.derivatives().isZero());
-}
-
-template <typename Scalar>
-void check_atan_second_derivative() {
-  using FirstDerivative = AutoDiffScalar<Matrix<Scalar, 1, 1>>;
-  using SecondDerivative = AutoDiffScalar<Matrix<FirstDerivative, 1, 1>>;
-  for (Scalar value : {Scalar(0.5), Scalar(2)}) {
-    SecondDerivative x;
-    x.value() = FirstDerivative(value);
-    x.value().derivatives()(0) = Scalar(1);
-    x.derivatives()(0) = FirstDerivative(Scalar(1));
-    const SecondDerivative result = atan(x);
-    const Scalar denominator = Scalar(1) + value * value;
-    const Scalar expected = -Scalar(2) * value / (denominator * denominator);
-    const Scalar tolerance = Scalar(16) * NumTraits<Scalar>::epsilon();
-    VERIFY(numext::abs(result.value().derivatives()(0) - Scalar(1) / denominator) <= tolerance);
-    VERIFY(numext::abs(result.derivatives()(0).value() - Scalar(1) / denominator) <= tolerance);
-    VERIFY(numext::abs(result.derivatives()(0).derivatives()(0) - expected) <= tolerance);
+    VERIFY(atan(AD(sign * NumTraits<Scalar>::infinity(), seed)).derivatives().isZero());
   }
 }
 
@@ -377,6 +315,10 @@ void check_additional_math() {
         return NAME(x);                                                                          \
       },                                                                                         \
       [](Scalar x) { return std::NAME(x); })
+  CHECK_AUTODIFF_MATH(atan, 1 / (1 + x * x), -2 * x / ((1 + x * x) * (1 + x * x)), Scalar(-3), Scalar(-1), Scalar(-0.5),
+                      Scalar(-0.0), Scalar(0), Scalar(0.5), Scalar(1), Scalar(2), Scalar(3),
+                      numext::nextafter(Scalar(1), Scalar(0)), numext::nextafter(Scalar(1), Scalar(2)),
+                      internal::random<Scalar>(Scalar(-8), Scalar(8)));
   CHECK_AUTODIFF_MATH(log1p, 1 / (1 + x), -1 / ((1 + x) * (1 + x)), Scalar(-0.25), Scalar(0), Scalar(1e-8), Scalar(0.5),
                       Scalar(3));
   CHECK_AUTODIFF_MATH(expm1, std::exp(x), std::exp(x), Scalar(-10), Scalar(-0.5), Scalar(0), Scalar(1e-8), Scalar(3));
@@ -427,14 +369,12 @@ EIGEN_DECLARE_TEST(autodiff_scalar) {
     CALL_SUBTEST_5(check_limits_specialization<double>());
     CALL_SUBTEST_6(check_min_max_equal_values<float>());
     CALL_SUBTEST_7(check_min_max_equal_values<double>());
-    CALL_SUBTEST_8(check_atan<Vector2f>());
-    CALL_SUBTEST_8(check_atan<VectorXf>());
+    CALL_SUBTEST_8(check_atan_extremes<Vector2f>());
+    CALL_SUBTEST_8(check_atan_extremes<VectorXf>());
     CALL_SUBTEST_8(check_issue234_operations<float>());
-    CALL_SUBTEST_8(check_atan_second_derivative<float>());
-    CALL_SUBTEST_9(check_atan<Vector2d>());
-    CALL_SUBTEST_9(check_atan<VectorXd>());
+    CALL_SUBTEST_9(check_atan_extremes<Vector2d>());
+    CALL_SUBTEST_9(check_atan_extremes<VectorXd>());
     CALL_SUBTEST_9(check_issue234_operations<double>());
-    CALL_SUBTEST_9(check_atan_second_derivative<double>());
     CALL_SUBTEST_10(check_additional_math<Vector2f>());
     CALL_SUBTEST_10(check_additional_math<VectorXf>());
     CALL_SUBTEST_11(check_additional_math<Vector2d>());

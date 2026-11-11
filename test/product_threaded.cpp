@@ -10,6 +10,7 @@
 
 #define EIGEN_GEMM_THREADPOOL
 #include "main.h"
+#include "product_test_helpers.h"
 
 // Eigen::setGemmThreadPool(nullptr) is the *getter*: Parallelizer.h only stores the pointer when
 // it is non-null, so once any test registers a pool it stays registered for the rest of the
@@ -316,17 +317,6 @@ void test_parallelize_gemm_parts_blocks() {
   VERIFY_IS_APPROX(fc, fr);
 }
 
-// Bitwise equality of every coefficient, so that +0 and -0 differ.
-template <typename Real>
-bool bits_equal(const Real& x, const Real& y) {
-  using Bits = typename numext::get_integer_by_size<sizeof(Real)>::unsigned_type;
-  return numext::bit_cast<Bits>(x) == numext::bit_cast<Bits>(y);
-}
-template <typename Real>
-bool bits_equal(const std::complex<Real>& x, const std::complex<Real>& y) {
-  return bits_equal(x.real(), y.real()) && bits_equal(x.imag(), y.imag());
-}
-
 // Threaded assignment, c = a * b, which the kernels overwrite on the first depth pass instead of zeroing c, against
 // zero-then-accumulate in the same pool: the same partition and the same summation order, so bitwise equal. c starts
 // out NaN, and the depth spans several depth blocks, so the later passes accumulate. The complex<double> result is at
@@ -347,10 +337,7 @@ void test_parallelize_gemm_assign() {
   expected.noalias() += a * b;
   Mat c = Mat::Constant(m, n, Scalar(std::numeric_limits<Real>::quiet_NaN()));
   c.noalias() = a * b;
-  bool equal = true;
-  for (Index j = 0; j < n; ++j)
-    for (Index i = 0; i < m; ++i) equal = equal && bits_equal(c(i, j), expected(i, j));
-  VERIFY(equal);
+  VERIFY(bitwise_equal(c, expected));
   Mat serial(m, n);
   {
     ScopedSerialGemm guard;

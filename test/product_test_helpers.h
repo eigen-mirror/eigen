@@ -5,6 +5,7 @@
 #define EIGEN_TEST_PRODUCT_TEST_HELPERS_H
 
 #include <iostream>
+#include <vector>
 
 #include <Eigen/Core>
 
@@ -33,21 +34,27 @@ namespace Eigen {
 //   lambda:       probability parameter; P(lambda) = 1 - 2*exp(-lambda^2/2).
 //                 lambda=5 gives P > 0.9999 per inner product.
 
-// Returns || |alpha|*|A|*|B| + |C0| ||_F, with |C0| given coefficient-wise by c0(i, j).
+// Returns (|A|*|B|)_ij.
 //
-// The norm is accumulated in double with an explicit loop rather than formed as
-// (A.cwiseAbs() * B.cwiseAbs()).norm(): a bound built with the product implementation would inherit
+// The bounds are accumulated in double with an explicit loop rather than formed as
+// (A.cwiseAbs() * B.cwiseAbs()): a bound built with the product implementation would inherit
 // that implementation's defects, and one that overflowed to infinity would admit any result at all.
+template <typename DerivedA, typename DerivedB>
+double abs_inner_product(const MatrixBase<DerivedA>& A, const MatrixBase<DerivedB>& B, Index i, Index j) {
+  double sum = 0.0;
+  for (Index l = 0; l < A.cols(); ++l)
+    sum += static_cast<double>(numext::abs(A.coeff(i, l))) * static_cast<double>(numext::abs(B.coeff(l, j)));
+  return sum;
+}
+
+// Returns || |alpha|*|A|*|B| + |C0| ||_F, with |C0| given coefficient-wise by c0(i, j).
 template <typename DerivedA, typename DerivedB, typename C0Coeff>
 double abs_product_update_norm(double abs_alpha, const MatrixBase<DerivedA>& A, const MatrixBase<DerivedB>& B,
                                C0Coeff c0) {
   double squared_norm = 0.0;
   for (Index i = 0; i < A.rows(); ++i)
     for (Index j = 0; j < B.cols(); ++j) {
-      double sum = 0.0;
-      for (Index l = 0; l < A.cols(); ++l)
-        sum += static_cast<double>(numext::abs(A.coeff(i, l))) * static_cast<double>(numext::abs(B.coeff(l, j)));
-      sum = abs_alpha * sum + c0(i, j);
+      const double sum = abs_alpha * abs_inner_product(A, B, i, j) + c0(i, j);
       squared_norm += sum * sum;
     }
   return numext::sqrt(squared_norm);
@@ -151,6 +158,152 @@ bool verifyProductUpdate(const MatrixBase<D1>& actual, const MatrixBase<D2>& exp
       actual, expected,
       product_update_error_bound<Accumulator>(alpha, A, B, C0, num_products, lambda) +
           result_rounding_bound<typename DA::Scalar, Accumulator>(expected, num_products));
+}
+
+// Verify C = C0 + alpha*A*B coefficient-wise against the Higham-Mary bound of each inner product:
+//   |actual_ij - expected_ij| <= num_products * lambda * sqrt(k+2) * epsilon * (|alpha|*|A|*|B| + |C0|)_ij.
+// Unlike verifyProductUpdate, which bounds the Frobenius norm of the whole error, one wrong coefficient cannot hide
+// in the slack of the others. For products that sum in the operand scalar.
+template <typename D1, typename D2, typename DA, typename DB, typename DC0>
+bool verifyProductUpdateCoeffwise(const MatrixBase<D1>& actual, const MatrixBase<D2>& expected,
+                                  const typename DA::Scalar& alpha, const MatrixBase<DA>& A, const MatrixBase<DB>& B,
+                                  const MatrixBase<DC0>& C0, int num_products = 2, double lambda = 5) {
+  using Scalar = typename DA::Scalar;
+  eigen_assert(actual.rows() == A.rows() && actual.cols() == B.cols());
+  const double gamma = double(num_products) * lambda * numext::sqrt(double(A.cols() + 2)) *
+                       static_cast<double>(NumTraits<Scalar>::epsilon());
+  const double abs_alpha = static_cast<double>(numext::abs(alpha));
+  for (Index j = 0; j < actual.cols(); ++j)
+    for (Index i = 0; i < actual.rows(); ++i) {
+      const double bound =
+          gamma * (abs_alpha * abs_inner_product(A, B, i, j) + static_cast<double>(numext::abs(C0.coeff(i, j))));
+      const double error = static_cast<double>(numext::abs(actual.coeff(i, j) - expected.coeff(i, j)));
+      if (!((numext::isfinite)(bound) && error <= bound)) {
+        std::cerr << "Product verification failed at (" << i << ", " << j << "): error " << error << " exceeds bound "
+                  << bound << std::endl;
+        return false;
+      }
+    }
+  return true;
+}
+
+// Bitwise equality of every coefficient, so that +0 and -0 differ and NaNs with equal payloads agree.
+template <typename A, typename B>
+bool bitwise_equal(const DenseBase<A>& a, const DenseBase<B>& b) {
+  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
+  for (Index j = 0; j < a.cols(); ++j)
+    for (Index i = 0; i < a.rows(); ++i)
+      if (!test::biteq(a.derived().coeff(i, j), b.derived().coeff(i, j))) return false;
+  return true;
+}
+
+// Returns true if every coefficient of `backing` outside the block that a strided Map placed on it addresses
+// compares equal to `original`. The block's coefficient (inner i, outer o) sits at
+// offset + i * inner_stride + o * outer_stride (a vector is a block with outer_size 1). Pass a constant
+// expression as `original` for a sentinel fill.
+template <typename Backing, typename Original>
+bool strided_block_gaps_untouched(const DenseBase<Backing>& backing, const DenseBase<Original>& original, Index offset,
+                                  Index inner_size, Index outer_size, Index inner_stride, Index outer_stride) {
+  eigen_assert(backing.size() == original.size());
+  std::vector<bool> addressed(static_cast<std::size_t>(backing.size()), false);
+  for (Index o = 0; o < outer_size; ++o)
+    for (Index i = 0; i < inner_size; ++i)
+      addressed[static_cast<std::size_t>(offset + i * inner_stride + o * outer_stride)] = true;
+  for (Index k = 0; k < backing.size(); ++k)
+    if (!addressed[static_cast<std::size_t>(k)] && !(backing.derived().coeff(k) == original.derived().coeff(k))) {
+      std::cerr << "Strided block verification failed: coefficient " << k << " outside the block was written"
+                << std::endl;
+      return false;
+    }
+  return true;
+}
+
+// y = alpha lhs rhs, y += ... and y -= ..., into contiguous and strided destinations, against a long double reference:
+//   |y_i - ref_i| <= factor eps (|c0_i| + |alpha| sum_j |lhs_ij rhs_j|) + (2k + 3) denorm_min,  k = lhs.cols(),
+// with factor the caller's error model; the second term covers subnormal roundings (two per term, alpha, c0).
+template <typename Lhs, typename Rhs>
+bool gemv_matches_long_double(const Lhs& lhs, const Rhs& rhs, double factor) {
+  using Scalar = typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType;
+  using Real = typename NumTraits<Scalar>::Real;
+  using Wide = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<long double>, long double>;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const Index rows = lhs.rows();
+  const Scalar sentinel(7);
+  const Vector initial = Vector::Random(rows);
+  const long double epsilon = static_cast<long double>(NumTraits<Real>::epsilon());
+  const long double underflow = static_cast<long double>(2 * lhs.cols() + 3) *
+                                static_cast<long double>((std::numeric_limits<Real>::denorm_min)());
+  bool ok = true;
+  for (const Scalar alpha : {Scalar(1), internal::random<Scalar>(), Scalar(0)}) {
+    for (int operation = 0; operation < 3; ++operation) {
+      std::vector<Wide> expected(static_cast<std::size_t>(rows));
+      std::vector<long double> bound(static_cast<std::size_t>(rows));
+      for (Index i = 0; i < rows; ++i) {
+        Wide sum(0);
+        long double magnitude = 0;
+        for (Index j = 0; j < lhs.cols(); ++j) {
+          const Wide term = internal::cast<typename Lhs::Scalar, Wide>(lhs.coeff(i, j)) *
+                            internal::cast<typename Rhs::Scalar, Wide>(rhs.coeff(j, 0));
+          sum += term;
+          magnitude += numext::abs(term);
+        }
+        const Wide c0 = operation == 0 ? Wide(0) : internal::cast<Scalar, Wide>(initial(i));
+        const Wide wide_alpha = internal::cast<Scalar, Wide>(alpha);
+        expected[static_cast<std::size_t>(i)] = c0 + (operation == 2 ? -wide_alpha : wide_alpha) * sum;
+        bound[static_cast<std::size_t>(i)] =
+            static_cast<long double>(factor) * epsilon * (numext::abs(c0) + numext::abs(wide_alpha) * magnitude) +
+            underflow;
+      }
+      auto matches = [&](const auto& result) {
+        for (Index i = 0; i < rows; ++i)
+          if (!(numext::abs(internal::cast<Scalar, Wide>(result(i)) - expected[static_cast<std::size_t>(i)]) <=
+                bound[static_cast<std::size_t>(i)])) {
+            std::cerr << "GEMV verification failed at row " << i << std::endl;
+            return false;
+          }
+        return true;
+      };
+      for (int form = 0; form < 2; ++form) {
+        auto evaluate = [&](auto& target) {
+          target = initial;
+          if (operation == 0) {
+            if (form == 0)
+              target.noalias() = alpha * (lhs * rhs);
+            else
+              target.noalias() = alpha * lhs * rhs;
+          } else if (operation == 1) {
+            if (form == 0)
+              target.noalias() += alpha * (lhs * rhs);
+            else
+              target.noalias() += alpha * lhs * rhs;
+          } else {
+            if (form == 0)
+              target.noalias() -= alpha * (lhs * rhs);
+            else
+              target.noalias() -= alpha * lhs * rhs;
+          }
+        };
+        Vector contiguous(rows);
+        evaluate(contiguous);
+        ok = ok && matches(contiguous);
+        // One extra coefficient before the destination and one after, or two with stride 2.
+        for (Index stride : {Index(1), Index(2)}) {
+          Vector backing = Vector::Constant(stride * rows + 2, sentinel);
+          Map<Vector, Unaligned, InnerStride<Dynamic>> dynamic_stride(backing.data() + 1, rows,
+                                                                      InnerStride<Dynamic>(stride));
+          evaluate(dynamic_stride);
+          ok = ok && matches(dynamic_stride) &&
+               strided_block_gaps_untouched(backing, Vector::Constant(backing.size(), sentinel), 1, rows, 1, stride, 0);
+        }
+        Vector backing = Vector::Constant(2 * rows + 2, sentinel);
+        Map<Vector, Unaligned, InnerStride<2>> static_stride(backing.data() + 1, rows);
+        evaluate(static_stride);
+        ok = ok && matches(static_stride) &&
+             strided_block_gaps_untouched(backing, Vector::Constant(backing.size(), sentinel), 1, rows, 1, 2, 0);
+      }
+    }
+  }
+  return ok;
 }
 
 }  // namespace Eigen

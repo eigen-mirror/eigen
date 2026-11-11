@@ -24,25 +24,6 @@ Scalar nan_value() {
   return Scalar(std::numeric_limits<typename NumTraits<Scalar>::Real>::quiet_NaN());
 }
 
-// Bitwise equality of every coefficient, so that +0 and -0 differ.
-template <typename Real>
-bool bits_equal(const Real& x, const Real& y) {
-  using Bits = typename numext::get_integer_by_size<sizeof(Real)>::unsigned_type;
-  return numext::bit_cast<Bits>(x) == numext::bit_cast<Bits>(y);
-}
-template <typename Real>
-bool bits_equal(const std::complex<Real>& x, const std::complex<Real>& y) {
-  return bits_equal(x.real(), y.real()) && bits_equal(x.imag(), y.imag());
-}
-template <typename A, typename B>
-bool bitwise_equal(const DenseBase<A>& a, const DenseBase<B>& b) {
-  if (a.rows() != b.rows() || a.cols() != b.cols()) return false;
-  for (Index j = 0; j < a.cols(); ++j)
-    for (Index i = 0; i < a.rows(); ++i)
-      if (!bits_equal(a.derived().coeff(i, j), b.derived().coeff(i, j))) return false;
-  return true;
-}
-
 // dst = scale * a * b through assignment, from a NaN-filled destination, against the zero-then-accumulate result and
 // the coefficient-based product. The two must be bitwise equal where the product runs GEMM. The coefficient-based
 // product and the GEMV fallbacks compile `=` and `+=` separately, and those may round differently.
@@ -75,6 +56,18 @@ void check_assign(Dst& dst, const Lhs& a, const Rhs& b, const Scalar& scale) {
   if (a.cols() > 0) VERIFY(verifyProduct(expected, Plain((scale * a).lazyProduct(b)), scale * a, b));
 }
 
+// check_assign into a strided Map over a buffer filled with 7, whose coefficients outside the block must stay 7.
+template <typename Scalar, typename MapStride, typename Lhs, typename Rhs>
+void check_assign_into_sentinel_map(const Lhs& a, const Rhs& b, Index storage_size, const MapStride& stride) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  Vector storage = Vector::Constant(storage_size, Scalar(7));
+  Map<Mat, 0, MapStride> mapped(storage.data(), a.rows(), b.cols(), stride);
+  check_assign(mapped, a, b, Scalar(1));
+  VERIFY(strided_block_gaps_untouched(storage, Vector::Constant(storage_size, Scalar(7)), 0, a.rows(), b.cols(),
+                                      mapped.innerStride(), mapped.outerStride()));
+}
+
 // Sizes around the packet widths and the register and cache blocks of the kernels, at depths below, at and above
 // the small blocking's depth block.
 template <typename Scalar, int DstOrder>
@@ -100,10 +93,7 @@ void assign_shapes() {
   check_assign(c, at.transpose(), bt.transpose(), Scalar(1));
 
   const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
-  Mat storage = Mat::Constant(m + 5, n, Scalar(7));
-  Map<Mat, 0, OuterStride<>> mapped(storage.data(), m, n, OuterStride<>(m + 5));
-  check_assign(mapped, a, b, Scalar(1));
-  VERIFY((storage.bottomRows(5).array() == Scalar(7)).all());
+  check_assign_into_sentinel_map<Scalar>(a, b, (m + 5) * n, OuterStride<>(m + 5));
 }
 
 // Outer stride 1 and inner stride n: a row-major layout seen through column-major strides, so the kernel's C has a
@@ -115,10 +105,7 @@ void assign_unit_col_stride() {
     for (Index n : {Index(9), Index(40), Index(129)})
       for (Index k : {Index(25), Index(300)}) {
         const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
-        Matrix<Scalar, Dynamic, 1> storage = Matrix<Scalar, Dynamic, 1>::Constant(m * n + 3, Scalar(7));
-        Map<Mat, 0, Stride<Dynamic, Dynamic>> mapped(storage.data(), m, n, Stride<Dynamic, Dynamic>(1, n));
-        check_assign(mapped, a, b, Scalar(1));
-        for (Index i = m * n; i < storage.size(); ++i) VERIFY_IS_EQUAL(storage(i), Scalar(7));
+        check_assign_into_sentinel_map<Scalar>(a, b, m * n + 3, Stride<Dynamic, Dynamic>(1, n));
       }
 }
 
@@ -145,10 +132,7 @@ void assign_inner_stride() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
   const Index m = 65, n = 40, k = 150;
   const Mat a = Mat::Random(m, k), b = Mat::Random(k, n);
-  Matrix<Scalar, Dynamic, 1> storage = Matrix<Scalar, Dynamic, 1>::Constant(2 * m * n, Scalar(7));
-  Map<Mat, 0, Stride<Dynamic, 2>> mapped(storage.data(), m, n, Stride<Dynamic, 2>(2 * m, 2));
-  check_assign(mapped, a, b, Scalar(1));
-  for (Index i = 1; i < storage.size(); i += 2) VERIFY_IS_EQUAL(storage(i), Scalar(7));
+  check_assign_into_sentinel_map<Scalar>(a, b, 2 * m * n, Stride<Dynamic, 2>(2 * m, 2));
 }
 
 // Conjugated operands and scalar factors on either side, and a real operand on either side of a complex product.

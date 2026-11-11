@@ -17,9 +17,9 @@
 template <typename MatrixType>
 MatrixType random_operand() {
   using Scalar = typename MatrixType::Scalar;
-  return MatrixType::NullaryExpr([] {
-    return NumTraits<Scalar>::IsInteger ? internal::random<Scalar>(Scalar(-8), Scalar(8)) : internal::random<Scalar>();
-  });
+  if (NumTraits<Scalar>::IsInteger)
+    return RandomIntegerMatrix<MatrixType>(MatrixType::RowsAtCompileTime, MatrixType::ColsAtCompileTime, -8, 8);
+  return MatrixType::NullaryExpr([] { return internal::random<Scalar>(); });
 }
 
 template <typename Prod>

@@ -549,7 +549,7 @@ void dare_random(Index maxM, Index maxN) {
         i < unstable ? internal::random<RealScalar>(1.25, 2) : internal::random<RealScalar>(0.1, 0.8);
     T(i, i) = phase / numext::abs(phase) * modulus;
   }
-  const DynMatrix U = HouseholderQR<DynMatrix>(DynMatrix::Random(m, m)).householderQ();
+  const DynMatrix U = generateRandomUnitaryMatrix<DynMatrix>(m);
   const MatrixType A = U * T * U.adjoint();
   // B = U Bu with Bu(i, i) = 2 + O(1) for the unstable modes i < unstable <= n keeps them well controllable. A third
   // of the problems scale B by 10^-k, for which balancing alone would cost digits.
@@ -598,6 +598,21 @@ void dare_random(Index maxM, Index maxN) {
   }
 }
 
+// Q S Z^* = A and Q T Z^* = B to the relative backward error bound, Q and Z unitary to the bound, T upper triangular,
+// and S zero below its subdiagonal.
+template <typename MatrixType>
+void verify_generalized_schur_form(const MatrixType& A, const MatrixType& B, const MatrixType& Q, const MatrixType& S,
+                                   const MatrixType& T, const MatrixType& Z, typename MatrixType::RealScalar bound) {
+  using Scalar = typename MatrixType::Scalar;
+  const Index size = A.rows();
+  VERIFY((Q * S * Z.adjoint() - A).norm() <= bound * A.norm());
+  VERIFY((Q * T * Z.adjoint() - B).norm() <= bound * B.norm());
+  VERIFY((Q.adjoint() * Q - MatrixType::Identity(size, size)).norm() <= bound);
+  VERIFY((Z.adjoint() * Z - MatrixType::Identity(size, size)).norm() <= bound);
+  VERIFY_IS_EQUAL(T.template triangularView<StrictlyLower>().toDenseMatrix(), MatrixType::Zero(size, size));
+  for (Index i = 0; i + 2 < size; ++i) VERIFY_IS_EQUAL(S(i + 2, i), Scalar(0));
+}
+
 // Checks the reordering of a generalized Schur form directly.
 template <typename MatrixType>
 void generalized_schur_reordering(Index size) {
@@ -626,12 +641,7 @@ void generalized_schur_reordering(Index size) {
   VERIFY_IS_EQUAL(selected, inside);
   // Each swap is accepted only if it is backward stable to 20 eps ||(S, T)||_F locally, see the strong stability test.
   const RealScalar bound = RealScalar(20) * RealScalar(size) * eps;
-  VERIFY((Q * S * Z.adjoint() - A).norm() <= bound * A.norm());
-  VERIFY((Q * T * Z.adjoint() - B).norm() <= bound * B.norm());
-  VERIFY((Q.adjoint() * Q - MatrixType::Identity(size, size)).norm() <= bound);
-  VERIFY((Z.adjoint() * Z - MatrixType::Identity(size, size)).norm() <= bound);
-  VERIFY_IS_EQUAL(T.template triangularView<StrictlyLower>().toDenseMatrix(), MatrixType::Zero(size, size));
-  for (Index i = 0; i + 2 < size; ++i) VERIFY_IS_EQUAL(S(i + 2, i), Scalar(0));
+  verify_generalized_schur_form(A, B, Q, S, T, Z, bound);
   // The selected eigenvalues come first, and the boundary does not split a 2x2 block.
   if (selected > 0 && selected < size) VERIFY_IS_EQUAL(S(selected, selected - 1), Scalar(0));
   for (Index k = 0; k < size;) {
@@ -697,17 +707,13 @@ void generalized_schur_swap(Index n1, Index n2) {
     VERIFY(std::abs(newLower[i] - upper[i]) <= RealScalar(100) * eps * (RealScalar(1) + std::abs(upper[i])));
   // Exact structure: zero block boundary, T upper triangular, S zero below its 2x2 diagonal blocks.
   VERIFY_IS_EQUAL(S.block(j + n2, j, n1, n2), MatrixType::Zero(n1, n2));
-  VERIFY_IS_EQUAL(T.template triangularView<StrictlyLower>().toDenseMatrix(), MatrixType::Zero(size, size));
   for (Index c = 0; c < size; ++c)
     for (Index r = c + 1; r < size; ++r)
       if (!((r == j + 1 && c == j && n2 == 2) || (r == j + n2 + 1 && c == j + n2 && n1 == 2)))
         VERIFY_IS_EQUAL(S(r, c), Scalar(0));
   // Backward error and orthogonality.
   const RealScalar bound = RealScalar(20) * RealScalar(size) * eps;
-  VERIFY((Q * S * Z.adjoint() - S0).norm() <= bound * S0.norm());
-  VERIFY((Q * T * Z.adjoint() - T0).norm() <= bound * T0.norm());
-  VERIFY((Q.adjoint() * Q - MatrixType::Identity(size, size)).norm() <= bound);
-  VERIFY((Z.adjoint() * Z - MatrixType::Identity(size, size)).norm() <= bound);
+  verify_generalized_schur_form(S0, T0, Q, S, T, Z, bound);
 }
 
 #if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_9) || defined(EIGEN_TEST_PART_10) || \

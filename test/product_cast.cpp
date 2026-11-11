@@ -17,18 +17,11 @@ constexpr int kCastTemporaries = 0;
 constexpr int kCastTemporaries = 1;
 #endif
 
-template <typename Src, int Order>
-Matrix<Src, Dynamic, Dynamic, Order> random_small_integers(Index rows, Index cols, int bound) {
-  Matrix<Src, Dynamic, Dynamic, Order> m(rows, cols);
-  for (Index j = 0; j < cols; ++j)
-    for (Index i = 0; i < rows; ++i) m(i, j) = Src(internal::random<int>(-bound, bound));
-  return m;
-}
-
 // Integers in [-bound, bound], or for a floating-point Src, fractions there that a narrowing cast rounds.
 template <typename Src, int Order>
 Matrix<Src, Dynamic, Dynamic, Order> random_operand(Index rows, Index cols, int bound) {
-  if (NumTraits<Src>::IsInteger) return random_small_integers<Src, Order>(rows, cols, bound);
+  if (NumTraits<Src>::IsInteger)
+    return RandomIntegerMatrix<Matrix<Src, Dynamic, Dynamic, Order>>(rows, cols, -bound, bound);
   return Matrix<Src, Dynamic, Dynamic, Order>::Random(rows, cols) * Src(bound);
 }
 
@@ -106,8 +99,10 @@ void float_accumulation(Index rows, Index cols, Index depth) {
   // |sum| <= 256 * depth < 2^24 stays an integer that float holds exactly, so the reference does not depend on the
   // order. Its spread of about 16^2 / 3 * sqrt(depth) exceeds half's and bfloat16's exact integers, so a sum in T
   // rounds.
-  Matrix<T, Dynamic, Dynamic, LhsOrder> A = random_small_integers<T, LhsOrder>(rows, depth, 16);
-  Matrix<T, Dynamic, Dynamic, RhsOrder> B = random_small_integers<T, RhsOrder>(depth, cols, 16);
+  Matrix<T, Dynamic, Dynamic, LhsOrder> A =
+      RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, LhsOrder>>(rows, depth, -16, 16);
+  Matrix<T, Dynamic, Dynamic, RhsOrder> B =
+      RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, RhsOrder>>(depth, cols, -16, 16);
   MatrixXf exact = A.template cast<float>().eval() * B.template cast<float>().eval();
 
   Mat C(rows, cols);
@@ -117,7 +112,7 @@ void float_accumulation(Index rows, Index cols, Index depth) {
   C = A * B;
   VERIFY_IS_EQUAL(C, exact.cast<T>().eval());
 
-  Mat C0 = random_small_integers<T, DstOrder>(rows, cols, 64);
+  Mat C0 = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, DstOrder>>(rows, cols, -64, 64);
   C = C0;
   C.noalias() += A * B;
   VERIFY_IS_EQUAL(C, (C0.template cast<float>() + exact).template cast<T>().eval());
@@ -144,6 +139,9 @@ void float_accumulations() {
   CALL_SUBTEST((float_accumulation<T, RowMajor, ColMajor, RowMajor>(rows, cols, depth)));
   CALL_SUBTEST((float_accumulation<T, RowMajor, RowMajor, ColMajor>(rows, cols, depth)));
   CALL_SUBTEST((float_accumulation<T, ColMajor, RowMajor, RowMajor>(13, 9, 31)));
+  // Blocked GEMM with fewer rows or columns than a register block, above the coefficient-based threshold.
+  CALL_SUBTEST((float_accumulation<T, ColMajor, ColMajor, ColMajor>(2, 3, 24)));
+  CALL_SUBTEST((float_accumulation<T, RowMajor, ColMajor, RowMajor>(3, 2, 40)));
 }
 
 template <typename T>
@@ -188,7 +186,8 @@ void cast_to_float_accumulated() {
   using SrcMat = Matrix<Src, Dynamic, Dynamic>;
   using Mat = Matrix<T, Dynamic, Dynamic>;
   const Index n = 32;
-  SrcMat A = random_small_integers<Src, ColMajor>(n, n, 8), B = random_small_integers<Src, ColMajor>(n, n, 8);
+  SrcMat A = RandomIntegerMatrix<Matrix<Src, Dynamic, Dynamic, ColMajor>>(n, n, -8, 8),
+         B = RandomIntegerMatrix<Matrix<Src, Dynamic, Dynamic, ColMajor>>(n, n, -8, 8);
   // Out of half's range, and above bfloat16's spacing of 2^10 at 2^17.
   A(0, 0) = Src(std::is_same<T, half>::value ? 70000 : 205001);
   // 2051 rounds to 2052 in half and 2048 in bfloat16.
@@ -210,8 +209,8 @@ template <typename T>
 void float_accumulation_workspace() {
   using Fixed = Matrix<T, 192, 192>;
   std::unique_ptr<Fixed> A(new Fixed), B(new Fixed), C(new Fixed);
-  *A = random_small_integers<T, ColMajor>(192, 192, 4);
-  *B = random_small_integers<T, ColMajor>(192, 192, 4);
+  *A = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(192, 192, -4, 4);
+  *B = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(192, 192, -4, 4);
   C->noalias() = *A * *B;
   using Mat = Matrix<T, Dynamic, Dynamic>;
   MatrixXf Af = A->template cast<float>(), Bf = B->template cast<float>();
@@ -219,7 +218,8 @@ void float_accumulation_workspace() {
 
   // With EIGEN_USE_BLAS or on SME the float product materializes both casts.
 #if !defined(EIGEN_USE_BLAS) && !defined(EIGEN_VECTORIZE_SME)
-  Mat X = random_small_integers<T, ColMajor>(48, 40, 4), Y = random_small_integers<T, ColMajor>(40, 36, 4);
+  Mat X = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(48, 40, -4, 4),
+      Y = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(40, 36, -4, 4);
   MatrixXf exact = X.template cast<float>() * Y.template cast<float>();
   Mat Z(48, 36);
   internal::set_is_malloc_allowed(false);
@@ -235,9 +235,10 @@ void float_accumulation_workspace() {
 
   // A runtime vector result takes GEMV on T, which does not allocate for a row-major matrix by a column or a row by a
   // column-major matrix. Entries in [-1, 1] at depth 40 keep every partial sum exact in T.
-  Matrix<T, Dynamic, Dynamic, RowMajor> R = random_small_integers<T, RowMajor>(48, 40, 1);
-  Mat v = random_small_integers<T, ColMajor>(40, 1, 1), w = random_small_integers<T, ColMajor>(1, 40, 1);
-  Mat V = random_small_integers<T, ColMajor>(40, 36, 1), y(48, 1), z(1, 36);
+  Matrix<T, Dynamic, Dynamic, RowMajor> R = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, RowMajor>>(48, 40, -1, 1);
+  Mat v = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(40, 1, -1, 1),
+      w = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(1, 40, -1, 1);
+  Mat V = RandomIntegerMatrix<Matrix<T, Dynamic, Dynamic, ColMajor>>(40, 36, -1, 1), y(48, 1), z(1, 36);
   internal::set_is_malloc_allowed(false);
   y.noalias() = R * v;
   z.noalias() = w * V;

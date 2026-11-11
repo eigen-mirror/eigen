@@ -13,6 +13,7 @@
 
 #include <Eigen/Core>
 #include "AnnoyingScalar.h"
+#include "lifetime_scalar.h"
 
 using namespace Eigen;
 
@@ -157,72 +158,7 @@ void max_size_checks() {
   VERIFY_IS_EQUAL(v.size(), 4);
 }
 
-struct ResizeScalar {
-  int value = 0;
-  static Index copies;
-  static Index moves;
-
-  ResizeScalar() = default;
-  ResizeScalar(const ResizeScalar& other) : value(other.value) { ++copies; }
-  ResizeScalar(ResizeScalar&& other) noexcept : value(other.value) { ++moves; }
-  ResizeScalar& operator=(const ResizeScalar& other) {
-    value = other.value;
-    ++copies;
-    return *this;
-  }
-  ResizeScalar& operator=(ResizeScalar&& other) noexcept {
-    value = other.value;
-    ++moves;
-    return *this;
-  }
-  static void reset() { copies = moves = 0; }
-};
-
-Index ResizeScalar::copies = 0;
-Index ResizeScalar::moves = 0;
-
-template <typename VectorType>
-void fixed_capacity_vector_resize() {
-  STATIC_CHECK((!std::is_trivially_copyable<ResizeScalar>::value));
-  STATIC_CHECK((internal::conservative_resize_like_impl<VectorType>::IsRelocatable));
-  STATIC_CHECK((!internal::conservative_resize_like_impl<Matrix<ResizeScalar, Dynamic, 1>>::IsRelocatable));
-  VectorType v;
-  const ResizeScalar* data = v.data();
-  ResizeScalar::reset();
-  for (Index size = 1; size <= VectorType::MaxSizeAtCompileTime; ++size) {
-    v.conservativeResize(size);
-    v(size - 1).value = int(size);
-  }
-  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
-  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
-  VERIFY(v.data() == data);
-  for (Index i = 0; i < v.size(); ++i) VERIFY_IS_EQUAL(v(i).value, i + 1);
-
-  v.conservativeResize(2);
-  v.conservativeResize(2);
-  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
-  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
-
-  // A source with the opposite orientation exercises the vector resizeLike specialization.
-  Matrix<ResizeScalar, VectorType::IsRowMajor ? Dynamic : 1, VectorType::IsRowMajor ? 1 : Dynamic> other(5);
-  for (Index i = 0; i < other.size(); ++i) other(i).value = -int(i + 1);
-  v.conservativeResizeLike(other);
-  VERIFY_IS_EQUAL(ResizeScalar::copies, 3);
-  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
-  VERIFY_IS_EQUAL(v.rows(), VectorType::IsRowMajor ? 1 : 5);
-  VERIFY_IS_EQUAL(v.cols(), VectorType::IsRowMajor ? 5 : 1);
-  for (Index i = 0; i < v.size(); ++i) VERIFY_IS_EQUAL(v(i).value, i < 2 ? i + 1 : -(i + 1));
-
-  ResizeScalar::reset();
-  v.conservativeResizeLike(other.head(1));
-  VERIFY_IS_EQUAL(v.size(), 1);
-  VERIFY_IS_EQUAL(v(0).value, 1);
-  v.conservativeResize(0);
-  VERIFY_IS_EQUAL(v.size(), 0);
-  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
-  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
-  VERIFY(v.data() == data);
-}
+using ResizeScalar = lifetime_scalar::LifetimeScalar<>;
 
 template <typename MatrixType>
 void fixed_capacity_matrix_resize() {
@@ -293,6 +229,8 @@ void same_shape_vector_resize() {
 template <typename Vector>
 void two_dimensional_vector_resize() {
   STATIC_CHECK(!std::is_trivially_copyable<typename Vector::Scalar>::value);
+  STATIC_CHECK((internal::conservative_resize_like_impl<Vector>::IsRelocatable));
+  STATIC_CHECK((!internal::conservative_resize_like_impl<Matrix<ResizeScalar, Dynamic, 1>>::IsRelocatable));
   Vector v;
   const auto* data = v.data();
   ResizeScalar::reset();
@@ -334,6 +272,31 @@ void two_dimensional_vector_resize() {
   VERIFY_RAISES_ASSERT(
       v.conservativeResize(Vector::RowsAtCompileTime == 1 ? 1 : 17, Vector::RowsAtCompileTime == 1 ? 17 : 1));
   v.conservativeResize(Vector::RowsAtCompileTime == 1 ? 1 : 0, Vector::RowsAtCompileTime == 1 ? 0 : 1);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY(v.data() == data);
+
+  // A source with the opposite orientation exercises the vector resizeLike specialization.
+  constexpr bool is_row = Vector::RowsAtCompileTime == 1;
+  v.conservativeResize(is_row ? 1 : 2, is_row ? 2 : 1);
+  v(0).value = 1;
+  v(1).value = 2;
+  Matrix<ResizeScalar, is_row ? Dynamic : 1, is_row ? 1 : Dynamic> opposite(5);
+  for (Index i = 0; i < opposite.size(); ++i) opposite(i).value = -int(i + 1);
+  ResizeScalar::reset();
+  v.conservativeResizeLike(opposite);
+  VERIFY_IS_EQUAL(ResizeScalar::copies, 3);
+  VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
+  VERIFY_IS_EQUAL(v.rows(), is_row ? 1 : 5);
+  VERIFY_IS_EQUAL(v.cols(), is_row ? 5 : 1);
+  for (Index i = 0; i < v.size(); ++i) VERIFY_IS_EQUAL(v(i).value, i < 2 ? i + 1 : -(i + 1));
+
+  ResizeScalar::reset();
+  v.conservativeResizeLike(opposite.head(1));
+  VERIFY_IS_EQUAL(v.size(), 1);
+  VERIFY_IS_EQUAL(v(0).value, 1);
+  v.conservativeResize(is_row ? 1 : 0, is_row ? 0 : 1);
+  VERIFY_IS_EQUAL(v.size(), 0);
   VERIFY_IS_EQUAL(ResizeScalar::copies, 0);
   VERIFY_IS_EQUAL(ResizeScalar::moves, 0);
   VERIFY(v.data() == data);
@@ -409,8 +372,6 @@ EIGEN_DECLARE_TEST(conservative_resize) {
     CALL_SUBTEST_6((run_vector_tests<AnnoyingScalar>()));
     CALL_SUBTEST_6((noncopyable<0>()));
 
-    CALL_SUBTEST_7((fixed_capacity_vector_resize<Array<ResizeScalar, Dynamic, 1, ColMajor, 8, 1>>()));
-    CALL_SUBTEST_7((fixed_capacity_vector_resize<Matrix<ResizeScalar, 1, Dynamic, RowMajor, 1, 8>>()));
     CALL_SUBTEST_7((fixed_capacity_matrix_resize<Matrix<ResizeScalar, Dynamic, Dynamic, ColMajor, 5, 5>>()));
     CALL_SUBTEST_7((fixed_capacity_matrix_resize<Array<ResizeScalar, Dynamic, Dynamic, RowMajor, 5, 5>>()));
     CALL_SUBTEST_7((fixed_capacity_matrix_resize<Matrix<ResizeScalar, 3, Dynamic, ColMajor, 3, 5>>()));

@@ -36,15 +36,6 @@ extern "C" void EIGEN_BLAS_SYM(sbgemm)(const char* trans_a, const char* trans_b,
     }
 }
 
-// Small integer entries keep every float sum exact, so the one rounding to bfloat16 is the only error allowed.
-template <typename MatrixType>
-MatrixType sbgemm_operand(Index rows, Index cols, int max_entry) {
-  MatrixType m(rows, cols);
-  for (Index j = 0; j < cols; ++j)
-    for (Index i = 0; i < rows; ++i) m(i, j) = bfloat16(float(internal::random<int>(0, max_entry)));
-  return m;
-}
-
 // The bfloat16 rounding of c0 + alpha * lhs * rhs, computed without a GEMM, which EIGEN_USE_BLAS would send to BLAS.
 template <typename Dst, typename Lhs, typename Rhs>
 Dst sbgemm_expected(const Dst& c0, const Lhs& lhs, const Rhs& rhs, float alpha) {
@@ -63,10 +54,11 @@ void blas_sbgemm(Index rows, Index depth, Index cols) {
   using Lhs = Matrix<bfloat16, Dynamic, Dynamic, LhsOrder>;
   using Rhs = Matrix<bfloat16, Dynamic, Dynamic, RhsOrder>;
   using Dst = Matrix<bfloat16, Dynamic, Dynamic, DstOrder>;
-  // The products exceed 256, where bfloat16 starts rounding integers, so adding c0 before or after rounding differs.
-  const Lhs lhs = sbgemm_operand<Lhs>(rows, depth, 4);
-  const Rhs rhs = sbgemm_operand<Rhs>(depth, cols, 4);
-  const Dst c0 = sbgemm_operand<Dst>(rows, cols, 7);
+  // Small integer entries keep every float sum exact, so the one rounding to bfloat16 is the only error allowed. The
+  // products exceed 256, where bfloat16 starts rounding integers, so adding c0 before or after rounding differs.
+  const Lhs lhs = RandomIntegerMatrix<Lhs>(rows, depth, 0, 4);
+  const Rhs rhs = RandomIntegerMatrix<Rhs>(depth, cols, 0, 4);
+  const Dst c0 = RandomIntegerMatrix<Dst>(rows, cols, 0, 7);
   const Dst zero = Dst::Zero(rows, cols);
   const Dst product = sbgemm_expected(zero, lhs, rhs, 1.f);
 

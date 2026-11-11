@@ -3,61 +3,14 @@
 
 #define EIGEN_RUNTIME_NO_MALLOC
 #include "main.h"
+#include "product_test_helpers.h"
 #define EIGEN_TEST_ANNOYING_SCALAR_DONT_THROW
 #include "AnnoyingScalar.h"
 
-template <typename Lhs, typename Rhs>
-void check_degenerate_gemv(const Lhs& lhs, const Rhs& rhs) {
-  using Scalar = typename ScalarBinaryOpTraits<typename Lhs::Scalar, typename Rhs::Scalar>::ReturnType;
-  using Real = typename NumTraits<Scalar>::Real;
-  using Wide = std::conditional_t<NumTraits<Scalar>::IsComplex, std::complex<long double>, long double>;
-  using Vector = Matrix<Scalar, Dynamic, 1>;
-  const Scalar alpha = internal::random<Scalar>();
-  const Vector initial = Vector::Random(lhs.rows());
-  Vector contiguous(initial);
-  Vector storage = Vector::Constant(2 * lhs.rows() + 1, Scalar(7));
-  Map<Vector, Unaligned, InnerStride<2>> result(storage.data(), lhs.rows());
-  Vector dynamicStorage(storage);
-  Map<Vector, Unaligned, InnerStride<Dynamic>> dynamicResult(dynamicStorage.data(), lhs.rows(),
-                                                             InnerStride<Dynamic>(2));
-  for (int operation = 0; operation < 3; ++operation) {
-    result = initial;
-    contiguous = initial;
-    dynamicResult = initial;
-    auto evaluate = [&](auto& target) {
-      if (operation == 0) target.noalias() = alpha * lhs * rhs;
-      if (operation == 1) target.noalias() += alpha * lhs * rhs;
-      if (operation == 2) target.noalias() -= alpha * lhs * rhs;
-    };
-    evaluate(result);
-    evaluate(contiguous);
-    evaluate(dynamicResult);
-    for (Index i = 0; i < lhs.rows(); ++i) {
-      Wide sum(0);
-      long double magnitude = 0;
-      for (Index k = 0; k < lhs.cols(); ++k) {
-        const Wide term = internal::cast<Scalar, Wide>(alpha) *
-                          internal::cast<typename Lhs::Scalar, Wide>(lhs.coeff(i, k)) *
-                          internal::cast<typename Rhs::Scalar, Wide>(rhs.coeff(k, 0));
-        sum += term;
-        magnitude += numext::abs(term);
-      }
-      const Wide expected = operation == 0 ? sum : Wide(initial[i]) + (operation == 1 ? sum : -sum);
-      const long double bound =
-          32 * static_cast<long double>(NumTraits<Real>::epsilon()) * (magnitude + numext::abs(Wide(initial[i])));
-      VERIFY(numext::abs(Wide(result[i]) - expected) <= bound);
-      VERIFY(numext::abs(Wide(contiguous[i]) - expected) <= bound);
-      VERIFY(numext::abs(Wide(dynamicResult[i]) - expected) <= bound);
-    }
-    for (Index i = 1; i < storage.size(); i += 2) VERIFY_IS_EQUAL(storage[i], Scalar(7));
-    VERIFY_IS_EQUAL(storage[storage.size() - 1], Scalar(7));
-    for (Index i = 1; i < dynamicStorage.size(); i += 2) VERIFY_IS_EQUAL(dynamicStorage[i], Scalar(7));
-    VERIFY_IS_EQUAL(dynamicStorage[dynamicStorage.size() - 1], Scalar(7));
-  }
-}
-
 template <typename LhsScalar, typename RhsScalar = LhsScalar>
 void degenerate_gemv() {
+  // Depth at most 4, plus the scalings of the operands and of alpha.
+  const double factor = 32;
   using MatrixType = Matrix<LhsScalar, Dynamic, Dynamic>;
   using RhsVector = Matrix<RhsScalar, Dynamic, 1>;
   for (Index n : {0, 1, 3, 8, 17, 257}) {
@@ -65,26 +18,26 @@ void degenerate_gemv() {
       MatrixType a = MatrixType::Random(depth, n);
       RhsVector rhsStorage = RhsVector::Random(3 * depth + 1);
       Map<RhsVector, Unaligned, InnerStride<3>> rhs(rhsStorage.data(), depth);
-      check_degenerate_gemv(a.transpose(), rhs);
-      check_degenerate_gemv(a.adjoint(), rhs.conjugate());
-      check_degenerate_gemv(LhsScalar(0.75) * a.adjoint(), RhsScalar(0.5) * rhs);
+      VERIFY(gemv_matches_long_double(a.transpose(), rhs, factor));
+      VERIFY(gemv_matches_long_double(a.adjoint(), rhs.conjugate(), factor));
+      VERIFY(gemv_matches_long_double(LhsScalar(0.75) * a.adjoint(), RhsScalar(0.5) * rhs, factor));
       MatrixType columnMajor = a.transpose();
-      check_degenerate_gemv(columnMajor, rhs);
-      check_degenerate_gemv(columnMajor.conjugate(), rhs.conjugate());
-      check_degenerate_gemv(LhsScalar(0.75) * columnMajor.conjugate(), RhsScalar(0.5) * rhs);
+      VERIFY(gemv_matches_long_double(columnMajor, rhs, factor));
+      VERIFY(gemv_matches_long_double(columnMajor.conjugate(), rhs.conjugate(), factor));
+      VERIFY(gemv_matches_long_double(LhsScalar(0.75) * columnMajor.conjugate(), RhsScalar(0.5) * rhs, factor));
     }
     Matrix<LhsScalar, Dynamic, 1> lhsStorage = Matrix<LhsScalar, Dynamic, 1>::Random(3 * n + 1);
     using RowMatrix = Matrix<LhsScalar, Dynamic, Dynamic, RowMajor>;
     Map<RowMatrix, Unaligned, OuterStride<3>> lhs(lhsStorage.data(), n, 1);
     RhsVector rhs = RhsVector::Random(1);
-    check_degenerate_gemv(lhs, rhs);
+    VERIFY(gemv_matches_long_double(lhs, rhs, factor));
     Map<RowMatrix, Unaligned, OuterStride<>> runtimeLhs(lhsStorage.data(), n, 1, OuterStride<>(3));
-    check_degenerate_gemv(runtimeLhs, rhs);
+    VERIFY(gemv_matches_long_double(runtimeLhs, rhs, factor));
     Matrix<LhsScalar, 1, Dynamic> row = Matrix<LhsScalar, 1, Dynamic>::Random(n);
-    check_degenerate_gemv(row.transpose(), rhs);
+    VERIFY(gemv_matches_long_double(row.transpose(), rhs, factor));
     Matrix<LhsScalar, 2, Dynamic> fixedDepth = Matrix<LhsScalar, 2, Dynamic>::Random(2, n);
     RhsVector fixedDepthRhs = RhsVector::Random(2);
-    check_degenerate_gemv(fixedDepth.transpose(), fixedDepthRhs);
+    VERIFY(gemv_matches_long_double(fixedDepth.transpose(), fixedDepthRhs, factor));
   }
 }
 

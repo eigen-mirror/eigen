@@ -27,55 +27,34 @@ EIGEN_DEFINE_STL_DEQUE_SPECIALIZATION(Affine3d)
 EIGEN_DEFINE_STL_DEQUE_SPECIALIZATION(Quaternionf)
 EIGEN_DEFINE_STL_DEQUE_SPECIALIZATION(Quaterniond)
 
-template <typename MatrixType>
-void check_stddeque_matrix(const MatrixType& m) {
-  Index rows = m.rows();
-  Index cols = m.cols();
-  MatrixType x = MatrixType::Random(rows, cols), y = MatrixType::Random(rows, cols);
-  std::deque<MatrixType> v(10, MatrixType::Zero(rows, cols)), w(20, y);
-  check_stl_container_indexed(v, w, x, y);
-}
-
-template <typename TransformType>
-void check_stddeque_transform(const TransformType&) {
-  using MatrixType = typename TransformType::MatrixType;
-  TransformType x(MatrixType::Random()), y(MatrixType::Random()), ti = TransformType::Identity();
-  std::deque<TransformType> v(10, ti), w(20, y);
-  check_stl_container_indexed(v, w, x, y, ti);
-}
-
-template <typename QuaternionType>
-void check_stddeque_quaternion(const QuaternionType&) {
-  using Coefficients = typename QuaternionType::Coefficients;
-  QuaternionType x(Coefficients::Random()), y(Coefficients::Random()), qi = QuaternionType::Identity();
-  std::deque<QuaternionType> v(10, qi), w(20, y);
-  check_stl_container_indexed(v, w, x, y, qi);
-}
+template <typename T>
+using TestContainer = std::deque<T>;
 
 EIGEN_DECLARE_TEST(stddeque_overload) {
   // some non vectorizable fixed sizes
-  CALL_SUBTEST_1(check_stddeque_matrix(Vector2f()));
-  CALL_SUBTEST_1(check_stddeque_matrix(Matrix3f()));
-  CALL_SUBTEST_2(check_stddeque_matrix(Matrix3d()));
+  CALL_SUBTEST_1(check_stl_container_matrix<TestContainer>(Vector2f()));
+  CALL_SUBTEST_1(check_stl_container_matrix<TestContainer>(Matrix3f()));
+  CALL_SUBTEST_2(check_stl_container_matrix<TestContainer>(Matrix3d()));
 
   // some vectorizable fixed sizes
-  CALL_SUBTEST_1(check_stddeque_matrix(Matrix2f()));
-  CALL_SUBTEST_1(check_stddeque_matrix(Vector4f()));
-  CALL_SUBTEST_1(check_stddeque_matrix(Matrix4f()));
-  CALL_SUBTEST_2(check_stddeque_matrix(Matrix4d()));
+  CALL_SUBTEST_1(check_stl_container_matrix<TestContainer>(Matrix2f()));
+  CALL_SUBTEST_1(check_stl_container_matrix<TestContainer>(Vector4f()));
+  CALL_SUBTEST_1(check_stl_container_matrix<TestContainer>(Matrix4f()));
+  CALL_SUBTEST_2(check_stl_container_matrix<TestContainer>(Matrix4d()));
 
   // some dynamic sizes
-  CALL_SUBTEST_3(check_stddeque_matrix(MatrixXd(1, 1)));
-  CALL_SUBTEST_3(check_stddeque_matrix(VectorXd(20)));
-  CALL_SUBTEST_3(check_stddeque_matrix(RowVectorXf(20)));
-  CALL_SUBTEST_3(check_stddeque_matrix(MatrixXcf(10, 10)));
+  CALL_SUBTEST_3(check_stl_container_matrix<TestContainer>(MatrixXd(1, 1)));
+  CALL_SUBTEST_3(check_stl_container_matrix<TestContainer>(VectorXd(20)));
+  CALL_SUBTEST_3(check_stl_container_matrix<TestContainer>(RowVectorXf(20)));
+  CALL_SUBTEST_3(check_stl_container_matrix<TestContainer>(MatrixXcf(10, 10)));
 
   // some Transform
-  CALL_SUBTEST_4(check_stddeque_transform(Affine2f()));  // does not need the specialization (2+1)^2 = 9
-  CALL_SUBTEST_4(check_stddeque_transform(Affine3f()));
-  CALL_SUBTEST_4(check_stddeque_transform(Affine3d()));
+  CALL_SUBTEST_4(
+      check_stl_container_transform<TestContainer>(Affine2f()));  // does not need the specialization (2+1)^2 = 9
+  CALL_SUBTEST_4(check_stl_container_transform<TestContainer>(Affine3f()));
+  CALL_SUBTEST_4(check_stl_container_transform<TestContainer>(Affine3d()));
 
   // some Quaternion
-  CALL_SUBTEST_5(check_stddeque_quaternion(Quaternionf()));
-  CALL_SUBTEST_5(check_stddeque_quaternion(Quaterniond()));
+  CALL_SUBTEST_5(check_stl_container_quaternion<TestContainer>(Quaternionf()));
+  CALL_SUBTEST_5(check_stl_container_quaternion<TestContainer>(Quaterniond()));
 }

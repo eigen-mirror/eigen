@@ -28,6 +28,13 @@ std::enable_if_t<std::is_same<T1, T2>::value, bool> is_same_type(const T1&, cons
 
 }  // namespace Eigen
 
+// Stores the address of value, so a static data member passed here is odr-used at every optimization level.
+template <typename T>
+T read_through_address(const T& value) {
+  const T* volatile address = &value;
+  return *address;
+}
+
 template <typename T>
 struct GetDifferentType;
 

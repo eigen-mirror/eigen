@@ -6,7 +6,9 @@
 
 #include <cfenv>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 
 #include <Eigen/Core>
@@ -230,6 +232,17 @@ class ScopedFlushToZero {
 #endif
   }
 
+  // The flushing the control registers currently select, decoded like mode(): x86 reports FTZ and DAZ separately.
+  static FlushToZeroMode hardwareMode() {
+#if EIGEN_TEST_HAS_RUNTIME_FTZ && EIGEN_TEST_HAS_X86_FTZ
+    const std::uint32_t actual = static_cast<std::uint32_t>(_mm_getcsr());
+    return static_cast<FlushToZeroMode>(((actual & x86FlushToZeroMask()) != 0 ? 1 : 0) |
+                                        ((actual & x86DenormalsAreZeroMask()) != 0 ? 2 : 0));
+#else
+    return hardwareFlushesSubnormalInputs() ? FlushToZeroMode::Both : FlushToZeroMode::None;
+#endif
+  }
+
   ScopedFlushToZero(const ScopedFlushToZero&) = delete;
   ScopedFlushToZero& operator=(const ScopedFlushToZero&) = delete;
 
@@ -343,6 +356,49 @@ bool subnormalDivisionIsExact() {
     if (quotients[k] != Scalar(k + 1) / std::numeric_limits<Scalar>::epsilon()) return false;
   }
   return true;
+}
+
+// The flags in `mask` that f() raises, run with the floating-point environment held and restored afterwards: the
+// caller's flags are untouched. Where the environment cannot be held it prints a SKIP line, still runs f() so that its
+// results exist, and returns -1; callers test `raised >= 0` before comparing. It also returns -1 when the environment
+// cannot be restored. The compiler may fold f() or move it across the flag accesses unless its operands and results
+// pass through volatile objects, which is f()'s job; for arrays, fp_exceptions_raised_by_staged below does it.
+template <typename Func>
+int fp_exceptions_raised_by(int mask, const Func& f) {
+  std::fenv_t environment;
+  if (std::feholdexcept(&environment) != 0) {
+    std::cout << "SKIP: floating-point exception check: feholdexcept failed.\n";
+    f();
+    return -1;
+  }
+  f();
+  const int raised = std::fetestexcept(mask);
+  if (std::fesetenv(&environment) != 0) {
+    std::cout << "SKIP: floating-point exception check: fesetenv failed.\n";
+    return -1;
+  }
+  return raised;
+}
+
+// fp_exceptions_raised_by(mask, ...) of op(operands, results), where operands are copies of in[0, NumIn) and results
+// are copied to out[0, NumOut). Both pass through volatile byte arrays between the flag calls. The arrays themselves
+// must be volatile: GCC 10 at -O3 drops volatile accesses through a pointer to non-volatile ones.
+template <int NumIn, int NumOut, typename Scalar, typename Op>
+int fp_exceptions_raised_by_staged(int mask, const Scalar* in, Scalar* out, Op op) {
+  Scalar operands[NumIn], results[NumOut];
+  volatile unsigned char staged_operands[sizeof(operands)], staged_results[sizeof(results)];
+  const unsigned char* in_bytes = reinterpret_cast<const unsigned char*>(in);
+  for (std::size_t k = 0; k < sizeof(operands); ++k) staged_operands[k] = in_bytes[k];
+  const int raised = fp_exceptions_raised_by(mask, [&] {
+    unsigned char* operand_bytes = reinterpret_cast<unsigned char*>(operands);
+    for (std::size_t k = 0; k < sizeof(operands); ++k) operand_bytes[k] = staged_operands[k];
+    op(operands, results);
+    const unsigned char* result_bytes = reinterpret_cast<const unsigned char*>(results);
+    for (std::size_t k = 0; k < sizeof(results); ++k) staged_results[k] = result_bytes[k];
+  });
+  unsigned char* out_bytes = reinterpret_cast<unsigned char*>(out);
+  for (std::size_t k = 0; k < sizeof(results); ++k) out_bytes[k] = staged_results[k];
+  return raised;
 }
 
 }  // namespace Eigen

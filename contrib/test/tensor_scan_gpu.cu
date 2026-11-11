@@ -16,6 +16,7 @@
 
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 using Eigen::Tensor;
 using DimPair = Tensor<float, 1>::DimensionPair;
@@ -25,33 +26,17 @@ void test_gpu_cumsum(int m_size, int k_size, int n_size) {
   std::cout << "Testing for (" << m_size << "," << k_size << "," << n_size << ")" << std::endl;
   Tensor<float, 3, DataLayout> t_input(m_size, k_size, n_size);
   Tensor<float, 3, DataLayout> t_result(m_size, k_size, n_size);
-  Tensor<float, 3, DataLayout> t_result_gpu(m_size, k_size, n_size);
 
   t_input.setRandom();
 
-  std::size_t t_input_bytes = t_input.size() * sizeof(float);
-  std::size_t t_result_bytes = t_result.size() * sizeof(float);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_t_input = fixture.fromHost(t_input);
+  auto gpu_t_result = fixture.tensor<float, 3, Eigen::Aligned, DataLayout>(m_size, k_size, n_size);
 
-  float* d_t_input;
-  float* d_t_result;
-
-  gpuMalloc((void**)(&d_t_input), t_input_bytes);
-  gpuMalloc((void**)(&d_t_result), t_result_bytes);
-
-  gpuMemcpy(d_t_input, t_input.data(), t_input_bytes, gpuMemcpyHostToDevice);
-
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<float, 3, DataLayout> > gpu_t_input(d_t_input,
-                                                                     Eigen::array<int, 3>{m_size, k_size, n_size});
-  Eigen::TensorMap<Eigen::Tensor<float, 3, DataLayout> > gpu_t_result(d_t_result,
-                                                                      Eigen::array<int, 3>{m_size, k_size, n_size});
-
-  gpu_t_result.device(gpu_device) = gpu_t_input.cumsum(1);
+  gpu_t_result.device(fixture.device()) = gpu_t_input.cumsum(1);
   t_result = t_input.cumsum(1);
 
-  gpuMemcpy(t_result_gpu.data(), d_t_result, t_result_bytes, gpuMemcpyDeviceToHost);
+  const auto t_result_gpu = fixture.toHost(gpu_t_result);
   for (DenseIndex i = 0; i < t_result.size(); i++) {
     // Scans accumulate float rounding error; 1024 * eps of absolute slack covers it before the relative check.
     if (numext::abs(t_result(i) - t_result_gpu(i)) < 1024 * NumTraits<float>::epsilon()) {
@@ -63,9 +48,6 @@ void test_gpu_cumsum(int m_size, int k_size, int n_size) {
     std::cout << "mismatch detected at index " << i << ": " << t_result(i) << " vs " << t_result_gpu(i) << std::endl;
     assert(false);
   }
-
-  gpuFree((void*)d_t_input);
-  gpuFree((void*)d_t_result);
 }
 
 EIGEN_DECLARE_TEST(tensor_scan_gpu) {

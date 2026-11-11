@@ -15,11 +15,11 @@
 
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 template <typename Type, int DataLayout>
 static void test_full_reductions() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
+  tensor_test::GpuTensorTestFixture fixture;
 
   const int num_rows = internal::random<int>(1024, 5 * 1024);
   const int num_cols = internal::random<int>(1024, 5 * 1024);
@@ -30,44 +30,25 @@ static void test_full_reductions() {
   Tensor<Type, 0, DataLayout> full_redux;
   full_redux = in.sum();
 
-  std::size_t in_bytes = in.size() * sizeof(Type);
-  std::size_t out_bytes = full_redux.size() * sizeof(Type);
-  Type* gpu_in_ptr = static_cast<Type*>(gpu_device.allocate(in_bytes));
-  Type* gpu_out_ptr = static_cast<Type*>(gpu_device.allocate(out_bytes));
-  gpu_device.memcpyHostToDevice(gpu_in_ptr, in.data(), in_bytes);
+  auto in_gpu = fixture.fromHost(in);
+  auto out_gpu = fixture.tensor<Type, 0, Eigen::Aligned, DataLayout>();
 
-  TensorMap<Tensor<Type, 2, DataLayout> > in_gpu(gpu_in_ptr, num_rows, num_cols);
-  TensorMap<Tensor<Type, 0, DataLayout> > out_gpu(gpu_out_ptr);
-
-  out_gpu.device(gpu_device) = in_gpu.sum();
-
-  Tensor<Type, 0, DataLayout> full_redux_gpu;
-  gpu_device.memcpyDeviceToHost(full_redux_gpu.data(), gpu_out_ptr, out_bytes);
-  gpu_device.synchronize();
+  out_gpu.device(fixture.device()) = in_gpu.sum();
 
   // Check that the CPU and GPU reductions return the same result.
-  VERIFY_IS_APPROX(full_redux(), full_redux_gpu());
-
-  gpu_device.deallocate(gpu_in_ptr);
-  gpu_device.deallocate(gpu_out_ptr);
+  VERIFY_IS_APPROX(full_redux(), fixture.toHost(out_gpu)());
 }
 
 // A full reduction of an empty tensor writes the reducer's identity.
 template <typename Type>
 static void test_empty_full_reduction() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-  Type* gpu_out_ptr = static_cast<Type*>(gpu_device.allocate(sizeof(Type)));
-  const Type sentinel(7);
-  gpu_device.memcpyHostToDevice(gpu_out_ptr, &sentinel, sizeof(Type));
-  TensorMap<Tensor<Type, 2> > in_gpu(static_cast<Type*>(nullptr), 0, 3);
-  TensorMap<Tensor<Type, 0> > out_gpu(gpu_out_ptr);
-  out_gpu.device(gpu_device) = in_gpu.sum();
-  Type result;
-  gpu_device.memcpyDeviceToHost(&result, gpu_out_ptr, sizeof(Type));
-  gpu_device.synchronize();
-  VERIFY_IS_EQUAL(result, Type(0));
-  gpu_device.deallocate(gpu_out_ptr);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto in_gpu = fixture.tensor<Type, 2, Eigen::Unaligned>(0, 3);
+  Tensor<Type, 0> sentinel;
+  sentinel() = Type(7);
+  auto out_gpu = fixture.fromHost(sentinel);
+  out_gpu.device(fixture.device()) = in_gpu.sum();
+  VERIFY_IS_EQUAL(fixture.toHost(out_gpu)(), Type(0));
 }
 
 template <typename Type, int DataLayout>
@@ -79,31 +60,19 @@ static void test_first_dim_reductions(int dim_x = 33, int dim_y = 1, int dim_z =
   red_axis[0] = 0;
   Tensor<Type, 2, DataLayout> redux = in.sum(red_axis);
 
-  // Create device
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice dev(&stream);
-
-  // Create data(T)
-  Type* in_data = (Type*)dev.allocate(dim_x * dim_y * dim_z * sizeof(Type));
-  Type* out_data = (Type*)dev.allocate(dim_z * dim_y * sizeof(Type));
-  Eigen::TensorMap<Eigen::Tensor<Type, 3, DataLayout> > gpu_in(in_data, dim_x, dim_y, dim_z);
-  Eigen::TensorMap<Eigen::Tensor<Type, 2, DataLayout> > gpu_out(out_data, dim_y, dim_z);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_in = fixture.fromHost(in);
+  auto gpu_out = fixture.tensor<Type, 2, Eigen::Aligned, DataLayout>(dim_y, dim_z);
 
   // Perform operation
-  dev.memcpyHostToDevice(in_data, in.data(), in.size() * sizeof(Type));
-  gpu_out.device(dev) = gpu_in.sum(red_axis);
-  gpu_out.device(dev) += gpu_in.sum(red_axis);
-  Tensor<Type, 2, DataLayout> redux_gpu(dim_y, dim_z);
-  dev.memcpyDeviceToHost(redux_gpu.data(), out_data, gpu_out.size() * sizeof(Type));
-  dev.synchronize();
+  gpu_out.device(fixture.device()) = gpu_in.sum(red_axis);
+  gpu_out.device(fixture.device()) += gpu_in.sum(red_axis);
+  const auto redux_gpu = fixture.toHost(gpu_out);
 
   // Check that the CPU and GPU reductions return the same result.
   for (int i = 0; i < gpu_out.size(); ++i) {
     VERIFY_IS_APPROX(2 * redux(i), redux_gpu(i));
   }
-
-  dev.deallocate(in_data);
-  dev.deallocate(out_data);
 }
 
 template <typename Type, int DataLayout>
@@ -115,31 +84,19 @@ static void test_last_dim_reductions(int dim_x = 128, int dim_y = 1, int dim_z =
   red_axis[0] = 2;
   Tensor<Type, 2, DataLayout> redux = in.sum(red_axis);
 
-  // Create device
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice dev(&stream);
-
-  // Create data
-  Type* in_data = (Type*)dev.allocate(dim_x * dim_y * dim_z * sizeof(Type));
-  Type* out_data = (Type*)dev.allocate(dim_x * dim_y * sizeof(Type));
-  Eigen::TensorMap<Eigen::Tensor<Type, 3, DataLayout> > gpu_in(in_data, dim_x, dim_y, dim_z);
-  Eigen::TensorMap<Eigen::Tensor<Type, 2, DataLayout> > gpu_out(out_data, dim_x, dim_y);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_in = fixture.fromHost(in);
+  auto gpu_out = fixture.tensor<Type, 2, Eigen::Aligned, DataLayout>(dim_x, dim_y);
 
   // Perform operation
-  dev.memcpyHostToDevice(in_data, in.data(), in.size() * sizeof(Type));
-  gpu_out.device(dev) = gpu_in.sum(red_axis);
-  gpu_out.device(dev) += gpu_in.sum(red_axis);
-  Tensor<Type, 2, DataLayout> redux_gpu(dim_x, dim_y);
-  dev.memcpyDeviceToHost(redux_gpu.data(), out_data, gpu_out.size() * sizeof(Type));
-  dev.synchronize();
+  gpu_out.device(fixture.device()) = gpu_in.sum(red_axis);
+  gpu_out.device(fixture.device()) += gpu_in.sum(red_axis);
+  const auto redux_gpu = fixture.toHost(gpu_out);
 
   // Check that the CPU and GPU reductions return the same result.
   for (int i = 0; i < gpu_out.size(); ++i) {
     VERIFY_IS_APPROX(2 * redux(i), redux_gpu(i));
   }
-
-  dev.deallocate(in_data);
-  dev.deallocate(out_data);
 }
 
 EIGEN_DECLARE_TEST(tensor_reduction_gpu) {

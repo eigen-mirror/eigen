@@ -87,7 +87,7 @@ set(ei_smoke_test_list
   nullary_1
   num_dimensions
   NumericalDiff
-  numext
+  numext_fma_off
   packetmath
   packetmath_fastmath
   packetmath_fastmath_generic_16

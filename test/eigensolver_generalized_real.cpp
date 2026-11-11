@@ -14,6 +14,7 @@
 #include <limits>
 #include <Eigen/Eigenvalues>
 #include <Eigen/LU>
+#include "qz_test_helpers.h"
 
 template <typename MatrixType>
 void generalized_eigensolver_real(const MatrixType& m) {
@@ -125,24 +126,15 @@ template <typename MatrixType>
 void generalized_eigensolver_scaled_complex_pairs() {
   using Scalar = typename MatrixType::Scalar;
   using ComplexScalar = std::complex<Scalar>;
-  using ComplexVector = Matrix<ComplexScalar, Dynamic, 1>;
   // QZ and the back substitution are backward stable: eta_k = O(n eps) for every eigenpair.
   const auto verifyComplexEigenpairs = [](const MatrixType& a, const MatrixType& b) {
     GeneralizedEigenSolver<MatrixType> eig(a, b);
     VERIFY_IS_EQUAL(eig.info(), Success);
     VERIFY((eig.eigenvalues().imag().array() != Scalar(0)).all());
     const Scalar tolerance = Scalar(4 * a.rows()) * NumTraits<Scalar>::epsilon();
-    const Scalar normA = a.stableNorm(), normB = b.stableNorm();
     for (Index k = 0; k < a.rows(); ++k) {
-      // eta_k = |(beta_k A - alpha_k B) v_k| / ((|beta_k| |A| + |alpha_k| |B|) |v_k|).
-      const ComplexScalar alpha = eig.alphas()(k);
-      const Scalar beta = eig.betas()(k);
-      const ComplexVector vk = eig.eigenvectors().col(k);
-      const ComplexVector residual =
-          (a.template cast<ComplexScalar>() * vk) * beta - (b.template cast<ComplexScalar>() * vk) * alpha;
-      const Scalar eta =
-          residual.stableNorm() / ((numext::abs(beta) * normA + numext::abs(alpha) * normB) * vk.stableNorm());
-      VERIFY(eta <= tolerance);
+      VERIFY(generalized_eigenpair_backward_error(a, b, eig.alphas()(k), eig.betas()(k), eig.eigenvectors().col(k)) <=
+             tolerance);
     }
   };
 
@@ -226,9 +218,7 @@ void generalized_eigensolver_repeated_eigenvalues() {
       const Scalar scale = numext::maxi(numext::abs(eig.alphas()(i)), numext::abs(eig.betas()(i)));
       const Complex alpha = eig.alphas()(i) / scale;
       const Scalar beta = eig.betas()(i) / scale;
-      const Scalar residual =
-          (beta * a.template cast<Complex>() * v.col(i) - alpha * b.template cast<Complex>() * v.col(i)).norm();
-      VERIFY(residual <= tolerance * (numext::abs(beta) * a.norm() + numext::abs(alpha) * b.norm()));
+      VERIFY(generalized_eigenpair_backward_error(a, b, alpha, beta, v.col(i)) <= tolerance);
     }
     return v;
   };
@@ -286,16 +276,13 @@ void generalized_eigensolver_repeated_eigenvalues() {
   }
 
   // A rotation by pi / 2 twice: the complex pair +-i is repeated.
-  MatrixType rotations = MatrixType::Zero(4, 4);
-  rotations(0, 1) = rotations(2, 3) = Scalar(-1);
-  rotations(1, 0) = rotations(3, 2) = Scalar(1);
+  MatrixType rotations = qz_rotation_blocks<MatrixType>(4, Scalar(1));
   verifyOrthonormal(eigenvectors(rotations, identity4, Scalar(1)));
   rotations(0, 3) = Scalar(0.5);
   eigenvectors(rotations, identity4, Scalar(1));
 
   // (diagonal, I), not in Schur form.
-  const MatrixType p = MatrixType::Random(4, 4).householderQr().householderQ();
-  const MatrixType z = MatrixType::Random(4, 4).householderQr().householderQ();
+  const MatrixType p = generateRandomUnitaryMatrix<MatrixType>(4), z = generateRandomUnitaryMatrix<MatrixType>(4);
   eigenvectors(MatrixType(p * diagonal * z), MatrixType(p * z), Scalar(1));
 
   // An infinite eigenvalue, whose eigenvector must solve B v = 0.

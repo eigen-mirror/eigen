@@ -19,23 +19,19 @@ file(WRITE "${first}" "Note; unrelated run information\nAll tests passed ( 100 t
 file(WRITE "${second}" "All tests passed ( 20 tests run)\n")
 file(WRITE "${WORK_DIR}/stale.out" "999 out of 999 tests failed\n")
 file(WRITE "${manifest}" "${first}\n${second}\n")
-bs_run(WHAT "successful LAPACK summary" OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "successful LAPACK summary"
+       MATCHES "TOTAL: 120 tests, 0 numerical errors, 0 other errors"
        COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                "-DREPORT_FILE=${report}" -P "${summary}")
-if(NOT output MATCHES "TOTAL: 120 tests, 0 numerical errors, 0 other errors")
-  bs_fail("incorrect successful summary: ${output}")
-endif()
 file(READ "${report}" contents)
 bs_assert_streq("${contents}" "Note; unrelated run information\nAll tests passed ( 100 tests run)\nAll tests passed ( 20 tests run)\n"
                 "combined LAPACK report")
 
-bs_run(WHAT "registered LAPACK example counts" OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "registered LAPACK example counts"
+       MATCHES "TOTAL: 332 tests, 0 numerical errors, 0 other errors"
        COMMAND "${CMAKE_COMMAND}"
                "-DOUTPUT_MANIFEST=${WORK_DIR}/build/lapack-build/lapack_test_outputs.txt"
                "-DREPORT_FILE=${report}" -P "${summary}")
-if(NOT output MATCHES "TOTAL: 332 tests, 0 numerical errors, 0 other errors")
-  bs_fail("incorrect registered summary: ${output}")
-endif()
 
 file(WRITE "${manifest}" "${first}\n")
 file(READ "${WORK_DIR}/build/lapack-reference/TESTING/dgbak.in" balancing)
@@ -43,24 +39,20 @@ string(REPLACE "0.000D+00" "0.125D+00" finite "${balancing}")
 string(REPLACE "example number having largest error = 0"
                "example number having largest error = 7" finite "${finite}")
 file(WRITE "${first}" "${finite}")
-bs_run(WHAT "finite balancing error maximum" OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "finite balancing error maximum"
+       MATCHES "13 tests, 0 numerical errors, 0 other errors"
        COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                "-DREPORT_FILE=${report}" -P "${summary}")
-if(NOT output MATCHES "13 tests, 0 numerical errors, 0 other errors")
-  bs_fail("incorrect finite balancing summary: ${output}")
-endif()
 
 foreach(kind bal bak gbal gbak)
   file(READ "${WORK_DIR}/build/lapack-reference/TESTING/d${kind}.in" balancing)
   string(REPLACE "number of examples where info is not 0 = 0"
                  "number of examples where info is not 0 = 2" failing "${balancing}")
   file(WRITE "${first}" "${failing}")
-  bs_run(WHAT "balancing ${kind} routine errors" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "balancing ${kind} routine errors"
+         EXPECT_RESULT FAILURE MATCHES "13 tests, 0 numerical errors, 2 other errors"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                  "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "13 tests, 0 numerical errors, 2 other errors")
-    bs_fail("incorrect balancing ${kind} error count: ${output}")
-  endif()
 endforeach()
 
 foreach(kind bal gbal)
@@ -70,34 +62,28 @@ foreach(kind bal gbal)
   string(REPLACE "number of examples where info is not 0 = 0"
                  "number of examples where info is not 0 = 1" failing "${failing}")
   file(WRITE "${first}" "${failing}")
-  bs_run(WHAT "balancing ${kind} ILO/IHI error" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "balancing ${kind} ILO/IHI error"
+         EXPECT_RESULT FAILURE MATCHES "13 tests, 0 numerical errors, 1 other errors"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                  "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "13 tests, 0 numerical errors, 1 other errors")
-    bs_fail("incorrect balancing ${kind} ILO/IHI error count: ${output}")
-  endif()
 endforeach()
 
 foreach(error Infinity -Infinity NaN "************")
   string(REPLACE "0.000D+00" "${error}" failing "${balancing}")
   file(WRITE "${first}" "${failing}")
-  bs_run(WHAT "balancing error ${error}" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "balancing error ${error}"
+         EXPECT_RESULT FAILURE MATCHES "13 tests, 1 numerical errors, 0 other errors"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                  "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "13 tests, 1 numerical errors, 0 other errors")
-    bs_fail("unrecognized balancing error ${error}: ${output}")
-  endif()
 endforeach()
 
 file(WRITE "${manifest}" "${first}\n${second}\n")
 set(balance " .. test output of SGEBAL ..\n value of largest test error = 0.197D+01\n example number where info is not zero = 0\n example number where ILO or IHI wrong = 0\n example number having largest error = 11\n number of examples where info is not 0 = 0\n total number of examples tested = 13\n")
 file(WRITE "${first}" "${balance}")
-bs_run(WHAT "successful balance examples with ordinary tests" OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "successful balance examples with ordinary tests"
+       MATCHES "TOTAL: 33 tests, 0 numerical errors, 0 other errors"
        COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                "-DREPORT_FILE=${report}" -P "${summary}")
-if(NOT output MATCHES "TOTAL: 33 tests, 0 numerical errors, 0 other errors")
-  bs_fail("incorrect balance summary: ${output}")
-endif()
 
 file(WRITE "${manifest}" "${first}\n")
 foreach(case infinity nan overflow info bounds unrecorded_info)
@@ -123,12 +109,10 @@ foreach(case infinity nan overflow info bounds unrecorded_info)
     set(expected "13 tests, 0 numerical errors, 1 other errors")
   endif()
   file(WRITE "${first}" "${contents}")
-  bs_run(WHAT "LAPACK balance summary: ${case}" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK balance summary: ${case}"
+         EXPECT_RESULT FAILURE MATCHES "${expected}"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                  "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "${expected}")
-    bs_fail("wrong balance failure for ${case}: ${output}")
-  endif()
 endforeach()
 
 set(ec "${WORK_DIR}/dec.out")
@@ -138,13 +122,11 @@ foreach(mode alone mixed)
   if(mode STREQUAL "mixed")
     file(APPEND "${manifest}" "${second}\n")
   endif()
-  bs_run(WHAT "LAPACK diagnostic-only xCHKEC output: ${mode}" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK diagnostic-only xCHKEC output: ${mode}"
+         EXPECT_RESULT FAILURE MATCHES "dec.out: 0 tests, 0 numerical errors, 2 other errors"
+         EXCLUDES "No LAPACK numerical tests were analyzed"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                  "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "dec.out: 0 tests, 0 numerical errors, 2 other errors"
-      OR output MATCHES "No LAPACK numerical tests were analyzed")
-    bs_fail("incorrect xCHKEC failure diagnostic: ${output}")
-  endif()
 endforeach()
 
 foreach(precision S D C Z)
@@ -157,14 +139,12 @@ foreach(precision S D C Z)
         file(APPEND "${first}" " All tests for ${precision}GE routines passed the threshold (    100 tests run)\n")
         set(tests_run 100)
       endif()
-      bs_run(WHAT "LAPACK equilibration failure: ${precision}${routine}, ${mode}"
-             EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+      bs_run_expect_output(WHAT "LAPACK equilibration failure: ${precision}${routine}, ${mode}"
+             EXPECT_RESULT FAILURE
+             MATCHES "TOTAL: ${tests_run} tests, 1 numerical errors, 0 other errors"
+             EXCLUDES "No LAPACK numerical tests were analyzed"
              COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}"
                      "-DREPORT_FILE=${report}" -P "${summary}")
-      if(NOT output MATCHES "TOTAL: ${tests_run} tests, 1 numerical errors, 0 other errors"
-          OR output MATCHES "No LAPACK numerical tests were analyzed")
-        bs_fail("incorrect equilibration failure diagnostic: ${output}")
-      endif()
     endforeach()
   endforeach()
 endforeach()
@@ -211,11 +191,9 @@ foreach(case numerical diagnostics xerbla error_exits info_summary error_code re
     file(REMOVE "${first}")
     set(expected "Missing LAPACK test output")
   endif()
-  bs_run(WHAT "LAPACK summary: ${case}" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK summary: ${case}"
+         EXPECT_RESULT FAILURE MATCHES "${expected}"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}" "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "${expected}")
-    bs_fail("wrong failure for ${case}: ${output}")
-  endif()
 endforeach()
 
 # xCHKDMD summaries: three DGEDMD checks and three DGEDMDQ checks.
@@ -255,11 +233,9 @@ foreach(case passed check singular_values run summarized stopped)
     set(expected "ddmd.out: 0 tests, 0 numerical errors, 1 other errors")
   endif()
   file(WRITE "${dmd}" "${contents}")
-  bs_run(WHAT "LAPACK DMD summary: ${case}" EXPECT_RESULT ${result} OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK DMD summary: ${case}"
+         EXPECT_RESULT ${result} MATCHES "${expected}"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}" "-DREPORT_FILE=${report}" -P "${summary}")
-  if(NOT output MATCHES "${expected}")
-    bs_fail("wrong DMD summary for ${case}: ${output}")
-  endif()
 endforeach()
 
 # Allowed failures bound each output's counts; FAILURES_FILE records them in the same format.
@@ -295,23 +271,19 @@ foreach(case none equal more fewer malformed duplicate unmatched)
     set(expected "Allowed-failure entries name no LAPACK test output: sed.out")
   endif()
   file(REMOVE "${failures}")
-  bs_run(WHAT "LAPACK allowed failures: ${case}" EXPECT_RESULT ${result} OUTPUT_VARIABLE output
+  bs_run_expect_output(WHAT "LAPACK allowed failures: ${case}"
+         EXPECT_RESULT ${result} MATCHES "${expected}"
          COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}" "-DREPORT_FILE=${report}"
                  "-DALLOWED_FAILURES=${allowed}" "-DFAILURES_FILE=${failures}" -P "${summary}")
-  if(NOT output MATCHES "${expected}")
-    bs_fail("wrong allowed-failure result for ${case}: ${output}")
-  endif()
   if(case STREQUAL "equal")
     file(READ "${failures}" contents)
     bs_assert_streq("${contents}" "ded.out 3 1\n" "recorded LAPACK failures")
   endif()
 endforeach()
-bs_run(WHAT "missing LAPACK allowed-failure file" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "missing LAPACK allowed-failure file"
+       EXPECT_RESULT FAILURE MATCHES "Missing LAPACK allowed-failure file"
        COMMAND "${CMAKE_COMMAND}" "-DOUTPUT_MANIFEST=${manifest}" "-DREPORT_FILE=${report}"
                "-DALLOWED_FAILURES=${WORK_DIR}/absent.txt" -P "${summary}")
-if(NOT output MATCHES "Missing LAPACK allowed-failure file")
-  bs_fail("missing allowed-failure file was not reported: ${output}")
-endif()
 
 file(WRITE "${WORK_DIR}/build/lapack-reference/TESTING/runtest.cmake" [=[
 get_filename_component(name "${INPUT}" NAME)
@@ -322,12 +294,10 @@ configure_file("${INPUT}" "${OUTPUT}" COPYONLY)
 ]=])
 set(registered_report "${WORK_DIR}/build/lapack-build/TESTING/testing_results.txt")
 file(WRITE "${registered_report}" "previous summary\n")
-bs_run(WHAT "failed LAPACK fixture skips summary" EXPECT_RESULT FAILURE OUTPUT_VARIABLE output
+bs_run_expect_output(WHAT "failed LAPACK fixture skips summary"
+       EXPECT_RESULT FAILURE MATCHES "LAPACK_Test_Summary[^\n]*Not Run"
        COMMAND "${CMAKE_COMMAND}" -E chdir "${WORK_DIR}/build"
                "${CMAKE_CTEST_COMMAND}" -C "${BUILD_CONFIG}" --parallel 2
                -R "^LAPACK_Test_Summary$" --output-on-failure --no-tests=error)
-if(NOT output MATCHES "LAPACK_Test_Summary[^\n]*Not Run")
-  bs_fail("summary was not skipped after a failed driver: ${output}")
-endif()
 file(READ "${registered_report}" contents)
 bs_assert_streq("${contents}" "previous summary\n" "skipped LAPACK summary preserves its report")

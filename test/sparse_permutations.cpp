@@ -31,6 +31,7 @@ static long int nb_temporaries;
   }
 
 #include "sparse.h"
+#include "sparse_test_helpers.h"
 
 template <typename T>
 bool is_sorted(const T& mat) {
@@ -253,19 +254,19 @@ void sparse_permutations_narrow_index() {
   constexpr int DstMode = DstOrder == ColMajor ? Upper : Lower;
   const Index last = n - 1;
   SparseMatrix<double, SrcOrder, StorageIndex> far(n, n);
-  (SrcOrder == ColMajor ? far.insert(1, last) : far.insert(last, 1)) = 2.0;
+  insert_by_outer(far, last, 1) = 2.0;
   far.makeCompressed();
   DstMatrix dst(n, n);
   dst.template selfadjointView<DstMode>() = far.template selfadjointView<SrcMode>();
   VERIFY_IS_EQUAL(dst.nonZeros(), 1);
-  VERIFY_IS_EQUAL(DstOrder == ColMajor ? dst.coeff(1, last) : dst.coeff(last, 1), 2.0);
+  VERIFY_IS_EQUAL(coeff_by_outer(dst, last, 1), 2.0);
 
   // Viewed as Upper | Lower, the full copy keeps the entry in its outer vector, so with matching storage orders its
   // inner index still fits.
   if (int(SrcOrder) == int(DstOrder)) {
     const DstMatrix farFull = far.template selfadjointView<Upper | Lower>();
     VERIFY_IS_EQUAL(farFull.nonZeros(), 1);
-    VERIFY_IS_EQUAL(SrcOrder == ColMajor ? farFull.coeff(1, last) : farFull.coeff(last, 1), 2.0);
+    VERIFY_IS_EQUAL(coeff_by_outer(farFull, last, 1), 2.0);
   }
 }
 

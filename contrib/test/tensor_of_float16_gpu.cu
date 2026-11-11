@@ -20,6 +20,7 @@
 EIGEN_DECLARE_TEST(tensor_of_float16_gpu) {
   CALL_SUBTEST_1(tensor_test::test_gpu_numext<Eigen::half>());
 
+  CALL_SUBTEST_1(tensor_test::test_gpu_conversion<Eigen::half>());
   CALL_SUBTEST_1(tensor_test::test_gpu_unary<Eigen::half>());
   CALL_SUBTEST_1(tensor_test::test_gpu_elementwise<Eigen::half>());
   CALL_SUBTEST_1(tensor_test::test_gpu_transcendental<Eigen::half>());

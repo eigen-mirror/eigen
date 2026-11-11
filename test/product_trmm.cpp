@@ -11,6 +11,16 @@
 #include "main.h"
 #include "product_test_helpers.h"
 
+// Sets the coefficients that the triangular view of the given Mode does not own, including implicit diagonals, to NaN.
+template <int Mode, typename MatrixType>
+void poison_outside_triangle(MatrixType& a) {
+  using Scalar = typename MatrixType::Scalar;
+  for (Index j = 0; j < a.cols(); ++j)
+    for (Index i = 0; i < a.rows(); ++i)
+      if (((Mode & Lower) ? i < j : i > j) || ((Mode & (UnitDiag | ZeroDiag)) && i == j))
+        a(i, j) = Scalar(NumTraits<typename NumTraits<Scalar>::Real>::quiet_NaN());
+}
+
 template <typename T>
 int get_random_size() {
   const int factor = NumTraits<T>::ReadCost;
@@ -199,7 +209,6 @@ void trmm_maps(Index rows, Index depth, Index cols) {
 template <typename Scalar, int Mode, int Order>
 void trmm_panel_boundaries() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
-  using Real = typename NumTraits<Scalar>::Real;
   {
     // The coefficient-based path must evaluate nested products before accessing their coefficients.
     Mat a = Mat::Random(3, 3), b = Mat::Random(3, 3), c = Mat::Random(3, 3), actual(3, 3);
@@ -226,10 +235,7 @@ void trmm_panel_boundaries() {
       const Mat triangle = a.template triangularView<Mode>();
       const Mat expected = triangle.lazyProduct(b);
       // Poison coefficients that the triangular view does not own, including implicit diagonals.
-      for (Index j = 0; j < depth; ++j)
-        for (Index i = 0; i < rows; ++i)
-          if (((Mode & Lower) ? i < j : i > j) || ((Mode & (UnitDiag | ZeroDiag)) && i == j))
-            a(i, j) = Scalar(NumTraits<Real>::quiet_NaN());
+      poison_outside_triangle<Mode>(a);
       Mat actual(rows, columns);
       actual.noalias() = a.template triangularView<Mode>() * b;
       VERIFY(verifyProduct(actual, expected, triangle, b));
@@ -247,11 +253,8 @@ void trmm_panel_boundaries() {
                                               Stride<Dynamic, 2>(storage.outerStride(), 2));
       strided.noalias() = a.template triangularView<Mode>() * b;
       VERIFY(verifyProduct(strided, expected, triangle, b));
-      for (Index j = 0; j < storage.cols(); ++j)
-        for (Index i = 0; i < storage.rows(); ++i) {
-          const bool written = Order == ColMajor ? (i % 2 == 0 && j < columns) : (j % 2 == 0 && i < rows);
-          if (!written) VERIFY_IS_EQUAL(storage(i, j), original(i, j));
-        }
+      VERIFY(strided_block_gaps_untouched(storage, original, 0, Order == ColMajor ? rows : columns,
+                                          Order == ColMajor ? columns : rows, 2, storage.outerStride()));
     }
   }
 }
@@ -271,7 +274,6 @@ void trmm_wide_depth_blocks() {
                                                             ColMajor, 1>;
   using Lhs = Matrix<Scalar, Dynamic, Dynamic, LhsOrder>;
   using Mat = Matrix<Scalar, Dynamic, Dynamic>;
-  using Real = typename NumTraits<Scalar>::Real;
   const Index panel = Kernel::HorizontalPanelWidth, nr = Kernel::Traits::nr;
   // Depth blocks of one full horizontal panel plus a row, and of three plus a partial one; an RHS of one column, which
   // only SME slices horizontally, and of one and two micro panels; an lhs block of every row, and of one panel, which
@@ -283,10 +285,7 @@ void trmm_wide_depth_blocks() {
         Lhs a = Lhs::Random(n, n);
         const Mat b = Mat::Random(n, cols);
         const Mat triangle = a.template triangularView<Mode>();
-        for (Index j = 0; j < n; ++j)
-          for (Index i = 0; i < n; ++i)
-            if (((Mode & Lower) ? i < j : i > j) || ((Mode & (UnitDiag | ZeroDiag)) && i == j))
-              a(i, j) = Scalar(NumTraits<Real>::quiet_NaN());
+        poison_outside_triangle<Mode>(a);
         Mat actual = Mat::Zero(n, cols);
         Blocking blocking(narrowBlock ? panel + 1 : n, cols, kc);
         Kernel::run(n, cols, n, a.data(), a.outerStride(), b.data(), b.outerStride(), actual.data(), 1,

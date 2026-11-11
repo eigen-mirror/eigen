@@ -5,9 +5,37 @@
 #define EIGEN_TEST_LM_TEST_FUNCTORS_H
 
 // Residual functors for the MINPACK examples and the NIST StRD nonlinear regression problems, shared by
-// NonLinearOptimization.cpp and levenberg_marquardt.cpp. The including file defines LmFunctorBase as the
-// functor base class of the module under test; both modules define Eigen::LevenbergMarquardt, so this
-// header includes neither.
+// NonLinearOptimization.cpp, levenberg_marquardt.cpp and NumericalDiff.cpp. Both LevenbergMarquardt modules define
+// Eigen::LevenbergMarquardt, so this header includes neither. The functors derive from LmFunctorBase, which is
+// the generic Functor below unless the including file defines EIGEN_TEST_LM_DENSE_FUNCTOR_BASE to use the
+// LevenbergMarquardt module's DenseFunctor.
+
+// Generic functor
+template <typename Scalar_, int NX = Dynamic, int NY = Dynamic>
+struct Functor {
+  using Scalar = Scalar_;
+  enum { InputsAtCompileTime = NX, ValuesAtCompileTime = NY };
+  using InputType = Matrix<Scalar, InputsAtCompileTime, 1>;
+  using ValueType = Matrix<Scalar, ValuesAtCompileTime, 1>;
+  using JacobianType = Matrix<Scalar, ValuesAtCompileTime, InputsAtCompileTime>;
+
+  int m_inputs, m_values;
+
+  Functor() : m_inputs(InputsAtCompileTime), m_values(ValuesAtCompileTime) {}
+  Functor(int inputs, int values) : m_inputs(inputs), m_values(values) {}
+
+  int inputs() const { return m_inputs; }
+  int values() const { return m_values; }
+
+  // you should define that in the subclass :
+  //  void operator() (const InputType& x, ValueType* v, JacobianType* _j=0) const;
+};
+
+#ifdef EIGEN_TEST_LM_DENSE_FUNCTOR_BASE
+using LmFunctorBase = DenseFunctor<double>;
+#else
+using LmFunctorBase = Functor<double>;
+#endif
 
 struct lmder_functor : LmFunctorBase {
   lmder_functor(void) : LmFunctorBase(3, 15) {}

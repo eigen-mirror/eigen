@@ -14,6 +14,7 @@
 
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 using Eigen::Tensor;
 
@@ -23,50 +24,25 @@ void test_cuda_nullary() {
   in1.setRandom();
   in2.setRandom();
 
-  std::size_t float_bytes = in1.size() * sizeof(float);
-  std::size_t complex_bytes = in1.size() * sizeof(std::complex<float>);
+  tensor_test::GpuTensorTestFixture fixture;
+  auto gpu_in1 = fixture.fromHost(in1);
+  auto gpu_in2 = fixture.fromHost(in2);
+  auto gpu_out2 = fixture.tensor<float, 1, Eigen::Aligned, 0, int>(2);
 
-  std::complex<float>* d_in1;
-  std::complex<float>* d_in2;
-  float* d_out2;
-  cudaMalloc((void**)(&d_in1), complex_bytes);
-  cudaMalloc((void**)(&d_in2), complex_bytes);
-  cudaMalloc((void**)(&d_out2), float_bytes);
-  cudaMemcpy(d_in1, in1.data(), complex_bytes, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_in2, in2.data(), complex_bytes, cudaMemcpyHostToDevice);
+  gpu_in1.device(fixture.device()) = gpu_in1.constant(std::complex<float>(3.14f, 2.7f));
+  gpu_out2.device(fixture.device()) = gpu_in2.abs();
 
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
-
-  Eigen::TensorMap<Eigen::Tensor<std::complex<float>, 1, 0, int>, Eigen::Aligned> gpu_in1(d_in1, 2);
-  Eigen::TensorMap<Eigen::Tensor<std::complex<float>, 1, 0, int>, Eigen::Aligned> gpu_in2(d_in2, 2);
-  Eigen::TensorMap<Eigen::Tensor<float, 1, 0, int>, Eigen::Aligned> gpu_out2(d_out2, 2);
-
-  gpu_in1.device(gpu_device) = gpu_in1.constant(std::complex<float>(3.14f, 2.7f));
-  gpu_out2.device(gpu_device) = gpu_in2.abs();
-
-  Tensor<std::complex<float>, 1, 0, int> new1(2);
-  Tensor<float, 1, 0, int> new2(2);
-
-  assert(cudaMemcpyAsync(new1.data(), d_in1, complex_bytes, cudaMemcpyDeviceToHost, gpu_device.stream()) ==
-         cudaSuccess);
-  assert(cudaMemcpyAsync(new2.data(), d_out2, float_bytes, cudaMemcpyDeviceToHost, gpu_device.stream()) == cudaSuccess);
-
-  assert(cudaStreamSynchronize(gpu_device.stream()) == cudaSuccess);
+  const auto new1 = fixture.toHost(gpu_in1);
+  const auto new2 = fixture.toHost(gpu_out2);
 
   for (int i = 0; i < 2; ++i) {
     VERIFY_IS_APPROX(new1(i), std::complex<float>(3.14f, 2.7f));
     VERIFY_IS_APPROX(new2(i), std::abs(in2(i)));
   }
-
-  cudaFree(d_in1);
-  cudaFree(d_in2);
-  cudaFree(d_out2);
 }
 
 static void test_cuda_sum_reductions() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
+  tensor_test::GpuTensorTestFixture fixture;
 
   const int num_rows = internal::random<int>(1024, 5 * 1024);
   const int num_cols = internal::random<int>(1024, 5 * 1024);
@@ -77,31 +53,17 @@ static void test_cuda_sum_reductions() {
   Tensor<std::complex<float>, 0> full_redux;
   full_redux = in.sum();
 
-  std::size_t in_bytes = in.size() * sizeof(std::complex<float>);
-  std::size_t out_bytes = full_redux.size() * sizeof(std::complex<float>);
-  std::complex<float>* gpu_in_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(in_bytes));
-  std::complex<float>* gpu_out_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(out_bytes));
-  gpu_device.memcpyHostToDevice(gpu_in_ptr, in.data(), in_bytes);
+  auto in_gpu = fixture.fromHost(in);
+  auto out_gpu = fixture.tensor<std::complex<float>, 0>();
 
-  TensorMap<Tensor<std::complex<float>, 2> > in_gpu(gpu_in_ptr, num_rows, num_cols);
-  TensorMap<Tensor<std::complex<float>, 0> > out_gpu(gpu_out_ptr);
-
-  out_gpu.device(gpu_device) = in_gpu.sum();
-
-  Tensor<std::complex<float>, 0> full_redux_gpu;
-  gpu_device.memcpyDeviceToHost(full_redux_gpu.data(), gpu_out_ptr, out_bytes);
-  gpu_device.synchronize();
+  out_gpu.device(fixture.device()) = in_gpu.sum();
 
   // Check that the CPU and GPU reductions return the same result.
-  VERIFY_IS_APPROX(full_redux(), full_redux_gpu());
-
-  gpu_device.deallocate(gpu_in_ptr);
-  gpu_device.deallocate(gpu_out_ptr);
+  VERIFY_IS_APPROX(full_redux(), fixture.toHost(out_gpu)());
 }
 
 static void test_cuda_mean_reductions() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
+  tensor_test::GpuTensorTestFixture fixture;
 
   const int num_rows = internal::random<int>(1024, 5 * 1024);
   const int num_cols = internal::random<int>(1024, 5 * 1024);
@@ -112,31 +74,17 @@ static void test_cuda_mean_reductions() {
   Tensor<std::complex<float>, 0> full_redux;
   full_redux = in.mean();
 
-  std::size_t in_bytes = in.size() * sizeof(std::complex<float>);
-  std::size_t out_bytes = full_redux.size() * sizeof(std::complex<float>);
-  std::complex<float>* gpu_in_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(in_bytes));
-  std::complex<float>* gpu_out_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(out_bytes));
-  gpu_device.memcpyHostToDevice(gpu_in_ptr, in.data(), in_bytes);
+  auto in_gpu = fixture.fromHost(in);
+  auto out_gpu = fixture.tensor<std::complex<float>, 0>();
 
-  TensorMap<Tensor<std::complex<float>, 2> > in_gpu(gpu_in_ptr, num_rows, num_cols);
-  TensorMap<Tensor<std::complex<float>, 0> > out_gpu(gpu_out_ptr);
-
-  out_gpu.device(gpu_device) = in_gpu.mean();
-
-  Tensor<std::complex<float>, 0> full_redux_gpu;
-  gpu_device.memcpyDeviceToHost(full_redux_gpu.data(), gpu_out_ptr, out_bytes);
-  gpu_device.synchronize();
+  out_gpu.device(fixture.device()) = in_gpu.mean();
 
   // Check that the CPU and GPU reductions return the same result.
-  VERIFY_IS_APPROX(full_redux(), full_redux_gpu());
-
-  gpu_device.deallocate(gpu_in_ptr);
-  gpu_device.deallocate(gpu_out_ptr);
+  VERIFY_IS_APPROX(full_redux(), fixture.toHost(out_gpu)());
 }
 
 static void test_cuda_product_reductions() {
-  Eigen::GpuStreamDevice stream;
-  Eigen::GpuDevice gpu_device(&stream);
+  tensor_test::GpuTensorTestFixture fixture;
 
   const int num_rows = internal::random<int>(1024, 5 * 1024);
   const int num_cols = internal::random<int>(1024, 5 * 1024);
@@ -147,26 +95,13 @@ static void test_cuda_product_reductions() {
   Tensor<std::complex<float>, 0> full_redux;
   full_redux = in.prod();
 
-  std::size_t in_bytes = in.size() * sizeof(std::complex<float>);
-  std::size_t out_bytes = full_redux.size() * sizeof(std::complex<float>);
-  std::complex<float>* gpu_in_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(in_bytes));
-  std::complex<float>* gpu_out_ptr = static_cast<std::complex<float>*>(gpu_device.allocate(out_bytes));
-  gpu_device.memcpyHostToDevice(gpu_in_ptr, in.data(), in_bytes);
+  auto in_gpu = fixture.fromHost(in);
+  auto out_gpu = fixture.tensor<std::complex<float>, 0>();
 
-  TensorMap<Tensor<std::complex<float>, 2> > in_gpu(gpu_in_ptr, num_rows, num_cols);
-  TensorMap<Tensor<std::complex<float>, 0> > out_gpu(gpu_out_ptr);
-
-  out_gpu.device(gpu_device) = in_gpu.prod();
-
-  Tensor<std::complex<float>, 0> full_redux_gpu;
-  gpu_device.memcpyDeviceToHost(full_redux_gpu.data(), gpu_out_ptr, out_bytes);
-  gpu_device.synchronize();
+  out_gpu.device(fixture.device()) = in_gpu.prod();
 
   // Check that the CPU and GPU reductions return the same result.
-  VERIFY_IS_APPROX(full_redux(), full_redux_gpu());
-
-  gpu_device.deallocate(gpu_in_ptr);
-  gpu_device.deallocate(gpu_out_ptr);
+  VERIFY_IS_APPROX(full_redux(), fixture.toHost(out_gpu)());
 }
 
 EIGEN_DECLARE_TEST(test_tensor_complex) {

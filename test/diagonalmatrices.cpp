@@ -834,96 +834,49 @@ void unaligned_diagonal_products() {
   }
 }
 
-template <int Tag>
-struct DiagonalProductScalar {
-  explicit DiagonalProductScalar(int v = 0) : value(v) {}
-  int value;
-};
-
-DiagonalProductScalar<2> operator*(const DiagonalProductScalar<0>& lhs, const DiagonalProductScalar<1>& rhs) {
-  return DiagonalProductScalar<2>(10 * lhs.value + rhs.value);
-}
-
-DiagonalProductScalar<3> operator*(const DiagonalProductScalar<1>& lhs, const DiagonalProductScalar<0>& rhs) {
-  return DiagonalProductScalar<3>(100 * lhs.value + rhs.value);
-}
-
-namespace Eigen {
-template <>
-struct ScalarBinaryOpTraits<DiagonalProductScalar<0>, DiagonalProductScalar<1>,
-                            internal::scalar_product_op<DiagonalProductScalar<0>, DiagonalProductScalar<1>>> {
-  using ReturnType = DiagonalProductScalar<2>;
-};
-
-template <>
-struct ScalarBinaryOpTraits<DiagonalProductScalar<1>, DiagonalProductScalar<0>,
-                            internal::scalar_product_op<DiagonalProductScalar<1>, DiagonalProductScalar<0>>> {
-  using ReturnType = DiagonalProductScalar<3>;
-};
-}  // namespace Eigen
-
 template <int Mode, int Order>
 void diagonal_product_result_types() {
-  DiagonalMatrix<DiagonalProductScalar<0>, 2> diagonal;
-  diagonal.diagonal()(0) = DiagonalProductScalar<0>(2);
-  diagonal.diagonal()(1) = DiagonalProductScalar<0>(3);
-  Matrix<DiagonalProductScalar<1>, 2, 2, Order> matrix;
+  using Tag0 = noncommutative_scalar::TaggedScalar<0>;
+  using Tag1 = noncommutative_scalar::TaggedScalar<1>;
+  using Tag2 = noncommutative_scalar::TaggedScalar<2>;
+  using Tag3 = noncommutative_scalar::TaggedScalar<3>;
+  DiagonalMatrix<Tag0, 2> diagonal;
+  diagonal.diagonal()(0) = Tag0(2);
+  // With m(i, j) = 1 + i + 2j, d(i) m(i, j) differs from d(j) m(j, i) off the diagonal, so a transposed read fails.
+  diagonal.diagonal()(1) = Tag0(5);
+  Matrix<Tag1, 2, 2, Order> matrix;
   for (Index j = 0; j < 2; ++j)
-    for (Index i = 0; i < 2; ++i) matrix(i, j) = DiagonalProductScalar<1>(int(1 + i + 2 * j));
-  const Matrix<DiagonalProductScalar<2>, 2, 2> denseLeft = diagonal * matrix;
-  const Matrix<DiagonalProductScalar<3>, 2, 2> denseRight = matrix * diagonal;
+    for (Index i = 0; i < 2; ++i) matrix(i, j) = Tag1(int(1 + i + 2 * j));
+  const Matrix<Tag2, 2, 2> denseLeft = diagonal * matrix;
+  const Matrix<Tag3, 2, 2> denseRight = matrix * diagonal;
   const auto triangularLeft = diagonal * matrix.template triangularView<Mode>();
   const auto triangularRight = matrix.template triangularView<Mode>() * diagonal;
   internal::evaluator<decltype(triangularLeft)> left(triangularLeft);
   internal::evaluator<decltype(triangularRight)> right(triangularRight);
-  static_assert(std::is_same<typename decltype(left)::Scalar, DiagonalProductScalar<2>>::value, "left result type");
-  static_assert(std::is_same<typename decltype(right)::Scalar, DiagonalProductScalar<3>>::value, "right result type");
+  static_assert(std::is_same<typename decltype(left)::Scalar, Tag2>::value, "left result type");
+  static_assert(std::is_same<typename decltype(right)::Scalar, Tag3>::value, "right result type");
   const auto selfadjointLeft = diagonal * matrix.template selfadjointView<Mode&(Upper | Lower)>();
   const auto selfadjointRight = matrix.template selfadjointView<Mode&(Upper | Lower)>() * diagonal;
   internal::evaluator<decltype(selfadjointLeft)> symmetricLeft(selfadjointLeft);
   internal::evaluator<decltype(selfadjointRight)> symmetricRight(selfadjointRight);
   for (Index j = 0; j < 2; ++j)
     for (Index i = 0; i < 2; ++i) {
-      VERIFY_IS_EQUAL(denseLeft(i, j).value, 10 * diagonal.diagonal()(i).value + matrix(i, j).value);
-      VERIFY_IS_EQUAL(denseRight(i, j).value, 100 * matrix(i, j).value + diagonal.diagonal()(j).value);
+      VERIFY_IS_EQUAL(denseLeft(i, j).value, diagonal.diagonal()(i).value * matrix(i, j).value);
+      VERIFY_IS_EQUAL(denseRight(i, j).value, matrix(i, j).value * diagonal.diagonal()(j).value);
       const bool active = (Mode & Upper) ? i <= j : i >= j;
       const bool zero = !active || (i == j && (Mode & ZeroDiag));
       const int triangular = i == j && (Mode & UnitDiag) ? 1 : matrix(i, j).value;
-      VERIFY_IS_EQUAL(left.coeff(i, j).value, zero ? 0 : 10 * diagonal.diagonal()(i).value + triangular);
-      VERIFY_IS_EQUAL(right.coeff(i, j).value, zero ? 0 : 100 * triangular + diagonal.diagonal()(j).value);
+      VERIFY_IS_EQUAL(left.coeff(i, j).value, zero ? 0 : diagonal.diagonal()(i).value * triangular);
+      VERIFY_IS_EQUAL(right.coeff(i, j).value, zero ? 0 : triangular * diagonal.diagonal()(j).value);
       const int symmetric = active ? matrix(i, j).value : matrix(j, i).value;
-      VERIFY_IS_EQUAL(symmetricLeft.coeff(i, j).value, 10 * diagonal.diagonal()(i).value + symmetric);
-      VERIFY_IS_EQUAL(symmetricRight.coeff(i, j).value, 100 * symmetric + diagonal.diagonal()(j).value);
+      VERIFY_IS_EQUAL(symmetricLeft.coeff(i, j).value, diagonal.diagonal()(i).value * symmetric);
+      VERIFY_IS_EQUAL(symmetricRight.coeff(i, j).value, symmetric * diagonal.diagonal()(j).value);
     }
-}
-
-template <typename = void>
-void diagonal_product_quaternion_order() {
-  using Scalar = noncommutative_scalar::Quaternion;
-  Matrix<Scalar, 1, 1> matrix;
-  DiagonalMatrix<Scalar, 1> diagonal;
-  matrix(0) = Scalar(0, 1, 0, 0);
-  diagonal.diagonal()(0) = Scalar(0, 0, 1, 0);
-  VERIFY((matrix * diagonal).coeff(0) == Scalar(0, 0, 0, 1));
-  VERIFY((diagonal * matrix).coeff(0) == Scalar(0, 0, 0, -1));
-}
-
-struct NoncommutingDiagonalScalar {
-  explicit NoncommutingDiagonalScalar(int diagonal = 0) : values{{diagonal, 0, 0, diagonal}} {}
-  std::array<int, 4> values;
-};
-
-NoncommutingDiagonalScalar operator*(const NoncommutingDiagonalScalar& lhs, const NoncommutingDiagonalScalar& rhs) {
-  NoncommutingDiagonalScalar result;
-  for (int i = 0; i < 2; ++i)
-    for (int j = 0; j < 2; ++j)
-      for (int k = 0; k < 2; ++k) result.values[2 * i + j] += lhs.values[2 * i + k] * rhs.values[2 * k + j];
-  return result;
 }
 
 template <int Size>
 void diagonal_product_operand_order() {
-  using Scalar = NoncommutingDiagonalScalar;
+  using Scalar = noncommutative_scalar::NoncommutingBlock;
   const Index size = Size == Dynamic ? 2 : Size;
   Matrix<Scalar, 1, Size> row(size);
   DiagonalMatrix<Scalar, Size> diagonal(size);
@@ -999,7 +952,6 @@ EIGEN_DECLARE_TEST(diagonalmatrices) {
   CALL_SUBTEST_12((diagonal_product_result_types<Upper, RowMajor>()));
   CALL_SUBTEST_12((diagonal_product_result_types<UnitLower, RowMajor>()));
   CALL_SUBTEST_12((diagonal_product_result_types<StrictlyUpper, ColMajor>()));
-  CALL_SUBTEST_13((diagonal_product_quaternion_order<>()));
   CALL_SUBTEST_13((diagonal_product_operand_order<1>()));
   CALL_SUBTEST_13((diagonal_product_operand_order<2>()));
   CALL_SUBTEST_13((diagonal_product_operand_order<Dynamic>()));

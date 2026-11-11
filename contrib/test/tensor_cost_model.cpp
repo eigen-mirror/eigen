@@ -47,13 +47,6 @@ static void test_nullary_zero_bytes_loaded() {
   }
 }
 
-// A volatile pointer forces odr-use even when optimization could fold the value.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
-}
-
 static void test_cost_model_constants_odr_use() {
   using Cost = Eigen::TensorCostModel<DefaultDevice>;
   VERIFY_IS_EQUAL(read_through_address(Cost::kDeviceCyclesPerComputeCycle), 1);

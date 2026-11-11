@@ -971,49 +971,11 @@ void test_sparse_product_mul_assign() {
   VERIFY_IS_APPROX(MatrixXd(A.toDense()), ref);
 }
 
-template <int Tag>
-struct SparseCwiseScalar {
-  explicit SparseCwiseScalar(int v = 0) : value(v) {}
-  int value;
-};
-
-SparseCwiseScalar<2> operator*(const SparseCwiseScalar<0>& lhs, const SparseCwiseScalar<1>& rhs) {
-  return SparseCwiseScalar<2>(lhs.value * rhs.value);
-}
-
-SparseCwiseScalar<2> operator+(const SparseCwiseScalar<0>& lhs, const SparseCwiseScalar<1>& rhs) {
-  return SparseCwiseScalar<2>(lhs.value + rhs.value);
-}
-
-SparseCwiseScalar<3> operator*(const SparseCwiseScalar<1>& lhs, const SparseCwiseScalar<0>& rhs) {
-  return SparseCwiseScalar<3>(lhs.value * rhs.value);
-}
-
-namespace Eigen {
-template <>
-struct ScalarBinaryOpTraits<SparseCwiseScalar<0>, SparseCwiseScalar<1>,
-                            internal::scalar_product_op<SparseCwiseScalar<0>, SparseCwiseScalar<1>>> {
-  using ReturnType = SparseCwiseScalar<2>;
-};
-
-template <>
-struct ScalarBinaryOpTraits<SparseCwiseScalar<0>, SparseCwiseScalar<1>,
-                            internal::scalar_sum_op<SparseCwiseScalar<0>, SparseCwiseScalar<1>>> {
-  using ReturnType = SparseCwiseScalar<2>;
-};
-
-template <>
-struct ScalarBinaryOpTraits<SparseCwiseScalar<1>, SparseCwiseScalar<0>,
-                            internal::scalar_product_op<SparseCwiseScalar<1>, SparseCwiseScalar<0>>> {
-  using ReturnType = SparseCwiseScalar<3>;
-};
-}  // namespace Eigen
-
 template <int Order>
 void test_sparse_cwise_product_operand_types() {
-  using Left = SparseCwiseScalar<0>;
-  using Right = SparseCwiseScalar<1>;
-  using Result = SparseCwiseScalar<2>;
+  using Left = noncommutative_scalar::TaggedScalar<0>;
+  using Right = noncommutative_scalar::TaggedScalar<1>;
+  using Result = noncommutative_scalar::TaggedScalar<2>;
   SparseMatrix<Left, Order> lhs(3, 3);
   lhs.reserve(VectorXi::Constant(3, 3));
   lhs.insert(0, 1) = Left(2);
@@ -1049,9 +1011,9 @@ void test_sparse_cwise_product_operand_types() {
 
 template <int Order>
 void test_sparse_cwise_sum_operand_types() {
-  using Left = SparseCwiseScalar<0>;
-  using Right = SparseCwiseScalar<1>;
-  using Result = SparseCwiseScalar<2>;
+  using Left = noncommutative_scalar::TaggedScalar<0>;
+  using Right = noncommutative_scalar::TaggedScalar<1>;
+  using Result = noncommutative_scalar::TaggedScalar<2>;
   SparseMatrix<Left, Order> lhs(3, 3);
   SparseMatrix<Right, Order> rhs(3, 3);
   lhs.reserve(VectorXi::Constant(3, 3));
@@ -1089,43 +1051,11 @@ void test_sparse_cwise_sum_operand_types() {
     for (Index i = 0; i < 2; ++i) VERIFY_IS_EQUAL(result(i, j), std::complex<double>(real(i, j)) + complex.coeff(i, j));
 }
 
-struct SparseNoncommutingScalar {
-  explicit SparseNoncommutingScalar(int diagonal = 0) : values{{diagonal, 0, 0, diagonal}} {}
-  SparseNoncommutingScalar& operator=(int diagonal) {
-    values = {{diagonal, 0, 0, diagonal}};
-    return *this;
-  }
-  std::array<int, 4> values;
-};
-
-double abs(const SparseNoncommutingScalar& scalar) {
-  double result = 0;
-  for (int value : scalar.values) result += numext::abs(value);
-  return result;
-}
-
-namespace Eigen {
-template <>
-struct NumTraits<SparseNoncommutingScalar> : GenericNumTraits<SparseNoncommutingScalar> {
-  using Real = double;
-  static constexpr bool IsSigned = true;
-  static constexpr bool RequireInitialization = true;
-};
-}  // namespace Eigen
-
-SparseNoncommutingScalar operator*(const SparseNoncommutingScalar& lhs, const SparseNoncommutingScalar& rhs) {
-  SparseNoncommutingScalar result;
-  for (int i = 0; i < 2; ++i)
-    for (int j = 0; j < 2; ++j)
-      for (int k = 0; k < 2; ++k) result.values[2 * i + j] += lhs.values[2 * i + k] * rhs.values[2 * k + j];
-  return result;
-}
-
 template <int Order>
 void test_sparse_diagonal_products() {
-  using DiagonalScalar = SparseCwiseScalar<0>;
-  using MatrixScalar = SparseCwiseScalar<1>;
-  using Scalar = SparseNoncommutingScalar;
+  using DiagonalScalar = noncommutative_scalar::TaggedScalar<0>;
+  using MatrixScalar = noncommutative_scalar::TaggedScalar<1>;
+  using Scalar = noncommutative_scalar::NoncommutingBlock;
   DiagonalMatrix<DiagonalScalar, 3> diagonal;
   DiagonalMatrix<Scalar, 3> blockDiagonal;
   for (Index i = 0; i < 3; ++i) {
@@ -1141,8 +1071,8 @@ void test_sparse_diagonal_products() {
   blocks.insert(0, 1).values = {{1, 2, 0, 1}};
   blocks.insert(2, 0).values = {{2, 1, 0, 1}};
   for (int compressed = 0; compressed < 2; ++compressed) {
-    const SparseMatrix<SparseCwiseScalar<2>, Order> left = diagonal * matrix;
-    const SparseMatrix<SparseCwiseScalar<3>, Order> right = matrix * diagonal;
+    const SparseMatrix<noncommutative_scalar::TaggedScalar<2>, Order> left = diagonal * matrix;
+    const SparseMatrix<noncommutative_scalar::TaggedScalar<3>, Order> right = matrix * diagonal;
     const SparseMatrix<Scalar, Order> blockLeft = blockDiagonal * blocks;
     const SparseMatrix<Scalar, Order> blockRight = blocks * blockDiagonal;
     VERIFY_IS_EQUAL(left.nonZeros(), matrix.nonZeros());
@@ -1161,65 +1091,42 @@ void test_sparse_diagonal_products() {
   }
 }
 
-SparseNoncommutingScalar& operator+=(SparseNoncommutingScalar& lhs, const SparseNoncommutingScalar& rhs) {
-  for (int i = 0; i < 4; ++i) lhs.values[i] += rhs.values[i];
-  return lhs;
-}
-
-template <int LOrder, int ROrder, int DstOrder>
+// Pruned selects the pruning kernel and drops the entries whose product row or column is empty.
+template <bool Pruned, int LOrder, int ROrder, int DstOrder>
 void test_sparse_product_operand_order() {
-  using Scalar = SparseNoncommutingScalar;
+  using Scalar = noncommutative_scalar::NoncommutingBlock;
   SparseMatrix<Scalar, LOrder> lhs(2, 3);
   SparseMatrix<Scalar, ROrder> rhs(3, 2);
   lhs.reserve(VectorXi::Constant(lhs.outerSize(), 3));
   rhs.reserve(VectorXi::Constant(rhs.outerSize(), 3));
   lhs.insert(0, 0).values = {{1, 2, 0, 1}};
   lhs.insert(0, 2).values = {{2, 1, 0, 1}};
-  lhs.insert(1, 1).values = {{1, -1, 1, 1}};
   rhs.insert(0, 1).values = {{1, 0, 3, 1}};
   rhs.insert(2, 1).values = {{2, 0, 1, 1}};
-  rhs.insert(1, 0).values = {{1, 1, 2, 1}};
-  for (int compressed = 0; compressed < 2; ++compressed) {
-    const SparseMatrix<Scalar, DstOrder> sparse = lhs * rhs;
-    const Matrix<Scalar, Dynamic, Dynamic, DstOrder> dense = lhs * rhs;
-    VERIFY(sparse.innerIndicesAreSorted());
-    VERIFY_IS_EQUAL(sparse.nonZeros(), 2);
-    for (Index j = 0; j < 2; ++j)
-      for (Index i = 0; i < 2; ++i) {
-        Scalar expected;
-        for (Index k = 0; k < 3; ++k) expected += lhs.coeff(i, k) * rhs.coeff(k, j);
-        VERIFY(sparse.coeff(i, j).values == expected.values);
-        VERIFY(dense(i, j).values == expected.values);
-      }
-    lhs.makeCompressed();
-    rhs.makeCompressed();
+  if (!Pruned) {
+    lhs.insert(1, 1).values = {{1, -1, 1, 1}};
+    rhs.insert(1, 0).values = {{1, 1, 2, 1}};
   }
-}
-
-template <int LOrder, int ROrder, int DstOrder>
-void test_sparse_pruned_operand_order() {
-  using Scalar = SparseNoncommutingScalar;
-  SparseMatrix<Scalar, LOrder> lhs(2, 3);
-  SparseMatrix<Scalar, ROrder> rhs(3, 2);
-  lhs.reserve(VectorXi::Constant(lhs.outerSize(), 3));
-  rhs.reserve(VectorXi::Constant(rhs.outerSize(), 3));
-  lhs.insert(0, 0).values = {{1, 2, 0, 1}};
-  lhs.insert(0, 2).values = {{2, 1, 0, 1}};
-  rhs.insert(0, 1).values = {{1, 0, 3, 1}};
-  rhs.insert(2, 1).values = {{2, 0, 1, 1}};
   for (int compressed = 0; compressed < 2; ++compressed) {
-    SparseMatrix<Scalar, DstOrder> result(2, 2);
-    internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(result)>::run(
-        lhs, rhs, result, 0.0);
-    const SparseMatrix<Scalar, DstOrder> publicResult = (lhs * rhs).pruned(Scalar(0), 0.0);
-    VERIFY(result.innerIndicesAreSorted());
-    VERIFY_IS_EQUAL(result.nonZeros(), 1);
+    SparseMatrix<Scalar, DstOrder> sparse(2, 2), publicSparse;
+    Matrix<Scalar, Dynamic, Dynamic, DstOrder> dense;
+    if (Pruned) {
+      internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(sparse)>::run(
+          lhs, rhs, sparse, 0.0);
+      publicSparse = (lhs * rhs).pruned(Scalar(0), 0.0);
+    } else {
+      sparse = lhs * rhs;
+      dense = lhs * rhs;
+    }
+    VERIFY(sparse.innerIndicesAreSorted());
+    VERIFY_IS_EQUAL(sparse.nonZeros(), Pruned ? 1 : 2);
     for (Index j = 0; j < 2; ++j)
       for (Index i = 0; i < 2; ++i) {
         Scalar expected;
         for (Index k = 0; k < 3; ++k) expected += lhs.coeff(i, k) * rhs.coeff(k, j);
-        VERIFY(result.coeff(i, j).values == expected.values);
-        VERIFY(publicResult.coeff(i, j).values == expected.values);
+        const Scalar other = Pruned ? publicSparse.coeff(i, j) : dense(i, j);
+        VERIFY(sparse.coeff(i, j).values == expected.values);
+        VERIFY(other.values == expected.values);
       }
     lhs.makeCompressed();
     rhs.makeCompressed();
@@ -1228,10 +1135,10 @@ void test_sparse_pruned_operand_order() {
 
 template <typename = void>
 void test_sparse_outer_operand_types() {
-  SparseVector<SparseCwiseScalar<0>> column(2);
-  column.insert(1) = SparseCwiseScalar<0>(3);
-  Matrix<SparseCwiseScalar<1>, 1, Dynamic> row(3);
-  for (Index i = 0; i < row.size(); ++i) row(i) = SparseCwiseScalar<1>(int(i + 2));
+  SparseVector<noncommutative_scalar::TaggedScalar<0>> column(2);
+  column.insert(1) = noncommutative_scalar::TaggedScalar<0>(3);
+  Matrix<noncommutative_scalar::TaggedScalar<1>, 1, Dynamic> row(3);
+  for (Index i = 0; i < row.size(); ++i) row(i) = noncommutative_scalar::TaggedScalar<1>(int(i + 2));
   using LeftEval = internal::sparse_dense_outer_product_evaluator<decltype(column), decltype(row), false>;
   const LeftEval left(column, row);
   for (Index j = 0; j < row.size(); ++j) {
@@ -1243,11 +1150,11 @@ void test_sparse_outer_operand_types() {
     VERIFY(!it);
   }
 
-  SparseVector<SparseCwiseScalar<1>, RowMajor> sparseRow(3);
-  sparseRow.insert(2) = SparseCwiseScalar<1>(5);
-  Matrix<SparseCwiseScalar<0>, Dynamic, 1> denseColumn(2);
-  denseColumn(0) = SparseCwiseScalar<0>(2);
-  denseColumn(1) = SparseCwiseScalar<0>(4);
+  SparseVector<noncommutative_scalar::TaggedScalar<1>, RowMajor> sparseRow(3);
+  sparseRow.insert(2) = noncommutative_scalar::TaggedScalar<1>(5);
+  Matrix<noncommutative_scalar::TaggedScalar<0>, Dynamic, 1> denseColumn(2);
+  denseColumn(0) = noncommutative_scalar::TaggedScalar<0>(2);
+  denseColumn(1) = noncommutative_scalar::TaggedScalar<0>(4);
   using RightEval = internal::sparse_dense_outer_product_evaluator<decltype(denseColumn), decltype(sparseRow), true>;
   const RightEval right(denseColumn, sparseRow);
   for (Index i = 0; i < denseColumn.size(); ++i) {
@@ -1258,15 +1165,10 @@ void test_sparse_outer_operand_types() {
   }
 }
 
-template <int Order>
-void test_sparse_quaternion_product_order() {
+template <typename = void>
+void test_sparse_outer_quaternion_order() {
   using Scalar = noncommutative_scalar::Quaternion;
   const Scalar i(0, 1, 0, 0), j(0, 0, 1, 0), k(0, 0, 0, 1);
-  SparseMatrix<Scalar, Order> lhs(1, 1), rhs(1, 1), pruned(1, 1);
-  lhs.insert(0, 0) = i;
-  rhs.insert(0, 0) = j;
-  DiagonalMatrix<Scalar, 1> diagonal;
-  diagonal.diagonal()(0) = j;
   Matrix<Scalar, 1, 1> dense;
   SparseVector<Scalar, RowMajor> row(1);
   row.insert(0) = j;
@@ -1274,19 +1176,6 @@ void test_sparse_quaternion_product_order() {
   using Outer = internal::sparse_dense_outer_product_evaluator<decltype(dense), decltype(row), true>;
   const Outer outer(dense, row);
   VERIFY(typename Outer::InnerIterator(outer, 0).value() == k);
-  for (int compressed = 0; compressed < 2; ++compressed) {
-    const SparseMatrix<Scalar, Order> left = diagonal * lhs, right = lhs * diagonal, product = lhs * rhs;
-    const Matrix<Scalar, 1, 1, Order> denseProduct = lhs * rhs;
-    VERIFY(left.coeff(0, 0) == -k);
-    VERIFY(right.coeff(0, 0) == k);
-    VERIFY(product.coeff(0, 0) == k);
-    VERIFY(denseProduct(0) == k);
-    internal::sparse_sparse_product_with_pruning_selector<decltype(lhs), decltype(rhs), decltype(pruned)>::run(
-        lhs, rhs, pruned, 0.0);
-    VERIFY(pruned.coeff(0, 0) == k);
-    lhs.makeCompressed();
-    rhs.makeCompressed();
-  }
 }
 
 template <int Order>
@@ -1377,29 +1266,28 @@ EIGEN_DECLARE_TEST(sparse_product) {
     CALL_SUBTEST_7((test_sparse_cwise_sum_operand_types<RowMajor>()));
     CALL_SUBTEST_8((test_sparse_diagonal_products<ColMajor>()));
     CALL_SUBTEST_8((test_sparse_diagonal_products<RowMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, ColMajor, ColMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, ColMajor, RowMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, RowMajor, ColMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<ColMajor, RowMajor, RowMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, ColMajor, ColMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, ColMajor, RowMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, ColMajor>()));
-    CALL_SUBTEST_9((test_sparse_product_operand_order<RowMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, ColMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, ColMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, ColMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, ColMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, RowMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, RowMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, RowMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_9((test_sparse_product_operand_order<false, RowMajor, RowMajor, RowMajor>()));
     CALL_SUBTEST_10((test_sparse_outer_operand_types<>()));
     CALL_SUBTEST_10((test_dense_sparse_array_destination<ColMajor>()));
     CALL_SUBTEST_10((test_dense_sparse_array_destination<RowMajor>()));
-    CALL_SUBTEST_12((test_sparse_quaternion_product_order<ColMajor>()));
-    CALL_SUBTEST_12((test_sparse_quaternion_product_order<RowMajor>()));
+    CALL_SUBTEST_12((test_sparse_outer_quaternion_order<>()));
     CALL_SUBTEST_14((test_dense_sparse_quaternion_order<ColMajor>()));
     CALL_SUBTEST_14((test_dense_sparse_quaternion_order<RowMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, ColMajor, ColMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, ColMajor, RowMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, RowMajor, ColMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<ColMajor, RowMajor, RowMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, ColMajor, ColMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, ColMajor, RowMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, RowMajor, ColMajor>()));
-    CALL_SUBTEST_11((test_sparse_pruned_operand_order<RowMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, ColMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, ColMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, ColMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, ColMajor, RowMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, RowMajor, ColMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, RowMajor, ColMajor, RowMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, RowMajor, RowMajor, ColMajor>()));
+    CALL_SUBTEST_11((test_sparse_product_operand_order<true, RowMajor, RowMajor, RowMajor>()));
 
     CALL_SUBTEST_6((test_pruned_product_custom_scalar<>()));
     CALL_SUBTEST_6((test_ambivector_discard_custom_scalar<>()));

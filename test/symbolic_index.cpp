@@ -70,13 +70,6 @@ void check_symbolic_index() {
   }
 }
 
-// A volatile pointer forces odr-use even when optimization could fold the value.
-template <typename T>
-T read_through_address(const T& value) {
-  const T* volatile address = &value;
-  return *address;
-}
-
 void check_fixed_int_odr_use() {
   VERIFY_IS_EQUAL(read_through_address(internal::FixedInt<3>::value), 3);
   VERIFY_IS_EQUAL(read_through_address(internal::FixedInt<-3>::value), -3);

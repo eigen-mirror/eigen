@@ -305,17 +305,11 @@ void stable_normalize_extremes() {
   if (std::numeric_limits<RealScalar>::has_denorm == std::denorm_present) {
     const Vector2 input = Vector2::Constant(denorm);
     const Vector2 expected = Vector2::Constant(inv_sqrt_two);
-    std::fenv_t savedEnvironment;
-    const bool environmentSaved = std::feholdexcept(&savedEnvironment) == 0;
-    const Vector2 normalized = input.stableNormalized();
-    const int normalizedOverflow = std::fetestexcept(FE_OVERFLOW);
-    std::feclearexcept(FE_ALL_EXCEPT);
-    Vector2 actual = input;
-    actual.stableNormalize();
-    const int normalizeOverflow = std::fetestexcept(FE_OVERFLOW);
-    if (environmentSaved) std::fesetenv(&savedEnvironment);
-    VERIFY_IS_EQUAL(normalizedOverflow, 0);
-    VERIFY_IS_EQUAL(normalizeOverflow, 0);
+    Vector2 normalized, actual = input;
+    const int normalizedOverflow = fp_exceptions_raised_by(FE_OVERFLOW, [&] { normalized = input.stableNormalized(); });
+    const int normalizeOverflow = fp_exceptions_raised_by(FE_OVERFLOW, [&] { actual.stableNormalize(); });
+    if (normalizedOverflow >= 0) VERIFY_IS_EQUAL(normalizedOverflow, 0);
+    if (normalizeOverflow >= 0) VERIFY_IS_EQUAL(normalizeOverflow, 0);
     VERIFY((normalized - expected).norm() <= RealScalar(4) * NumTraits<RealScalar>::epsilon());
     VERIFY((actual - expected).norm() <= RealScalar(4) * NumTraits<RealScalar>::epsilon());
   }

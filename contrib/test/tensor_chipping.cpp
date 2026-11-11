@@ -584,10 +584,11 @@ template <typename EvalT, typename PacketT,
           std::enable_if_t<!internal::unpacket_traits<PacketT>::masked_load_available, int> = 0>
 void verify_partial_packets_for_eval(const EvalT&) {}
 
-template <typename Scalar, int Layout>
-void test_chip_partial_packets_for_type() {
-  using Packet = typename internal::packet_traits<Scalar>::type;
-  using HalfPacket = typename internal::unpacket_traits<Packet>::half;
+// Calls visitor.raw(), visitor.expr() and visitor.nested() with the evaluator of a chip of a tensor, of a chip of a
+// coefficient-wise expression (after evalSubExprsIfNeeded()) and of a nested middle-dimension chip, for each of the
+// chip axes and the first two offsets, and for inner dimensions below, at and above the packet sizes.
+template <typename Scalar, int Layout, typename Visitor>
+void visit_chip_evaluators(const Visitor& visitor) {
   DefaultDevice device;
 
   for (Index inner_dim : {Index(3), Index(4), Index(8), Index(12)}) {
@@ -603,24 +604,47 @@ void test_chip_partial_packets_for_type() {
       for (Index offset = 0; offset < numext::mini<Index>(extent, 2); ++offset) {
         auto raw_op = tensor.chip(offset, axis);
         TensorEvaluator<const decltype(raw_op), DefaultDevice> raw_eval(raw_op, device);
-        verify_partial_packets_for_eval<decltype(raw_eval), Packet>(raw_eval);
-        if (!std::is_same<HalfPacket, Packet>::value) {
-          verify_partial_packets_for_eval<decltype(raw_eval), HalfPacket>(raw_eval);
-        }
+        visitor.raw(raw_eval);
 
         auto expr_op = (tensor + tensor).chip(offset, axis);
         TensorEvaluator<const decltype(expr_op), DefaultDevice> expr_eval(expr_op, device);
         expr_eval.evalSubExprsIfNeeded(nullptr);
-        verify_partial_packets_for_eval<decltype(expr_eval), Packet>(expr_eval);
+        visitor.expr(expr_eval);
         expr_eval.cleanup();
       }
     }
 
-    // Nested middle-dimension chipping.
     auto nested_op = tensor.chip(1, Layout == ColMajor ? 2 : 1).chip(1, 1);
     TensorEvaluator<const decltype(nested_op), DefaultDevice> nested_eval(nested_op, device);
-    verify_partial_packets_for_eval<decltype(nested_eval), Packet>(nested_eval);
+    visitor.nested(nested_eval);
   }
+}
+
+template <typename Scalar>
+struct PartialPacketVisitor {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using HalfPacket = typename internal::unpacket_traits<Packet>::half;
+
+  template <typename EvalT>
+  void raw(const EvalT& eval) const {
+    verify_partial_packets_for_eval<EvalT, Packet>(eval);
+    if (!std::is_same<HalfPacket, Packet>::value) {
+      verify_partial_packets_for_eval<EvalT, HalfPacket>(eval);
+    }
+  }
+  template <typename EvalT>
+  void expr(const EvalT& eval) const {
+    verify_partial_packets_for_eval<EvalT, Packet>(eval);
+  }
+  template <typename EvalT>
+  void nested(const EvalT& eval) const {
+    verify_partial_packets_for_eval<EvalT, Packet>(eval);
+  }
+};
+
+template <typename Scalar, int Layout>
+void test_chip_partial_packets_for_type() {
+  visit_chip_evaluators<Scalar, Layout>(PartialPacketVisitor<Scalar>());
 }
 
 template <int Layout>
@@ -689,53 +713,43 @@ void verify_subpackets_for_eval(const EvalT& eval) {
   }
 }
 
-template <typename Scalar, int Layout>
-void test_chip_subpackets_and_empty_for_type() {
+template <typename Scalar>
+struct SubpacketVisitor {
   using Packet = typename internal::packet_traits<Scalar>::type;
   using HalfPacket = typename internal::unpacket_traits<Packet>::half;
   using QuarterPacket = typename internal::unpacket_traits<HalfPacket>::half;
-  DefaultDevice device;
 
+  template <typename EvalT>
+  void raw(const EvalT& eval) const {
+    verify_subpackets_for_eval<EvalT, Packet>(eval);
+    if (!std::is_same<HalfPacket, Packet>::value) {
+      verify_subpackets_for_eval<EvalT, HalfPacket>(eval);
+    }
+    if (!std::is_same<QuarterPacket, HalfPacket>::value) {
+      verify_subpackets_for_eval<EvalT, QuarterPacket>(eval);
+    }
+  }
+  template <typename EvalT>
+  void expr(const EvalT& eval) const {
+    if (!std::is_same<HalfPacket, Packet>::value) {
+      verify_subpackets_for_eval<EvalT, HalfPacket>(eval);
+    }
+  }
+  template <typename EvalT>
+  void nested(const EvalT& eval) const {
+    expr(eval);
+  }
+};
+
+template <typename Scalar, int Layout>
+void test_chip_subpackets_and_empty_for_type() {
   // Zero-sized unchipped dimension exercises m_stride == 0 initialization.
   DSizes<Index, 3> empty_dims = (Layout == ColMajor) ? DSizes<Index, 3>(0, 4, 5) : DSizes<Index, 3>(5, 4, 0);
   Tensor<Scalar, 3, Layout> empty_src(empty_dims);
   Tensor<Scalar, 2, Layout> empty_out = empty_src.chip(1, 1);
   VERIFY_IS_EQUAL(empty_out.size(), Index(0));
 
-  for (Index inner_dim : {Index(3), Index(4), Index(8), Index(12)}) {
-    DSizes<Index, 4> dims =
-        (Layout == ColMajor) ? DSizes<Index, 4>(inner_dim, 3, 5, 2) : DSizes<Index, 4>(2, 5, 3, inner_dim);
-    Tensor<Scalar, 4, Layout> tensor(dims);
-    for (Index i = 0; i < tensor.size(); ++i) {
-      tensor.data()[i] = static_cast<Scalar>((i % 29) + 1);
-    }
-
-    for (int axis = 0; axis < 4; ++axis) {
-      auto raw_op = tensor.chip(0, axis);
-      TensorEvaluator<const decltype(raw_op), DefaultDevice> raw_eval(raw_op, device);
-      verify_subpackets_for_eval<decltype(raw_eval), Packet>(raw_eval);
-      if (!std::is_same<HalfPacket, Packet>::value) {
-        verify_subpackets_for_eval<decltype(raw_eval), HalfPacket>(raw_eval);
-      }
-      if (!std::is_same<QuarterPacket, HalfPacket>::value) {
-        verify_subpackets_for_eval<decltype(raw_eval), QuarterPacket>(raw_eval);
-      }
-
-      auto expr_op = (tensor + tensor).chip(0, axis);
-      TensorEvaluator<const decltype(expr_op), DefaultDevice> expr_eval(expr_op, device);
-      expr_eval.evalSubExprsIfNeeded(nullptr);
-      if (!std::is_same<HalfPacket, Packet>::value) {
-        verify_subpackets_for_eval<decltype(expr_eval), HalfPacket>(expr_eval);
-      }
-      expr_eval.cleanup();
-    }
-
-    auto nested_op = tensor.chip(1, Layout == ColMajor ? 2 : 1).chip(1, 1);
-    TensorEvaluator<const decltype(nested_op), DefaultDevice> nested_eval(nested_op, device);
-    if (!std::is_same<HalfPacket, Packet>::value) {
-      verify_subpackets_for_eval<decltype(nested_eval), HalfPacket>(nested_eval);
-    }
-  }
+  visit_chip_evaluators<Scalar, Layout>(SubpacketVisitor<Scalar>());
 }
 
 template <int Layout>

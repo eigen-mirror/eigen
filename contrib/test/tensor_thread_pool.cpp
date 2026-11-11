@@ -18,6 +18,8 @@
 #include <thread>
 #include <Eigen/Tensor>
 
+#include "tensor_contraction_test_helpers.h"
+
 using Eigen::Tensor;
 
 class TestAllocator : public Allocator {
@@ -41,7 +43,30 @@ class TestAllocator : public Allocator {
   mutable std::atomic<int> dealloc_count_{0};
 };
 
-template <typename = void>
+// A thread pool and a ThreadPoolDevice that runs on it.
+struct PoolDevice {
+  PoolDevice(int pool_threads, int device_threads, Allocator* allocator = nullptr)
+      : pool(pool_threads), device(&pool, device_threads, allocator) {}
+  explicit PoolDevice(int num_threads, Allocator* allocator = nullptr)
+      : PoolDevice(num_threads, num_threads, allocator) {}
+
+  // Evaluates dst = expr on the device; with Async, through the asynchronous interface, waiting for its callback.
+  template <bool Async, typename Dst, typename Expr>
+  void assign(Dst& dst, const Expr& expr) const {
+    EIGEN_IF_CONSTEXPR (Async) {
+      Eigen::Barrier done(1);
+      dst.device(device, [&done]() { done.Notify(); }) = expr;
+      done.Wait();
+    } else {
+      dst.device(device) = expr;
+    }
+  }
+
+  Eigen::ThreadPool pool;
+  Eigen::ThreadPoolDevice device;
+};
+
+template <bool Async>
 void test_multithread_elementwise() {
   Tensor<float, 3> in1(200, 30, 70);
   Tensor<float, 3> in2(200, 30, 70);
@@ -50,9 +75,8 @@ void test_multithread_elementwise() {
   in1.setRandom();
   in2.setRandom();
 
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-  out.device(thread_pool_device) = (in1 + in2 * 3.14f).cast<double>();
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  pool.assign<Async>(out, (in1 + in2 * 3.14f).cast<double>());
 
   for (int i = 0; i < 200; ++i) {
     for (int j = 0; j < 30; ++j) {
@@ -63,54 +87,7 @@ void test_multithread_elementwise() {
   }
 }
 
-template <typename = void>
-void test_async_multithread_elementwise() {
-  Tensor<float, 3> in1(200, 30, 70);
-  Tensor<float, 3> in2(200, 30, 70);
-  Tensor<double, 3> out(200, 30, 70);
-
-  in1.setRandom();
-  in2.setRandom();
-
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-
-  Eigen::Barrier b(1);
-  out.device(thread_pool_device, [&b]() { b.Notify(); }) = (in1 + in2 * 3.14f).cast<double>();
-  b.Wait();
-
-  for (int i = 0; i < 200; ++i) {
-    for (int j = 0; j < 30; ++j) {
-      for (int k = 0; k < 70; ++k) {
-        VERIFY_IS_APPROX(out(i, j, k), static_cast<double>(in1(i, j, k) + in2(i, j, k) * 3.14f));
-      }
-    }
-  }
-}
-
-template <typename = void>
-void test_multithread_chip() {
-  Tensor<float, 5> in(2, 3, 5, 7, 11);
-  Tensor<float, 4> out(3, 5, 7, 11);
-
-  in.setRandom();
-
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-
-  out.device(thread_pool_device) = in.chip(1, 0);
-
-  for (int i = 0; i < 3; ++i) {
-    for (int j = 0; j < 5; ++j) {
-      for (int k = 0; k < 7; ++k) {
-        for (int l = 0; l < 11; ++l) {
-          VERIFY_IS_EQUAL(out(i, j, k, l), in(1, i, j, k, l));
-        }
-      }
-    }
-  }
-}
-
+// The synchronous counterpart is covered by test_execute_chipping_rvalue in tensor_executor.cpp.
 template <typename = void>
 void test_async_multithread_chip() {
   Tensor<float, 5> in(2, 3, 5, 7, 11);
@@ -118,12 +95,8 @@ void test_async_multithread_chip() {
 
   in.setRandom();
 
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-
-  Eigen::Barrier b(1);
-  out.device(thread_pool_device, [&b]() { b.Notify(); }) = in.chip(1, 0);
-  b.Wait();
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  pool.assign<true>(out, in.chip(1, 0));
 
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 5; ++j) {
@@ -136,36 +109,15 @@ void test_async_multithread_chip() {
   }
 }
 
-template <typename = void>
+template <bool Async>
 void test_multithread_volume_patch() {
   Tensor<float, 5> in(4, 2, 3, 5, 7);
   Tensor<float, 6> out(4, 1, 1, 1, 2 * 3 * 5, 7);
 
   in.setRandom();
 
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-
-  out.device(thread_pool_device) = in.extract_volume_patches(1, 1, 1);
-
-  for (int i = 0; i < in.size(); ++i) {
-    VERIFY_IS_EQUAL(in.data()[i], out.data()[i]);
-  }
-}
-
-template <typename = void>
-void test_async_multithread_volume_patch() {
-  Tensor<float, 5> in(4, 2, 3, 5, 7);
-  Tensor<float, 6> out(4, 1, 1, 1, 2 * 3 * 5, 7);
-
-  in.setRandom();
-
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-
-  Eigen::Barrier b(1);
-  out.device(thread_pool_device, [&b]() { b.Notify(); }) = in.extract_volume_patches(1, 1, 1);
-  b.Wait();
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  pool.assign<Async>(out, in.extract_volume_patches(1, 1, 1));
 
   for (int i = 0; i < in.size(); ++i) {
     VERIFY_IS_EQUAL(in.data()[i], out.data()[i]);
@@ -195,7 +147,7 @@ struct OverlapDetectingOp {
 // the argument through coeff() with BlockAccess independent of the argument,
 // so these tests exercise the tiled executor's per-task evaluator copy
 // regardless of how any one evaluator's traits evolve.
-template <typename = void>
+template <bool Async>
 void test_multithread_tiled_stateful_functor() {
   Tensor<float, 4> in(64, 64, 64, 8);
   in.setRandom();
@@ -205,35 +157,10 @@ void test_multithread_tiled_stateful_functor() {
   expected = (in + 1.0f).reverse(rev);
 
   std::atomic<int> overlaps(0);
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  PoolDevice pool(4);
 
   Tensor<float, 4> out(64, 64, 64, 8);
-  out.device(thread_pool_device) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
-
-  VERIFY_IS_EQUAL(overlaps.load(), 0);
-  for (int i = 0; i < out.size(); ++i) {
-    VERIFY_IS_EQUAL(out.data()[i], expected.data()[i]);
-  }
-}
-
-template <typename = void>
-void test_async_multithread_tiled_stateful_functor() {
-  Tensor<float, 4> in(64, 64, 64, 8);
-  in.setRandom();
-
-  const array<bool, 4> rev = {{false, true, true, false}};
-  Tensor<float, 4> expected(64, 64, 64, 8);
-  expected = (in + 1.0f).reverse(rev);
-
-  std::atomic<int> overlaps(0);
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
-
-  Tensor<float, 4> out(64, 64, 64, 8);
-  Eigen::Barrier b(1);
-  out.device(thread_pool_device, [&b]() { b.Notify(); }) = in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev);
-  b.Wait();
+  pool.assign<Async>(out, in.unaryExpr(OverlapDetectingOp(&overlaps)).reverse(rev));
 
   VERIFY_IS_EQUAL(overlaps.load(), 0);
   for (int i = 0; i < out.size(); ++i) {
@@ -250,10 +177,9 @@ void test_multithread_compound_assignment() {
   in1.setRandom();
   in2.setRandom();
 
-  Eigen::ThreadPool tp(internal::random<int>(3, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(3, 11));
-  out.device(thread_pool_device) = in1;
-  out.device(thread_pool_device) += in2 * 3.14f;
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  out.device(pool.device) = in1;
+  out.device(pool.device) += in2 * 3.14f;
 
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 3; ++j) {
@@ -282,11 +208,10 @@ void test_multithread_contraction() {
   MapXf m_right(t_right.data(), 1147, 1400);
   Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
 
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  PoolDevice pool(4);
 
   // compute results by separate methods
-  t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+  t_result.device(pool.device) = t_left.contract(t_right, dims);
   m_result = m_left * m_right;
 
   // The tensor contraction and the matrix product sum the k=1147 terms in different orders; their results differ
@@ -321,10 +246,9 @@ void test_multithread_gemv_transpose() {
       using DimPair = Tensor<float, 1>::DimensionPair;
       Eigen::array<DimPair, 1> dims{{DimPair(0, 0)}};
 
-      Eigen::ThreadPool tp(4);
-      Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+      PoolDevice pool(4);
       Tensor<float, 1, DataLayout> t_result(N);
-      t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+      t_result.device(pool.device) = t_left.contract(t_right, dims);
 
       using MapMat = Map<const Matrix<float, Dynamic, Dynamic, DataLayout>>;
       using MapVec = Map<const Matrix<float, Dynamic, 1>>;
@@ -358,11 +282,10 @@ void test_contraction_corner_cases() {
   MapXf m_right(t_right.data(), 32, 28 * 28);
   Matrix<float, Dynamic, Dynamic, DataLayout> m_result(500, 28 * 28);
 
-  Eigen::ThreadPool tp(12);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 12);
+  PoolDevice pool(12);
 
   // compute results by separate methods
-  t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+  t_result.device(pool.device) = t_left.contract(t_right, dims);
   m_result = m_left.transpose() * m_right;
 
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
@@ -378,7 +301,7 @@ void test_contraction_corner_cases() {
   t_left = (t_left.constant(-0.5f) + t_left.random()) * 2.0f;
   t_result.resize(1, 28 * 28);
   t_result = t_result.constant(NAN);
-  t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+  t_result.device(pool.device) = t_left.contract(t_right, dims);
   new (&m_left) MapXf(t_left.data(), 32, 1);
   m_result = m_left.transpose() * m_right;
   for (ptrdiff_t i = 0; i < t_result.size(); i++) {
@@ -395,7 +318,7 @@ void test_contraction_corner_cases() {
   t_right = (t_right.constant(-0.6f) + t_right.random()) * 2.0f;
   t_result.resize(500, 4);
   t_result = t_result.constant(NAN);
-  t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+  t_result.device(pool.device) = t_left.contract(t_right, dims);
   new (&m_left) MapXf(t_left.data(), 32, 500);
   new (&m_right) MapXf(t_right.data(), 32, 4);
   m_result = m_left.transpose() * m_right;
@@ -413,7 +336,7 @@ void test_contraction_corner_cases() {
   t_right = (t_right.constant(-0.6f) + t_right.random()) * 2.0f;
   t_result.resize(1, 4);
   t_result = t_result.constant(NAN);
-  t_result.device(thread_pool_device) = t_left.contract(t_right, dims);
+  t_result.device(pool.device) = t_left.contract(t_right, dims);
   new (&m_left) MapXf(t_left.data(), 32, 1);
   new (&m_right) MapXf(t_right.data(), 32, 4);
   m_result = m_left.transpose() * m_right;
@@ -426,7 +349,7 @@ void test_contraction_corner_cases() {
   }
 }
 
-template <int DataLayout>
+template <int DataLayout, bool Async>
 void test_multithread_contraction_agrees_with_singlethread() {
   int contract_size = internal::random<int>(1, 5000);
 
@@ -445,14 +368,13 @@ void test_multithread_contraction_agrees_with_singlethread() {
   using DimPair = Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
 
-  Eigen::ThreadPool tp(internal::random<int>(2, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(2, 11));
+  PoolDevice pool(internal::random<int>(2, 11), Async ? internal::random<int>(8, 32) : internal::random<int>(2, 11));
 
   Tensor<float, 5, DataLayout> st_result;
   st_result = left.contract(right, dims);
 
   Tensor<float, 5, DataLayout> tp_result(st_result.dimensions());
-  tp_result.device(thread_pool_device) = left.contract(right, dims);
+  pool.assign<Async>(tp_result, left.contract(right, dims));
 
   VERIFY(dimensions_match(st_result.dimensions(), tp_result.dimensions()));
   for (ptrdiff_t i = 0; i < st_result.size(); i++) {
@@ -464,99 +386,11 @@ void test_multithread_contraction_agrees_with_singlethread() {
   }
 }
 
-// Apply Sqrt to all output elements.
-struct SqrtOutputKernel {
-  template <typename Index, typename Scalar>
-  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<Scalar, Index, ColMajor>& output_mapper,
-                                      const TensorContractionParams&, Index, Index, Index num_rows,
-                                      Index num_cols) const {
-    for (int i = 0; i < num_rows; ++i) {
-      for (int j = 0; j < num_cols; ++j) {
-        output_mapper(i, j) = std::sqrt(output_mapper(i, j));
-      }
-    }
-  }
-};
-
-template <int DataLayout>
+template <int DataLayout, bool Async>
 static void test_multithread_contraction_with_output_kernel() {
-  using DimPair = Tensor<float, 1>::DimensionPair;
-
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  Tensor<float, 4, DataLayout> t_left(30, 50, 8, 31);
-  Tensor<float, 5, DataLayout> t_right(8, 31, 7, 20, 10);
-  Tensor<float, 5, DataLayout> t_result(30, 50, 7, 20, 10);
-
-  t_left.setRandom();
-  t_right.setRandom();
-  // Put trash in mat4 to verify contraction clears output memory.
-  t_result.setRandom();
-
-  // Add a little offset so that the results won't be close to zero.
-  t_left += t_left.constant(1.0f);
-  t_right += t_right.constant(1.0f);
-
-  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
-  MapXf m_left(t_left.data(), 1500, 248);
-  MapXf m_right(t_right.data(), 248, 1400);
-  Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(1500, 1400);
-
-  // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 2> dims{{DimPair(2, 0), DimPair(3, 1)}};
-
-  // compute results by separate methods
-  t_result.device(device) = t_left.contract(t_right, dims, SqrtOutputKernel());
-
-  m_result = m_left * m_right;
-
-  for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
-    VERIFY(&t_result.data()[i] != &m_result.data()[i]);
-    VERIFY_IS_APPROX(t_result.data()[i], std::sqrt(m_result.data()[i]));
-  }
-}
-
-template <int DataLayout>
-void test_async_multithread_contraction_agrees_with_singlethread() {
-  int contract_size = internal::random<int>(100, 500);
-
-  Tensor<float, 3, DataLayout> left(internal::random<int>(10, 40), contract_size, internal::random<int>(10, 40));
-
-  Tensor<float, 4, DataLayout> right(internal::random<int>(1, 20), internal::random<int>(1, 20), contract_size,
-                                     internal::random<int>(1, 20));
-
-  left.setRandom();
-  right.setRandom();
-
-  // add constants to shift values away from 0 for more precision
-  left += left.constant(1.5f);
-  right += right.constant(1.5f);
-
-  using DimPair = Tensor<float, 1>::DimensionPair;
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 2)}};
-
-  Eigen::ThreadPool tp(internal::random<int>(2, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(8, 32));
-
-  Tensor<float, 5, DataLayout> st_result;
-  st_result = left.contract(right, dims);
-
-  Tensor<float, 5, DataLayout> tp_result(st_result.dimensions());
-
-  Eigen::Barrier barrier(1);
-  tp_result.device(thread_pool_device, [&barrier]() { barrier.Notify(); }) = left.contract(right, dims);
-  barrier.Wait();
-
-  VERIFY(dimensions_match(st_result.dimensions(), tp_result.dimensions()));
-  for (ptrdiff_t i = 0; i < st_result.size(); i++) {
-    // if both of the values are very small, then do nothing (because the test
-    // will fail due to numerical precision issues when values are small)
-    if (numext::abs(st_result.data()[i] - tp_result.data()[i]) >= 1024 * NumTraits<float>::epsilon()) {
-      VERIFY_IS_APPROX(st_result.data()[i], tp_result.data()[i]);
-    }
-  }
+  PoolDevice pool(internal::random<int>(2, 11));
+  tensor_test::test_large_contraction_with_output_kernel<DataLayout>(
+      [&](auto& dst, const auto& expr) { pool.assign<Async>(dst, expr); });
 }
 
 template <typename Contraction>
@@ -595,8 +429,7 @@ struct AsyncContractionEvalToProbe : Eigen::TensorContractionEvaluatorBase<Async
 template <int DataLayout>
 void test_async_contraction_eval_subexprs_dedup() {
   using DimPair = typename Tensor<float, 1>::DimensionPair;
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice device(&tp, 4);
+  PoolDevice pool(4);
 
   Tensor<float, 2, DataLayout> left(4, 4);
   Tensor<float, 2, DataLayout> right(4, 4);
@@ -606,7 +439,7 @@ void test_async_contraction_eval_subexprs_dedup() {
 
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
   auto expr = left.contract(right, dims);
-  AsyncContractionEvalToProbe<decltype(expr)> probe(expr, device);
+  AsyncContractionEvalToProbe<decltype(expr)> probe(expr, pool.device);
 
   bool need_assign = true;
   auto on_done = [&need_assign](bool na) { need_assign = na; };
@@ -650,7 +483,7 @@ void test_async_contraction_eval_subexprs_dedup() {
     st_result = t_left.contract(t_right, dims) + t_bias;
 
     Eigen::Barrier barrier(1);
-    tp_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims) + t_bias;
+    tp_result.device(pool.device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims) + t_bias;
     barrier.Wait();
 
     for (Index i = 0; i < st_result.size(); ++i) {
@@ -659,14 +492,22 @@ void test_async_contraction_eval_subexprs_dedup() {
   }
 }
 
-// We are triggering 'evalShardedByInnerDim' optimization.
-template <int DataLayout>
+template <typename Left, typename Right, typename Dims>
+auto contract_with_optional_sqrt(const Left& left, const Right& right, const Dims& dims, std::false_type) {
+  return left.contract(right, dims);
+}
+
+template <typename Left, typename Right, typename Dims>
+auto contract_with_optional_sqrt(const Left& left, const Right& right, const Dims& dims, std::true_type) {
+  return left.contract(right, dims, tensor_test::SqrtOutputKernel());
+}
+
+// We are triggering 'evalShardedByInnerDim' optimization, with and without an output kernel.
+template <int DataLayout, bool Async, bool WithOutputKernel>
 static void test_sharded_by_inner_dim_contraction() {
   using DimPair = typename Tensor<float, 1>::DimensionPair;
 
-  const int num_threads = internal::random<int>(4, 16);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
+  PoolDevice pool(internal::random<int>(4, 16));
 
   const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
   Tensor<float, 2, DataLayout> t_left(2, k);
@@ -690,165 +531,19 @@ static void test_sharded_by_inner_dim_contraction() {
   // this contraction should be equivalent to a single matrix multiplication
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
-  auto contraction = t_left.contract(t_right, dims);
+  auto contraction = contract_with_optional_sqrt(t_left, t_right, dims, internal::bool_constant<WithOutputKernel>());
   using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
-  ContractionEval eval(contraction, device);
+  ContractionEval eval(contraction, pool.device);
   const int nt_k = eval.numThreadsInnerDim(2, 10, k);
   VERIFY(nt_k > 1);
   VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
 
   // compute results by separate methods
-  t_result.device(device) = contraction;
+  pool.assign<Async>(t_result, contraction);
   m_result = m_left * m_right;
 
   for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
-    VERIFY_IS_APPROX(t_result.data()[i], m_result.data()[i]);
-  }
-}
-
-// We are triggering 'evalShardedByInnerDim' optimization with output kernel.
-template <int DataLayout>
-static void test_sharded_by_inner_dim_contraction_with_output_kernel() {
-  using DimPair = typename Tensor<float, 1>::DimensionPair;
-
-  const int num_threads = internal::random<int>(4, 16);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
-  Tensor<float, 2, DataLayout> t_left(2, k);
-  Tensor<float, 2, DataLayout> t_right(k, 10);
-  Tensor<float, 2, DataLayout> t_result(2, 10);
-
-  t_left.setRandom();
-  t_right.setRandom();
-  // Put trash in t_result to verify contraction clears output memory.
-  t_result.setRandom();
-
-  // Add a little offset so that the results won't be close to zero.
-  t_left += t_left.constant(1.0f);
-  t_right += t_right.constant(1.0f);
-
-  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
-  MapXf m_left(t_left.data(), 2, k);
-  MapXf m_right(t_right.data(), k, 10);
-  Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
-
-  // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  auto contraction = t_left.contract(t_right, dims, SqrtOutputKernel());
-  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
-  ContractionEval eval(contraction, device);
-  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
-  VERIFY(nt_k > 1);
-  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
-
-  // compute results by separate methods
-  t_result.device(device) = contraction;
-  m_result = m_left * m_right;
-
-  for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
-    VERIFY_IS_APPROX(t_result.data()[i], std::sqrt(m_result.data()[i]));
-  }
-}
-
-// We are triggering 'evalShardedByInnerDim' optimization.
-template <int DataLayout>
-static void test_async_sharded_by_inner_dim_contraction() {
-  using DimPair = typename Tensor<float, 1>::DimensionPair;
-
-  const int num_threads = internal::random<int>(4, 16);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
-  Tensor<float, 2, DataLayout> t_left(2, k);
-  Tensor<float, 2, DataLayout> t_right(k, 10);
-  Tensor<float, 2, DataLayout> t_result(2, 10);
-
-  t_left.setRandom();
-  t_right.setRandom();
-  // Put trash in t_result to verify contraction clears output memory.
-  t_result.setRandom();
-
-  // Add a little offset so that the results won't be close to zero.
-  t_left += t_left.constant(1.0f);
-  t_right += t_right.constant(1.0f);
-
-  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
-  MapXf m_left(t_left.data(), 2, k);
-  MapXf m_right(t_right.data(), k, 10);
-  Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
-
-  // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  auto contraction = t_left.contract(t_right, dims);
-  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
-  ContractionEval eval(contraction, device);
-  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
-  VERIFY(nt_k > 1);
-  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
-
-  // compute results by separate methods
-  Eigen::Barrier barrier(1);
-  t_result.device(device, [&barrier]() { barrier.Notify(); }) = contraction;
-  barrier.Wait();
-
-  m_result = m_left * m_right;
-
-  for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
-    VERIFY_IS_APPROX(t_result.data()[i], m_result.data()[i]);
-  }
-}
-
-// We are triggering 'evalShardedByInnerDim' optimization with output kernel.
-template <int DataLayout>
-static void test_async_sharded_by_inner_dim_contraction_with_output_kernel() {
-  using DimPair = typename Tensor<float, 1>::DimensionPair;
-
-  const int num_threads = internal::random<int>(4, 16);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  const Index k = 30000 * PacketType<float, Eigen::ThreadPoolDevice>::size;
-  Tensor<float, 2, DataLayout> t_left(2, k);
-  Tensor<float, 2, DataLayout> t_right(k, 10);
-  Tensor<float, 2, DataLayout> t_result(2, 10);
-
-  t_left.setRandom();
-  t_right.setRandom();
-  // Put trash in t_result to verify contraction clears output memory.
-  t_result.setRandom();
-
-  // Add a little offset so that the results won't be close to zero.
-  t_left += t_left.constant(1.0f);
-  t_right += t_right.constant(1.0f);
-
-  using MapXf = Map<Eigen::Matrix<float, Dynamic, Dynamic, DataLayout>>;
-  MapXf m_left(t_left.data(), 2, k);
-  MapXf m_right(t_right.data(), k, 10);
-  Eigen::Matrix<float, Dynamic, Dynamic, DataLayout> m_result(2, 10);
-
-  // this contraction should be equivalent to a single matrix multiplication
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  auto contraction = t_left.contract(t_right, dims, SqrtOutputKernel());
-  using ContractionEval = TensorEvaluator<const decltype(contraction), Eigen::ThreadPoolDevice>;
-  ContractionEval eval(contraction, device);
-  const int nt_k = eval.numThreadsInnerDim(2, 10, k);
-  VERIFY(nt_k > 1);
-  VERIFY(ContractionEval::shardByInnerDim(2, 10, k, /*num_threads=*/1, nt_k));
-
-  // compute results by separate methods
-  Eigen::Barrier barrier(1);
-  t_result.device(device, [&barrier]() { barrier.Notify(); }) = contraction;
-  barrier.Wait();
-  m_result = m_left * m_right;
-
-  for (Index i = 0; i < t_result.dimensions().TotalSize(); i++) {
-    VERIFY_IS_APPROX(t_result.data()[i], std::sqrt(m_result.data()[i]));
+    VERIFY_IS_APPROX(t_result.data()[i], WithOutputKernel ? std::sqrt(m_result.data()[i]) : m_result.data()[i]);
   }
 }
 
@@ -857,14 +552,13 @@ static void test_sharded_by_inner_dim_cost_model() {
   using DimPair = typename Tensor<float, 1>::DimensionPair;
   Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
 
-  ThreadPool threads(8);
-  Eigen::ThreadPoolDevice device(&threads, 8);
+  PoolDevice pool(8);
 
   Tensor<float, 2, DataLayout> t_left(2, 2);
   Tensor<float, 2, DataLayout> t_right(2, 2);
   auto expr = t_left.contract(t_right, dims);
   using ContractionEval = TensorEvaluator<const decltype(expr), Eigen::ThreadPoolDevice>;
-  ContractionEval eval(expr, device);
+  ContractionEval eval(expr, pool.device);
 
   // Scale k by the packet width, up to 16 scalars, so the cost stays moderate and below the sharding threshold of
   // 2 * kStartupCycles = 2.0e5 cycles at every packet width, with or without FMA: at most 1.8e5 cycles for the
@@ -880,7 +574,7 @@ static void test_sharded_by_inner_dim_cost_model() {
   Tensor<Eigen::bfloat16, 2, DataLayout> bf16_right(2, 2);
   auto bf16_expr = bf16_left.contract(bf16_right, dims);
   using Bf16ContractionEval = TensorEvaluator<const decltype(bf16_expr), Eigen::ThreadPoolDevice>;
-  Bf16ContractionEval bf16_eval(bf16_expr, device);
+  Bf16ContractionEval bf16_eval(bf16_expr, pool.device);
   const Index bf16_packet_size = PacketType<Eigen::bfloat16, Eigen::ThreadPoolDevice>::size;
   const Index moderate_bf16_k = 64 * numext::mini<Index>(bf16_packet_size, 16);
   VERIFY_IS_EQUAL(bf16_eval.numThreadsInnerDim(16, 128, moderate_bf16_k), 1);
@@ -896,7 +590,7 @@ static void test_sharded_by_inner_dim_cost_model() {
   // Issue #3233: with few columns, packing the lhs costs as much as the kernel, so these shapes hold enough work to
   // shard by k with or without FMA. On a wide pool, the thread count must still leave each thread the steps that
   // shardByInnerDim() requires, and must be the number of blocks that run, which the minimum block size bounds.
-  Eigen::ThreadPoolDevice wide_device(&threads, 112);
+  Eigen::ThreadPoolDevice wide_device(&pool.pool, 112);
   ContractionEval wide_eval(expr, wide_device);
   for (Index m : {256, 1024}) {
     const int skinny_nt_k = wide_eval.numThreadsInnerDim(m, 4, 1536);
@@ -924,14 +618,13 @@ void test_full_contraction() {
   using DimPair = Tensor<float, 2>::DimensionPair;
   Eigen::array<DimPair, 2> dims{{DimPair(0, 0), DimPair(1, 1)}};
 
-  Eigen::ThreadPool tp(internal::random<int>(2, 11));
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, internal::random<int>(2, 11));
+  PoolDevice pool(internal::random<int>(2, 11), internal::random<int>(2, 11));
 
   Tensor<float, 0, DataLayout> st_result;
   st_result = left.contract(right, dims);
 
   Tensor<float, 0, DataLayout> tp_result;
-  tp_result.device(thread_pool_device) = left.contract(right, dims);
+  tp_result.device(pool.device) = left.contract(right, dims);
 
   VERIFY(dimensions_match(st_result.dimensions(), tp_result.dimensions()));
   // if both of the values are very small, then do nothing (because the test will fail
@@ -944,8 +637,7 @@ void test_full_contraction() {
 template <int DataLayout>
 void test_multithreaded_reductions() {
   const int num_threads = internal::random<int>(3, 11);
-  ThreadPool thread_pool(num_threads);
-  Eigen::ThreadPoolDevice thread_pool_device(&thread_pool, num_threads);
+  PoolDevice pool(num_threads);
 
   const int num_rows = internal::random<int>(13, 732);
   const int num_cols = internal::random<int>(13, 732);
@@ -956,7 +648,7 @@ void test_multithreaded_reductions() {
   full_redux = t1.sum();
 
   Tensor<float, 0, DataLayout> full_redux_tp;
-  full_redux_tp.device(thread_pool_device) = t1.sum();
+  full_redux_tp.device(pool.device) = t1.sum();
 
   // Check that the single threaded and the multi threaded reductions return
   // the same result.
@@ -972,12 +664,11 @@ struct SquaredSumReducer {
 
 template <typename = void>
 void test_multithreaded_value_transforming_full_reduction() {
-  ThreadPool thread_pool(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&thread_pool, 4);
+  PoolDevice pool(4);
   Tensor<double, 1> t(1 << 20);
   t.setConstant(1.0);
   Tensor<double, 0> result;
-  result.device(thread_pool_device) = t.reduce(array<Index, 1>{{0}}, SquaredSumReducer());
+  result.device(pool.device) = t.reduce(array<Index, 1>{{0}}, SquaredSumReducer());
   VERIFY_IS_EQUAL(result(), static_cast<double>(t.size()));
 }
 
@@ -987,14 +678,13 @@ template <typename = void>
 void test_multithreaded_argmax() {
   STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::ArgMaxPairReducer<Pair<Index, float>>>::value));
   STATIC_CHECK((internal::reducer_can_reorder_accumulators<internal::ArgMinPairReducer<Pair<Index, float>>>::value));
-  ThreadPool thread_pool(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&thread_pool, 4);
+  PoolDevice pool(4);
   Tensor<float, 1> t(1 << 20);
   for (Index i = 0; i < t.size(); ++i) t(i) = static_cast<float>((i + 500) % 1000);
   Tensor<Index, 0> result;
-  result.device(thread_pool_device) = t.argmax();
+  result.device(pool.device) = t.argmax();
   VERIFY_IS_EQUAL(result(), Index(499));
-  result.device(thread_pool_device) = t.argmin();
+  result.device(pool.device) = t.argmin();
   VERIFY_IS_EQUAL(result(), Index(500));
 }
 
@@ -1011,9 +701,8 @@ void test_multithreaded_complex_reduction() {
   EIGEN_ALIGN_MAX Scalar output_storage;
   TensorMap<TensorFixedSize<Scalar, Sizes<>, RowMajor>, Aligned> output(&output_storage);
 
-  ThreadPool thread_pool(2);
-  ThreadPoolDevice thread_pool_device(&thread_pool, 2);
-  output.device(thread_pool_device) = input.sum();
+  PoolDevice pool(2);
+  output.device(pool.device) = input.sum();
 
   VERIFY_IS_EQUAL(output(), Scalar(static_cast<float>(size), static_cast<float>(2 * size)));
 }
@@ -1031,16 +720,15 @@ void test_multithreaded_complex_partial_reductions() {
     }
   }
 
-  ThreadPool thread_pool(2);
-  ThreadPoolDevice thread_pool_device(&thread_pool, 2);
+  PoolDevice pool(2);
 
   IndexList<type2index<1>> static_reduction_dim;
   Tensor<Scalar, 1, RowMajor> static_result(outer_size);
-  static_result.device(thread_pool_device) = input.sum(static_reduction_dim);
+  static_result.device(pool.device) = input.sum(static_reduction_dim);
 
   array<Index, 1> runtime_reduction_dim{1};
   Tensor<Scalar, 1, RowMajor> runtime_result(outer_size);
-  runtime_result.device(thread_pool_device) = input.sum(runtime_reduction_dim);
+  runtime_result.device(pool.device) = input.sum(runtime_reduction_dim);
 
   for (Index i = 0; i < outer_size; ++i) {
     const Scalar expected = static_cast<float>(reduced_size) * input(i, 0);
@@ -1053,28 +741,27 @@ template <typename = void>
 void test_memcpy() {
   for (int i = 0; i < 5; ++i) {
     const int num_threads = internal::random<int>(3, 11);
-    Eigen::ThreadPool tp(num_threads);
-    Eigen::ThreadPoolDevice thread_pool_device(&tp, num_threads);
+    PoolDevice pool(num_threads);
 
     const int size = internal::random<int>(13, 7632);
     Tensor<float, 1> t1(size);
     t1.setRandom();
     std::vector<float> result(size);
-    thread_pool_device.memcpy(&result[0], t1.data(), size * sizeof(float));
+    pool.device.memcpy(&result[0], t1.data(), size * sizeof(float));
     for (int j = 0; j < size; j++) {
       VERIFY_IS_EQUAL(t1(j), result[j]);
     }
   }
 }
 
-// The executors copy the evaluator per task; a copy must not destroy the forced-eval buffer's elements.
-template <typename = void>
+// The executors copy the evaluator per task; a copy must not destroy the forced-eval buffer's elements. The async path
+// also constructs the buffer's non-POD elements before evaluating into them.
+template <bool Async>
 void test_multithread_forced_eval_non_pod() {
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
+  PoolDevice pool(4);
   Tensor<std::string, 1> in(64), out(64);
   for (int i = 0; i < 64; ++i) in(i) = std::string(40, static_cast<char>('a' + i % 26));
-  out.device(thread_pool_device) = in.eval();
+  pool.assign<Async>(out, in.eval());
   for (int i = 0; i < 64; ++i) VERIFY_IS_EQUAL(out(i), in(i));
 }
 
@@ -1186,8 +873,7 @@ static void test_multithread_contraction_require_initialization(Index m, Index k
   {
     // Destroying the pool at the end of this block joins the workers before the checks below: the kernel task that
     // sends the final notification still holds alpha and beta until its frame unwinds.
-    Eigen::ThreadPool tp(4);
-    Eigen::ThreadPoolDevice device(&tp, 4, &test_allocator);
+    PoolDevice pool(4, &test_allocator);
     Tensor<TrackedScalar, 2, DataLayout> t_left = left.template cast<TrackedScalar>();
     Tensor<TrackedScalar, 2, DataLayout> t_right = right.template cast<TrackedScalar>();
     Tensor<TrackedScalar, 2, DataLayout> result(m, n);
@@ -1199,7 +885,7 @@ static void test_multithread_contraction_require_initialization(Index m, Index k
 
     TrackedScalar::pool_assignments = 0;
     const int allocations_before = test_allocator.alloc_count();
-    result.device(device) = t_left.contract(t_right, dims);
+    result.device(pool.device) = t_left.contract(t_right, dims);
     check(1);
     VERIFY(TrackedScalar::pool_assignments.load() > 0);
     const int allocations = test_allocator.alloc_count() - allocations_before;
@@ -1218,17 +904,17 @@ static void test_multithread_contraction_require_initialization(Index m, Index k
     // depend on the path, so the slowest shape skips it.
     const bool nested = path != ContractionPath::ThreadLocalPack;
     if (nested) {
-      result.device(device) = t_left.contract(t_right, dims) + t_left.contract(t_right, dims);
+      result.device(pool.device) = t_left.contract(t_right, dims) + t_left.contract(t_right, dims);
       check(2);
     }
 
     Eigen::Barrier done(1);
-    result.device(device, [&done]() { done.Notify(); }) = t_left.contract(t_right, dims);
+    result.device(pool.device, [&done]() { done.Notify(); }) = t_left.contract(t_right, dims);
     done.Wait();
     check(1);
     if (nested) {
       Eigen::Barrier done_nested(1);
-      result.device(device, [&done_nested]() { done_nested.Notify(); }) =
+      result.device(pool.device, [&done_nested]() { done_nested.Notify(); }) =
           t_left.contract(t_right, dims) + t_left.contract(t_right, dims);
       done_nested.Wait();
       check(2);
@@ -1445,35 +1131,20 @@ static void test_contraction_require_initialization_throws() {
 
 template <typename = void>
 void test_enqueue_with_args() {
-  Eigen::ThreadPool tp(2);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 2);
+  PoolDevice pool(2);
   Eigen::Barrier barrier(2);
   std::atomic<int> sum(0);
-  thread_pool_device.enqueue([&sum](Eigen::Barrier* b, int x) { sum += x, b->Notify(); }, &barrier, 3);
-  thread_pool_device.enqueueNoNotification([&sum](Eigen::Barrier* b) { sum += 4, b->Notify(); }, &barrier);
+  pool.device.enqueue([&sum](Eigen::Barrier* b, int x) { sum += x, b->Notify(); }, &barrier, 3);
+  pool.device.enqueueNoNotification([&sum](Eigen::Barrier* b) { sum += 4, b->Notify(); }, &barrier);
   barrier.Wait();
   VERIFY_IS_EQUAL(sum.load(), 7);
-}
-
-// The async path constructs the forced-eval buffer's non-POD elements before evaluating into them.
-template <typename = void>
-void test_async_forced_eval_non_pod() {
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4);
-  Tensor<std::string, 1> in(64), out(64);
-  for (int i = 0; i < 64; ++i) in(i) = std::string(40, static_cast<char>('a' + i % 26));
-  Eigen::Barrier done(1);
-  out.device(thread_pool_device, [&done]() { done.Notify(); }) = in.eval();
-  done.Wait();
-  for (int i = 0; i < 64; ++i) VERIFY_IS_EQUAL(out(i), in(i));
 }
 
 // The single-block async path frees its scratch before the done callback, after which the device may be destroyed.
 template <typename = void>
 void test_async_single_block_scratch_freed_before_done() {
   TestAllocator allocator;
-  Eigen::ThreadPool tp(4);
-  Eigen::ThreadPoolDevice thread_pool_device(&tp, 4, &allocator);
+  PoolDevice pool(4, &allocator);
   Tensor<float, 3> src(4, 5, 6), other(6, 5, 4), dst(6, 5, 4);
   src.setRandom();
   other.setRandom();
@@ -1490,7 +1161,7 @@ void test_async_single_block_scratch_freed_before_done() {
   using Executor = internal::TensorAsyncExecutor<const Assign, ThreadPoolDevice, decltype(on_done),
                                                  /*Vectorizable=*/true, internal::TiledEvaluation::On>;
   // With no async subexpressions and a single block, runAsync evaluates and signals on this thread.
-  Executor::runAsync(Assign(dst, expr), thread_pool_device, on_done);
+  Executor::runAsync(Assign(dst, expr), pool.device, on_done);
   done.Wait();
   VERIFY(allocator.alloc_count() > 0);
   VERIFY_IS_EQUAL(allocator.dealloc_count(), deallocs_at_done);
@@ -1498,10 +1169,9 @@ void test_async_single_block_scratch_freed_before_done() {
 
 template <typename = void>
 void test_multithread_random() {
-  Eigen::ThreadPool tp(2);
-  Eigen::ThreadPoolDevice device(&tp, 2);
+  PoolDevice pool(2);
   Tensor<float, 1> t(1 << 20);
-  t.device(device) = t.random<Eigen::internal::NormalRandomGenerator<float>>();
+  t.device(pool.device) = t.random<Eigen::internal::NormalRandomGenerator<float>>();
 }
 
 template <int DataLayout>
@@ -1510,12 +1180,11 @@ void test_multithread_shuffle(Allocator* allocator) {
   tensor.setRandom();
 
   const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads, allocator);
+  PoolDevice pool(num_threads, allocator);
 
   Tensor<float, 4, DataLayout> shuffle(7, 5, 11, 17);
   array<ptrdiff_t, 4> shuffles = {{2, 1, 3, 0}};
-  shuffle.device(device) = tensor.shuffle(shuffles);
+  shuffle.device(pool.device) = tensor.shuffle(shuffles);
 
   for (int i = 0; i < 17; ++i) {
     for (int j = 0; j < 5; ++j) {
@@ -1532,278 +1201,30 @@ template <typename = void>
 void test_threadpool_allocate(TestAllocator* allocator) {
   const int num_threads = internal::random<int>(2, 11);
   const int num_allocs = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads, allocator);
+  PoolDevice pool(num_threads, allocator);
 
   for (int a = 0; a < num_allocs; ++a) {
-    void* ptr = device.allocate(512);
-    device.deallocate(ptr);
+    void* ptr = pool.device.allocate(512);
+    pool.device.deallocate(ptr);
   }
   VERIFY(allocator != nullptr);
   VERIFY_IS_EQUAL(allocator->alloc_count(), num_allocs);
   VERIFY_IS_EQUAL(allocator->dealloc_count(), num_allocs);
 }
 
-template <int DataLayout>
+template <int DataLayout, bool Async>
 void test_multithread_zero_dim_contraction() {
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  // 2D contraction: {10, 0} * {0, 20} -> {10, 20}
-  {
-    Tensor<float, 2, DataLayout> t_left(10, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 20);
-    Tensor<float, 2, DataLayout> t_result(10, 20);
-    t_result.setConstant(123.0f);
-
-    using DimPair = Tensor<float, 1>::DimensionPair;
-    Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-    t_result.device(device) = t_left.contract(t_right, dims);
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
-    }
-  }
-
-  // 2D contraction with non-empty dim >= 48: {64, 0} * {0, 64} -> {64, 64}
-  {
-    Tensor<float, 2, DataLayout> t_left(64, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 64);
-    Tensor<float, 2, DataLayout> t_result(64, 64);
-    t_result.setConstant(123.0f);
-
-    using DimPair = Tensor<float, 1>::DimensionPair;
-    Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-    t_result.device(device) = t_left.contract(t_right, dims);
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
-    }
-  }
-
-  // Multidim contraction: {5, 0, 4} * {0, 3, 4} with dims {1, 0} and {2, 2} -> {5, 3}
-  {
-    Tensor<float, 3, DataLayout> t_left(5, 0, 4);
-    Tensor<float, 3, DataLayout> t_right(0, 3, 4);
-    Tensor<float, 2, DataLayout> t_result(5, 3);
-    t_result.setConstant(123.0f);
-
-    using DimPair = Tensor<float, 1>::DimensionPair;
-    Eigen::array<DimPair, 2> dims{{DimPair(1, 0), DimPair(2, 2)}};
-
-    t_result.device(device) = t_left.contract(t_right, dims);
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 5);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 3);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
-    }
-  }
-}
-
-template <int DataLayout>
-void test_async_multithread_zero_dim_contraction() {
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  Tensor<float, 2, DataLayout> t_left(10, 0);
-  Tensor<float, 2, DataLayout> t_right(0, 20);
-  Tensor<float, 2, DataLayout> t_result(10, 20);
-  t_result.setConstant(123.0f);
-
-  using DimPair = Tensor<float, 1>::DimensionPair;
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  Eigen::Barrier barrier(1);
-  t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims);
-  barrier.Wait();
-
-  VERIFY_IS_EQUAL(t_result.dimension(0), 10);
-  VERIFY_IS_EQUAL(t_result.dimension(1), 20);
-  for (Index i = 0; i < t_result.size(); ++i) {
-    VERIFY_IS_EQUAL(t_result.data()[i], 0.0f);
-  }
-}
-
-template <typename Scalar>
-struct AddBiasOutputKernel {
-  Scalar bias;
-  explicit AddBiasOutputKernel(Scalar b) : bias(b) {}
-
-  template <typename Index, typename ResScalar>
-  EIGEN_ALWAYS_INLINE void operator()(const internal::blas_data_mapper<ResScalar, Index, ColMajor>& output_mapper,
-                                      const TensorContractionParams&, Index, Index, Index num_rows,
-                                      Index num_cols) const {
-    for (Index i = 0; i < num_rows; ++i) {
-      for (Index j = 0; j < num_cols; ++j) {
-        output_mapper(i, j) += bias;
-      }
-    }
-  }
-};
-
-template <int DataLayout>
-void test_multithread_zero_dim_contraction_with_output_kernel() {
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  const float bias = 42.0f;
-  using DimPair = Tensor<float, 1>::DimensionPair;
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  // {10, 0} * {0, 20} -> {10, 20}
-  {
-    Tensor<float, 2, DataLayout> t_left(10, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 20);
-    Tensor<float, 2, DataLayout> t_result(10, 20);
-    t_result.setConstant(123.0f);
-
-    t_result.device(device) = t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], bias);
-    }
-  }
-
-  // {64, 0} * {0, 64} -> {64, 64}
-  {
-    Tensor<float, 2, DataLayout> t_left(64, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 64);
-    Tensor<float, 2, DataLayout> t_result(64, 64);
-    t_result.setConstant(123.0f);
-
-    t_result.device(device) = t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], bias);
-    }
-  }
-}
-
-template <int DataLayout>
-void test_async_multithread_zero_dim_contraction_with_output_kernel() {
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  const float bias = 42.0f;
-  using DimPair = Tensor<float, 1>::DimensionPair;
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  // {10, 0} * {0, 20} -> {10, 20}
-  {
-    Tensor<float, 2, DataLayout> t_left(10, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 20);
-    Tensor<float, 2, DataLayout> t_result(10, 20);
-    t_result.setConstant(123.0f);
-
-    Eigen::Barrier barrier(1);
-    t_result.device(device, [&barrier]() { barrier.Notify(); }) =
-        t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
-    barrier.Wait();
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 20);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], bias);
-    }
-  }
-
-  // {64, 0} * {0, 64} -> {64, 64}
-  {
-    Tensor<float, 2, DataLayout> t_left(64, 0);
-    Tensor<float, 2, DataLayout> t_right(0, 64);
-    Tensor<float, 2, DataLayout> t_result(64, 64);
-    t_result.setConstant(123.0f);
-
-    Eigen::Barrier barrier(1);
-    t_result.device(device, [&barrier]() { barrier.Notify(); }) =
-        t_left.contract(t_right, dims, AddBiasOutputKernel<float>(bias));
-    barrier.Wait();
-
-    VERIFY_IS_EQUAL(t_result.dimension(0), 64);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 64);
-    for (Index i = 0; i < t_result.size(); ++i) {
-      VERIFY_IS_EQUAL(t_result.data()[i], bias);
-    }
-  }
-}
-
-template <int DataLayout>
-void test_multithread_zero_dim_outer_zeros() {
-  const int num_threads = internal::random<int>(2, 11);
-  ThreadPool threads(num_threads);
-  Eigen::ThreadPoolDevice device(&threads, num_threads);
-
-  using DimPair = Tensor<float, 1>::DimensionPair;
-  Eigen::array<DimPair, 1> dims{{DimPair(1, 0)}};
-
-  // Outer zero on LHS: {0, 5} * {5, 10} -> {0, 10}
-  {
-    Tensor<float, 2, DataLayout> t_left(0, 5);
-    Tensor<float, 2, DataLayout> t_right(5, 10);
-    t_right.setRandom();
-    Tensor<float, 2, DataLayout> t_result(0, 10);
-    t_result.device(device) = t_left.contract(t_right, dims);
-    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
-    VERIFY_IS_EQUAL(t_result.size(), 0);
-  }
-
-  // Outer zero on RHS: {10, 5} * {5, 0} -> {10, 0}
-  {
-    Tensor<float, 2, DataLayout> t_left(10, 5);
-    Tensor<float, 2, DataLayout> t_right(5, 0);
-    t_left.setRandom();
-    Tensor<float, 2, DataLayout> t_result(10, 0);
-    t_result.device(device) = t_left.contract(t_right, dims);
-    VERIFY_IS_EQUAL(t_result.dimension(0), 10);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
-    VERIFY_IS_EQUAL(t_result.size(), 0);
-  }
-
-  // Outer zero on both: {0, 5} * {5, 0} -> {0, 0}
-  {
-    Tensor<float, 2, DataLayout> t_left(0, 5);
-    Tensor<float, 2, DataLayout> t_right(5, 0);
-    Tensor<float, 2, DataLayout> t_result(0, 0);
-    t_result.device(device) = t_left.contract(t_right, dims);
-    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 0);
-    VERIFY_IS_EQUAL(t_result.size(), 0);
-  }
-
-  // Async zero outer dim
-  {
-    Tensor<float, 2, DataLayout> t_left(0, 5);
-    Tensor<float, 2, DataLayout> t_right(5, 10);
-    t_right.setRandom();
-    Tensor<float, 2, DataLayout> t_result(0, 10);
-    Eigen::Barrier barrier(1);
-    t_result.device(device, [&barrier]() { barrier.Notify(); }) = t_left.contract(t_right, dims);
-    barrier.Wait();
-    VERIFY_IS_EQUAL(t_result.dimension(0), 0);
-    VERIFY_IS_EQUAL(t_result.dimension(1), 10);
-    VERIFY_IS_EQUAL(t_result.size(), 0);
-  }
+  PoolDevice pool(internal::random<int>(2, 11));
+  const auto assign = [&](auto& dst, const auto& expr) { pool.assign<Async>(dst, expr); };
+  tensor_test::test_zero_dim_contraction_matrices<DataLayout, float>(assign);
+  tensor_test::test_zero_dim_contraction_multidims<DataLayout, float>(assign);
+  tensor_test::test_zero_dim_contraction_outer_zeros<DataLayout, float>(assign);
+  tensor_test::test_zero_dim_contraction_output_kernel<DataLayout, float>(assign);
 }
 
 EIGEN_DECLARE_TEST(tensor_thread_pool) {
-  CALL_SUBTEST_1(test_multithread_elementwise<>());
-  CALL_SUBTEST_1(test_async_multithread_elementwise<>());
+  CALL_SUBTEST_1(test_multithread_elementwise<false>());
+  CALL_SUBTEST_1(test_multithread_elementwise<true>());
   CALL_SUBTEST_1(test_multithread_compound_assignment<>());
 
   CALL_SUBTEST_2(test_multithread_contraction<ColMajor>());
@@ -1811,36 +1232,37 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_2(test_multithread_gemv_transpose<ColMajor>());
   CALL_SUBTEST_2(test_multithread_gemv_transpose<RowMajor>());
 
-  CALL_SUBTEST_3(test_multithread_chip<>());
   CALL_SUBTEST_3(test_async_multithread_chip<>());
 
-  CALL_SUBTEST_4(test_multithread_volume_patch<>());
-  CALL_SUBTEST_4(test_async_multithread_volume_patch<>());
-  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor<>());
-  CALL_SUBTEST_4(test_async_multithread_tiled_stateful_functor<>());
+  CALL_SUBTEST_4(test_multithread_volume_patch<false>());
+  CALL_SUBTEST_4(test_multithread_volume_patch<true>());
+  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor<false>());
+  CALL_SUBTEST_4(test_multithread_tiled_stateful_functor<true>());
 
-  CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<ColMajor>());
-  CALL_SUBTEST_5(test_multithread_contraction_agrees_with_singlethread<RowMajor>());
-  CALL_SUBTEST_5(test_multithread_contraction_with_output_kernel<ColMajor>());
-  CALL_SUBTEST_5(test_multithread_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_5((test_multithread_contraction_agrees_with_singlethread<ColMajor, false>()));
+  CALL_SUBTEST_5((test_multithread_contraction_agrees_with_singlethread<RowMajor, false>()));
+  CALL_SUBTEST_5((test_multithread_contraction_with_output_kernel<ColMajor, false>()));
+  CALL_SUBTEST_5((test_multithread_contraction_with_output_kernel<RowMajor, false>()));
 
-  CALL_SUBTEST_6(test_async_multithread_contraction_agrees_with_singlethread<ColMajor>());
-  CALL_SUBTEST_6(test_async_multithread_contraction_agrees_with_singlethread<RowMajor>());
+  CALL_SUBTEST_6((test_multithread_contraction_agrees_with_singlethread<ColMajor, true>()));
+  CALL_SUBTEST_6((test_multithread_contraction_agrees_with_singlethread<RowMajor, true>()));
+  CALL_SUBTEST_6((test_multithread_contraction_with_output_kernel<ColMajor, true>()));
+  CALL_SUBTEST_6((test_multithread_contraction_with_output_kernel<RowMajor, true>()));
   CALL_SUBTEST_6(test_async_contraction_eval_subexprs_dedup<ColMajor>());
   CALL_SUBTEST_6(test_async_contraction_eval_subexprs_dedup<RowMajor>());
 
   // Test EvalShardedByInnerDimContext parallelization strategy.
-  CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction<ColMajor>());
-  CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction<RowMajor>());
-  CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction_with_output_kernel<ColMajor>());
-  CALL_SUBTEST_7(test_sharded_by_inner_dim_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_7((test_sharded_by_inner_dim_contraction<ColMajor, false, false>()));
+  CALL_SUBTEST_7((test_sharded_by_inner_dim_contraction<RowMajor, false, false>()));
+  CALL_SUBTEST_7((test_sharded_by_inner_dim_contraction<ColMajor, false, true>()));
+  CALL_SUBTEST_7((test_sharded_by_inner_dim_contraction<RowMajor, false, true>()));
   CALL_SUBTEST_7(test_sharded_by_inner_dim_cost_model<ColMajor>());
   CALL_SUBTEST_7(test_sharded_by_inner_dim_cost_model<RowMajor>());
 
-  CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction<ColMajor>());
-  CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction<RowMajor>());
-  CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction_with_output_kernel<ColMajor>());
-  CALL_SUBTEST_8(test_async_sharded_by_inner_dim_contraction_with_output_kernel<RowMajor>());
+  CALL_SUBTEST_8((test_sharded_by_inner_dim_contraction<ColMajor, true, false>()));
+  CALL_SUBTEST_8((test_sharded_by_inner_dim_contraction<RowMajor, true, false>()));
+  CALL_SUBTEST_8((test_sharded_by_inner_dim_contraction<ColMajor, true, true>()));
+  CALL_SUBTEST_8((test_sharded_by_inner_dim_contraction<RowMajor, true, true>()));
 
   // Exercise various cases that have been problematic in the past.
   CALL_SUBTEST_9(test_contraction_corner_cases<ColMajor>());
@@ -1858,9 +1280,9 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
 
   CALL_SUBTEST_12(test_memcpy<>());
   CALL_SUBTEST_12(test_multithread_random<>());
-  CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<>());
+  CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<false>());
   CALL_SUBTEST_12(test_enqueue_with_args<>());
-  CALL_SUBTEST_12(test_async_forced_eval_non_pod<>());
+  CALL_SUBTEST_12(test_multithread_forced_eval_non_pod<true>());
   CALL_SUBTEST_12(test_async_single_block_scratch_freed_before_done<>());
   CALL_SUBTEST_12(
       test_multithread_contraction_require_initialization<ColMajor>(131, 67, 509, ContractionPath::ParallelPack));
@@ -1882,16 +1304,10 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_13(test_multithread_shuffle<RowMajor>(&test_allocator));
   CALL_SUBTEST_13(test_threadpool_allocate<>(&test_allocator));
 
-  CALL_SUBTEST_14(test_multithread_zero_dim_contraction<ColMajor>());
-  CALL_SUBTEST_14(test_multithread_zero_dim_contraction<RowMajor>());
-  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction<ColMajor>());
-  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction<RowMajor>());
-  CALL_SUBTEST_14(test_multithread_zero_dim_contraction_with_output_kernel<ColMajor>());
-  CALL_SUBTEST_14(test_multithread_zero_dim_contraction_with_output_kernel<RowMajor>());
-  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction_with_output_kernel<ColMajor>());
-  CALL_SUBTEST_14(test_async_multithread_zero_dim_contraction_with_output_kernel<RowMajor>());
-  CALL_SUBTEST_14(test_multithread_zero_dim_outer_zeros<ColMajor>());
-  CALL_SUBTEST_14(test_multithread_zero_dim_outer_zeros<RowMajor>());
+  CALL_SUBTEST_14((test_multithread_zero_dim_contraction<ColMajor, false>()));
+  CALL_SUBTEST_14((test_multithread_zero_dim_contraction<RowMajor, false>()));
+  CALL_SUBTEST_14((test_multithread_zero_dim_contraction<ColMajor, true>()));
+  CALL_SUBTEST_14((test_multithread_zero_dim_contraction<RowMajor, true>()));
 
   // Force CMake to split this test.
   // EIGEN_SUFFIXES;1;2;3;4;5;6;7;8;9;10;11;12;13;14

@@ -13,6 +13,7 @@
 #include <Eigen/Cholesky>
 #include <Eigen/QR>
 #include <Eigen/Eigenvalues>
+#include "qz_test_helpers.h"
 
 // This file test inplace decomposition through Ref<>, as supported by the Cholesky, LU, and QR decompositions, the
 // Hessenberg, tridiagonal, Schur and QZ reductions, and the dense eigensolvers.
@@ -106,17 +107,6 @@ void verify_inplace_similarity(const MatrixType& input, const BasisType& basis, 
   const RealScalar tolerance = RealScalar(128 * input.rows()) * NumTraits<RealScalar>::epsilon();
   VERIFY((input - basis * form * basis.adjoint()).norm() <= tolerance * input.norm());
   VERIFY(basis.isUnitary(tolerance));
-}
-
-template <typename MatrixType, typename QZType>
-void verify_inplace_qz(const MatrixType& a, const MatrixType& b, const QZType& qz) {
-  using RealScalar = typename MatrixType::RealScalar;
-  const RealScalar tolerance = RealScalar(128 * a.rows()) * NumTraits<RealScalar>::epsilon();
-  VERIFY_IS_EQUAL(qz.info(), Success);
-  VERIFY((a - qz.matrixQ() * qz.matrixS() * qz.matrixZ()).norm() <= tolerance * a.norm());
-  VERIFY((b - qz.matrixQ() * qz.matrixT() * qz.matrixZ()).norm() <= tolerance * b.norm());
-  VERIFY(qz.matrixQ().isUnitary(tolerance));
-  VERIFY(qz.matrixZ().isUnitary(tolerance));
 }
 
 template <typename MatrixType>
@@ -314,11 +304,13 @@ void inplace_eigensolver(Index size) {
 
 template <typename MatrixType, template <typename> class QZType>
 void inplace_qz(Index size) {
+  using RealScalar = typename MatrixType::RealScalar;
+  const RealScalar tolerance = RealScalar(128 * size) * NumTraits<RealScalar>::epsilon();
   MatrixType A = MatrixType::Random(size, size), B = MatrixType::Random(size, size), A0 = A, Bin = B;
   QZType<Ref<MatrixType>> qz(A, B);
   VERIFY(internal::is_same_dense(qz.matrixS(), A));
   VERIFY(internal::is_same_dense(qz.matrixT(), B));
-  verify_inplace_qz(A0, Bin, qz);
+  verify_qz_decomposition(A0, Bin, qz, tolerance);
 
   // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): Snapshots verify compute() preserves both inputs.
   MatrixType A1 = MatrixType::Random(size, size), B1 = MatrixType::Random(size, size), A1c = A1, B1c = B1;
@@ -327,14 +319,12 @@ void inplace_qz(Index size) {
   VERIFY_IS_EQUAL(B1, B1c);
   VERIFY(internal::is_same_dense(qz.matrixS(), A));
   VERIFY(internal::is_same_dense(qz.matrixT(), B));
-  verify_inplace_qz(A1, B1, qz);
+  verify_qz_decomposition(A1, B1, qz, tolerance);
   const MatrixType S = qz.matrixS(), T = qz.matrixT();
   qz.compute(A1, B1, false);
   VERIFY_IS_EQUAL(qz.info(), Success);
   VERIFY_IS_EQUAL(A1, A1c);
   VERIFY_IS_EQUAL(B1, B1c);
-  using RealScalar = typename MatrixType::RealScalar;
-  const RealScalar tolerance = RealScalar(128 * size) * NumTraits<RealScalar>::epsilon();
   VERIFY((qz.matrixS() - S).norm() <= tolerance * A1.norm());
   VERIFY((qz.matrixT() - T).norm() <= tolerance * B1.norm());
 }
@@ -342,23 +332,21 @@ void inplace_qz(Index size) {
 template <typename MatrixType>
 void inplace_generalized_eigensolver(Index size) {
   using RealScalar = typename MatrixType::RealScalar;
-  using ComplexScalar = std::complex<RealScalar>;
   using EigenvectorsType = typename GeneralizedEigenSolver<MatrixType>::EigenvectorsType;
   MatrixType A = MatrixType::Random(size, size), B = MatrixType::Random(size, size), A0 = A, Binput = B;
   GeneralizedEigenSolver<Ref<MatrixType>> ges(A, B);
   VERIFY_IS_EQUAL(ges.info(), Success);
-  EigenvectorsType V = ges.eigenvectors();
-  const EigenvectorsType lhs =
-      A0.template cast<ComplexScalar>() * V * ges.betas().template cast<ComplexScalar>().asDiagonal();
-  const EigenvectorsType rhs = Binput.template cast<ComplexScalar>() * V * ges.alphas().asDiagonal();
+  const EigenvectorsType V = ges.eigenvectors();
   const RealScalar tolerance = RealScalar(128 * size) * NumTraits<RealScalar>::epsilon();
-  VERIFY((lhs - rhs).norm() <= tolerance * (lhs.norm() + rhs.norm()));
+  for (Index k = 0; k < size; ++k)
+    VERIFY(generalized_eigenpair_backward_error(A0, Binput, ges.alphas()(k), ges.betas()(k), V.col(k)) <= tolerance);
   VERIFY((V.colwise().norm().array() - RealScalar(1)).abs().maxCoeff() <= tolerance);
 }
 
 template <typename Scalar, template <typename> class QZType, int Options>
 void inplace_qz_inner_stride() {
   using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  using RealScalar = typename MatrixType::RealScalar;
   using StridedRef = Ref<MatrixType, 0, Stride<Dynamic, Dynamic>>;
   for (Index inner : {Index(1), Index(2)}) {
     MatrixType storageA = MatrixType::Random(8, 5), storageB = MatrixType::Random(8, 5);
@@ -370,7 +358,7 @@ void inplace_qz_inner_stride() {
     QZType<StridedRef> qz(ar, br);
     VERIFY(internal::is_same_dense(qz.matrixS(), a));
     VERIFY(internal::is_same_dense(qz.matrixT(), b));
-    verify_inplace_qz(A0, Binput, qz);
+    verify_qz_decomposition(A0, Binput, qz, RealScalar(128 * 4) * NumTraits<RealScalar>::epsilon());
     // The Map's strides determine its footprint in either storage order.
     for (Index offset = 0; offset < storageA.size(); ++offset) {
       const Index outer = offset / stride.outer();

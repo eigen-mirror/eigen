@@ -148,85 +148,28 @@ void jacobi_makegivens_safe_scaling() {
   verify_makeGivens<Scalar>(rtmax, safmin);
 }
 
+// Extra properties of a real rotation: r is positive, to within the subnormal grid, and exactly |p| or |q| where the
+// other is zero.
 template <typename Scalar>
-void jacobi_makegivens_subnormal() {
-  const Scalar minimum = (std::numeric_limits<Scalar>::min)();
-  const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
-  JacobiRotation<Scalar> zero;
-  zero.makeGivens(-Scalar(0), Scalar(0));
-  VERIFY_IS_EQUAL(zero.c(), Scalar(1));
-  VERIFY_IS_EQUAL(zero.s(), Scalar(0));
-  for (Scalar scale : {minimum, Scalar(minimum / Scalar(16)), tiny}) {
-    for (int i = -3; i <= 3; ++i) {
-      for (int j = -3; j <= 3; ++j) {
-        if (i == 0 && j == 0) continue;
-        const Scalar p = i == 0 ? -Scalar(0) : Scalar(i) * scale;
-        const Scalar q = Scalar(j) * scale;
-        const long double expected = std::sqrt(static_cast<long double>(i * i + j * j));
-        for (int mode = 0; mode < 4; ++mode) {
-          JacobiRotation<Scalar> rotation, withoutR;
-          Scalar r;
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && EIGEN_ARCH_i386_OR_x86_64 && \
-    (defined(__SSE__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1))
-          {
-            struct RestoreMxcsr {
-              unsigned saved = _mm_getcsr();
-              ~RestoreMxcsr() { _mm_setcsr(saved); }
-            } restore;
-            const unsigned mask = _MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK;
-            const unsigned requested = ((mode & 1) ? _MM_FLUSH_ZERO_ON : 0) | ((mode & 2) ? _MM_DENORMALS_ZERO_ON : 0);
-            _mm_setcsr((restore.saved & ~mask) | requested);
-            VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
-            rotation.makeGivens(p, q, &r);
-            withoutR.makeGivens(p, q);
-            VERIFY_IS_EQUAL(_mm_getcsr() & mask, requested);
-          }
-#else
-          if (mode > 1) continue;
-          if (mode == 1) {
-            ScopedFlushToZero flush;
-            if (!flush.isSupported()) continue;
-            rotation.makeGivens(p, q, &r);
-            withoutR.makeGivens(p, q);
-          } else {
-            rotation.makeGivens(p, q, &r);
-            withoutR.makeGivens(p, q);
-          }
-#endif
-          const long double c = static_cast<long double>(rotation.c()), s = static_cast<long double>(rotation.s());
-          const long double tolerance = 16 * static_cast<long double>(NumTraits<Scalar>::epsilon());
-          VERIFY(numext::abs(c * c + s * s - 1) <= tolerance);
-          VERIFY(numext::abs(s * i + c * j) <= tolerance * expected);
-          VERIFY(numext::abs(c * i - s * j - expected) <= tolerance * expected);
-          VERIFY_IS_EQUAL(rotation.c(), withoutR.c());
-          VERIFY_IS_EQUAL(rotation.s(), withoutR.s());
-          const long double normalizedR = static_cast<long double>(r) / static_cast<long double>(scale);
-          const long double quantum = static_cast<long double>(tiny) / static_cast<long double>(scale);
-          VERIFY(normalizedR > 0);
-          VERIFY(numext::abs(normalizedR - expected) <= tolerance * expected + quantum / 2);
-          if (i == 0 || j == 0) VERIFY_IS_EQUAL(r, numext::abs(i == 0 ? q : p));
-        }
-      }
-    }
+void check_real_givens_result(const Scalar& p, const Scalar& q, typename NumTraits<Scalar>::Real scale,
+                              long double expected, long double tolerance, const Scalar& r, std::false_type) {
+  const long double normalizedR = static_cast<long double>(r) / static_cast<long double>(scale);
+  const long double quantum =
+      static_cast<long double>(std::numeric_limits<Scalar>::denorm_min()) / static_cast<long double>(scale);
+  VERIFY(normalizedR > 0);
+  VERIFY(numext::abs(normalizedR - expected) <= tolerance * expected + quantum / 2);
+  if (numext::is_exactly_zero(p) || numext::is_exactly_zero(q)) {
+    VERIFY_IS_EQUAL(r, numext::abs(numext::is_exactly_zero(p) ? q : p));
   }
-  const Scalar maximum = NumTraits<Scalar>::highest();
-  verify_makeGivens(Scalar(maximum / Scalar(2)), Scalar(maximum / Scalar(3)));
-  JacobiRotation<Scalar> overflow, withoutR;
-  Scalar r;
-  overflow.makeGivens(maximum, maximum, &r);
-  withoutR.makeGivens(maximum, maximum);
-  VERIFY((numext::isinf)(r));
-  VERIFY_IS_EQUAL(overflow.c(), withoutR.c());
-  VERIFY_IS_EQUAL(overflow.s(), withoutR.s());
-  VERIFY(numext::abs(overflow.c() + overflow.s()) <= NumTraits<Scalar>::epsilon());
-  VERIFY(numext::abs(overflow.c() * overflow.c() + overflow.s() * overflow.s() - Scalar(1)) <=
-         Scalar(8) * NumTraits<Scalar>::epsilon());
 }
+template <typename Scalar>
+void check_real_givens_result(const Scalar&, const Scalar&, typename NumTraits<Scalar>::Real, long double, long double,
+                              const Scalar&, std::true_type) {}
 
 template <typename Scalar>
-void check_complex_givens_result(const Scalar& p, const Scalar& q, typename NumTraits<Scalar>::Real scale, bool checkR,
-                                 const JacobiRotation<Scalar>& rotation, const JacobiRotation<Scalar>& withoutR,
-                                 const Scalar& r) {
+void check_givens_result(const Scalar& p, const Scalar& q, typename NumTraits<Scalar>::Real scale, bool checkR,
+                         const JacobiRotation<Scalar>& rotation, const JacobiRotation<Scalar>& withoutR,
+                         const Scalar& r) {
   using RealScalar = typename NumTraits<Scalar>::Real;
   using Wide = std::complex<long double>;
   const long double tolerance = 16 * static_cast<long double>(NumTraits<RealScalar>::epsilon());
@@ -251,14 +194,15 @@ void check_complex_givens_result(const Scalar& p, const Scalar& q, typename NumT
     const long double quantum =
         static_cast<long double>(std::numeric_limits<RealScalar>::denorm_min()) / static_cast<long double>(scale);
     VERIFY(std::abs(widen(r) / static_cast<long double>(scale) - rotated) <= tolerance * expected + 2 * quantum);
+    check_real_givens_result(p, q, scale, expected, tolerance, r,
+                             internal::bool_constant<NumTraits<Scalar>::IsComplex>());
   }
 }
 
 // Checks that makeGivens(p, q) is unitary and maps (p, q) to (r, 0), in long double with (P, Q) = (p, q) / scale exact,
 // for each flush-to-zero mode the hardware supports. The rotation is computed in that mode and checked outside it.
 template <typename Scalar>
-void check_complex_givens(const Scalar& p, const Scalar& q, typename NumTraits<Scalar>::Real scale,
-                          bool checkR = true) {
+void check_givens(const Scalar& p, const Scalar& q, typename NumTraits<Scalar>::Real scale, bool checkR = true) {
   for (const FlushToZeroMode mode :
        {FlushToZeroMode::None, FlushToZeroMode::Results, FlushToZeroMode::Inputs, FlushToZeroMode::Both}) {
     JacobiRotation<Scalar> rotation, withoutR;
@@ -268,9 +212,43 @@ void check_complex_givens(const Scalar& p, const Scalar& q, typename NumTraits<S
       if (!scope.isSupported() || scope.mode() != mode) continue;
       rotation.makeGivens(p, q, &r);
       withoutR.makeGivens(p, q);
+      // makeGivens leaves the flushing it ran under as it was.
+      VERIFY(ScopedFlushToZero::hardwareMode() == scope.mode());
     }
-    check_complex_givens_result(p, q, scale, checkR, rotation, withoutR, r);
+    check_givens_result(p, q, scale, checkR, rotation, withoutR, r);
   }
+}
+
+template <typename Scalar>
+void jacobi_makegivens_subnormal() {
+  const Scalar minimum = (std::numeric_limits<Scalar>::min)();
+  const Scalar tiny = std::numeric_limits<Scalar>::denorm_min();
+  JacobiRotation<Scalar> zero;
+  zero.makeGivens(-Scalar(0), Scalar(0));
+  VERIFY_IS_EQUAL(zero.c(), Scalar(1));
+  VERIFY_IS_EQUAL(zero.s(), Scalar(0));
+  for (Scalar scale : {minimum, Scalar(minimum / Scalar(16)), tiny}) {
+    for (int i = -3; i <= 3; ++i) {
+      for (int j = -3; j <= 3; ++j) {
+        if (i == 0 && j == 0) continue;
+        const Scalar p = i == 0 ? -Scalar(0) : Scalar(i) * scale;
+        const Scalar q = Scalar(j) * scale;
+        check_givens(p, q, scale);
+      }
+    }
+  }
+  const Scalar maximum = NumTraits<Scalar>::highest();
+  verify_makeGivens(Scalar(maximum / Scalar(2)), Scalar(maximum / Scalar(3)));
+  JacobiRotation<Scalar> overflow, withoutR;
+  Scalar r;
+  overflow.makeGivens(maximum, maximum, &r);
+  withoutR.makeGivens(maximum, maximum);
+  VERIFY((numext::isinf)(r));
+  VERIFY_IS_EQUAL(overflow.c(), withoutR.c());
+  VERIFY_IS_EQUAL(overflow.s(), withoutR.s());
+  VERIFY(numext::abs(overflow.c() + overflow.s()) <= NumTraits<Scalar>::epsilon());
+  VERIFY(numext::abs(overflow.c() * overflow.c() + overflow.s() * overflow.s() - Scalar(1)) <=
+         Scalar(8) * NumTraits<Scalar>::epsilon());
 }
 
 // Complex inputs whose components are small integers times a subnormal scale, e.g. p = -4.9e-324i, q = 2e-323i. The
@@ -288,8 +266,8 @@ void jacobi_makegivens_complex_subnormal() {
         for (int qr : qValues) {
           for (int qi : qValues) {
             if (pr == 0 && pi == 0 && qr == 0 && qi == 0) continue;
-            check_complex_givens(Scalar(RealScalar(pr) * scale, RealScalar(pi) * scale),
-                                 Scalar(RealScalar(qr) * scale, RealScalar(qi) * scale), scale);
+            check_givens(Scalar(RealScalar(pr) * scale, RealScalar(pi) * scale),
+                         Scalar(RealScalar(qr) * scale, RealScalar(qi) * scale), scale);
           }
         }
       }
@@ -301,16 +279,15 @@ void jacobi_makegivens_complex_subnormal() {
   for (const auto& up : units) {
     for (const auto& uq : units) {
       const Scalar q = Scalar(RealScalar(uq[0]), RealScalar(uq[1]));
-      check_complex_givens(Scalar(RealScalar(up[0] - up[1]) * tiny, RealScalar(up[0] + up[1]) * tiny), q,
-                           RealScalar(1));
-      check_complex_givens(Scalar(RealScalar(up[0]) * (maximum / 2), RealScalar(up[1]) * (maximum / 2)), q * maximum,
-                           maximum, false);
+      check_givens(Scalar(RealScalar(up[0] - up[1]) * tiny, RealScalar(up[0] + up[1]) * tiny), q, RealScalar(1));
+      check_givens(Scalar(RealScalar(up[0]) * (maximum / 2), RealScalar(up[1]) * (maximum / 2)), q * maximum, maximum,
+                   false);
     }
   }
 
   // p = 0 where |Re q| + |Im q| overflows although |q| is finite.
   const RealScalar big = maximum / RealScalar(1.5);
-  for (const Scalar q : {Scalar(big, big), Scalar(-big, big)}) check_complex_givens(Scalar(0), q, big);
+  for (const Scalar q : {Scalar(big, big), Scalar(-big, big)}) check_givens(Scalar(0), q, big);
 
   // p != 0 where |Re p| + |Im p| or |Re q| + |Im q| overflows. half is a power of two, so (P, Q) stays exact.
   const RealScalar half = std::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent - 1);
@@ -319,9 +296,9 @@ void jacobi_makegivens_complex_subnormal() {
   };
   for (const auto& up : units) {
     for (const auto& uq : units) {
-      check_complex_givens(turn(1, 0, up), turn(half, half, uq), half);
-      check_complex_givens(turn(half, half, up), turn(1, 0, uq), half);
-      check_complex_givens(turn(half, -half, up), turn(half, half, uq), half, false);
+      check_givens(turn(1, 0, up), turn(half, half, uq), half);
+      check_givens(turn(half, half, up), turn(1, 0, uq), half);
+      check_givens(turn(half, -half, up), turn(half, half, uq), half, false);
     }
   }
 
@@ -349,16 +326,9 @@ void jacobi_makejacobi_bounded_ratio() {
   for (const Scalar x : {Scalar(0), small, Scalar(1)}) {
     for (const Scalar y : {small, Scalar(0.5)}) {
       JacobiRotation<Scalar> rotation;
-      std::fenv_t environment;
-      if (std::feholdexcept(&environment) != 0) {
-        std::cout << "SKIP: makeJacobi exception check: feholdexcept failed.\n";
-        return;
-      }
-      jacobi_makejacobi_bounded_ratio_impl(x, y, rotation);
-      const int exceptions = std::fetestexcept(FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID);
-      const int restored = std::fesetenv(&environment);
-      VERIFY_IS_EQUAL(restored, 0);
-      VERIFY_IS_EQUAL(exceptions, 0);
+      const int exceptions = fp_exceptions_raised_by(FE_OVERFLOW | FE_DIVBYZERO | FE_INVALID,
+                                                     [&] { jacobi_makejacobi_bounded_ratio_impl(x, y, rotation); });
+      if (exceptions >= 0) VERIFY_IS_EQUAL(exceptions, 0);
       const Scalar c = rotation.c();
       const Scalar s = rotation.s();
       VERIFY(numext::abs(c * c + s * s - Scalar(1)) <= Scalar(8) * NumTraits<Scalar>::epsilon());

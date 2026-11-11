@@ -1341,15 +1341,7 @@ void sparse_isapprox_extreme_scales() {
   using OtherSpMat = SparseMatrix<Scalar, Options ^ RowMajor>;
   const RealScalar highest = NumTraits<RealScalar>::highest();
   const RealScalar min = (std::numeric_limits<RealScalar>::min)();
-  // highest / 2 makes a - (-a) overflow although a and -a are finite.
-  const RealScalar scales[] = {RealScalar(1),
-                               highest / RealScalar(2),
-                               highest / RealScalar(8),
-                               numext::sqrt(highest),
-                               RealScalar(1) / numext::sqrt(highest),
-                               min * RealScalar(16),
-                               std::numeric_limits<RealScalar>::denorm_min() * RealScalar(64)};
-  for (const RealScalar s : scales) {
+  for (const RealScalar s : extreme_scales<RealScalar>()) {
     SpMat a(5, 4);
     a.insert(0, 0) = Scalar(s);
     a.insert(2, 1) = Scalar(-2 * s);
@@ -1409,7 +1401,7 @@ void sparse_insert_narrow_index() {
   const Index outers[] = {n - 1, 0, n / 2, highest + 1, 1};
   for (Index k = 0; k < 5; ++k) {
     const Index outer = outers[k], inner = k % 4;
-    (SpMat::IsRowMajor ? m.insert(outer, inner) : m.insert(inner, outer)) = double(k + 1);
+    insert_by_outer(m, outer, inner) = double(k + 1);
   }
   // The storage grows geometrically: five entries must not reserve the whole index range.
   VERIFY(m.data().allocatedSize() < highest);
@@ -1418,17 +1410,17 @@ void sparse_insert_narrow_index() {
     VERIFY_IS_EQUAL(m.nonZeros(), 5);
     for (Index k = 0; k < 5; ++k) {
       const Index outer = outers[k], inner = k % 4;
-      VERIFY_IS_EQUAL(SpMat::IsRowMajor ? m.coeff(outer, inner) : m.coeff(inner, outer), double(k + 1));
+      VERIFY_IS_EQUAL(coeff_by_outer(m, outer, inner), double(k + 1));
     }
   }
 
   // setZero() keeps the allocation, which must not count as stored entries.
   SpMat refill(m.rows(), m.cols());
-  (SpMat::IsRowMajor ? refill.insert(n - 1, 1) : refill.insert(1, n - 1)) = 1.0;
+  insert_by_outer(refill, n - 1, 1) = 1.0;
   refill.setZero();
-  (SpMat::IsRowMajor ? refill.insert(n - 1, 1) : refill.insert(1, n - 1)) = 2.0;
+  insert_by_outer(refill, n - 1, 1) = 2.0;
   VERIFY_IS_EQUAL(refill.nonZeros(), 1);
-  VERIFY_IS_EQUAL(SpMat::IsRowMajor ? refill.coeff(n - 1, 1) : refill.coeff(1, n - 1), 2.0);
+  VERIFY_IS_EQUAL(coeff_by_outer(refill, n - 1, 1), 2.0);
 }
 
 // insert() can store highest() entries, however much reserve() or an earlier fill allocated, and throws past that.
@@ -1437,14 +1429,8 @@ void sparse_insert_full_index_range() {
   using SpMat = SparseMatrix<double, Options, short>;
   const Index highest = NumTraits<short>::highest();
   const Index n = 256;
-  const auto insert = [&](SpMat& m, Index k) -> double& {
-    const Index outer = k / n, inner = k % n;
-    return SpMat::IsRowMajor ? m.insert(outer, inner) : m.insert(inner, outer);
-  };
-  const auto coeff = [&](const SpMat& m, Index k) {
-    const Index outer = k / n, inner = k % n;
-    return SpMat::IsRowMajor ? m.coeff(outer, inner) : m.coeff(inner, outer);
-  };
+  const auto insert = [&](SpMat& m, Index k) -> double& { return insert_by_outer(m, k / n, k % n); };
+  const auto coeff = [&](const SpMat& m, Index k) { return coeff_by_outer(m, k / n, k % n); };
 
   SpMat m(n, n);
   m.reserve(highest);

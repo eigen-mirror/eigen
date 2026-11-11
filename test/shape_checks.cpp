@@ -7,6 +7,7 @@
 
 struct MissingShape {};
 struct PartialShape {};
+// A dense expression with chosen compile-time shape whose runtime shape reads are counted.
 template <int Rows, int Cols>
 struct ShapeProbe;
 namespace Eigen {
@@ -23,16 +24,27 @@ struct traits<PartialShape> {
 template <int Rows, int Cols>
 struct ShapeProbe : MatrixBase<ShapeProbe<Rows, Cols>> {
   using Nested = const ShapeProbe&;
-  mutable int row_reads = 0;
-  mutable int col_reads = 0;
+  explicit ShapeProbe(Index rows = 2, Index cols = 2) : row_count(rows), col_count(cols) {}
+  Index row_count, col_count;
+  mutable int size_reads = 0, row_reads = 0, col_reads = 0;
+  Index size() const {
+    ++size_reads;
+    return row_count * col_count;
+  }
   Index rows() const {
     ++row_reads;
-    return 2;
+    return row_count;
   }
   Index cols() const {
     ++col_reads;
-    return 2;
+    return col_count;
   }
+};
+
+struct UnknownAxisShape {
+  Index size() const { return 3; }
+  Index rows() const { return 3; }
+  Index cols() const { return 4; }
 };
 
 void rank_update_shape_checks() {
@@ -151,7 +163,112 @@ void product_destination_shape_checks() {
   VERIFY_RAISES_ASSERT(permutation * wrong);
 }
 
+template <int N>
+double guarded_tail_max(const Matrix<double, N, 1>& vector) {
+  const auto tail = vector.template tail<N - 1>();
+  return tail.size() > 0 ? tail.maxCoeff() : 0.0;
+}
+
+template <int N>
+Index guarded_column_max_size(const Matrix<double, N, N>& matrix) {
+  return matrix.cols() > 0 ? matrix.colwise().maxCoeff().size() : 0;
+}
+
+template <int Rows, int Cols>
+double guarded_determinants(const Matrix<double, Rows, Cols>& matrix) {
+  if (matrix.rows() != matrix.cols()) return 0.0;
+  return matrix.determinant() + matrix.fullPivLu().determinant() + matrix.householderQr().absDeterminant() +
+         matrix.colPivHouseholderQr().absDeterminant() + matrix.fullPivHouseholderQr().absDeterminant() +
+         matrix.randColPivHouseholderQr().absDeterminant();
+}
+
+void compatibility_shape_checks() {
+  VERIFY_IS_EQUAL(guarded_tail_max<1>(Matrix<double, 1, 1>::Ones()), 0.0);
+  VERIFY_IS_EQUAL(guarded_tail_max<2>(Vector2d::Constant(7)), 7.0);
+  VERIFY_IS_EQUAL(guarded_column_max_size<0>(Matrix<double, 0, 0>()), Index(0));
+  VERIFY_IS_EQUAL(guarded_column_max_size<2>(Matrix2d::Ones()), Index(2));
+  VERIFY_IS_EQUAL((guarded_determinants<3, 4>(Matrix<double, 3, 4>::Zero())), 0.0);
+  VERIFY_IS_EQUAL((guarded_determinants<2, 2>(Matrix2d::Identity())), 6.0);
+  Matrix<double, 0, 4> empty_rectangle;
+  if (empty_rectangle.rows() == empty_rectangle.cols()) empty_rectangle.transposeInPlace();
+  VERIFY_RAISES_ASSERT(empty_rectangle.transposeInPlace());
+  ShapeProbe<Dynamic, Dynamic> source(2, 1);
+  VectorXd destination;
+  destination.resizeLike(source);
+  VERIFY_IS_EQUAL(destination.size(), 2);
+  internal::resize_if_allowed(destination, source, internal::add_assign_op<double, double>());
+  const EigenBase<ShapeProbe<Dynamic, Dynamic>>& base = source;
+  source.row_reads = source.col_reads = 0;
+  EIGEN_INTERNAL_ASSERT_SAME_SHAPE(base, destination);
+#ifndef EIGEN_NO_DEBUG
+  VERIFY_IS_EQUAL(source.row_reads + source.col_reads, 2);
+#elif defined(EIGEN_NO_ASSERTION_CHECKING)
+  VERIFY_IS_EQUAL(source.row_reads + source.col_reads, 0);
+#endif
+  VERIFY_RAISES_ASSERT(EIGEN_INTERNAL_ASSERT_SAME_ROWS(base, Vector3d::Zero()));
+
+  using BoundedVector = Matrix<double, Dynamic, 1, 0, 4, 1>;
+  const BoundedVector a = BoundedVector::Ones(3);
+  const BoundedVector b = BoundedVector::Ones(4);
+  VERIFY_RAISES_ASSERT(a.dot(b));
+  VERIFY_IS_EQUAL(a.dot(a), 3);
+  Matrix<double, Dynamic, Dynamic, 0, 4, 4> bounded_matrix = Matrix3d::Identity();
+  VERIFY_RAISES_ASSERT(bounded_matrix * b);
+  VERIFY_IS_EQUAL((bounded_matrix * a).eval(), a);
+
+  const Matrix2d fixed = Matrix2d::Identity();
+  Matrix<double, 2, Dynamic> wrong_cols(2, 3);
+  Matrix<double, Dynamic, 2> wrong_rows(3, 2);
+  VERIFY_RAISES_ASSERT(fixed + wrong_cols);
+  VERIFY_RAISES_ASSERT(fixed + wrong_rows);
+}
+
+void size_axis_shape_checks() {
+  using namespace Eigen::internal;
+  STATIC_CHECK((size_matches_axis<RowVector3d, Matrix<double, 3, 4>, true>::Proven));
+  STATIC_CHECK((size_matches_axis<Vector4d, Matrix<double, 3, 4>, false>::Proven));
+  STATIC_CHECK((!size_matches_axis<Vector3d, Matrix<double, 3, 4>, false>::Compatible));
+  STATIC_CHECK((!size_matches_axis<Matrix<double, Dynamic, 1, 0, 4, 1>, Matrix4d, true>::Known));
+  STATIC_CHECK((!size_matches_axis<UnknownAxisShape, Matrix3d, true>::Known));
+
+  ShapeProbe<1, 3> row_vector(1, 3);
+  ShapeProbe<4, 1> col_vector(4, 1);
+  ShapeProbe<3, 4> fixed(3, 4);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(row_vector, fixed);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(col_vector, fixed);
+  VERIFY_IS_EQUAL(row_vector.size_reads + col_vector.size_reads + fixed.row_reads + fixed.col_reads, 0);
+
+  ShapeProbe<Dynamic, 4> partial(3, 4);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(col_vector, partial);
+  VERIFY_IS_EQUAL(col_vector.size_reads + partial.col_reads, 0);
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(row_vector, partial);
+#ifndef EIGEN_NO_DEBUG
+  VERIFY_IS_EQUAL(row_vector.size_reads, 1);
+  VERIFY_IS_EQUAL(partial.row_reads, 1);
+#endif
+  VERIFY_IS_EQUAL(partial.col_reads, 0);
+
+  const UnknownAxisShape unknown;
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(unknown, fixed);
+  VERIFY_RAISES_ASSERT(EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(unknown, fixed));
+  ShapeProbe<Dynamic, Dynamic> wrong(2, 4);
+  VERIFY_RAISES_ASSERT(EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(row_vector, wrong));
+#ifdef EIGEN_NO_STATIC_ASSERT
+  VERIFY_RAISES_ASSERT(EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(row_vector, fixed));
+#endif
+  const Matrix<double, 0, 4> empty;
+  const Matrix<double, 0, 1> empty_vector;
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(empty_vector, empty);
+  const Matrix<double, 3, 4> matrix = Matrix<double, 3, 4>::Zero();
+  const Vector3d vector = Vector3d::Ones();
+  const MatrixBase<Vector3d>& vector_base = vector;
+  const MatrixBase<Matrix<double, 3, 4>>& matrix_base = matrix;
+  EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_ROWS(vector_base, matrix_base);
+}
+
 EIGEN_DECLARE_TEST(shape_checks) {
+  CALL_SUBTEST(size_axis_shape_checks());
+  CALL_SUBTEST(compatibility_shape_checks());
   ShapeProbe<2, 2> fixed_a, fixed_b;
   const auto sum = fixed_a + fixed_b;
   EIGEN_UNUSED_VARIABLE(sum);
@@ -216,9 +333,6 @@ EIGEN_DECLARE_TEST(shape_checks) {
   VERIFY_IS_EQUAL(ref.size(), 3);
   MatrixXd dynamic_matrix = matrix;
   VERIFY_RAISES_ASSERT((Ref<VectorXd>(dynamic_matrix)));
-  VERIFY_IS_EQUAL(matrix.determinant(), 1);
-  VERIFY_IS_EQUAL(matrix.householderQr().absDeterminant(), 1);
-  VERIFY_IS_EQUAL(matrix.fullPivLu().determinant(), 1);
   VERIFY_IS_EQUAL(matrix.fullPivLu().rcond(), 1);
   Matrix3d transpose_source = Matrix3d::Random();
   const Matrix3d transposed = transpose_source.transpose();
@@ -295,22 +409,12 @@ EIGEN_DECLARE_TEST(shape_checks) {
   VERIFY_RAISES_ASSERT(internal::resize_if_allowed(empty_row, empty_column, internal::add_assign_op<double, double>()));
   STATIC_CHECK((square_dimensions<const Matrix3d&>::Proven));
   int reads = 0;
-  struct RuntimeDimensions {
-    mutable int accesses = 0;
-    Index rows() const {
-      ++accesses;
-      return 2;
-    }
-    Index cols() const {
-      ++accesses;
-      return 3;
-    }
-  } runtime_a, runtime_b;
+  ShapeProbe<Dynamic, Dynamic> runtime_a(2, 3), runtime_b(2, 3);
   EIGEN_INTERNAL_ASSERT_SAME_ROWS(runtime_a, runtime_b);
   EIGEN_INTERNAL_ASSERT_SAME_COLS(runtime_a, runtime_b);
 #ifndef EIGEN_NO_DEBUG
-  VERIFY_IS_EQUAL(runtime_a.accesses, 2);
-  VERIFY_IS_EQUAL(runtime_b.accesses, 2);
+  VERIFY_IS_EQUAL(runtime_a.row_reads + runtime_a.col_reads, 2);
+  VERIFY_IS_EQUAL(runtime_b.row_reads + runtime_b.col_reads, 2);
 #endif
   EIGEN_INTERNAL_SHAPE_ASSERT((dimension_relation<3, 3>::Proven), ++reads == 1);  // NOLINT(bugprone-assert-side-effect)
   VERIFY_IS_EQUAL(reads, 0);

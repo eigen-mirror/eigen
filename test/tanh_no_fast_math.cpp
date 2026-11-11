@@ -6,21 +6,12 @@
 #define EIGEN_FAST_MATH 0
 
 #include "main.h"
+#include "fp_control.h"
 
 #include <cfenv>
 #include <cstring>
 
 namespace {
-
-numext::int64_t float_ulp_distance(float a, float b) {
-  numext::int32_t ia, ib;
-  std::memcpy(&ia, &a, sizeof(float));
-  std::memcpy(&ib, &b, sizeof(float));
-  // Map the sign-magnitude bit patterns onto a monotonic integer line.
-  const numext::int64_t la = ia < 0 ? numext::int64_t(INT32_MIN) - ia : ia;
-  const numext::int64_t lb = ib < 0 ? numext::int64_t(INT32_MIN) - ib : ib;
-  return la > lb ? la - lb : lb - la;
-}
 
 template <typename Packet>
 void tanh_float_accuracy() {
@@ -28,7 +19,7 @@ void tanh_float_accuracy() {
   // Every third float in [0.5, 10], where the fast kernel is up to 6 ulps off; the accurate one is within 2.
   const numext::uint32_t first = 0x3f000000u, last = 0x41200000u;
   float x[PacketSize], y[PacketSize];
-  numext::int64_t max_error = 0;
+  uint64_t max_error = 0;
   float worst = 0;
   for (numext::uint32_t bits = first; bits < last;) {
     for (int k = 0; k < PacketSize; ++k, bits += 3) {
@@ -37,7 +28,7 @@ void tanh_float_accuracy() {
     }
     internal::pstoreu(y, internal::ptanh_float(internal::ploadu<Packet>(x)));
     for (int k = 0; k < PacketSize; ++k) {
-      const numext::int64_t error = float_ulp_distance(y[k], static_cast<float>(std::tanh(double(x[k]))));
+      const uint64_t error = test::ulp_distance(y[k], static_cast<float>(std::tanh(double(x[k]))));
       if (error > max_error) {
         max_error = error;
         worst = x[k];
@@ -69,23 +60,15 @@ Packet tanh_kernel(const Packet& x, double) {
   return internal::ptanh_double(x);
 }
 
-// The FE_OVERFLOW, FE_INVALID and FE_DIVBYZERO flags the tanh kernel raises on the packet in, with the result in out.
-// The operands and results go through volatile copies after feholdexcept and before fetestexcept, which keeps the
-// compiler from folding the kernel or moving it across the flag accesses.
+// The FE_OVERFLOW, FE_INVALID and FE_DIVBYZERO flags the tanh kernel raises on the packet in, with the result in out;
+// none where the environment cannot be held.
 template <typename Packet, typename Scalar>
 int tanh_exceptions(const Scalar* in, Scalar* out) {
   constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
-  const volatile Scalar* volatile_in = in;
-  volatile Scalar* volatile_out = out;
-  Scalar x[PacketSize], y[PacketSize];
-  std::fenv_t saved_environment;
-  if (std::feholdexcept(&saved_environment) != 0) return 0;
-  for (int k = 0; k < PacketSize; ++k) x[k] = volatile_in[k];
-  internal::pstoreu(y, tanh_kernel(internal::ploadu<Packet>(x), Scalar()));
-  for (int k = 0; k < PacketSize; ++k) volatile_out[k] = y[k];
-  const int raised = std::fetestexcept(FE_OVERFLOW | FE_INVALID | FE_DIVBYZERO);
-  std::fesetenv(&saved_environment);
-  return raised;
+  return (std::max)(0, fp_exceptions_raised_by_staged<PacketSize, PacketSize>(
+                           FE_OVERFLOW | FE_INVALID | FE_DIVBYZERO, in, out, [](const Scalar* x, Scalar* y) {
+                             internal::pstoreu(y, tanh_kernel(internal::ploadu<Packet>(x), Scalar()));
+                           }));
 }
 
 // tanh of large and infinite arguments is +-1 and raises no FE_OVERFLOW, FE_INVALID or FE_DIVBYZERO. A large element

@@ -66,6 +66,11 @@ void complex_roots_special_values() {
   VERIFY((numext::isnan)(positive_inf_nan.imag()));
   VERIFY((numext::isnan)(negative_inf_nan.real()));
   VERIFY((numext::isinf)(negative_inf_nan.imag()));
+  for (T x : {inf, -inf}) {
+    const auto reciprocal = numext::rsqrt(C(x, nan));
+    check_root_component(reciprocal.real(), zero);
+    check_root_component(reciprocal.imag(), -zero);
+  }
 }
 
 template <typename T>

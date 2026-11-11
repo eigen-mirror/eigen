@@ -6,13 +6,13 @@
 #define EIGEN_TEST_NO_COMPLEX
 #include "main.h"
 #include <contrib/Eigen/Tensor>
+#include "tensor_gpu_test_helpers.h"
 
 template <int Layout, int NumDims, typename TensorIndex>
 void verify_gpu_convolution(const Tensor<float, NumDims, Layout, TensorIndex>& input,
                             const Tensor<float, 3, Layout, TensorIndex>& kernel, const array<TensorIndex, 3>& axes,
                             const Tensor<float, NumDims, Layout, TensorIndex>& expected) {
-  GpuStreamDevice stream;
-  GpuDevice device(&stream);
+  tensor_test::GpuTensorTestFixture fixture;
   bool nonzero = false, varying = false;
   for (Index i = 0; i < expected.size(); ++i) {
     nonzero |= expected.data()[i] != 0;
@@ -20,25 +20,14 @@ void verify_gpu_convolution(const Tensor<float, NumDims, Layout, TensorIndex>& i
   }
   VERIFY(nonzero);
   VERIFY(varying);
-  Tensor<float, NumDims, Layout, TensorIndex> result;
-  result.resize(expected.dimensions());
-  float* a = static_cast<float*>(device.allocate(input.size() * sizeof(float)));
-  float* k = static_cast<float*>(device.allocate(kernel.size() * sizeof(float)));
-  float* out = static_cast<float*>(device.allocate(result.size() * sizeof(float)));
-  device.memcpyHostToDevice(a, input.data(), input.size() * sizeof(float));
-  device.memcpyHostToDevice(k, kernel.data(), kernel.size() * sizeof(float));
+  auto gpu_input = fixture.fromHost(input);
+  auto gpu_kernel = fixture.fromHost(kernel);
+  auto gpu_result = fixture.tensor<float, NumDims, Eigen::Aligned, Layout, TensorIndex>(expected.dimensions());
   // NaN sentinels make missing output writes fail even when the reference is zero.
-  device.memset(out, 0xff, result.size() * sizeof(float));
-  TensorMap<Tensor<float, NumDims, Layout, TensorIndex>> gpu_input(a, input.dimensions());
-  TensorMap<Tensor<float, 3, Layout, TensorIndex>> gpu_kernel(k, kernel.dimensions());
-  TensorMap<Tensor<float, NumDims, Layout, TensorIndex>> gpu_result(out, result.dimensions());
-  gpu_result.device(device) = gpu_input.convolve(gpu_kernel, axes);
-  device.memcpyDeviceToHost(result.data(), out, result.size() * sizeof(float));
-  device.synchronize();
+  fixture.device().memset(gpu_result.data(), 0xff, gpu_result.size() * sizeof(float));
+  gpu_result.device(fixture.device()) = gpu_input.convolve(gpu_kernel, axes);
+  const auto result = fixture.toHost(gpu_result);
   for (Index i = 0; i < result.size(); ++i) VERIFY_IS_EQUAL(result.data()[i], expected.data()[i]);
-  device.deallocate(a);
-  device.deallocate(k);
-  device.deallocate(out);
 }
 
 template <int Layout>

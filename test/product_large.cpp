@@ -9,30 +9,23 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "product.h"
+#include "guard_page_buffer.h"
 #include <Eigen/LU>
 
 #if defined(__unix__)
-#include <sys/mman.h>
-#include <unistd.h>
 
 #if defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
 template <int>
 void gemv_bfloat16_strided_tail() {
   using MatrixType = Matrix<bfloat16, Dynamic, Dynamic, RowMajor>;
   using VectorType = Matrix<bfloat16, Dynamic, 1>;
-  const long page_size = sysconf(_SC_PAGESIZE);
-  VERIFY(page_size > 0);
-  char* storage =
-      static_cast<char*>(mmap(nullptr, 2 * page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-  VERIFY(storage != MAP_FAILED);
-  VERIFY_IS_EQUAL(mprotect(storage + page_size, page_size, PROT_NONE), 0);
+  const test::GuardPageBuffer buffer(1024 * sizeof(bfloat16));
 
   // Put the last result coefficient against an inaccessible page: even one excess gather must fail.
   for (Index rows : {1, 2, 3, 4, 5, 7, 8, 9, 12, 15, 16, 17, 31, 32, 33}) {
     for (Index stride : {1, 2, 3, 17}) {
       const Index span = (rows - 1) * stride + 1;
-      VERIFY(span * Index(sizeof(bfloat16)) <= page_size);
-      bfloat16* values = reinterpret_cast<bfloat16*>(storage + page_size - span * sizeof(bfloat16));
+      bfloat16* values = buffer.place_at_end<bfloat16>(span);
       for (Index i = 0; i < rows; ++i) new (values + i * stride) bfloat16(1);
       Map<VectorType, 0, InnerStride<Dynamic>> result(values, rows, InnerStride<Dynamic>(stride));
       const MatrixType A = MatrixType::Ones(rows, 65);
@@ -41,7 +34,6 @@ void gemv_bfloat16_strided_tail() {
       VERIFY_IS_CWISE_EQUAL(result, VectorType::Constant(rows, bfloat16(66)));
     }
   }
-  VERIFY_IS_EQUAL(munmap(storage, 2 * page_size), 0);
 }
 #endif
 
@@ -50,32 +42,6 @@ void gemv_bfloat16_strided_tail() {
 // any out-of-bounds lookahead or tail over-read in GEBP kernels.
 template <typename Scalar, int ResIncr = Dynamic>
 void gebp_guard_page_tail() {
-  struct GuardedArena {
-    long page_size;
-    std::size_t data_pages;
-    std::size_t map_bytes;
-    char* raw;
-
-    explicit GuardedArena(std::size_t max_bytes) {
-      page_size = sysconf(_SC_PAGESIZE);
-      VERIFY(page_size > 0);
-      data_pages = (max_bytes + page_size - 1) / page_size;
-      if (data_pages == 0) data_pages = 1;
-      map_bytes = (data_pages + 1) * page_size;
-      raw = static_cast<char*>(mmap(nullptr, map_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-      VERIFY(raw != MAP_FAILED);
-      VERIFY_IS_EQUAL(mprotect(raw + data_pages * page_size, page_size, PROT_NONE), 0);
-    }
-    ~GuardedArena() { VERIFY_IS_EQUAL(munmap(raw, map_bytes), 0); }
-
-    // The last start aligned to `alignment` bytes from which n_elems fit before the guard page.
-    Scalar* place_at_end(std::size_t n_elems, std::size_t alignment = alignof(Scalar)) {
-      const std::size_t end = data_pages * page_size;
-      VERIFY(n_elems * sizeof(Scalar) <= end);
-      return reinterpret_cast<Scalar*>(raw + numext::round_down(end - n_elems * sizeof(Scalar), alignment));
-    }
-  };
-
   using Traits = internal::gebp_traits<Scalar, Scalar>;
   using ResMapper = internal::blas_data_mapper<Scalar, Index, ColMajor, Unaligned, ResIncr>;
   using LhsMapper = internal::const_blas_data_mapper<Scalar, Index, ColMajor>;
@@ -86,9 +52,9 @@ void gebp_guard_page_tail() {
   internal::gemm_pack_rhs<Scalar, Index, RhsMapper, Traits::nr, ColMajor> pack_rhs;
   internal::gebp_kernel<Scalar, Scalar, Index, ResMapper, Traits::mr, Traits::nr, false, false> gebp;
 
-  GuardedArena arenaA(64 * 64 * sizeof(Scalar));
-  GuardedArena arenaB(64 * 64 * sizeof(Scalar));
-  GuardedArena arenaC(64 * 64 * 2 * sizeof(Scalar));
+  test::GuardPageBuffer arenaA(64 * 64 * sizeof(Scalar));
+  test::GuardPageBuffer arenaB(64 * 64 * sizeof(Scalar));
+  test::GuardPageBuffer arenaC(64 * 64 * 2 * sizeof(Scalar));
 
   for (Index m : {0, 1, 2, 3, 4, 8, 16, 24, 32, 48, 53}) {
     for (Index n : {0, 1, 2, 3, 4, 5, 8, 9, 13}) {
@@ -99,8 +65,8 @@ void gebp_guard_page_tail() {
 
         // GEMM allocates packed blocks EIGEN_DEFAULT_ALIGN_BYTES-aligned, and GEBP may load them with aligned
         // packets. The resulting gap before the guard page is the smallest a real block can leave before a page end.
-        Scalar* blockA = arenaA.place_at_end(m * k, EIGEN_DEFAULT_ALIGN_BYTES);
-        Scalar* blockB = arenaB.place_at_end(k * n, EIGEN_DEFAULT_ALIGN_BYTES);
+        Scalar* blockA = arenaA.place_at_end<Scalar>(m * k, EIGEN_DEFAULT_ALIGN_BYTES);
+        Scalar* blockB = arenaB.place_at_end<Scalar>(k * n, EIGEN_DEFAULT_ALIGN_BYTES);
         if (m > 0 && k > 0) {
           Matrix<Scalar, Dynamic, 1> packedA(m * k);
           pack_lhs(packedA.data(), LhsMapper(A.data(), A.outerStride()), k, m);
@@ -114,7 +80,7 @@ void gebp_guard_page_tail() {
           if (ResIncr == 1 && inc != 1) continue;
           for (Scalar alpha : {Scalar(1), Scalar(2)}) {
             Index ldc = m * inc;
-            Scalar* C = arenaC.place_at_end(ldc * n);
+            Scalar* C = arenaC.place_at_end<Scalar>(ldc * n);
             for (Index j = 0; j < n; ++j) {
               for (Index i = 0; i < m; ++i) {
                 C[j * ldc + i * inc] = C0(i, j);
