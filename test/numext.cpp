@@ -199,47 +199,66 @@ struct NumTraits<adl_non_template_math_test::Scalar> : GenericNumTraits<adl_non_
 };
 }  // namespace Eigen
 
-void check_adl_template_math_dispatch() {
-  using S = adl_template_math_test::Scalar;
-  using CS = std::complex<S>;
+// The dispatch checks below are templates on the custom scalar, so each test part instantiates only the solvers it
+// runs.
+constexpr double kAdlMathTol = 1e-11;
+
+template <typename Xpr>
+double adl_max_abs(const Xpr& m) {
+  return m.cwiseAbs().maxCoeff().v;
+}
+
+template <typename S>
+struct adl_math_fixture {
   using Mat2 = Matrix<S, 2, 2>;
-  using Mat3 = Matrix<S, 3, 3>;
   using Mat4 = Matrix<S, 4, 4>;
-  using MatX = Matrix<S, Dynamic, Dynamic>;
-  using CMat2 = Matrix<CS, 2, 2>;
   using Vec2 = Matrix<S, 2, 1>;
-  using Vec3 = Matrix<S, 3, 1>;
   using Vec4 = Matrix<S, 4, 1>;
 
-  const double kTol = 1e-11;
-  auto max_abs = [](const auto& m) { return m.cwiseAbs().maxCoeff().v; };
+  adl_math_fixture() : b(S(1.0), S(2.0)), b4(S(1.0), S(-2.0), S(3.0), S(-1.0)) {
+    a << S(4.0), S(1.0), S(1.0), S(3.0);
+    ns4 << S(0.0), S(2.0), S(-3.0), S(1.0), S(-4.0), S(1.0), S(2.0), S(-1.0), S(1.0), S(-7.0), S(0.5), S(2.0), S(3.0),
+        S(1.0), S(-2.0), S(-6.0);
+    spd4 = ns4.transpose() * ns4 + Mat4::Identity();
+  }
 
   Mat2 a;
-  a << S(4.0), S(1.0), S(1.0), S(3.0);
-  Vec2 b(S(1.0), S(2.0));
+  Vec2 b;
+  Mat4 ns4;
+  Vec4 b4;
+  Mat4 spd4;
+};
+
+template <typename S>
+void check_adl_dense_solvers() {
+  using Mat2 = Matrix<S, 2, 2>;
+  using Vec2 = Matrix<S, 2, 1>;
+  const adl_math_fixture<S> f;
+  const Mat2& a = f.a;
+  const Vec2& b = f.b;
   const Mat2 a_upd = a + b * b.transpose();
 
   LDLT<Mat2> ldlt(a);
   ldlt.rankUpdate(b, S(1.0));
   Vec2 x_ldlt = ldlt.solve(b);
-  VERIFY_LE(max_abs(ldlt.reconstructedMatrix() - a_upd), kTol);
-  VERIFY_LE(max_abs(a_upd * x_ldlt - b), kTol);
+  VERIFY_LE(adl_max_abs(ldlt.reconstructedMatrix() - a_upd), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a_upd * x_ldlt - b), kAdlMathTol);
 
   LLT<Mat2> llt(a);
   llt.rankUpdate(b, S(1.0));
-  VERIFY_LE(max_abs(llt.reconstructedMatrix() - a_upd), kTol);
-  VERIFY_LE(max_abs(a_upd * llt.solve(b) - b), kTol);
+  VERIFY_LE(adl_max_abs(llt.reconstructedMatrix() - a_upd), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a_upd * llt.solve(b) - b), kAdlMathTol);
 
   BunchKaufman<Mat2> bk(a);
   Vec2 x_bk = bk.solve(b);
-  VERIFY_LE(max_abs(a * x_bk - b), kTol);
+  VERIFY_LE(adl_max_abs(a * x_bk - b), kAdlMathTol);
 
   FullPivLU<Mat2> lu(a);
   VERIFY_IS_EQUAL(lu.rank(), 2);
   Vec2 x_lu = lu.solve(b);
   Mat2 a_inv = a.inverse();
-  VERIFY_LE(max_abs(a * x_lu - b), kTol);
-  VERIFY_LE(max_abs(a * a_inv - Mat2::Identity()), kTol);
+  VERIFY_LE(adl_max_abs(a * x_lu - b), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a * a_inv - Mat2::Identity()), kAdlMathTol);
 
   HouseholderQR<Mat2> hqr(a);
   ColPivHouseholderQR<Mat2> cpqr(a);
@@ -249,91 +268,94 @@ void check_adl_template_math_dispatch() {
   VERIFY_IS_APPROX(fpqr.absDeterminant().v, 11.0);
   VERIFY_IS_EQUAL(cpqr.rank(), 2);
   VERIFY_IS_EQUAL(fpqr.rank(), 2);
-  VERIFY_LE(max_abs(a * hqr.solve(b) - b), kTol);
-  VERIFY_LE(max_abs(a * cpqr.solve(b) - b), kTol);
-  VERIFY_LE(max_abs(a * fpqr.solve(b) - b), kTol);
+  VERIFY_LE(adl_max_abs(a * hqr.solve(b) - b), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a * cpqr.solve(b) - b), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a * fpqr.solve(b) - b), kAdlMathTol);
 
   JacobiSVD<Mat2, ComputeFullU | ComputeFullV> jsvd(a);
   VERIFY_IS_EQUAL(jsvd.rank(), 2);
-  VERIFY_LE(max_abs(jsvd.matrixU() * jsvd.singularValues().asDiagonal() * jsvd.matrixV().transpose() - a), kTol);
-  VERIFY_LE(max_abs(a * jsvd.solve(b) - b), kTol);
+  VERIFY_LE(adl_max_abs(jsvd.matrixU() * jsvd.singularValues().asDiagonal() * jsvd.matrixV().transpose() - a),
+            kAdlMathTol);
+  VERIFY_LE(adl_max_abs(a * jsvd.solve(b) - b), kAdlMathTol);
+}
 
-  Mat4 ns4;
-  ns4 << S(0.0), S(2.0), S(-3.0), S(1.0), S(-4.0), S(1.0), S(2.0), S(-1.0), S(1.0), S(-7.0), S(0.5), S(2.0), S(3.0),
-      S(1.0), S(-2.0), S(-6.0);
-  Vec4 b4(S(1.0), S(-2.0), S(3.0), S(-1.0));
-  const Mat4 spd4 = ns4.transpose() * ns4 + Mat4::Identity();
-
-  const MatX xns4 = ns4;
+template <typename S>
+void check_adl_bdcsvd() {
+  using MatX = Matrix<S, Dynamic, Dynamic>;
+  const adl_math_fixture<S> f;
+  const MatX xns4 = f.ns4;
   BDCSVD<MatX, ComputeFullU | ComputeFullV> bdcsvd(xns4);
   VERIFY_IS_EQUAL(bdcsvd.rank(), 4);
-  VERIFY_LE(max_abs(bdcsvd.matrixU() * bdcsvd.singularValues().asDiagonal() * bdcsvd.matrixV().transpose() - xns4),
-            kTol);
+  VERIFY_LE(adl_max_abs(bdcsvd.matrixU() * bdcsvd.singularValues().asDiagonal() * bdcsvd.matrixV().transpose() - xns4),
+            kAdlMathTol);
+}
+
+template <typename S>
+void check_adl_selfadjoint_eigensolvers() {
+  using Mat2 = Matrix<S, 2, 2>;
+  using Mat3 = Matrix<S, 3, 3>;
+  using Mat4 = Matrix<S, 4, 4>;
+  using MatX = Matrix<S, Dynamic, Dynamic>;
+  const adl_math_fixture<S> f;
+  const Mat2& a = f.a;
+  const Mat4& spd4 = f.spd4;
 
   SelfAdjointEigenSolver<Mat2> eig2;
   eig2.computeDirect(a);
   VERIFY_IS_EQUAL(eig2.info(), Success);
-  VERIFY_LE(max_abs(eig2.eigenvectors() * eig2.eigenvalues().asDiagonal() * eig2.eigenvectors().transpose() - a), kTol);
+  VERIFY_LE(adl_max_abs(eig2.eigenvectors() * eig2.eigenvalues().asDiagonal() * eig2.eigenvectors().transpose() - a),
+            kAdlMathTol);
 
   Mat3 spd3;
   spd3 << S(5.0), S(1.0), S(0.5), S(1.0), S(4.0), S(-0.5), S(0.5), S(-0.5), S(3.0);
   SelfAdjointEigenSolver<Mat3> eig3;
   eig3.computeDirect(spd3);
   VERIFY_IS_EQUAL(eig3.info(), Success);
-  VERIFY_LE(max_abs(eig3.eigenvectors() * eig3.eigenvalues().asDiagonal() * eig3.eigenvectors().transpose() - spd3),
-            kTol);
+  VERIFY_LE(adl_max_abs(eig3.eigenvectors() * eig3.eigenvalues().asDiagonal() * eig3.eigenvectors().transpose() - spd3),
+            kAdlMathTol);
 
   SelfAdjointEigenSolver<MatX> eigx{MatX(spd4)};
   VERIFY_IS_EQUAL(eigx.info(), Success);
   VERIFY_LE(
-      max_abs(eigx.eigenvectors() * eigx.eigenvalues().asDiagonal() * eigx.eigenvectors().transpose() - MatX(spd4)),
-      kTol);
+      adl_max_abs(eigx.eigenvectors() * eigx.eigenvalues().asDiagonal() * eigx.eigenvectors().transpose() - MatX(spd4)),
+      kAdlMathTol);
 
   Tridiagonalization<Mat4> tridiag(spd4);
-  VERIFY_LE(max_abs(tridiag.matrixQ() * tridiag.matrixT() * tridiag.matrixQ().transpose() - spd4), kTol);
+  VERIFY_LE(adl_max_abs(tridiag.matrixQ() * tridiag.matrixT() * tridiag.matrixQ().transpose() - spd4), kAdlMathTol);
+}
+
+template <typename S>
+void check_adl_real_schur_qz() {
+  using Mat4 = Matrix<S, 4, 4>;
+  const adl_math_fixture<S> f;
+  const Mat4& ns4 = f.ns4;
+  const Mat4& spd4 = f.spd4;
 
   RealSchur<Mat4> rschur(ns4);
   VERIFY_IS_EQUAL(rschur.info(), Success);
-  VERIFY_LE(max_abs(rschur.matrixU() * rschur.matrixT() * rschur.matrixU().transpose() - ns4), kTol);
+  VERIFY_LE(adl_max_abs(rschur.matrixU() * rschur.matrixT() * rschur.matrixU().transpose() - ns4), kAdlMathTol);
 
   RealQZ<Mat4> rqz(ns4, spd4);
   VERIFY_IS_EQUAL(rqz.info(), Success);
-  VERIFY_LE(max_abs(rqz.matrixQ() * rqz.matrixS() * rqz.matrixZ() - ns4), kTol);
-  VERIFY_LE(max_abs(rqz.matrixQ() * rqz.matrixT() * rqz.matrixZ() - spd4), kTol);
+  VERIFY_LE(adl_max_abs(rqz.matrixQ() * rqz.matrixS() * rqz.matrixZ() - ns4), kAdlMathTol);
+  VERIFY_LE(adl_max_abs(rqz.matrixQ() * rqz.matrixT() * rqz.matrixZ() - spd4), kAdlMathTol);
+}
 
-  using PlainS = adl_non_template_math_test::Scalar;
-  Matrix<PlainS, 4, 4> pns4;
-  pns4 << PlainS(0.0), PlainS(2.0), PlainS(-3.0), PlainS(1.0), PlainS(-4.0), PlainS(1.0), PlainS(2.0), PlainS(-1.0),
-      PlainS(1.0), PlainS(-7.0), PlainS(0.5), PlainS(2.0), PlainS(3.0), PlainS(1.0), PlainS(-2.0), PlainS(-6.0);
-  Matrix<PlainS, 4, 1> pb4(PlainS(1.0), PlainS(-2.0), PlainS(3.0), PlainS(-1.0));
-  const Matrix<PlainS, 4, 4> pspd4 = pns4.transpose() * pns4 + Matrix<PlainS, 4, 4>::Identity();
-
-  HouseholderQR<Matrix<PlainS, 4, 4>> phqr(pns4);
-  VERIFY_IS_APPROX(phqr.absDeterminant().v, 469.5);
-  FullPivLU<Matrix<PlainS, 4, 4>> plu(pns4);
-  VERIFY_IS_EQUAL(plu.rank(), 4);
-  VERIFY_LE(max_abs(pns4 * plu.solve(pb4) - pb4), kTol);
-  ColPivHouseholderQR<Matrix<PlainS, 4, 4>> pcpqr(pns4);
-  FullPivHouseholderQR<Matrix<PlainS, 4, 4>> pfpqr(pns4);
-  VERIFY_IS_EQUAL(pcpqr.rank(), 4);
-  VERIFY_IS_EQUAL(pfpqr.rank(), 4);
-  RealSchur<Matrix<PlainS, 4, 4>> prschur(pns4);
-  VERIFY_IS_EQUAL(prschur.info(), Success);
-  VERIFY_LE(max_abs(prschur.matrixU() * prschur.matrixT() * prschur.matrixU().transpose() - pns4), kTol);
-  SelfAdjointEigenSolver<Matrix<PlainS, 4, 4>> peig4(pspd4);
-  VERIFY_IS_EQUAL(peig4.info(), Success);
-  VERIFY_LE(max_abs(peig4.eigenvectors() * peig4.eigenvalues().asDiagonal() * peig4.eigenvectors().transpose() - pspd4),
-            kTol);
-  JacobiSVD<Matrix<PlainS, 4, 4>, ComputeFullU | ComputeFullV> pjsvd(pns4);
-  VERIFY_LE(max_abs(pjsvd.matrixU() * pjsvd.singularValues().asDiagonal() * pjsvd.matrixV().transpose() - pns4), kTol);
-
+template <typename S>
+void check_adl_general_eigensolvers() {
 #ifndef _MSC_VER  // MSVC's std::complex<T> needs unary + and a conversion to double from T.
+  using CS = std::complex<S>;
+  using Mat4 = Matrix<S, 4, 4>;
+  const adl_math_fixture<S> f;
+  const Mat4& ns4 = f.ns4;
+  const Mat4& spd4 = f.spd4;
+
   EigenSolver<Mat4> esolver(ns4);
   VERIFY_IS_EQUAL(esolver.info(), Success);
-  VERIFY_LE(
-      max_abs((ns4.cast<CS>() * esolver.eigenvectors() - esolver.eigenvectors() * esolver.eigenvalues().asDiagonal())
-                  .cwiseAbs()),
-      kTol);
+  VERIFY_LE(adl_max_abs((ns4.template cast<CS>() * esolver.eigenvectors() -
+                         esolver.eigenvectors() * esolver.eigenvalues().asDiagonal())
+                            .cwiseAbs()),
+            kAdlMathTol);
 
   GeneralizedEigenSolver<Mat4> gesolver(ns4, spd4);
   VERIFY_IS_EQUAL(gesolver.info(), Success);
@@ -344,58 +366,41 @@ void check_adl_template_math_dispatch() {
   VERIFY_IS_EQUAL(gesolver_scaled.info(), Success);
   for (Index k = 0; k < 4; ++k) {
     const CS lambda = gesolver_scaled.eigenvalues()(k) * S(std::ldexp(1.0, 450));
-    VERIFY_LE((gesolver.eigenvalues().array() - lambda).cwiseAbs().minCoeff().v, kTol * numext::abs(lambda).v);
+    VERIFY_LE((gesolver.eigenvalues().array() - lambda).cwiseAbs().minCoeff().v, kAdlMathTol * numext::abs(lambda).v);
   }
+#endif
+}
+
+template <typename S>
+void check_adl_complex_schur() {
+#ifndef _MSC_VER  // MSVC's std::complex<T> needs unary + and a conversion to double from T.
+  using CS = std::complex<S>;
+  using Mat2 = Matrix<S, 2, 2>;
+  using CMat2 = Matrix<CS, 2, 2>;
+  const adl_math_fixture<S> f;
+  const Mat2& a = f.a;
 
   ComplexSchur<Mat2> cschur_real(a);
   VERIFY_IS_EQUAL(cschur_real.info(), Success);
-  VERIFY_LE(
-      max_abs(
-          (cschur_real.matrixU() * cschur_real.matrixT() * cschur_real.matrixU().adjoint() - a.cast<CS>()).cwiseAbs()),
-      kTol);
+  VERIFY_LE(adl_max_abs((cschur_real.matrixU() * cschur_real.matrixT() * cschur_real.matrixU().adjoint() -
+                         a.template cast<CS>())
+                            .cwiseAbs()),
+            kAdlMathTol);
 
   CMat2 ca;
   ca << CS(S(2.0), S(1.0)), CS(S(0.5), S(-0.5)), CS(S(0.5), S(0.5)), CS(S(3.0), S(-1.0));
   ComplexSchur<CMat2> cschur_cplx(ca);
   VERIFY_IS_EQUAL(cschur_cplx.info(), Success);
-  VERIFY_LE(max_abs((cschur_cplx.matrixU() * cschur_cplx.matrixT() * cschur_cplx.matrixU().adjoint() - ca).cwiseAbs()),
-            kTol);
-
-  using PlainCS = std::complex<PlainS>;
-  ComplexSchur<Matrix<PlainS, 4, 4>> plain_cschur_real(pns4);
-  VERIFY_IS_EQUAL(plain_cschur_real.info(), Success);
-  VERIFY_LE(max_abs((plain_cschur_real.matrixU() * plain_cschur_real.matrixT() * plain_cschur_real.matrixU().adjoint() -
-                     pns4.cast<PlainCS>())
-                        .cwiseAbs()),
-            kTol);
-
-  Matrix<PlainCS, 2, 2> pca;
-  pca << PlainCS(PlainS(2.0), PlainS(1.0)), PlainCS(PlainS(0.5), PlainS(-0.5)), PlainCS(PlainS(0.5), PlainS(0.5)),
-      PlainCS(PlainS(3.0), PlainS(-1.0));
-  ComplexSchur<Matrix<PlainCS, 2, 2>> plain_cschur_cplx(pca);
-  VERIFY_IS_EQUAL(plain_cschur_cplx.info(), Success);
   VERIFY_LE(
-      max_abs((plain_cschur_cplx.matrixU() * plain_cschur_cplx.matrixT() * plain_cschur_cplx.matrixU().adjoint() - pca)
-                  .cwiseAbs()),
-      kTol);
-
-  const PlainCS csqrt_neg = numext::sqrt(PlainCS(PlainS(-3.0), PlainS(-4.0)));
-  VERIFY_IS_APPROX(csqrt_neg.real().v, 1.0);
-  VERIFY_IS_APPROX(csqrt_neg.imag().v, -2.0);
-
-  // Pin fallback behavior on negative zero: `< Scalar(0)` cannot see -0, so sqrt(-1 - 0i) yields +i.
-  const PlainCS csqrt_neg_zero = numext::sqrt(PlainCS(PlainS(-1.0), PlainS(-0.0)));
-  VERIFY_IS_APPROX(csqrt_neg_zero.real().v, 0.0);
-  VERIFY_IS_APPROX(csqrt_neg_zero.imag().v, 1.0);
+      adl_max_abs((cschur_cplx.matrixU() * cschur_cplx.matrixT() * cschur_cplx.matrixU().adjoint() - ca).cwiseAbs()),
+      kAdlMathTol);
 #endif
+}
 
-  VERIFY_IS_EQUAL(numext::copysign(PlainS(2.0), PlainS(-1.0)).v, -2.0);
-  VERIFY_IS_EQUAL(numext::copysign(PlainS(-2.0), PlainS(1.0)).v, 2.0);
-  // Pin the `< Scalar(0)` fallback limitation on signed zero and NaN when copysign is unavailable.
-  VERIFY((std::signbit)(numext::copysign(PlainS(-0.0), PlainS(1.0)).v));
-  VERIFY(!(std::signbit)(numext::copysign(PlainS(1.0), PlainS(-0.0)).v));
-  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-0.0)).v, 1.0);
-  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-std::numeric_limits<double>::quiet_NaN())).v, 1.0);
+template <typename S>
+void check_adl_geometry() {
+  using Vec3 = Matrix<S, 3, 1>;
+  const adl_math_fixture<S> f;
 
   Quaternion<S> q(AngleAxis<S>(S(0.5), Vec3::UnitZ()));
   AngleAxis<S> aa;
@@ -408,7 +413,17 @@ void check_adl_template_math_dispatch() {
   VERIFY_IS_APPROX(box.exteriorDistance(Vec3(S(4.0), S(5.0), S(1.0))).v, 5.0);
   ParametrizedLine<S, 3> line = ParametrizedLine<S, 3>::Through(Vec3::Zero(), Vec3(S(3.0), S(4.0), S(0.0)));
   VERIFY_IS_APPROX(line.distance(Vec3(S(0.0), S(0.0), S(2.0))).v, 2.0);
-  VERIFY_IS_APPROX(b.stableNorm().v, std::sqrt(5.0));
+  VERIFY_IS_APPROX(f.b.stableNorm().v, std::sqrt(5.0));
+}
+
+template <typename S>
+void check_adl_sparse_direct_solvers() {
+  using Mat4 = Matrix<S, 4, 4>;
+  using Vec4 = Matrix<S, 4, 1>;
+  const adl_math_fixture<S> f;
+  const Mat4& ns4 = f.ns4;
+  const Mat4& spd4 = f.spd4;
+  const Vec4& b4 = f.b4;
 
   SparseMatrix<S> sp_spd = spd4.sparseView();
   sp_spd.makeCompressed();
@@ -419,47 +434,140 @@ void check_adl_template_math_dispatch() {
 
   SimplicialLLT<SparseMatrix<S>> sllt(sp_spd);
   VERIFY_IS_EQUAL(sllt.info(), Success);
-  VERIFY_LE(max_abs(spd4 * sllt.solve(b4) - b4), kTol);
+  VERIFY_LE(adl_max_abs(spd4 * sllt.solve(b4) - b4), kAdlMathTol);
 
   SimplicialLDLT<SparseMatrix<S>> sldlt(sp_spd);
   VERIFY_IS_EQUAL(sldlt.info(), Success);
-  VERIFY_LE(max_abs(spd4 * sldlt.solve(b4) - b4), kTol);
+  VERIFY_LE(adl_max_abs(spd4 * sldlt.solve(b4) - b4), kAdlMathTol);
 
   SparseLU<SparseMatrix<S>> splu(sp_ns);
   VERIFY_IS_EQUAL(splu.info(), Success);
-  VERIFY_LE(max_abs(ns4 * splu.solve(b4) - b4), kTol);
+  VERIFY_LE(adl_max_abs(ns4 * splu.solve(b4) - b4), kAdlMathTol);
 
   SparseQR<SparseMatrix<S>, COLAMDOrdering<int>> spqr(sp_ns);
   VERIFY_IS_EQUAL(spqr.info(), Success);
-  VERIFY_LE(max_abs(ns4 * spqr.solve(b4) - b4), kTol);
+  VERIFY_LE(adl_max_abs(ns4 * spqr.solve(b4) - b4), kAdlMathTol);
+}
+
+template <typename S>
+void check_adl_sparse_iterative_solvers() {
+  using Mat4 = Matrix<S, 4, 4>;
+  using Vec4 = Matrix<S, 4, 1>;
+  const adl_math_fixture<S> f;
+  const Mat4& ns4 = f.ns4;
+  const Mat4& spd4 = f.spd4;
+  const Vec4& b4 = f.b4;
+
+  SparseMatrix<S> sp_spd = spd4.sparseView();
+  sp_spd.makeCompressed();
+  SparseMatrix<S> sp_ns = ns4.sparseView();
+  sp_ns.makeCompressed();
 
   IncompleteCholesky<S> ichol(sp_spd);
   VERIFY_IS_EQUAL(ichol.info(), Success);
   ConjugateGradient<SparseMatrix<S>, Lower | Upper, IncompleteCholesky<S>> cg(sp_spd);
-  VERIFY_LE(max_abs(spd4 * cg.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(spd4 * cg.solve(b4) - b4), 1e-8);
 
   IncompleteLUT<S> ilut(sp_ns);
   VERIFY_IS_EQUAL(ilut.info(), Success);
   BiCGSTAB<SparseMatrix<S>, IncompleteLUT<S>> bicg(sp_ns);
-  VERIFY_LE(max_abs(ns4 * bicg.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * bicg.solve(b4) - b4), 1e-8);
 
   LeastSquaresConjugateGradient<SparseMatrix<S>> lscg(sp_ns);
-  VERIFY_LE(max_abs(ns4 * lscg.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * lscg.solve(b4) - b4), 1e-8);
 
   GMRES<SparseMatrix<S>> gmres(sp_ns);
-  VERIFY_LE(max_abs(ns4 * gmres.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * gmres.solve(b4) - b4), 1e-8);
 
   MINRES<SparseMatrix<S>> minres(sp_spd);
-  VERIFY_LE(max_abs(spd4 * minres.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(spd4 * minres.solve(b4) - b4), 1e-8);
 
   IDRS<SparseMatrix<S>> idrs(sp_ns);
-  VERIFY_LE(max_abs(ns4 * idrs.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * idrs.solve(b4) - b4), 1e-8);
 
   IDRSTABL<SparseMatrix<S>> idrstabl(sp_ns);
-  VERIFY_LE(max_abs(ns4 * idrstabl.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * idrstabl.solve(b4) - b4), 1e-8);
 
   LSMR<SparseMatrix<S>> lsmr(sp_ns);
-  VERIFY_LE(max_abs(ns4 * lsmr.solve(b4) - b4), 1e-8);
+  VERIFY_LE(adl_max_abs(ns4 * lsmr.solve(b4) - b4), 1e-8);
+}
+
+// Scalar with non-template math overloads and NumTraits::IsSigned == 0.
+template <typename PlainS>
+void check_adl_non_template_decompositions() {
+  using PlainMat4 = Matrix<PlainS, 4, 4>;
+  using PlainVec4 = Matrix<PlainS, 4, 1>;
+  const adl_math_fixture<PlainS> f;
+  const PlainMat4& pns4 = f.ns4;
+  const PlainMat4& pspd4 = f.spd4;
+  const PlainVec4& pb4 = f.b4;
+
+  HouseholderQR<PlainMat4> phqr(pns4);
+  VERIFY_IS_APPROX(phqr.absDeterminant().v, 469.5);
+  FullPivLU<PlainMat4> plu(pns4);
+  VERIFY_IS_EQUAL(plu.rank(), 4);
+  VERIFY_LE(adl_max_abs(pns4 * plu.solve(pb4) - pb4), kAdlMathTol);
+  ColPivHouseholderQR<PlainMat4> pcpqr(pns4);
+  FullPivHouseholderQR<PlainMat4> pfpqr(pns4);
+  VERIFY_IS_EQUAL(pcpqr.rank(), 4);
+  VERIFY_IS_EQUAL(pfpqr.rank(), 4);
+  RealSchur<PlainMat4> prschur(pns4);
+  VERIFY_IS_EQUAL(prschur.info(), Success);
+  VERIFY_LE(adl_max_abs(prschur.matrixU() * prschur.matrixT() * prschur.matrixU().transpose() - pns4), kAdlMathTol);
+  SelfAdjointEigenSolver<PlainMat4> peig4(pspd4);
+  VERIFY_IS_EQUAL(peig4.info(), Success);
+  VERIFY_LE(
+      adl_max_abs(peig4.eigenvectors() * peig4.eigenvalues().asDiagonal() * peig4.eigenvectors().transpose() - pspd4),
+      kAdlMathTol);
+  JacobiSVD<PlainMat4, ComputeFullU | ComputeFullV> pjsvd(pns4);
+  VERIFY_LE(adl_max_abs(pjsvd.matrixU() * pjsvd.singularValues().asDiagonal() * pjsvd.matrixV().transpose() - pns4),
+            kAdlMathTol);
+
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(2.0), PlainS(-1.0)).v, -2.0);
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(-2.0), PlainS(1.0)).v, 2.0);
+  // Pin the `< Scalar(0)` fallback limitation on signed zero and NaN when copysign is unavailable.
+  VERIFY((std::signbit)(numext::copysign(PlainS(-0.0), PlainS(1.0)).v));
+  VERIFY(!(std::signbit)(numext::copysign(PlainS(1.0), PlainS(-0.0)).v));
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-0.0)).v, 1.0);
+  VERIFY_IS_EQUAL(numext::copysign(PlainS(1.0), PlainS(-std::numeric_limits<double>::quiet_NaN())).v, 1.0);
+}
+
+template <typename PlainS>
+void check_adl_non_template_complex() {
+#ifndef _MSC_VER  // MSVC's std::complex<T> needs unary + and a conversion to double from T.
+  using PlainCS = std::complex<PlainS>;
+  using PlainMat4 = Matrix<PlainS, 4, 4>;
+  const adl_math_fixture<PlainS> f;
+  const PlainMat4& pns4 = f.ns4;
+
+  ComplexSchur<PlainMat4> plain_cschur_real(pns4);
+  VERIFY_IS_EQUAL(plain_cschur_real.info(), Success);
+  VERIFY_LE(
+      adl_max_abs((plain_cschur_real.matrixU() * plain_cschur_real.matrixT() * plain_cschur_real.matrixU().adjoint() -
+                   pns4.template cast<PlainCS>())
+                      .cwiseAbs()),
+      kAdlMathTol);
+
+  Matrix<PlainCS, 2, 2> pca;
+  pca << PlainCS(PlainS(2.0), PlainS(1.0)), PlainCS(PlainS(0.5), PlainS(-0.5)), PlainCS(PlainS(0.5), PlainS(0.5)),
+      PlainCS(PlainS(3.0), PlainS(-1.0));
+  ComplexSchur<Matrix<PlainCS, 2, 2>> plain_cschur_cplx(pca);
+  VERIFY_IS_EQUAL(plain_cschur_cplx.info(), Success);
+  VERIFY_LE(
+      adl_max_abs(
+          (plain_cschur_cplx.matrixU() * plain_cschur_cplx.matrixT() * plain_cschur_cplx.matrixU().adjoint() - pca)
+              .cwiseAbs()),
+      kAdlMathTol);
+
+  const PlainCS csqrt_neg = numext::sqrt(PlainCS(PlainS(-3.0), PlainS(-4.0)));
+  VERIFY_IS_APPROX(csqrt_neg.real().v, 1.0);
+  VERIFY_IS_APPROX(csqrt_neg.imag().v, -2.0);
+
+  // Pin fallback behavior on negative zero: `< Scalar(0)` cannot see -0, so sqrt(-1 - 0i) yields +i.
+  const PlainCS csqrt_neg_zero = numext::sqrt(PlainCS(PlainS(-1.0), PlainS(-0.0)));
+  VERIFY_IS_APPROX(csqrt_neg_zero.real().v, 0.0);
+  VERIFY_IS_APPROX(csqrt_neg_zero.imag().v, 1.0);
+#endif
 }
 
 template <typename T, typename U>
@@ -1650,182 +1758,192 @@ void check_bit_cast() {
 
 EIGEN_DECLARE_TEST(numext) {
   for (int k = 0; k < g_repeat; ++k) {
-    CALL_SUBTEST(check_copysign<half>());
-    CALL_SUBTEST(check_copysign<bfloat16>());
-    CALL_SUBTEST(check_copysign<float>());
-    CALL_SUBTEST(check_copysign<double>());
-    CALL_SUBTEST(check_copysign<long double>());
-    CALL_SUBTEST(check_copysign<std::complex<float>>());
-    CALL_SUBTEST(check_copysign<std::complex<double>>());
+    CALL_SUBTEST_1(check_copysign<half>());
+    CALL_SUBTEST_1(check_copysign<bfloat16>());
+    CALL_SUBTEST_1(check_copysign<float>());
+    CALL_SUBTEST_1(check_copysign<double>());
+    CALL_SUBTEST_1(check_copysign<long double>());
+    CALL_SUBTEST_1(check_copysign<std::complex<float>>());
+    CALL_SUBTEST_1(check_copysign<std::complex<double>>());
 
-    CALL_SUBTEST(check_copysign<bool>());
-    CALL_SUBTEST(check_copysign<int8_t>());
-    CALL_SUBTEST(check_copysign<int16_t>());
-    CALL_SUBTEST(check_copysign<int32_t>());
-    CALL_SUBTEST(check_copysign<int64_t>());
-    CALL_SUBTEST(check_copysign<uint8_t>());
-    CALL_SUBTEST(check_copysign<uint16_t>());
-    CALL_SUBTEST(check_copysign<uint32_t>());
-    CALL_SUBTEST(check_copysign<uint64_t>());
+    CALL_SUBTEST_1(check_copysign<bool>());
+    CALL_SUBTEST_1(check_copysign<int8_t>());
+    CALL_SUBTEST_1(check_copysign<int16_t>());
+    CALL_SUBTEST_1(check_copysign<int32_t>());
+    CALL_SUBTEST_1(check_copysign<int64_t>());
+    CALL_SUBTEST_1(check_copysign<uint8_t>());
+    CALL_SUBTEST_1(check_copysign<uint16_t>());
+    CALL_SUBTEST_1(check_copysign<uint32_t>());
+    CALL_SUBTEST_1(check_copysign<uint64_t>());
 
-    CALL_SUBTEST(check_negate<signed char>());
-    CALL_SUBTEST(check_negate<unsigned char>());
-    CALL_SUBTEST(check_negate<short>());
-    CALL_SUBTEST(check_negate<unsigned short>());
-    CALL_SUBTEST(check_negate<int>());
-    CALL_SUBTEST(check_negate<unsigned int>());
-    CALL_SUBTEST(check_negate<long>());
-    CALL_SUBTEST(check_negate<unsigned long>());
-    CALL_SUBTEST(check_negate<half>());
-    CALL_SUBTEST(check_negate<bfloat16>());
-    CALL_SUBTEST(check_negate<float>());
-    CALL_SUBTEST(check_negate<double>());
-    CALL_SUBTEST(check_negate<long double>());
-    CALL_SUBTEST(check_negate<std::complex<float>>());
-    CALL_SUBTEST(check_negate<std::complex<double>>());
+    CALL_SUBTEST_1(check_negate<signed char>());
+    CALL_SUBTEST_1(check_negate<unsigned char>());
+    CALL_SUBTEST_1(check_negate<short>());
+    CALL_SUBTEST_1(check_negate<unsigned short>());
+    CALL_SUBTEST_1(check_negate<int>());
+    CALL_SUBTEST_1(check_negate<unsigned int>());
+    CALL_SUBTEST_1(check_negate<long>());
+    CALL_SUBTEST_1(check_negate<unsigned long>());
+    CALL_SUBTEST_1(check_negate<half>());
+    CALL_SUBTEST_1(check_negate<bfloat16>());
+    CALL_SUBTEST_1(check_negate<float>());
+    CALL_SUBTEST_1(check_negate<double>());
+    CALL_SUBTEST_1(check_negate<long double>());
+    CALL_SUBTEST_1(check_negate<std::complex<float>>());
+    CALL_SUBTEST_1(check_negate<std::complex<double>>());
 
-    CALL_SUBTEST(check_complex_exp<float>());
-    CALL_SUBTEST(check_complex_exp<double>());
+    CALL_SUBTEST_1(check_complex_exp<float>());
+    CALL_SUBTEST_1(check_complex_exp<double>());
 
-    CALL_SUBTEST(check_complex_exp2<float>());
-    CALL_SUBTEST(check_complex_exp2<double>());
-    CALL_SUBTEST(check_complex_exp2<long double>());
-    CALL_SUBTEST((check_complex_exp2_accuracy<float, double>()));
+    CALL_SUBTEST_1(check_complex_exp2<float>());
+    CALL_SUBTEST_1(check_complex_exp2<double>());
+    CALL_SUBTEST_1(check_complex_exp2<long double>());
+    CALL_SUBTEST_1((check_complex_exp2_accuracy<float, double>()));
     if (std::numeric_limits<long double>::digits > std::numeric_limits<double>::digits) {
-      CALL_SUBTEST((check_complex_exp2_accuracy<double, long double>()));
+      CALL_SUBTEST_1((check_complex_exp2_accuracy<double, long double>()));
     }
 
-    CALL_SUBTEST(check_abs<bool>());
-    CALL_SUBTEST(check_abs<signed char>());
-    CALL_SUBTEST(check_abs<unsigned char>());
-    CALL_SUBTEST(check_abs<short>());
-    CALL_SUBTEST(check_abs<unsigned short>());
-    CALL_SUBTEST(check_abs<int>());
-    CALL_SUBTEST(check_abs<unsigned int>());
-    CALL_SUBTEST(check_abs<long>());
-    CALL_SUBTEST(check_abs<unsigned long>());
-    CALL_SUBTEST(check_abs<half>());
-    CALL_SUBTEST(check_abs<bfloat16>());
-    CALL_SUBTEST(check_abs<float>());
-    CALL_SUBTEST(check_abs<double>());
-    CALL_SUBTEST(check_abs<long double>());
-    CALL_SUBTEST(check_abs<std::complex<float>>());
-    CALL_SUBTEST(check_abs<std::complex<double>>());
+    CALL_SUBTEST_1(check_abs<bool>());
+    CALL_SUBTEST_1(check_abs<signed char>());
+    CALL_SUBTEST_1(check_abs<unsigned char>());
+    CALL_SUBTEST_1(check_abs<short>());
+    CALL_SUBTEST_1(check_abs<unsigned short>());
+    CALL_SUBTEST_1(check_abs<int>());
+    CALL_SUBTEST_1(check_abs<unsigned int>());
+    CALL_SUBTEST_1(check_abs<long>());
+    CALL_SUBTEST_1(check_abs<unsigned long>());
+    CALL_SUBTEST_1(check_abs<half>());
+    CALL_SUBTEST_1(check_abs<bfloat16>());
+    CALL_SUBTEST_1(check_abs<float>());
+    CALL_SUBTEST_1(check_abs<double>());
+    CALL_SUBTEST_1(check_abs<long double>());
+    CALL_SUBTEST_1(check_abs<std::complex<float>>());
+    CALL_SUBTEST_1(check_abs<std::complex<double>>());
 
-    CALL_SUBTEST(check_complex_sign<std::complex<float>>());
-    CALL_SUBTEST(check_complex_sign<std::complex<double>>());
+    CALL_SUBTEST_1(check_complex_sign<std::complex<float>>());
+    CALL_SUBTEST_1(check_complex_sign<std::complex<double>>());
 
-    CALL_SUBTEST(check_complex_log<float>());
-    CALL_SUBTEST(check_complex_log<double>());
+    CALL_SUBTEST_1(check_complex_log<float>());
+    CALL_SUBTEST_1(check_complex_log<double>());
 
-    CALL_SUBTEST(check_complex_divide<float>());
-    CALL_SUBTEST(check_complex_divide<double>());
-    CALL_SUBTEST(check_complex_divide_exceptions<float>());
-    CALL_SUBTEST(check_complex_divide_exceptions<double>());
-    CALL_SUBTEST(check_narrow_fma_nonfinite<half>());
-    CALL_SUBTEST(check_narrow_fma_nonfinite<bfloat16>());
+    CALL_SUBTEST_1(check_complex_divide<float>());
+    CALL_SUBTEST_1(check_complex_divide<double>());
+    CALL_SUBTEST_1(check_complex_divide_exceptions<float>());
+    CALL_SUBTEST_1(check_complex_divide_exceptions<double>());
+    CALL_SUBTEST_1(check_narrow_fma_nonfinite<half>());
+    CALL_SUBTEST_1(check_narrow_fma_nonfinite<bfloat16>());
 
-    CALL_SUBTEST(check_complex_fuzzy<float>());
-    CALL_SUBTEST(check_complex_fuzzy<double>());
+    CALL_SUBTEST_1(check_complex_fuzzy<float>());
+    CALL_SUBTEST_1(check_complex_fuzzy<double>());
 
-    CALL_SUBTEST((check_complex_log1p_accuracy<float, double>()));
+    CALL_SUBTEST_1((check_complex_log1p_accuracy<float, double>()));
     if (std::numeric_limits<long double>::digits > std::numeric_limits<double>::digits) {
-      CALL_SUBTEST((check_complex_log1p_accuracy<double, long double>()));
+      CALL_SUBTEST_1((check_complex_log1p_accuracy<double, long double>()));
     }
 
-    CALL_SUBTEST(check_complex_digits<float>());
-    CALL_SUBTEST(check_complex_digits<double>());
-    CALL_SUBTEST(check_complex_digits<long double>());
+    CALL_SUBTEST_1(check_complex_digits<float>());
+    CALL_SUBTEST_1(check_complex_digits<double>());
+    CALL_SUBTEST_1(check_complex_digits<long double>());
 
-    CALL_SUBTEST(check_log2_powers_of_two<float>());
-    CALL_SUBTEST(check_log2_powers_of_two<double>());
-    CALL_SUBTEST(check_complex_log2_powers_of_two<float>());
-    CALL_SUBTEST(check_complex_log2_powers_of_two<double>());
-    CALL_SUBTEST((check_complex_log2_extreme_modulus<float, double>()));
-    CALL_SUBTEST((check_complex_log2_extreme_modulus<double, long double>()));
+    CALL_SUBTEST_1(check_log2_powers_of_two<float>());
+    CALL_SUBTEST_1(check_log2_powers_of_two<double>());
+    CALL_SUBTEST_1(check_complex_log2_powers_of_two<float>());
+    CALL_SUBTEST_1(check_complex_log2_powers_of_two<double>());
+    CALL_SUBTEST_1((check_complex_log2_extreme_modulus<float, double>()));
+    CALL_SUBTEST_1((check_complex_log2_extreme_modulus<double, long double>()));
 
-    CALL_SUBTEST(check_twoprod<float>());
-    CALL_SUBTEST(check_twoprod<double>());
-    CALL_SUBTEST(check_twoprod<long double>());
-    CALL_SUBTEST(check_twoprod<half>());
-    CALL_SUBTEST(check_twoprod<bfloat16>());
-    CALL_SUBTEST(check_twoprod_contraction<float>());
-    CALL_SUBTEST(check_twoprod_contraction<double>());
+    CALL_SUBTEST_1(check_twoprod<float>());
+    CALL_SUBTEST_1(check_twoprod<double>());
+    CALL_SUBTEST_1(check_twoprod<long double>());
+    CALL_SUBTEST_1(check_twoprod<half>());
+    CALL_SUBTEST_1(check_twoprod<bfloat16>());
+    CALL_SUBTEST_1(check_twoprod_contraction<float>());
+    CALL_SUBTEST_1(check_twoprod_contraction<double>());
 #ifdef EIGEN_VECTORIZE_FMA
-    CALL_SUBTEST(check_twoprod_negation_expression());
+    CALL_SUBTEST_1(check_twoprod_negation_expression());
 #endif
 
-    CALL_SUBTEST(check_arg<std::complex<float>>());
-    CALL_SUBTEST(check_arg<std::complex<double>>());
+    CALL_SUBTEST_1(check_arg<std::complex<float>>());
+    CALL_SUBTEST_1(check_arg<std::complex<double>>());
 
-    CALL_SUBTEST(check_sqrt<float>());
-    CALL_SUBTEST(check_sqrt<double>());
-    CALL_SUBTEST(check_sqrt<std::complex<float>>());
-    CALL_SUBTEST(check_sqrt<std::complex<double>>());
+    CALL_SUBTEST_1(check_sqrt<float>());
+    CALL_SUBTEST_1(check_sqrt<double>());
+    CALL_SUBTEST_1(check_sqrt<std::complex<float>>());
+    CALL_SUBTEST_1(check_sqrt<std::complex<double>>());
 
-    CALL_SUBTEST(check_rsqrt<float>());
-    CALL_SUBTEST(check_rsqrt<double>());
-    CALL_SUBTEST(check_rsqrt<std::complex<float>>());
-    CALL_SUBTEST(check_rsqrt<std::complex<double>>());
+    CALL_SUBTEST_1(check_rsqrt<float>());
+    CALL_SUBTEST_1(check_rsqrt<double>());
+    CALL_SUBTEST_1(check_rsqrt<std::complex<float>>());
+    CALL_SUBTEST_1(check_rsqrt<std::complex<double>>());
 
-    CALL_SUBTEST(check_signbit<half>());
-    CALL_SUBTEST(check_signbit<bfloat16>());
-    CALL_SUBTEST(check_signbit<float>());
-    CALL_SUBTEST(check_signbit<double>());
+    CALL_SUBTEST_1(check_signbit<half>());
+    CALL_SUBTEST_1(check_signbit<bfloat16>());
+    CALL_SUBTEST_1(check_signbit<float>());
+    CALL_SUBTEST_1(check_signbit<double>());
 
-    CALL_SUBTEST(check_signbit<uint8_t>());
-    CALL_SUBTEST(check_signbit<uint16_t>());
-    CALL_SUBTEST(check_signbit<uint32_t>());
-    CALL_SUBTEST(check_signbit<uint64_t>());
+    CALL_SUBTEST_1(check_signbit<uint8_t>());
+    CALL_SUBTEST_1(check_signbit<uint16_t>());
+    CALL_SUBTEST_1(check_signbit<uint32_t>());
+    CALL_SUBTEST_1(check_signbit<uint64_t>());
 
-    CALL_SUBTEST(check_signbit<int8_t>());
-    CALL_SUBTEST(check_signbit<int16_t>());
-    CALL_SUBTEST(check_signbit<int32_t>());
-    CALL_SUBTEST(check_signbit<int64_t>());
+    CALL_SUBTEST_1(check_signbit<int8_t>());
+    CALL_SUBTEST_1(check_signbit<int16_t>());
+    CALL_SUBTEST_1(check_signbit<int32_t>());
+    CALL_SUBTEST_1(check_signbit<int64_t>());
 
-    CALL_SUBTEST(check_nextafter<half>());
-    CALL_SUBTEST(check_nextafter<bfloat16>());
-    CALL_SUBTEST(check_nextafter<float>());
-    CALL_SUBTEST(check_nextafter<double>());
-    CALL_SUBTEST(check_nextafter<long double>());
+    CALL_SUBTEST_1(check_nextafter<half>());
+    CALL_SUBTEST_1(check_nextafter<bfloat16>());
+    CALL_SUBTEST_1(check_nextafter<float>());
+    CALL_SUBTEST_1(check_nextafter<double>());
+    CALL_SUBTEST_1(check_nextafter<long double>());
 
-    CALL_SUBTEST(check_ceil_power_of_two<half>());
-    CALL_SUBTEST(check_ceil_power_of_two<bfloat16>());
-    CALL_SUBTEST(check_ceil_power_of_two<float>());
-    CALL_SUBTEST(check_ceil_power_of_two<double>());
-    CALL_SUBTEST(check_ceil_power_of_two<long double>());
+    CALL_SUBTEST_1(check_ceil_power_of_two<half>());
+    CALL_SUBTEST_1(check_ceil_power_of_two<bfloat16>());
+    CALL_SUBTEST_1(check_ceil_power_of_two<float>());
+    CALL_SUBTEST_1(check_ceil_power_of_two<double>());
+    CALL_SUBTEST_1(check_ceil_power_of_two<long double>());
 
-    CALL_SUBTEST(check_strict_equal<half>());
-    CALL_SUBTEST(check_strict_equal<bfloat16>());
-    CALL_SUBTEST(check_strict_equal<float>());
-    CALL_SUBTEST(check_strict_equal<double>());
-    CALL_SUBTEST(check_strict_equal<long double>());
-    CALL_SUBTEST(check_strict_equal<int>());
-    CALL_SUBTEST(check_strict_equal<std::complex<double>>());
-    CALL_SUBTEST(check_zero_no_flush<float>());
-    CALL_SUBTEST(check_zero_no_flush<double>());
-    CALL_SUBTEST(check_zero_no_flush_custom_scalar());
-    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<half>());
-    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<bfloat16>());
-    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<float>());
-    CALL_SUBTEST(check_binary_floating_point_traits_odr_use<double>());
-    CALL_SUBTEST(check_binary_sign_no_flush<float>());
-    CALL_SUBTEST(check_binary_sign_no_flush<double>());
+    CALL_SUBTEST_1(check_strict_equal<half>());
+    CALL_SUBTEST_1(check_strict_equal<bfloat16>());
+    CALL_SUBTEST_1(check_strict_equal<float>());
+    CALL_SUBTEST_1(check_strict_equal<double>());
+    CALL_SUBTEST_1(check_strict_equal<long double>());
+    CALL_SUBTEST_1(check_strict_equal<int>());
+    CALL_SUBTEST_1(check_strict_equal<std::complex<double>>());
+    CALL_SUBTEST_1(check_zero_no_flush<float>());
+    CALL_SUBTEST_1(check_zero_no_flush<double>());
+    CALL_SUBTEST_1(check_zero_no_flush_custom_scalar());
+    CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<half>());
+    CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<bfloat16>());
+    CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<float>());
+    CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<double>());
+    CALL_SUBTEST_1(check_binary_sign_no_flush<float>());
+    CALL_SUBTEST_1(check_binary_sign_no_flush<double>());
 
-    CALL_SUBTEST(check_shift<int8_t>());
-    CALL_SUBTEST(check_shift<int16_t>());
-    CALL_SUBTEST(check_shift<int32_t>());
-    CALL_SUBTEST(check_shift<int64_t>());
+    CALL_SUBTEST_1(check_shift<int8_t>());
+    CALL_SUBTEST_1(check_shift<int16_t>());
+    CALL_SUBTEST_1(check_shift<int32_t>());
+    CALL_SUBTEST_1(check_shift<int64_t>());
 
-    CALL_SUBTEST(check_shift<uint8_t>());
-    CALL_SUBTEST(check_shift<uint16_t>());
-    CALL_SUBTEST(check_shift<uint32_t>());
-    CALL_SUBTEST(check_shift<uint64_t>());
+    CALL_SUBTEST_1(check_shift<uint8_t>());
+    CALL_SUBTEST_1(check_shift<uint16_t>());
+    CALL_SUBTEST_1(check_shift<uint32_t>());
+    CALL_SUBTEST_1(check_shift<uint64_t>());
 
-    CALL_SUBTEST(check_scalar_tanh_saturation());
-    CALL_SUBTEST(check_bit_cast());
-    CALL_SUBTEST(check_generic_packet_numext_dispatch());
-    CALL_SUBTEST(check_adl_template_math_dispatch());
+    CALL_SUBTEST_1(check_scalar_tanh_saturation());
+    CALL_SUBTEST_1(check_bit_cast());
+    CALL_SUBTEST_1(check_generic_packet_numext_dispatch());
+    CALL_SUBTEST_1(check_adl_geometry<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_1(check_adl_sparse_direct_solvers<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_2(check_adl_dense_solvers<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_3(check_adl_bdcsvd<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_4(check_adl_selfadjoint_eigensolvers<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_5(check_adl_real_schur_qz<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_5(check_adl_general_eigensolvers<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_6(check_adl_complex_schur<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_7(check_adl_sparse_iterative_solvers<adl_template_math_test::Scalar>());
+    CALL_SUBTEST_8(check_adl_non_template_decompositions<adl_non_template_math_test::Scalar>());
+    CALL_SUBTEST_9(check_adl_non_template_complex<adl_non_template_math_test::Scalar>());
     VERIFY_IS_EQUAL(numext::log10(log10_adl_test::Scalar{10.0}).value, 1.0);
     VERIFY_IS_APPROX(numext::log10(std::complex<double>(2.0, 3.0)), std::log10(std::complex<double>(2.0, 3.0)));
   }
