@@ -47,6 +47,57 @@ void check_packet_sizes() {
   VERIFY_IS_EQUAL(int(internal::packet_traits<double>::size), vl / (8 * int(sizeof(double))));
 }
 
+// GCC can lose lanes in full-register constructors of at least eight elements when the even or odd half has
+// leading constants followed by nonconstant elements. SLP can produce these from ordinary scalar stores.
+EIGEN_DONT_INLINE void scale_zero_prefixed_values(float* dst, float a, float b, float c, float d, float e, float f,
+                                                  float g, float h, float i, float j, float scale) {
+  dst[0] = dst[1] = dst[2] = dst[3] = dst[4] = dst[5] = 0 * scale;
+  dst[6] = a * scale;
+  dst[7] = b * scale;
+  dst[8] = c * scale;
+  dst[9] = d * scale;
+  dst[10] = e * scale;
+  dst[11] = f * scale;
+  dst[12] = g * scale;
+  dst[13] = h * scale;
+  dst[14] = i * scale;
+  dst[15] = j * scale;
+}
+
+template <typename Scalar, int Prefix>
+EIGEN_DONT_INLINE void scale_constant_prefixed_values(Scalar* dst, Scalar a, Scalar b, Scalar c, Scalar d, Scalar e,
+                                                      Scalar scale) {
+  dst[0] = Scalar(Prefix) * scale;
+  dst[1] = Scalar(Prefix == 0 ? 0 : Prefix + 1) * scale;
+  dst[2] = Scalar(Prefix == 0 ? 0 : Prefix + 2) * scale;
+  dst[3] = a * scale;
+  dst[4] = b * scale;
+  dst[5] = c * scale;
+  dst[6] = d * scale;
+  dst[7] = e * scale;
+}
+
+void check_scaled_zero_prefix() {
+  float values[10], result[16];
+  for (float& value : values) value = internal::random<float>(1, 2);
+  const float scale = internal::random<float>(1, 2);
+  scale_zero_prefixed_values(result, values[0], values[1], values[2], values[3], values[4], values[5], values[6],
+                             values[7], values[8], values[9], scale);
+  for (int i = 0; i < 16; ++i) VERIFY_IS_EQUAL(result[i], i < 6 ? 0.0f : values[i - 6] * scale);
+}
+
+template <typename Scalar, int Prefix>
+void check_scaled_constant_prefix() {
+  Scalar values[5], result[8];
+  for (Scalar& value : values) value = internal::random<Scalar>(1, 2);
+  const Scalar scale = internal::random<Scalar>(1, 2);
+  scale_constant_prefixed_values<Scalar, Prefix>(result, values[0], values[1], values[2], values[3], values[4], scale);
+  for (int i = 0; i < 8; ++i) {
+    const Scalar expected = i < 3 ? Scalar(Prefix == 0 ? 0 : Prefix + i) : values[i - 3];
+    VERIFY_IS_EQUAL(result[i], expected * scale);
+  }
+}
+
 // The opaque barriers keep the store/reload from being constant-folded away; on a narrower
 // machine the tail of the buffer then keeps its sentinel.
 template <typename Scalar, typename Packet>
@@ -71,6 +122,11 @@ void check_full_width_store() {
 EIGEN_DECLARE_TEST(sve_vector_length) {
   CALL_SUBTEST(check_runtime_vector_length());
   CALL_SUBTEST(check_packet_sizes());
+  CALL_SUBTEST(check_scaled_zero_prefix());
+  CALL_SUBTEST((check_scaled_constant_prefix<float, 0>()));
+  CALL_SUBTEST((check_scaled_constant_prefix<float, 1>()));
+  CALL_SUBTEST((check_scaled_constant_prefix<double, 0>()));
+  CALL_SUBTEST((check_scaled_constant_prefix<double, 1>()));
   CALL_SUBTEST((check_full_width_store<numext::int32_t, internal::PacketXi>()));
   CALL_SUBTEST((check_full_width_store<float, internal::PacketXf>()));
   CALL_SUBTEST((check_full_width_store<double, internal::PacketXd>()));

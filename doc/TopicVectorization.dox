@@ -103,6 +103,33 @@ fixed. See \ref TopicUnalignedArrayAssert for what the alignment is there for.
 
 When compiling CUDA sources, host-side SIMD must be disabled; see \ref TopicCUDA.
 
+\section TopicVectorizationGccSve GCC fixed-length SVE compiler bug
+
+GCC can silently lose coefficients when a fixed-length SVE constructor fills a register with eight or
+more elements and its even- or odd-indexed half contains leading constants followed by nonconstant
+elements. The constants need not be zero: `{1, 2, 3, a, b, c, d, e}` is affected for `float` at 256 bits
+and `double` at 512 bits, whereas eight `double` values at 256 bits are unaffected by this trigger.
+This affects ordinary scalar stores combined by SLP as well as explicit vector constructors.
+Neither omitting \c EIGEN_ARM64_USE_SVE nor defining \c EIGEN_DONT_VECTORIZE prevents it.
+The bug has been reproduced independently of %Eigen with GCC 10 and later; no fixed release has been verified.
+
+For automatically vectorized code, the following compiler flags avoid the observed failures while
+retaining %Eigen's explicit SVE packets:
+  - GCC 10--14: `--param=aarch64-autovec-preference=1`.
+  - GCC 15 and later: `--param=aarch64-autovec-preference=asimd-only`.
+
+These flags restrict compiler auto-vectorization to Advanced SIMD (NEON). Apply them consistently to
+the application's translation units, including non-%Eigen code, and to the link step when using LTO.
+They do not fix explicit vector initializers: applications using those must use a compiler verified
+with their reproducer. Clang 18 passes the reduced tests. Disabling SLP with
+`-fno-tree-slp-vectorize` also avoids the observed scalar-code failures, but does not fix explicit
+initializers either. Validate the chosen configuration against the application's own tests.
+
+Explicit vector initializers also reproduce the bug at `-O0`. A local workaround in one numerical
+routine cannot protect other scalar code that GCC combines into the same constructor pattern.
+%Eigen's test builds automatically apply the flag when `EIGEN_TEST_SVE=ON` selects at least 256 bits
+with GCC 10 or later. This build option does not add flags to applications consuming the header-only library.
+
 \section TopicVectorizationInternals Under the hood
 
 Vectorized kernels are written in terms of generic packet primitives — pload(), pstore(), padd(),

@@ -570,6 +570,16 @@ if (EIGEN_BUILD_TESTING)
     set(EIGEN_TEST_SVE_VL "128" CACHE STRING "SVE vector length in bits used when EIGEN_TEST_SVE is ON")
     if(EIGEN_TEST_SVE)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DEIGEN_ARM64_USE_SVE -msve-vector-bits=${EIGEN_TEST_SVE_VL}")
+      # GCC can miscompile fixed-length SVE constructors with at least eight elements and a constant prefix in
+      # their even or odd half. Keep auto-vectorization on NEON; explicit Eigen packets retain their SVE width.
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 10
+         AND EIGEN_TEST_SVE_VL GREATER_EQUAL 256)
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param=aarch64-autovec-preference=1")
+        else()
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --param=aarch64-autovec-preference=asimd-only")
+        endif()
+      endif()
       message(STATUS "Enabling SVE in tests/examples at vector length ${EIGEN_TEST_SVE_VL}")
     endif()
 
