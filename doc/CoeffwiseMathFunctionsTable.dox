@@ -727,7 +727,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>sin</td>  <td>2</td>  <td>0.087</td> <td>91.3%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note1 "1"</td></tr>
 <tr><td>cos</td>  <td>2</td>  <td>0.088</td> <td>91.2%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note1 "1"</td></tr>
 <tr><td>tan</td>  <td>5</td>  <td>0.238</td> <td>77.3%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note1 "1"</td></tr>
-<tr><td>asin</td> <td>4</td>  <td>0.726</td> <td>51.3%</td> <td></td></tr>
+<tr><td>asin</td> <td>2</td>  <td>0.003</td> <td>99.7%</td> <td></td></tr>
 <tr><td>acos</td> <td>4</td>  <td>0.057</td> <td>95.0%</td> <td></td></tr>
 <tr><td>atan</td> <td>4</td>  <td>0.061</td> <td>94.0%</td> <td></td></tr>
 <tr><th colspan="5">Hyperbolic</th></tr>
@@ -766,7 +766,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>tan</td>  <td>13,879,755</td> <td>0.128</td> <td>92.7%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note1 "1"</td></tr>
 <tr><td>asin</td> <td>1</td>          <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
 <tr><td>acos</td> <td>1</td>          <td>&lt;0.001</td> <td>100%</td> <td></td></tr>
-<tr><td>atan</td> <td>5</td>          <td>0.013</td> <td>98.8%</td> <td></td></tr>
+<tr><td>atan</td> <td>2</td>          <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
 <tr><th colspan="5">Hyperbolic</th></tr>
 <tr><td>sinh</td>  <td>2</td>  <td>0.004</td> <td>99.6%</td> <td></td></tr>
 <tr><td>cosh</td>  <td>2</td>  <td>0.001</td> <td>99.9%</td> <td></td></tr>

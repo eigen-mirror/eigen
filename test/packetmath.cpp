@@ -1429,6 +1429,92 @@ void packetmath_expm1_accuracy() {
   }
 }
 
+// Arguments and their correctly rounded values, MPFR 4.2.2 at 256-bit precision, for the float asin and the double
+// atan: tiny arguments, both sides of the point where the reduction changes (|x| = 1/2 for asin, |x| = 1 for atan),
+// the ends of the range, and arguments at which earlier versions of these functions were 3 to 5 ulps off.
+template <typename Scalar>
+void inverse_trig_reference_cases(std::vector<Scalar>&, std::vector<Scalar>&) {}
+
+// asin
+template <>
+void inverse_trig_reference_cases<float>(std::vector<float>& x, std::vector<float>& ref) {
+  const float cases[][2] = {
+      {1.00000001e-10f, 1.00000001e-10f},
+      {-2.99999992e-05f, -2.99999992e-05f},
+      {0.00179415278f, 0.00179415371f},
+      {0.0292779095f, 0.029282093f},
+      {0.25f, 0.252680242f},
+      {-0.499900013f, -0.523483336f},
+      {0.5f, 0.52359879f},
+      {0.50000006f, 0.52359885f},
+      {0.500000656f, 0.523599505f},
+      {-0.660105288f, -0.720958889f},
+      {0.75f, 0.848062098f},
+      {0.899999976f, 1.11976945f},
+      {-0.999000013f, -1.52607155f},
+      {0.99999994f, 1.57045102f},
+      {-0.99999994f, -1.57045102f},
+      {1.0f, 1.57079637f},
+      {-1.0f, -1.57079637f},
+  };
+  for (const auto& c : cases) {
+    x.push_back(c[0]);
+    ref.push_back(c[1]);
+  }
+}
+
+// atan
+template <>
+void inverse_trig_reference_cases<double>(std::vector<double>& x, std::vector<double>& ref) {
+  const double cases[][2] = {
+      {9.9999999999999995e-21, 9.9999999999999995e-21},
+      {0.001, 0.00099999966666686679},
+      {0.5, 0.46364760900080609},
+      {0.91040292374717979, 0.73853293406351039},
+      {-0.97845380923446557, -0.77450817500143465},
+      {0.99999999999999989, 0.78539816339744828},
+      {1.0, 0.78539816339744828},
+      {1.0000000000000002, 0.78539816339744839},
+      {-1.0231943601476432, -0.79686188855961293},
+      {1.0467875081299658, 0.80825317943994035},
+      {1.5, 0.98279372324732905},
+      {3.0, 1.2490457723982544},
+      {-8.0, -1.4464413322481351},
+      {1000000.0, 1.5707953267948966},
+      {1e+20, 1.5707963267948966},
+      {1.0000000000000001e+300, 1.5707963267948966},
+  };
+  for (const auto& c : cases) {
+    x.push_back(c[0]);
+    ref.push_back(c[1]);
+  }
+}
+
+// The float pasin and the double patan stay within 2 ulps of the correctly rounded value. A different case goes into
+// every lane, so that neighboring lanes take different branches of the reduction.
+template <typename Scalar, typename Packet, bool Cond, typename Op>
+void packetmath_inverse_trig_accuracy(const Op& op) {
+  if (!Cond) return;
+  const test::packet_helper<Cond, Packet> h;
+  std::vector<Scalar> x, expected;
+  inverse_trig_reference_cases<Scalar>(x, expected);
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data2[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  const size_t count = x.size();
+  for (size_t start = 0; start < count; start += static_cast<size_t>(PacketSize)) {
+    for (int i = 0; i < PacketSize; ++i) {
+      // The last packet wraps around.
+      const size_t k = (start + static_cast<size_t>(i)) % count;
+      data1[i] = x[k];
+      ref[i] = expected[k];
+    }
+    h.store(data2, op(h.load(data1)));
+    VERIFY(test::areWithinUlps(ref, data2, PacketSize, 2) && "pasin (float) or patan (double)");
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   using PacketTraits = internal::packet_traits<Scalar>;
@@ -1441,6 +1527,14 @@ void packetmath_real() {
 
   if (g_first_pass) packetmath_cbrt_accuracy<Scalar, Packet>();
   if (g_first_pass) packetmath_expm1_accuracy<Scalar, Packet>();
+  if (g_first_pass) {
+    constexpr bool kIsFloat = std::is_same<Scalar, float>::value;
+    constexpr bool kIsDouble = std::is_same<Scalar, double>::value;
+    packetmath_inverse_trig_accuracy<Scalar, Packet, PacketTraits::HasASin && kIsFloat>(
+        [](const auto& a) { return internal::pasin(a); });
+    packetmath_inverse_trig_accuracy<Scalar, Packet, PacketTraits::HasATan && kIsDouble>(
+        [](const auto& a) { return internal::patan(a); });
+  }
 
   // Negate with -0.
   if (PacketTraits::HasNegate) {

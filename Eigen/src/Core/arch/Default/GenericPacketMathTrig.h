@@ -517,66 +517,72 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasin_float(const Pac
   constexpr float kPiOverTwo = static_cast<float>(EIGEN_PI / 2);
 
   const Packet cst_half = pset1<Packet>(0.5f);
-  const Packet cst_one = pset1<Packet>(1.0f);
   const Packet cst_two = pset1<Packet>(2.0f);
   const Packet cst_pi_over_two = pset1<Packet>(kPiOverTwo);
+  // asin(z) = z + z u P(u) for u = z^2 <= 1/4, to a relative error of 2^-27.6, P = p0 + p1 u + ... + p4 u^4.
+  // Sollya 8.0: fpminimax(asin(x)/x, [|2,4,6,8,10|], [|24...|], [2^-20; 1/2], relative, floating, 1)
+  const Packet p4 = pset1<Packet>(4.21570129692554473876953125e-2f);
+  const Packet p3 = pset1<Packet>(2.418550290167331695556640625e-2f);
+  const Packet p2 = pset1<Packet>(4.54690195620059967041015625e-2f);
+  const Packet p1 = pset1<Packet>(7.4953101575374603271484375e-2f);
+  const Packet p0 = pset1<Packet>(0.166667520999908447265625f);
 
   const Packet abs_x = pabs(x_in);
   const Packet sign_mask = pandnot(x_in, abs_x);
-  const Packet invalid_mask = pcmp_lt(cst_one, abs_x);
-
-  // For arguments |x| > 0.5, we map x back to [0:0.5] using
-  // the transformation x_large = sqrt(0.5*(1-x)), and use the
-  // identity
-  //   asin(x) = pi/2 - 2 * asin( sqrt( 0.5 * (1 - x)))
-
-  const Packet x_large = psqrt(pnmadd(cst_half, abs_x, cst_half));
   const Packet large_mask = pcmp_lt(cst_half, abs_x);
-  const Packet x = pselect(large_mask, x_large, abs_x);
-  const Packet x2 = pmul(x, x);
 
-  // For |x| < 0.5 approximate asin(x)/x by an 8th order polynomial with
-  // even terms only.
-  constexpr float alpha[] = {5.08838854730129241943359375e-2f, 3.95139865577220916748046875e-2f,
-                             7.550220191478729248046875e-2f, 0.16664917767047882080078125f, 1.00000011920928955078125f};
-  Packet p = ppolevl<Packet, 4>::run(x2, alpha);
-  p = pmul(p, x);
+  //   |x| <= 1/2:  asin(|x|) = asin(z),            z = |x|
+  //   |x| > 1/2:   asin(|x|) = pi/2 - 2 asin(z),   z = sqrt((1 - |x|) / 2), which is NaN for |x| > 1
+  const Packet z = pselect(large_mask, psqrt(pnmadd(cst_half, abs_x, cst_half)), abs_x);
+  const Packet u = pmul(z, z);
+  // P(u) = (p0 + p1 u) + u^2 ((p2 + p3 u) + p4 u^2): two short chains in place of one Horner chain, to increase
+  // instruction level parallelism.
+  const Packet u2 = pmul(u, u);
+  const Packet p_low = pmadd(p1, u, p0);
+  const Packet p_high = pmadd(p4, u2, pmadd(p3, u, p2));
+  Packet p = pmadd(pmul(z, u), pmadd(p_high, u2, p_low), z);
 
   const Packet p_large = pnmadd(cst_two, p, cst_pi_over_two);
   p = pselect(large_mask, p_large, p);
   // Flip the sign for negative arguments.
-  p = pxor(p, sign_mask);
-  // Return NaN for arguments outside [-1:1].
-  return por(invalid_mask, p);
+  return pxor(p, sign_mask);
 }
 
+// Computes atan(x) for x in [0:1]. The double version also subtracts the low word of pi/2 from the lanes set in
+// `large_mask`, where the caller goes on to subtract the result from pi/2.
 template <typename Scalar>
 struct patan_reduced {
   template <typename Packet>
-  static EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet run(const Packet& x);
+  static EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet run(const Packet& x, const Packet& large_mask);
 };
 
+// atan(x) = x + x u N(u) / Q(u), u = x^2. P / Q is a rational approximation of atan(x) / x calculated using Rminimax,
+// and N = (P - Q) / u takes the leading 1 out of it: the rounding errors of the rational function then enter the
+// result scaled by |atan(x) / x - 1| < 0.22.
 template <>
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<double>::run(const Packet& x) {
-  constexpr double alpha[] = {2.6667153866462208e-05, 3.0917513112462781e-03, 5.2574296781008604e-02,
-                              3.0409318473444424e-01, 7.5365702534987022e-01, 8.2704055405494614e-01,
-                              3.3004361289279920e-01};
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<double>::run(const Packet& x,
+                                                                                      const Packet& large_mask) {
+  constexpr double kPiOverTwoLo = 6.123233995736766e-17;  // pi/2 - double(pi/2)
+  constexpr double alpha[] = {-2.4644487075790443e-04, -7.8073996177164305e-03, -6.2915029683194929e-02,
+                              -1.9307140255021149e-01, -2.4634297465012978e-01, -1.1001453763093239e-01};
 
   constexpr double beta[] = {
       2.7311202462436667e-04, 1.0899150928962708e-02, 1.1548932646420353e-01, 4.9716458728465573e-01, 1.0,
       9.3705509168587852e-01, 3.3004361289279920e-01};
 
   Packet x2 = pmul(x, x);
-  Packet p = ppolevl<Packet, 6>::run(x2, alpha);
+  Packet p = ppolevl<Packet, 5>::run(x2, alpha);
   Packet q = ppolevl<Packet, 6>::run(x2, beta);
-  return pmul(x, pdiv(p, q));
+  // The low word of pi/2 goes into the leading term.
+  const Packet x0 = psub(x, pand(large_mask, pset1<Packet>(kPiOverTwoLo)));
+  return pmadd(pmul(x, x2), pdiv(p, q), x0);
 }
 
 // Computes elementwise atan(x) for x in [-1:1] with 2 ulp accuracy.
 template <>
 template <typename Packet>
-EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<float>::run(const Packet& x) {
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patan_reduced<float>::run(const Packet& x, const Packet&) {
   constexpr float alpha[] = {1.12026982009410858154296875e-01f, 7.296695709228515625e-01f, 8.109951019287109375e-01f};
 
   constexpr float beta[] = {1.00917108356952667236328125e-02f, 2.8318560123443603515625e-01f, 1.0f,
@@ -606,7 +612,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
   const Packet x_signmask = pand(x_in, cst_signmask);
   const Packet large_mask = pcmp_lt(cst_one, abs_x);
   const Packet x = pselect(large_mask, preciprocal(abs_x), abs_x);
-  const Packet p = patan_reduced<Scalar>::run(x);
+  const Packet p = patan_reduced<Scalar>::run(x, large_mask);
   // Apply transformations according to the range reduction masks.
   Packet result = pselect(large_mask, psub(cst_pi_over_two, p), p);
   // Return correct sign
