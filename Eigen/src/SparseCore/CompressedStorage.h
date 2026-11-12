@@ -159,20 +159,14 @@ class CompressedStorage {
         reallocate(newAllocatedSize);
       }
       if (m_size > id) {
-        internal::smart_memmove(m_values + id, m_values + m_size, m_values + id + 1);
-        internal::smart_memmove(m_indices + id, m_indices + m_size, m_indices + id + 1);
+        internal::move_or_copy_backward(m_values + id, m_values + m_size, m_values + m_size + 1);
+        std::move_backward(m_indices + id, m_indices + m_size, m_indices + m_size + 1);
       }
       m_size++;
       m_indices[id] = internal::convert_index<StorageIndex>(key);
       m_values[id] = defaultValue;
     }
     return m_values[id];
-  }
-
-  inline void moveChunk(Index from, Index to, Index chunkSize) {
-    eigen_internal_assert(chunkSize >= 0 && to + chunkSize <= m_size);
-    internal::smart_memmove(m_values + from, m_values + from + chunkSize, m_values + to);
-    internal::smart_memmove(m_indices + from, m_indices + from + chunkSize, m_indices + to);
   }
 
  protected:
@@ -199,7 +193,20 @@ class CompressedStorage {
     EIGEN_TRY {
       const Index copy_size = (std::min)(m_size, size);
       if (copy_size > 0) internal::smart_copy(m_indices, m_indices + copy_size, new_indices);
-      m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, size, m_allocatedSize);
+      EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::RequireInitialization) {
+        // Every slot of the old buffer holds a constructed Scalar, and every slot of the new one must.
+        m_values = conditional_aligned_realloc_new_auto<Scalar, true>(m_values, size, m_allocatedSize);
+      } else {
+        // Slots past m_size hold no entry and may be uninitialized, so only the stored entries are relocated.
+        Scalar* new_values = conditional_aligned_new_auto<Scalar, true>(size);
+        EIGEN_TRY { move_construct_elements_of_array(new_values, m_values, static_cast<std::size_t>(copy_size)); }
+        EIGEN_CATCH(...) {
+          conditional_aligned_delete_auto<Scalar, true>(new_values, size);
+          EIGEN_THROW;
+        }
+        conditional_aligned_delete_auto<Scalar, true>(m_values, m_allocatedSize);
+        m_values = new_values;
+      }
     }
     EIGEN_CATCH(...) {
       conditional_aligned_delete_auto<StorageIndex, true>(new_indices, size);

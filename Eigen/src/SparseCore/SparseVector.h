@@ -174,7 +174,7 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
 
     while ((p >= startId) && (m_data.index(p) > i)) {
       m_data.index(p + 1) = m_data.index(p);
-      m_data.value(p + 1) = m_data.value(p);
+      m_data.value(p + 1) = internal::move_if_assignable(m_data.value(p));
       --p;
     }
     m_data.index(p + 1) = convert_index(i);
@@ -204,8 +204,12 @@ class SparseVector : public SparseCompressedBase<SparseVector<Scalar_, Options_,
     Index n = m_data.size();
     for (Index i = 0; i < n; ++i) {
       if (keep_predicate(m_data.value(i))) {
-        m_data.value(k) = std::move(m_data.value(i));
-        m_data.index(k) = m_data.index(i);
+        // Entries in front of the first dropped one are already in place, where a self-move would leave them
+        // unspecified. A trivially copyable scalar is assigned anyway, which costs less than the branch.
+        if (std::is_trivially_copyable<Scalar>::value || k != i) {
+          m_data.value(k) = internal::move_if_assignable(m_data.value(i));
+          m_data.index(k) = m_data.index(i);
+        }
         ++k;
       }
     }

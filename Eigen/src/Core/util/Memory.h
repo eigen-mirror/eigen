@@ -520,8 +520,24 @@ EIGEN_DEVICE_FUNC inline T* conditional_aligned_realloc_new_auto(T* pts, std::si
 
   check_size_for_overflow<T>(new_size);
   check_size_for_overflow<T>(old_size);
-  return static_cast<T*>(
-      conditional_aligned_realloc<Align>(static_cast<void*>(pts), sizeof(T) * new_size, sizeof(T) * old_size));
+  EIGEN_IF_CONSTEXPR (std::is_trivially_copyable<T>::value) {
+    return static_cast<T*>(
+        conditional_aligned_realloc<Align>(static_cast<void*>(pts), sizeof(T) * new_size, sizeof(T) * old_size));
+  }
+
+  // realloc relocates bytes, which only a trivially copyable T allows: move the elements instead. As in
+  // conditional_aligned_new_auto and conditional_aligned_delete_auto, T gets no default constructor or destructor call.
+  // Eigen's own callers do not reach this: dense conservativeResize() copies such a T into a new object, and
+  // CompressedStorage relocates only its stored entries, since old_size counts its uninitialized capacity too.
+  if (new_size == old_size) return pts;
+  T* result = static_cast<T*>(conditional_aligned_malloc<Align>(sizeof(T) * new_size));
+  EIGEN_TRY { move_construct_elements_of_array(result, pts, (std::min)(old_size, new_size)); }
+  EIGEN_CATCH(...) {
+    conditional_aligned_free<Align>(result);
+    EIGEN_THROW;
+  }
+  conditional_aligned_free<Align>(pts);
+  return result;
 }
 
 template <typename T, bool Align>
@@ -590,14 +606,15 @@ inline Index first_multiple(Index size, Index base) {
   return ((size + base - 1) / base) * base;
 }
 
-// std::copy is much slower than memcpy, so let's introduce a smart_copy which
-// use memcpy on trivial types, i.e., on types that does not require an initialization ctor.
+// Copies [start, end) to the non-overlapping range at target: memcpy where T is trivially copyable, which is the
+// exact precondition of a byte copy, and element-wise assignment otherwise. NumTraits<T>::RequireInitialization says
+// whether T needs construction before first use, not whether its bytes may be duplicated.
 template <typename T, bool UseMemcpy>
 struct smart_copy_helper;
 
 template <typename T>
 EIGEN_DEVICE_FUNC void smart_copy(const T* start, const T* end, T* target) {
-  smart_copy_helper<T, !NumTraits<T>::RequireInitialization>::run(start, end, target);
+  smart_copy_helper<T, std::is_trivially_copyable<T>::value>::run(start, end, target);
 }
 
 template <typename T>
@@ -611,41 +628,44 @@ struct smart_copy_helper<T, true> {
   }
 };
 
+// The ranges do not overlap, and saying so lets the compiler turn an assignment that copies fields into memcpy.
 template <typename T>
 struct smart_copy_helper<T, false> {
-  EIGEN_DEVICE_FUNC static inline void run(const T* start, const T* end, T* target) { std::copy(start, end, target); }
+  EIGEN_DEVICE_FUNC static inline void run(const T* EIGEN_RESTRICT start, const T* end, T* EIGEN_RESTRICT target) {
+    std::copy(start, end, target);
+  }
 };
 
-// intelligent memmove. falls back to std::memmove for POD types, uses std::copy otherwise.
-template <typename T, bool UseMemmove>
-struct smart_memmove_helper;
+// std::move(x) where `T = std::move(x)` compiles, and x otherwise, so that a T that deletes its move assignment but
+// keeps its copy assignment is copied rather than rejected.
+template <typename T>
+constexpr std::conditional_t<std::is_move_assignable<T>::value, T&&, const T&> move_if_assignable(T& x) noexcept {
+  return std::move(x);
+}
+
+// std::move and std::move_backward where T can be move-assigned, std::copy and std::copy_backward otherwise. The
+// ranges may overlap as those algorithms allow.
+template <typename T, bool Move = std::is_move_assignable<T>::value>
+struct move_or_copy_helper {
+  static void run(T* start, T* end, T* target) { std::move(start, end, target); }
+  static void run_backward(T* start, T* end, T* target_end) { std::move_backward(start, end, target_end); }
+};
 
 template <typename T>
-void smart_memmove(const T* start, const T* end, T* target) {
-  smart_memmove_helper<T, !NumTraits<T>::RequireInitialization>::run(start, end, target);
+struct move_or_copy_helper<T, false> {
+  static void run(T* start, T* end, T* target) { std::copy(start, end, target); }
+  static void run_backward(T* start, T* end, T* target_end) { std::copy_backward(start, end, target_end); }
+};
+
+template <typename T>
+inline void move_or_copy(T* start, T* end, T* target) {
+  move_or_copy_helper<T>::run(start, end, target);
 }
 
 template <typename T>
-struct smart_memmove_helper<T, true> {
-  static inline void run(const T* start, const T* end, T* target) {
-    std::ptrdiff_t count = end - start;
-    if (count <= 0) return;
-    eigen_internal_assert(start != 0 && end != 0 && target != 0);
-    std::memmove(target, start, static_cast<std::size_t>(count) * sizeof(T));
-  }
-};
-
-template <typename T>
-struct smart_memmove_helper<T, false> {
-  static inline void run(const T* start, const T* end, T* target) {
-    if (std::uintptr_t(target) < std::uintptr_t(start)) {
-      std::copy(start, end, target);
-    } else {
-      std::ptrdiff_t count = (std::ptrdiff_t(end) - std::ptrdiff_t(start)) / sizeof(T);
-      std::copy_backward(start, end, target + count);
-    }
-  }
-};
+inline void move_or_copy_backward(T* start, T* end, T* target_end) {
+  move_or_copy_helper<T>::run_backward(start, end, target_end);
+}
 
 /*****************************************************************************
 *** Implementation of runtime stack allocation (falling back to malloc)    ***

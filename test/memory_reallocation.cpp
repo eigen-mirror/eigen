@@ -74,6 +74,92 @@ int ReallocationScalar::live_resources = 0;
 int ReallocationScalar::defaults_before_throw = -1;
 int ReallocationScalar::moves_before_throw = -1;
 
+// Usable without construction, so RequireInitialization is 0, but it records its own address: relocating its bytes
+// leaves `self` pointing at the old storage.
+struct AddressTrackingScalar {
+  static int constructions;
+
+  int value;
+  const AddressTrackingScalar* self;
+
+  AddressTrackingScalar() = default;
+  AddressTrackingScalar(const AddressTrackingScalar& other) : value(other.value), self(this) { ++constructions; }
+  AddressTrackingScalar& operator=(const AddressTrackingScalar& other) {
+    if (this != &other) set(other.value);
+    return *this;
+  }
+  void set(int new_value) {
+    value = new_value;
+    self = this;
+  }
+  bool intact() const { return self == this; }
+};
+
+int AddressTrackingScalar::constructions = 0;
+
+namespace Eigen {
+template <>
+struct NumTraits<AddressTrackingScalar> : NumTraits<int> {};
+}  // namespace Eigen
+
+// conditional_aligned_realloc_new_auto may call realloc only for a trivially copyable type.
+template <bool Align>
+void reallocation_of_non_trivially_copyable() {
+  using Scalar = AddressTrackingScalar;
+  STATIC_CHECK(!NumTraits<Scalar>::RequireInitialization);
+  STATIC_CHECK(!std::is_trivially_copyable<Scalar>::value);
+  std::size_t old_size = 3;
+  Scalar* values = internal::conditional_aligned_new_auto<Scalar, Align>(old_size);
+  for (std::size_t i = 0; i < old_size; ++i) values[i].set(int(i) + 1);
+  const std::size_t sizes[] = {5, 5, 4096, 2, 0};
+  for (std::size_t size : sizes) {
+    Scalar::constructions = 0;
+    values = internal::conditional_aligned_realloc_new_auto<Scalar, Align>(values, size, old_size);
+    const std::size_t kept = (std::min)(size, old_size);
+    VERIFY_IS_EQUAL(Scalar::constructions, size == old_size ? 0 : int(kept));
+    VERIFY((values == nullptr) == (size == 0));
+    for (std::size_t i = 0; i < kept; ++i) {
+      VERIFY(values[i].intact());
+      VERIFY_IS_EQUAL(values[i].value, int(i) + 1);
+    }
+    for (std::size_t i = kept; i < size; ++i) values[i].set(int(i) + 1);
+    old_size = size;
+  }
+  internal::conditional_aligned_delete_auto<Scalar, Align>(values, 0);
+}
+
+// The same through sparse storage growth. Dense conservativeResize() never reallocates such a scalar in place.
+void compressed_storage_of_non_trivially_copyable() {
+  using Scalar = AddressTrackingScalar;
+  const Index size = 5;
+  internal::CompressedStorage<Scalar, int> storage(size);
+  for (Index i = 0; i < size; ++i) {
+    storage.index(i) = int(2 * i);
+    storage.value(i).set(int(i) + 1);
+  }
+  // The second reserve() and the squeeze() start with capacity past the stored size: those slots were never written
+  // and must not be read.
+  for (int step = 0; step < 3; ++step) {
+    Scalar::constructions = 0;
+    if (step < 2)
+      storage.reserve(4096 << step);
+    else
+      storage.squeeze();
+    VERIFY_IS_EQUAL(Scalar::constructions, int(size));
+    for (Index i = 0; i < size; ++i) {
+      VERIFY(storage.value(i).intact());
+      VERIFY_IS_EQUAL(storage.value(i).value, int(i) + 1);
+      VERIFY_IS_EQUAL(storage.index(i), int(2 * i));
+    }
+  }
+
+  Scalar::constructions = 0;
+  SparseVector<Scalar> empty(32);
+  empty.reserve(8);
+  empty.reserve(16);
+  VERIFY_IS_EQUAL(Scalar::constructions, 0);
+}
+
 template <bool Align>
 void reallocation_success() {
   using Scalar = ReallocationScalar;
@@ -246,6 +332,9 @@ void compressed_storage_allocation_failure() {
 EIGEN_DECLARE_TEST(memory_reallocation) {
   CALL_SUBTEST(reallocation_success<false>());
   CALL_SUBTEST(reallocation_success<true>());
+  CALL_SUBTEST(reallocation_of_non_trivially_copyable<false>());
+  CALL_SUBTEST(reallocation_of_non_trivially_copyable<true>());
+  CALL_SUBTEST(compressed_storage_of_non_trivially_copyable());
 #ifdef EIGEN_EXCEPTIONS
 #ifdef EIGEN_TEST_WRAP_MALLOC
   CALL_SUBTEST(compressed_storage_allocation_failure<ReallocationScalar>());

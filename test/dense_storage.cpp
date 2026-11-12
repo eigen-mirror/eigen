@@ -343,6 +343,42 @@ void fixed_max_safe_scalar_tests() {
   VERIFY_IS_EQUAL(float(coefficients(3)), 4.f);
 }
 
+// Trivially constructible and destructible, so RequireInitialization stays 0, but not trivially copyable: a copy has
+// to run the assignment operator.
+struct CopyCountingScalar {
+  CopyCountingScalar() = default;
+  explicit CopyCountingScalar(float v) : value(v) {}
+  CopyCountingScalar(const CopyCountingScalar&) = default;
+  CopyCountingScalar& operator=(const CopyCountingScalar& other) {
+    value = other.value;
+    ++copy_assignments();
+    return *this;
+  }
+  static Index& copy_assignments() {
+    static Index count = 0;
+    return count;
+  }
+  float value;
+};
+
+namespace Eigen {
+template <>
+struct NumTraits<CopyCountingScalar> : NumTraits<float> {};
+}  // namespace Eigen
+
+void copy_of_non_trivially_copyable_scalar() {
+  STATIC_CHECK(!NumTraits<CopyCountingScalar>::RequireInitialization);
+  STATIC_CHECK(!std::is_trivially_copyable<CopyCountingScalar>::value);
+  using Vector = Matrix<CopyCountingScalar, Dynamic, 1>;
+  const Index size = 5;
+  Vector source(size);
+  for (Index i = 0; i < size; ++i) source.coeffRef(i).value = float(i);
+  CopyCountingScalar::copy_assignments() = 0;
+  Vector copy(source);
+  VERIFY_IS_EQUAL(CopyCountingScalar::copy_assignments(), size);
+  for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(copy.coeff(i).value, float(i));
+}
+
 EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<int>();
   dense_storage_tests<float>();
@@ -351,6 +387,7 @@ EIGEN_DECLARE_TEST(dense_storage) {
   dense_storage_tests<AnnoyingScalar>();
   fixed_max_storage_tests();
   fixed_max_safe_scalar_tests();
+  copy_of_non_trivially_copyable_scalar();
   for (int i = 0; i < g_repeat; i++) {
     plaintype_tests<Matrix<float, 0, 0, ColMajor>>();
     plaintype_tests<Matrix<float, Dynamic, Dynamic, ColMajor, 0, 0>>();

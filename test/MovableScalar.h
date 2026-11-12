@@ -12,17 +12,38 @@
 #define EIGEN_MISC_MOVABLE_SCALAR_H
 
 namespace Eigen {
+// Calls of MovableScalar's copy and move operations, summed over every MovableScalar<Scalar>.
+struct MovableScalarCounters {
+  Index copies = 0;      // copy constructions and copy assignments
+  Index moves = 0;       // move constructions and move assignments
+  Index self_moves = 0;  // move assignments of an object to itself
+  static MovableScalarCounters& get() {
+    static MovableScalarCounters counters;
+    return counters;
+  }
+  static void reset() { get() = MovableScalarCounters(); }
+};
+
 template <typename Scalar>
 struct MovableScalar {
   MovableScalar() : m_data(new Scalar) {}
   ~MovableScalar() { delete m_data; }
-  MovableScalar(const MovableScalar& other) : m_data(new Scalar) { set(other.get()); }
-  MovableScalar(MovableScalar&& other) noexcept : m_data(other.m_data) { other.m_data = nullptr; }
+  MovableScalar(const MovableScalar& other) : m_data(new Scalar) {
+    ++MovableScalarCounters::get().copies;
+    set(other.get());
+  }
+  MovableScalar(MovableScalar&& other) noexcept : m_data(other.m_data) {
+    ++MovableScalarCounters::get().moves;
+    other.m_data = nullptr;
+  }
   MovableScalar& operator=(const MovableScalar& other) {
+    ++MovableScalarCounters::get().copies;
     set(other.get());
     return *this;
   }
   MovableScalar& operator=(MovableScalar&& other) noexcept {
+    ++MovableScalarCounters::get().moves;
+    if (this == &other) ++MovableScalarCounters::get().self_moves;
     // other's destructor frees the buffer *this held.
     std::swap(m_data, other.m_data);
     return *this;
@@ -30,6 +51,11 @@ struct MovableScalar {
   MovableScalar(const Scalar& scalar) : m_data(new Scalar) { set(scalar); }
 
   operator Scalar() const { return get(); }
+
+  MovableScalar& operator+=(const MovableScalar& other) {
+    set(get() + other.get());
+    return *this;
+  }
 
  private:
   void set(const Scalar& value) {

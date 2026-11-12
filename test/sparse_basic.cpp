@@ -22,6 +22,7 @@ static long g_dense_op_sparse_count = 0;
 
 #include "sparse.h"
 #include "sparse_test_helpers.h"
+#include "MovableScalar.h"
 
 template <typename SparseMatrixType>
 void sparse_basic(const SparseMatrixType& ref) {
@@ -1464,6 +1465,345 @@ void sparse_insert_full_index_range() {
   }
 }
 
+// Reads `m` through its iterators into a dense matrix, so that the inner indices are compared along with the values.
+template <typename SparseType>
+void verify_movable_entries(const SparseType& m, const MatrixXd& ref) {
+  MatrixXd dense = MatrixXd::Zero(m.rows(), m.cols());
+  Index entries = 0;
+  for (Index j = 0; j < m.outerSize(); ++j)
+    for (typename SparseType::InnerIterator it(m, j); it; ++it, ++entries)
+      dense(it.row(), it.col()) = double(it.value());
+  VERIFY_IS_EQUAL(entries, m.nonZeros());
+  VERIFY_IS_CWISE_EQUAL(dense, ref);
+}
+
+// The operation since the last MovableScalarCounters::reset() shifted stored entries: it moved them, copied exactly
+// `COPIES` values, and move-assigned no entry to itself.
+#define VERIFY_SHIFT_COUNTS(COPIES)                                      \
+  do {                                                                   \
+    VERIFY(MovableScalarCounters::get().moves > 0);                      \
+    VERIFY_IS_EQUAL(MovableScalarCounters::get().copies, Index(COPIES)); \
+    VERIFY_IS_EQUAL(MovableScalarCounters::get().self_moves, Index(0));  \
+  } while (false)
+
+// Every shift, compaction and relocation of stored entries inside SparseCore, for a scalar that owns heap memory.
+template <int Options>
+void sparse_shift_moves() {
+  using Scalar = MovableScalar<double>;
+  using SpMat = SparseMatrix<Scalar, Options>;
+  const Index n = 8;
+  auto coeff = [](MatrixXd& dense, Index outer, Index inner) -> double& {
+    return SpMat::IsRowMajor ? dense(outer, inner) : dense(inner, outer);
+  };
+
+  // Inner vector j holds the indices {1, 4, 6} \ {j}, so no diagonal entry is stored.
+  SpMat base(n, n);
+  MatrixXd baseRef = MatrixXd::Zero(n, n);
+  double value = 1;
+  for (Index j = 0; j < n; ++j) {
+    for (Index i : {1, 4, 6}) {
+      if (i == j) continue;
+      base.insertByOuterInner(j, i) = Scalar(value);
+      coeff(baseRef, j, i) = value++;
+    }
+  }
+  base.makeCompressed();
+  verify_movable_entries(base, baseRef);
+
+  auto insert = [&](SpMat& m, MatrixXd& ref, Index outer, Index inner) {
+    MovableScalarCounters::reset();
+    m.insertByOuterInner(outer, inner) = Scalar(value);
+    coeff(ref, outer, inner) = value++;
+  };
+
+  {
+    SpMat m = base;
+    MatrixXd ref = baseRef;
+
+    // reserve() on a compressed matrix: vectors 0 to 2 have nothing reserved before them and stay in place.
+    VectorXi sizes(n);
+    sizes << 0, 0, 2, 0, 1, 0, 3, 0;
+    MovableScalarCounters::reset();
+    m.reserve(sizes);
+    VERIFY_SHIFT_COUNTS(0);
+    VERIFY(!m.isCompressed());
+    verify_movable_entries(m, ref);
+
+    // reserve() on an uncompressed matrix: vectors 0 to 3 stay in place.
+    sizes << 0, 0, 2, 1, 1, 0, 3, 2;
+    MovableScalarCounters::reset();
+    m.reserve(sizes);
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(m, ref);
+
+    // Vector 2 has capacity: its entries shift right.
+    insert(m, ref, 2, 0);
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(m, ref);
+
+    // Vectors 1 and 0 are full, vector 2 has capacity: the tail of vector 1 and all of vector 2 shift right.
+    insert(m, ref, 1, 5);
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(m, ref);
+
+    // Vector 5 is full, its left neighbor has capacity: the head of vector 5 shifts left.
+    insert(m, ref, 5, 5);
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(m, ref);
+
+    // makeCompressed(): vectors 0 and 1 are contiguous and stay in place, the rest shift left.
+    MovableScalarCounters::reset();
+    m.makeCompressed();
+    VERIFY_SHIFT_COUNTS(0);
+    VERIFY(m.isCompressed());
+    verify_movable_entries(m, ref);
+
+    // No vector has capacity: the insertion reserves one slot per vector, then shifts within vector 3.
+    m.uncompress();
+    insert(m, ref, 3, 0);
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(m, ref);
+  }
+
+  // removeOuterVectors(): the new first vector shifts left to the start of the buffer.
+  {
+    SpMat m = base;
+    MovableScalarCounters::reset();
+    m.removeOuterVectors(0);
+    VERIFY_SHIFT_COUNTS(0);
+    MatrixXd ref = SpMat::IsRowMajor ? MatrixXd(baseRef.bottomRows(n - 1)) : MatrixXd(baseRef.rightCols(n - 1));
+    verify_movable_entries(m, ref);
+  }
+
+  // Adding a diagonal inserts into every vector. With no capacity everything is shifted; with capacity in every
+  // vector each chunk stays in place until its own insertion; the mixed layout shifts some of them early.
+  for (int layout = 0; layout < 3; ++layout) {
+    SpMat m = base;
+    if (layout == 1) m.reserve(VectorXi::Constant(n, 1));
+    if (layout == 2) m.reserve((VectorXi(n) << 1, 0, 0, 1, 0, 1, 1, 0).finished());
+    Matrix<Scalar, Dynamic, 1> diagonal(n);
+    MatrixXd ref = baseRef;
+    for (Index j = 0; j < n; ++j) {
+      diagonal(j) = Scalar(100.0 + double(j));
+      ref(j, j) = 100.0 + double(j);
+    }
+    MovableScalarCounters::reset();
+    m += diagonal.asDiagonal();
+    const MovableScalarCounters inserted = MovableScalarCounters::get();
+    verify_movable_entries(m, ref);
+    // A second addition updates the stored diagonal in place, so its copies are those of reading `diagonal`.
+    MovableScalarCounters::reset();
+    m += diagonal.asDiagonal();
+    VERIFY_IS_EQUAL(MovableScalarCounters::get().moves, Index(0));
+    VERIFY(inserted.moves > 0);
+    VERIFY_IS_EQUAL(inserted.copies, MovableScalarCounters::get().copies);
+    VERIFY_IS_EQUAL(inserted.self_moves, Index(0));
+    ref.diagonal() *= 2;
+    verify_movable_entries(m, ref);
+  }
+
+  // Assigning an inner vector of a compressed matrix shifts the entries behind it: left when the vector shrinks,
+  // right when it grows. In an uncompressed matrix a vector that outgrows its room reallocates the storage, and the
+  // entries in front of it and behind it move to the new buffer. Only the `nnz` assigned values are copied.
+  struct InnerVectorCase {
+    bool compressed;
+    Index nnz;
+  };
+  for (InnerVectorCase c : {InnerVectorCase{true, 1}, InnerVectorCase{true, 6}, InnerVectorCase{false, 6}}) {
+    const Index nnz = c.nnz;
+    SpMat m = base;
+    if (c.compressed)
+      m.data().reserve(n);
+    else
+      m.uncompress();
+    MatrixXd ref = baseRef;
+    SpMat source(SpMat::IsRowMajor ? 1 : n, SpMat::IsRowMajor ? n : 1);
+    for (Index i = 0; i < n; ++i) coeff(ref, 2, i) = 0;
+    for (Index i = 0; i < nnz; ++i) {
+      source.insertByOuterInner(0, i) = Scalar(value);
+      coeff(ref, 2, i) = value++;
+    }
+    source.makeCompressed();
+    MovableScalarCounters::reset();
+    m.innerVector(2) = source;
+    VERIFY_SHIFT_COUNTS(nnz);
+    VERIFY_IS_EQUAL(m.isCompressed(), c.compressed);
+    verify_movable_entries(m, ref);
+  }
+
+  // SparseVector::coeffRef() inserts in sorted order; its one copy is the default value of the new entry.
+  {
+    SparseVector<Scalar> v(n);
+    MatrixXd ref = MatrixXd::Zero(n, 1);
+    for (Index i : {2, 5, 7}) {
+      v.coeffRef(i) = Scalar(value);
+      ref(i) = value++;
+    }
+    MovableScalarCounters::reset();
+    v.coeffRef(0) = Scalar(value);
+    ref(0) = value++;
+    VERIFY_SHIFT_COUNTS(1);
+    verify_movable_entries(v, ref);
+  }
+
+  // SparseVector::insert() shifts the entries behind the new one.
+  {
+    SparseVector<Scalar> v(n);
+    MatrixXd ref = MatrixXd::Zero(n, 1);
+    for (Index i : {2, 5, 7}) {
+      v.insert(i) = Scalar(value);
+      ref(i) = value++;
+    }
+    MovableScalarCounters::reset();
+    v.insert(0) = Scalar(value);
+    ref(0) = value++;
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(v, ref);
+  }
+
+  // SparseVector::prune() packs the kept entries; the one in front of the dropped entry stays in place.
+  {
+    SparseVector<Scalar> v(n);
+    MatrixXd ref = MatrixXd::Zero(n, 1);
+    for (Index i : {1, 3, 4, 6}) {
+      v.insert(i) = Scalar(value);
+      ref(i) = value++;
+    }
+    const double dropped = ref(3);
+    ref(3) = 0;
+    MovableScalarCounters::reset();
+    v.prune([dropped](const Scalar& x) { return double(x) != dropped; });
+    VERIFY_SHIFT_COUNTS(0);
+    verify_movable_entries(v, ref);
+  }
+
+  // prune() packs the kept entries across the vectors of a compressed matrix and within each vector of an
+  // uncompressed one. Dropping inner index 4 leaves the entries in front of the first dropped one in place.
+  for (bool compressed : {true, false}) {
+    SpMat m = base;
+    if (!compressed) m.uncompress();
+    MatrixXd ref = baseRef;
+    for (Index j = 0; j < n; ++j) coeff(ref, j, 4) = 0;
+    MovableScalarCounters::reset();
+    m.prune([](Index row, Index col, const Scalar&) { return (SpMat::IsRowMajor ? col : row) != 4; });
+    VERIFY_SHIFT_COUNTS(0);
+    VERIFY_IS_EQUAL(m.isCompressed(), compressed);
+    verify_movable_entries(m, ref);
+  }
+
+  // setFromTriplets() sums duplicate entries and packs the first entry of each coefficient in front. Its copies are
+  // those of reading the triplets and of the transposing assignment that sorts the result.
+  {
+    std::vector<Triplet<Scalar>> triplets;
+    MatrixXd ref = MatrixXd::Zero(n, n);
+    for (Index j = 0; j < n; ++j) {
+      for (Index i : {1, 4, 6, 4}) {
+        const int outer = int(j), inner = int(i);
+        triplets.emplace_back(SpMat::IsRowMajor ? outer : inner, SpMat::IsRowMajor ? inner : outer, Scalar(value));
+        coeff(ref, j, i) += value++;
+      }
+    }
+    SpMat m(n, n);
+    MovableScalarCounters::reset();
+    m.setFromTriplets(triplets.begin(), triplets.end(),
+                      [](const Scalar& a, const Scalar& b) { return Scalar(double(a) + double(b)); });
+    VERIFY_SHIFT_COUNTS(Index(triplets.size()) + m.nonZeros());
+    verify_movable_entries(m, ref);
+  }
+}
+
+// User-provided copy operations, which make a class built on it not trivially copyable.
+template <bool TriviallyCopyable>
+struct CopyOnlyBase {
+  double value = 0;
+  CopyOnlyBase() = default;
+  CopyOnlyBase(const CopyOnlyBase& other) : value(other.value) {}
+  CopyOnlyBase& operator=(const CopyOnlyBase& other) {
+    value = other.value;
+    return *this;
+  }
+};
+
+template <>
+struct CopyOnlyBase<true> {
+  double value = 0;
+};
+
+// A copy assignment and a deleted move assignment.
+template <bool TriviallyCopyable, int RequireInitialization>
+struct CopyOnlyScalar : CopyOnlyBase<TriviallyCopyable> {
+  CopyOnlyScalar() = default;
+  CopyOnlyScalar(double v) { this->value = v; }
+  CopyOnlyScalar(const CopyOnlyScalar&) = default;
+  CopyOnlyScalar& operator=(const CopyOnlyScalar&) = default;
+  CopyOnlyScalar& operator=(CopyOnlyScalar&&) = delete;
+  explicit operator double() const { return this->value; }
+};
+
+namespace Eigen {
+template <bool TriviallyCopyable, int RequireInitialization_>
+struct NumTraits<CopyOnlyScalar<TriviallyCopyable, RequireInitialization_>> : NumTraits<double> {
+  static constexpr int RequireInitialization = RequireInitialization_;
+};
+}  // namespace Eigen
+
+// The shifts copy a scalar that cannot be move-assigned rather than reject it. With RequireInitialization == 0,
+// growing the storage move-constructs the stored entries of a scalar that is not trivially copyable, and reallocates
+// the bytes of one that is.
+template <bool TriviallyCopyable, int RequireInitialization, int Options>
+void sparse_shift_copy_only() {
+  using Scalar = CopyOnlyScalar<TriviallyCopyable, RequireInitialization>;
+  using SpMat = SparseMatrix<Scalar, Options>;
+  STATIC_CHECK(std::is_trivially_copyable<Scalar>::value == TriviallyCopyable);
+  STATIC_CHECK(!std::is_move_assignable<Scalar>::value);
+  const Index n = 6;
+  auto coeff = [](MatrixXd& dense, Index outer, Index inner) -> double& {
+    return SpMat::IsRowMajor ? dense(outer, inner) : dense(inner, outer);
+  };
+  // insert() assigns a temporary, which this scalar forbids, so the arrays are filled directly. Outer vector j
+  // holds `perVector` entries at the inner indices j % 2, j % 2 + 2, ...
+  auto fill = [&coeff](SpMat& m, MatrixXd& ref, Index perVector, double value) {
+    m.resizeNonZeros(perVector * m.outerSize());
+    for (Index j = 0; j < m.outerSize(); ++j) {
+      m.outerIndexPtr()[j] = int(perVector * j);
+      for (Index k = 0; k < perVector; ++k, ++value) {
+        const Scalar entry(value);
+        m.innerIndexPtr()[perVector * j + k] = int(j % 2 + 2 * k);
+        m.valuePtr()[perVector * j + k] = entry;
+        coeff(ref, j, j % 2 + 2 * k) = value;
+      }
+    }
+    m.outerIndexPtr()[m.outerSize()] = int(perVector * m.outerSize());
+  };
+  SpMat m(n, n);
+  MatrixXd ref = MatrixXd::Zero(n, n);
+  fill(m, ref, 2, 1.0);
+
+  m.reserve(VectorXi::Constant(n, 2));
+  VERIFY(!m.isCompressed());
+  verify_movable_entries(m, ref);
+
+  m.makeCompressed();
+  verify_movable_entries(m, ref);
+
+  m.prune([](Index, Index, const Scalar& x) { return int(x.value) % 3 != 0; });
+  ref = (ref.array() != 0 && ref.array().cast<int>() % 3 == 0).select(0.0, ref);
+  verify_movable_entries(m, ref);
+
+  // The first inner vector outgrows its room, so the entries behind it shift right.
+  SpMat source(SpMat::IsRowMajor ? 1 : n, SpMat::IsRowMajor ? n : 1);
+  MatrixXd sourceRef = MatrixXd::Zero(source.rows(), source.cols());
+  fill(source, sourceRef, 3, 100.0);
+  m.innerVector(0) = source;
+  for (Index i = 0; i < n; ++i) coeff(ref, 0, i) = coeff(sourceRef, 0, i);
+  verify_movable_entries(m, ref);
+
+  // Removing the vectors in front shifts the next one to the start of the storage.
+  m.removeOuterVectors(0, 2);
+  const MatrixXd remaining = SpMat::IsRowMajor ? MatrixXd(ref.bottomRows(n - 2)) : MatrixXd(ref.rightCols(n - 2));
+  verify_movable_entries(m, remaining);
+}
+
 #ifndef EIGEN_SPARSE_TEST_INCLUDED_FROM_SPARSE_EXTRA
 
 EIGEN_DECLARE_TEST(sparse_basic) {
@@ -1504,6 +1844,14 @@ EIGEN_DECLARE_TEST(sparse_basic) {
   CALL_SUBTEST_2((sparse_insert_narrow_index<RowMajor>()));
   CALL_SUBTEST_2((sparse_insert_full_index_range<ColMajor>()));
   CALL_SUBTEST_2((sparse_insert_full_index_range<RowMajor>()));
+  CALL_SUBTEST_1((sparse_shift_moves<ColMajor>()));
+  CALL_SUBTEST_1((sparse_shift_moves<RowMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<false, 1, ColMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<false, 1, RowMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<false, 0, ColMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<false, 0, RowMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<true, 0, ColMajor>()));
+  CALL_SUBTEST_1((sparse_shift_copy_only<true, 0, RowMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<float, ColMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<double, RowMajor>()));
   CALL_SUBTEST_1((sparse_isapprox_extreme_scales<std::complex<double>, ColMajor>()));

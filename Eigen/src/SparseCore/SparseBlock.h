@@ -184,18 +184,18 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
 
     bool update_trailing_pointers = false;
     if (nnz > free_size) {
-      // realloc manually to reduce copies
+      // realloc manually to reduce copies; the old buffer is released below, so its entries are moved
       typename SparseMatrixType::Storage newdata(m_matrix.data().allocatedSize() - block_size + nnz);
 
-      internal::smart_copy(m_matrix.valuePtr(), m_matrix.valuePtr() + start, newdata.valuePtr());
+      internal::move_or_copy(matrix.valuePtr(), matrix.valuePtr() + start, newdata.valuePtr());
       internal::smart_copy(m_matrix.innerIndexPtr(), m_matrix.innerIndexPtr() + start, newdata.indexPtr());
 
       internal::smart_copy(tmp.valuePtr() + tmp_start, tmp.valuePtr() + tmp_start + nnz, newdata.valuePtr() + start);
       internal::smart_copy(tmp.innerIndexPtr() + tmp_start, tmp.innerIndexPtr() + tmp_start + nnz,
                            newdata.indexPtr() + start);
 
-      internal::smart_copy(matrix.valuePtr() + end, matrix.valuePtr() + end + tail_size,
-                           newdata.valuePtr() + start + nnz);
+      internal::move_or_copy(matrix.valuePtr() + end, matrix.valuePtr() + end + tail_size,
+                             newdata.valuePtr() + start + nnz);
       internal::smart_copy(matrix.innerIndexPtr() + end, matrix.innerIndexPtr() + end + tail_size,
                            newdata.indexPtr() + start + nnz);
 
@@ -209,10 +209,16 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
         // no need to realloc, simply copy the tail at its respective position and insert tmp
         matrix.data().resize(start + nnz + tail_size);
 
-        internal::smart_memmove(matrix.valuePtr() + end, matrix.valuePtr() + end + tail_size,
-                                matrix.valuePtr() + start + nnz);
-        internal::smart_memmove(matrix.innerIndexPtr() + end, matrix.innerIndexPtr() + end + tail_size,
-                                matrix.innerIndexPtr() + start + nnz);
+        Scalar* values = matrix.valuePtr();
+        StorageIndex* indices = matrix.innerIndexPtr();
+        const Index tail_end = end + tail_size;
+        if (nnz < block_size) {
+          internal::move_or_copy(values + end, values + tail_end, values + start + nnz);
+          std::move(indices + end, indices + tail_end, indices + start + nnz);
+        } else {
+          internal::move_or_copy_backward(values + end, values + tail_end, values + start + nnz + tail_size);
+          std::move_backward(indices + end, indices + tail_end, indices + start + nnz + tail_size);
+        }
 
         update_trailing_pointers = true;
       }
