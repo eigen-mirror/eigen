@@ -275,6 +275,7 @@ struct packet_traits<float> : default_packet_traits {
     HasSign = 0,
     HasDiv = 1,
     HasExp = 1,
+    HasExpm1 = 1,
     HasSqrt = 1,
     HasLog = 1,
     HasRsqrt = 1
@@ -294,6 +295,7 @@ struct packet_traits<double> : default_packet_traits {
     HasSetLinear = 0,
     HasSign = 0,
     HasDiv = 1,
+    HasExpm1 = 1,
     HasSqrt = 1,
     HasLog = 1,
     HasRsqrt = 1

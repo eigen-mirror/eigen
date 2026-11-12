@@ -336,23 +336,31 @@ struct expm1_near_overflow_cases<double> {
   static double ref(int i) { return i == 0 ? 1.3549863193146328e+308 : 1.6549840276802644e+308; }
 };
 
-template <typename Scalar>
-void verify_expm1_near_overflow() {
-  using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
-  using Cases = expm1_near_overflow_cases<Scalar>;
-  using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
-  constexpr int packet_size = Eigen::internal::packet_traits<Scalar>::size;
-  const Scalar x[2] = {Cases::x(0), Cases::x(1)};
-  const Scalar ref[2] = {Cases::ref(0), Cases::ref(1)};
-  Scalar a[packet_size], output[packet_size];
-  for (int i = 0; i < packet_size; ++i) a[i] = x[i % 2];
-  expm1_packet<Scalar, Packet>(a, output);
-  for (int i = 0; i < packet_size; ++i) {
-    const Bits actual = Eigen::numext::bit_cast<Bits>(output[i]);
-    const Bits expected = Eigen::numext::bit_cast<Bits>(ref[i % 2]);
-    VERIFY((actual > expected ? actual - expected : expected - actual) <= Bits(1024));
+// A backend without HasExpm1 has no pexpm1 for its packets: the generic one passes the packet to numext::expm1.
+template <typename Scalar, bool HasExpm1 = Eigen::internal::packet_traits<Scalar>::HasExpm1>
+struct expm1_near_overflow_runner {
+  static void run() {
+    using Packet = typename Eigen::internal::packet_traits<Scalar>::type;
+    using Cases = expm1_near_overflow_cases<Scalar>;
+    using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+    constexpr int packet_size = Eigen::internal::packet_traits<Scalar>::size;
+    const Scalar x[2] = {Cases::x(0), Cases::x(1)};
+    const Scalar ref[2] = {Cases::ref(0), Cases::ref(1)};
+    Scalar a[packet_size], output[packet_size];
+    for (int i = 0; i < packet_size; ++i) a[i] = x[i % 2];
+    expm1_packet<Scalar, Packet>(a, output);
+    for (int i = 0; i < packet_size; ++i) {
+      const Bits actual = Eigen::numext::bit_cast<Bits>(output[i]);
+      const Bits expected = Eigen::numext::bit_cast<Bits>(ref[i % 2]);
+      VERIFY((actual > expected ? actual - expected : expected - actual) <= Bits(1024));
+    }
   }
-}
+};
+
+template <typename Scalar>
+struct expm1_near_overflow_runner<Scalar, false> {
+  static void run() {}
+};
 
 template <typename Scalar,
           bool HasIntegerBits =
@@ -389,8 +397,8 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(extended_scalar_constant_runner<long double>::run());
   CALL_SUBTEST(verify_ldexp_beyond_exponent_range<float>());
   CALL_SUBTEST(verify_ldexp_beyond_exponent_range<double>());
-  CALL_SUBTEST(verify_expm1_near_overflow<float>());
-  CALL_SUBTEST(verify_expm1_near_overflow<double>());
+  CALL_SUBTEST(expm1_near_overflow_runner<float>::run());
+  CALL_SUBTEST(expm1_near_overflow_runner<double>::run());
 
 #if defined(EIGEN_VECTORIZE_AVX512)
 #if !defined(EIGEN_VECTORIZE_AVX512FP16)
