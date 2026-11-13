@@ -441,8 +441,9 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       EIGEN_TRY {
         // Allocate memory for packed rhs/lhs matrices. With nk_ == 1 and sharding-dim-only parallelism, slice 0 has no
         // preceding slice to race with, so the sharded operand always packs into thread-local blocks.
-        const Index num_global_lhs = (parallelize_by_sharding_dim_only_ && !shard_by_col_ && nk_ == 1) ? 0 : nm0_;
-        const Index num_global_rhs = (parallelize_by_sharding_dim_only_ && shard_by_col_ && nk_ == 1) ? 0 : nn0_;
+        const bool skip_sharded_global_slice = parallelize_by_sharding_dim_only_ && nk_ == 1;
+        const Index num_global_lhs = (skip_sharded_global_slice && !shard_by_col_) ? 0 : nm0_;
+        const Index num_global_rhs = (skip_sharded_global_slice && shard_by_col_) ? 0 : nn0_;
         packed_mem_ = kernel_.allocateSlices(            //
             device_,                                     //
             /*num_lhs=*/num_global_lhs,                  //
