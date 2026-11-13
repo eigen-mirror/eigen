@@ -439,11 +439,14 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
       bool packed_mem_allocated = false;
       can_use_thread_local_packed_ = nullptr;
       EIGEN_TRY {
-        // Allocate memory for packed rhs/lhs matrices.
+        // Allocate memory for packed rhs/lhs matrices. With nk_ == 1 and sharding-dim-only parallelism, slice 0 has no
+        // preceding slice to race with, so the sharded operand always packs into thread-local blocks.
+        const Index num_global_lhs = (parallelize_by_sharding_dim_only_ && !shard_by_col_ && nk_ == 1) ? 0 : nm0_;
+        const Index num_global_rhs = (parallelize_by_sharding_dim_only_ && shard_by_col_ && nk_ == 1) ? 0 : nn0_;
         packed_mem_ = kernel_.allocateSlices(            //
             device_,                                     //
-            /*num_lhs=*/nm0_,                            //
-            /*num_rhs=*/nn0_,                            //
+            /*num_lhs=*/num_global_lhs,                  //
+            /*num_rhs=*/num_global_rhs,                  //
             /*num_slices=*/std::min<Index>(nk_, P - 1),  //
             packed_lhs_, packed_rhs_);
         packed_mem_allocated = true;
@@ -616,10 +619,10 @@ struct TensorEvaluator<const TensorContractionOp<Indices, LeftArgType, RightArgT
     // immediately in the same thread. This significantly increases L1 cache hit
     // ratio and reduces pressure on the memory bus.
     //
-    // It's still possible that kernel for the K-th slice will be ready before
-    // completion of the K-1 kernel, so we have to allocate "global" packed_lhs_
-    // and packed_rhs_ to allow kernels to be executed later on a thread
-    // different from the thread that was used for packing.
+    // When nk_ > 1, it is still possible that kernel for the K-th slice will be
+    // ready before completion of the K-1 kernel, so we have to allocate "global"
+    // packed_lhs_ and packed_rhs_ to allow kernels to be executed later on a
+    // thread different from the thread that was used for packing.
 
     // Handle for pre-allocated thread local memory buffers.
     BlockMemHandle thread_local_pre_allocated_mem_;
