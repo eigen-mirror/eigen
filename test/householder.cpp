@@ -1310,6 +1310,130 @@ void householder_xlarfg_qr() {
   VERIFY(numext::is_exactly_zero(infQr.matrixQR()(1, 0)));
 }
 
+namespace householder_autodiff_test {
+// Forward-mode dual scalar whose copysign(x, y) injects an infinite/NaN impulse at y == 0 (as ceres::Jet does).
+template <bool HasSignbit>
+struct Dual {
+  double v = 0.0;
+  double dv = 0.0;
+  Dual() = default;
+  Dual(double val, double dval = 0.0) : v(val), dv(dval) {}
+  Dual operator+() const { return *this; }
+  Dual operator-() const { return Dual(-v, -dv); }
+  friend Dual operator+(const Dual& a, const Dual& b) { return Dual(a.v + b.v, a.dv + b.dv); }
+  friend Dual operator-(const Dual& a, const Dual& b) { return Dual(a.v - b.v, a.dv - b.dv); }
+  friend Dual operator*(const Dual& a, const Dual& b) { return Dual(a.v * b.v, a.dv * b.v + a.v * b.dv); }
+  friend Dual operator/(const Dual& a, const Dual& b) {
+    const double q = a.v / b.v;
+    return Dual(q, (a.dv - q * b.dv) / b.v);
+  }
+  Dual& operator+=(const Dual& b) { return *this = *this + b; }
+  Dual& operator-=(const Dual& b) { return *this = *this - b; }
+  Dual& operator*=(const Dual& b) { return *this = *this * b; }
+  Dual& operator/=(const Dual& b) { return *this = *this / b; }
+  friend bool operator==(const Dual& a, const Dual& b) { return a.v == b.v; }
+  friend bool operator!=(const Dual& a, const Dual& b) { return a.v != b.v; }
+  friend bool operator<(const Dual& a, const Dual& b) { return a.v < b.v; }
+  friend bool operator<=(const Dual& a, const Dual& b) { return a.v <= b.v; }
+  friend bool operator>(const Dual& a, const Dual& b) { return a.v > b.v; }
+  friend bool operator>=(const Dual& a, const Dual& b) { return a.v >= b.v; }
+  friend Dual abs(const Dual& x) { return Dual(std::abs(x.v), std::copysign(1.0, x.v) * x.dv); }
+  friend Dual sqrt(const Dual& x) {
+    const double s = std::sqrt(x.v);
+    return Dual(s, 0.5 * x.dv / s);
+  }
+  friend Dual copysign(const Dual& x, const Dual& y) {
+    const double dirac = y.v == 0.0 ? std::numeric_limits<double>::infinity() : 0.0;
+    return Dual(std::copysign(x.v, y.v),
+                std::copysign(1.0, x.v) * std::copysign(1.0, y.v) * x.dv + std::abs(x.v) * dirac * y.dv);
+  }
+  friend bool(isfinite)(const Dual& x) { return (std::isfinite)(x.v); }
+  friend bool(isnan)(const Dual& x) { return (std::isnan)(x.v); }
+  friend bool(isinf)(const Dual& x) { return (std::isinf)(x.v); }
+  template <bool B = HasSignbit, std::enable_if_t<B, int> = 0>
+  friend bool signbit(const Dual& x) {
+    return std::signbit(x.v);
+  }
+};
+}  // namespace householder_autodiff_test
+
+namespace std {
+template <bool B>
+class numeric_limits<householder_autodiff_test::Dual<B>> : public numeric_limits<double> {};
+}  // namespace std
+
+namespace Eigen {
+template <bool B>
+struct NumTraits<householder_autodiff_test::Dual<B>> : GenericNumTraits<householder_autodiff_test::Dual<B>> {
+  using Real = householder_autodiff_test::Dual<B>;
+  static inline Real epsilon() { return Real(NumTraits<double>::epsilon()); }
+  static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
+  static inline Real highest() { return Real(NumTraits<double>::highest()); }
+  static inline Real lowest() { return Real(NumTraits<double>::lowest()); }
+};
+}  // namespace Eigen
+
+template <bool HasSignbit>
+void verify_householder_autodiff_zero_head() {
+  using Dual = householder_autodiff_test::Dual<HasSignbit>;
+  const double eps = NumTraits<double>::epsilon();
+  for (double head : {0.0, -0.0}) {
+    if (std::signbit(head) && !HasSignbit) continue;
+    const double expectedSign = std::signbit(head) ? 1.0 : -1.0;
+
+    for (int exp : {0, -600, 600}) {
+      const double scale = std::ldexp(1.0, exp);
+      for (bool seedHead : {true, false}) {
+        // seedHead = false seeds the tail while dc0 == 0, where copysign's 0 * inf produces NaN rather than inf.
+        Matrix<Dual, 3, 1> x(Dual(head, seedHead ? scale : 0.0), Dual(3.0 * scale, seedHead ? 0.0 : scale),
+                             Dual(4.0 * scale, 0.0));
+        Matrix<Dual, 2, 1> essential;
+        Dual tau, beta;
+        x.makeHouseholder(essential, tau, beta);
+        const double expectedDBeta = seedHead ? 0.0 : 0.6 * scale * expectedSign;
+        const double expectedDTau = seedHead ? -0.2 * expectedSign : 0.0;
+        VERIFY_IS_EQUAL(beta.v, 5.0 * scale * expectedSign);
+        VERIFY((std::isfinite)(beta.dv) && std::abs(beta.dv - expectedDBeta) <= 8 * eps * scale);
+        VERIFY_IS_EQUAL(tau.v, 1.0);
+        VERIFY((std::isfinite)(tau.dv) && std::abs(tau.dv - expectedDTau) <= 8 * eps);
+        Matrix<Dual, 3, 1> v(Dual(1.0), essential[0], essential[1]);
+        const Matrix<Dual, 3, 1> reflected = x - tau * v * (v.transpose() * x);
+        VERIFY((std::isfinite)(reflected[0].dv) && std::abs(reflected[0].dv - beta.dv) <= 16 * eps * scale);
+        for (Index i = 1; i < 3; ++i) {
+          VERIFY(std::abs(reflected[i].v) <= 16 * eps * scale);
+          VERIFY((std::isfinite)(reflected[i].dv) && std::abs(reflected[i].dv) <= 16 * eps * scale);
+        }
+      }
+    }
+
+#ifndef _MSC_VER
+    using ComplexDual = std::complex<Dual>;
+    Matrix<ComplexDual, 2, 1> z(ComplexDual(Dual(head, 1.0), Dual(2.0, 0.0)), ComplexDual(Dual(0.0), Dual(0.0)));
+    Matrix<ComplexDual, 1, 1> zEssential;
+    ComplexDual zTau;
+    Dual zBeta;
+    z.makeHouseholder(zEssential, zTau, zBeta);
+    VERIFY_IS_EQUAL(zBeta.v, 2.0 * expectedSign);
+    VERIFY((std::isfinite)(zBeta.dv) && std::abs(zBeta.dv) <= 8 * eps);
+    VERIFY((std::isfinite)(zTau.real().dv) && std::abs(zTau.real().dv - (-0.5 * expectedSign)) <= 8 * eps);
+    VERIFY((std::isfinite)(zTau.imag().dv) && std::abs(zTau.imag().dv) <= 8 * eps);
+#endif
+  }
+
+  // [[t, 1], [2, 0]] * x = [1, 4]^T at t = 0 pivots column 0 ([0, 2]^T) first; x(t) = [2, 1 - 2t]^T.
+  Matrix<Dual, 2, 2> a;
+  a << Dual(0.0, 1.0), Dual(1.0), Dual(2.0), Dual(0.0);
+  const Matrix<Dual, 2, 1> rhs(Dual(1.0), Dual(4.0));
+  const Matrix<Dual, 2, 1> sol = a.colPivHouseholderQr().solve(rhs);
+  VERIFY(std::abs(sol[0].v - 2.0) <= 8 * eps && (std::isfinite)(sol[0].dv) && std::abs(sol[0].dv) <= 8 * eps);
+  VERIFY(std::abs(sol[1].v - 1.0) <= 8 * eps && (std::isfinite)(sol[1].dv) && std::abs(sol[1].dv + 2.0) <= 8 * eps);
+}
+
+inline void householder_autodiff_zero_head() {
+  verify_householder_autodiff_zero_head<true>();
+  verify_householder_autodiff_zero_head<false>();
+}
+
 template <typename Scalar, int Size, int StorageOrder>
 void householder_short_strided() {
   using Mat = Matrix<Scalar, Dynamic, Dynamic, StorageOrder>;
@@ -1749,6 +1873,7 @@ EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<double>());
   CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<std::complex<float>>());
   CALL_SUBTEST_27(householder_xlarfg_special_values_flushed<std::complex<double>>());
+  CALL_SUBTEST_27(householder_autodiff_zero_head());
   CALL_SUBTEST_28(householder_xlarfg_special_values<half>());
   CALL_SUBTEST_28(householder_xlarfg_special_values<bfloat16>());
   CALL_SUBTEST_28(householder_xlarfg_special_values<std::complex<half>>());
