@@ -704,6 +704,33 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
   return pmax(y, _x);
 }
 
+/** \internal \returns exp(x) / 2 for x >= 0, the term that sinh and cosh share.
+    With n = rint(x / ln(2)) and r = x - n ln(2) it is 2^(n - 1) exp(r): the division by 2 goes into the exponent, so
+    the only rounding beyond that of exp(r) is in the reduction, and the result is finite up to ln(2 max), past the
+    point where exp(x) overflows.
+ */
+template <typename Packet>
+EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_half_exp(const Packet& _x) {
+  using Scalar = typename unpacket_traits<Packet>::type;
+  using Impl = pexpm1_reduced_impl<Packet>;
+  constexpr int max_exponent = std::numeric_limits<Scalar>::max_exponent;
+  // Above max_cap the result is inf.
+  const Scalar max_cap = Scalar(max_exponent + 2) * Scalar(EIGEN_LN2);
+  const Packet x = pmin(_x, pset1<Packet>(max_cap));
+
+  const Packet n = print(pmul(x, pset1<Packet>(Scalar(EIGEN_LOG2E))));
+  Packet r = pnmadd(n, pset1<Packet>(Impl::ln2_hi()), x);
+  r = pnmadd(n, pset1<Packet>(Impl::ln2_lo()), r);
+  // 2^(n - 1) exp(r) in two steps: 2^(n - 1) itself overflows for the largest n. The barrier keeps -ffast-math from
+  // forming 2^(n - 2) 2.
+  Packet y = pldexp_fast(pexp_reduced_impl<Packet>::run(r), psub(n, pset1<Packet>(Scalar(2))));
+  pbarrier(y);
+  y = pmul(y, pset1<Packet>(Scalar(2)));
+  // A NaN input propagates through the clamp or this max, as in pexp, depending on the NaN convention of pmin and
+  // pmax. exp(x) / 2 > x, so otherwise the max changes nothing.
+  return pmax(y, _x);
+}
+
 // 2^f for |f| <= 1/2: f ln(2) = r_hi + r_lo with ln(2) = ln2_hi + ln2_lo, and exp(r) = exp(r_hi) (1 + r_lo) +
 // O(r_lo^2).
 template <typename Packet>

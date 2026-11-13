@@ -862,9 +862,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet patanh_double(const P
 
 /** \internal \returns the hyperbolic sine of \a x (coeff-wise).
     Uses sinh(x) = (exp(x) - exp(-x)) / 2.
-    For |x| >= 1, the value h = exp(|x|) / 2 is computed once as exp(|x| - 1) * (E/2), where E is Euler's number,
-    to avoid premature inf, and is shared by both branches: sinh(x) = sign(x) * (h - 1/(4*h)) for |x| <= 20, and
-    sinh(x) = sign(x) * h for |x| > 20.
+    For |x| >= 1, the value h = exp(|x|) / 2 comes from generic_half_exp, which scales the exponent instead of
+    multiplying, so that h is finite up to the overflow threshold of sinh itself, and is shared by both branches:
+    sinh(x) = sign(x) * (h - 1/(4*h)) for |x| <= 20, and sinh(x) = sign(x) * h for |x| > 20.
     For |x| < 1, uses a direct polynomial to avoid catastrophic cancellation.
 */
 template <typename Packet>
@@ -883,13 +883,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_float(const Pac
   Packet p_small = ppolevl<Packet, 3>::run(x2, alpha);
   p_small = pmadd(pmul(x2, x), p_small, x);
 
-  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
-  // Using a single exp avoids a second expensive call, and subtracting 1 (exactly
-  // representable) instead of ln2 avoids rounding error in the argument to exp,
-  // which would be amplified into large relative output error.
-  const Packet half_e = pset1<Packet>(1.3591409142295225f);  // e/2
+  // e = exp(|x|) / 2, from one evaluation of the exponential.
   const Packet one = pset1<Packet>(1.0f);
-  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+  const Packet e = generic_half_exp(abs_x);
 
   // Medium path (1 <= |x| <= 20):
   //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2
@@ -934,12 +930,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
   Packet p_small = ppolevl<Packet, 8>::run(x2, alpha);
   p_small = pmadd(pmul(x2, x), p_small, x);
 
-  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
-  // Subtracting 1 (exactly representable) instead of ln2 avoids rounding error
-  // in the argument to exp, which would be amplified into large relative error.
-  const Packet half_e = pset1<Packet>(1.3591409142295225);  // e/2
+  // e = exp(|x|) / 2, from one evaluation of the exponential.
   const Packet one = pset1<Packet>(1.0);
-  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+  const Packet e = generic_half_exp(abs_x);
 
   // Medium path (1 <= |x| <= 20):
   //   sinh(x) = (exp(|x|) - exp(-|x|)) / 2 = e - 1/(4*e)
@@ -957,21 +950,16 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet psinh_double(const Pa
 
 /** \internal \returns the hyperbolic cosine of \a x (coeff-wise).
     Uses cosh(x) = (exp(|x|) + exp(-|x|)) / 2.
-    The value h = exp(|x|) / 2 is computed once as exp(|x| - 1) * (E/2), where E is Euler's number, to avoid
-    premature inf, and is shared by both branches: cosh(x) = h + 1/(4*h) for |x| <= 20, and cosh(x) = h for
-    |x| > 20.
+    The value h = exp(|x|) / 2 comes from generic_half_exp, which scales the exponent instead of multiplying, so that
+    h is finite up to the overflow threshold of cosh itself, and is shared by both branches: cosh(x) = h + 1/(4*h)
+    for |x| <= 20, and cosh(x) = h for |x| > 20.
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_float(const Packet& x) {
   const Packet abs_x = pabs(x);
 
-  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
-  // Using a single exp avoids a second expensive call, and subtracting 1 (exactly
-  // representable) instead of ln2 avoids rounding error in the argument to exp,
-  // which would be amplified into large relative output error.
-  const Packet half_e = pset1<Packet>(1.3591409142295225f);  // e/2
-  const Packet one = pset1<Packet>(1.0f);
-  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+  // e = exp(|x|) / 2, from one evaluation of the exponential.
+  const Packet e = generic_half_exp(abs_x);
 
   // Medium path: cosh(x) = (exp(|x|) + exp(-|x|)) / 2
   //            = (2*e + 1/(2*e)) / 2 = e + 1/(4*e)
@@ -988,12 +976,8 @@ template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Packet& x) {
   const Packet abs_x = pabs(x);
 
-  // Compute e = exp(|x|) / 2 = exp(|x| - 1) * (e/2), where e is Euler's number.
-  // Subtracting 1 (exactly representable) instead of ln2 avoids rounding error
-  // in the argument to exp, which would be amplified into large relative error.
-  const Packet half_e = pset1<Packet>(1.3591409142295225);  // e/2
-  const Packet one = pset1<Packet>(1.0);
-  const Packet e = pmul(pexp(psub(abs_x, one)), half_e);
+  // e = exp(|x|) / 2, from one evaluation of the exponential.
+  const Packet e = generic_half_exp(abs_x);
 
   // Medium path: cosh(x) = (exp(|x|) + exp(-|x|)) / 2 = e + 1/(4*e)
   const Packet quarter = pset1<Packet>(0.25);
@@ -1013,6 +997,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pcosh_double(const Pa
     Uses a single log1p call by selecting the argument before the transcendental:
     For moderate |x|: log1p(|x| + x^2 / (1 + sqrt(1 + x^2)))
     For large |x|:    log1p(|x| - 1) + ln2  (avoids x^2 overflow)
+    For tiny |x|, where x^2 / 6 is below half an ulp of 1, the result is x itself.
 */
 template <typename Packet>
 EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_float(const Packet& x) {
@@ -1032,10 +1017,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_float(const Pa
   // For |x| >= 1e10: log1p(|x| - 1), then add ln2 after.
   Packet large_arg = psub(abs_x, one);
   // Select argument, then call log1p once.
-  Packet result = generic_log1p(pselect(large_mask, large_arg, normal_arg));
+  Packet result = plog1p(pselect(large_mask, large_arg, normal_arg));
   // Add ln2 for the large path: log(2|x|) = log(|x|) + ln2 = log1p(|x|-1) + ln2.
   const Packet ln2 = pset1<Packet>(0.6931471805599453f);
   result = pselect(large_mask, padd(result, ln2), result);
+  // asinh(x) = x - x^3/6 + ...: below 2^-12 the result rounds to x.
+  result = pselect(pcmp_lt(abs_x, pset1<Packet>(2.44140625e-4f)), abs_x, result);
   return por(x_sign, result);
 }
 
@@ -1050,9 +1037,11 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pasinh_double(const P
   const Packet x2 = pmul(abs_x, pselect(large_mask, pzero(abs_x), abs_x));
   Packet normal_arg = padd(abs_x, pdiv(x2, padd(one, psqrt(padd(one, x2)))));
   Packet large_arg = psub(abs_x, one);
-  Packet result = generic_log1p(pselect(large_mask, large_arg, normal_arg));
+  Packet result = plog1p(pselect(large_mask, large_arg, normal_arg));
   const Packet ln2 = pset1<Packet>(0.6931471805599453);
   result = pselect(large_mask, padd(result, ln2), result);
+  // asinh(x) = x - x^3/6 + ...: below 2^-26 the result rounds to x.
+  result = pselect(pcmp_lt(abs_x, pset1<Packet>(1.4901161193847656e-8)), abs_x, result);
   return por(x_sign, result);
 }
 
@@ -1074,7 +1063,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_float(const Pa
   // For huge x: acosh(x) = log(2x) = log1p(x - 1) + ln2.
   Packet huge_arg = t;
   // Select argument, then call log1p once.
-  Packet result = generic_log1p(pselect(huge_mask, huge_arg, normal_arg));
+  Packet result = plog1p(pselect(huge_mask, huge_arg, normal_arg));
   const Packet ln2 = pset1<Packet>(0.6931471805599453f);
   result = pselect(huge_mask, padd(result, ln2), result);
   // Return NaN for x < 1.
@@ -1091,7 +1080,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pacosh_double(const P
   const Packet t_tp2 = pmul(pselect(huge_mask, pzero(t), t), padd(t, two));
   Packet normal_arg = padd(t, psqrt(t_tp2));
   Packet huge_arg = t;
-  Packet result = generic_log1p(pselect(huge_mask, huge_arg, normal_arg));
+  Packet result = plog1p(pselect(huge_mask, huge_arg, normal_arg));
   const Packet ln2 = pset1<Packet>(0.6931471805599453);
   result = pselect(huge_mask, padd(result, ln2), result);
   const Packet invalid_mask = pcmp_lt(x, one);

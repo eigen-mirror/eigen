@@ -1515,6 +1515,187 @@ void packetmath_inverse_trig_accuracy(const Op& op) {
   }
 }
 
+// Functions, arguments and the correctly rounded value of sinh (0), cosh (1), asinh (2), acosh (3) and atanh (4),
+// MPFR 4.2.2 at 256-bit precision, each at least 0.1 ulp from a rounding tie: tiny arguments, both sides of the
+// points where a function changes branch, sinh and cosh between the overflow thresholds of exp and their own, and
+// the ends of each domain.
+template <typename Scalar>
+struct hyperbolic_reference_case {
+  int function;
+  Scalar x;
+  Scalar expected;
+};
+
+template <typename Scalar>
+void hyperbolic_reference_cases(std::vector<hyperbolic_reference_case<Scalar>>&) {}
+
+template <>
+void hyperbolic_reference_cases<float>(std::vector<hyperbolic_reference_case<float>>& cases) {
+  cases = {
+      {0, 1.00000001e-10f, 1.00000001e-10f},
+      {0, -2.99999992e-05f, -2.99999992e-05f},
+      {0, 0.600000024f, 0.636653602f},
+      {0, -0.99000001f, -1.1598289f},
+      {0, 1.0f, 1.17520118f},
+      {0, 1.00999999f, 1.19069099f},
+      {0, -3.29999995f, -13.5378771f},
+      {0, 10.3999996f, 16429.8066f},
+      {0, 19.8999996f, 219497728.0f},
+      {0, -45.0f, -1.74671353e+19f},
+      {0, 88.0f, 8.25818133e+37f},
+      {0, 88.8000031f, 1.83789765e+38f},
+      {0, 89.1999969f, 2.74180432e+38f},
+      {0, 89.3499985f, 3.18552706e+38f},
+      {0, -89.4000015f, -3.34886272e+38f},
+      {1, 1.00000001e-10f, 1.0f},
+      {1, 0.5f, 1.12762594f},
+      {1, -1.20000005f, 1.81065559f},
+      {1, 3.29999995f, 13.5747604f},
+      {1, 10.3999996f, 16429.8066f},
+      {1, 19.8999996f, 219497728.0f},
+      {1, -45.0f, 1.74671353e+19f},
+      {1, 88.8000031f, 1.83789765e+38f},
+      {1, 89.1999969f, 2.74180432e+38f},
+      {1, 89.3499985f, 3.18552706e+38f},
+      {1, -89.4000015f, 3.34886272e+38f},
+      {2, 9.99999968e-21f, 9.99999968e-21f},
+      {2, 0.000199999995f, 0.000199999995f},
+      {2, -0.000239999994f, -0.000239999994f},
+      {2, 0.000250000012f, 0.000250000012f},
+      {2, -0.000300000014f, -0.000300000014f},
+      {2, 0.0199999996f, 0.0199986659f},
+      {2, 0.699999988f, 0.652666569f},
+      {2, -1.5f, -1.19476318f},
+      {2, 100.0f, 5.29834223f},
+      {2, 8.99999949e+09f, 23.6136379f},
+      {2, 1.10000005e+10f, 23.8143082f},
+      {2, -3.00000006e+20f, -47.8434601f},
+      {2, 3.00000001e+38f, 89.2899933f},
+      {3, 1.00000012f, 0.00048828125f},
+      {3, 1.00100005f, 0.044718679f},
+      {3, 2.5f, 1.56679928f},
+      {3, 8.99999949e+09f, 23.6136379f},
+      {3, 1.10000005e+10f, 23.8143082f},
+      {3, 3.00000001e+38f, 89.2899933f},
+      {4, 1.00000001e-10f, 1.00000001e-10f},
+      {4, 0.100000001f, 0.100335352f},
+      {4, -0.49000001f, -0.536060333f},
+      {4, 0.5f, 0.549306154f},
+      {4, 0.50999999f, 0.562729776f},
+      {4, -0.899999976f, -1.47221935f},
+      {4, 0.999000013f, 3.80020761f},
+      {4, 0.99999994f, 8.66434002f},
+      {4, -0.800000012f, -1.09861231f},
+      {4, 0.625f, 0.733168542f},
+  };
+}
+
+template <>
+void hyperbolic_reference_cases<double>(std::vector<hyperbolic_reference_case<double>>& cases) {
+  cases = {
+      {0, 9.9999999999999995e-21, 9.9999999999999995e-21},
+      {0, -3e-09, -3e-09},
+      {0, 0.5, 0.52109530549374738},
+      {0, -0.98999999999999999, -1.1598288906636083},
+      {0, 1.0, 1.1752011936438014},
+      {0, 1.01, 1.1906910177226966},
+      {0, -3.2999999999999998, -13.537877876628322},
+      {0, 10.4, 16429.81282200542},
+      {0, 19.800000000000001, 198609832.90254205},
+      {0, 20.100000000000001, 268095232.21469483},
+      {0, -45.0, -1.7467135528742547e+19},
+      {0, 700.0, 5.0711602736750225e+303},
+      {0, 709.89999999999998, 1.010701028059782e+308},
+      {0, 710.39999999999998, 1.6663642832806496e+308},
+      {0, -710.47000000000003, -1.7871893267684048e+308},
+      {1, 9.9999999999999995e-21, 1.0},
+      {1, 0.5, 1.1276259652063807},
+      {1, -1.0, 1.5430806348152437},
+      {1, 3.2999999999999998, 13.574761044029561},
+      {1, 10.4, 16429.812852437903},
+      {1, 19.899999999999999, 219497811.36775291},
+      {1, 20.100000000000001, 268095232.21469483},
+      {1, -45.0, 1.7467135528742547e+19},
+      {1, 709.89999999999998, 1.010701028059782e+308},
+      {1, 710.39999999999998, 1.6663642832806496e+308},
+      {1, -710.47000000000003, 1.7871893267684048e+308},
+      {2, 9.9999999999999993e-41, 9.9999999999999993e-41},
+      {2, 1e-08, 1e-08},
+      {2, -1.4e-08, -1.4e-08},
+      {2, 1.6000000000000001e-08, 1.6000000000000001e-08},
+      {2, -2.9999999999999997e-08, -2.9999999999999991e-08},
+      {2, 0.02, 0.019998666906609539},
+      {2, 0.69999999999999996, 0.65266656608235574},
+      {2, 100.0, 5.2983423656105888},
+      {2, 8.9999999999999996e+149, 345.97555061400897},
+      {2, -2.9999999999999999e+200, -462.30877806803721},
+      {2, 1.6999999999999999e+308, 710.41998407378821},
+      {3, 1.0009999999999999, 0.044717633608306849},
+      {3, 2.5, 1.5667992369724111},
+      {3, 8.9999999999999996e+149, 345.97555061400897},
+      {3, 1.6999999999999999e+308, 710.41998407378821},
+      {4, 9.9999999999999995e-21, 9.9999999999999995e-21},
+      {4, 0.51000000000000001, 0.56272976935214891},
+      {4, -0.90000000000000002, -1.4722194895832204},
+      {4, 0.99999999999999989, 18.714973875118524},
+      {4, -0.75, -0.97295507452765662},
+      {4, 0.625, 0.73316853439671348},
+  };
+}
+
+template <typename Packet>
+Packet hyperbolic_function(int function, const Packet& x) {
+  switch (function) {
+    case 0:
+      return internal::psinh(x);
+    case 1:
+      return internal::pcosh(x);
+    case 2:
+      return internal::pasinh(x);
+    case 3:
+      return internal::pacosh(x);
+    default:
+      return internal::patanh(x);
+  }
+}
+
+// psinh, pcosh, pasinh and patanh stay within 2 ulps of the correctly rounded value, and pacosh within 3. The cases
+// of a function go into consecutive lanes, so that neighboring lanes take different branches.
+template <typename Scalar, typename Packet>
+void packetmath_hyperbolic_accuracy() {
+  using PacketTraits = internal::packet_traits<Scalar>;
+  constexpr bool kHasAll = PacketTraits::HasSinh && PacketTraits::HasCosh && PacketTraits::HasASinh &&
+                           PacketTraits::HasACosh && PacketTraits::HasATanh;
+  if (!kHasAll) return;
+  const test::packet_helper<kHasAll, Packet> h;
+  std::vector<hyperbolic_reference_case<Scalar>> cases;
+  hyperbolic_reference_cases<Scalar>(cases);
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data1[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar data2[PacketSize];
+  EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar ref[PacketSize];
+  for (int function = 0; function < 5; ++function) {
+    std::vector<Scalar> x, expected;
+    for (const hyperbolic_reference_case<Scalar>& c : cases) {
+      if (c.function == function) {
+        x.push_back(c.x);
+        expected.push_back(c.expected);
+      }
+    }
+    const size_t count = x.size();
+    for (size_t start = 0; start < count; start += static_cast<size_t>(PacketSize)) {
+      for (int i = 0; i < PacketSize; ++i) {
+        // The last packet wraps around.
+        const size_t k = (start + static_cast<size_t>(i)) % count;
+        data1[i] = x[k];
+        ref[i] = expected[k];
+      }
+      h.store(data2, hyperbolic_function(function, h.load(data1)));
+      VERIFY(test::areWithinUlps(ref, data2, PacketSize, function == 3 ? 3 : 2) && "hyperbolic functions");
+    }
+  }
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_real() {
   using PacketTraits = internal::packet_traits<Scalar>;
@@ -1527,6 +1708,7 @@ void packetmath_real() {
 
   if (g_first_pass) packetmath_cbrt_accuracy<Scalar, Packet>();
   if (g_first_pass) packetmath_expm1_accuracy<Scalar, Packet>();
+  if (g_first_pass) packetmath_hyperbolic_accuracy<Scalar, Packet>();
   if (g_first_pass) {
     constexpr bool kIsFloat = std::is_same<Scalar, float>::value;
     constexpr bool kIsDouble = std::is_same<Scalar, double>::value;
@@ -2242,6 +2424,10 @@ CREATE_TESTER(acos_fun, internal::pacos, numext::acos);
 CREATE_TESTER(atan_fun, internal::patan, numext::atan);
 CREATE_TESTER(tanh_fun, internal::ptanh, numext::tanh);
 CREATE_TESTER(atanh_fun, internal::patanh, numext::atanh);
+CREATE_TESTER(sinh_fun, internal::psinh, numext::sinh);
+CREATE_TESTER(cosh_fun, internal::pcosh, numext::cosh);
+CREATE_TESTER(asinh_fun, internal::pasinh, numext::asinh);
+CREATE_TESTER(acosh_fun, internal::pacosh, numext::acosh);
 
 template <typename Scalar, typename Packet>
 std::enable_if_t<NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_values() {}
@@ -2268,6 +2454,10 @@ std::enable_if_t<!NumTraits<Scalar>::IsComplex, void> packetmath_ieee_special_va
   run_ieee_cases<PacketTraits::HasATan, Scalar, Packet>(atan_fun());
   run_ieee_cases<PacketTraits::HasTanh, Scalar, Packet>(tanh_fun());
   run_ieee_cases<PacketTraits::HasATanh, Scalar, Packet>(atanh_fun());
+  run_ieee_cases<PacketTraits::HasSinh, Scalar, Packet>(sinh_fun());
+  run_ieee_cases<PacketTraits::HasCosh, Scalar, Packet>(cosh_fun());
+  run_ieee_cases<PacketTraits::HasASinh, Scalar, Packet>(asinh_fun());
+  run_ieee_cases<PacketTraits::HasACosh, Scalar, Packet>(acosh_fun());
 }
 
 // log, log2, log1p and the x86 float rsqrt handle special inputs only in packets that contain one, so place each

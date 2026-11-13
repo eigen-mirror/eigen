@@ -731,11 +731,11 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>acos</td> <td>4</td>  <td>0.057</td> <td>95.0%</td> <td></td></tr>
 <tr><td>atan</td> <td>4</td>  <td>0.061</td> <td>94.0%</td> <td></td></tr>
 <tr><th colspan="5">Hyperbolic</th></tr>
-<tr><td>sinh</td>  <td>2</td>  <td>0.017</td> <td>98.3%</td> <td></td></tr>
-<tr><td>cosh</td>  <td>2</td>  <td>0.004</td> <td>99.6%</td> <td></td></tr>
+<tr><td>sinh</td>  <td>2</td>  <td>0.008</td> <td>99.2%</td> <td></td></tr>
+<tr><td>cosh</td>  <td>2</td>  <td>0.014</td> <td>98.6%</td> <td></td></tr>
 <tr><td>tanh</td>  <td>6</td>  <td>0.030</td> <td>97.2%</td> <td></td></tr>
-<tr><td>asinh</td> <td>2</td>  <td>0.145</td> <td>85.5%</td> <td></td></tr>
-<tr><td>acosh</td> <td>2</td>  <td>0.057</td> <td>94.3%</td> <td></td></tr>
+<tr><td>asinh</td> <td>2</td>  <td>0.165</td> <td>83.5%</td> <td></td></tr>
+<tr><td>acosh</td> <td>3</td>  <td>0.074</td> <td>92.6%</td> <td></td></tr>
 <tr><td>atanh</td> <td>2</td>  <td>0.004</td> <td>99.6%</td> <td></td></tr>
 <tr><th colspan="5">Exponential / Logarithmic</th></tr>
 <tr><td>exp</td>   <td>1</td>  <td>0.018</td> <td>98.2%</td> <td></td></tr>
@@ -768,11 +768,11 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>acos</td> <td>1</td>          <td>&lt;0.001</td> <td>100%</td> <td></td></tr>
 <tr><td>atan</td> <td>2</td>          <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
 <tr><th colspan="5">Hyperbolic</th></tr>
-<tr><td>sinh</td>  <td>2</td>  <td>0.004</td> <td>99.6%</td> <td></td></tr>
-<tr><td>cosh</td>  <td>2</td>  <td>0.001</td> <td>99.9%</td> <td></td></tr>
+<tr><td>sinh</td>  <td>2</td>  <td>0.001</td> <td>99.9%</td> <td></td></tr>
+<tr><td>cosh</td>  <td>2</td>  <td>0.003</td> <td>99.7%</td> <td></td></tr>
 <tr><td>tanh</td>  <td>8</td>  <td>0.008</td> <td>99.3%</td> <td></td></tr>
-<tr><td>asinh</td> <td>2</td>  <td>0.098</td> <td>90.2%</td> <td></td></tr>
-<tr><td>acosh</td> <td>2</td>  <td>0.047</td> <td>95.3%</td> <td></td></tr>
+<tr><td>asinh</td> <td>2</td>  <td>0.199</td> <td>80.2%</td> <td></td></tr>
+<tr><td>acosh</td> <td>3</td>  <td>0.098</td> <td>90.3%</td> <td></td></tr>
 <tr><td>atanh</td> <td>2</td>  <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
 <tr><th colspan="5">Exponential / Logarithmic</th></tr>
 <tr><td>exp</td>   <td>2</td>   <td>0.001</td> <td>99.9%</td> <td></td></tr>
