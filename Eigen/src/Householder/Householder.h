@@ -94,6 +94,14 @@ struct householder_rescale<Scalar, Accumulator, true> {
     for (Index i = 0; i < tail.size(); ++i) essential.coeffRef(i) = run(tail.coeff(i), scale) / denominator;
   }
 };
+
+// -copysign(norm, head) for norm >= 0. Other scalars select the sign by comparison: an autodiff scalar's copysign
+// differentiates through head, with an impulse at head == 0.
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar householder_beta(const RealScalar& norm, const RealScalar& head) {
+  EIGEN_IF_CONSTEXPR (supports_power_of_two_scaling<RealScalar>::value) return -numext::copysign(norm, head);
+  return head < RealScalar(0) ? norm : RealScalar(-norm);
+}
 }  // namespace internal
 
 /** Computes the elementary reflector H such that:
@@ -132,10 +140,11 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, 
  * \param beta the result of H * \c *this
  *
  * The conventions are those of LAPACK's xLARFG, whose \c tau is the conjugate of this one:
- * when a reflector is formed, beta = -copysign(||*this||, real(c0)), with c0 = coeff(0); otherwise, when the tail is
- * exactly zero and c0 is real, \c tau = 0 and beta = c0. A NaN or an infinity propagates as in xLARFG, with one
- * deliberate deviation: a complex c0 with an infinite imaginary part gives a zero essential part, where ZLARFG's
- * ZLADIV gives NaN.
+ * when a reflector is formed, beta = -copysign(||*this||, real(c0)) for standard binary floating-point scalars
+ * (including half and bfloat16) and takes the sign from real(c0) < 0 for other scalars, with c0 = coeff(0); otherwise,
+ * when the tail is exactly zero and c0 is real, \c tau = 0 and beta = c0. A NaN or an infinity propagates as in
+ * xLARFG, with one deliberate deviation: a complex c0 with an infinite imaginary part gives a zero essential part,
+ * where ZLARFG's ZLADIV gives NaN.
  *
  * \sa MatrixBase::makeHouseholderInPlace(), MatrixBase::applyHouseholderOnTheLeft(),
  *     MatrixBase::applyHouseholderOnTheRight()
@@ -230,7 +239,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
       const Accumulator scaledImag = Accumulator(numext::imag(c0)) / scale;
       RealScalar scaledBeta = RealScalar(numext::hypot(scaledReal, scaledImag));
       // xLARFG's beta = -SIGN(norm, alpha) takes the sign bit of alpha, so a head of -0 gives beta = +norm.
-      scaledBeta = -numext::copysign(scaledBeta, numext::real(c0));
+      scaledBeta = internal::householder_beta<RealScalar>(scaledBeta, numext::real(c0));
       beta = RealScalar(scale * Accumulator(scaledBeta));
       essential.setZero();
       tau = internal::householder_rescale<Scalar, Accumulator>::zero_tail_tau(scaledReal, scaledImag, scaledBeta);
@@ -247,14 +256,14 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     const Scalar scaledC0 = internal::householder_rescale<Scalar, Accumulator>::run(c0, scale);
     RealScalar scaledBeta =
         RealScalar(numext::hypot(Accumulator(numext::abs(scaledC0)), numext::sqrt(scaledTailSqNorm)));
-    scaledBeta = -numext::copysign(scaledBeta, numext::real(c0));
+    scaledBeta = internal::householder_beta<RealScalar>(scaledBeta, numext::real(c0));
     beta = RealScalar(scale * Accumulator(scaledBeta));
     internal::householder_rescale<Scalar, Accumulator>::run(essential, tailView, scale, scaledC0 - scaledBeta);
     tau = numext::conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
     return;
   }
   beta = numext::sqrt<RealScalar>(numext::abs2(c0) + tailSqNorm);
-  beta = -numext::copysign(beta, numext::real(c0));
+  beta = internal::householder_beta<RealScalar>(beta, numext::real(c0));
   essential = tail.unwind() / (c0 - beta);
   tau = numext::conj((beta - c0) / beta);
 }
