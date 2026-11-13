@@ -1022,6 +1022,20 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_assignment(const Dst& dst, const
   call_assignment(dst, src, internal::assign_op<typename Dst::Scalar, typename Src::Scalar>());
 }
 
+// In-place transposition overwrite is safe; compound updates must preserve the source.
+template <typename Dst, typename Lhs, typename Rhs, typename Func,
+          std::enable_if_t<
+              (std::is_same<typename evaluator_traits<Lhs>::Shape, TranspositionsShape>::value ||
+               std::is_same<typename evaluator_traits<Rhs>::Shape, TranspositionsShape>::value) &&
+                  (std::is_same<Func, add_assign_op<typename Dst::Scalar, typename Product<Lhs, Rhs>::Scalar>>::value ||
+                   std::is_same<Func, sub_assign_op<typename Dst::Scalar, typename Product<Lhs, Rhs>::Scalar>>::value),
+              int> = 0>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_assignment(Dst& dst, const Product<Lhs, Rhs, AliasFreeProduct>& src,
+                                                           const Func& func) {
+  typename plain_matrix_type<Product<Lhs, Rhs, AliasFreeProduct>>::type tmp(src);
+  call_assignment_no_alias(dst, tmp, func);
+}
+
 // Deal with "assume-aliasing"
 template <typename Dst, typename Src, typename Func, std::enable_if_t<evaluator_assume_aliasing<Src>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
