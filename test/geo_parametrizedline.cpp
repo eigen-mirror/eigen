@@ -39,7 +39,8 @@ void parametrizedline(const LineType &_line) {
 
   VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(p0), RealScalar(1));
   VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(p0 + s0 * d0), RealScalar(1));
-  VERIFY_IS_APPROX((l0.projection(p1) - p1).norm(), l0.distance(p1));
+  // Each side has an absolute error of O(eps * (|p0| + |p1|)), which exceeds a relative bound when p1 is near the line.
+  VERIFY_IS_MUCH_SMALLER_THAN(abs((l0.projection(p1) - p1).norm() - l0.distance(p1)), p0.norm() + p1.norm());
   VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(l0.projection(p1)), RealScalar(1));
   VectorType orthogonal = d0.unitOrthogonal();
   VERIFY_IS_APPROX(Scalar(LineType(VectorType::Zero(dim), d0).distance(orthogonal * s1)), s1);
@@ -58,8 +59,10 @@ void parametrizedline(const LineType &_line) {
   HyperplaneType hp(p2, n2);
   Scalar t = l0.intersectionParameter(hp);
   VectorType pi = l0.pointAt(t);
-  VERIFY_IS_MUCH_SMALLER_THAN(hp.signedDistance(pi), RealScalar(1));
-  VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(pi), RealScalar(1));
+  // A line nearly parallel to the plane puts pi far away, and both residuals are O(eps * |pi|).
+  const RealScalar pi_scale = numext::maxi(RealScalar(1), pi.norm());
+  VERIFY_IS_MUCH_SMALLER_THAN(hp.signedDistance(pi), pi_scale);
+  VERIFY_IS_MUCH_SMALLER_THAN(l0.distance(pi), pi_scale);
   VERIFY_IS_APPROX(l0.intersectionPoint(hp), pi);
 
   // transform
