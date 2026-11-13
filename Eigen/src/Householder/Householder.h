@@ -95,37 +95,12 @@ struct householder_rescale<Scalar, Accumulator, true> {
   }
 };
 
-// Boolean sign-bit predicate: copysign(beta, real(c0)) differentiates through c0 on autodiff scalars (inf/NaN at 0).
-namespace householder_signbit_detail {
-EIGEN_USING_STD(signbit)
-
-template <typename T,
-          std::enable_if_t<!std::is_same<T, long double>::value && supports_power_of_two_scaling<T>::value, int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const T& x, int) {
-  using Binary = binary_floating_point_traits<T>;
-  return (Binary::bits(x) & Binary::kSignBit) != 0;
-}
-
-template <typename T,
-          std::enable_if_t<
-              !NumTraits<T>::IsInteger &&
-                  !(!std::is_same<T, long double>::value && supports_power_of_two_scaling<T>::value) &&
-                  std::is_convertible<decltype(signbit EIGEN_NOT_A_MACRO(std::declval<const T&>())), bool>::value,
-              int> = 0>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const T& x, int) {
-  return signbit EIGEN_NOT_A_MACRO(x);
-}
-
-template <typename T>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool run(const T& x, long) {
-  EIGEN_IF_CONSTEXPR (NumTraits<T>::IsInteger && !NumTraits<T>::IsSigned) return false;
-  return x < T(0);
-}
-}  // namespace householder_signbit_detail
-
+// -copysign(norm, head) for norm >= 0. Other scalars select the sign by comparison: an autodiff scalar's copysign
+// differentiates through head, with an impulse at head == 0.
 template <typename RealScalar>
-EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool householder_has_signbit(const RealScalar& x) {
-  return householder_signbit_detail::run(x, 0);
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RealScalar householder_beta(const RealScalar& norm, const RealScalar& head) {
+  EIGEN_IF_CONSTEXPR (supports_power_of_two_scaling<RealScalar>::value) return -numext::copysign(norm, head);
+  return head < RealScalar(0) ? norm : RealScalar(-norm);
 }
 }  // namespace internal
 
@@ -165,10 +140,11 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholderInPlace(Scalar& tau, 
  * \param beta the result of H * \c *this
  *
  * The conventions are those of LAPACK's xLARFG, whose \c tau is the conjugate of this one:
- * when a reflector is formed, beta = -copysign(||*this||, real(c0)), with c0 = coeff(0); otherwise, when the tail is
- * exactly zero and c0 is real, \c tau = 0 and beta = c0. A NaN or an infinity propagates as in xLARFG, with one
- * deliberate deviation: a complex c0 with an infinite imaginary part gives a zero essential part, where ZLARFG's
- * ZLADIV gives NaN.
+ * when a reflector is formed, beta = -copysign(||*this||, real(c0)) for standard binary floating-point scalars
+ * (including half and bfloat16) and takes the sign from real(c0) < 0 for other scalars, with c0 = coeff(0); otherwise,
+ * when the tail is exactly zero and c0 is real, \c tau = 0 and beta = c0. A NaN or an infinity propagates as in
+ * xLARFG, with one deliberate deviation: a complex c0 with an infinite imaginary part gives a zero essential part,
+ * where ZLARFG's ZLADIV gives NaN.
  *
  * \sa MatrixBase::makeHouseholderInPlace(), MatrixBase::applyHouseholderOnTheLeft(),
  *     MatrixBase::applyHouseholderOnTheRight()
@@ -263,7 +239,7 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
       const Accumulator scaledImag = Accumulator(numext::imag(c0)) / scale;
       RealScalar scaledBeta = RealScalar(numext::hypot(scaledReal, scaledImag));
       // xLARFG's beta = -SIGN(norm, alpha) takes the sign bit of alpha, so a head of -0 gives beta = +norm.
-      if (!internal::householder_has_signbit(numext::real(c0))) scaledBeta = -scaledBeta;
+      scaledBeta = internal::householder_beta<RealScalar>(scaledBeta, numext::real(c0));
       beta = RealScalar(scale * Accumulator(scaledBeta));
       essential.setZero();
       tau = internal::householder_rescale<Scalar, Accumulator>::zero_tail_tau(scaledReal, scaledImag, scaledBeta);
@@ -280,14 +256,14 @@ EIGEN_DEVICE_FUNC void MatrixBase<Derived>::makeHouseholder(EssentialPart& essen
     const Scalar scaledC0 = internal::householder_rescale<Scalar, Accumulator>::run(c0, scale);
     RealScalar scaledBeta =
         RealScalar(numext::hypot(Accumulator(numext::abs(scaledC0)), numext::sqrt(scaledTailSqNorm)));
-    if (!internal::householder_has_signbit(numext::real(c0))) scaledBeta = -scaledBeta;
+    scaledBeta = internal::householder_beta<RealScalar>(scaledBeta, numext::real(c0));
     beta = RealScalar(scale * Accumulator(scaledBeta));
     internal::householder_rescale<Scalar, Accumulator>::run(essential, tailView, scale, scaledC0 - scaledBeta);
     tau = numext::conj(Scalar(RealScalar(1)) - scaledC0 / scaledBeta);
     return;
   }
   beta = numext::sqrt<RealScalar>(numext::abs2(c0) + tailSqNorm);
-  if (!internal::householder_has_signbit(numext::real(c0))) beta = -beta;
+  beta = internal::householder_beta<RealScalar>(beta, numext::real(c0));
   essential = tail.unwind() / (c0 - beta);
   tau = numext::conj((beta - c0) / beta);
 }

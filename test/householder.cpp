@@ -1312,7 +1312,6 @@ void householder_xlarfg_qr() {
 
 namespace householder_autodiff_test {
 // Forward-mode dual scalar whose copysign(x, y) injects an infinite/NaN impulse at y == 0 (as ceres::Jet does).
-template <bool HasSignbit>
 struct Dual {
   double v = 0.0;
   double dv = 0.0;
@@ -1350,22 +1349,17 @@ struct Dual {
   friend bool(isfinite)(const Dual& x) { return (std::isfinite)(x.v); }
   friend bool(isnan)(const Dual& x) { return (std::isnan)(x.v); }
   friend bool(isinf)(const Dual& x) { return (std::isinf)(x.v); }
-  template <bool B = HasSignbit, std::enable_if_t<B, int> = 0>
-  friend bool signbit(const Dual& x) {
-    return std::signbit(x.v);
-  }
 };
 }  // namespace householder_autodiff_test
 
 namespace std {
-template <bool B>
-class numeric_limits<householder_autodiff_test::Dual<B>> : public numeric_limits<double> {};
+template <>
+class numeric_limits<householder_autodiff_test::Dual> : public numeric_limits<double> {};
 }  // namespace std
 
 namespace Eigen {
-template <bool B>
-struct NumTraits<householder_autodiff_test::Dual<B>> : GenericNumTraits<householder_autodiff_test::Dual<B>> {
-  using Real = householder_autodiff_test::Dual<B>;
+template <>
+struct NumTraits<householder_autodiff_test::Dual> : GenericNumTraits<householder_autodiff_test::Dual> {
   static inline Real epsilon() { return Real(NumTraits<double>::epsilon()); }
   static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
   static inline Real highest() { return Real(NumTraits<double>::highest()); }
@@ -1373,52 +1367,47 @@ struct NumTraits<householder_autodiff_test::Dual<B>> : GenericNumTraits<househol
 };
 }  // namespace Eigen
 
-template <bool HasSignbit>
-void verify_householder_autodiff_zero_head() {
-  using Dual = householder_autodiff_test::Dual<HasSignbit>;
+inline void householder_autodiff_zero_head() {
+  using Dual = householder_autodiff_test::Dual;
   const double eps = NumTraits<double>::epsilon();
-  for (double head : {0.0, -0.0}) {
-    if (std::signbit(head) && !HasSignbit) continue;
-    const double expectedSign = std::signbit(head) ? 1.0 : -1.0;
 
-    for (int exp : {0, -600, 600}) {
-      const double scale = std::ldexp(1.0, exp);
-      for (bool seedHead : {true, false}) {
-        // seedHead = false seeds the tail while dc0 == 0, where copysign's 0 * inf produces NaN rather than inf.
-        Matrix<Dual, 3, 1> x(Dual(head, seedHead ? scale : 0.0), Dual(3.0 * scale, seedHead ? 0.0 : scale),
-                             Dual(4.0 * scale, 0.0));
-        Matrix<Dual, 2, 1> essential;
-        Dual tau, beta;
-        x.makeHouseholder(essential, tau, beta);
-        const double expectedDBeta = seedHead ? 0.0 : 0.6 * scale * expectedSign;
-        const double expectedDTau = seedHead ? -0.2 * expectedSign : 0.0;
-        VERIFY_IS_EQUAL(beta.v, 5.0 * scale * expectedSign);
-        VERIFY((std::isfinite)(beta.dv) && std::abs(beta.dv - expectedDBeta) <= 8 * eps * scale);
-        VERIFY_IS_EQUAL(tau.v, 1.0);
-        VERIFY((std::isfinite)(tau.dv) && std::abs(tau.dv - expectedDTau) <= 8 * eps);
-        Matrix<Dual, 3, 1> v(Dual(1.0), essential[0], essential[1]);
-        const Matrix<Dual, 3, 1> reflected = x - tau * v * (v.transpose() * x);
-        VERIFY((std::isfinite)(reflected[0].dv) && std::abs(reflected[0].dv - beta.dv) <= 16 * eps * scale);
-        for (Index i = 1; i < 3; ++i) {
-          VERIFY(std::abs(reflected[i].v) <= 16 * eps * scale);
-          VERIFY((std::isfinite)(reflected[i].dv) && std::abs(reflected[i].dv) <= 16 * eps * scale);
-        }
+  for (int exp : {-600, 0, 600}) {
+    const double scale = std::ldexp(1.0, exp);
+    for (bool seedHead : {true, false}) {
+      // seedHead = false seeds the tail while dc0 == 0, where copysign's 0 * inf produces NaN rather than inf.
+      Matrix<Dual, 3, 1> x(Dual(0.0, seedHead ? scale : 0.0), Dual(3.0 * scale, seedHead ? 0.0 : scale),
+                           Dual(4.0 * scale, 0.0));
+      Matrix<Dual, 2, 1> essential;
+      Dual tau, beta;
+      x.makeHouseholder(essential, tau, beta);
+      const double expectedDBeta = seedHead ? 0.0 : -0.6 * scale;
+      const double expectedDTau = seedHead ? 0.2 : 0.0;
+      VERIFY_IS_EQUAL(beta.v, -5.0 * scale);
+      VERIFY((std::isfinite)(beta.dv) && std::abs(beta.dv - expectedDBeta) <= 8 * eps * scale);
+      VERIFY_IS_EQUAL(tau.v, 1.0);
+      VERIFY((std::isfinite)(tau.dv) && std::abs(tau.dv - expectedDTau) <= 8 * eps);
+      Matrix<Dual, 3, 1> v(Dual(1.0), essential[0], essential[1]);
+      const Matrix<Dual, 3, 1> reflected = x - tau * v * (v.transpose() * x);
+      VERIFY((std::isfinite)(reflected[0].dv) && std::abs(reflected[0].dv - beta.dv) <= 16 * eps * scale);
+      for (Index i = 1; i < 3; ++i) {
+        VERIFY(std::abs(reflected[i].v) <= 16 * eps * scale);
+        VERIFY((std::isfinite)(reflected[i].dv) && std::abs(reflected[i].dv) <= 16 * eps * scale);
       }
     }
+  }
 
 #ifndef _MSC_VER
-    using ComplexDual = std::complex<Dual>;
-    Matrix<ComplexDual, 2, 1> z(ComplexDual(Dual(head, 1.0), Dual(2.0, 0.0)), ComplexDual(Dual(0.0), Dual(0.0)));
-    Matrix<ComplexDual, 1, 1> zEssential;
-    ComplexDual zTau;
-    Dual zBeta;
-    z.makeHouseholder(zEssential, zTau, zBeta);
-    VERIFY_IS_EQUAL(zBeta.v, 2.0 * expectedSign);
-    VERIFY((std::isfinite)(zBeta.dv) && std::abs(zBeta.dv) <= 8 * eps);
-    VERIFY((std::isfinite)(zTau.real().dv) && std::abs(zTau.real().dv - (-0.5 * expectedSign)) <= 8 * eps);
-    VERIFY((std::isfinite)(zTau.imag().dv) && std::abs(zTau.imag().dv) <= 8 * eps);
+  using ComplexDual = std::complex<Dual>;
+  Matrix<ComplexDual, 2, 1> z(ComplexDual(Dual(0.0, 1.0), Dual(2.0, 0.0)), ComplexDual(Dual(0.0), Dual(0.0)));
+  Matrix<ComplexDual, 1, 1> zEssential;
+  ComplexDual zTau;
+  Dual zBeta;
+  z.makeHouseholder(zEssential, zTau, zBeta);
+  VERIFY_IS_EQUAL(zBeta.v, -2.0);
+  VERIFY((std::isfinite)(zBeta.dv) && std::abs(zBeta.dv) <= 8 * eps);
+  VERIFY((std::isfinite)(zTau.real().dv) && std::abs(zTau.real().dv - 0.5) <= 8 * eps);
+  VERIFY((std::isfinite)(zTau.imag().dv) && std::abs(zTau.imag().dv) <= 8 * eps);
 #endif
-  }
 
   // [[t, 1], [2, 0]] * x = [1, 4]^T at t = 0 pivots column 0 ([0, 2]^T) first; x(t) = [2, 1 - 2t]^T.
   Matrix<Dual, 2, 2> a;
@@ -1427,11 +1416,6 @@ void verify_householder_autodiff_zero_head() {
   const Matrix<Dual, 2, 1> sol = a.colPivHouseholderQr().solve(rhs);
   VERIFY(std::abs(sol[0].v - 2.0) <= 8 * eps && (std::isfinite)(sol[0].dv) && std::abs(sol[0].dv) <= 8 * eps);
   VERIFY(std::abs(sol[1].v - 1.0) <= 8 * eps && (std::isfinite)(sol[1].dv) && std::abs(sol[1].dv + 2.0) <= 8 * eps);
-}
-
-inline void householder_autodiff_zero_head() {
-  verify_householder_autodiff_zero_head<true>();
-  verify_householder_autodiff_zero_head<false>();
 }
 
 template <typename Scalar, int Size, int StorageOrder>
