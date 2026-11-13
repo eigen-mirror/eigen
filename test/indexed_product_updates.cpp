@@ -5,6 +5,7 @@
 #define TEST_IGNORE_STACK_ALLOCATED_TEMPORARY
 #include "main.h"
 #include <Eigen/SparseCore>
+#include "NonCommutativeScalar.h"
 
 template <typename Matrix, typename Expression>
 void check_indexed_update(const Matrix& input, const Matrix& expected, const Expression& expression, int allocations) {
@@ -141,6 +142,41 @@ void transposition_update_cases() {
 }
 
 template <typename Scalar, int Order>
+void structured_permutation_updates() {
+  using Matrix = Eigen::Matrix<Scalar, Dynamic, Dynamic, Order>;
+  for (Index n : {Index(0), Index(1), Index(7), Index(24)}) {
+    PermutationMatrix<Dynamic> p(n);
+    for (Index i = 0; i < n; ++i) p.indices()(i) = internal::convert_index<int>((i + 1) % n);
+    Matrix a = Matrix::Random(n, n);
+    const auto check = [&](const auto& view, const Matrix* expectedDense = nullptr) {
+      const Matrix dense = expectedDense ? *expectedDense : Matrix(view);
+      Matrix left(n, n), right(n, n), inverseLeft(n, n), inverseRight(n, n);
+      for (Index i = 0; i < n; ++i)
+        for (Index j = 0; j < n; ++j) {
+          const Index k = p.indices()(i);
+          left(k, j) = dense(i, j);
+          inverseLeft(i, j) = dense(k, j);
+          right(j, i) = dense(j, k);
+          inverseRight(j, k) = dense(j, i);
+        }
+      const int allocations = n ? 1 : 0;
+      check_indexed_update(dense, left, p * view, allocations);
+      check_indexed_update(dense, inverseLeft, p.inverse() * view, allocations);
+      check_indexed_update(dense, right, view * p, allocations);
+      check_indexed_update(dense, inverseRight, view * p.inverse(), allocations);
+    };
+    check(a.template triangularView<UnitLower>());
+    check(a.template triangularView<StrictlyUpper>());
+    check(a.template selfadjointView<Lower>());
+    check(a.template selfadjointView<Upper>());
+    const Scalar alpha = Scalar(2) + internal::random<Scalar>();
+    // Product factor extraction scales the whole reconstructed view, including its mirrored half.
+    const Matrix scaled = alpha * Matrix(a.template selfadjointView<Lower>());
+    check((alpha * a).template selfadjointView<Lower>(), &scaled);
+  }
+}
+
+template <typename Scalar, int Order>
 void transposition_row_wrappers() {
   RowVector3i fixed;
   fixed << 2, 2, 2;
@@ -194,6 +230,48 @@ void transposition_widened_capacity() {
   VERIFY(dst.isZero(0));
 }
 
+struct CountingUpdateIndex {
+  Index* reads;
+  int operator()(Index i) const {
+    ++*reads;
+    return int((i + 1) % 7);
+  }
+};
+
+void indexed_update_scalar_and_index_cases() {
+  using Q = noncommutative_scalar::Quaternion;
+  using Matrix = Eigen::Matrix<Q, Dynamic, Dynamic>;
+  Matrix source(7, 3), expected(7, 3), dst = Matrix::Zero(7, 3);
+  PermutationMatrix<7> p;
+  for (Index i = 0; i < 7; ++i) {
+    p.indices()(i) = int((i + 1) % 7);
+    for (Index j = 0; j < 3; ++j) source(i, j) = Q(double(i), double(j), 1, -1);
+  }
+  for (Index i = 0; i < 7; ++i) expected.row(p.indices()(i)) = source.row(i);
+  dst.noalias() += p * source;
+  VERIFY(dst == expected);
+  dst.noalias() -= p * source;
+  VERIFY(dst == Matrix::Zero(7, 3));
+  Transpositions<7> tr;
+  for (Index i = 0; i < 7; ++i) tr.coeffRef(i) = int(6 - i);
+  expected = source;
+  for (Index i = 0; i < 7; ++i) expected.row(i).swap(expected.row(tr.coeff(i)));
+  dst.noalias() += tr * source;
+  VERIFY(dst == expected);
+  dst.noalias() -= tr * source;
+  VERIFY(dst == Matrix::Zero(7, 3));
+
+  Index reads = 0;
+  const auto indices = VectorXi::NullaryExpr(7, CountingUpdateIndex{&reads});
+  using RowMatrix = Eigen::Matrix<double, Dynamic, Dynamic, RowMajor>;
+  const RowMatrix values = RowMatrix::Random(3, 7);
+  RowMatrix actual = RowMatrix::Zero(3, 7), reference(3, 7);
+  for (Index i = 0; i < 7; ++i) reference.col((i + 1) % 7) = values.col(i);
+  actual.noalias() += values * indices.asPermutation().inverse();
+  VERIFY_IS_EQUAL(reads, 7);
+  VERIFY_IS_EQUAL(actual, reference);
+}
+
 EIGEN_DECLARE_TEST(indexed_product_updates) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1((permutation_updates<double, ColMajor>()));
@@ -204,6 +282,15 @@ EIGEN_DECLARE_TEST(indexed_product_updates) {
     CALL_SUBTEST_3((transposition_update_cases<double, RowMajor>()));
     CALL_SUBTEST_4((transposition_update_cases<std::complex<double>, ColMajor>()));
     CALL_SUBTEST_4((transposition_update_cases<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_5((structured_permutation_updates<double, ColMajor>()));
+    CALL_SUBTEST_5((structured_permutation_updates<double, RowMajor>()));
+    CALL_SUBTEST_6((structured_permutation_updates<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_6((structured_permutation_updates<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_7(indexed_update_scalar_and_index_cases());
+    CALL_SUBTEST_8((permutation_updates<float, ColMajor>()));
+    CALL_SUBTEST_8((permutation_updates<std::complex<float>, RowMajor>()));
+    CALL_SUBTEST_8((transposition_update_cases<float, RowMajor>()));
+    CALL_SUBTEST_8((structured_permutation_updates<std::complex<float>, ColMajor>()));
     CALL_SUBTEST_9((transposition_row_wrappers<double, ColMajor>()));
     CALL_SUBTEST_9((transposition_row_wrappers<double, RowMajor>()));
     CALL_SUBTEST_9((transposition_row_wrappers<std::complex<double>, ColMajor>()));
