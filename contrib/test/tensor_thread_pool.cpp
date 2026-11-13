@@ -27,6 +27,7 @@ class TestAllocator : public Allocator {
   ~TestAllocator() EIGEN_OVERRIDE {}
   EIGEN_DEVICE_FUNC void* allocate(size_t num_bytes) const EIGEN_OVERRIDE {
     alloc_count_++;
+    alloc_bytes_.fetch_add(num_bytes, std::memory_order_relaxed);
     return internal::aligned_malloc(num_bytes);
   }
   EIGEN_DEVICE_FUNC void deallocate(void* buffer) const EIGEN_OVERRIDE {
@@ -36,11 +37,13 @@ class TestAllocator : public Allocator {
 
   int alloc_count() const { return alloc_count_.load(); }
   int dealloc_count() const { return dealloc_count_.load(); }
+  size_t alloc_bytes() const { return alloc_bytes_.load(std::memory_order_relaxed); }
 
  private:
   // Pool workers allocate through the device concurrently.
   mutable std::atomic<int> alloc_count_{0};
   mutable std::atomic<int> dealloc_count_{0};
+  mutable std::atomic<size_t> alloc_bytes_{0};
 };
 
 // A thread pool and a ThreadPoolDevice that runs on it.
@@ -885,16 +888,20 @@ static void test_multithread_contraction_require_initialization(Index m, Index k
 
     TrackedScalar::pool_assignments = 0;
     const int allocations_before = test_allocator.alloc_count();
+    const size_t bytes_before = test_allocator.alloc_bytes();
     result.device(pool.device) = t_left.contract(t_right, dims);
     check(1);
     VERIFY(TrackedScalar::pool_assignments.load() > 0);
     const int allocations = test_allocator.alloc_count() - allocations_before;
+    const size_t full_sharded_slice_bytes = static_cast<size_t>(k) * numext::maxi(m, n) * sizeof(TrackedScalar);
     switch (path) {
       case ContractionPath::ParallelPack:
         VERIFY_IS_EQUAL(allocations, 1);
         break;
       case ContractionPath::ThreadLocalPack:
         VERIFY_IS_EQUAL(allocations, 2);
+        // With a single k slice, the sharded operand packs into thread-local blocks without a global packed slice.
+        VERIFY(test_allocator.alloc_bytes() - bytes_before < full_sharded_slice_bytes);
         break;
       case ContractionPath::ShardByInnerDim:
         VERIFY(allocations >= 3);
@@ -908,10 +915,14 @@ static void test_multithread_contraction_require_initialization(Index m, Index k
       check(2);
     }
 
+    const size_t async_bytes_before = test_allocator.alloc_bytes();
     Eigen::Barrier done(1);
     result.device(pool.device, [&done]() { done.Notify(); }) = t_left.contract(t_right, dims);
     done.Wait();
     check(1);
+    if (path == ContractionPath::ThreadLocalPack) {
+      VERIFY(test_allocator.alloc_bytes() - async_bytes_before < full_sharded_slice_bytes);
+    }
     if (nested) {
       Eigen::Barrier done_nested(1);
       result.device(pool.device, [&done_nested]() { done_nested.Notify(); }) =
