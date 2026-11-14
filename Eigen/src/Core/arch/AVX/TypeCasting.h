@@ -64,38 +64,17 @@ struct type_casting_traits<int64_t, double> : vectorized_type_casting_traits<int
 #endif
 #endif
 
+// _mm256_set_m128{,d,i} are missing from old compilers' headers; the insert form is AVX and works everywhere.
 EIGEN_STRONG_INLINE __m256 _eigen_mm256_set_m128(__m128 hi, __m128 lo) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 810)
-  __m256 result = _mm256_castps128_ps256(lo);
-  return _mm256_insertf128_ps(result, hi, 1);
-#else
-  return _mm256_set_m128(hi, lo);
-#endif
+  return _mm256_insertf128_ps(_mm256_castps128_ps256(lo), hi, 1);
 }
 
 EIGEN_STRONG_INLINE __m256d _eigen_mm256_set_m128d(__m128d hi, __m128d lo) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 810)
-  __m256d result = _mm256_castpd128_pd256(lo);
-  return _mm256_insertf128_pd(result, hi, 1);
-#else
-  return _mm256_set_m128d(hi, lo);
-#endif
+  return _mm256_insertf128_pd(_mm256_castpd128_pd256(lo), hi, 1);
 }
 
 EIGEN_STRONG_INLINE __m256i _eigen_mm256_set_m128i(__m128i hi, __m128i lo) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 810)
-#if defined(EIGEN_VECTORIZE_AVX2)
-  __m256i result = _mm256_castsi128_si256(lo);
-  return _mm256_inserti128_si256(result, hi, 1);
-#else
-  EIGEN_ALIGN32 int32_t tmp[8];
-  _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp), lo);
-  _mm_storeu_si128(reinterpret_cast<__m128i*>(tmp + 4), hi);
-  return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(tmp));
-#endif
-#else
-  return _mm256_set_m128i(hi, lo);
-#endif
+  return _mm256_insertf128_si256(_mm256_castsi128_si256(lo), hi, 1);
 }
 
 template <>
@@ -250,7 +229,7 @@ EIGEN_STRONG_INLINE Packet4ui preinterpret<Packet4ui, Packet8ui>(const Packet8ui
 #ifdef EIGEN_VECTORIZE_AVX2
 template <>
 EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
-#if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVS512VL)
+#if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVX512VL)
   return _mm256_cvttpd_epi64(a);
 #else
 
@@ -290,7 +269,7 @@ EIGEN_STRONG_INLINE Packet4l pcast<Packet4d, Packet4l>(const Packet4d& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet4d pcast<Packet4l, Packet4d>(const Packet4l& a) {
-#if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVS512VL)
+#if defined(EIGEN_VECTORIZE_AVX512DQ) && defined(EIGEN_VECTORIZE_AVX512VL)
   return _mm256_cvtepi64_pd(a);
 #else
   int64_t aux[4];

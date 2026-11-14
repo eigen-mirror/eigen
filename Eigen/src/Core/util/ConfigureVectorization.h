@@ -697,10 +697,12 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 namespace Eigen {
 
 inline static const char* SimdInstructionSetsInUse(void) {
-#if defined(EIGEN_VECTORIZE_AVX512)
+#if defined(EIGEN_VECTORIZE_GENERIC) && !defined(EIGEN_DONT_VECTORIZE)
+  return "Clang vector extensions";
+#elif defined(EIGEN_VECTORIZE_AVX512)
   return "AVX512, FMA, AVX2, AVX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2";
 #elif defined(EIGEN_VECTORIZE_AVX)
-  return "AVX SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2";
+  return "AVX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2";
 #elif defined(EIGEN_VECTORIZE_SSE4_2)
   return "SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2";
 #elif defined(EIGEN_VECTORIZE_SSE4_1)
@@ -731,6 +733,8 @@ inline static const char* SimdInstructionSetsInUse(void) {
   return "LOONGARCH64 LSX";
 #elif defined(EIGEN_VECTORIZE_RVV10)
   return "RVV";
+#elif defined(EIGEN_VECTORIZE_HVX)
+  return "Hexagon HVX";
 #else
   return "None";
 #endif

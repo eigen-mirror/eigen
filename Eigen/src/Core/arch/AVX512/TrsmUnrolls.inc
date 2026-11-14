@@ -452,6 +452,13 @@ class transB {
         LDB, B_temp, LDB_, ymm, remM_);
   }
 
+  // transposeLxL transposes EIGEN_AVX_MAX_NUM_ROW packets, but loadB fills only the first unrollN of them. Zero the
+  // rest before loading: a load that fills all of them overwrites the zeros.
+  template <int64_t firstUnused>
+  static EIGEN_ALWAYS_INLINE void zeroUnusedRows(PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm) {
+    for (int64_t i = firstUnused; i < EIGEN_AVX_MAX_NUM_ROW; i++) ymm.packet[i] = pzero(ymm.packet[i]);
+  }
+
   template <int64_t packetIndexOffset>
   static EIGEN_ALWAYS_INLINE void transposeLxL(PacketBlock<vecHalf, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> &ymm) {
     // Note: this assumes EIGEN_AVX_MAX_NUM_ROW = 8. Unrolls should be adjusted
@@ -539,16 +546,19 @@ class transB {
       transB::template storeBBlock<8, toTemp, remM, 8>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
     } else EIGEN_IF_CONSTEXPR (unrollN == 4 && U1 > 4) {
       // load Lx4 B col major, transpose Lx4 row major
+      transB::template zeroUnusedRows<4>(ymm);
       transB::template loadBBlock<4, toTemp, remM>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<4, toTemp, remM, 4>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
     } else EIGEN_IF_CONSTEXPR (unrollN == 2) {
       // load Lx2 B col major, transpose Lx2 row major
+      transB::template zeroUnusedRows<2>(ymm);
       transB::template loadBBlock<2, toTemp, remM, 2>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<2, toTemp, remM, 2>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
     } else EIGEN_IF_CONSTEXPR (unrollN == 1) {
       // load Lx1 B col major, transpose Lx1 row major
+      transB::template zeroUnusedRows<1>(ymm);
       transB::template loadBBlock<1, toTemp, remM, 1>(B_arr, LDB, B_temp, LDB_, ymm, remM_);
       transB::template transposeLxL<0>(ymm);
       transB::template storeBBlock<1, toTemp, remM, 1>(B_arr, LDB, B_temp, LDB_, ymm, remM_);

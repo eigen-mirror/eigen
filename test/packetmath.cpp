@@ -3771,6 +3771,92 @@ void packetmath_binary_sign_subnormals() {
   }
 }
 
+#if EIGEN_ARCH_i386_OR_x86_64
+// Under flush-to-zero inputs, psqrt of a subnormal may return the lane unchanged (as the AVX-512 fast-math kernel does)
+// or a zero of its sign, but not NaN, and must leave the other lanes alone.
+template <typename Scalar>
+void packetmath_sqrt_flushed_subnormals() {
+  using Packet = typename internal::packet_traits<Scalar>::type;
+  using Binary = internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  constexpr Index packet_size = internal::unpacket_traits<Packet>::size;
+  const Bits sign = Binary::kSignBit;
+  const Bits subnormals[] = {Bits(1), Bits(3), Binary::kExponentUnit >> 1, Binary::kExponentUnit - 1};
+  EIGEN_ALIGN_MAX Scalar input[packet_size], output[packet_size];
+  for (const Bits subnormal : subnormals) {
+    for (const Bits sign_bit : {Bits(0), sign}) {
+      for (Index i = 0; i < packet_size; ++i) {
+        input[i] = i % 2 == 0 ? numext::bit_cast<Scalar>(subnormal | sign_bit) : Scalar(4);
+      }
+      internal::pstore(output, internal::psqrt(internal::pload<Packet>(input)));
+      for (Index i = 0; i < packet_size; ++i) {
+        const Bits bits = numext::bit_cast<Bits>(output[i]);
+        if (i % 2 == 0) {
+          VERIFY(bits == (subnormal | sign_bit) || bits == sign_bit);
+        } else {
+          VERIFY_IS_EQUAL(output[i], Scalar(2));
+        }
+      }
+    }
+  }
+}
+
+#endif  // EIGEN_ARCH_i386_OR_x86_64
+
+#if defined(EIGEN_VECTORIZE_AVX2)
+// Packet4d <-> Packet4l casts, which are an intrinsic with AVX-512DQ+VL and bit manipulation or a scalar loop
+// otherwise, against the scalar casts at the edges of the int64 range and of the double significand.
+void packetmath_cast_double_int64_edges() {
+  using internal::Packet4d;
+  using internal::Packet4l;
+  const double doubles[] = {0.0,
+                            -0.0,
+                            0.5,
+                            -0.5,
+                            0.9999999999999999,
+                            -0.9999999999999999,
+                            1.0,
+                            -1.0,
+                            1.5,
+                            -1.5,
+                            4503599627370495.5,
+                            -4503599627370495.5,
+                            4503599627370496.0,
+                            9007199254740992.0,
+                            4611686018427387904.0,
+                            -4611686018427387904.0,
+                            9223372036854774784.0,
+                            -9223372036854774784.0,
+                            -9223372036854775808.0,
+                            std::numeric_limits<double>::denorm_min(),
+                            -std::numeric_limits<double>::denorm_min()};
+  const int64_t integers[] = {0,
+                              1,
+                              -1,
+                              9007199254740993LL,
+                              -9007199254740993LL,
+                              9007199254740995LL,
+                              4611686018427387905LL,
+                              NumTraits<int64_t>::highest(),
+                              NumTraits<int64_t>::lowest(),
+                              NumTraits<int64_t>::highest() - 1};
+  constexpr int kDoubles = sizeof(doubles) / sizeof(doubles[0]);
+  constexpr int kIntegers = sizeof(integers) / sizeof(integers[0]);
+  EIGEN_ALIGN_MAX double d[4], d_out[4];
+  EIGEN_ALIGN_MAX int64_t l[4], l_out[4];
+  for (int first = 0; first < kDoubles; ++first) {
+    for (int i = 0; i < 4; ++i) d[i] = doubles[(first + 5 * i) % kDoubles];
+    internal::pstore(l_out, internal::pcast<Packet4d, Packet4l>(internal::pload<Packet4d>(d)));
+    for (int i = 0; i < 4; ++i) VERIFY_IS_EQUAL(l_out[i], static_cast<int64_t>(d[i]));
+  }
+  for (int first = 0; first < kIntegers; ++first) {
+    for (int i = 0; i < 4; ++i) l[i] = integers[(first + 3 * i) % kIntegers];
+    internal::pstore(d_out, internal::pcast<Packet4l, Packet4d>(internal::pload<Packet4l>(l)));
+    for (int i = 0; i < 4; ++i) VERIFY_IS_EQUAL(d_out[i], static_cast<double>(l[i]));
+  }
+}
+#endif
+
 // Calls test() with subnormal inputs flushed to zero, where the hardware can.
 template <typename Test>
 void packetmath_with_flushed_inputs(Test test) {
@@ -3971,7 +4057,18 @@ struct runall<Scalar, PacketType, true, false> {  // i.e. complex
 }  // namespace test
 }  // namespace Eigen
 
+// SimdInstructionSetsInUse() must name a backend exactly when Eigen vectorizes.
+static void simd_instruction_sets_in_use() {
+  const std::string isa = SimdInstructionSetsInUse();
+#ifdef EIGEN_VECTORIZE
+  VERIFY(isa != "None");
+#else
+  VERIFY_IS_EQUAL(isa, std::string("None"));
+#endif
+}
+
 EIGEN_DECLARE_TEST(packetmath) {
+  CALL_SUBTEST_14(simd_instruction_sets_in_use());
   g_first_pass = true;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(test::runner<float>::run());
@@ -4008,6 +4105,13 @@ EIGEN_DECLARE_TEST(packetmath) {
   CALL_SUBTEST_2(packetmath_binary_sign_subnormals<double>());
   CALL_SUBTEST_1(packetmath_with_flushed_inputs(packetmath_binary_sign_subnormals<float>));
   CALL_SUBTEST_2(packetmath_with_flushed_inputs(packetmath_binary_sign_subnormals<double>));
+#if defined(EIGEN_VECTORIZE_AVX2)
+  CALL_SUBTEST_9(packetmath_cast_double_int64_edges());
+#endif
+#if EIGEN_ARCH_i386_OR_x86_64
+  CALL_SUBTEST_1(packetmath_with_flushed_inputs(packetmath_sqrt_flushed_subnormals<float>));
+  CALL_SUBTEST_2(packetmath_with_flushed_inputs(packetmath_sqrt_flushed_subnormals<double>));
+#endif
 
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
     defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)

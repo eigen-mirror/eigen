@@ -52,51 +52,23 @@ using Packet8s = eigen_packet_wrapper<__m128i, 6>;
 #endif
 
 EIGEN_STRONG_INLINE Packet16i _eigen_mm512_loadu_epi32(const int* from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
   return _mm512_loadu_si512(reinterpret_cast<const void*>(from));
-#else
-  return _mm512_loadu_epi32(from);
-#endif
 }
 
 EIGEN_STRONG_INLINE Packet16i _eigen_mm512_loadu_epi64(const int64_t* from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
   return _mm512_loadu_si512(reinterpret_cast<const void*>(from));
-#else
-  return _mm512_loadu_epi64(from);
-#endif
 }
 
-EIGEN_STRONG_INLINE void _eigen_mm512_storeu_epi32(void* to, const Packet16i& from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
-  _mm512_storeu_si512(to, from);
-#else
-  _mm512_storeu_epi32(to, from);
-#endif
-}
+EIGEN_STRONG_INLINE void _eigen_mm512_storeu_epi32(void* to, const Packet16i& from) { _mm512_storeu_si512(to, from); }
 
-EIGEN_STRONG_INLINE void _eigen_mm512_storeu_epi64(void* to, const Packet16i& from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
-  _mm512_storeu_si512(to, from);
-#else
-  _mm512_storeu_epi64(to, from);
-#endif
-}
+EIGEN_STRONG_INLINE void _eigen_mm512_storeu_epi64(void* to, const Packet16i& from) { _mm512_storeu_si512(to, from); }
 
 EIGEN_STRONG_INLINE void _eigen_mm256_storeu_epi32(void* to, const __m256i& from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
   _mm256_storeu_si256(reinterpret_cast<__m256i*>(to), from);
-#else
-  _mm256_storeu_epi32(to, from);
-#endif
 }
 
 EIGEN_STRONG_INLINE void _eigen_mm_storeu_epi32(void* to, const __m128i& from) {
-#if EIGEN_COMP_GNUC && (EIGEN_COMP_CLANG < 1000 || EIGEN_COMP_GNUC < 1010)
   _mm_storeu_si128(reinterpret_cast<__m128i*>(to), from);
-#else
-  _mm_storeu_epi32(to, from);
-#endif
 }
 
 template <>

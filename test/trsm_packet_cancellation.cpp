@@ -34,35 +34,47 @@ void trsm_packet_cancellation() {
         b.row(offset + 3).setConstant(large);
         // Only alternating columns overflow, exercising mixed packet lanes and scalar tails.
         for (Index j = 1; j < nrhs; j += 2) b(offset + 3, j) = Scalar(1);
+        // The row that cancels carries terms of size half_max. A solve that adds them one after the other leaves an
+        // absolute error of eps * half_max in it, and under -ffast-math the compiler may reorder the updates so that
+        // no lane overflows and the retry that restores the written order does not run. The bound for that row is then
+        // relative to half_max, not to b; the unit solves, exact otherwise, get the same bound.
+        Operand scale = b;
+#if defined(__FAST_MATH__) || defined(_M_FP_FAST)
+        scale.row(offset + 3) = scale.row(offset + 3).cwiseMax(half_max);
+        const Scalar unit_tolerance = Scalar(4) * NumTraits<Scalar>::epsilon();
+#else
+        const Scalar unit_tolerance = Scalar(0);
+#endif
+        const Operand reversed_scale = scale.colwise().reverse();
         x = b;
         a.template triangularView<Lower>().solveInPlace(x);
         VERIFY(x.array().isFinite().all());
         // Four eps covers reciprocal/multiply rounding, including fast-math reciprocals.
-        VERIFY(((x - b).cwiseAbs().array() <= Scalar(4) * NumTraits<Scalar>::epsilon() * b.array()).all());
+        VERIFY(((x - b).cwiseAbs().array() <= Scalar(4) * NumTraits<Scalar>::epsilon() * scale.array()).all());
 
         Triangle upper = a.reverse();
         const Operand reversed = b.colwise().reverse();
         x = reversed;
         upper.template triangularView<Upper>().solveInPlace(x);
         VERIFY(x.array().isFinite().all());
-        VERIFY(
-            ((x - reversed).cwiseAbs().array() <= Scalar(4) * NumTraits<Scalar>::epsilon() * reversed.array()).all());
+        VERIFY(((x - reversed).cwiseAbs().array() <= Scalar(4) * NumTraits<Scalar>::epsilon() * reversed_scale.array())
+                   .all());
 
         a.diagonal().setConstant(NumTraits<Scalar>::quiet_NaN());
         upper.diagonal().setConstant(NumTraits<Scalar>::quiet_NaN());
         x = b;
         a.template triangularView<UnitLower>().solveInPlace(x);
         VERIFY(x.array().isFinite().all());
-        VERIFY_IS_CWISE_EQUAL(x, b);
+        VERIFY(((x - b).cwiseAbs().array() <= unit_tolerance * scale.array()).all());
         x = reversed;
         upper.template triangularView<UnitUpper>().solveInPlace(x);
         VERIFY(x.array().isFinite().all());
-        VERIFY_IS_CWISE_EQUAL(x, reversed);
+        VERIFY(((x - reversed).cwiseAbs().array() <= unit_tolerance * reversed_scale.array()).all());
 
         Matrix<Scalar, Dynamic, Dynamic, RowMajor> right = b.transpose();
         a.transpose().template triangularView<UnitUpper>().template solveInPlace<OnTheRight>(right);
         VERIFY(right.array().isFinite().all());
-        VERIFY_IS_CWISE_EQUAL(right, b.transpose());
+        VERIFY(((right - b.transpose()).cwiseAbs().array() <= unit_tolerance * scale.transpose().array()).all());
         a.diagonal().setOnes();
       }
     }

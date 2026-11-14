@@ -362,6 +362,42 @@ struct expm1_near_overflow_runner<Scalar, false> {
   static void run() {}
 };
 
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void sqrt_packet(const Scalar* a, Scalar* output) {
+  Eigen::internal::pstoreu<Scalar, Packet>(output, Eigen::internal::psqrt(Eigen::internal::ploadu<Packet>(a)));
+}
+
+// psqrt of +-0, +inf and positive subnormals beside normal lanes. A subnormal is flushed to zero when the process runs
+// with DAZ, as the startup code of -ffast-math programs arranges, and then the lane may be returned unchanged or as a
+// zero, but not NaN. The special lanes are classified on their bits, since -ffinite-math-only folds float tests.
+template <typename Scalar, typename Packet>
+void verify_sqrt_special_lanes() {
+  using Bits = typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  constexpr int mantissa_bits = std::numeric_limits<Scalar>::digits - 1;
+  const Bits sign = Bits(1) << (8 * sizeof(Scalar) - 1);
+  const Bits infinity = static_cast<Bits>(((Bits(1) << (8 * sizeof(Scalar) - 1 - mantissa_bits)) - 1) << mantissa_bits);
+  const Bits cases[] = {
+      Bits(0), sign, infinity, Bits(1), Bits(3), (Bits(1) << (mantissa_bits - 1)), (Bits(1) << mantissa_bits) - 1};
+  Scalar input[packet_size], output[packet_size];
+  for (const Bits bits : cases) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = i % 2 == 0 ? Eigen::numext::bit_cast<Scalar>(bits) : Scalar(4);
+    }
+    sqrt_packet<Scalar, Packet>(input, output);
+    for (int i = 0; i < packet_size; ++i) {
+      const Bits actual = Eigen::numext::bit_cast<Bits>(output[i]);
+      if (i % 2 == 1) {
+        VERIFY(Eigen::numext::abs(output[i] - Scalar(2)) <= Scalar(16) * Eigen::NumTraits<Scalar>::epsilon());
+      } else if (bits == Bits(0) || bits == sign || bits == infinity) {
+        VERIFY_IS_EQUAL(actual, bits);
+      } else {
+        VERIFY((actual & infinity) != infinity);  // not NaN or inf
+      }
+    }
+  }
+}
+
 template <typename Scalar,
           bool HasIntegerBits =
               !std::is_void<typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type>::value>
@@ -401,6 +437,8 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(expm1_near_overflow_runner<double>::run());
 
 #if defined(EIGEN_VECTORIZE_AVX512)
+  CALL_SUBTEST((verify_sqrt_special_lanes<float, Eigen::internal::Packet16f>()));
+  CALL_SUBTEST((verify_sqrt_special_lanes<double, Eigen::internal::Packet8d>()));
 #if !defined(EIGEN_VECTORIZE_AVX512FP16)
   CALL_SUBTEST((verify_16bit_reductions<Eigen::half, Eigen::internal::Packet16h>()));
 #endif

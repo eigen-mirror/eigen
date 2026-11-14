@@ -270,7 +270,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<3, 4>(zmm);
+      urolls::template setzero<3, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 3, 4, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_B_LOAD_SETS * 3,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -303,7 +303,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<3, 2>(zmm);
+      urolls::template setzero<3, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 3, 2, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_B_LOAD_SETS * 3,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -336,7 +336,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<3, 1>(zmm);
+      urolls::template setzero<3, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       {
         for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
           urolls::template microKernel<isARowMajor, 3, 1, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_B_LOAD_SETS * 3, 1>(
@@ -405,7 +405,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<2, 4>(zmm);
+      urolls::template setzero<2, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 2, 4, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -438,7 +438,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<2, 2>(zmm);
+      urolls::template setzero<2, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 2, 2, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -471,7 +471,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<2, 1>(zmm);
+      urolls::template setzero<2, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 2, 1, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD, 1>(B_t, A_t, LDB,
                                                                                                         LDA, zmm);
@@ -538,7 +538,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 4>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 1, 4, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -571,7 +571,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 2>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 1, 2, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST>(B_t, A_t, LDB, LDA, zmm);
@@ -604,7 +604,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 1>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       {
         for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
           urolls::template microKernel<isARowMajor, 1, 1, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD, 1>(B_t, A_t, LDB,
@@ -674,7 +674,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 4>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 1, 4, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST, true>(B_t, A_t, LDB, LDA, zmm, N - j);
@@ -707,7 +707,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 2>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 1, 2, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD,
                                      EIGEN_AVX_MAX_A_BCAST, true>(B_t, A_t, LDB, LDA, zmm, N - j);
@@ -740,7 +740,7 @@ void gemmKernel(Scalar* A_arr, Scalar* B_arr, Scalar* C_arr, int64_t M, int64_t 
       Scalar* A_t = &A_arr[idA<isARowMajor>(i, 0, LDA)];
       Scalar* B_t = &B_arr[0 * LDB + j];
       PacketBlock<vec, EIGEN_ARCH_DEFAULT_NUMBER_OF_REGISTERS> zmm;
-      urolls::template setzero<1, 1>(zmm);
+      urolls::template setzero<1, EIGEN_AVX_MAX_NUM_ROW>(zmm);
       for (int64_t k = 0; k < K_; k += EIGEN_AVX_MAX_K_UNROL) {
         urolls::template microKernel<isARowMajor, 1, 1, EIGEN_AVX_MAX_K_UNROL, EIGEN_AVX_MAX_B_LOAD, 1, true>(
             B_t, A_t, LDB, LDA, zmm, N - j);
