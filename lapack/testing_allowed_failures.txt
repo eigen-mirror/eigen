@@ -5,12 +5,14 @@
 # An output without a line must report none. The counts are those of the test:linux:lapack
 # CI job: x86-64, GCC and GFortran 13.3, Release. See README.md and #3220.
 
-# Test 5 of xDRVEV and xDRGEV requires eigenvalues computed with and without eigenvectors to
-# agree bit for bit; the two code paths round differently.
-sed.out 36 0
+# Test 5 of xDRVEV and xDRGEV and test 8 of xCHKHS require eigenvalues computed with and
+# without eigenvectors to agree bit for bit; the two code paths round differently.
+sed.out 28 0
 ced.out 10 0
-sgd.out 13 0
+sgd.out 12 0
 cgd.out 5 0
+dgd.out 1 0
+cnep.out 1 0
 
 # Reference LAPACK 3.12.1 test defects. SCHKBL's relative error divides by MAX(A, AIN) of
 # signed entries, which is SFMIN for a negative pair (largest error Inf). SDRVRF3 scales the
@@ -18,3 +20,9 @@ cgd.out 5 0
 # (ratio 51 > 30).
 sbal.out 1 0
 stest_rfp.out 1 0
+
+# DCHKDMD stops in its DGEDMDQ residual check, which weights the residual differences by
+# SINGVQX(K) with DGEDMD's rank K. For M = 50, N = 20 and NRNK = -2 the trailing singular
+# values are rounding noise, DGEDMD keeps 17 and DGEDMDQ 16, and SINGVQX(17) is not a
+# singular value. The driver prints no summary, so the output has no test count.
+ddmd.out 0 1

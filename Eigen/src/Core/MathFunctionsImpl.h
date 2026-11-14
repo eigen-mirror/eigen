@@ -174,14 +174,16 @@ struct positive_real_hypot_impl {
 };
 
 // Host code only: GPU and SYCL device code keeps the generic version. Double precision is slow or missing there,
-// and neither of the two below has been run on a device.
-#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(EIGEN_SYCL_DEVICE_ONLY)
+// and neither of the two below has been run on a device. They are partial specializations so that a platform whose
+// types fail the condition falls back to the generic version. Doxygen cannot resolve their scope and stops.
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(EIGEN_SYCL_DEVICE_ONLY) && !defined(EIGEN_PARSED_BY_DOXYGEN)
 // float in double precision, where neither square rounds, over- or underflows: the sum of squares is rounded once
 // before the square root, and the result is the correctly rounded one except for a few inputs in a billion.
-template <>
+template <typename T>
 struct positive_real_hypot_impl<
-    float,
-    std::enable_if_t<std::numeric_limits<float>::is_iec559 && std::numeric_limits<double>::is_iec559 &&
+    T,
+    std::enable_if_t<std::is_same<T, float>::value && std::numeric_limits<float>::is_iec559 &&
+                     std::numeric_limits<double>::is_iec559 &&
                      (std::numeric_limits<double>::digits >= 2 * std::numeric_limits<float>::digits + 2) &&
                      (std::numeric_limits<double>::max_exponent > 2 * std::numeric_limits<float>::max_exponent + 1)>> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float& x, const float& y) {
@@ -200,8 +202,9 @@ struct positive_real_hypot_impl<
 // overflow nor lose bits to underflow. Where fma is an instruction the larger square is fused into the sum, so that
 // only the smaller square and the sum round before the square root, and the result is within 1.1 ulps; without it the
 // three roundings leave it within 1.2 ulps. Other operands, subnormal ones included, are scaled by a power of two.
-template <>
-struct positive_real_hypot_impl<double, std::enable_if_t<std::numeric_limits<double>::is_iec559>> {
+template <typename T>
+struct positive_real_hypot_impl<
+    T, std::enable_if_t<std::is_same<T, double>::value && std::numeric_limits<double>::is_iec559>> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(const double& x, const double& y) {
     // The larger and the smaller operand, in the form compilers turn into max and min instructions: a branch on x > y
     // would be mispredicted half of the time for random operands.

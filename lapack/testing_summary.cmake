@@ -100,6 +100,10 @@ foreach(output IN LISTS OUTPUT_FILES)
     if(line MATCHES "FAILED! Something was wrong with the run")
       math(EXPR dmd_cases "${dmd_cases} + 1")
     endif()
+    # xCHKDMD stops at the first case that fails a check outside its summary.
+    if(line MATCHES "[SDCZ]GEDMDQ? FAILED!")
+      math(EXPR other "${other} + 1")
+    endif()
     # Balance tests report example indices as well as a total error count.
     # An index is only evidence of an error, not the number of errors.
     if(lower MATCHES "number of examples where info is not 0[ \t]*=[ \t]*([0-9]+)")
