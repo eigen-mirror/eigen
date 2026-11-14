@@ -14,6 +14,8 @@
 #include "SparseCore"
 #include "OrderingMethods"
 
+#include <vector>
+
 #include "src/Core/util/DisableStupidWarnings.h"
 
 /**
@@ -27,14 +29,19 @@
  *
  * Such problems can also be solved using the ConjugateGradient solver from the IterativeLinearSolvers module.
  *
+ * For symmetric or Hermitian indefinite matrices, such as KKT systems, this module also provides MultifrontalLDLT, a
+ * factorization with 1x1 and 2x2 pivots that also reveals the matrix's inertia.
+ *
  * \code
  * #include <Eigen/SparseCholesky>
  * \endcode
  */
 
 // IWYU pragma: begin_exports
+#include "src/SparseCore/SparseColEtree.h"
 #include "src/SparseCholesky/SimplicialCholesky.h"
 #include "src/SparseCholesky/SimplicialCholesky_impl.h"
+#include "src/SparseCholesky/MultifrontalLDLT.h"
 // IWYU pragma: end_exports
 
 #include "src/Core/util/ReenableStupidWarnings.h"

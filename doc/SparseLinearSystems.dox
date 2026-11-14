@@ -24,6 +24,9 @@ They are summarized in the following tables:
 <tr><td>SimplicialNonHermitianLLT \n SimplicialNonHermitianLDLT \n <tt>\#include<Eigen/\link SparseCholesky_Module SparseCholesky\endlink></tt></td><td>Direct LLt, LDLt factorizations without conjugation</td><td>Complex symmetric</td><td>Fill-in reducing</td>
     <td>For complex symmetric (non-Hermitian) matrices, e.g., arising from PDEs with absorbing boundary conditions</td></tr>
 
+<tr><td>MultifrontalLDLT \n <tt>\#include<Eigen/\link SparseCholesky_Module SparseCholesky\endlink></tt></td><td>Direct LDLt factorization with 1x1 and 2x2 pivots</td><td>Symmetric or Hermitian, possibly indefinite</td><td>Fill-in reducing, supernodal, reuses its workspace</td>
+    <td>Recommended for indefinite problems (e.g., KKT systems); also reveals the inertia</td></tr>
+
 <tr><td>SparseLU \n <tt>\#include<Eigen/\link SparseLU_Module SparseLU\endlink></tt></td> <td>LU factorization </td>
     <td>Square </td><td>Fill-in reducing, Leverage fast dense algebra</td>
     <td>optimized for small and large problems with irregular patterns </td></tr>

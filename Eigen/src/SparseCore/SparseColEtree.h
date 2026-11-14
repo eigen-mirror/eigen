@@ -158,14 +158,19 @@ void nr_etdfs(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& 
   }
 }
 
+/** The order in which treePostorder() visits a node's children. */
+enum class PostorderChildren { Increasing, Decreasing };
+
 /**
  * \brief Post order a tree
  * \param n the number of nodes
  * \param parent Input tree
  * \param post postordered tree
+ * \param order the order in which to visit a node's children, including the roots as children of the dummy root n
  */
 template <typename IndexVector>
-void treePostorder(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& post) {
+void treePostorder(typename IndexVector::Scalar n, IndexVector& parent, IndexVector& post,
+                   PostorderChildren order = PostorderChildren::Increasing) {
   using StorageIndex = typename IndexVector::Scalar;
   IndexVector first_kid, next_kid;  // Linked list of children
   StorageIndex postnum;
@@ -176,10 +181,15 @@ void treePostorder(typename IndexVector::Scalar n, IndexVector& parent, IndexVec
 
   // Set up structure describing children
   first_kid.setConstant(-1);
-  for (StorageIndex v = n - 1; v >= 0; v--) {
+  const auto prependToParent = [&](StorageIndex v) {
     StorageIndex dad = parent(v);
     next_kid(v) = first_kid(dad);
     first_kid(dad) = v;
+  };
+  if (order == PostorderChildren::Increasing) {
+    for (StorageIndex v = n - 1; v >= 0; v--) prependToParent(v);
+  } else {
+    for (StorageIndex v = 0; v < n; v++) prependToParent(v);
   }
 
   // Depth-first search from dummy root vertex #n
