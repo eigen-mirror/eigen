@@ -2610,10 +2610,86 @@ void packetmath_abs_bits() {
   run();
 }
 
+// psqrt, prsqrt and preciprocal of float and double against correctly rounded references, over every binade. On x86
+// and AArch64 the square root is within 1 ulp wherever it is refined from an estimate (the correctly rounded value
+// or a neighbour of it) and exact for squares. The reciprocal square root and the reciprocal are held to the bounds
+// of their Newton steps: 3 ulps for float, whose x86 estimates have 12 bits, and 2 ulps for double.
+template <typename Scalar, typename Packet>
+std::enable_if_t<!std::is_floating_point<Scalar>::value, void> packetmath_sqrt_rounding() {}
+
+template <typename Scalar, typename Packet>
+std::enable_if_t<std::is_floating_point<Scalar>::value, void> packetmath_sqrt_rounding() {
+#if EIGEN_ARCH_i386_OR_x86_64 || EIGEN_ARCH_ARM64
+  using PacketTraits = internal::packet_traits<Scalar>;
+  using Wide = std::conditional_t<std::is_same<Scalar, float>::value, double, long double>;
+  // 1 / sqrt(x) in Wide rounds once more on the way to Scalar; where long double is double the reference itself
+  // may be one ulp off.
+  const bool wide_reference = std::numeric_limits<Wide>::digits > std::numeric_limits<Scalar>::digits;
+  const uint64_t newton_ulps = std::is_same<Scalar, float>::value ? 3 : 2;
+  const uint64_t rsqrt_ulps = newton_ulps + (wide_reference ? 0 : 1);
+  const uint64_t reciprocal_ulps = newton_ulps;
+  const int PacketSize = internal::unpacket_traits<Packet>::size;
+  const int size = PacketSize * 4;
+  const int digits = std::numeric_limits<Scalar>::digits;
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data1[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar data2[PacketSize * 4];
+  EIGEN_ALIGN_TO_BOUNDARY(unpacket_traits<Packet>::alignment) Scalar ref[PacketSize * 4];
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar mantissas[] = {Scalar(1), Scalar(1) + eps, Scalar(2) - eps, Scalar(1.5), Scalar(1.25) - eps};
+  const int num_fixed = int(sizeof(mantissas) / sizeof(mantissas[0]));
+  // Every exponent, the subnormal ones included: the estimate-based square roots switch algorithm below 2^-92
+  // (float) and 2^-956 (double).
+  const int min_exponent = std::numeric_limits<Scalar>::min_exponent - digits;
+  const int max_exponent = std::numeric_limits<Scalar>::max_exponent - 1;
+  for (int e = min_exponent; e <= max_exponent; ++e) {
+    for (int i = 0; i < size; ++i) {
+      const Scalar m = i < num_fixed ? mantissas[i] : Scalar(1) + internal::random<Scalar>(Scalar(0), Scalar(1));
+      const Scalar x = numext::ldexp(m, e);
+      data1[i] = (numext::is_exactly_zero(x) || !(numext::isfinite)(x)) ? Scalar(1) : x;
+    }
+    if (PacketTraits::HasSqrt) {
+      test::packet_helper<PacketTraits::HasSqrt, Packet> h;
+      for (int i = 0; i < size; ++i) ref[i] = Scalar(std::sqrt(data1[i]));
+      for (int j = 0; j < size; j += PacketSize) h.store(data2 + j, internal::psqrt(h.load(data1 + j)));
+      VERIFY(test::areWithinUlps(ref, data2, size, 1) && "internal::psqrt");
+    }
+    if (PacketTraits::HasRsqrt) {
+      test::packet_helper<PacketTraits::HasRsqrt, Packet> h;
+      for (int i = 0; i < size; ++i) ref[i] = Scalar(Wide(1) / std::sqrt(Wide(data1[i])));
+      for (int j = 0; j < size; j += PacketSize) h.store(data2 + j, internal::prsqrt(h.load(data1 + j)));
+      VERIFY(test::areWithinUlps(ref, data2, size, rsqrt_ulps) && "internal::prsqrt");
+    }
+    // Reciprocals that neither overflow nor are subnormal.
+    if (PacketTraits::HasReciprocal && e > std::numeric_limits<Scalar>::min_exponent &&
+        e < std::numeric_limits<Scalar>::max_exponent - 2) {
+      test::packet_helper<PacketTraits::HasReciprocal, Packet> h;
+      for (int i = 0; i < size; ++i) ref[i] = Scalar(1) / data1[i];
+      for (int j = 0; j < size; j += PacketSize) h.store(data2 + j, internal::preciprocal(h.load(data1 + j)));
+      VERIFY(test::areWithinUlps(ref, data2, size, reciprocal_ulps) && "internal::preciprocal");
+    }
+  }
+  // Squares, whose roots a correctly formed residual leaves exact: k^2 4^j for k below 2^(digits / 2).
+  if (PacketTraits::HasSqrt) {
+    test::packet_helper<PacketTraits::HasSqrt, Packet> h;
+    for (int j = (std::numeric_limits<Scalar>::min_exponent + digits) / 2;
+         j < (std::numeric_limits<Scalar>::max_exponent - digits) / 2; j += 7) {
+      for (int i = 0; i < size; ++i) {
+        const Scalar k = Scalar(1 + internal::random<int>(0, (1 << (digits / 2 - 1)) - 2));
+        ref[i] = numext::ldexp(k, j);
+        data1[i] = numext::ldexp(Scalar(k * k), 2 * j);
+      }
+      for (int i = 0; i < size; i += PacketSize) h.store(data2 + i, internal::psqrt(h.load(data1 + i)));
+      VERIFY(test::areEqualBits(ref, data2, size) && "internal::psqrt of a square");
+    }
+  }
+#endif
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
   packetmath_special_value_lanes<Scalar, Packet>();
+  packetmath_sqrt_rounding<Scalar, Packet>();
 
   using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;

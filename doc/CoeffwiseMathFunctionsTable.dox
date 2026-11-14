@@ -751,7 +751,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>lgamma</td>   <td colspan="3"><em>delegates to std</em></td> <td>\ref CoeffwiseMathFunctionsAccuracy_note3 "3"</td></tr>
 <tr><th colspan="5">Other</th></tr>
 <tr><td>logistic</td> <td>7</td>     <td>0.040</td> <td>97.0%</td> <td></td></tr>
-<tr><td>sqrt</td>     <td>0</td>     <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt</td></tr>
+<tr><td>sqrt</td>     <td>0</td>     <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt; \ref CoeffwiseMathFunctionsAccuracy_note7 "7"</td></tr>
 <tr><td>cbrt</td>     <td>1</td>     <td>0.117</td> <td>88.3%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note6 "6"</td></tr>
 <tr><td>rsqrt</td>    <td>&infin;</td> <td>0.114</td> <td>88.2%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note4 "4"</td></tr>
 </table>
@@ -788,7 +788,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><td>lgamma</td>   <td colspan="3"><em>delegates to std</em></td> <td>\ref CoeffwiseMathFunctionsAccuracy_note3 "3"</td></tr>
 <tr><th colspan="5">Other</th></tr>
 <tr><td>logistic</td> <td>3</td>       <td>0.008</td> <td>99.2%</td> <td></td></tr>
-<tr><td>sqrt</td>     <td>0</td>       <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt</td></tr>
+<tr><td>sqrt</td>     <td>0</td>       <td>0.000</td> <td>100%</td>  <td>Uses hardware sqrt; \ref CoeffwiseMathFunctionsAccuracy_note7 "7"</td></tr>
 <tr><td>cbrt</td>     <td>1</td>       <td>0.115</td> <td>88.5%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note6 "6"</td></tr>
 <tr><td>rsqrt</td>    <td>&infin;</td> <td>0.135</td> <td>86.5%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note4 "4"</td></tr>
 </table>
@@ -817,11 +817,13 @@ this SIMD target (SSE2) and therefore has the same accuracy as the platform's C 
 
 \anchor CoeffwiseMathFunctionsAccuracy_note4
 <b>4. rsqrt max=&infin;:</b>
-The infinite max ULP is due to a sign disagreement at a single subnormal input:
-rsqrt(-0) returns -&infin; in %Eigen but the MPFR reference produces NaN (rsqrt of a negative
-value). Ignoring this edge case, the implementation is accurate (&lt; 2 ULP) everywhere else.
-For float, 16.8 million subnormal negative inputs (0.4%) also produce &plusmn;&infin; vs NaN.
-The mean error excluding these outliers is well below 1 ULP.
+The infinite max ULP is due to a sign disagreement at a single input:
+rsqrt(-0) returns -&infin; in %Eigen, as the IEEE 754 operation does, but the MPFR reference
+produces +&infin;. Everywhere else the double results are within 2 ULP. The float results are
+refined from the processor's reciprocal square root estimate, whose error differs between
+processors: they are within 2 ULP on an AMD Ryzen 7 3700X, where 77% of the results for positive
+inputs are correctly rounded, and within 3 ULP on an 11th-generation Intel Core i5, where 70% are.
+The mean error is well below 1 ULP on both.
 
 \anchor CoeffwiseMathFunctionsAccuracy_note5
 <b>5. erf double &infin;:</b>
@@ -835,6 +837,13 @@ On targets whose packet multiply-add is fused (FMA on x86, NEON on AArch64, SVE,
 Halley step of cbrt evaluates its residual to working precision. With AVX2 and FMA the max error
 is still 1 ULP, but 97.9% of float results are exact, and so are all but about one in a million
 double results.
+
+\anchor CoeffwiseMathFunctionsAccuracy_note7
+<b>7. sqrt with AVX512:</b>
+With AVX512 and \c EIGEN_FAST_MATH, which is on by default, the square root is refined from the
+\c rsqrt14 estimate of the reciprocal square root, which is faster than the square root
+instruction. The last step is taken on the square root itself with a fused residual: the max error
+is 1 ULP, and 99.5% of the float and 99.4% of the double results are exact.
 
 */
 

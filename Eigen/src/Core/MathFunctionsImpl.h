@@ -29,9 +29,11 @@ namespace internal {
    2. If a is zero, approx_a_recip must be infinite with the same sign as a.
    3. If a is infinite, approx_a_recip must be zero with the same sign as a.
 
-   If the preconditions are satisfied, which they are for the _*_rcp_ps
-   instructions on x86, the result has a maximum relative error of 2 ulps,
-   and correctly handles reciprocals of zero, infinity, and NaN. Lanes where the
+   If the preconditions are satisfied, the result has a maximum relative error
+   of 2 ulps, and correctly handles reciprocals of zero, infinity, and NaN. The
+   estimates of rcpps, good to 1.5 * 2^-12, fall just short of the first
+   precondition for float: one step is within 2 ulps where the multiply-adds are
+   fused and within 3.1 ulps where they are not. Lanes where the
    approximation flushed a denormal input or result to zero take a division.
 */
 template <typename Packet, int Steps>
@@ -70,10 +72,12 @@ struct generic_reciprocal_newton_step<Packet, 0> {
    2. If a is zero, approx_a_recip must be infinite with the same sign as a.
    3. If a is infinite, approx_a_recip must be zero with the same sign as a.
 
-   If the preconditions are satisfied, which they are for the _*_rcp_ps
-   instructions on x86, the result has a maximum relative error of 2 ulps,
-   and correctly handles zero, infinity, and NaN. Positive denormals are
-   treated as zero.
+   If the preconditions are satisfied, the result has a maximum relative error
+   of 2 ulps, and correctly handles zero, infinity, and NaN. Positive denormals
+   are treated as zero. The estimates of rsqrtps, good to 1.5 * 2^-12, fall just
+   short of the first precondition for float: one step leaves an error of up to
+   3.4 ulps with Intel's estimate (2.1 ulps with AMD's), and 1 in 4 results off
+   by one ulp or more.
 */
 template <typename Packet, int Steps>
 struct generic_rsqrt_newton_step {
@@ -120,10 +124,13 @@ struct generic_rsqrt_newton_step<Packet, 0> {
    2. If a is zero, approx_rsqrt must be infinite.
    3. If a is infinite, approx_rsqrt must be zero.
 
-   If the preconditions are satisfied, which they are for the _*_rsqrt_ps
-   instructions on x86, the result has a maximum relative error of 2 ulps,
-   and correctly handles zero and infinity, and NaN. Positive denormal inputs
-   are treated as zero.
+   If the preconditions are satisfied, the result has a maximum relative error
+   of 3 ulps, and correctly handles zero and infinity, and NaN. Positive denormal
+   inputs are treated as zero. The last step multiplies the refined reciprocal
+   square root by a, which rounds three times after the residual is formed; where
+   a fused multiply-add is available, a last step on the square root itself,
+   y + (r / 2) (a - y^2) with y = a r, is within 1 ulp in one operation fewer
+   (see psqrt<Packet16f>).
 */
 template <typename Packet, int Steps = 1>
 struct generic_sqrt_newton_step {
@@ -150,17 +157,101 @@ struct generic_sqrt_newton_step {
   }
 };
 
+// sqrt(x^2 + y^2) for x, y >= 0. The generic version divides, so that no intermediate over- or underflows; it is
+// within 2 ulps. float and double have their own below.
+template <typename RealScalar, typename EnableIf = void>
+struct positive_real_hypot_impl {
+  EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE RealScalar run(const RealScalar& x, const RealScalar& y) {
+    // IEEE IEC 60559 special cases.
+    if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
+    if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
+
+    RealScalar p = numext::maxi(x, y);
+    if (numext::is_exactly_zero(p)) return RealScalar(0);
+    RealScalar qp = numext::mini(y, x) / p;
+    return p * numext::sqrt<RealScalar>(RealScalar(1) + qp * qp);
+  }
+};
+
+// Host code only: GPU and SYCL device code keeps the generic version. Double precision is slow or missing there,
+// and neither of the two below has been run on a device.
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(EIGEN_SYCL_DEVICE_ONLY)
+// float in double precision, where neither square rounds, over- or underflows: the sum of squares is rounded once
+// before the square root, and the result is the correctly rounded one except for a few inputs in a billion.
+template <>
+struct positive_real_hypot_impl<
+    float,
+    std::enable_if_t<std::numeric_limits<float>::is_iec559 && std::numeric_limits<double>::is_iec559 &&
+                     (std::numeric_limits<double>::digits >= 2 * std::numeric_limits<float>::digits + 2) &&
+                     (std::numeric_limits<double>::max_exponent > 2 * std::numeric_limits<float>::max_exponent + 1)>> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float run(const float& x, const float& y) {
+    // An infinite operand gives +inf even if the other one is NaN (IEC 60559). The operands are tested themselves:
+    // GCC 15 folds the same test away once it knows the result to be NaN (it takes both operands of a NaN sum to be
+    // NaN).
+    if (EIGEN_PREDICT_FALSE((numext::isinf)(x) || (numext::isinf)(y))) return NumTraits<float>::infinity();
+    const double dx = static_cast<double>(x);
+    const double dy = static_cast<double>(y);
+    const double xx = dx * dx;
+    return static_cast<float>(numext::sqrt(xx + dy * dy));
+  }
+};
+
+// double, as the square root of the sum of squares: no division, and one branch for operands whose squares neither
+// overflow nor lose bits to underflow. Where fma is an instruction the larger square is fused into the sum, so that
+// only the smaller square and the sum round before the square root, and the result is within 1.1 ulps; without it the
+// three roundings leave it within 1.2 ulps. Other operands, subnormal ones included, are scaled by a power of two.
+template <>
+struct positive_real_hypot_impl<double, std::enable_if_t<std::numeric_limits<double>::is_iec559>> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double run(const double& x, const double& y) {
+    // The larger and the smaller operand, in the form compilers turn into max and min instructions: a branch on x > y
+    // would be mispredicted half of the time for random operands.
+    const double p = x > y ? x : y;
+    const double q = y < x ? y : x;
+    // 2^-483 <= x + y <= 2^510 puts the larger operand in [2^-484, 2^510], where p^2 + q^2 is below 2^1022 and p^2 at
+    // least 2^-968, and excludes NaN and infinite operands. Testing the sum instead of p keeps the selection above
+    // free of branches with GCC.
+    const double sum = x + y;
+    if (EIGEN_PREDICT_TRUE(sum >= 4.004166190366202e-146 && sum <= 3.3519519824856493e+153)) {
+      return numext::sqrt(sum_of_squares(p, q, has_fast_fma<double>()));
+    }
+    return run_extreme(x, y);
+  }
+
+ private:
+  // Out of line, and without a second look at the sum: GCC (13 and 15 at least, with its default -ftrapping-math)
+  // threads the failed range test above into "sum < bound" for a NaN sum when the two share a function, which sent
+  // hypot(inf, NaN) down the scaled path.
+  EIGEN_DEVICE_FUNC static EIGEN_DONT_INLINE double run_extreme(double x, double y) {
+    // IEEE IEC 60559 special cases.
+    if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<double>::infinity();
+    if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<double>::quiet_NaN();
+    const double p = numext::maxi(x, y);
+    const double q = numext::mini(x, y);
+    if (numext::is_exactly_zero(p)) return 0.0;
+    // Scaled by 2^-514 above the range tested in run and by 2^600 below it, which brings subnormal operands into the
+    // normal range.
+    const bool large = p > 1.0;
+    const double scale = large ? 1.8645851828000517e-155 : 4.149515568880993e+180;
+    const double unscale = large ? 5.363123171977039e+154 : 2.409919865102884e-181;
+    return unscale * numext::sqrt(sum_of_squares(p * scale, q * scale, has_fast_fma<double>()));
+  }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double sum_of_squares(const double& p, const double& q, std::true_type) {
+    const double qq = q * q;
+    return numext::fma(p, p, qq);
+  }
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE double sum_of_squares(const double& p, const double& q,
+                                                                     std::false_type) {
+    const double pp = p * p;
+    const double qq = q * q;
+    return pp + qq;
+  }
+};
+#endif
+
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar positive_real_hypot(const RealScalar& x,
                                                                                const RealScalar& y) {
-  // IEEE IEC 60559 special cases.
-  if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
-  if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
-
-  RealScalar p = numext::maxi(x, y);
-  if (numext::is_exactly_zero(p)) return RealScalar(0);
-  RealScalar qp = numext::mini(y, x) / p;
-  return p * numext::sqrt<RealScalar>(RealScalar(1) + qp * qp);
+  return positive_real_hypot_impl<RealScalar>::run(x, y);
 }
 
 template <typename Scalar>

@@ -1395,6 +1395,78 @@ struct check_rsqrt_impl<std::complex<T>> {
   }
 };
 
+// numext::hypot: the IEEE special cases, exact results over the whole exponent range (which covers the scaled branches
+// of the double version and subnormal operands and results), and random operands against a wider reference. float and
+// double are within 1 ulp; other types keep the division-based formula, within 2.
+template <typename T>
+void check_hypot() {
+  using Wide = long double;
+  const T inf = NumTraits<T>::infinity();
+  const T nan = NumTraits<T>::quiet_NaN();
+  const T highest = NumTraits<T>::highest();
+  const T lowest_normal = (std::numeric_limits<T>::min)();
+  const T denorm_min = std::numeric_limits<T>::denorm_min();
+  const bool tight = std::is_same<T, float>::value || std::is_same<T, double>::value;
+
+  for (T x : {T(0), -T(0), denorm_min, T(1), -T(3), highest, inf, -inf, nan}) {
+    VERIFY_IS_EQUAL(numext::hypot(x, inf), inf);
+    VERIFY_IS_EQUAL(numext::hypot(-inf, x), inf);
+    if (!(numext::isinf)(x)) {
+      VERIFY((numext::isnan)(numext::hypot(x, nan)));
+      VERIFY((numext::isnan)(numext::hypot(nan, x)));
+    }
+  }
+  // +0 for zeros of either sign.
+  for (T x : {T(0), -T(0)}) {
+    for (T y : {T(0), -T(0)}) {
+      const T h = numext::hypot(x, y);
+      VERIFY(numext::is_exactly_zero(h) && !(std::signbit)(h));
+    }
+  }
+  // |x| when the other operand is zero or too small to matter, at both ends of the range.
+  for (T x : {denorm_min, T(3) * denorm_min, lowest_normal, T(1), T(1e10), highest}) {
+    VERIFY_IS_EQUAL(numext::hypot(x, T(0)), x);
+    VERIFY_IS_EQUAL(numext::hypot(-T(0), -x), x);
+  }
+  VERIFY_IS_EQUAL(numext::hypot(highest, T(1)), highest);
+  VERIFY_IS_EQUAL(numext::hypot(T(1), -highest), highest);
+  // Overflow only where the result exceeds the largest finite value.
+  VERIFY_IS_EQUAL(numext::hypot(highest, highest), inf);
+  VERIFY((numext::isfinite)(numext::hypot(highest / T(2), highest / T(2))));
+  VERIFY_IS_APPROX(numext::hypot(highest / T(2), highest / T(2)), highest * T(0.70710678118654752440L));
+
+  // (3, 4, 5) 2^k is exact in every binade, down to subnormal results and up to the overflow threshold.
+  const int digits = std::numeric_limits<T>::digits;
+  for (int k = std::numeric_limits<T>::min_exponent - digits; k < std::numeric_limits<T>::max_exponent - 3; ++k) {
+    const T three = numext::ldexp(T(3), k), four = numext::ldexp(T(4), k), five = numext::ldexp(T(5), k);
+    if (tight) {
+      VERIFY_IS_EQUAL(numext::hypot(three, four), five);
+      VERIFY_IS_EQUAL(numext::hypot(-four, three), five);
+    } else {
+      VERIFY_IS_APPROX(numext::hypot(three, four), five);
+    }
+  }
+
+  // Random significands; the larger operand anywhere in the range, the smaller up to digits + 2 binades below it.
+  const bool wide_reference = std::numeric_limits<Wide>::digits > digits;
+  const int budget = (tight ? 1 : 2) + (wide_reference ? 0 : 1);
+  for (int iter = 0; iter < 20000; ++iter) {
+    const int e = internal::random<int>(std::numeric_limits<T>::min_exponent, std::numeric_limits<T>::max_exponent - 2);
+    const int gap = internal::random<int>(0, digits + 2);
+    const T x = numext::ldexp(T(1) + internal::random<T>(T(0), T(1)), e);
+    const T y = numext::ldexp(T(1) + internal::random<T>(T(0), T(1)), e - gap);
+    const T h = numext::hypot(x, y);
+    const T ref = static_cast<T>(std::hypot(static_cast<Wide>(x), static_cast<Wide>(y)));
+    T lo = ref, hi = ref;
+    for (int i = 0; i < budget; ++i) {
+      lo = numext::nextafter(lo, T(0));
+      hi = numext::nextafter(hi, inf);
+    }
+    VERIFY(h >= lo && h <= hi);
+    VERIFY_IS_EQUAL(numext::hypot(y, -x), h);
+  }
+}
+
 template <typename T>
 void check_rsqrt() {
   check_rsqrt_impl<T>::run();
@@ -1889,6 +1961,10 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST_1(check_rsqrt<double>());
     CALL_SUBTEST_1(check_rsqrt<std::complex<float>>());
     CALL_SUBTEST_1(check_rsqrt<std::complex<double>>());
+
+    CALL_SUBTEST_1(check_hypot<float>());
+    CALL_SUBTEST_1(check_hypot<double>());
+    CALL_SUBTEST_1(check_hypot<long double>());
 
     CALL_SUBTEST_1(check_signbit<half>());
     CALL_SUBTEST_1(check_signbit<bfloat16>());
