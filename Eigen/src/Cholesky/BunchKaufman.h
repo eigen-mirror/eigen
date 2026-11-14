@@ -32,6 +32,35 @@ struct BunchKaufman_Traits;
 // constructor can pre-allocate the panel workspace.
 template <typename Scalar>
 inline Index bunch_kaufman_blocksize();
+
+// prod_k x_k = mantissa 2^exponent with frexp() keeping the mantissa in [1/2, 1), for the real scalars whose
+// scaled_product multiplies directly (half, bfloat16, custom types): only the result has to be representable.
+template <typename RealScalar>
+class bunch_kaufman_balanced_product {
+ public:
+  void multiply(const RealScalar& factor) {
+    RealScalar factorExponent, renorm;
+    const RealScalar factorMantissa = pfrexp<RealScalar>(factor, factorExponent);
+    // |factorMantissa| and |m_mantissa| are in [1/2, 1) unless zero, so the product stays normal and its rounding is
+    // the only error this step adds.
+    m_mantissa = pfrexp<RealScalar>(m_mantissa * factorMantissa, renorm);
+    m_exponent += Index(factorExponent) + Index(renorm);
+  }
+
+  RealScalar value() const {
+    // ldexp() saturates to zero or infinity but takes an int exponent; past this magnitude it has already
+    // saturated, so clamping first cannot change the result.
+    const Index limit = Index(NumTraits<RealScalar>::max_exponent()) - Index(NumTraits<RealScalar>::min_exponent()) +
+                        Index(NumTraits<RealScalar>::digits());
+    return numext::ldexp(m_mantissa, int(numext::mini(numext::maxi(m_exponent, -limit), limit)));
+  }
+  RealScalar abs() const { return numext::abs(value()); }
+  RealScalar logAbs() const { return numext::log(abs()); }
+
+ private:
+  RealScalar m_mantissa = RealScalar(1);
+  Index m_exponent = 0;
+};
 }  // namespace internal
 
 /** \ingroup Cholesky_Module
@@ -402,9 +431,12 @@ class BunchKaufman : public SolverBase<BunchKaufman<MatrixType_, UpLo_> > {
 
   /** \internal \returns \f$ \det(D) \f$, the product over the 1x1 and 2x2 diagonal blocks of D. D is
    * Hermitian, so a block determinant is real: \f$ d_{11} \f$ for a 1x1 block and
-   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. Accumulated as a mantissa and a power of two,
-   * so that only the result has to be representable. */
-  RealScalar determinantD() const;
+   * \f$ d_{11} d_{22} - |d_{21}|^2 \f$ for a 2x2 one. Returned as a mantissa and a power of two, so
+   * that only the result has to be representable. */
+  using DeterminantProduct =
+      std::conditional_t<internal::has_scaled_product<RealScalar>::value, internal::scaled_product<RealScalar>,
+                         internal::bunch_kaufman_balanced_product<RealScalar>>;
+  DeterminantProduct determinantD() const;
 
   MatrixType m_matrix;
   RealScalar m_l1_norm;
@@ -1028,40 +1060,26 @@ bool BunchKaufman<MatrixType, UpLo_>::solveInPlace(MatrixBase<Derived>& bAndX) c
 }
 
 template <typename MatrixType, int UpLo_>
-typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::determinantD() const {
+typename BunchKaufman<MatrixType, UpLo_>::DeterminantProduct BunchKaufman<MatrixType, UpLo_>::determinantD() const {
   const Index n = m_matrix.rows();
-  // det(D) is accumulated as mantissa * 2^exponent, the mantissa renormalized to [1/2, 1) after each
-  // block. Both a single 2x2 block determinant and the running product can leave the representable range
-  // while det(D) itself stays in it, and an overflowed block meeting an underflowed one gives NaN.
-  RealScalar mantissa(1);
-  Index exponent = 0;
+  DeterminantProduct product;
   Index k = 0;
   while (k < n) {
-    RealScalar blockM, blockE;
     if (k + 1 < n && !numext::is_exactly_zero(m_subdiag.coeff(k))) {
       const RealScalar d11 = numext::real(m_matrix.coeff(k, k));
       const RealScalar d22 = numext::real(m_matrix.coeff(k + 1, k + 1));
       const RealScalar d21 = numext::abs(m_subdiag.coeff(k));
-      RealScalar e21;
-      const RealScalar m21 = internal::pfrexp<RealScalar>(d21, e21);
-      blockM = m21 * m21 * scaledBlockDeterminant(d11, d22, d21);
-      blockE = RealScalar(2) * e21;
+      // det(D_k) = |d21| |d21| (det(D_k) / |d21|^2): |d21|^2 can leave the range where det(D) does not.
+      product.multiply(d21);
+      product.multiply(d21);
+      product.multiply(scaledBlockDeterminant(d11, d22, d21));
       k += 2;
     } else {
-      blockM = internal::pfrexp<RealScalar>(numext::real(m_matrix.coeff(k, k)), blockE);
+      product.multiply(numext::real(m_matrix.coeff(k, k)));
       k += 1;
     }
-    // |blockM| < 2 and, unless the block is singular, above 1/16, so the product below stays normal and
-    // its rounding is the only error this step adds.
-    RealScalar renorm;
-    mantissa = internal::pfrexp<RealScalar>(mantissa * blockM, renorm);
-    exponent += Index(blockE) + Index(renorm);
   }
-  // ldexp() saturates to zero or infinity but takes an int exponent; past this magnitude it has already
-  // saturated, so clamping first cannot change the result.
-  const Index limit = Index(NumTraits<RealScalar>::max_exponent()) - Index(NumTraits<RealScalar>::min_exponent()) +
-                      Index(NumTraits<RealScalar>::digits());
-  return numext::ldexp(mantissa, int(numext::mini(numext::maxi(exponent, -limit), limit)));
+  return product;
 }
 
 // A = P^T L D L^* P with L unit triangular, so det(A) = det(D) = prod over the 1x1 and 2x2 blocks of D.
@@ -1069,18 +1087,19 @@ typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, Up
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::Scalar BunchKaufman<MatrixType, UpLo_>::determinant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  return Scalar(determinantD());
+  return Scalar(determinantD().value());
 }
 
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::absDeterminant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
-  return numext::abs(determinantD());
+  return determinantD().abs();
 }
 
 template <typename MatrixType, int UpLo_>
 typename BunchKaufman<MatrixType, UpLo_>::RealScalar BunchKaufman<MatrixType, UpLo_>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "BunchKaufman is not initialized.");
+  EIGEN_IF_CONSTEXPR (internal::has_scaled_product<RealScalar>::value) return determinantD().logAbs();
   const Index n = m_matrix.rows();
   RealScalar result(0);
   Index k = 0;

@@ -279,8 +279,8 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
     Index exponent = 0;
     for (Index k1 = 0; k1 < s.cols(); ++k1)
       for (Index k2 = 0; k2 < s.rows(); ++k2)
-        det = internal::structured_balance(Complex(det * internal::structured_balance(s(k2, k1), exponent)), exponent);
-    return toScalar(internal::structured_ldexp_clamped(det, exponent), std::is_same<RealScalar, Scalar>());
+        det = internal::balance_exponent(Complex(det * internal::balance_exponent(s(k2, k1), exponent)), exponent);
+    return toScalar(internal::apply_exponent(det, exponent), std::is_same<RealScalar, Scalar>());
   }
 
   /** \returns the eigenvalues as the column-major flattening of the symbol:

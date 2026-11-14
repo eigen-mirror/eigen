@@ -674,6 +674,309 @@ void check_preserving_subnormals_fallbacks() {
   VERIFY_IS_EQUAL(internal::max_preserving_subnormals(1.5L, 2.5L), 2.5L);
 }
 
+// prod_k x_k with every factor and every partial product renormalized by the C library's frexp: the form
+// scaled_product must agree with bit for bit, since scaling by a power of two is exact.
+template <typename RealScalar>
+struct EagerProduct {
+  void multiply(const RealScalar& factor) {
+    if (factor == RealScalar(0) || !(std::isfinite)(factor) || !(std::isfinite)(mantissa)) {
+      mantissa *= factor;
+      return;
+    }
+    int factorExponent = 0, productExponent = 0;
+    mantissa = std::frexp(mantissa * std::frexp(factor, &factorExponent), &productExponent);
+    exponent += factorExponent + productExponent;
+  }
+  RealScalar value() const {
+    const long limit = 4L * std::numeric_limits<RealScalar>::max_exponent;
+    return std::ldexp(mantissa, int((std::min)((std::max)(exponent, -limit), limit)));
+  }
+  long double logAbs() const {
+    return std::log(std::abs(static_cast<long double>(mantissa))) + static_cast<long double>(exponent) * std::log(2.0L);
+  }
+
+  RealScalar mantissa = RealScalar(1);
+  long exponent = 0;
+};
+
+// The same value, a zero with its sign. long double has no bit pattern to compare.
+template <typename RealScalar>
+bool identical(const RealScalar& a, const RealScalar& b) {
+  return ((std::isnan)(a) && (std::isnan)(b)) || (a == b && (std::signbit)(a) == (std::signbit)(b));
+}
+
+template <typename RealScalar>
+void check_scaled_product_real() {
+  using Product = internal::scaled_product<RealScalar>;
+  using Vector = Matrix<RealScalar, Dynamic, 1>;
+  const int maxExponent = std::numeric_limits<RealScalar>::max_exponent;
+  const RealScalar big = std::ldexp(RealScalar(1), maxExponent / 2 + 2);
+  const RealScalar small = std::ldexp(RealScalar(1), -(maxExponent / 2 + 2));
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  const auto product = [](std::initializer_list<RealScalar> factors) {
+    Product result;
+    for (const RealScalar& factor : factors) result.multiply(factor);
+    return result;
+  };
+
+  // While the plain product stays in the normal range, value() is that product.
+  for (int trial = 0; trial < 100; ++trial) {
+    const Vector factors = Vector::NullaryExpr(
+        40, []() { return std::ldexp(internal::random<RealScalar>(-2, 2), internal::random(-3, 3)); });
+    RealScalar plain(1);
+    Product sequential;
+    for (Index i = 0; i < factors.size(); ++i) {
+      plain *= factors[i];
+      sequential.multiply(factors[i]);
+    }
+    VERIFY_IS_EQUAL(sequential.value(), plain);
+    // scaled_prod() multiplies whole blocks on independent chains, so it associates differently: each of the n
+    // multiplications rounds once either way.
+    VERIFY(numext::abs(internal::scaled_prod(factors).value() - plain) <=
+           RealScalar(2 * factors.size()) * NumTraits<RealScalar>::epsilon() * numext::abs(plain));
+  }
+
+  // Factors across the whole exponent range, subnormals included: the same bits as the eager form, whether the result
+  // is normal, subnormal, zero or infinite.
+  int normalResults = 0, saturatedResults = 0;
+  for (int trial = 0; trial < 2000; ++trial) {
+    const Index size = internal::random<Index>(1, 40);
+    // Narrow spreads keep the result in range through many excursions; wide ones saturate it.
+    const int spread = internal::random(1, 2 * maxExponent);
+    Product scaled;
+    EagerProduct<RealScalar> eager;
+    for (Index i = 0; i < size; ++i) {
+      const RealScalar factor = std::ldexp(internal::random<RealScalar>(-2, 2),
+                                           (i % 2 == 0 ? 1 : -1) * (maxExponent - internal::random(0, spread)));
+      scaled.multiply(factor);
+      eager.multiply(factor);
+    }
+    const RealScalar expected = eager.value();
+    VERIFY(identical(scaled.value(), expected));
+    VERIFY(identical(scaled.abs(), RealScalar(std::abs(expected))));
+    // log(mantissa) and exponent log(2) each round once, and the mantissa is the eager one: the log is right
+    // whether or not the product itself is representable.
+    const long double expectedLog = eager.logAbs();
+    const long double tolerance = 4 * NumTraits<RealScalar>::epsilon() * (std::max)(1.0L, std::abs(expectedLog));
+    if ((std::isfinite)(expectedLog))
+      VERIFY(std::abs(static_cast<long double>(scaled.logAbs()) - expectedLog) <= tolerance);
+    else  // a zero factor
+      VERIFY_IS_EQUAL(static_cast<long double>(scaled.logAbs()), expectedLog);
+    if ((std::isnormal)(expected))
+      ++normalResults;
+    else
+      ++saturatedResults;
+  }
+  VERIFY(normalResults > 100 && saturatedResults > 100);
+
+  // The same factors through scaled_prod(), which multiplies a block of 8 on independent chains when every factor is
+  // within 2^(+-max_exponent / 10) and falls back to one factor at a time otherwise. The log has the same bound
+  // whether or not the product is representable; each of the n multiplications rounds once.
+  for (int trial = 0; trial < 2000; ++trial) {
+    const Index size = internal::random<Index>(1, 40);
+    const int spread = internal::random(1, 2 * maxExponent);
+    Vector factors(size);
+    EagerProduct<RealScalar> eager;
+    for (Index i = 0; i < size; ++i) {
+      factors[i] = std::ldexp(internal::random<RealScalar>(-2, 2),
+                              (i % 2 == 0 ? 1 : -1) * (maxExponent - internal::random(0, spread)));
+      eager.multiply(factors[i]);
+    }
+    const long double expectedLog = eager.logAbs();
+    if (!(std::isfinite)(expectedLog)) continue;
+    const long double tolerance =
+        (4 + 2 * size) * NumTraits<RealScalar>::epsilon() * (std::max)(1.0L, std::abs(expectedLog));
+    VERIFY(std::abs(static_cast<long double>(internal::scaled_prod(factors).logAbs()) - expectedLog) <= tolerance);
+  }
+  // At the block bound, just inside it and just outside it, with partial products that overflow and that do not.
+  for (int offset = -1; offset <= 1; ++offset) {
+    const int blockExponent = maxExponent / 10 + offset;
+    const RealScalar atBound = std::ldexp(RealScalar(1), blockExponent);
+    Vector alternating(32), sorted(32);
+    for (Index i = 0; i < 32; ++i) {
+      alternating[i] = i % 2 == 0 ? RealScalar(3) * atBound : RealScalar(1) / atBound;
+      sorted[i] = i < 16 ? -atBound : RealScalar(1) / atBound;
+    }
+    VERIFY_IS_EQUAL(internal::scaled_prod(alternating).value(), RealScalar(43046721));
+    VERIFY_IS_EQUAL(internal::scaled_prod(sorted).value(), RealScalar(1));
+    VERIFY_IS_EQUAL(internal::scaled_prod(Vector::Constant(32, -atBound)).value(), inf);
+    VERIFY_IS_EQUAL(internal::scaled_prod(Vector::Constant(32, RealScalar(1) / atBound)).value(), RealScalar(0));
+    sorted[31] = RealScalar(0);
+    VERIFY_IS_EQUAL(internal::scaled_prod(sorted).value(), RealScalar(0));
+    sorted[30] = nan;
+    VERIFY((numext::isnan)(internal::scaled_prod(sorted).value()));
+  }
+
+  // Partial products that leave the range on the way to an exact result.
+  VERIFY_IS_EQUAL(product({big, big, big, small, small, small, RealScalar(3), RealScalar(-5)}).value(),
+                  RealScalar(-15));
+  VERIFY_IS_EQUAL(product({small, small, small, big, big, big, RealScalar(3), RealScalar(-5)}).value(),
+                  RealScalar(-15));
+  // A zero factor decides, wherever the partial product was.
+  VERIFY_IS_EQUAL(product({big, big, big, RealScalar(0)}).value(), RealScalar(0));
+  VERIFY_IS_EQUAL(product({RealScalar(0), big, big, big}).value(), RealScalar(0));
+  VERIFY_IS_EQUAL(product({big, big, big, RealScalar(0)}).logAbs(), -inf);
+  // Only the result saturates, with its sign.
+  VERIFY_IS_EQUAL(product({big, -big, big}).value(), -inf);
+  VERIFY_IS_EQUAL(product({small, -small, small}).value(), RealScalar(0));
+  VERIFY((std::signbit)(product({small, -small, small}).value()));
+  // log(mantissa), exponent log(2) and their sum each round once.
+  VERIFY(numext::abs(product({big, -big, big}).logAbs() - RealScalar(3) * std::log(big)) <=
+         RealScalar(4) * NumTraits<RealScalar>::epsilon() * RealScalar(3) * std::log(big));
+  // Infinities and NaNs propagate as in the plain product.
+  VERIFY_IS_EQUAL(product({big, big, -inf, small}).value(), -inf);
+  VERIFY((numext::isnan)(product({big, big, inf, RealScalar(0)}).value()));
+  VERIFY((numext::isnan)(product({RealScalar(0), inf}).value()));
+  VERIFY((numext::isnan)(product({big, nan, RealScalar(0)}).value()));
+  VERIFY((numext::isnan)(product({big, nan, small}).logAbs()));
+
+  // logAbs() of a product next to one is the log of that product, not a cancelling sum.
+  const RealScalar nearOne = RealScalar(1) + 4 * NumTraits<RealScalar>::epsilon();
+  VERIFY_IS_EQUAL(product({big, nearOne, small}).logAbs(), std::log(nearOne));
+  VERIFY_IS_EQUAL(Product().logAbs(), RealScalar(0));
+
+  // Products of products, including a product with itself, and quotients.
+  Product left = product({big, RealScalar(3)});
+  left.multiply(product({big, big, RealScalar(5)}));
+  VERIFY_IS_EQUAL(left.value(), inf);
+  left.divide(big);
+  left.divide(big);
+  VERIFY_IS_EQUAL(left.value(), RealScalar(15) * big);
+  Product square = product({big, RealScalar(-3)});
+  square.multiply(square);
+  square.divide(big);
+  VERIFY_IS_EQUAL(square.value(), RealScalar(9) * big);
+  Product quotient = product({small});
+  quotient.divide(big);
+  quotient.divide(big);
+  quotient.multiply(big);
+  quotient.multiply(big);
+  VERIFY_IS_EQUAL(quotient.value(), small);
+  VERIFY_IS_EQUAL(internal::scaled_prod_squared(Vector::Constant(3, RealScalar(3) * big)).value(), inf);
+  VERIFY_IS_EQUAL(internal::scaled_prod_squared(Vector::Constant(3, RealScalar(3))).value(), RealScalar(729));
+  VERIFY_IS_EQUAL(internal::scaled_prod(Vector(0)).value(), RealScalar(1));
+
+  // One log for the whole expression: within the rounding of that log and of the product.
+  Vector graded(6);
+  graded << big, RealScalar(3) * big, big, small, RealScalar(-5) * small, small;
+  VERIFY(numext::abs(internal::log_abs_prod(graded) - std::log(RealScalar(15))) <=
+         RealScalar(4) * NumTraits<RealScalar>::epsilon() * std::log(RealScalar(15)));
+}
+
+template <typename RealScalar>
+void check_scaled_product_complex() {
+  using Complex = std::complex<RealScalar>;
+  using Product = internal::scaled_product<Complex>;
+  using Vector = Matrix<Complex, Dynamic, 1>;
+  const int maxExponent = std::numeric_limits<RealScalar>::max_exponent;
+  const RealScalar big = std::ldexp(RealScalar(1), maxExponent / 2 + 2);
+  const RealScalar small = std::ldexp(RealScalar(1), -(maxExponent / 2 + 2));
+  const auto product = [](std::initializer_list<Complex> factors) {
+    Product result;
+    for (const Complex& factor : factors) result.multiply(factor);
+    return result;
+  };
+
+  for (int trial = 0; trial < 100; ++trial) {
+    const Vector factors = Vector::Random(30);
+    const Complex scaled = internal::scaled_prod(factors).value();
+    Complex plain(1);
+    for (Index k = 0; k < factors.size(); ++k) plain *= factors[k];
+    // The same multiplications, but a compiler may contract either complex product to FMAs: each then rounds
+    // differently, by at most 2 sqrt(2) epsilon.
+    VERIFY(std::abs(scaled - plain) <=
+           RealScalar(8 * factors.size()) * NumTraits<RealScalar>::epsilon() * std::abs(plain));
+  }
+
+  // x_k 2^(e_k) with sum_k e_k = 0 has the product of the x_k, which stays in range; each multiplication rounds once.
+  for (int trial = 0; trial < 500; ++trial) {
+    const Index pairs = internal::random<Index>(1, 15);
+    Product scaled;
+    Complex expected(1);
+    for (Index i = 0; i < pairs; ++i) {
+      const int exponent = internal::random(-maxExponent + 4, maxExponent - 4);
+      const Complex first = internal::random<Complex>(), second = internal::random<Complex>();
+      scaled.multiply(Complex(std::ldexp(first.real(), exponent), std::ldexp(first.imag(), exponent)));
+      scaled.multiply(Complex(std::ldexp(second.real(), -exponent), std::ldexp(second.imag(), -exponent)));
+      expected *= first;
+      expected *= second;
+    }
+    const RealScalar tolerance = RealScalar(4 * 2 * pairs) * NumTraits<RealScalar>::epsilon() * std::abs(expected);
+    VERIFY(std::abs(scaled.value() - expected) <= tolerance);
+    VERIFY(numext::abs(scaled.abs() - std::abs(expected)) <= tolerance);
+  }
+
+  const Complex i(0, 1);
+  VERIFY_IS_EQUAL(product({big * i, big * i, big * i, small, small, small * i, Complex(3, 4)}).value(), Complex(3, 4));
+  VERIFY_IS_EQUAL(product({big * i, big, big, Complex(0)}).value(), Complex(0));
+  // |mantissa| overflows here, |product| does not.
+  const RealScalar high = NumTraits<RealScalar>::highest() / RealScalar(2);
+  VERIFY_IS_EQUAL(product({Complex(small, 0), Complex(high, high), Complex(high, high), Complex(small, 0)}).abs(),
+                  RealScalar(2) * (high * small) * (high * small));
+  VERIFY(numext::abs(product({Complex(0, big), Complex(big, 0), Complex(0, big)}).logAbs() -
+                     RealScalar(3) * std::log(big)) <=
+         RealScalar(4) * NumTraits<RealScalar>::epsilon() * RealScalar(3) * std::log(big));
+  Product quotient = product({Complex(small, small)});
+  quotient.divide(Complex(0, big));
+  quotient.divide(Complex(0, big));
+  quotient.multiply(Complex(big, 0));
+  quotient.multiply(Complex(big, 0));
+  VERIFY_IS_EQUAL(quotient.value(), Complex(-small, -small));
+}
+
+// A subnormal factor, a subnormal partial product and a subnormal result all survive flush-to-zero, where the plain
+// product reads or writes a zero.
+template <typename RealScalar>
+void check_scaled_product_flush_to_zero() {
+  const int minExponent = std::numeric_limits<RealScalar>::min_exponent;
+  const RealScalar subnormal = std::ldexp(RealScalar(3), minExponent - 8);
+  const RealScalar up = std::ldexp(RealScalar(1), 40);
+  const RealScalar down = std::ldexp(RealScalar(1), minExponent + 20);
+  const RealScalar expectedNormal = std::ldexp(RealScalar(3), minExponent + 72);
+  const RealScalar expectedSubnormal = std::ldexp(RealScalar(1), minExponent - 4);
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    internal::scaled_product<RealScalar> fromSubnormal;
+    fromSubnormal.multiply(subnormal);
+    fromSubnormal.multiply(up);
+    fromSubnormal.multiply(up);
+    VERIFY(same_bits(fromSubnormal.value(), expectedNormal));
+    internal::scaled_product<RealScalar> toSubnormal;
+    toSubnormal.multiply(down);
+    toSubnormal.multiply(std::ldexp(RealScalar(1), -24));
+    VERIFY(same_bits(toSubnormal.value(), expectedSubnormal));
+    toSubnormal.multiply(up);
+    VERIFY(same_bits(toSubnormal.value(), std::ldexp(RealScalar(1), minExponent + 36)));
+  });
+}
+
+// Scalars without an exact frexp and ldexp multiply directly.
+void check_scaled_product_selection() {
+  STATIC_CHECK(internal::has_scaled_product<float>::value);
+  STATIC_CHECK(internal::has_scaled_product<double>::value);
+  STATIC_CHECK(internal::has_scaled_product<long double>::value);
+  STATIC_CHECK(internal::has_scaled_product<std::complex<float>>::value);
+  STATIC_CHECK(internal::has_scaled_product<std::complex<double>>::value);
+  STATIC_CHECK(!internal::has_scaled_product<int>::value);
+  STATIC_CHECK(!internal::has_scaled_product<std::complex<int>>::value);
+  STATIC_CHECK(!internal::has_scaled_product<half>::value);
+  STATIC_CHECK(!internal::has_scaled_product<bfloat16>::value);
+  STATIC_CHECK(!internal::has_scaled_product<AnnoyingScalar>::value);
+
+  const Vector4i integers(2, -3, 5, 7);
+  VERIFY_IS_EQUAL(internal::scaled_prod(integers).value(), -210);
+  VERIFY_IS_EQUAL(internal::scaled_prod_squared(integers).value(), 44100);
+  internal::scaled_product<int> quotient = internal::scaled_prod(integers);
+  quotient.divide(-21);
+  VERIFY_IS_EQUAL(quotient.value(), 10);
+  VERIFY_IS_EQUAL(quotient.abs(), 10);
+
+  Matrix<half, 3, 1> halves;
+  halves << half(2.0f), half(-4.0f), half(0.5f);
+  VERIFY_IS_EQUAL(internal::scaled_prod(halves).value(), half(-4.0f));
+  VERIFY_IS_APPROX(float(internal::log_abs_prod(halves)), std::log(4.0f));
+}
+
 EIGEN_DECLARE_TEST(safe_scaling) {
   CALL_SUBTEST(check_flush_to_zero_modes<float>());
   CALL_SUBTEST(check_flush_to_zero_modes<double>());
@@ -716,4 +1019,14 @@ EIGEN_DECLARE_TEST(safe_scaling) {
   CALL_SUBTEST(check_recover_flushed_max_coeff<std::complex<float>>());
   CALL_SUBTEST(check_recover_flushed_max_coeff<double>());
   CALL_SUBTEST(check_recover_flushed_max_coeff<std::complex<double>>());
+  for (int i = 0; i < g_repeat; ++i) {
+    CALL_SUBTEST(check_scaled_product_real<float>());
+    CALL_SUBTEST(check_scaled_product_real<double>());
+    CALL_SUBTEST(check_scaled_product_real<long double>());
+    CALL_SUBTEST(check_scaled_product_complex<float>());
+    CALL_SUBTEST(check_scaled_product_complex<double>());
+  }
+  CALL_SUBTEST(check_scaled_product_flush_to_zero<float>());
+  CALL_SUBTEST(check_scaled_product_flush_to_zero<double>());
+  CALL_SUBTEST(check_scaled_product_selection());
 }

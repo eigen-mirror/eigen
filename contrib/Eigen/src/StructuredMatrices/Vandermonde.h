@@ -236,11 +236,9 @@ class Vandermonde : public EigenBase<Vandermonde<Scalar_, Rows_, Cols_>> {
     internal::structured_exponent_type exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i)
-        det = internal::structured_balance(
-            det * internal::structured_balance(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent), exponent);
-    // ldexp saturates cleanly to zero / infinity once the accumulated exponent
-    // leaves the representable range; the clamp only guards the narrowing to int.
-    return internal::structured_ldexp_clamped(det, exponent);
+        det = internal::balance_exponent(
+            det * internal::balance_exponent(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent), exponent);
+    return internal::apply_exponent(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst: column \c j is the

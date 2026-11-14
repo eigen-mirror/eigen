@@ -186,19 +186,19 @@ class Cauchy : public EigenBase<Cauchy<Scalar_, Rows_, Cols_>> {
     Index exponent = 0;
     for (Index j = 1; j < n; ++j)
       for (Index i = 0; i < j; ++i) {
-        const Scalar xDiff = internal::structured_balance(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent);
-        det = internal::structured_balance(Scalar(det * xDiff), exponent);
-        const Scalar yDiff = internal::structured_balance(Scalar(m_y.coeff(i) - m_y.coeff(j)), exponent);
-        det = internal::structured_balance(Scalar(det * yDiff), exponent);
+        const Scalar xDiff = internal::balance_exponent(Scalar(m_x.coeff(j) - m_x.coeff(i)), exponent);
+        det = internal::balance_exponent(Scalar(det * xDiff), exponent);
+        const Scalar yDiff = internal::balance_exponent(Scalar(m_y.coeff(i) - m_y.coeff(j)), exponent);
+        det = internal::balance_exponent(Scalar(det * yDiff), exponent);
       }
     for (Index j = 0; j < n; ++j)
       for (Index i = 0; i < n; ++i) {
         Index denomExponent = 0;
-        const Scalar d = internal::structured_balance(Scalar(m_x.coeff(i) - m_y.coeff(j)), denomExponent);
+        const Scalar d = internal::balance_exponent(Scalar(m_x.coeff(i) - m_y.coeff(j)), denomExponent);
         exponent -= denomExponent;
-        det = internal::structured_balance(Scalar(det / d), exponent);
+        det = internal::balance_exponent(Scalar(det / d), exponent);
       }
-    return internal::structured_ldexp_clamped(det, exponent);
+    return internal::apply_exponent(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst, one vectorized

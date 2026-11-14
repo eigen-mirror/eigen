@@ -706,6 +706,263 @@ struct safe_scaling<long double, true> : safe_scaling_operations<long double, tr
 };
 #endif
 
+// max(|re z|, |im z|), or |z| for a real scalar: finite whenever z is, and within a factor sqrt(2) of |z|. Read from
+// the representation for std::complex<float> and std::complex<double>, where a comparison under FTZ/DAZ reads a
+// subnormal component as zero.
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component_magnitude_impl(const Scalar& z,
+                                                                                                true_type) {
+  return max_preserving_subnormals_impl(numext::real(z), numext::imag(z), true_type());
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component_magnitude_impl(const Scalar& z,
+                                                                                                false_type) {
+  return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+}
+template <typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component_magnitude(const Scalar& z) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  constexpr bool kReadsRepresentation =
+      complex_array_access<Scalar>::value && use_subnormal_preserving_scaling<RealScalar, RealScalar>::value;
+  return component_magnitude_impl(z, bool_constant<kReadsRepresentation>());
+}
+
+template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
+struct exponent_scaling_impl {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar ldexp(const Scalar& z, int exponent) {
+    return Scalar(ldexp_preserving_subnormals(numext::real(z), exponent),
+                  ldexp_preserving_subnormals(numext::imag(z), exponent));
+  }
+};
+template <typename Scalar>
+struct exponent_scaling_impl<Scalar, false> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar ldexp(const Scalar& x, int exponent) {
+    return ldexp_preserving_subnormals(x, exponent);
+  }
+};
+
+// z 2^exponent, component-wise for a complex scalar. ldexp saturates to a signed zero or infinity once the exponent
+// leaves the representable range, so the clamp only guards the narrowing to int.
+template <typename Scalar, typename Exponent>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar apply_exponent(const Scalar& z, Exponent exponent) {
+  constexpr Exponent kMaxExponent = Exponent(1) << 24;
+  return exponent_scaling_impl<Scalar>::ldexp(
+      z, static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent)));
+}
+
+// Returns z 2^-e with component_magnitude() in [1/2, 1) and adds e to exponent. The scaling is exact. A zero, an
+// infinity or a NaN comes back unchanged. The tests and the scaling read the representation for float and double:
+// under FTZ/DAZ a comparison or a frexp reads a subnormal as zero.
+template <typename Scalar, typename Exponent>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Scalar balance_exponent(const Scalar& z, Exponent& exponent) {
+  const typename NumTraits<Scalar>::Real magnitude = component_magnitude(z);
+  if (numext::is_exactly_zero_no_flush(magnitude) || !(numext::isfinite)(magnitude)) return z;
+  const int e = frexp_exponent_preserving_subnormals(magnitude);
+  exponent += e;
+  return exponent_scaling_impl<Scalar>::ldexp(z, -e);
+}
+
+// scaled_product separates the exponent for the binary floating-point types and their std::complex, whose frexp and
+// ldexp are exact and whose numeric_limits bound the normal range. Every other scalar multiplies directly.
+template <typename Scalar>
+struct has_scaled_product
+    : bool_constant<supports_power_of_two_scaling<typename NumTraits<Scalar>::Real>::value &&
+                    std::is_floating_point<typename NumTraits<Scalar>::Real>::value &&
+                    (std::is_same<Scalar, typename NumTraits<Scalar>::Real>::value ||
+                     std::is_same<Scalar, std::complex<typename NumTraits<Scalar>::Real>>::value)> {};
+
+// prod_k x_k = mantissa 2^exponent, the split form of LINPACK's xGEDI (Dongarra, Bunch, Moler and Stewart, LINPACK
+// Users' Guide, 1979). It overflows or underflows only if prod_k x_k does, whatever the partial products do, and a
+// zero factor gives zero; infinities and NaNs propagate as in the plain product. The exponent is split off only when
+// a partial product leaves the range in_range() accepts ([min, highest / 2] for a real scalar), by exact powers of two,
+// so value() is the plain product bit for bit whenever that one stays there.
+template <typename Scalar, bool Scaled = has_scaled_product<Scalar>::value>
+class scaled_product {
+ public:
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using Exponent = numext::int64_t;
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void multiply(const Scalar& factor) {
+    const Scalar product = m_mantissa * factor;
+    if (EIGEN_PREDICT_TRUE(in_range(product)))
+      m_mantissa = product;
+    else
+      rescale(factor);
+  }
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void divide(const Scalar& divisor) {
+    const Scalar quotient = m_mantissa / divisor;
+    if (EIGEN_PREDICT_TRUE(in_range(quotient)))
+      m_mantissa = quotient;
+    else
+      rescale_quotient(divisor);
+  }
+
+  EIGEN_DEVICE_FUNC void multiply(const scaled_product& other) {
+    // other may be *this.
+    const Exponent exponent = other.m_exponent;
+    const Scalar mantissa = other.m_mantissa;
+    multiply(mantissa);
+    m_exponent += exponent;
+  }
+
+  EIGEN_DEVICE_FUNC Scalar value() const {
+    return m_exponent == 0 ? m_mantissa : apply_exponent(m_mantissa, m_exponent);
+  }
+
+  // |prod_k x_k|, through the balanced mantissa: |mantissa| can overflow where the product's modulus does not.
+  EIGEN_DEVICE_FUNC RealScalar abs() const {
+    Exponent exponent = m_exponent;
+    const RealScalar magnitude = numext::abs(balance_exponent(m_mantissa, exponent));
+    return apply_exponent(magnitude, exponent);
+  }
+
+  // log|prod_k x_k| = log|mantissa| + exponent log(2): -infinity for a zero product.
+  EIGEN_DEVICE_FUNC RealScalar logAbs() const {
+    Exponent exponent = m_exponent;
+    RealScalar magnitude = numext::abs(balance_exponent(m_mantissa, exponent));
+    // With the magnitude in [3/4, 3/2), its log is the result if the exponent is zero and otherwise below 0.6
+    // |exponent log(2)|, so the sum does not cancel.
+    if (magnitude < RealScalar(0.75)) {
+      magnitude *= RealScalar(2);
+      --exponent;
+    }
+    return numext::log(magnitude) + RealScalar(exponent) * numext::log(RealScalar(2));
+  }
+
+ private:
+  // The upper bound is below highest(): under -ffinite-math-only a compiler folds `x <= highest()` to true, and an
+  // overflowed product would pass.
+  EIGEN_DEVICE_FUNC static constexpr RealScalar upper_bound() {
+    return NumTraits<RealScalar>::highest() / RealScalar(2);
+  }
+
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool in_range(const RealScalar& x) {
+    const RealScalar magnitude = numext::abs(x);
+    return magnitude >= (std::numeric_limits<RealScalar>::min)() && magnitude <= upper_bound();
+  }
+
+  // A term of a complex product that underflows is off by at most min (denorm_min with gradual underflow), which is
+  // epsilon relative to a component of at least min / epsilon. A term that overflows leaves a component infinite or
+  // NaN. This fast path multiplies in floating point, so under DAZ it reads a subnormal component as zero.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool in_range(const std::complex<RealScalar>& z) {
+    const RealScalar kLowest = (std::numeric_limits<RealScalar>::min)() / NumTraits<RealScalar>::epsilon();
+    const RealScalar re = numext::abs(numext::real(z));
+    const RealScalar im = numext::abs(numext::imag(z));
+    return re <= upper_bound() && im <= upper_bound() && (re >= kLowest || im >= kLowest);
+  }
+
+  // Both operands balanced into [1/2, sqrt(2)) in modulus multiply into [1/4, 2). A zero, infinite or NaN operand is
+  // left alone and so propagates.
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void rescale(const Scalar& factor) {
+    const Scalar balancedFactor = balance_exponent(factor, m_exponent);
+    m_mantissa = balance_exponent(m_mantissa, m_exponent) * balancedFactor;
+  }
+
+  // The balanced quotient has modulus in (1/2 sqrt(1/2), 2 sqrt(2)).
+  EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void rescale_quotient(const Scalar& divisor) {
+    Exponent divisorExponent = 0;
+    const Scalar balancedDivisor = balance_exponent(divisor, divisorExponent);
+    m_mantissa = balance_exponent(m_mantissa, m_exponent) / balancedDivisor;
+    m_exponent -= divisorExponent;
+  }
+
+  Scalar m_mantissa = Scalar(1);
+  Exponent m_exponent = 0;
+};
+
+template <typename Scalar>
+class scaled_product<Scalar, false> {
+ public:
+  using RealScalar = typename NumTraits<Scalar>::Real;
+
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void multiply(const Scalar& factor) { m_product *= factor; }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void divide(const Scalar& divisor) { m_product /= divisor; }
+  EIGEN_DEVICE_FUNC void multiply(const scaled_product& other) { m_product *= other.m_product; }
+  EIGEN_DEVICE_FUNC Scalar value() const { return m_product; }
+  EIGEN_DEVICE_FUNC RealScalar abs() const { return numext::abs(m_product); }
+  // No separate exponent to fall back on: sum the logs of the factors instead where the product can leave the range.
+  EIGEN_DEVICE_FUNC RealScalar logAbs() const { return numext::log(numext::abs(m_product)); }
+
+ private:
+  Scalar m_product = Scalar(1);
+};
+
+// The product of kScaledProdBlock factors with component magnitudes in [2^-L, 2^L], L = max_exponent / 10, has
+// modulus in [2^(-8 L), 2^(8 L + 4)] under any association, and so do its partial products: nothing overflows, and a
+// term of a complex product that underflows is negligible. Such a block is multiplied on independent chains and
+// enters the scaled product through one range test, instead of one test on a single chain per factor.
+constexpr int kScaledProdBlock = 8;
+
+template <typename Evaluator, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index scaled_prod_blocks(const Evaluator&, Index,
+                                                               scaled_product<Scalar, false>&) {
+  return 0;
+}
+
+// Multiplies the leading whole blocks into product and returns the number of coefficients consumed.
+template <typename Evaluator, typename Scalar>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index scaled_prod_blocks(const Evaluator& coeffs, Index size,
+                                                               scaled_product<Scalar, true>& product) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const RealScalar upper = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 10);
+  const RealScalar lower = RealScalar(1) / upper;
+  Index i = 0;
+  for (; i + kScaledProdBlock <= size; i += kScaledProdBlock) {
+    Scalar chains[4] = {Scalar(1), Scalar(1), Scalar(1), Scalar(1)};
+    RealScalar smallest = upper, largest = lower;
+    for (int j = 0; j < kScaledProdBlock; ++j) {
+      const Scalar factor = coeffs.coeff(i + j);
+      const RealScalar magnitude = numext::maxi(numext::abs(numext::real(factor)), numext::abs(numext::imag(factor)));
+      smallest = numext::mini(smallest, magnitude);
+      largest = numext::maxi(largest, magnitude);
+      chains[j % 4] *= factor;
+    }
+    if (EIGEN_PREDICT_TRUE(smallest >= lower && largest <= upper)) {
+      product.multiply((chains[0] * chains[1]) * (chains[2] * chains[3]));
+    } else {
+      for (int j = 0; j < kScaledProdBlock; ++j) product.multiply(coeffs.coeff(i + j));
+    }
+  }
+  return i;
+}
+
+// The product of the coefficients of a vector expression.
+template <typename Derived>
+EIGEN_DEVICE_FUNC scaled_product<typename Derived::Scalar> scaled_prod(const DenseBase<Derived>& factors) {
+  EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
+  const evaluator<Derived> coeffs(factors.derived());
+  scaled_product<typename Derived::Scalar> product;
+  for (Index i = scaled_prod_blocks(coeffs, factors.size(), product); i < factors.size(); ++i)
+    product.multiply(coeffs.coeff(i));
+  return product;
+}
+
+// (prod_i x_i)^2, the determinant of L L^T from the diagonal of L.
+template <typename Derived>
+EIGEN_DEVICE_FUNC scaled_product<typename Derived::Scalar> scaled_prod_squared(const DenseBase<Derived>& factors) {
+  scaled_product<typename Derived::Scalar> product = scaled_prod(factors);
+  product.multiply(product);
+  return product;
+}
+
+// log|prod_i x_i| of a vector expression: through scaled_product where it separates the exponent, which costs one log
+// and has absolute error ~(n + |result|) epsilon, and otherwise as the sum of the logs.
+template <typename Derived>
+EIGEN_DEVICE_FUNC typename NumTraits<typename Derived::Scalar>::Real log_abs_prod(const DenseBase<Derived>& factors,
+                                                                                  true_type) {
+  return scaled_prod(factors).logAbs();
+}
+template <typename Derived>
+EIGEN_DEVICE_FUNC typename NumTraits<typename Derived::Scalar>::Real log_abs_prod(const DenseBase<Derived>& factors,
+                                                                                  false_type) {
+  return factors.derived().array().abs().log().sum();
+}
+template <typename Derived>
+EIGEN_DEVICE_FUNC typename NumTraits<typename Derived::Scalar>::Real log_abs_prod(const DenseBase<Derived>& factors) {
+  return log_abs_prod(factors, bool_constant<has_scaled_product<typename Derived::Scalar>::value>());
+}
+
 }  // namespace internal
 }  // namespace Eigen
 

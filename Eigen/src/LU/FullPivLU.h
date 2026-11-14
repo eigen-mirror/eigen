@@ -507,7 +507,7 @@ template <typename MatrixType, typename PermutationIndex>
 typename internal::traits<MatrixType>::Scalar FullPivLU<MatrixType, PermutationIndex>::determinant() const {
   eigen_assert(m_isInitialized && "LU is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_lu, "You can't take the determinant of a non-square matrix!");
-  return Scalar(m_det_pq) * Scalar(m_lu.diagonal().prod());
+  return Scalar(m_det_pq) * Scalar(internal::scaled_prod(m_lu.diagonal()).value());
 }
 
 template <typename MatrixType, typename PermutationIndex>
@@ -515,7 +515,7 @@ typename FullPivLU<MatrixType, PermutationIndex>::RealScalar FullPivLU<MatrixTyp
     const {
   eigen_assert(m_isInitialized && "LU is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_lu, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? numext::abs(m_lu.diagonal().prod()) : RealScalar(0);
+  return isInjective() ? internal::scaled_prod(m_lu.diagonal()).abs() : RealScalar(0);
 }
 
 template <typename MatrixType, typename PermutationIndex>
@@ -523,7 +523,7 @@ typename FullPivLU<MatrixType, PermutationIndex>::RealScalar
 FullPivLU<MatrixType, PermutationIndex>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "LU is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_lu, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? m_lu.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
+  return isInjective() ? internal::log_abs_prod(m_lu.diagonal()) : -NumTraits<RealScalar>::infinity();
 }
 
 template <typename MatrixType, typename PermutationIndex>

@@ -481,12 +481,12 @@ class TriangularView
    * \sa MatrixBase::determinant() */
   EIGEN_DEVICE_FUNC Scalar determinant() const {
     EIGEN_IF_CONSTEXPR (int(Mode) & int(UnitDiag)) {
-      return 1;
+      return Scalar(1);
     } else EIGEN_IF_CONSTEXPR (int(Mode) & int(ZeroDiag)) {
       // A zero diagonal makes the product vanish unless it is empty.
-      return m_matrix.rows() == 0 ? 1 : 0;
+      return Scalar(m_matrix.rows() == 0 ? 1 : 0);
     } else {
-      return m_matrix.diagonal().prod();
+      return internal::scaled_prod(m_matrix.diagonal()).value();
     }
   }
 

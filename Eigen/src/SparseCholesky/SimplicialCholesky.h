@@ -461,15 +461,14 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
   Scalar determinant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    Scalar detL = Base::m_matrix.diagonal().prod();
-    return numext::abs2(detL);
+    return internal::scaled_prod_squared(Base::m_matrix.diagonal()).abs();
   }
 
   /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
   RealScalar absDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    return numext::abs2(Base::m_matrix.diagonal().prod());
+    return internal::scaled_prod_squared(Base::m_matrix.diagonal()).abs();
   }
 
   /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
@@ -480,7 +479,7 @@ class SimplicialLLT : public SimplicialCholeskyBase<SimplicialLLT<MatrixType_, U
   RealScalar logAbsDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    return RealScalar(2) * Base::m_matrix.diagonal().cwiseAbs().array().log().sum();
+    return RealScalar(2) * internal::log_abs_prod(Base::m_matrix.diagonal());
   }
 
   /** \returns the sign of the determinant of the underlying matrix, which is \c 1 since that matrix is positive
@@ -581,14 +580,14 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
   Scalar determinant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return Base::m_diag.prod();
+    return internal::scaled_prod(Base::m_diag).value();
   }
 
   /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
   RealScalar absDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return numext::abs(Base::m_diag.real().prod());
+    return internal::scaled_prod(Base::m_diag.real()).abs();
   }
 
   /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
@@ -599,7 +598,7 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
   RealScalar logAbsDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return Base::m_diag.real().cwiseAbs().array().log().sum();
+    return internal::log_abs_prod(Base::m_diag.real());
   }
 
   /** \returns the sign of the determinant of the underlying matrix from the current factorization */
@@ -692,15 +691,14 @@ class SimplicialNonHermitianLLT
   Scalar determinant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    Scalar detL = Base::m_matrix.diagonal().prod();
-    return detL * detL;
+    return internal::scaled_prod_squared(Base::m_matrix.diagonal()).value();
   }
 
   /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
   RealScalar absDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    return numext::abs2(Base::m_matrix.diagonal().prod());
+    return internal::scaled_prod_squared(Base::m_matrix.diagonal()).abs();
   }
 
   /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
@@ -711,7 +709,7 @@ class SimplicialNonHermitianLLT
   RealScalar logAbsDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LLT is not factorized, or its factorization failed");
-    return RealScalar(2) * Base::m_matrix.diagonal().cwiseAbs().array().log().sum();
+    return RealScalar(2) * internal::log_abs_prod(Base::m_matrix.diagonal());
   }
 
   /** \returns the sign of the determinant of the underlying matrix from the current factorization */
@@ -810,14 +808,14 @@ class SimplicialNonHermitianLDLT
   Scalar determinant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return Base::m_diag.prod();
+    return internal::scaled_prod(Base::m_diag).value();
   }
 
   /** \returns the absolute value of the determinant of the underlying matrix from the current factorization */
   RealScalar absDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return numext::abs(Base::m_diag.prod());
+    return internal::scaled_prod(Base::m_diag).abs();
   }
 
   /** \returns the natural log of the absolute value of the determinant of the underlying matrix from the current
@@ -828,7 +826,7 @@ class SimplicialNonHermitianLDLT
   RealScalar logAbsDeterminant() const {
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial LDLT is not factorized, or its factorization failed");
-    return Base::m_diag.cwiseAbs().array().log().sum();
+    return internal::log_abs_prod(Base::m_diag);
   }
 
   /** \returns the sign of the determinant of the underlying matrix from the current factorization */
@@ -970,10 +968,9 @@ class SimplicialCholesky : public SimplicialCholeskyBase<SimplicialCholesky<Matr
     eigen_assert(Base::m_factorizationIsOk && Base::m_info == Success &&
                  "Simplicial Cholesky is not factorized, or its factorization failed");
     if (m_LDLT) {
-      return Base::m_diag.prod();
+      return internal::scaled_prod(Base::m_diag).value();
     } else {
-      Scalar detL = Diagonal<const CholMatrixType>(Base::m_matrix).prod();
-      return numext::abs2(detL);
+      return internal::scaled_prod_squared(Base::m_matrix.diagonal()).abs();
     }
   }
 

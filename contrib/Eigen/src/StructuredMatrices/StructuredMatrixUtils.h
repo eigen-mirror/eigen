@@ -44,87 +44,6 @@ constexpr Index structured_scalar_threshold() { return 16; }
 // exponents for dimensions that are otherwise practical.
 using structured_exponent_type = numext::int64_t;
 
-/** \internal max(|re z|, |im z|), the component magnitude the balanced forms
- * key on; from the representation for std::complex<float> and
- * std::complex<double>, where a flush-to-zero comparison would read a subnormal
- * component as zero. */
-template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::true_type) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  using Binary = binary_floating_point_traits<RealScalar>;
-  return numext::bit_cast<RealScalar>(
-      larger_magnitude_bits<RealScalar>(Binary::magnitude(numext::real(z)), Binary::magnitude(numext::imag(z))));
-}
-template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude_impl(const Scalar& z, std::false_type) {
-  return numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
-}
-template <typename Scalar>
-typename NumTraits<Scalar>::Real structured_component_magnitude(const Scalar& z) {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  return structured_component_magnitude_impl(z,
-                                             bool_constant < complex_array_access<Scalar>::value &&
-                                                 use_subnormal_preserving_scaling<RealScalar, RealScalar>::value > ());
-}
-
-/** \internal Balanced mantissa*2^e arithmetic shared by the structured
- * operators' determinant-style accumulations (the split fraction/exponent
- * convention of LINPACK's xGEDI; see the per-class references).
- * structured_balance() rescales \a z by the power of two that brings
- * \c max(|re|,|im|) (the modulus can overflow where the components do not) --
- * or \c |z| for a real scalar -- into [0.5, 1), accumulating the removed
- * exponent into \a exponent. The rescaling is exact, so no roundoff is
- * introduced; zeros and non-finite values, which must propagate exactly, are
- * returned untouched. The tests and the scalings read the representation for
- * float and double (numext::is_exactly_zero_no_flush(),
- * internal::frexp_exponent_preserving_subnormals(),
- * internal::ldexp_preserving_subnormals()): under flush-to-zero a comparison
- * or a frexp on a subnormal recovered from a flushed reduction would read it as
- * zero again. */
-template <typename Scalar, bool IsComplex = NumTraits<Scalar>::IsComplex>
-struct structured_balance_impl {
-  using RealScalar = typename NumTraits<Scalar>::Real;
-  template <typename Exponent>
-  static Scalar run(const Scalar& z, Exponent& exponent) {
-    const RealScalar mag = structured_component_magnitude(z);
-    if (numext::is_exactly_zero_no_flush(mag) || !(numext::isfinite)(mag)) return z;
-    const int e = frexp_exponent_preserving_subnormals(mag);
-    exponent += e;
-    return apply_exponent(z, -e);
-  }
-  static Scalar apply_exponent(const Scalar& z, int e) {
-    return Scalar(ldexp_preserving_subnormals(numext::real(z), e), ldexp_preserving_subnormals(numext::imag(z), e));
-  }
-};
-
-template <typename Scalar>
-struct structured_balance_impl<Scalar, false> {
-  template <typename Exponent>
-  static Scalar run(const Scalar& x, Exponent& exponent) {
-    if (numext::is_exactly_zero_no_flush(x) || !(numext::isfinite)(x)) return x;
-    const int e = frexp_exponent_preserving_subnormals(x);
-    exponent += e;
-    return apply_exponent(x, -e);
-  }
-  static Scalar apply_exponent(const Scalar& x, int e) { return ldexp_preserving_subnormals(x, e); }
-};
-
-template <typename Scalar, typename Exponent>
-Scalar structured_balance(const Scalar& z, Exponent& exponent) {
-  return structured_balance_impl<Scalar>::run(z, exponent);
-}
-
-/** \internal Applies an accumulated power-of-two \a exponent to \a z,
- * component-wise for complex scalars. ldexp saturates cleanly to zero /
- * infinity (preserving signs) once the exponent leaves the representable
- * range; the clamp only guards the narrowing to int. */
-template <typename Scalar, typename Exponent>
-Scalar structured_ldexp_clamped(const Scalar& z, Exponent exponent) {
-  constexpr Exponent kMaxExponent = Exponent(1) << 24;
-  const int e = static_cast<int>(numext::mini(numext::maxi(exponent, -kMaxExponent), kMaxExponent));
-  return structured_balance_impl<Scalar>::apply_exponent(z, e);
-}
-
 /** \internal \returns the indices sorted by decreasing precomputed modulus
  * \a mods (each modulus is computed once, not on every comparison); the shared
  * ordering of the operators' singularValues()/matrixU()/matrixV(). The sort is
@@ -287,7 +206,7 @@ template <typename Xpr, std::enable_if_t<NumTraits<typename Xpr::Scalar>::IsComp
                                          bool> = true>
 void structured_ldexp_entries_packet(Xpr& M, int e) {
   using Scalar = typename Xpr::Scalar;
-  M = M.unaryExpr([e](const Scalar& z) { return structured_ldexp_clamped(z, Index(e)); });
+  M = M.unaryExpr([e](const Scalar& z) { return apply_exponent(z, Index(e)); });
 }
 
 template <typename Xpr>

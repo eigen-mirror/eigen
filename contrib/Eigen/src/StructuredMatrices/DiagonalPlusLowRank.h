@@ -93,7 +93,7 @@ struct dplr_capacitance_impl {
     const PartialPivLU<typename Op::CapacitanceType> lu(op.capacitance());
     Scalar det(static_cast<typename Op::RealScalar>(lu.permutationP().determinant()));
     for (Index i = 0; i < lu.matrixLU().rows(); ++i)
-      det = structured_balance(det * structured_balance(lu.matrixLU().coeff(i, i), exponent), exponent);
+      det = balance_exponent(det * balance_exponent(lu.matrixLU().coeff(i, i), exponent), exponent);
     return det;
   }
 };
@@ -285,10 +285,10 @@ class DiagonalPlusLowRank : public EigenBase<DiagonalPlusLowRank<Scalar_, Size_,
     Scalar det(1);
     Index exponent = 0;
     for (Index i = 0; i < rows(); ++i)
-      det = internal::structured_balance(det * internal::structured_balance(m_d.coeff(i), exponent), exponent);
+      det = internal::balance_exponent(det * internal::balance_exponent(m_d.coeff(i), exponent), exponent);
     const Scalar capDet = internal::dplr_capacitance_impl<Rank_>::balancedCapacitanceDeterminant(*this, exponent);
-    det = internal::structured_balance(det * capDet, exponent);
-    return internal::structured_ldexp_clamped(det, exponent);
+    det = internal::balance_exponent(det * capDet, exponent);
+    return internal::apply_exponent(det, exponent);
   }
 
   /** \internal Writes the dense representation into \a dst. Invoked through

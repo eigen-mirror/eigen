@@ -328,21 +328,21 @@ typename MatrixType::Scalar ColPivHouseholderQR<MatrixType, PermutationIndex>::d
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
   internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
-  return isInjective() ? (detQ * Scalar(m_det_p)) * m_qr.diagonal().prod() : Scalar(0);
+  return isInjective() ? (detQ * Scalar(m_det_p)) * internal::scaled_prod(m_qr.diagonal()).value() : Scalar(0);
 }
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::absDeterminant() const {
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? numext::abs(m_qr.diagonal().prod()) : RealScalar(0);
+  return isInjective() ? internal::scaled_prod(m_qr.diagonal()).abs() : RealScalar(0);
 }
 
 template <typename MatrixType, typename PermutationIndex>
 typename MatrixType::RealScalar ColPivHouseholderQR<MatrixType, PermutationIndex>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "ColPivHouseholderQR is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
-  return isInjective() ? m_qr.diagonal().cwiseAbs().array().log().sum() : -NumTraits<RealScalar>::infinity();
+  return isInjective() ? internal::log_abs_prod(m_qr.diagonal()) : -NumTraits<RealScalar>::infinity();
 }
 
 template <typename MatrixType, typename PermutationIndex>

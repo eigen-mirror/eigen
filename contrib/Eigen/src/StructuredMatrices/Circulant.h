@@ -315,8 +315,8 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
     Complex det(1);
     Index exponent = 0;
     for (Index k = 0; k < s.size(); ++k)
-      det = internal::structured_balance(Complex(det * internal::structured_balance(s[k], exponent)), exponent);
-    return internal::structured_scalar_part_impl<Scalar>::run_scalar(internal::structured_ldexp_clamped(det, exponent));
+      det = internal::balance_exponent(Complex(det * internal::balance_exponent(s[k], exponent)), exponent);
+    return internal::structured_scalar_part_impl<Scalar>::run_scalar(internal::apply_exponent(det, exponent));
   }
 
   /** \returns the eigenvalues: eigenvalue \c k is \c symbol()[k], and its

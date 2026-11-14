@@ -546,14 +546,14 @@ template <typename MatrixType_, int UpLo_>
 typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::absDeterminant() const {
   eigen_assert(m_isInitialized && "LLT is not initialized.");
   eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
-  return numext::abs2(m_matrix.diagonal().real().prod());
+  return internal::scaled_prod_squared(m_matrix.diagonal().real()).value();
 }
 
 template <typename MatrixType_, int UpLo_>
 typename LLT<MatrixType_, UpLo_>::RealScalar LLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "LLT is not initialized.");
   eigen_assert(m_info == Success && "LLT failed because matrix appears to be negative");
-  return RealScalar(2) * m_matrix.diagonal().real().array().log().sum();
+  return RealScalar(2) * internal::log_abs_prod(m_matrix.diagonal().real());
 }
 
 template <typename MatrixType_, int UpLo_>

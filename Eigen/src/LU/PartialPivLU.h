@@ -637,7 +637,7 @@ typename traits<Derived>::Scalar partial_lu_determinant(const Derived& m) {
   typename TranspositionType::StorageIndex nb_transpositions;
   partial_lu_inplace(lu, row_transpositions, nb_transpositions);
 
-  return Scalar((nb_transpositions % 2) ? -1 : 1) * lu.diagonal().prod();
+  return Scalar((nb_transpositions % 2) ? -1 : 1) * internal::scaled_prod(lu.diagonal()).value();
 }
 
 }  // end namespace internal
@@ -669,21 +669,21 @@ template <typename MatrixType, typename PermutationIndex>
 typename PartialPivLU<MatrixType, PermutationIndex>::Scalar PartialPivLU<MatrixType, PermutationIndex>::determinant()
     const {
   eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
-  return Scalar(m_det_p) * m_lu.diagonal().prod();
+  return Scalar(m_det_p) * internal::scaled_prod(m_lu.diagonal()).value();
 }
 
 template <typename MatrixType, typename PermutationIndex>
 typename PartialPivLU<MatrixType, PermutationIndex>::RealScalar
 PartialPivLU<MatrixType, PermutationIndex>::absDeterminant() const {
   eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
-  return numext::abs(m_lu.diagonal().prod());
+  return internal::scaled_prod(m_lu.diagonal()).abs();
 }
 
 template <typename MatrixType, typename PermutationIndex>
 typename PartialPivLU<MatrixType, PermutationIndex>::RealScalar
 PartialPivLU<MatrixType, PermutationIndex>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
-  return m_lu.diagonal().cwiseAbs().array().log().sum();
+  return internal::log_abs_prod(m_lu.diagonal());
 }
 
 template <typename MatrixType, typename PermutationIndex>

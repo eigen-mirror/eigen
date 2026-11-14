@@ -740,21 +740,21 @@ template <typename MatrixType_, int UpLo_>
 typename LDLT<MatrixType_, UpLo_>::Scalar LDLT<MatrixType_, UpLo_>::determinant() const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
   eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
-  return Scalar(vectorD().real().prod());
+  return Scalar(internal::scaled_prod(vectorD().real()).value());
 }
 
 template <typename MatrixType_, int UpLo_>
 typename LDLT<MatrixType_, UpLo_>::RealScalar LDLT<MatrixType_, UpLo_>::absDeterminant() const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
   eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
-  return numext::abs(vectorD().real().prod());
+  return internal::scaled_prod(vectorD().real()).abs();
 }
 
 template <typename MatrixType_, int UpLo_>
 typename LDLT<MatrixType_, UpLo_>::RealScalar LDLT<MatrixType_, UpLo_>::logAbsDeterminant() const {
   eigen_assert(m_isInitialized && "LDLT is not initialized.");
   eigen_assert(m_info == Success && "LDLT failed because of a zero pivot.");
-  return vectorD().real().cwiseAbs().array().log().sum();
+  return internal::log_abs_prod(vectorD().real());
 }
 
 template <typename MatrixType_, int UpLo_>

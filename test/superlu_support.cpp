@@ -28,6 +28,23 @@ void test_superlu_singular_determinant() {
   VERIFY_IS_EQUAL(lu.determinant(), 0.0);
 }
 
+// det(A) = -15 for this triangular matrix, while the pivots, or the equilibration scales, of its first three columns
+// overflow together.
+void test_superlu_scaled_determinant() {
+  const double big = std::ldexp(1.0, 400);
+  const double diagonal[6] = {big, 3 * big, big, 1 / big, -5 / big, 1 / big};
+  SparseMatrix<double> A(6, 6);
+  for (int j = 0; j < 6; ++j) {
+    A.insert(j, j) = diagonal[j];
+    if (j > 0) A.insert(j - 1, j) = diagonal[j] / 4;
+  }
+  A.makeCompressed();
+  SuperLU<SparseMatrix<double> > lu(A);
+  VERIFY_IS_EQUAL(lu.info(), Success);
+  // One rounding for each of the 6 pivots and the 12 equilibration scales.
+  VERIFY(numext::abs(lu.determinant() + 15.0) <= 4 * 18 * NumTraits<double>::epsilon() * 15.0);
+}
+
 EIGEN_DECLARE_TEST(superlu_support) {
   SuperLU<SparseMatrix<double> > superlu_double_colmajor;
   SuperLU<SparseMatrix<std::complex<double> > > superlu_cplxdouble_colmajor;
@@ -36,4 +53,5 @@ EIGEN_DECLARE_TEST(superlu_support) {
   CALL_SUBTEST_1(check_sparse_square_determinant(superlu_double_colmajor));
   CALL_SUBTEST_2(check_sparse_square_determinant(superlu_cplxdouble_colmajor));
   CALL_SUBTEST_1(test_superlu_singular_determinant());
+  CALL_SUBTEST_1(test_superlu_scaled_determinant());
 }

@@ -280,7 +280,7 @@ struct kron_factor_ops {
   /** \internal \returns the mantissa of \c det(M) in the balanced form
    * \c m * 2^e, adding \c e into \a exponent: the determinant is accumulated
    * directly from the LU diagonal (times the permutation sign), each entry and
-   * the running product renormalized by \c structured_balance. */
+   * the running product renormalized by \c balance_exponent. */
   static Scalar balancedDet(const Factor& M, Index& exponent) {
     // Scale small factors up, exactly, so that the elimination runs on normal
     // numbers: a subnormal near 2^e carries only e - min_exponent + digits bits.
@@ -294,7 +294,7 @@ struct kron_factor_ops {
     PartialPivLU<Factor> lu(normalized);
     Scalar m = Scalar(RealScalar(lu.permutationP().determinant()));  // +-1
     for (Index i = 0; i < M.rows(); ++i)
-      m = structured_balance(m * structured_balance(lu.matrixLU().coeff(i, i), exponent), exponent);
+      m = balance_exponent(m * balance_exponent(lu.matrixLU().coeff(i, i), exponent), exponent);
     return m;
   }
 };
@@ -345,7 +345,7 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
     structured_ldexp_entries_exact(d, -scaleExponent);
     exponent += D.rows() * scaleExponent;
     Scalar m(1);
-    for (Index i = 0; i < D.rows(); ++i) m = structured_balance(m * structured_balance(d.coeff(i), exponent), exponent);
+    for (Index i = 0; i < D.rows(); ++i) m = balance_exponent(m * balance_exponent(d.coeff(i), exponent), exponent);
     return m;
   }
 };
@@ -353,7 +353,7 @@ struct kron_factor_ops<Factor, kKronDiagonalFactor> {
 /** \internal SparseLU extended with the balanced determinant of the dense path:
  * the U diagonal -- stored on the diagonal of the supernodal L, where
  * SparseLU::determinant() reads it -- times the permutation signs, each entry
- * and the running product renormalized by structured_balance. */
+ * and the running product renormalized by balance_exponent. */
 template <typename SparseType>
 class kron_sparse_lu : public SparseLU<SparseType> {
  public:
@@ -367,7 +367,7 @@ class kron_sparse_lu : public SparseLU<SparseType> {
     for (Index j = 0; j < Base::cols(); ++j) {
       typename Base::SCMatrix::InnerIterator it(Base::m_Lstore, j);
       while (it && it.index() != j) ++it;
-      if (it) m = structured_balance(m * structured_balance(it.value(), exponent), exponent);
+      if (it) m = balance_exponent(m * balance_exponent(it.value(), exponent), exponent);
     }
     return m;
   }
@@ -1164,7 +1164,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_B, "KroneckerOperator::determinant requires square factors");
     Index exponent = 0;
     const Scalar mant = balancedDeterminant(exponent);
-    return internal::structured_ldexp_clamped(mant, exponent);
+    return internal::apply_exponent(mant, exponent);
   }
 
   /** \returns the eigenvalues for square factors, in Kronecker order: entry
@@ -1445,7 +1445,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     eigen_assert(m_A.rows() == m_A.cols() && m_B.rows() == m_B.cols() &&
                  "KroneckerOperator::determinant requires square factors");
     const Scalar mant = balancedDetPow(m_A, m_B.cols(), exponent);
-    return internal::structured_balance(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
+    return internal::balance_exponent(mant * balancedDetPow(m_B, m_A.cols(), exponent), exponent);
   }
 
   /** \internal Writes \f$ (A \otimes B)^{-1} b \f$ into \a x through the factor
@@ -1482,7 +1482,7 @@ class KroneckerOperator : public EigenBase<KroneckerOperator<LhsMatrix, RhsMatri
     const Scalar m = internal::kron_factor_ops<Factor>::balancedDet(M, e);
     Scalar r(1);
     Index er = 0;
-    for (Index k = 0; k < power; ++k) r = internal::structured_balance(r * m, er);
+    for (Index k = 0; k < power; ++k) r = internal::balance_exponent(r * m, er);
     exponent += power * e + er;
     return r;
   }

@@ -371,19 +371,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    */
   Scalar absDeterminant() const {
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
-    // Initialize with the determinant of the row matrix
-    Scalar det = Scalar(1.);
-    // Note that the diagonal blocks of U are stored in supernodes,
-    // which are available in the  L part :)
-    for (Index j = 0; j < this->cols(); ++j) {
-      for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
-        if (it.index() == j) {
-          det *= numext::abs(it.value());
-          break;
-        }
-      }
-    }
-    return det;
+    return diagonalProduct().abs();
   }
 
   /** \brief Give the natural log of the absolute determinant.
@@ -398,6 +386,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    */
   Scalar logAbsDeterminant() const {
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
+    EIGEN_IF_CONSTEXPR (internal::has_scaled_product<Scalar>::value) return diagonalProduct().logAbs();
     Scalar det = Scalar(0.);
     for (Index j = 0; j < this->cols(); ++j) {
       for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
@@ -445,18 +434,7 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
    */
   Scalar determinant() const {
     eigen_assert(m_factorizationIsOk && "The matrix should be factorized first.");
-    // Initialize with the determinant of the row matrix
-    Scalar det = Scalar(1.);
-    // Note that the diagonal blocks of U are stored in supernodes,
-    // which are available in the  L part :)
-    for (Index j = 0; j < this->cols(); ++j) {
-      for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
-        if (it.index() == j) {
-          det *= it.value();
-          break;
-        }
-      }
-    }
+    const Scalar det = diagonalProduct().value();
     return (m_detPermR * m_detPermC) > 0 ? det : -det;
   }
 
@@ -469,6 +447,21 @@ class SparseLU : public SparseSolverBase<SparseLU<MatrixType_, OrderingType_>>,
 
  protected:
   // Functions
+
+  // The product of the diagonal of U. The diagonal blocks of U are stored in the supernodes of L.
+  internal::scaled_product<Scalar> diagonalProduct() const {
+    internal::scaled_product<Scalar> product;
+    for (Index j = 0; j < this->cols(); ++j) {
+      for (typename SCMatrix::InnerIterator it(m_Lstore, j); it; ++it) {
+        if (it.index() == j) {
+          product.multiply(it.value());
+          break;
+        }
+      }
+    }
+    return product;
+  }
+
   void initperfvalues() {
     m_perfv.panel_size = 16;
     m_perfv.relax = 1;

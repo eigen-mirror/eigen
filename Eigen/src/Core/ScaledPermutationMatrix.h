@@ -168,7 +168,9 @@ class ScaledPermutationBase : public EigenBase<Derived> {
   }
 
   /** \returns the determinant, the permutation's sign times the product of the scales */
-  Scalar determinant() const { return Scalar(RealScalar(permutation().determinant())) * scales().prod(); }
+  Scalar determinant() const {
+    return Scalar(RealScalar(permutation().determinant())) * internal::scaled_prod(scales()).value();
+  }
 
   /** \returns the dense matrix product of \c *this by the dense matrix \a other: rows of \a other are scaled and
    * permuted. */
