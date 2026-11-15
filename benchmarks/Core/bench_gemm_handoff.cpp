@@ -75,7 +75,7 @@ static void BM_GemmHandoff(benchmark::State& state) {
 // clang-format off
 #define HANDOFF_SIZES \
   ->ArgsProduct({{12, 24, 48, 96, 128}, {3, 6, 12, 24, 48, 96, 128}, {8, 32, 128, 256}}) \
-  ->ArgsProduct({{2}, {16, 64, 128}, {128, 256, 512, 2048, 16384}}) \
+  ->ArgsProduct({{2}, {16, 64, 128}, {128, 192, 256, 512}}) \
   ->ArgsProduct({{200, 256, 340}, {3, 4, 8}, {8, 16}}) \
   ->ArgsProduct({{6, 8}, {425}, {2, 3}})
 // clang-format on

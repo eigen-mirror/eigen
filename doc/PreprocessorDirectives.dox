@@ -163,9 +163,11 @@ run time. However, these assertions do cost time and can thus be turned off.
    \f$ k \le 256 \f$ use a cost bound instead, fitted for Apple M4 Pro on repeated products and on operands the core
    has just written: NEON iff \f$ 4mnk < t\lceil m/w\rceil\lceil n/w\rceil k + r\,mn + h\,nk + 4P \f$, with
    \f$ w \f$ the ZA tile edge at 512-bit vectors and \f$ (t, r, h, P) \f$ = (0, 8, 8, 24576) for float and
-   (8, 25, 4, 11264) for double. Either way, a result of at most two NEON vectors of rows takes NEON while the
-   right-hand side is at most 64 KB (and, for real scalars, the depth at most 128). Defining it to 0 leaves only that
-   case; \c EIGEN_SME_NO_NEON_SMALL_BLOCKS turns the path off.
+   (8, 25, 4, 11264) for double. There, a result of at most two NEON vectors of rows over a column-major right-hand
+   side, which the NEON kernel packs, goes back to the first rule once \f$ n (ks)^2 \ge 3 \cdot 2^{25} \f$, with \f$ s \f$
+   the scalar's size in bytes (measured on Apple M4). Either way, a result of at most two NEON vectors of rows takes
+   NEON while the right-hand side is at most 64 KB (and, for real scalars, the depth at most 128). Defining it to 0
+   leaves only that case; \c EIGEN_SME_NO_NEON_SMALL_BLOCKS turns the path off.
  - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
    \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other

@@ -226,7 +226,7 @@ EIGEN_ALWAYS_INLINE bool sme_run_direct_lhs(std::false_type, Gebp&, const ResMap
   return false;
 }
 template <typename Scalar, typename Index>
-EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth);
+EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth, bool packed_rhs);
 template <typename Scalar, int LhsOrder, int RhsOrder, bool ConjLhs, bool ConjRhs, int ResInnerStride, typename Index>
 EIGEN_DONT_INLINE void sme_small_gemm(Index rows, Index cols, Index depth, const Scalar* lhs, Index lhsStride,
                                       const Scalar* rhs, Index rhsStride, Scalar* res, Index resIncr, Index resStride,
@@ -238,7 +238,7 @@ EIGEN_ALWAYS_INLINE bool sme_run_small_gemm(std::true_type, bool overwrite, Inde
                                             const Scalar* lhs, Index lhsStride, const Scalar* rhs, Index rhsStride,
                                             Scalar* res, Index resIncr, Index resStride, Scalar alpha,
                                             Blocking& blocking) {
-  if (!sme_small_gemm_wins<Scalar>(rows, cols, depth)) return false;
+  if (!sme_small_gemm_wins<Scalar>(rows, cols, depth, RhsOrder == ColMajor)) return false;
   if (overwrite) gemm_zero_result(res, rows, cols, resIncr, resStride);
   const bool fits = depth <= blocking.kc() && rows <= blocking.mc() && cols <= blocking.nc();
   sme_small_gemm<Scalar, LhsOrder, RhsOrder, ConjLhs, ConjRhs, ResInnerStride>(

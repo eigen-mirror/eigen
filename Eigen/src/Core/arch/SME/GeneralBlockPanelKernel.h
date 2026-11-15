@@ -3588,15 +3588,17 @@ struct sme_neon_small_cost<double> {
 };
 
 template <typename Scalar, typename Index>
-EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth) {
+EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth, bool packed_rhs) {
 #if defined(EIGEN_SME_NO_NEON_SMALL_BLOCKS) || defined(EIGEN_SME_FORCE_NEON_SMALL_BLOCKS) || defined(EIGEN_USE_BLAS)
   EIGEN_UNUSED_VARIABLE(rows);
   EIGEN_UNUSED_VARIABLE(cols);
   EIGEN_UNUSED_VARIABLE(depth);
+  EIGEN_UNUSED_VARIABLE(packed_rhs);
   return false;
 #else
   constexpr bool kReal = !NumTraits<Scalar>::IsComplex;
   constexpr Index kRhs = Index(65536 / sizeof(Scalar));
+  constexpr Index kThin = Index(32 / sizeof(Scalar));
   constexpr int kSize = sme_neon_small_product<Scalar>::value;
   using Cost = sme_neon_small_cost<Scalar>;
 #ifdef EIGEN_SME_NEON_SMALL_PRODUCT
@@ -3607,14 +3609,16 @@ EIGEN_ALWAYS_INLINE bool sme_small_gemm_wins(Index rows, Index cols, Index depth
   if (rows <= 0 || cols <= 0 || depth <= 0) return false;
   // Rows of at most two NEON vectors leave most of a ZA tile idle: NEON up to a 64 KB RHS, real ones 128 deep. The
   // factors are bounded before each product, which then fits a 32-bit Index.
-  if (rows <= Index(32 / sizeof(Scalar)) && cols <= kRhs && depth <= (kReal ? Index(128) : kRhs) &&
-      cols * depth <= kRhs)
-    return true;
+  if (rows <= kThin && cols <= kRhs && depth <= (kReal ? Index(128) : kRhs) && cols * depth <= kRhs) return true;
   if (kFitted && rows <= Index(128) && cols <= Index(128) && depth <= Index(256)) {
     constexpr int64_t kW = kSmeDesignVectorBytes / int(sizeof(typename NumTraits<Scalar>::Real));
     const int64_t m = int64_t(rows), n = int64_t(cols), k = int64_t(depth);
     const int64_t tiles = numext::div_ceil(m, kW) * numext::div_ceil(n, kW) * k;
-    return 4 * m * n * k < Cost::tile * tiles + Cost::result * m * n + Cost::rhs * n * k + 4 * int64_t(Cost::bias);
+    // Over a RHS the NEON path packs (ColMajor), ZA wins a thin result from n * (k * sizeof(Scalar))^2 = 3 * 2^25 on
+    // (measured on Apple M4); the size rule then decides.
+    const int64_t column_bytes = k * int64_t(sizeof(Scalar));
+    if (!(packed_rhs && rows <= kThin && n * column_bytes * column_bytes >= (int64_t(3) << 25)))
+      return 4 * m * n * k < Cost::tile * tiles + Cost::result * m * n + Cost::rhs * n * k + 4 * int64_t(Cost::bias);
   }
   // The narrow ZA kernel reads a tall real LHS in place.
   if (kReal && cols <= 3 && rows >= 3 * Index(sme_block<Scalar>::mr)) return false;
