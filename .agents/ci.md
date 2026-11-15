@@ -65,6 +65,15 @@ merge request changes numerics that reach those libraries from another path, suc
 `lapack-tests` label. The job fails on any failure beyond `lapack/testing_allowed_failures.txt`;
 [`lapack/README.md`](../lapack/README.md) records how to update that file.
 
+The pair `build:linux:cross:x86-64:gcc-10:novec` and `test:linux:x86-64:gcc-10:novec:{official,contrib}` builds and
+runs the whole suite with `EIGEN_TEST_NO_EXPLICIT_VECTORIZATION`, which compiles the tests with `EIGEN_DONT_VECTORIZE`.
+That sets `EIGEN_MAX_ALIGN_BYTES` to 0, and no other job does: every other configuration has packet types and aligned
+buffers. Code that is compiled only when `EIGEN_MAX_ALIGN_BYTES == 0` is therefore tested nowhere else.
+`gemv_static_vector_if` once returned a null buffer in that case, and `nomalloc` failed without vectorization only.
+The pair runs where the full-suite jobs do: schedules that are not GPU-scoped, web pipelines, and merge requests labeled
+`all-tests`, so the full tier includes it. The smoke and affected tiers never build it; when a change touches code that
+depends on `EIGEN_MAX_ALIGN_BYTES` or `EIGEN_DONT_VECTORIZE`, recommend `all-tests` or run the configuration locally.
+
 The affected tier exists because the smoke list is only a sample. It is broad but shallow: for a change confined to one
 module, it runs only the parts of the related tests that the list names, usually one per test. Use `affected-tests`
 for depth, then choose platform labels for the compilers and backends the change can affect. For a shared-header

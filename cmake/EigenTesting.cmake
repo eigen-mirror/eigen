@@ -363,7 +363,7 @@ macro(ei_testing_print_summary)
   if(EIGEN_TEST_NO_EXPLICIT_ALIGNMENT)
     message(STATUS "Explicit alignment (hence vectorization) disabled")
   elseif(EIGEN_TEST_NO_EXPLICIT_VECTORIZATION)
-    message(STATUS "Explicit vectorization disabled (alignment kept enabled)")
+    message(STATUS "Explicit vectorization disabled (EIGEN_DONT_VECTORIZE, which also sets EIGEN_MAX_ALIGN_BYTES to 0)")
   else()
 
   message(STATUS "Maximal matrix/vector size: ${EIGEN_TEST_MAX_SIZE}")

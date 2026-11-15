@@ -38,7 +38,7 @@
 # from running anything but the GPU jobs.  Every rule set that fires on
 # "schedule" except .rules:libeigen:gpu opens with it: the job-level lists in
 # the build, test and deploy files splice it in as their first entry with
-# `- !reference [.rules:libeigen:gpu-schedule-guard, rules]`, while the three
+# `- !reference [.rules:libeigen:gpu-schedule-guard, rules]`, while the
 # .rules:libeigen:* sets below restate the two lines, since a !reference inside
 # a set that is itself !reference'd would nest.
 .rules:libeigen:gpu-schedule-guard:
@@ -47,6 +47,17 @@
       when: never
 
 .rules:libeigen:all-tests:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_MERGE_REQUEST_LABELS =~ "/all-tests/"
+
+# The same triggers as .rules:libeigen:all-tests, as a set of its own for the
+# EIGEN_DONT_VECTORIZE jobs: whoever wants to move them to a rarer pipeline
+# edits only this set.  Restated rather than referenced, as above.
+.rules:libeigen:novec:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule" && $EIGEN_CI_SCHEDULE_SCOPE == "gpu"
       when: never

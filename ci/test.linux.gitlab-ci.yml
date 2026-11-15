@@ -97,6 +97,23 @@ test:linux:x86-64:gcc-10:avx2:contrib:
   variables:
     EIGEN_CI_CTEST_LABEL: Contrib
 
+.test:linux:x86-64:gcc-10:novec:
+  extends: .test:linux:x86-64
+  needs: [ build:linux:cross:x86-64:gcc-10:novec ]
+  variables:
+    EIGEN_CI_INSTALL: g++-10
+  rules: !reference [.rules:libeigen:novec, rules]
+
+test:linux:x86-64:gcc-10:novec:official:
+  extends: .test:linux:x86-64:gcc-10:novec
+  variables:
+    EIGEN_CI_CTEST_LABEL: Official
+
+test:linux:x86-64:gcc-10:novec:contrib:
+  extends: .test:linux:x86-64:gcc-10:novec
+  variables:
+    EIGEN_CI_CTEST_LABEL: Contrib
+
 .test:linux:x86-64:gcc-10:avx512dq:
   extends: .test:linux:x86-64
   needs: [ build:linux:cross:x86-64:gcc-10:avx512dq ]

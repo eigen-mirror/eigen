@@ -130,6 +130,14 @@ build:linux:cross:x86-64:gcc-10:avx512dq:
   variables:
     EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_AVX512DQ=on"
 
+# Explicit vectorization off: the tests compile with EIGEN_DONT_VECTORIZE=1, which sets EIGEN_MAX_ALIGN_BYTES to 0 and
+# runs the scalar fallbacks, code that no other job here compiles.
+build:linux:cross:x86-64:gcc-10:novec:
+  extends: build:linux:cross:x86-64:gcc-10:default
+  variables:
+    EIGEN_CI_ADDITIONAL_ARGS: "-DEIGEN_TEST_NO_EXPLICIT_VECTORIZATION=on"
+  rules: !reference [.rules:libeigen:novec, rules]
+
 # Clang-14 (stable recent version)
 build:linux:cross:x86-64:clang-14:default:
   extends: .build:linux:cross:x86-64

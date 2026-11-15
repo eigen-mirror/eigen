@@ -104,6 +104,10 @@ smoke jobs are turned off only in the `libeigen` namespace, because the affected
 In merge request pipelines, `.rules:libeigen:nvhpc` runs the NVHPC build and test pair only when the `nvhpc-tests`
 label is set; [`ci.md`](ci.md#test-tiers-on-merge-requests) gives the cost that moved the pair out of `all-tests`.
 
+`.rules:libeigen:novec`, for the `EIGEN_DONT_VECTORIZE` pair, repeats the triggers of `.rules:libeigen:all-tests`. It is
+a set of its own so that moving the pair to another pipeline means editing one place. It opens with the GPU-schedule
+guard like the other sets, so a GPU-scoped schedule does not run it.
+
 Under `affected-tests`, either of two independent triggers adds a platform beyond the four unconditional jobs: a change
 under the platform's backend directory, detected through `rules:changes:`, or a label, read from
 `$CI_MERGE_REQUEST_LABELS`. GitLab ANDs `if:` with `changes:` within one rule entry, so each rule set has two entries,
