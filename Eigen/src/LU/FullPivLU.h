@@ -509,7 +509,9 @@ template <typename MatrixType, typename PermutationIndex>
 typename internal::traits<MatrixType>::Scalar FullPivLU<MatrixType, PermutationIndex>::determinant() const {
   eigen_assert(m_isInitialized && "LU is not initialized.");
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_lu, "You can't take the determinant of a non-square matrix!");
-  return Scalar(m_det_pq) * Scalar(internal::scaled_prod(m_lu.diagonal()).value());
+  internal::scaled_product<Scalar> det = internal::scaled_prod(m_lu.diagonal());
+  det.multiply(Scalar(m_det_pq));
+  return det.value();
 }
 
 template <typename MatrixType, typename PermutationIndex>

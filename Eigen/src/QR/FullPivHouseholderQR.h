@@ -338,7 +338,10 @@ typename MatrixType::Scalar FullPivHouseholderQR<MatrixType, PermutationIndex>::
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
   internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
-  return isInjective() ? (detQ * Scalar(m_det_p)) * internal::scaled_prod(m_qr.diagonal()).value() : Scalar(0);
+  if (!isInjective()) return Scalar(0);
+  internal::scaled_product<Scalar> det = internal::scaled_prod(m_qr.diagonal());
+  det.multiply(detQ * Scalar(m_det_p));
+  return det.value();
 }
 
 template <typename MatrixType, typename PermutationIndex>

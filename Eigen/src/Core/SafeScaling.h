@@ -707,8 +707,8 @@ struct safe_scaling<long double, true> : safe_scaling_operations<long double, tr
 #endif
 
 // max(|re z|, |im z|), or |z| for a real scalar: finite whenever z is, and within a factor sqrt(2) of |z|. Read from
-// the representation for std::complex<float> and std::complex<double>, where a comparison under FTZ/DAZ reads a
-// subnormal component as zero.
+// the representation for float, double and their std::complex, where a comparison under FTZ/DAZ reads a subnormal
+// component as zero and an abs() that widens flushes a subnormal result.
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component_magnitude_impl(const Scalar& z,
                                                                                                 true_type) {
@@ -722,6 +722,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component
 template <typename Scalar>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real component_magnitude(const Scalar& z) {
   using RealScalar = typename NumTraits<Scalar>::Real;
+  EIGEN_IF_CONSTEXPR (!NumTraits<Scalar>::IsComplex) return abs_preserving_subnormals(numext::real(z));
   constexpr bool kReadsRepresentation =
       complex_array_access<Scalar>::value && use_subnormal_preserving_scaling<RealScalar, RealScalar>::value;
   return component_magnitude_impl(z, bool_constant<kReadsRepresentation>());
@@ -775,7 +776,9 @@ struct has_scaled_product
 // Users' Guide, 1979). It overflows or underflows only if prod_k x_k does, whatever the partial products do, and a
 // zero factor gives zero; infinities and NaNs propagate as in the plain product. The exponent is split off only when
 // a partial product leaves the range in_range() accepts ([min, highest / 2] for a real scalar), by exact powers of two,
-// so value() is the plain product bit for bit whenever that one stays there.
+// so value() is the plain product bit for bit whenever that one stays there. A sign or a phase of the result is one
+// more factor: multiplied into value() instead, it meets the infinite components of a complex product that overflowed,
+// and a complex multiplication without the C99 Annex G recovery (MSVC, -ffast-math) returns NaN for inf * 0.
 template <typename Scalar, bool Scaled = has_scaled_product<Scalar>::value>
 class scaled_product {
  public:

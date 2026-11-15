@@ -342,7 +342,9 @@ typename MatrixType::Scalar HouseholderQR<MatrixType>::determinant() const {
   EIGEN_INTERNAL_ASSERT_SQUARE_MSG(m_qr, "You can't take the determinant of a non-square matrix!");
   Scalar detQ;
   internal::householder_determinant<HCoeffsType, Scalar, NumTraits<Scalar>::IsComplex>::run(m_hCoeffs, detQ);
-  return internal::scaled_prod(m_qr.diagonal()).value() * detQ;
+  internal::scaled_product<Scalar> det = internal::scaled_prod(m_qr.diagonal());
+  det.multiply(detQ);
+  return det.value();
 }
 
 template <typename MatrixType>

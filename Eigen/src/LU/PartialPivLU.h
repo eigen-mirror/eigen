@@ -646,7 +646,9 @@ typename traits<Derived>::Scalar partial_lu_determinant(const Derived& m) {
   typename TranspositionType::StorageIndex nb_transpositions;
   partial_lu_inplace(lu, row_transpositions, nb_transpositions);
 
-  return Scalar((nb_transpositions % 2) ? -1 : 1) * internal::scaled_prod(lu.diagonal()).value();
+  scaled_product<Scalar> det = scaled_prod(lu.diagonal());
+  det.multiply(Scalar((nb_transpositions % 2) ? -1 : 1));
+  return det.value();
 }
 
 }  // end namespace internal
@@ -678,7 +680,9 @@ template <typename MatrixType, typename PermutationIndex>
 typename PartialPivLU<MatrixType, PermutationIndex>::Scalar PartialPivLU<MatrixType, PermutationIndex>::determinant()
     const {
   eigen_assert(m_isInitialized && "PartialPivLU is not initialized.");
-  return Scalar(m_det_p) * internal::scaled_prod(m_lu.diagonal()).value();
+  internal::scaled_product<Scalar> det = internal::scaled_prod(m_lu.diagonal());
+  det.multiply(Scalar(m_det_p));
+  return det.value();
 }
 
 template <typename MatrixType, typename PermutationIndex>
