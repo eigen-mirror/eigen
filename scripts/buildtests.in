@@ -12,6 +12,13 @@ fi
 TESTSLIST="@EIGEN_TESTS_LIST@"
 targets_to_make=$(echo "$TESTSLIST" | grep -E "$1" | xargs echo)
 
+# With no target the make program would build its default target instead.
+if [ -z "$targets_to_make" ]
+then
+  echo "$0: no test matches the regexp '$1'" >&2
+  exit 1
+fi
+
 if [ -n "${EIGEN_MAKE_ARGS:+x}" ]
 then
   @CMAKE_MAKE_PROGRAM@ $targets_to_make ${EIGEN_MAKE_ARGS}

@@ -191,7 +191,7 @@ class EigenSparseMatrixChildProvider:
 
         name = valtype.GetName()
         template_begin = name.find("<")
-        template_end = name.find(">")
+        template_end = name.rfind(">")
         template_args = name[(template_begin + 1):template_end].split(",")
         self._row_major = (int(template_args[1]) & 1) != 0
 

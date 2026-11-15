@@ -14,6 +14,8 @@ pool a running job is about to restore.
 Usage: python3 ci/scripts/test_prune_runner_cache.py
 """
 
+import contextlib
+import io
 import os
 import shutil
 import sys
@@ -170,6 +172,33 @@ def test_empty_directories_removed(root):
     check(os.path.isdir(root), "the cache root itself was removed")
 
 
+def test_failed_removal_is_not_freed(root):
+    protected = write_archive(root, "pool-a-ccache-11-protected", 1, 10)
+    write_archive(root, "pool-b-ccache-11-protected", 1, 5)
+    write_archive(root, "pool-c-ccache-11-protected", 1, 1)
+    real_remove = os.remove
+
+    def remove_unless_protected(path):
+        if path == protected:
+            raise PermissionError(13, "Permission denied", path)
+        real_remove(path)
+
+    prune_runner_cache.os.remove = remove_unless_protected
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            run_main(["--root", root, "--max-gb", "0.0015"])
+    finally:
+        prune_runner_cache.os.remove = real_remove
+    left = keys_on_disk(root)
+    check("pool-a-ccache-11-protected" in left, "the undeletable archive disappeared")
+    check("pool-b-ccache-11-protected" not in left and "pool-c-ccache-11-protected" not in left,
+          "a failed removal was counted as freed, so the cap loop stopped early")
+    on_disk = sum(size for _, size, _ in prune_runner_cache.entries(root, ("cache.zip",)))
+    check("%s remains" % human(on_disk) in out.getvalue(),
+          "the summary does not match the %s on disk: %r" % (human(on_disk), out.getvalue()))
+
+
 def test_human():
     cases = [(0, "0 B"), (512, "512 B"), (2500, "2.5 kB"),
              (3_000_000, "3.0 MB"), (4_000_000_000, "4.0 GB")]
@@ -182,7 +211,7 @@ def main():
     test_human()
     for case in (test_generations, test_lru_order, test_min_age,
                  test_report_changes_nothing, test_requires_an_action,
-                 test_empty_directories_removed):
+                 test_empty_directories_removed, test_failed_removal_is_not_freed):
         root = tempfile.mkdtemp(prefix="eigen-prune-cache-")
         try:
             case(root)

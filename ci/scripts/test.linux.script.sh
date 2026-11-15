@@ -132,6 +132,9 @@ while IFS= read -r launcher; do
 done < <(sed -nE 's/^CMAKE_(C|CXX)_COMPILER_LAUNCHER:[A-Z]*=//p' CMakeCache.txt 2>/dev/null)
 
 echo "Running initial tests..."
+# Drop failed-test logs from an earlier run, so that a log below was written by
+# the initial run.
+rm -f Testing/Temporary/LastTestsFailed*.log
 # The job sources this script and GitLab Runner runs it under errexit, so
 # a bare failing ctest would abort the job before the retry logic; capture
 # the status through || instead.
@@ -151,9 +154,20 @@ if [[ "${testcache_active}" == "true" ]]; then
       --testing-dir Testing || true
 fi
 
+# --rerun-failed reruns the tests listed in the failed-test log.  Without a log
+# (no test found under --no-tests=error, an invalid regex, a ctest that died)
+# it ignores -R/-L/-E and reruns every registered test.
+have_failed_log=false
+for failed_log in Testing/Temporary/LastTestsFailed*.log; do
+  [[ -s "${failed_log}" ]] && have_failed_log=true
+done
+
 if [[ ${initial_exit} -eq 0 ]]; then
   echo "Tests passed on the first attempt."
   exit_code=0
+elif [[ "${have_failed_log}" != "true" ]]; then
+  echo "Initial tests failed with exit code ${initial_exit} and listed no failed test. Not retrying."
+  exit_code=${initial_exit}
 else
   echo "Initial tests failed with exit code ${initial_exit}. Retrying up to ${EIGEN_CI_CTEST_REPEAT} times..."
   if ${ctest_cmd} --rerun-failed --repeat until-pass:${EIGEN_CI_CTEST_REPEAT} --timeout ${EIGEN_CI_CTEST_RETRY_TIMEOUT}; then

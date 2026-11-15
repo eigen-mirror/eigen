@@ -20,8 +20,8 @@
 // When built with OpenMP, bisection and inverse iteration parallelize across Eigen::nbThreads()
 // threads (the QR path is serial). To measure thread scaling, run the binary once per thread count
 // via the environment (one process per data point; never sweep with setNbThreads() in-process):
-//     for t in 1 2 4 8; do OMP_NUM_THREADS=$t ./bench_tridiagonal_inverse_iteration \
-//         --benchmark_filter='BM_full_bisect_d/' --benchmark_repetitions=5; done
+//     args='--benchmark_filter=BM_full_bisect_d/ --benchmark_repetitions=5'
+//     for t in 1 2 4 8; do OMP_NUM_THREADS=$t ./bench_tridiagonal_inverse_iteration $args; done
 
 #include <benchmark/benchmark.h>
 #include <Eigen/Eigenvalues>

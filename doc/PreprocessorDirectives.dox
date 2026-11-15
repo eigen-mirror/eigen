@@ -127,7 +127,9 @@ run time. However, these assertions do cost time and can thus be turned off.
  - \b \c EIGEN_STACK_ALLOCATION_LIMIT - defines the maximum bytes for a buffer to be allocated on the stack. For internal
    temporary buffers, dynamic memory allocation is employed as a fall back; setting the limit to 0 disables stack
    allocation for them, so every such temporary is heap-allocated. For fixed-size matrices or arrays, exceeding this
-   threshold raises a compile time assertion; there, 0 disables the check. Default is 128 KB.
+   threshold raises a compile time assertion; there, 0 disables the check. Default is 128 KB. When the macro is
+   not defined, the default is raised to 9*VL^2/64 bytes with fixed-length SVE at vector length VL >= 1024 bits, and to
+   192 KB (384 KB if the fixed vector length exceeds 512 bits) with RVV.
  - \b \c EIGEN_STACK_ALIGN_BYTES - alignment of the internal temporary buffers: the ones on the stack, their heap
    fallback above \c EIGEN_STACK_ALLOCATION_LIMIT and the GEMM blocking buffers. Defaults to
    \c EIGEN_DEFAULT_ALIGN_BYTES, except in ARM SME builds where it is 64: the SME GEMM kernel reads its packed panels a

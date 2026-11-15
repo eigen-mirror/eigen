@@ -34,9 +34,13 @@ deploy:docs:
   tags:
     - saas-linux-small-amd64
   rules:
-    - !reference [.rules:libeigen:gpu-schedule-guard, rules]
-    - if: $CI_PIPELINE_SOURCE == "schedule" && $CI_PROJECT_NAMESPACE == "libeigen"
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_PROJECT_NAMESPACE == "libeigen"
+    - !reference [.rules:libeigen:scheduled-or-web:default-branch, rules]
+    # Any other protected ref (a release branch or tag) gets its own prefix:
+    # `docs-weekly` holds the default branch's docs only.  An unprotected ref
+    # deploys nothing; build:linux:docs still builds its documentation.
+    - if: ($CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web") && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_REF_PROTECTED == "true"
+      variables:
+        PAGES_PREFIX: docs-$CI_COMMIT_REF_SLUG
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "libeigen" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       variables:
         PAGES_PREFIX: docs-$CI_COMMIT_REF_NAME

@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_style import (
     added_from_structured_patch,
     added_lines_from_diff,
+    diff_added_lines,
     check_files,
     doxygen_excludes,
     find_findings,
@@ -337,6 +338,52 @@ def test_no_newline_marker():
                    "+const char* p = NULL;", "\\ No newline at end of file"]},
     ]}
     assert added_from_structured_patch(response) == {1}
+
+
+def test_diff_parser_content_that_looks_like_a_header():
+    # An added "++i;" or "++ b/x" appears in the diff as "+++i;" or "+++ b/x".
+    diff = (
+        "--- a/Eigen/src/Core/Foo.h\n"
+        "+++ b/Eigen/src/Core/Foo.h\n"
+        "@@ -1,0 +2,4 @@\n"
+        "+++i;\n"
+        "+++ i;\n"
+        "+int y;\n"
+        "+++ b/fake.h\n"
+        "@@ -9,2 +12,0 @@\n"
+        "---old;\n"
+        "--- a/also_content\n"
+        "+++ b/Eigen/src/Core/Bar.h\n"
+        "@@ -1 +1 @@\n"
+        "-int a;\n"
+        "+int b;\n"
+    )
+    files = added_lines_from_diff(diff)
+    assert files == {"Eigen/src/Core/Foo.h": {2, 3, 4, 5}, "Eigen/src/Core/Bar.h": {1}}, files
+
+
+def test_diff_added_lines_ignore_diff_configuration():
+    with tempfile.TemporaryDirectory(prefix="check_style_test_") as tmp:
+        def sh(*args):
+            subprocess.run(args, cwd=tmp, check=True, capture_output=True)
+
+        commit = ("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m")
+        sh("git", "init", "-q", "-b", "main")
+        path = os.path.join(tmp, "Eigen", "src", "x.h")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w") as handle:
+            handle.write("int old;\n")
+        sh("git", "add", ".")
+        sh(*commit, "base")
+        with open(path, "w") as handle:
+            handle.write("int old;\n++i;\n++ i;\nint y;\n")
+        # Each setting changes how `git diff` spells paths or what it runs.
+        for key, value in (("diff.mnemonicPrefix", "true"), ("diff.noprefix", "true"),
+                           ("diff.external", "false")):
+            sh("git", "config", key, value)
+            added = diff_added_lines("HEAD", root=tmp, include_untracked=False)
+            assert added == {"Eigen/src/x.h": {2, 3, 4}}, (key, added)
+            sh("git", "config", "--unset", key)
 
 
 def test_diff_mode_merge_base_and_untracked():

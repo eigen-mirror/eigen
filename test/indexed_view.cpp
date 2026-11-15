@@ -296,7 +296,8 @@ void check_indexed_view() {
     Index size = 10;
     ArrayXd r = ArrayXd::Random(size);
     ArrayXi idx = ArrayXi::EqualSpaced(size, 0, 1);
-    std::shuffle(idx.begin(), idx.end(), std::random_device());
+    std::mt19937 rng(static_cast<unsigned int>(internal::random<int>(0, 1 << 30)));
+    std::shuffle(idx.begin(), idx.end(), rng);
 
     int c_array[3] = {idx[0], idx[1], idx[2]};
     std::vector<int> std_vector{idx[0], idx[1], idx[2]};
@@ -320,8 +321,9 @@ void check_indexed_view() {
     ArrayXXd R = ArrayXXd::Random(rows, cols);
     ArrayXi r_idx = ArrayXi::EqualSpaced(rows, 0, 1);
     ArrayXi c_idx = ArrayXi::EqualSpaced(cols, 0, 1);
-    std::shuffle(r_idx.begin(), r_idx.end(), std::random_device());
-    std::shuffle(c_idx.begin(), c_idx.end(), std::random_device());
+    std::mt19937 rng(static_cast<unsigned int>(internal::random<int>(0, 1 << 30)));
+    std::shuffle(r_idx.begin(), r_idx.end(), rng);
+    std::shuffle(c_idx.begin(), c_idx.end(), rng);
 
     int c_array_rows[3] = {r_idx[0], r_idx[1], r_idx[2]};
     int c_array_cols[4] = {c_idx[0], c_idx[1], c_idx[2], c_idx[3]};

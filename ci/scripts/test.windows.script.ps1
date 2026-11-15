@@ -93,11 +93,24 @@ $ctest_cmd = { ctest ${EIGEN_CI_CTEST_ARGS} --parallel ${NPROC} --output-on-fail
 
 Write-Host "Running initial tests..."
 
+# Drop failed-test logs from an earlier run, so that a log below was written by
+# the initial run.
+Remove-Item -Path "Testing/Temporary/LastTestsFailed*.log" -ErrorAction SilentlyContinue
+
 & $ctest_cmd "-T" "test"
 $exit_code = $LASTEXITCODE
 
+# --rerun-failed reruns the tests listed in the failed-test log.  Without a log
+# (no test found under --no-tests=error, an invalid regex, a ctest that died)
+# it ignores -R/-L/-E and reruns every registered test.
+$failed_logs = @(Get-ChildItem -Path "Testing/Temporary" -Filter "LastTestsFailed*.log" -File `
+                               -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 0 })
+
 if ($exit_code -eq 0) {
   Write-Host "Tests passed on the first attempt."
+}
+elseif ($failed_logs.Count -eq 0) {
+  Write-Host "Initial tests failed with exit code $exit_code and listed no failed test. Not retrying."
 }
 else {
   Write-Host "Initial tests failed with exit code $exit_code. Retrying up to $EIGEN_CI_CTEST_REPEAT times..."

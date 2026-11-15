@@ -48,7 +48,8 @@ scripts() {
   for t in scripts/test_affected_tests.py ci/scripts/test_test_cache.py \
            ci/scripts/test_prune_runner_cache.py scripts/test_check_style.py \
            scripts/test_clang_tidy_hook.py scripts/test_tidy_compile_db.py \
-           scripts/test_check_agent_guides.py; do
+           scripts/test_check_agent_guides.py scripts/test_gitlab_api_common.py \
+           debug/gdb/test_printers.py; do
     echo "== $t"
     python3 "$t" || rc=1
   done

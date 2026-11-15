@@ -78,6 +78,7 @@ void BM_Fixed(benchmark::State& state) {
   }
 }
 
+#if !defined(EIGEN_BENCH_PREDICATE_SCALAR) && !defined(EIGEN_BENCH_PREDICATE_XPR)
 // isZero() on the top rows of a 64-column matrix: one inner vector per column, no linear access.
 void BM_BlockIsZero(benchmark::State& state) {
   const Index n = state.range(0);
@@ -91,11 +92,14 @@ void BM_BlockIsZero(benchmark::State& state) {
   }
   state.SetItemsProcessed(state.iterations() * n * 64);
 }
+#endif
 
 using Array16f = Array<float, 16, 1>;
 using Array33f = Array<float, 33, 1>;
 
+#if defined(EIGEN_BENCH_PREDICATE_SCALAR) || defined(EIGEN_BENCH_PREDICATE_XPR)
 const char* const opNames[] = {"all", "any", "allFinite", "isZero", "isApproxToConstant"};
+#endif
 
 #if defined(EIGEN_BENCH_PREDICATE_SCALAR)
 const bool registered = [] {

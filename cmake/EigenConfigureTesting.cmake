@@ -29,8 +29,9 @@ include(EigenSmokeTestList)
 include(EigenTestPartGroups)
 
 if (NOT EIGEN_CTEST_ARGS)
-  # By default, run tests in parallel on all available cores.
-  set(EIGEN_CTEST_ARGS "" CACHE STRING "-j0")
+  # Extra arguments for the ctest run of the check target, for example -j8.
+  # The default runs the tests serially.
+  set(EIGEN_CTEST_ARGS "" CACHE STRING "Arguments passed to ctest by the check target")
 endif()
 add_custom_target(check COMMAND "ctest" ${EIGEN_CTEST_ARGS})
 
@@ -41,7 +42,6 @@ add_custom_target(buildtests_gpu)
 add_custom_target(check_gpu COMMAND "ctest" ${EIGEN_CTEST_ARGS}
                                             "--output-on-failure"
                                             "--no-compress-output"
-                                            "--build-no-clean"
                                             "-T" "test"
                                             "-L" "gpu")
 add_dependencies(check_gpu buildtests_gpu)

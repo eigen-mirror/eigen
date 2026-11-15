@@ -14,8 +14,8 @@ fi
 
 if [ -n "${EIGEN_CTEST_ARGS:+x}" ]
 then
-  ./buildtests.sh "$1" && ctest -R "$1" ${EIGEN_CTEST_ARGS}
+  ./buildtests.sh "$1" && ctest -R "$1" --no-tests=error ${EIGEN_CTEST_ARGS}
 else
-  ./buildtests.sh "$1" && ctest -R "$1"
+  ./buildtests.sh "$1" && ctest -R "$1" --no-tests=error
 fi
 exit $?

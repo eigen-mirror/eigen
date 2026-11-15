@@ -12,8 +12,9 @@
 // When built with OpenMP, the bisection path parallelizes its independent per-eigenvalue bisections
 // across Eigen::nbThreads() threads (the QR path is serial). To measure thread scaling, run the
 // binary once per thread count via the environment, e.g.
-//     for t in 1 2 4 8; do OMP_NUM_THREADS=$t ./bench_tridiagonal_bisection \
-//         --benchmark_filter='BM_bisect_d/' --benchmark_repetitions=5; done
+//     for t in 1 2 4 8; do
+//         OMP_NUM_THREADS=$t ./bench_tridiagonal_bisection --benchmark_filter='BM_bisect_d/' --benchmark_repetitions=5
+//     done
 // Do not call Eigen::setNbThreads() to sweep the thread count inside one process: it mutates a global,
 // so consecutive/interleaved runs at different thread counts overwrite each other's setting and the
 // measured scaling is meaningless. Keep thread selection in the environment (OMP_NUM_THREADS), one

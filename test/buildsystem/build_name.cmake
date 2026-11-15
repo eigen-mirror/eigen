@@ -32,7 +32,7 @@ set(CMAKE_SYSTEM_PROCESSOR mips64)
 check_flags(MSA MSA)
 set(CMAKE_SIZEOF_VOID_P 4)
 check_flags(default)
-foreach(feature IN ITEMS NEON NEON64 ZVECTOR Z14 VSX ALTIVEC MSA LSX SME
+foreach(feature IN ITEMS NEON NEON64 Z14 VSX ALTIVEC MSA LSX SME
                          SSE2 SSE3 SSSE3 SSE4_1 SSE4_2 AVX AVX2 AVX512 AVX512DQ AVX512FP16 FMA F16C)
   check_flags("${feature}" "${feature}")
 endforeach()

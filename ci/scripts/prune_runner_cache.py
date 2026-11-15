@@ -80,12 +80,12 @@ def remove(path, size, mtime, args, why):
     print("%s %s (%s, %.1f d, %s)" % ("would remove" if args.dry_run else "removing",
                                       rel, human(size), age_days, why))
     if args.dry_run:
-        return
+        return True
     try:
         os.remove(path)
     except OSError as exc:
         print("  failed: %s" % exc, file=sys.stderr)
-        return
+        return False
     parent = os.path.dirname(path)
     while os.path.abspath(parent) != os.path.abspath(args.root):
         try:
@@ -93,6 +93,7 @@ def remove(path, size, mtime, args, why):
         except OSError:
             break
         parent = os.path.dirname(parent)
+    return True
 
 
 def main():
@@ -146,8 +147,8 @@ def main():
             gen = cache_index(path)
             if gen is None or gen >= args.stale_index_below or mtime > cutoff:
                 continue
-            remove(path, size, mtime, args, "superseded generation %d" % gen)
-            freed += size
+            if remove(path, size, mtime, args, "superseded generation %d" % gen):
+                freed += size
             found.remove(entry)
         print("%s %s from superseded generations"
               % ("would free" if args.dry_run else "freed", human(freed)))
@@ -162,14 +163,14 @@ def main():
             break
         if mtime > cutoff:
             continue
-        remove(path, size, mtime, args, "least recently used")
-        freed += size
+        if remove(path, size, mtime, args, "least recently used"):
+            freed += size
 
     print("%s %s in total; %s remains"
           % ("would free" if args.dry_run else "freed", human(freed), human(total - freed)))
     if total - freed > cap:
         print("still over cap: every remaining archive is newer than "
-              "--min-age-minutes", file=sys.stderr)
+              "--min-age-minutes or could not be removed", file=sys.stderr)
 
 
 if __name__ == "__main__":

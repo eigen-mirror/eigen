@@ -13,7 +13,10 @@ class OffByOneScalar {
   OffByOneScalar& operator=(const OffByOneScalar& other) = default;
 
   OffByOneScalar(T val) : val_(val + 1) {}
-  OffByOneScalar& operator=(T val) { val_ = val + 1; }
+  OffByOneScalar& operator=(T val) {
+    val_ = val + 1;
+    return *this;
+  }
 
   operator T() const { return val_ - 1; }
 

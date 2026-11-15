@@ -72,23 +72,37 @@ def read_post_image(root, rel_path, rev=None):
 
 
 def added_lines_from_diff(diff_text):
-    """Parse ``git diff -U0`` output into {relative_path: set(added line numbers)}."""
+    """Parse ``git diff -U0 --src-prefix=a/ --dst-prefix=b/`` output into
+    {relative_path: set(added line numbers)}.
+
+    Inside a hunk every line counts toward the hunk's line counts, so added
+    text that begins with ``++`` or ``--`` is not mistaken for a file header."""
     files = {}
     path, new_line = None, 0
+    old_left = new_left = 0
     for raw in diff_text.splitlines():
-        if raw.startswith("+++ "):
+        if old_left > 0 or new_left > 0:
+            if raw.startswith("+"):
+                if path is not None:
+                    files.setdefault(path, set()).add(new_line)
+                new_line += 1
+                new_left -= 1
+            elif raw.startswith("-"):
+                old_left -= 1
+            elif not raw.startswith("\\"):
+                # "\ No newline at end of file" is a marker, not a context line.
+                new_line += 1
+                old_left -= 1
+                new_left -= 1
+        elif raw.startswith("+++ "):
             name = raw[4:]
             path = None if name == "/dev/null" else name[2:] if name.startswith("b/") else name
         elif raw.startswith("@@"):
-            m = re.search(r"\+(\d+)(?:,(\d+))?", raw)
-            new_line = int(m.group(1)) if m else 0
-        elif raw.startswith("+") and not raw.startswith("+++"):
-            if path is not None:
-                files.setdefault(path, set()).add(new_line)
-            new_line += 1
-        elif not raw.startswith("-") and not raw.startswith("\\"):
-            # "\ No newline at end of file" is a marker, not a context line.
-            new_line += 1
+            m = re.match(r"@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", raw)
+            if m:
+                old_left = 1 if m.group(1) is None else int(m.group(1))
+                new_line = int(m.group(2))
+                new_left = 1 if m.group(3) is None else int(m.group(3))
     return files
 
 
@@ -250,7 +264,10 @@ def diff_added_lines(base, root=REPO_ROOT, include_untracked=True, head=None):
     The comparison is with the work tree, or with commit ``head`` when given."""
     merge_base = git(root, "merge-base", base, "HEAD")
     resolved = merge_base.stdout.strip() if merge_base.returncode == 0 else base
-    diff = git(root, "diff", "-U0", "--no-color", resolved, *([head] if head else []))
+    # Pin the options that user configuration can change: path prefixes
+    # (diff.mnemonicPrefix, diff.noprefix) and external diff drivers.
+    diff = git(root, "diff", "-U0", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", resolved,
+               *([head] if head else []))
     if diff.returncode not in (0, 1):
         sys.stderr.write(diff.stderr)
         raise SystemExit(2)

@@ -228,16 +228,26 @@ the package-registry archive URLs from step 4 as release assets.
 
 ## 6. Documentation
 
-Per-branch Doxygen output lands on GitLab Pages under
-`https://libeigen.gitlab.io/eigen/docs-<branch>` via the `deploy:docs`
-job in [`ci/deploy.gitlab-ci.yml`](ci/deploy.gitlab-ci.yml). The job
-fires on schedule, on web-triggered pipelines, and on push to the
-default branch, only inside the `libeigen` namespace.
+Doxygen output lands on GitLab Pages through the `deploy:docs` job in
+[`ci/deploy.gitlab-ci.yml`](ci/deploy.gitlab-ci.yml), only inside the
+`libeigen` namespace. The Pages prefix depends on the pipeline:
 
-To publish docs for a release branch / tag, trigger a **Web** pipeline
-on the release branch from **Build → Pipelines → Run pipeline**. The
-`PAGES_PREFIX` becomes `docs-<branch>` and the URL becomes
-`https://libeigen.gitlab.io/eigen/docs-<branch>`.
+| Pipeline | URL under `https://libeigen.gitlab.io/eigen/` |
+|---|---|
+| schedule or web, on the default branch | `docs-weekly` |
+| push to the default branch | `docs-<default branch>` |
+| schedule or web, on any other protected branch or tag | `docs-<ref slug>` |
+| schedule or web, on an unprotected branch or tag | no `deploy:docs` job |
+
+`<ref slug>` is `CI_COMMIT_REF_SLUG`: the branch or tag name in lowercase,
+with every character outside `0-9a-z` replaced by `-` and at most 63
+characters, so `5.1` gives `docs-5-1`. A push to a branch other than the default
+does not run the job. `build:linux:docs` runs in every case
+that the table lists, and still builds the documentation when nothing is deployed.
+
+To publish docs for a release branch or tag, protect it (**Settings → Repository**), then
+trigger a **Web** pipeline on it from **Build → Pipelines → Run pipeline**, or run a
+schedule on that branch.
 
 Manual build fallback (developer machine, when CI Pages isn't an
 option):

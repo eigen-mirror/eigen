@@ -235,8 +235,7 @@ void sparse_basic(const SparseMatrixType& ref) {
     // generate random inner indices with no repeats
     Vector<Index, Dynamic> innerIndices(inner);
     innerIndices.setLinSpaced(inner, 0, inner - 1);
-    std::random_device rd;
-    std::mt19937 g(rd());
+    std::mt19937 g(static_cast<unsigned int>(internal::random<int>(0, 1 << 30)));
     for (Index j = 0; j < outer; j++) {
       std::shuffle(innerIndices.begin(), innerIndices.end(), g);
       Index nzj = internal::random<Index>(2, inner / 2);

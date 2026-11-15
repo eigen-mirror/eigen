@@ -111,8 +111,15 @@ if(EIGEN_TEST_EXTERNAL_BLAS)
 endif()
 
 # configure blas/lapack (use Eigen's ones)
-set(EIGEN_BLAS_LIBRARIES eigen_blas)
-set(EIGEN_LAPACK_LIBRARIES eigen_lapack)
+# Without EIGEN_BUILD_SHARED_LIBS only the static libraries exist.  blas/ and lapack/ are added
+# after this directory, so their targets cannot be tested for here.
+if(EIGEN_BUILD_SHARED_LIBS)
+  set(EIGEN_BLAS_LIBRARIES eigen_blas)
+  set(EIGEN_LAPACK_LIBRARIES eigen_lapack)
+else()
+  set(EIGEN_BLAS_LIBRARIES eigen_blas_static)
+  set(EIGEN_LAPACK_LIBRARIES eigen_lapack_static)
+endif()
 
 set(EIGEN_TEST_MATRIX_DIR "" CACHE STRING "Enable testing of realword sparse matrices contained in the specified path")
 if(EIGEN_TEST_MATRIX_DIR)
@@ -123,6 +130,11 @@ if(EIGEN_TEST_MATRIX_DIR)
     message(STATUS "REAL CASES CAN NOT BE CURRENTLY TESTED ON WIN32")
   endif()
 endif()
+
+# Set before the first ei_add_test: a test registered while this is unset gets
+# no label and is not a dependency of BuildOfficial.
+set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official")
+add_custom_target(BuildOfficial)
 
 set(SPARSE_LIBS " ")
 
@@ -225,6 +237,8 @@ if(SPQR_FOUND AND CHOLMOD_FOUND AND EIGEN_BUILD_BLAS AND EIGEN_BUILD_LAPACK AND 
   set(SPQR_ALL_LIBS ${SPQR_LIBRARIES} ${CHOLMOD_LIBRARIES} ${EIGEN_LAPACK_LIBRARIES} ${EIGEN_BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   set(SPARSE_LIBS ${SPARSE_LIBS} ${SPQR_ALL_LIBS})
   ei_add_property(EIGEN_TESTED_BACKENDS "SPQR, ")
+
+  ei_add_test(spqr_support "" "${SPQR_ALL_LIBS}")
 else()
   ei_add_property(EIGEN_MISSING_BACKENDS "SPQR, ")
 endif()
@@ -243,9 +257,6 @@ endif()
 if(TEST_LIB)
   add_definitions("-DEIGEN_EXTERN_INSTANTIATIONS=1")
 endif()
-
-set_property(GLOBAL PROPERTY EIGEN_CURRENT_SUBPROJECT "Official")
-add_custom_target(BuildOfficial)
 
 # Not an ei_add_test: this checks values produced by the configure step itself,
 # so it compares what the enclosing project() call left in this scope.
@@ -654,10 +665,6 @@ endif()
 
 if(PASTIX_FOUND AND PASTIX_NO_MPI)
   ei_add_test(pastix_support "" "${PASTIX_ALL_LIBS}")
-endif()
-
-if(SPQR_FOUND AND CHOLMOD_FOUND AND EIGEN_BUILD_BLAS AND EIGEN_BUILD_LAPACK)
-  ei_add_test(spqr_support "" "${SPQR_ALL_LIBS}")
 endif()
 
 if(METIS_FOUND)

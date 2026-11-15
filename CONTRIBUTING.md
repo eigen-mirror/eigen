@@ -12,7 +12,7 @@ working in the corresponding areas.
 - **Upstream repository:** <https://gitlab.com/libeigen/eigen> — bugs, merge requests, and discussion all happen here. The GitHub mirror is read-only.
 - **Issue tracker:** <https://gitlab.com/libeigen/eigen/-/issues>
 - **CI pipelines:** <https://gitlab.com/libeigen/eigen/-/pipelines>
-- **API documentation (nightly):** <https://libeigen.gitlab.io/eigen/docs-nightly>
+- **API documentation (weekly):** <https://libeigen.gitlab.io/eigen/docs-weekly>
 - **Project site:** <https://libeigen.gitlab.io> (some of its pages are out of date; this file and the guides
   linked from `AGENTS.md` take precedence)
 - **Chat:** [Discord](https://discord.com/channels/777904510169382942/777904791136370758) — the primary support and discussion channel.
@@ -212,6 +212,6 @@ Some `contrib/` modules matter more than the directory name suggests:
   [answering review comments](.agents/review-response.md).
 - [`README.md`](README.md) — high-level project description and pointers to the websites.
 - [`CHANGELOG.md`](CHANGELOG.md) — release-by-release notes.
-- API reference (nightly): <https://libeigen.gitlab.io/eigen/docs-nightly>.
+- API reference (weekly): <https://libeigen.gitlab.io/eigen/docs-weekly>.
 
 Thank you for contributing to Eigen!

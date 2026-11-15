@@ -50,18 +50,16 @@ class _MatrixEntryIterator(object):
 	def __next__(self):
 		row = self.currentRow
 		col = self.currentCol
+		# An empty matrix has a null data pointer, so stop when either dimension is 0.
+		if row >= self.rows or col >= self.cols:
+			raise StopIteration
+
 		if self.rowMajor == 0:
-			if self.currentCol >= self.cols:
-				raise StopIteration
-				
 			self.currentRow += 1
 			if self.currentRow >= self.rows:
 				self.currentRow = 0
 				self.currentCol += 1
 		else:
-			if self.currentRow >= self.rows:
-				raise StopIteration
-				
 			self.currentCol += 1
 			if self.currentCol >= self.cols:
 				self.currentCol = 0
@@ -280,27 +278,119 @@ class EigenQuaternionPrinter:
 		return "Eigen::Quaternion<%s> (data ptr: %s)" % (self.innerType, self.data)
 
 
-def cast_eigen_block_to_matrix(val):
-	# Get the type of the variable (and convert to a string)
-	# Example: 'const Eigen::Block<Eigen::Block<Eigen::Matrix<double, -1, -1, 0, -1, -1>, -1, -1, false> const, -1, -1, false>'
-	val_type = str(val.type)
+_DYNAMIC_SPELLINGS = ['-0x00000000000000001', '-0x000000001', '-1']
 
-	# Extract the Eigen::Matrix type from the Block:
-	# From the previous example: Eigen::Matrix<double, -1, -1, 0, -1, -1>
-	begin = val_type.find('Eigen::Matrix<')
-	end = val_type.find('>', begin) + 1
 
-	# Convert the Eigen::Block to an Eigen::Matrix
-	return val.cast(gdb.lookup_type(val_type[begin:end]))
+def _split_template_arguments(tag):
+	"""Split the top-level template arguments of 'Name<a, B<c, d>, e>' into ['a', 'B<c, d>', 'e']."""
+	arguments = []
+	depth = 0
+	current = ''
+	for char in tag[tag.index('<') + 1:tag.rindex('>')]:
+		if char == '<':
+			depth += 1
+		elif char == '>':
+			depth -= 1
+		if char == ',' and depth == 0:
+			arguments.append(current.strip())
+			current = ''
+		else:
+			current += char
+	arguments.append(current.strip())
+	return arguments
+
+
+class EigenBlockPrinter:
+	"""Print an Eigen Block or VectorBlock of a plain Matrix or Array.
+
+	The block is read through its own data pointer, sizes and outer stride, so that blocks that are not
+	contiguous (a sub-block, a row of a column-major matrix) show the right coefficients."""
+
+	def __init__(self, val):
+		if val.type.code == gdb.TYPE_CODE_REF:
+			val = val.referenced_value()
+		typeinfo = val.type.unqualified().strip_typedefs()
+		if typeinfo.tag.startswith('Eigen::VectorBlock<'):
+			# A VectorBlock adds nothing to the Block it derives from.
+			typeinfo = typeinfo.fields()[0].type
+			val = val.cast(typeinfo)
+		self.type = typeinfo.unqualified().strip_typedefs()
+
+		arguments = _split_template_arguments(self.type.tag)
+		if not re.match(r'^(const )?Eigen::(Matrix|Array)<', arguments[0]):
+			raise ValueError('only blocks of a plain Matrix or Array are supported')
+		# Dynamic is -1, which some gdb versions print in hexadecimal (see EigenMatrixPrinter).
+		rows_at_compile_time = -1 if arguments[1].replace(" ", "") in _DYNAMIC_SPELLINGS else int(arguments[1])
+		cols_at_compile_time = -1 if arguments[2].replace(" ", "") in _DYNAMIC_SPELLINGS else int(arguments[2])
+
+		parent = val['m_xpr']
+		if parent.type.strip_typedefs().code in (gdb.TYPE_CODE_REF, getattr(gdb, 'TYPE_CODE_RVALUE_REF', None)):
+			parent = parent.referenced_value()
+		parent = EigenMatrixPrinter("Matrix", parent)
+		self.innerType = parent.innerType
+		self.rows = int(val['m_rows']['m_value']) if rows_at_compile_time == -1 else rows_at_compile_time
+		self.cols = int(val['m_cols']['m_value']) if cols_at_compile_time == -1 else cols_at_compile_time
+
+		# Block's storage order, as in internal::traits<Block>
+		if rows_at_compile_time == 1 and cols_at_compile_time != 1:
+			self.rowMajor = 1
+		elif cols_at_compile_time == 1 and rows_at_compile_time != 1:
+			self.rowMajor = 0
+		else:
+			self.rowMajor = parent.rowMajor
+
+		# A plain parent has inner stride 1 and outer stride rows (column-major) or cols (row-major);
+		# see BlockImpl_dense::innerStride() and outer_stride().
+		outer_stride = int(val['m_outerStride'])
+		parent_outer_stride = int(parent.cols if parent.rowMajor else parent.rows)
+		inner_stride = 1 if self.rowMajor == parent.rowMajor else parent_outer_stride
+		self.rowStride = outer_stride if self.rowMajor else inner_stride
+		self.colStride = inner_stride if self.rowMajor else outer_stride
+
+		self.data = val['m_data']
+		if self.data.type.strip_typedefs().code != gdb.TYPE_CODE_PTR:
+			raise ValueError('unexpected block data member')
+
+	class _Iterator(_MatrixEntryIterator):
+		def __init__(self, printer):
+			super(EigenBlockPrinter._Iterator, self).__init__(printer.rows, printer.cols, printer.rowMajor)
+			self.printer = printer
+
+		def __next__(self):
+			row, col = super(EigenBlockPrinter._Iterator, self).__next__()
+
+			item = (self.printer.data + (row * self.printer.rowStride + col * self.printer.colStride)).dereference()
+			if self.cols == 1:  # if it's a column vector
+				return '[%d]' % (row,), item
+			elif self.rows == 1:  # if it's a row vector
+				return '[%d]' % (col,), item
+			return '[%d,%d]' % (row, col), item
+
+	def children(self):
+		return self._Iterator(self)
+
+	def to_string(self):
+		return "Eigen::Block<%s,%d,%d,%s> (data ptr: %s, row stride: %d, column stride: %d)" % (
+			self.innerType, self.rows, self.cols, "RowMajor" if self.rowMajor else "ColMajor",
+			self.data, self.rowStride, self.colStride)
+
+
+def make_eigen_block_printer(val):
+	"""Return a printer for a Block or VectorBlock, or None to leave it to gdb's raw struct printing.
+
+	Blocks of anything but a plain Matrix or Array, and blocks whose layout cannot be read, are declined
+	rather than shown with wrong coefficients."""
+	try:
+		return EigenBlockPrinter(val)
+	except (gdb.error, RuntimeError, ValueError, KeyError, IndexError, TypeError):
+		return None
 
 
 def build_eigen_dictionary():
 	pretty_printers_dict[re.compile('^Eigen::Quaternion<.*>$')] = lambda val: EigenQuaternionPrinter(val)
 	pretty_printers_dict[re.compile('^Eigen::Matrix<.*>$')] = lambda val: EigenMatrixPrinter("Matrix", val)
-	pretty_printers_dict[re.compile('^Eigen::Block<.*>$')] =\
-		lambda val: EigenMatrixPrinter("Matrix", cast_eigen_block_to_matrix(val))
-	pretty_printers_dict[re.compile('^Eigen::VectorBlock<.*>$')] =\
-		lambda val: EigenMatrixPrinter("Matrix", cast_eigen_block_to_matrix(val))
+	pretty_printers_dict[re.compile('^Eigen::Block<.*>$')] = make_eigen_block_printer
+	pretty_printers_dict[re.compile('^Eigen::VectorBlock<.*>$')] = make_eigen_block_printer
 	pretty_printers_dict[re.compile('^Eigen::SparseMatrix<.*>$')] = lambda val: EigenSparseMatrixPrinter(val)
 	pretty_printers_dict[re.compile('^Eigen::Array<.*>$')] = lambda val: EigenMatrixPrinter("Array",  val)
 

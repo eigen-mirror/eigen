@@ -40,4 +40,8 @@ if(EIGEN_INSTALL)
     )
 
   install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen COMPONENT Devel FILES_MATCHING PATTERN "*.h")
+
+  # The LevenbergMarquardt headers refer to this file as "accompanying" them.
+  install(FILES src/LevenbergMarquardt/CopyrightMINPACK.txt
+          DESTINATION ${INCLUDE_INSTALL_DIR}/contrib/Eigen/src/LevenbergMarquardt COMPONENT Devel)
 endif()
