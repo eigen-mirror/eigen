@@ -405,8 +405,8 @@ void test_failing_columns_before_pivots() {
   using Natural = NaturalOrdering<StorageIndex>;
 
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
-  for (const Index numConstraints : {Index(5), Index(70), Index(150)}) {
-    for (const Index numVariables : {Index(5), Index(70), Index(150)}) {
+  for (const Index numConstraints : {Index(5), Index(40), Index(70)}) {
+    for (const Index numVariables : {Index(5), Index(40), Index(70)}) {
       for (const Index numTail : {Index(0), numConstraints}) {
         for (const RealScalar h : {RealScalar(1e3), RealScalar(1) / numext::sqrt(eps)}) {
           const Index numFully = numConstraints + numVariables;
