@@ -133,6 +133,9 @@ server.serve_forever()
 fi
 
 show_ccache_stats() {
+  # Print the stats without xtrace, which would bury them in the trace of this function.
+  local xtrace="${-//[^x]/}"
+  { set +x; } 2>/dev/null
   if [[ "${compiler_launcher}" == "sccache" && -n "${sccache_bin}" ]]; then
     "${sccache_bin}" --show-stats 2>&1 || true
     "${sccache_bin}" --stop-server >/dev/null 2>&1 || true
@@ -152,7 +155,10 @@ show_ccache_stats() {
     fi
     # Incompatible cache formats: purge unused .sccache/ before cache upload.
     rm -rf "${rootdir}/.sccache"
+  else
+    echo "Compiler cache: not used by this job."
   fi
+  if [[ -n "${xtrace}" ]]; then set -x; fi
 }
 
 cmake -G Ninja                                                   \
