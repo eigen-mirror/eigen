@@ -20,6 +20,10 @@
     "unsupported/Eigen/IterativeSolvers is deprecated and forwards to <Eigen/IterativeLinearSolvers>; please include that header directly. Define EIGEN_NO_DEPRECATED_WARNING to silence this message.")
 #endif
 
+// Eigen 5.0 included these modules from this header; code that includes only the legacy path may rely on them.
+#include "../../Eigen/Sparse"
+#include "../../Eigen/Jacobi"
+#include "../../Eigen/Householder"
 #include "../../Eigen/IterativeLinearSolvers"
 
 #endif  // EIGEN_ITERATIVE_SOLVERS_MODULE_H

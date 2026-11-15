@@ -208,7 +208,7 @@ EIGEN_MAKE_CWISE_BINARY_OP(atan2, internal::scalar_atan2_op)
   EIGEN_DEVICE_FUNC constexpr inline const RCmp##RCOMPARATOR##ReturnType OP(const Scalar &s) const {                  \
     return Derived::PlainObject::Constant(rows(), cols(), s).R_OP(*this);                                             \
   }                                                                                                                   \
-  friend inline const Cmp##RCOMPARATOR##ReturnType OP(const Scalar &s, const Derived &d) {                            \
+  EIGEN_DEVICE_FUNC constexpr friend const Cmp##RCOMPARATOR##ReturnType OP(const Scalar &s, const Derived &d) {       \
     return d.R_OP(Derived::PlainObject::Constant(d.rows(), d.cols(), s));                                             \
   }
 
@@ -357,7 +357,7 @@ friend inline const CwiseBinaryOp<internal::scalar_quotient_op<T, Scalar>, Const
  * \sa Eigen::zeta()
  */
 template <typename DerivedQ>
-inline const CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ> zeta(
-    const EIGEN_CURRENT_STORAGE_BASE_CLASS<DerivedQ> &q) const {
+EIGEN_DEVICE_FUNC constexpr inline const CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ>
+zeta(const EIGEN_CURRENT_STORAGE_BASE_CLASS<DerivedQ> &q) const {
   return CwiseBinaryOp<internal::scalar_zeta_op<Scalar>, const Derived, const DerivedQ>(this->derived(), q.derived());
 }

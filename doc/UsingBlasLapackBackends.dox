@@ -54,8 +54,9 @@ and then use the following link flags: \c -framework \c Accelerate \c /opt/local
 <tr><td>\c EIGEN_USE_BLAS </td><td>Enables the use of external BLAS level 2 and 3 routines (compatible with any F77 BLAS interface)</td></tr>
 <tr class="alt"><td>\c EIGEN_USE_LAPACKE </td><td>Enables the use of external Lapack routines via the <a href="http://www.netlib.org/lapack/lapacke.html">Lapacke</a> C interface to Lapack (compatible with any F77 LAPACK interface)</td></tr>
 <tr><td>\c EIGEN_USE_LAPACKE_STRICT </td><td>Same as \c EIGEN_USE_LAPACKE but algorithms of lower numerical robustness are disabled. \n This currently concerns only JacobiSVD which otherwise would be replaced by \c gesvd that is less robust than Jacobi rotations.</td></tr>
-<tr class="alt"><td>\c EIGEN_64BIT_BLAS </td><td>Selects the 64-bit integer ("ILP64") BLAS interface instead of the default 32-bit ("LP64") one. See \ref TopicUsingBlasLapack_ILP64 below.</td></tr>
-<tr><td>\c EIGEN_BLAS_SYMBOL_SUFFIX </td><td>Suffix of the external BLAS symbol names, for ILP64 libraries that decorate them; e.g. \c _64 selects \c dgemm_64_ instead of \c dgemm_. See \ref TopicUsingBlasLapack_ILP64 below.</td></tr>
+<tr class="alt"><td>\c EIGEN_LAPACKE_SYSTEM </td><td>Together with \c EIGEN_USE_LAPACKE, makes %Eigen include the system's \c lapacke.h instead of its own header, which declares only the Lapacke routines that %Eigen calls. See \ref TopicUsingBlasLapack_Lapacke below.</td></tr>
+<tr><td>\c EIGEN_64BIT_BLAS </td><td>Selects the 64-bit integer ("ILP64") BLAS interface instead of the default 32-bit ("LP64") one. See \ref TopicUsingBlasLapack_ILP64 below.</td></tr>
+<tr class="alt"><td>\c EIGEN_BLAS_SYMBOL_SUFFIX </td><td>Suffix of the external BLAS symbol names, for ILP64 libraries that decorate them; e.g. \c _64 selects \c dgemm_64_ instead of \c dgemm_. See \ref TopicUsingBlasLapack_ILP64 below.</td></tr>
 </table>
 
 When doing so, a number of %Eigen's algorithms are silently substituted with calls to BLAS or LAPACK routines.
@@ -135,6 +136,10 @@ ComplexSchur<MatrixXcd> schurC(m1);
 \endcode</td></tr>
 </table>
 In the examples, m1 and m2 are dense matrices and v1 and v2 are dense vectors.
+
+\section TopicUsingBlasLapack_Lapacke Lapacke declarations
+
+Unless \c EIGEN_USE_MKL or \c EIGEN_LAPACKE_SYSTEM is defined, \c EIGEN_USE_LAPACKE makes %Eigen include a bundled header that declares only the Lapacke routines %Eigen itself calls (for example \c LAPACKE_dgetrf and \c LAPACKE_dgees). To call any other Lapacke routine from your own code, include the system's \c lapacke.h, either before or after the %Eigen headers; the bundled header does not conflict with it, and it is skipped when the system header comes first. Alternatively, define \c EIGEN_LAPACKE_SYSTEM before including any %Eigen header, so that %Eigen itself includes the system's \c lapacke.h and no bundled declarations are used.
 
 \section TopicUsingBlasLapack_ILP64 The 64-bit integer (ILP64) interface
 

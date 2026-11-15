@@ -38,7 +38,9 @@ struct ScalarBinaryOpTraits<mpfr::mpreal, mpfr::mpreal, internal::scalar_product
   *
   * \warning MPFR C++ is licensed under the GPL.
   *
-  * You can find a copy of MPFR C++ that is known to be compatible in the contrib/test/mpreal folder.
+  * MPFR C++ is not bundled with Eigen: install its \c mpreal.h separately. The test \c mpreal_support is built only if
+  * \c mpreal.h is found by cmake/FindMPREAL.cmake (searching \c $GMPDIR and \c INCLUDE_INSTALL_DIR, then the default
+  * paths), in addition to MPFR and GMP.
   *
   * Here is an example:
   *

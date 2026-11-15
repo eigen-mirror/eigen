@@ -33,10 +33,11 @@
 *****************************************************************************/
 // SPDX-License-Identifier: BSD-3-Clause
 
-#ifndef _MKL_LAPACKE_H_
-
-#ifndef _LAPACKE_H_
-#define _LAPACKE_H_
+// This subset has its own guard and does not define _LAPACKE_H_, so that a system <lapacke.h> included after it still
+// declares the full API. Nothing here conflicts with a later system header; if the system (or MKL) header was included
+// first, this subset is skipped.
+#if !defined(_MKL_LAPACKE_H_) && !defined(_LAPACKE_H_) && !defined(EIGEN_LAPACKE_SUBSET_H_)
+#define EIGEN_LAPACKE_SUBSET_H_
 
 #ifdef HAVE_LAPACK_CONFIG_H
 #include "lapacke_config.h"
@@ -70,8 +71,6 @@
 #define lapack_complex_float_imag(z) (cimag(z))
 #endif
 
-lapack_complex_float lapack_make_complex_float(float re, float im);
-
 #ifndef lapack_complex_double
 #define lapack_complex_double std::complex<double>
 #endif
@@ -83,8 +82,6 @@ lapack_complex_float lapack_make_complex_float(float re, float im);
 #ifndef lapack_complex_double_imag
 #define lapack_complex_double_imag(z) (cimag(z))
 #endif
-
-lapack_complex_double lapack_make_complex_double(double re, double im);
 
 #endif
 
@@ -98,9 +95,6 @@ extern "C" {
 #ifndef LAPACKE_free
 #define LAPACKE_free(p) free(p)
 #endif
-
-#define LAPACK_C2INT(x) (lapack_int)(*((float*)&x))
-#define LAPACK_Z2INT(x) (lapack_int)(*((double*)&x))
 
 #define LAPACK_ROW_MAJOR 101
 #define LAPACK_COL_MAJOR 102
@@ -122,16 +116,14 @@ typedef lapack_logical (*LAPACK_Z_SELECT2)(const lapack_complex_double*, const l
 
 #include "lapacke_mangling.h"
 
-#define LAPACK_lsame LAPACK_GLOBAL(lsame, LSAME)
-lapack_logical LAPACK_lsame(char* ca, char* cb, lapack_int lca, lapack_int lcb);
-
 /*
  * LAPACKE function prototypes used by Eigen.
  *
  * Only the subset of LAPACKE routines that Eigen actually calls is declared
- * here.  If you need the full LAPACKE API, include your system's <lapacke.h>
- * after including Eigen headers, or define EIGEN_LAPACKE_SYSTEM before
- * including Eigen to use the system header instead of this bundled subset.
+ * here.  For the full LAPACKE API, include your system's <lapacke.h> either
+ * before or after the Eigen headers, or define EIGEN_LAPACKE_SYSTEM before
+ * including Eigen to make Eigen include the system header instead of this
+ * bundled subset.
  */
 
 /* Schur decomposition (gees) — used by RealSchur_LAPACKE.h, ComplexSchur_LAPACKE.h */
@@ -215,6 +207,4 @@ lapack_int LAPACKE_zheev(int matrix_order, char jobz, char uplo, lapack_int n, l
 }
 #endif /* __cplusplus */
 
-#endif /* _LAPACKE_H_ */
-
-#endif /* _MKL_LAPACKE_H_ */
+#endif /* EIGEN_LAPACKE_SUBSET_H_ */

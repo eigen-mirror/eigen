@@ -5,6 +5,22 @@
 #include "main.h"
 #include <Eigen/Eigenvalues>
 
+// A system <lapacke.h> included after Eigen must still declare the full LAPACKE API. Eigen's bundled subset header
+// must neither claim the system header's include guards nor conflict with its declarations. The guard check needs no
+// system header, so it runs everywhere; the conflict check below needs one. Only a declaration is needed, so the test
+// does not link against LAPACKE.
+#if !defined(EIGEN_USE_MKL) && !defined(EIGEN_LAPACKE_SYSTEM) && (defined(_LAPACKE_H_) || defined(_MKL_LAPACKE_H_))
+#error "the bundled lapacke.h must not define the include guard of the system header"
+#endif
+
+#if !defined(EIGEN_USE_MKL) && !defined(EIGEN_LAPACKE_SYSTEM) && defined(__has_include)
+#if __has_include(<lapacke.h>)
+#include <lapacke.h>
+static_assert(std::is_function<std::remove_pointer<decltype(&LAPACKE_dgesv)>::type>::value,
+              "LAPACKE_dgesv is not declared after Eigen");
+#endif
+#endif
+
 namespace {
 int real_schur_calls = 0;
 int complex_schur_calls = 0;
