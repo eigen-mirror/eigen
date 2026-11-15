@@ -15,7 +15,7 @@ using namespace Eigen;
 using Scalar = SCALAR;
 using Clock = std::chrono::steady_clock;
 
-// Handoff rewrites the operands on the core, as a factorization does, then times product + read; ReadOnly is its base.
+// Handoff rewrites a, b, c on the core, as a factorization does, then times product + read; ReadOnly rewrites c only.
 enum HandoffMode { Repeated, Handoff, ReadOnly };
 
 // Sampled coefficients of c = a * b: |c(i,j) - sum_q a(i,q) b(q,j)| <= 8 k eps sum_q |a(i,q)| |b(q,j)|.
@@ -56,8 +56,10 @@ static void BM_GemmHandoff(benchmark::State& state) {
       benchmark::ClobberMemory();
       continue;
     }
-    a = a0;
-    b = b0;
+    if (Mode == Handoff) {
+      a = a0;
+      b = b0;
+    }
     c = c0;
     benchmark::ClobberMemory();
     const auto t0 = Clock::now();
