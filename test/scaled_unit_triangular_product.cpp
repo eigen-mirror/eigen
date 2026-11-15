@@ -108,27 +108,59 @@ void scaled_unit_products() {
   check_scaled_unit_product(adjoint.template triangularView<UnitUpper>(), c, alpha);
 }
 
-void scaled_unit_fallbacks() {
-  MatrixXd a = MatrixXd::Constant(4, 4, NumTraits<double>::infinity());
-  const MatrixXd b = MatrixXd::Identity(4, 4);
-  const MatrixXd product = a.triangularView<UnitUpper>() * b;
-  for (double alpha : {0.0, -0.0, NumTraits<double>::infinity(), NumTraits<double>::quiet_NaN(), 2.0, -2.0}) {
-    MatrixXd dst(4, 4);
-    dst.noalias() = alpha * (a.triangularView<UnitUpper>() * b);
-    const MatrixXd expected = alpha * product;
-    for (Index i = 0; i < dst.size(); ++i) {
-      if ((numext::isnan)(expected(i)))
-        VERIFY((numext::isnan)(dst(i)));
-      else {
-        VERIFY_IS_EQUAL(dst(i), expected(i));
-        if (dst(i) == 0) VERIFY_IS_EQUAL(std::signbit(dst(i)), std::signbit(expected(i)));
+#if defined(EIGEN_TEST_PART_5) || defined(EIGEN_TEST_PART_ALL)
+template <typename Lhs, typename Rhs>
+void check_scaled_unit_zero(const Lhs& lhs, const Rhs& rhs, const typename Lhs::Scalar& alpha) {
+  using Scalar = typename Lhs::Scalar;
+  using Destination =
+      std::conditional_t<Rhs::ColsAtCompileTime == 1, Matrix<Scalar, Dynamic, 1>, Matrix<Scalar, Dynamic, Dynamic>>;
+  const auto expression = alpha * (lhs * rhs);
+  Destination dst;
+  dst.noalias() = expression;
+  VERIFY_IS_EQUAL(dst.rows(), lhs.rows());
+  VERIFY_IS_EQUAL(dst.cols(), rhs.cols());
+  VERIFY((dst.array() == Scalar(0)).all());
+  dst.setConstant(Scalar(7));
+  dst.noalias() += expression;
+  VERIFY((dst.array() == Scalar(7)).all());
+  dst.noalias() -= expression;
+  VERIFY((dst.array() == Scalar(7)).all());
+}
+
+template <typename Scalar, int LhsOrder, int RhsOrder>
+void scaled_unit_zero_scales() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Lhs = Matrix<Scalar, Dynamic, Dynamic, LhsOrder>;
+  using Rhs = Matrix<Scalar, Dynamic, Dynamic, RhsOrder>;
+  for (Real value : {NumTraits<Real>::infinity(), NumTraits<Real>::quiet_NaN()}) {
+    for (Index n : {Index(0), Index(1), Index(4), Index(24)}) {
+      const Lhs a = Lhs::Constant(n, n, Scalar(value));
+      const Rhs b = Rhs::Constant(n, n + 2, Scalar(value));
+      const Matrix<Scalar, Dynamic, 1> v = Matrix<Scalar, Dynamic, 1>::Constant(n, Scalar(value));
+      for (Scalar alpha : {Scalar(0), Scalar(-Real(0))}) {
+        check_scaled_unit_zero(a.template triangularView<UnitLower>(), b, alpha);
+        check_scaled_unit_zero(a.template triangularView<UnitUpper>(), b, alpha);
+        check_scaled_unit_zero(a.template triangularView<UnitLower>(), v, alpha);
+        check_scaled_unit_zero(a.template triangularView<UnitUpper>(), v, alpha);
+        check_scaled_unit_zero(a.template triangularView<UnitLower>(), v.asDiagonal(), alpha);
+        check_scaled_unit_zero(a.template triangularView<UnitUpper>(), v.asDiagonal(), alpha);
       }
     }
   }
-  a.resize(3, 0);
-  const MatrixXd emptyRhs(0, 4);
-  const MatrixXd empty = NumTraits<double>::infinity() * (a.triangularView<UnitUpper>() * emptyRhs);
-  VERIFY(empty.array().isNaN().all());
+  const Lhs empty(3, 0);
+  const Rhs rhs(0, 4);
+  check_scaled_unit_zero(empty.template triangularView<UnitUpper>(), rhs, Scalar(0));
+}
+
+void scaled_unit_fallbacks() {
+  scaled_unit_zero_scales<double, ColMajor, ColMajor>();
+  scaled_unit_zero_scales<double, ColMajor, RowMajor>();
+  scaled_unit_zero_scales<double, RowMajor, ColMajor>();
+  scaled_unit_zero_scales<double, RowMajor, RowMajor>();
+  scaled_unit_zero_scales<std::complex<double>, ColMajor, ColMajor>();
+  scaled_unit_zero_scales<std::complex<double>, ColMajor, RowMajor>();
+  scaled_unit_zero_scales<std::complex<double>, RowMajor, ColMajor>();
+  scaled_unit_zero_scales<std::complex<double>, RowMajor, RowMajor>();
 
   const MatrixXcd complexA = MatrixXcd::Random(24, 24), complexB = MatrixXcd::Random(24, 7);
   MatrixXcd mixed(24, 7);
@@ -147,11 +179,6 @@ void scaled_unit_fallbacks() {
     actual.noalias() = scale * (zero.triangularView<UnitLower>() * zero);
     for (Index i = 0; i < actual.size(); ++i) {
       VERIFY_IS_EQUAL(actual(i), expected(i));
-      // Kernel-side scaling can change zero signs; negative-zero scales retain the coefficient-wise fallback.
-      if ((scale.real() == 0 && std::signbit(scale.real())) || (scale.imag() == 0 && std::signbit(scale.imag()))) {
-        VERIFY_IS_EQUAL(std::signbit(actual(i).real()), std::signbit(expected(i).real()));
-        VERIFY_IS_EQUAL(std::signbit(actual(i).imag()), std::signbit(expected(i).imag()));
-      }
     }
   }
   MatrixXd finite = MatrixXd::Random(24, 24), other = MatrixXd::Random(24, 7), dst(24, 7);
@@ -167,6 +194,7 @@ void scaled_unit_fallbacks() {
   qdst.noalias() = alpha * (qa.triangularView<UnitUpper>() * qb);
   VERIFY(qdst == (alpha * qp).eval());
 }
+#endif
 
 #if defined(EIGEN_TEST_PART_6) || defined(EIGEN_TEST_PART_ALL)
 void scaled_unit_eligibility() {

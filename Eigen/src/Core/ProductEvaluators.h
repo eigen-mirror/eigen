@@ -235,6 +235,7 @@ struct Assignment<DstXprType,
   }
 };
 
+// Follow BLAS zero-scale semantics: clear overwrites, but leave compound updates unchanged without reading operands.
 template <typename Dst, typename Lhs, typename Rhs, typename Func, typename Scalar, typename Scale, typename Plain>
 struct Assignment<
     Dst,
@@ -251,22 +252,11 @@ struct Assignment<
          std::is_same<Func, sub_assign_op<Scalar, Scalar>>::value)>> {
   using Src = CwiseBinaryOp<scalar_product_op<Scale, Scalar>, const CwiseNullaryOp<scalar_constant_op<Scale>, Plain>,
                             const Product<Lhs, Rhs, DefaultProduct>>;
-  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst& dst, const Src& src, const Func& func) {
+  static EIGEN_STRONG_INLINE void run(Dst& dst, const Src& src, const Func& func) {
     Scalar alpha = src.lhs().functor().m_other;
-    // Packed complex accumulation need not retain the sign of a zero scale component.
-    const bool signedZeroScale =
-        NumTraits<Scalar>::IsComplex &&
-        ((numext::real(alpha) == 0 && !numext::is_exactly_zero(numext::signbit(numext::real(alpha)))) ||
-         (numext::imag(alpha) == 0 && !numext::is_exactly_zero(numext::signbit(numext::imag(alpha)))));
-    // Preserve coefficient-wise 0*Inf and Inf*0 evaluation instead of taking the kernel's zero/empty shortcuts.
-    if (signedZeroScale || numext::is_exactly_zero(alpha) || !(numext::isfinite)(alpha) ||
-        src.rhs().lhs().cols() == 0) {
-      call_dense_assignment_loop(dst, src, func);
-      return;
-    }
     resize_if_allowed(dst, src, func);
-    // The unscaled overwrite starts at +0; retain the sign of an outer scale applied to that zero.
-    EIGEN_IF_CONSTEXPR ((std::is_same<Func, assign_op<Scalar, Scalar>>::value)) dst.setConstant(alpha * Scalar(0));
+    EIGEN_IF_CONSTEXPR ((std::is_same<Func, assign_op<Scalar, Scalar>>::value)) dst.setZero();
+    if (numext::is_exactly_zero(alpha)) return;
     EIGEN_IF_CONSTEXPR ((std::is_same<Func, sub_assign_op<Scalar, Scalar>>::value)) alpha = -alpha;
     generic_product_impl<Lhs, Rhs>::scaleAndAddTo(dst, src.rhs().lhs(), src.rhs().rhs(), alpha);
   }
