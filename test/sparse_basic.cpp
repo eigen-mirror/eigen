@@ -534,6 +534,43 @@ void sparse_basic(const SparseMatrixType& ref) {
     VERIFY_IS_APPROX(m2, refM2);
   }
 
+  // an empty range of triplets leaves a compressed, empty matrix, also when the matrix was uncompressed
+  {
+    using TripletType = Triplet<Scalar, StorageIndex>;
+    const std::vector<TripletType> none;
+    SparseMatrixType e(rows, cols);
+    e.insert(0, 0) = Scalar(1);
+    VERIFY(!e.isCompressed());
+    e.setFromTriplets(none.begin(), none.end());
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 0);
+    VERIFY_IS_EQUAL(e.outerIndexPtr()[e.outerSize()], 0);
+    e.insert(0, 0) = Scalar(1);
+    VERIFY(!e.isCompressed());
+    e.setFromTriplets(none.begin(), none.end(), [](Scalar a, Scalar b) { return a + b; });
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 0);
+    e.insert(0, 0) = Scalar(1);
+    e.insertFromTriplets(none.begin(), none.end());
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 1);
+
+    // the sorted variants destroy the previous contents as well, the insertFrom variants preserve them
+    e.setFromSortedTriplets(none.begin(), none.end());
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 0);
+    e.insert(0, 0) = Scalar(1);
+    e.setFromSortedTriplets(none.begin(), none.end(), [](Scalar a, Scalar b) { return a + b; });
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 0);
+    e.insert(0, 0) = Scalar(1);
+    e.insertFromSortedTriplets(none.begin(), none.end());
+    VERIFY(e.isCompressed());
+    VERIFY_IS_EQUAL(e.nonZeros(), 1);
+    e.insertFromSortedTriplets(none.begin(), none.end(), [](Scalar a, Scalar b) { return a + b; });
+    VERIFY_IS_EQUAL(e.nonZeros(), 1);
+  }
+
   // test setFromTriplets / insertFromTriplets
   {
     using TripletType = Triplet<Scalar, StorageIndex>;

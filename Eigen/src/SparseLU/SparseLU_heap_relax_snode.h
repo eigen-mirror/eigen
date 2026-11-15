@@ -57,11 +57,10 @@ void SparseLUImpl<Scalar, StorageIndex>::heap_relax_snode(const Index n, IndexVe
 
   // Renumber etree in postorder
   IndexVector iwork(n);
-  IndexVector et_save(n + 1);
   for (Index i = 0; i < n; ++i) {
     iwork(post(i)) = post(et(i));
   }
-  et_save = et;  // Save the original etree
+  const IndexVector et_save = et;  // Save the original etree
   et = iwork;
 
   // compute the number of descendants of each node in the etree

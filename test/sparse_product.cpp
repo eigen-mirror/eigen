@@ -971,6 +971,41 @@ void test_sparse_product_mul_assign() {
   VERIFY_IS_APPROX(MatrixXd(A.toDense()), ref);
 }
 
+// A Block with no rows or no columns has data() == nullptr but a non-zero outerStride(); the product kernels must not
+// offset that pointer. The failure is undefined behavior that only a sanitizer reports (-fsanitize=undefined).
+template <int SparseOrder, int DenseOrder>
+void test_sparse_dense_product_empty_blocks() {
+  using DenseMatrix = Matrix<double, Dynamic, Dynamic, DenseOrder>;
+  DenseMatrix big = DenseMatrix::Random(6, 6);
+  DenseMatrix dstStorage = DenseMatrix::Constant(6, 6, 7.0);
+  for (Index m : {0, 3})
+    for (Index k : {0, 3})
+      for (Index c : {0, 2}) {
+        SparseMatrix<double, SparseOrder> A(m, k);
+        for (Index i = 0; k > 0 && i < m; ++i) A.insert(i, i % k) = double(i + 1);
+        const DenseMatrix refA = DenseMatrix(A);
+        const DenseMatrix B = DenseMatrix::Random(k, c);
+        big.block(1, 1, k, c) = B;
+        const auto rhs = big.block(1, 1, k, c);
+        const DenseMatrix ref = refA * B;
+
+        const DenseMatrix Y = A * rhs;
+        VERIFY_IS_EQUAL(Y.rows(), m);
+        VERIFY_IS_EQUAL(Y.cols(), c);
+        VERIFY_IS_APPROX(Y, ref);
+        const DenseMatrix Z = rhs.transpose() * A.transpose();
+        VERIFY_IS_EQUAL(Z.rows(), c);
+        VERIFY_IS_EQUAL(Z.cols(), m);
+        VERIFY_IS_APPROX(Z, ref.transpose());
+
+        auto dst = dstStorage.block(1, 1, m, c);
+        dst.noalias() = A * rhs;
+        VERIFY_IS_APPROX(DenseMatrix(dst), ref);
+        dst.noalias() += A * rhs;
+        VERIFY_IS_APPROX(DenseMatrix(dst), DenseMatrix(2 * ref));
+      }
+}
+
 template <int Order>
 void test_sparse_cwise_product_operand_types() {
   using Left = noncommutative_scalar::TaggedScalar<0>;
@@ -1243,14 +1278,77 @@ void test_sparse_vector_dense_product() {
   VERIFY_IS_APPROX(res, ref);
 }
 
+// The inner iterator of a triangular view yields the entries of the view once and is inert after its end, also for the
+// unit diagonal that the view adds. The dense-times-sparse kernels increment an iterator past its end.
+template <int Order, int Mode>
+void check_sparse_triangular_view_products(Index n) {
+  using SM = SparseMatrix<double, Order>;
+  using DenseMat = Matrix<double, Dynamic, Dynamic>;
+  using View = TriangularView<const SM, Mode>;
+  DenseMat D = (DenseMat::Random(n, n).array().abs() < 0.5).select(DenseMat::Random(n, n), 0.0);
+  SM A = D.sparseView();
+  A.makeCompressed();
+  const DenseMat T = D.template triangularView<Mode>();
+  const DenseMat v = DenseMat::Random(n, 1), B = DenseMat::Random(n, 3), rv = DenseMat::Random(1, n),
+                 C = DenseMat::Random(3, n);
+
+  // Direct iteration, with two increments past the end.
+  const View view = A.template triangularView<Mode>();
+  internal::evaluator<View> eval(view);
+  DenseMat fromIterators = DenseMat::Zero(n, n);
+  for (Index k = 0; k < A.outerSize(); ++k) {
+    Index count = 0;
+    typename internal::evaluator<View>::InnerIterator it(eval, k);
+    for (; it && count <= n; ++it, ++count) fromIterators(it.row(), it.col()) += it.value();
+    VERIFY(count <= n);
+    VERIFY(!it);
+    ++it;
+    VERIFY(!it);
+    ++it;
+    VERIFY(!it);
+  }
+  VERIFY_IS_APPROX(fromIterators, T);
+
+  VERIFY_IS_APPROX(DenseMat(view * v), DenseMat(T * v));
+  VERIFY_IS_APPROX(DenseMat(view * B), DenseMat(T * B));
+  VERIFY_IS_APPROX(DenseMat(rv * view), DenseMat(rv * T));
+  VERIFY_IS_APPROX(DenseMat(C * view), DenseMat(C * T));
+  VERIFY_IS_APPROX(DenseMat(v.transpose() * view), DenseMat(v.transpose() * T));
+
+  // The view of a transposed matrix.
+  const DenseMat Tt = D.transpose().template triangularView<Mode>();
+  VERIFY_IS_APPROX(DenseMat(A.transpose().template triangularView<Mode>() * v), DenseMat(Tt * v));
+  VERIFY_IS_APPROX(DenseMat(A.transpose().template triangularView<Mode>() * B), DenseMat(Tt * B));
+  VERIFY_IS_APPROX(DenseMat(rv * A.transpose().template triangularView<Mode>()), DenseMat(rv * Tt));
+  VERIFY_IS_APPROX(DenseMat(C * A.transpose().template triangularView<Mode>()), DenseMat(C * Tt));
+}
+
+template <int Order>
+void check_sparse_triangular_view_products_all_modes() {
+  for (Index n : {1, 2, 5}) {
+    check_sparse_triangular_view_products<Order, Lower>(n);
+    check_sparse_triangular_view_products<Order, Upper>(n);
+    check_sparse_triangular_view_products<Order, UnitLower>(n);
+    check_sparse_triangular_view_products<Order, UnitUpper>(n);
+    check_sparse_triangular_view_products<Order, StrictlyLower>(n);
+    check_sparse_triangular_view_products<Order, StrictlyUpper>(n);
+  }
+}
+
 EIGEN_DECLARE_TEST(sparse_product) {
   sparse_structured_view_product_sfinae<SparseMatrix<double, ColMajor>>();
   sparse_structured_view_product_sfinae<SparseMatrix<double, RowMajor>>();
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1((test_sparse_vector_dense_product<>()));
+    CALL_SUBTEST_1((check_sparse_triangular_view_products_all_modes<ColMajor>()));
+    CALL_SUBTEST_1((check_sparse_triangular_view_products_all_modes<RowMajor>()));
     CALL_SUBTEST_1((test_pruned_product_row_vector<>()));
     CALL_SUBTEST_1((test_sparse_product_mul_assign<>()));
+    CALL_SUBTEST_1((test_sparse_dense_product_empty_blocks<ColMajor, ColMajor>()));
+    CALL_SUBTEST_1((test_sparse_dense_product_empty_blocks<ColMajor, RowMajor>()));
+    CALL_SUBTEST_1((test_sparse_dense_product_empty_blocks<RowMajor, ColMajor>()));
+    CALL_SUBTEST_1((test_sparse_dense_product_empty_blocks<RowMajor, RowMajor>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, ColMajor>>()));
     CALL_SUBTEST_1((sparse_product<SparseMatrix<double, RowMajor>>()));
     CALL_SUBTEST_1((bug_942<double>()));

@@ -278,11 +278,75 @@ void sparse_permutations_all(int size) {
   CALL_SUBTEST((sparse_permutations<RowMajor>(SparseMatrix<Scalar, RowMajor>(size, size))));
 }
 
+// Products of permutations with a sparse matrix and with products of one, for both storage orders of the matrix and of
+// the destination, against a dense reference.
+template <int SrcOrder, int DstOrder>
+void sparse_permutation_products() {
+  using SrcMatrix = SparseMatrix<double, SrcOrder>;
+  using DstMatrix = SparseMatrix<double, DstOrder>;
+  using DenseMat = Matrix<double, Dynamic, Dynamic>;
+  using Perm = PermutationMatrix<Dynamic, Dynamic, int>;
+  const Index n = internal::random<Index>(1, 20);
+  DenseMat D = (DenseMat::Random(n, n).array().abs() < 0.3).select(DenseMat::Random(n, n), 0.0);
+  SrcMatrix A = D.sparseView();
+  Perm p(n), q(n);
+  p.setIdentity();
+  q.setIdentity();
+  for (Index i = 0; i < n; ++i) {
+    std::swap(p.indices()(i), p.indices()(internal::random<Index>(0, n - 1)));
+    std::swap(q.indices()(i), q.indices()(internal::random<Index>(0, n - 1)));
+  }
+  const DenseMat P = p.toDenseMatrix().cast<double>(), Q = q.toDenseMatrix().cast<double>();
+  DstMatrix R;
+  auto check = [&](const DenseMat& expected) {
+    VERIFY(is_sorted(R));
+    VERIFY_IS_APPROX(DenseMat(R), expected);
+  };
+
+  R = p * A;
+  check(P * D);
+  R = A * q;
+  check(D * Q);
+  R = p.inverse() * A;
+  check(P.transpose() * D);
+  R = A * q.transpose();
+  check(D * Q.transpose());
+  R = p * A * q;
+  check(P * D * Q);
+  R = (p * A) * q;
+  check(P * D * Q);
+  R = p * (A * q);
+  check(P * D * Q);
+  R = p * A * p.transpose();
+  check(P * D * P.transpose());
+  R = p.inverse() * A * q.inverse();
+  check(P.transpose() * D * Q.transpose());
+  R = p.transpose() * (A * p);
+  check(P.transpose() * D * P);
+  R = (p * A) * p.inverse();
+  check(P * D * P.transpose());
+  R = (p * A * q) * p.inverse();
+  check(P * D * Q * P.transpose());
+  R = p * (2.0 * A) * q;
+  check(P * (2.0 * D) * Q);
+  R = (A * q).eval() * p;
+  check(D * Q * P);
+
+  R = A.twistedBy(p);
+  check(P * D * P.transpose());
+}
+
 EIGEN_DECLARE_TEST(sparse_permutations) {
   for (int i = 0; i < g_repeat; i++) {
     int s = Eigen::internal::random<int>(1, 50);
     CALL_SUBTEST_1((sparse_permutations_all<double>(s)));
     CALL_SUBTEST_2((sparse_permutations_all<std::complex<double>>(s)));
+  }
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1((sparse_permutation_products<ColMajor, ColMajor>()));
+    CALL_SUBTEST_1((sparse_permutation_products<ColMajor, RowMajor>()));
+    CALL_SUBTEST_1((sparse_permutation_products<RowMajor, ColMajor>()));
+    CALL_SUBTEST_1((sparse_permutation_products<RowMajor, RowMajor>()));
   }
   CALL_SUBTEST_1((sparse_permutations_narrow_index<ColMajor, ColMajor>()));
   CALL_SUBTEST_1((sparse_permutations_narrow_index<ColMajor, RowMajor>()));

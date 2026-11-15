@@ -67,7 +67,9 @@ struct permutation_matrix_product<ExpressionType, Side, Transposed, SparseShape>
   using ReturnType = SparseMatrix<Scalar, MatrixTypeCleaned::IsRowMajor ? RowMajor : ColMajor, StorageIndex>;
   using TmpHelper = XprHelper<ExpressionType, ReturnType>;
 
-  static constexpr bool NeedOuterPermutation = ExpressionType::IsRowMajor ? Side == OnTheLeft : Side == OnTheRight;
+  // The storage order of the matrix that is permuted is that of ReturnType, which can differ from ExpressionType's
+  // (e.g. for a product whose evaluated plain object is row-major).
+  static constexpr bool NeedOuterPermutation = ReturnType::IsRowMajor ? Side == OnTheLeft : Side == OnTheRight;
   static constexpr bool NeedInversePermutation = Transposed ? Side == OnTheLeft : Side == OnTheRight;
 
   template <typename Dest, typename PermutationType>

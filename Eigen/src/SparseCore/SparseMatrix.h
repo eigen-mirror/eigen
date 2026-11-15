@@ -699,11 +699,16 @@ class SparseMatrix : public SparseCompressedBase<SparseMatrix<Scalar_, Options_,
 
   /** Resizes the matrix to a \a rows x \a cols matrix leaving old values untouched.
    *
-   * If the sizes of the matrix are decreased, then the matrix is turned to \b uncompressed-mode
-   * and the storage of the out of bounds coefficients is kept and reserved.
+   * The stored entries that lie inside the new sizes are kept; the entries outside them are dropped, and their
+   * storage is not kept. The storage mode is preserved, except in two cases:
+   *  - if either new size is zero, the call is equivalent to resize(): the matrix becomes empty and compressed;
+   *  - if the inner size decreases and a stored entry has an inner index at or beyond the new inner size, the matrix
+   *    is turned to \b uncompressed-mode and the inner vectors that lose entries keep their capacity.
+   *
+   * Decreasing only the outer size, or the inner size when no entry is cut, leaves a compressed matrix compressed.
    * Call makeCompressed() to pack the entries and squeeze extra memory.
    *
-   * \sa reserve(), setZero(), makeCompressed()
+   * \sa resize(), reserve(), setZero(), makeCompressed()
    */
   void conservativeResize(Index rows, Index cols) {
     // If one dimension is null, then there is nothing to be preserved
@@ -1161,8 +1166,9 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
       SparseMatrix<typename SparseMatrixType::Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
 
   if (begin == end) {
-    // Clear out existing data (if any).
+    // Clear out existing data (if any), including the inner non-zero counts of an uncompressed matrix.
     mat.setZero();
+    mat.makeCompressed();
     return;
   }
 
@@ -1215,7 +1221,12 @@ void set_from_triplets_sorted(const InputIterator& begin, const InputIterator& e
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
 
-  if (begin == end) return;
+  if (begin == end) {
+    // Clear out existing data (if any), including the inner non-zero counts of an uncompressed matrix.
+    mat.setZero();
+    mat.makeCompressed();
+    return;
+  }
 
   constexpr StorageIndex kEmptyIndexValue(-1);
   // deallocate inner nonzeros if present and zero outerIndexPtr
@@ -1388,7 +1399,6 @@ void SparseMatrix<Scalar, Options_, StorageIndex_>::setFromTriplets(const InputI
 /** The same as setFromTriplets but triplets are assumed to be pre-sorted. This is faster and requires less temporary
  * storage. Two triplets `a` and `b` are appropriately ordered if: \code ColMajor: ((a.col() != b.col()) ? (a.col() <
  * b.col()) : (a.row() < b.row()) RowMajor: ((a.row() != b.row()) ? (a.row() < b.row()) : (a.col() < b.col()) \endcode
- * If the range is empty, the initial contents of \c *this are left untouched instead of being destroyed.
  */
 template <typename Scalar, int Options_, typename StorageIndex_>
 template <typename InputIterators>

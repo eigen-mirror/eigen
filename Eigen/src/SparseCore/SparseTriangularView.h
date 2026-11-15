@@ -61,7 +61,10 @@ class TriangularViewImpl<MatrixType, Mode, Sparse> : public SparseMatrixBase<Tri
   template <typename OtherDerived>
   void solveInPlace(MatrixBase<OtherDerived>& other) const;
 
-  /** Applies the inverse of \c *this to the sparse vector or matrix \a other, "in-place" */
+  /** Applies the inverse of \c *this to the sparse vector or matrix \a other, "in-place"
+   *
+   * The nested sparse matrix must be column-major; a row-major one does not compile. A row-major \a other is solved
+   * through a column-major copy. */
   template <typename OtherDerived>
   void solveInPlace(SparseMatrixBase<OtherDerived>& other) const;
 };
@@ -118,6 +121,11 @@ struct unary_evaluator<TriangularView<ArgType, Mode>, IteratorBased> : evaluator
           m_returnOne = false;
           return *this;
         }
+      }
+      // Once the diagonal has been returned and the entries are exhausted, the iterator stays at its end. Otherwise
+      // the code below would arm the unit diagonal again, as Base is then past the diagonal.
+      EIGEN_IF_CONSTEXPR (HasUnitDiag && !SkipFirst) {
+        if (!(*this)) return *this;
       }
       Base::operator++();
       EIGEN_IF_CONSTEXPR (HasUnitDiag && !SkipFirst) {

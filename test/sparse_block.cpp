@@ -161,6 +161,121 @@ void check_aliased_inner_panel_assignment() {
   VERIFY_IS_EQUAL(MatrixXd(A.toDense()), D);
 }
 
+// Random sparse matrix with nonzero values, in uncompressed mode with spare capacity between the inner vectors
+// (unless compress is true), and its dense copy.
+template <typename SparseMatrixType>
+void init_gapped_sparse(SparseMatrixType& m, MatrixXd& dense, Index rows, Index cols, bool compress) {
+  constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
+  const Index outer = IsRowMajor ? rows : cols, inner = IsRowMajor ? cols : rows;
+  dense = MatrixXd::Zero(rows, cols);
+  m.resize(rows, cols);
+  VectorXi capacity(outer);
+  for (Index k = 0; k < outer; ++k) {
+    const int count = internal::random<int>(0, 1) ? 0 : internal::random<int>(0, int(inner));
+    capacity(k) = count + internal::random<int>(0, 3);
+    for (int t = 0; t < count; ++t) {
+      const Index i = internal::random<Index>(0, inner - 1);
+      dense(IsRowMajor ? k : i, IsRowMajor ? i : k) = 1.0 + numext::abs(internal::random<double>());
+    }
+  }
+  // reserve() leaves the matrix compressed when it reserves nothing at all
+  if (!compress) capacity(0) += 1;
+  m.reserve(capacity);
+  for (Index k = 0; k < outer; ++k)
+    for (Index i = 0; i < inner; ++i) {
+      const Index r = IsRowMajor ? k : i, c = IsRowMajor ? i : k;
+      if (dense(r, c) != 0.0) m.insert(r, c) = dense(r, c);
+    }
+  if (compress) m.makeCompressed();
+}
+
+// The stored entries of every inner vector are in range and strictly increasing, whatever the storage mode.
+template <typename SparseMatrixType>
+void verify_valid_sparse(const SparseMatrixType& m, const MatrixXd& dense) {
+  Index count = 0;
+  for (Index k = 0; k < m.outerSize(); ++k) {
+    const Index begin = m.outerIndexPtr()[k];
+    const Index end = begin + (m.isCompressed() ? m.outerIndexPtr()[k + 1] - begin : m.innerNonZeroPtr()[k]);
+    VERIFY(begin <= end);
+    for (Index p = begin; p < end; ++p) {
+      VERIFY(m.innerIndexPtr()[p] >= 0 && m.innerIndexPtr()[p] < m.innerSize());
+      if (p > begin) VERIFY(m.innerIndexPtr()[p - 1] < m.innerIndexPtr()[p]);
+    }
+    count += end - begin;
+  }
+  VERIFY_IS_EQUAL(m.nonZeros(), count);
+  VERIFY_IS_EQUAL(count, (dense.array() != 0.0).count());
+  VERIFY_IS_EQUAL(MatrixXd(m), dense);
+}
+
+// Assigning a sparse expression to an inner panel must read the stored entries of an uncompressed source, not the
+// spare capacity between its inner vectors.
+template <int Order>
+void check_inner_panel_assignment_from_uncompressed() {
+  using SM = SparseMatrix<double, Order>;
+  using OtherSM = SparseMatrix<double, Order == RowMajor ? ColMajor : RowMajor>;
+  constexpr bool IsRowMajor = Order == RowMajor;
+  const Index rows = internal::random<Index>(3, 9), cols = internal::random<Index>(3, 9);
+  const Index outer = IsRowMajor ? rows : cols;
+  for (int dest_compressed = 0; dest_compressed < 2; ++dest_compressed) {
+    const Index n = internal::random<Index>(1, outer);
+    const Index dest_start = internal::random<Index>(0, outer - n), src_start = internal::random<Index>(0, outer - n);
+    auto panel = [&](MatrixXd& D, Index start) {
+      return IsRowMajor ? MatrixXd(D.middleRows(start, n)) : MatrixXd(D.middleCols(start, n));
+    };
+    auto set_panel = [&](MatrixXd& D, Index start, const MatrixXd& P) {
+      if (IsRowMajor)
+        D.middleRows(start, n) = P;
+      else
+        D.middleCols(start, n) = P;
+    };
+    MatrixXd Da, Db;
+    SM A, B;
+    init_gapped_sparse(A, Da, rows, cols, false);
+    VERIFY(!A.isCompressed());
+
+    // Panel of an uncompressed matrix.
+    init_gapped_sparse(B, Db, rows, cols, dest_compressed);
+    set_panel(Db, dest_start, panel(Da, src_start));
+    innerpanel(B, dest_start, n) = innerpanel(A, src_start, n);
+    verify_valid_sparse(B, Db);
+
+    // The same through a Map of the uncompressed matrix.
+    init_gapped_sparse(B, Db, rows, cols, dest_compressed);
+    set_panel(Db, dest_start, panel(Da, src_start));
+    auto map = make_map(A);
+    innerpanel(B, dest_start, n) = innerpanel(map, src_start, n);
+    verify_valid_sparse(B, Db);
+
+    // The whole uncompressed matrix, as a panel of a larger one.
+    SM C;
+    MatrixXd Dc;
+    const Index c_start = internal::random<Index>(0, n);
+    init_gapped_sparse(C, Dc, IsRowMajor ? rows + n : rows, IsRowMajor ? cols : cols + n, dest_compressed);
+    if (IsRowMajor)
+      Dc.middleRows(c_start, rows) = Da;
+    else
+      Dc.middleCols(c_start, cols) = Da;
+    innerpanel(C, c_start, outer) = A;
+    verify_valid_sparse(C, Dc);
+
+    // A source of the other storage order, and a sum of two uncompressed panels.
+    OtherSM O;
+    MatrixXd Do;
+    init_gapped_sparse(O, Do, rows, cols, false);
+    init_gapped_sparse(B, Db, rows, cols, dest_compressed);
+    set_panel(Db, dest_start, panel(Do, src_start));
+    innerpanel(B, dest_start, n) =
+        O.block(IsRowMajor ? src_start : 0, IsRowMajor ? 0 : src_start, IsRowMajor ? n : rows, IsRowMajor ? cols : n);
+    verify_valid_sparse(B, Db);
+
+    init_gapped_sparse(B, Db, rows, cols, dest_compressed);
+    set_panel(Db, dest_start, panel(Da, src_start) + panel(Da, dest_start));
+    innerpanel(B, dest_start, n) = innerpanel(A, src_start, n) + innerpanel(A, dest_start, n);
+    verify_valid_sparse(B, Db);
+  }
+}
+
 template <typename SparseMatrixType>
 void sparse_block(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
@@ -441,6 +556,8 @@ EIGEN_DECLARE_TEST(sparse_block) {
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(1, 1))));
     CALL_SUBTEST_1(check_one_by_one_blocks());
     CALL_SUBTEST_1(check_aliased_inner_panel_assignment());
+    CALL_SUBTEST_1(check_inner_panel_assignment_from_uncompressed<ColMajor>());
+    CALL_SUBTEST_1(check_inner_panel_assignment_from_uncompressed<RowMajor>());
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(8, 8))));
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(r, c))));
     CALL_SUBTEST_2((sparse_block(SparseMatrix<std::complex<double>, ColMajor>(r, c))));

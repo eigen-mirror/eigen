@@ -397,7 +397,9 @@ void SimplicialCholeskyBase<Derived>::factorize_preordered_impl(const CholMatrix
       Li[p] = k; /* store L(k,k) = sqrt (d) in column k */
       bool failed;
       EIGEN_IF_CONSTEXPR (NonHermitian) {
-        failed = d == RealScalar(0);
+        // A complex symmetric matrix may have a pivot of any phase, whose square root is complex: only zero fails.
+        // A real pivot must be positive, as for the Hermitian LLT; sqrt of a negative one would be NaN.
+        failed = NumTraits<Scalar>::IsComplex ? (d == RealScalar(0)) : (numext::real(d) <= RealScalar(0));
       } else {
         failed = numext::real(d) <= RealScalar(0);
       }

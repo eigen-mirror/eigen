@@ -322,6 +322,56 @@ void test_sparseqr_empty() {
   }
 }
 
+// A matrix with a zero dimension, in particular zero rows and some columns, has rank 0 and an empty Q.
+template <typename T = double>
+void test_sparseqr_zero_dimension() {
+  using SM = SparseMatrix<T>;
+  using DenseMat = Matrix<T, Dynamic, Dynamic>;
+  const Index shapes[][2] = {{0, 0}, {0, 3}, {0, 1}, {3, 0}};
+  for (const auto& shape : shapes) {
+    const Index rows = shape[0], cols = shape[1];
+    SM A(rows, cols);
+    A.makeCompressed();
+    for (int natural = 0; natural < 2; ++natural) {
+      SparseQR<SM, COLAMDOrdering<int> > colamd;
+      SparseQR<SM, NaturalOrdering<int> > natur;
+      auto check = [&](auto& qr) {
+        qr.compute(A);
+        VERIFY_IS_EQUAL(qr.info(), Success);
+        VERIFY_IS_EQUAL(qr.rank(), 0);
+        VERIFY_IS_EQUAL(qr.rows(), rows);
+        VERIFY_IS_EQUAL(qr.cols(), cols);
+        VERIFY_IS_EQUAL(qr.matrixR().rows(), rows);
+        VERIFY_IS_EQUAL(qr.matrixR().cols(), cols);
+        VERIFY_IS_EQUAL(qr.matrixR().nonZeros(), 0);
+        VERIFY_IS_EQUAL(qr.colsPermutation().size(), cols);
+
+        const DenseMat B = DenseMat::Ones(rows, 2);
+        const DenseMat X = qr.solve(B);
+        VERIFY_IS_EQUAL(X.rows(), cols);
+        VERIFY_IS_EQUAL(X.cols(), 2);
+        VERIFY_IS_EQUAL(X.cwiseAbs().sum(), typename NumTraits<T>::Real(0));
+
+        // Q is rows x rows and, with no reflector, the identity.
+        const DenseMat QB = qr.matrixQ() * B;
+        VERIFY_IS_EQUAL(QB.rows(), rows);
+        VERIFY_IS_EQUAL(QB.cols(), 2);
+        VERIFY_IS_EQUAL(QB, B);
+        const DenseMat QtB = qr.matrixQ().adjoint() * B;
+        VERIFY_IS_EQUAL(QtB, B);
+        const DenseMat Q = qr.matrixQ() * DenseMat::Identity(rows, rows);
+        VERIFY_IS_EQUAL(Q.rows(), rows);
+        VERIFY_IS_EQUAL(Q.cols(), rows);
+        VERIFY_IS_EQUAL(Q, DenseMat::Identity(rows, rows));
+      };
+      if (natural)
+        check(natur);
+      else
+        check(colamd);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(sparseqr) {
   for (int i = 0; i < g_repeat; ++i) {
     CALL_SUBTEST_1(test_sparseqr_scalar<double>());
@@ -329,6 +379,8 @@ EIGEN_DECLARE_TEST(sparseqr) {
   }
   CALL_SUBTEST_3(test_sparseqr_factorize_uncompressed_input<>());
   CALL_SUBTEST_3(test_sparseqr_empty<>());
+  CALL_SUBTEST_3(test_sparseqr_zero_dimension<>());
+  CALL_SUBTEST_3(test_sparseqr_zero_dimension<std::complex<double> >());
   CALL_SUBTEST_4(test_sparseqr_lookahead_rejects_replaceable_weak_pivot<>());
   CALL_SUBTEST_5(test_sparseqr_tiny_independent_column<>());
   CALL_SUBTEST_6(test_sparseqr_explicit_threshold_disables_lookahead<>());

@@ -256,8 +256,51 @@ void sparse_solvers(int rows, int cols) {
   }
 }
 
+// A sparse right-hand side of either storage order, with fewer, as many or more columns than rows.
+template <typename Scalar, int RhsOrder>
+void sparse_triangular_solve_rhs_order() {
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using Lhs = SparseMatrix<Scalar, ColMajor>;
+  using Rhs = SparseMatrix<Scalar, RhsOrder>;
+  const Index n = internal::random<Index>(1, 12);
+  for (Index k : {Index(1), n, n + 4, Index(2 * n + 1)}) {
+    DenseMatrix refL = DenseMatrix::Zero(n, n);
+    Lhs L(n, n);
+    initSparse<Scalar>(0.4, refL, L, ForceNonZeroDiag);
+    DenseMatrix refB = DenseMatrix::Zero(n, k);
+    Rhs B(n, k);
+    initSparse<Scalar>(0.4, refB, B);
+    {
+      DenseMatrix x = refB;
+      Rhs b = B;
+      refL.template triangularView<Lower>().solveInPlace(x);
+      L.template triangularView<Lower>().solveInPlace(b);
+      VERIFY_IS_EQUAL(b.rows(), n);
+      VERIFY_IS_EQUAL(b.cols(), k);
+      VERIFY_IS_APPROX(DenseMatrix(b), x);
+    }
+    {
+      DenseMatrix x = refB;
+      Rhs b = B;
+      refL.template triangularView<UnitUpper>().solveInPlace(x);
+      L.template triangularView<UnitUpper>().solveInPlace(b);
+      VERIFY_IS_APPROX(DenseMatrix(b), x);
+    }
+    {
+      DenseMatrix x = refB;
+      Rhs b = B;
+      refL.template triangularView<Upper>().solveInPlace(x);
+      L.template triangularView<Upper>().solveInPlace(b);
+      VERIFY_IS_APPROX(DenseMatrix(b), x);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(sparse_solvers) {
   for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_1((sparse_triangular_solve_rhs_order<double, ColMajor>()));
+    CALL_SUBTEST_1((sparse_triangular_solve_rhs_order<double, RowMajor>()));
+    CALL_SUBTEST_2((sparse_triangular_solve_rhs_order<std::complex<double>, RowMajor>()));
     CALL_SUBTEST_1(sparse_solvers<double>(8, 8));
     int s = internal::random<int>(1, 300);
     CALL_SUBTEST_2(sparse_solvers<std::complex<double> >(s, s));

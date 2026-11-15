@@ -615,6 +615,8 @@ class SimplicialLDLT : public SimplicialCholeskyBase<SimplicialLDLT<MatrixType_,
  *
  * This class provides a LL^T Cholesky factorizations of sparse matrices that are
  * symmetric but not hermitian. For real matrices, this is equivalent to the regular LLT factorization.
+ * For real matrices the pivots must be positive, and info() reports NumericalIssue otherwise. For complex matrices
+ * a pivot may have any phase and is given a complex square root; only a zero pivot is reported as NumericalIssue.
  * The factorization allows for solving A.X = B where X and B can be either dense or sparse.
  *
  * In order to reduce the fill-in, a symmetric permutation P is applied prior to the factorization

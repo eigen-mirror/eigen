@@ -75,6 +75,9 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     LhsEval lhsEval(lhs);
     Index n = lhs.outerSize();
 
+    // Nothing to add for an empty inner dimension. A Block without rows has data() == nullptr but a non-zero
+    // outerStride(), so the column pointer below would be a non-zero offset to a null pointer.
+    if (rhs.rows() == 0) return;
     for (Index c = 0; c < rhs.cols(); ++c) {
       runCol(lhsEval, lhs, rhs, res, alpha, n, c, bool_constant<has_compressed_storage<Lhs>::value>());
     }
@@ -217,6 +220,8 @@ struct sparse_time_dense_product_impl<SparseLhsType, DenseRhsType, DenseResType,
     // Sparse vectors don't store outer indices.
     const auto* outer = mat.outerIndexPtr();
     const auto* innerNnz = mat.innerNonZeroPtr();
+    // An empty result (a Block without rows has data() == nullptr but a non-zero outerStride()) receives nothing.
+    if (res.rows() == 0 || rhs.cols() == 0) return;
     // The fast result pointer path requires contiguous ColMajor result layout.
     // Transpose<ColMajor> reports innerStride()==1 but is actually RowMajor, so check both.
     EIGEN_IF_CONSTEXPR (!(Res::Flags & RowMajorBit)) {

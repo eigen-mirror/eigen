@@ -26,7 +26,9 @@ void test_simplicial_cholesky_determinant_asserts() {
   using Scalar = typename SparseMatrixType::Scalar;
   const Index n = 6;
 
-  // A zero pivot stops all four classes; SimplicialLLT alone also rejects a negative one.
+  // A zero pivot stops all four classes. A negative one stops the LLT classes for a real scalar; for a complex scalar
+  // the non-Hermitian LLT takes a complex square root of it, and only the Hermitian LLT rejects it. The LDLT classes
+  // accept it, since D may be indefinite.
   SparseMatrixType zero_pivot(n, n), negative_pivot(n, n);
   for (Index i = 0; i < n; ++i) {
     zero_pivot.insert(i, i) = (i == 0) ? Scalar(0) : Scalar(1);
@@ -54,6 +56,20 @@ void test_simplicial_cholesky_determinant_asserts() {
   SimplicialNonHermitianLDLT<SparseMatrixType> nhldlt(zero_pivot);
   VERIFY(nhldlt.info() == NumericalIssue);
   verify_determinant_asserts(nhldlt);
+
+  SimplicialNonHermitianLLT<SparseMatrixType> nh_indefinite_llt(negative_pivot);
+  if (NumTraits<Scalar>::IsComplex) {
+    VERIFY(nh_indefinite_llt.info() == Success);
+    // L L^T = P A P^T, whichever position the ordering gives the pivot -1.
+    using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+    const DenseMatrix L = nh_indefinite_llt.matrixL();
+    const DenseMatrix A = DenseMatrix(negative_pivot);
+    const DenseMatrix PAPt = nh_indefinite_llt.permutationP() * A * nh_indefinite_llt.permutationP().transpose();
+    VERIFY_IS_APPROX(L * L.transpose(), PAPt);
+  } else {
+    VERIFY(nh_indefinite_llt.info() == NumericalIssue);
+    verify_determinant_asserts(nh_indefinite_llt);
+  }
 
   // The deprecated SimplicialCholesky exposes determinant() alone, and reads the same tail.
   SimplicialCholesky<SparseMatrixType> deprecated(zero_pivot);

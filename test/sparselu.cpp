@@ -199,11 +199,70 @@ void test_sparselu_tiny_fill_estimate() {
   }
 }
 
+// signDeterminant() is det / |det|: complex for complex scalars, and the other determinants agree with a dense one.
+template <typename T>
+void test_sparselu_determinants() {
+  using Real = typename NumTraits<T>::Real;
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  SparseLU<SparseMatrix<T> > lu;
+  for (int repeat = 0; repeat < 5; ++repeat) {
+    const Index size = internal::random<Index>(1, 30);
+    DenseMatrix dA = DenseMatrix::Random(size, size);
+    dA = (dA.array().abs() < Real(0.3)).select(T(0), dA);
+    dA.diagonal() = (dA.diagonal().array() == T(0)).select(T(1), dA.diagonal());
+    SparseMatrix<T> A = dA.sparseView();
+    A.makeCompressed();
+    check_sparse_determinant(lu, A, dA);
+    check_sparse_abs_determinant(lu, A, dA);
+    check_sparse_log_abs_determinant(lu, A, dA);
+    // det(A + E) / det(A) = 1 + tr(A^-1 E) + O(|E|^2) and |E|_F <= c n eps |A|_F for the LU backward error, so the
+    // phase of the determinant is accurate to c n eps cond_F(A); measured over 2000 samples the error is at most
+    // 0.3 n eps cond_F(A) for the complex scalars, and exact for the real ones. The modulus of signDeterminant() is
+    // a product of n computed unit phases, off by at most ~1 n eps.
+    const T refDet = dA.determinant();
+    const Real eps = NumTraits<Real>::epsilon();
+    const Real kappa = dA.norm() * dA.inverse().norm();
+    const Real phaseTol = Real(4) * Real(size) * kappa * eps;
+    VERIFY((numext::isfinite)(phaseTol));
+    VERIFY(numext::abs(lu.signDeterminant() - numext::sign(refDet)) <= phaseTol);
+    VERIFY(numext::abs(numext::abs(lu.signDeterminant()) - Real(1)) <= Real(10) * Real(size) * eps);
+  }
+
+  // The determinant of a cyclic permutation matrix with entries of magnitude s over- or underflows, its sign does not.
+  const Real scales[] = {(std::numeric_limits<Real>::min)() * Real(1 << 10),
+                         (std::numeric_limits<Real>::max)() / Real(1 << 10)};
+  for (Real s : scales) {
+    for (Index n : {5, 6}) {
+      SparseMatrix<T> A(n, n);
+      T phase = T(1);
+      for (Index i = 0; i < n; ++i) {
+        const T p = numext::sign(internal::random<T>());
+        phase *= p;
+        A.insert((i + 1) % n, i) = T(s) * p;
+      }
+      A.makeCompressed();
+      lu.compute(A);
+      VERIFY_IS_EQUAL(lu.info(), Success);
+      const T expected = (n % 2 == 0) ? T(-1) * phase : phase;  // sign of the n-cycle is (-1)^(n-1)
+      // The pivots are exact up to the phase normalization (measured <= 0.7 n eps), the sum of n logarithms of
+      // |s| has a relative error of at most ~0.5 eps.
+      const Real eps = NumTraits<Real>::epsilon();
+      VERIFY(numext::abs(lu.signDeterminant() - expected) <= Real(10) * Real(n) * eps);
+      VERIFY(numext::abs(numext::real(lu.logAbsDeterminant()) - Real(n) * numext::log(s)) <=
+             Real(8) * eps * Real(n) * numext::abs(numext::log(s)));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(sparselu) {
   CALL_SUBTEST_1(test_sparselu_T<float>());
   CALL_SUBTEST_2(test_sparselu_T<double>());
   CALL_SUBTEST_3(test_sparselu_T<std::complex<float> >());
   CALL_SUBTEST_4(test_sparselu_T<std::complex<double> >());
+  CALL_SUBTEST_1(test_sparselu_determinants<float>());
+  CALL_SUBTEST_2(test_sparselu_determinants<double>());
+  CALL_SUBTEST_3(test_sparselu_determinants<std::complex<float> >());
+  CALL_SUBTEST_4(test_sparselu_determinants<std::complex<double> >());
   CALL_SUBTEST_5(test_sparselu_rowmajor_compressed_input<float>());
   CALL_SUBTEST_6(test_sparselu_rowmajor_compressed_input<double>());
   CALL_SUBTEST_7(test_sparselu_colmajor_uncompressed_input<float>());

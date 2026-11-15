@@ -161,8 +161,10 @@ class sparse_matrix_block_impl : public SparseCompressedBase<Block<SparseMatrixT
     // This assignment is slow if this vector set is not empty
     // and/or it is not at the end of the nonzeros of the underlying matrix.
 
-    // 1 - eval to a temporary to avoid transposition and/or aliasing issues
-    Ref<const SparseMatrix<Scalar, IsRowMajor ? RowMajor : ColMajor, StorageIndex> > tmp(other.derived());
+    // 1 - eval to a temporary to avoid transposition and/or aliasing issues. The entries are copied as one contiguous
+    // range below, so an uncompressed source is compressed into a copy rather than bound in place.
+    Ref<const SparseMatrix<Scalar, IsRowMajor ? RowMajor : ColMajor, StorageIndex>, StandardCompressedFormat> tmp(
+        other.derived());
     eigen_internal_assert(tmp.outerSize() == m_outerSize.value());
     // the Ref binds to a slice of this very matrix without copying, e.g., A.col(0) = A.col(1)
     const Scalar* first = matrix.valuePtr();

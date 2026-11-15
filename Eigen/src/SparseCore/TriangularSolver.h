@@ -305,6 +305,24 @@ struct sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode, UpLo, ColMajor> {
   }
 };
 
+// The solvers above walk the rhs by columns. A row-major rhs is solved through a column-major copy.
+template <typename Lhs, typename Rhs, int Mode, bool RowMajorRhs = bool(int(traits<Rhs>::Flags) & RowMajorBit)>
+struct sparse_solve_triangular_sparse_rhs {
+  static void run(const Lhs& lhs, Rhs& other) {
+    sparse_solve_triangular_sparse_selector<Lhs, Rhs, Mode>::run(lhs, other);
+  }
+};
+
+template <typename Lhs, typename Rhs, int Mode>
+struct sparse_solve_triangular_sparse_rhs<Lhs, Rhs, Mode, true> {
+  static void run(const Lhs& lhs, Rhs& other) {
+    using ColMajorRhs = SparseMatrix<typename Rhs::Scalar, ColMajor, typename Rhs::StorageIndex>;
+    ColMajorRhs copy(other);
+    sparse_solve_triangular_sparse_selector<Lhs, ColMajorRhs, Mode>::run(lhs, copy);
+    other = copy;
+  }
+};
+
 }  // end namespace internal
 
 #ifndef EIGEN_PARSED_BY_DOXYGEN
@@ -315,8 +333,8 @@ void TriangularViewImpl<ExpressionType, Mode, Sparse>::solveInPlace(SparseMatrix
   EIGEN_INTERNAL_ASSERT_PRODUCT_SHAPE(derived(), other);
   eigen_assert((!(Mode & ZeroDiag)) && bool(Mode & (Upper | Lower)));
 
-  internal::sparse_solve_triangular_sparse_selector<ExpressionType, OtherDerived, Mode>::run(
-      derived().nestedExpression(), other.derived());
+  internal::sparse_solve_triangular_sparse_rhs<ExpressionType, OtherDerived, Mode>::run(derived().nestedExpression(),
+                                                                                        other.derived());
 }
 #endif
 

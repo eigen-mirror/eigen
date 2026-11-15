@@ -401,7 +401,9 @@ void SparseQR<MatrixType, OrderingType>::factorize(const MatrixType& mat) {
   StorageIndex diagSize = (std::min)(m, n);
   IndexVector mark((std::max)(m, n));
   mark.setConstant(-1);          // Record the visited nodes
-  IndexVector Ridx(n), Qidx(m);  // Store temporarily the row indexes for the current column of R and Q
+  // Store temporarily the row indexes for the current column of R and Q; the first entry of Qidx is written even when
+  // m == 0.
+  IndexVector Ridx(n), Qidx((std::max)(m, StorageIndex(1)));
   Index nzcolR, nzcolQ;          // Number of nonzero for the current column of R and Q
   ScalarVector tval(m);          // The dense vector used to compute the current column
   ScalarVector tvalLookAhead(m);
