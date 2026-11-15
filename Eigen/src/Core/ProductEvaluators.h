@@ -2552,18 +2552,15 @@ struct generic_product_impl<Lhs, Inverse<Rhs>, MatrixShape, PermutationShape, Pr
  ***************************************************************************/
 
 // Overwrite can apply swaps in place; compound updates must preserve the original source.
-template <typename Lhs, typename Rhs, typename DstScalar>
-struct assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>,
-                                  add_assign_op<DstScalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>>
+template <typename Lhs, typename Rhs, typename DstScalar, typename SrcScalar>
+struct assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>, add_assign_op<DstScalar, SrcScalar>>
     : bool_constant<evaluator_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>>::value ||
                     std::is_same<typename evaluator_traits<Lhs>::Shape, TranspositionsShape>::value ||
                     std::is_same<typename evaluator_traits<Rhs>::Shape, TranspositionsShape>::value> {};
 
-template <typename Lhs, typename Rhs, typename DstScalar>
-struct assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>,
-                                  sub_assign_op<DstScalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>>
-    : assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>,
-                                 add_assign_op<DstScalar, typename Product<Lhs, Rhs, AliasFreeProduct>::Scalar>> {};
+template <typename Lhs, typename Rhs, typename DstScalar, typename SrcScalar>
+struct assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>, sub_assign_op<DstScalar, SrcScalar>>
+    : assignment_assume_aliasing<Product<Lhs, Rhs, AliasFreeProduct>, add_assign_op<DstScalar, SrcScalar>> {};
 
 // FIXME: consider unifying Transpositions and Permutation into a single shape.
 

@@ -305,6 +305,10 @@ void indexed_update_alias_policy() {
   using Sub = internal::sub_assign_op<double, double>;
   STATIC_CHECK((internal::assignment_assume_aliasing<Left, Add>::value));
   STATIC_CHECK((internal::assignment_assume_aliasing<Right, Sub>::value));
+  // The policy does not depend on the functor's source scalar matching the product's.
+  using Cd = std::complex<double>;
+  STATIC_CHECK((internal::assignment_assume_aliasing<Left, internal::add_assign_op<Cd, Cd>>::value));
+  STATIC_CHECK((internal::assignment_assume_aliasing<Right, internal::sub_assign_op<Cd, Cd>>::value));
   STATIC_CHECK((!internal::assignment_assume_aliasing<Left, Assign>::value));
   STATIC_CHECK((!internal::assignment_assume_aliasing<Permutation, Add>::value));
   STATIC_CHECK((internal::assignment_assume_aliasing<Dense, Assign>::value));
