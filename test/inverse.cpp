@@ -171,9 +171,9 @@ void inverse_product_fixed_size() {
   // x * v by scalar loops, so the check does not go through the product evaluator under test.
   const auto ref_times_v = [&v](const MatrixType& x) {
     MatrixType r = MatrixType::Zero();
-    for (Index i = 0; i < n; ++i)
-      for (Index j = 0; j < n; ++j)
-        for (Index k = 0; k < n; ++k) r.coeffRef(i, j) += x.coeff(i, k) * v.coeff(k, j);
+    for (Index i = 0; i < x.rows(); ++i)
+      for (Index j = 0; j < v.cols(); ++j)
+        for (Index k = 0; k < x.cols(); ++k) r.coeffRef(i, j) += x.coeff(i, k) * v.coeff(k, j);
     return r;
   };
 
