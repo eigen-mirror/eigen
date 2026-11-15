@@ -154,11 +154,16 @@ run time. However, these assertions do cost time and can thus be turned off.
    both also turn off the NEON kernel for results of at most 8 x 8 (float) or 4 x 8 (double), and the small-product
    path below.
  - \b \c EIGEN_SME_NEON_SMALL_PRODUCT - Largest rows x cols x depth at which the ARM SME backend runs a whole
-   general matrix product on the NEON kernel, without packing it for the ZA tiles. A result of at most two NEON
-   vectors of rows also takes it while the right-hand side is at most 64 KB (and, for real scalars, the depth at most
-   128), and a real result of at most three columns and at least three LHS panels of rows never does. One value
-   overrides the per-scalar defaults (28672 for float, 10240 for double and complex<float>, 5120 for
-   complex<double>), which are fitted for Apple M4 Pro and checked on Apple M4.
+   general matrix product on the NEON kernel, without packing it for the ZA tiles, except for a real result of at
+   most three columns and at least three LHS panels of rows. One value overrides the per-scalar defaults (28672 for
+   float, 10240 for double and complex<float>, 5120 for complex<double>), which are fitted for Apple M4 Pro and
+   checked on Apple M4. Without the override, float and double products with \f$ m, n \le 128 \f$ and
+   \f$ k \le 256 \f$ use a cost bound instead, fitted for Apple M4 Pro on repeated products and on operands the core
+   has just written: NEON iff \f$ 4mnk < t\lceil m/w\rceil\lceil n/w\rceil k + r\,mn + h\,nk + 4P \f$, with
+   \f$ w \f$ the ZA tile edge at 512-bit vectors and \f$ (t, r, h, P) \f$ = (0, 8, 8, 24576) for float and
+   (8, 25, 4, 11264) for double. Either way, a result of at most two NEON vectors of rows takes NEON while the
+   right-hand side is at most 64 KB (and, for real scalars, the depth at most 128). Defining it to 0 leaves only that
+   case; \c EIGEN_SME_NO_NEON_SMALL_BLOCKS turns the path off.
  - \b \c EIGEN_SME_UNITS - Number of ARM SME units a product on the SME GEMM kernel spreads over; more threads than
    units only contend for them. Detected from the core topology by default (see \c Eigen::nbSmeUnits() and
    \c Eigen::setNbSmeUnits()): on macOS from the performance clusters, and 0 (no cap) elsewhere. Define it on other
