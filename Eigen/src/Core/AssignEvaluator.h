@@ -1008,6 +1008,9 @@ template <typename DstXprType, typename SrcXprType, typename Functor,
           typename EnableIf = void>
 struct Assignment;
 
+template <typename Src, typename Func>
+struct assignment_assume_aliasing : evaluator_assume_aliasing<Src> {};
+
 // The only purpose of this call_assignment() function is to deal with noalias() / "assume-aliasing" and automatic
 // transposition. Indeed, I (Gael) think that this concept of "assume-aliasing" was a mistake, and it makes thing quite
 // complicated. So this intermediate function removes everything related to "assume-aliasing" such that Assignment does
@@ -1023,13 +1026,15 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void call_assignment(const Dst& dst, const
 }
 
 // Deal with "assume-aliasing"
-template <typename Dst, typename Src, typename Func, std::enable_if_t<evaluator_assume_aliasing<Src>::value, int> = 0>
+template <typename Dst, typename Src, typename Func,
+          std::enable_if_t<assignment_assume_aliasing<Src, Func>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
   typename plain_matrix_type<Src>::type tmp(src);
   call_assignment_no_alias(dst, tmp, func);
 }
 
-template <typename Dst, typename Src, typename Func, std::enable_if_t<!evaluator_assume_aliasing<Src>::value, int> = 0>
+template <typename Dst, typename Src, typename Func,
+          std::enable_if_t<!assignment_assume_aliasing<Src, Func>::value, int> = 0>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void call_assignment(Dst& dst, const Src& src, const Func& func) {
   call_assignment_no_alias(dst, src, func);
 }
