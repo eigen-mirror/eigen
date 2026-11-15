@@ -52,17 +52,19 @@ void rqr() {
   // BQRRP-style randomized QRCP picks pivots on a Gaussian sketch with
   // partial-pivoted LU and then runs *unpivoted* QR on the chosen
   // panel; the diagonal of R is therefore not strictly monotonic, even
-  // within a block. Verify the weaker rank-revealing property: every
-  // R(i, i) above the rank threshold dominates the smallest later
-  // diagonal entry by at most an O(sqrt(rows)) slack factor.
-  RealScalar threshold = sqrt(RealScalar(rows)) * numext::abs(r(0, 0)) * NumTraits<Scalar>::epsilon();
+  // within a block. Verify the weaker rank-revealing property: no later
+  // diagonal entry exceeds R(i, i) by more than an O(sqrt(rows)) slack
+  // factor.
+  // Diagonal entries beyond the rank are rounding errors O(sqrt(rows) * eps * |R(0, 0)|), whose ratios the property
+  // does not constrain; the factor 8 covers the largest of up to EIGEN_TEST_MAX_SIZE of them.
+  RealScalar threshold = RealScalar(8) * sqrt(RealScalar(rows)) * numext::abs(r(0, 0)) * NumTraits<Scalar>::epsilon();
   RealScalar slack = sqrt(RealScalar(rows));
   for (Index i = 0; i < (std::min)(rows, cols) - 1; ++i) {
     RealScalar x = numext::abs(r(i, i));
-    RealScalar y_min = x;
-    for (Index j = i + 1; j < (std::min)(rows, cols); ++j) y_min = (std::min)(y_min, numext::abs(r(j, j)));
-    if (x < threshold && y_min < threshold) continue;
-    VERIFY_IS_APPROX_OR_LESS_THAN(y_min, slack * x);
+    RealScalar y_max = RealScalar(0);
+    for (Index j = i + 1; j < (std::min)(rows, cols); ++j) y_max = (std::max)(y_max, numext::abs(r(j, j)));
+    if (x < threshold && y_max < threshold) continue;
+    VERIFY_IS_APPROX_OR_LESS_THAN(y_max, slack * x);
   }
 
   check_solverbase<MatrixType, MatrixType>(m1, qr, rows, cols, cols2);
@@ -271,8 +273,7 @@ void rcod() {
   RealScalar absdet = numext::abs(det);
   RandCompleteOrthogonalDecomposition<MatrixType> cod2;
   cod2.setBlockSize(4).setSeed(0xc0d2);
-  cod2.compute(matrix);
-  q = cod2.householderQ();
+  q = generateRandomUnitaryMatrix<MatrixQType>(size);
   matrix = q * matrix * q.adjoint();
   cod2.compute(matrix);
   VERIFY_IS_APPROX(det, cod2.determinant());

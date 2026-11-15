@@ -319,12 +319,18 @@ pseudo-inverse. Here is an example using FullPivLU:
 </table>
 
 Of course, any rank computation depends on the choice of an arbitrary threshold, since practically no
-floating-point matrix is \em exactly rank-deficient. Eigen picks a sensible default threshold, which depends
-on the decomposition but is typically the diagonal size times machine epsilon. While this is the best default we
-could pick, only you know what is the right threshold for your application. You can set this by calling setThreshold()
-on your decomposition object before calling rank() or any other method that needs to use such a threshold.
-The decomposition itself, i.e. the compute() method, is independent of the threshold. You don't need to recompute the
-decomposition after you've changed the threshold.
+floating-point matrix is \em exactly rank-deficient. Eigen picks a sensible default threshold, which is relative
+to the biggest pivot (or, for the SVD classes, the biggest singular value). For FullPivLU, ColPivHouseholderQR,
+RandColPivHouseholderQR, FullPivHouseholderQR and CompleteOrthogonalDecomposition it is
+\f$ 4 \, \min(rows, cols) \, \epsilon \f$, where \f$ \epsilon \f$ is \c NumTraits<Scalar>::epsilon(). JacobiSVD and
+BDCSVD have their own default, \f$ \min(rows, cols) \, \epsilon \f$, a factor of 4 smaller, so the ranks they report
+can differ from those of the other decompositions for matrices with singular values near the threshold.
+While this is the best default we could pick, only you know what is the right threshold for your application.
+You can set this by calling setThreshold() on your decomposition object before calling rank() or any other method
+that needs to use such a threshold.
+The decomposition itself, i.e. the compute() method, is independent of the threshold, so you don't need to recompute
+the decomposition after you've changed the threshold. The exception is CompleteOrthogonalDecomposition, which fixes
+its rank in compute(): a threshold set afterwards applies to the next compute().
 
 <table class="example">
 <tr><th>Example:</th><th>Output:</th></tr>

@@ -76,7 +76,9 @@ struct ColPivHouseholderQR_LAPACKE_impl {
   using HCoeffsType = typename internal::plain_diag_type<MatrixType>::type;
   using PermutationType = PermutationMatrix<Dynamic, Dynamic, lapack_int>;
 
-  static void run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation, Index& nonzero_pivots,
+  // Returns false if LAPACKE rejected the input (NaN) without modifying it, so that the caller can use Eigen's own
+  // algorithm, which propagates NaN.
+  static bool run(MatrixType& qr, HCoeffsType& hCoeffs, PermutationType& colsPermutation, Index& nonzero_pivots,
                   RealScalar& maxpivot, bool usePrescribedThreshold, RealScalar prescribedThreshold, Index& det_p,
                   bool& isInitialized) {
     isInitialized = false;
@@ -94,7 +96,8 @@ struct ColPivHouseholderQR_LAPACKE_impl {
     LapackeType* hCoeffs_data = (LapackeType*)(hCoeffs.data());
 
     lapack_int info = call_geqp3(LapackeStorage, rows, cols, qr_data, lda, perm_data, hCoeffs_data);
-    if (info != 0) return;
+    if (info == -4) return false;
+    if (info != 0) return true;
 
     maxpivot = qr.diagonal().cwiseAbs().maxCoeff();
     hCoeffs.adjointInPlace();
@@ -107,6 +110,7 @@ struct ColPivHouseholderQR_LAPACKE_impl {
     colsPermutation.indices().array() -= 1;
     det_p = colsPermutation.determinant();
     isInitialized = true;
+    return true;
   }
 
   static void init(Index rows, Index cols, HCoeffsType& hCoeffs, PermutationType& colsPermutation,
@@ -119,12 +123,13 @@ struct ColPivHouseholderQR_LAPACKE_impl {
   }
 };
 
-#define COLPIVQR_LAPACKE_COMPUTEINPLACE(EIGTYPE)                                                                   \
-  template <>                                                                                                      \
-  inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::computeInPlace() {                                         \
-    ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_nonzero_pivots,        \
-                                                      m_maxpivot, m_usePrescribedThreshold, m_prescribedThreshold, \
-                                                      m_det_p, m_isInitialized);                                   \
+#define COLPIVQR_LAPACKE_COMPUTEINPLACE(EIGTYPE)                                                                 \
+  template <>                                                                                                    \
+  inline void ColPivHouseholderQR<EIGTYPE, lapack_int>::computeInPlace() {                                       \
+    if (!ColPivHouseholderQR_LAPACKE_impl<MatrixType>::run(m_qr, m_hCoeffs, m_colsPermutation, m_nonzero_pivots, \
+                                                           m_maxpivot, m_usePrescribedThreshold,                 \
+                                                           m_prescribedThreshold, m_det_p, m_isInitialized))     \
+      computeInPlaceNative();                                                                                    \
   }
 
 #define COLPIVQR_LAPACKE_INIT(EIGTYPE)                                                                            \

@@ -1815,9 +1815,46 @@ void householder_structured_products_noncommutative() {
   VERIFY(result == expected);
 }
 
+// A real sequence times a complex matrix, from either side, acts on the real and imaginary parts: the result is the
+// product with the complex-valued sequence. The sizes cover the unblocked and the blocked application.
+template <typename Real>
+void householder_real_sequence_complex_matrix(Index size) {
+  using RealMatrix = Matrix<Real, Dynamic, Dynamic>;
+  using ComplexMatrix = Matrix<std::complex<Real>, Dynamic, Dynamic>;
+  const RealMatrix A = RealMatrix::Random(size, size);
+  const HouseholderQR<RealMatrix> qr(A);
+  const auto sequence = qr.householderQ();
+  const ComplexMatrix Q = RealMatrix(sequence).template cast<std::complex<Real>>();
+  const ComplexMatrix M = ComplexMatrix::Random(size, size);
+  VERIFY_IS_APPROX(ComplexMatrix(sequence * M), Q * M);
+  VERIFY_IS_APPROX(ComplexMatrix(M * sequence), M * Q);
+  VERIFY_IS_APPROX(ComplexMatrix(sequence.adjoint() * M), Q.adjoint() * M);
+  VERIFY_IS_APPROX(ComplexMatrix(M * sequence.transpose()), M * Q.transpose());
+  const ComplexMatrix V = ComplexMatrix::Random(size, 1);
+  VERIFY_IS_APPROX(ComplexMatrix(sequence * V), Q * V);
+  // Evaluating the sequence itself into a complex matrix.
+  ComplexMatrix evaluated = sequence;
+  VERIFY_IS_APPROX(evaluated, Q);
+  evaluated.setZero();
+  evaluated = sequence;
+  VERIFY_IS_APPROX(evaluated, Q);
+  // The complex sequence times a real matrix keeps working.
+  const ComplexMatrix Qc = ComplexMatrix::Random(size, size);
+  const HouseholderQR<ComplexMatrix> cqr(Qc);
+  const auto complex_sequence = cqr.householderQ();
+  const ComplexMatrix Z = ComplexMatrix(complex_sequence);
+  VERIFY_IS_APPROX(ComplexMatrix(complex_sequence * A), Z * A.template cast<std::complex<Real>>());
+  VERIFY_IS_APPROX(ComplexMatrix(A * complex_sequence), A.template cast<std::complex<Real>>() * Z);
+}
+
 EIGEN_DECLARE_TEST(householder) {
   CALL_SUBTEST_26(householder_ordered_result_types<OnTheLeft>());
   CALL_SUBTEST_26(householder_ordered_result_types<OnTheRight>());
+  CALL_SUBTEST_26(householder_real_sequence_complex_matrix<float>(7));
+  CALL_SUBTEST_26(householder_real_sequence_complex_matrix<double>(7));
+  CALL_SUBTEST_26(householder_real_sequence_complex_matrix<double>(200));
+  CALL_SUBTEST_26(householder_real_sequence_complex_matrix<double>(1));
+  CALL_SUBTEST_26(householder_real_sequence_complex_matrix<double>(3));
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(householder(Matrix<double, 2, 2>()));
     CALL_SUBTEST_2(householder(Matrix<float, 2, 3>()));

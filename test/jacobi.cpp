@@ -436,6 +436,41 @@ void jacobi_makejacobi_ratio_boundaries() {
   }
 }
 
+// The symmetrizing rotation of real_2x2_jacobi_svd uses t/d with t = m00 + m11 and d = m10 - m01. Its square
+// overflows for |d| << |t|, which used to yield the null rotation (c, s) = (0, 0).
+template <typename Scalar>
+void jacobi_real_2x2_svd_extreme_ratio() {
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar rtmax = numext::sqrt((std::numeric_limits<Scalar>::max)());
+  // With the smallest normal d and a diagonal of 100, t/d is infinite.
+  for (const Scalar tiny : {(std::numeric_limits<Scalar>::min)(), (std::numeric_limits<Scalar>::min)() * Scalar(4),
+                            Scalar(0.25) / rtmax, Scalar(4) / rtmax, Scalar(0.125)}) {
+    for (const Scalar sign : {Scalar(-1), Scalar(1)}) {
+      for (const Scalar diagonal : {Scalar(-1), Scalar(1), Scalar(100)}) {
+        Matrix<Scalar, 2, 2> m, a;
+        m << diagonal, Scalar(0), sign * tiny, Scalar(2) * diagonal;
+        JacobiRotation<Scalar> j_left, j_right;
+        internal::real_2x2_jacobi_svd(m, Index(0), Index(1), &j_left, &j_right);
+        VERIFY(numext::abs(j_left.c() * j_left.c() + j_left.s() * j_left.s() - Scalar(1)) <= Scalar(8) * eps);
+        VERIFY(numext::abs(j_right.c() * j_right.c() + j_right.s() * j_right.s() - Scalar(1)) <= Scalar(8) * eps);
+        a = m;
+        a.applyOnTheLeft(0, 1, j_left);
+        a.applyOnTheRight(0, 1, j_right);
+        VERIFY(numext::abs(a(0, 1)) <= Scalar(16) * eps * m.norm());
+        VERIFY(numext::abs(a(1, 0)) <= Scalar(16) * eps * m.norm());
+      }
+    }
+  }
+}
+
+// The product of two const rotations must compile.
+template <typename Scalar>
+void jacobi_rotation_const() {
+  const JacobiRotation<Scalar> a(Scalar(0.6), Scalar(0.8)), b(Scalar(0.8), Scalar(-0.6));
+  const JacobiRotation<Scalar> product = a * b;
+  VERIFY_IS_APPROX(product.c(), a.c() * b.c() - numext::conj(a.s()) * b.s());
+}
+
 EIGEN_DECLARE_TEST(jacobi) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7((jacobi_makegivens_safe_scaling<float>()));
@@ -450,6 +485,11 @@ EIGEN_DECLARE_TEST(jacobi) {
     CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<float>()));
     CALL_SUBTEST_7((jacobi_makejacobi_extreme_phase<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<float>()));
+    CALL_SUBTEST_7((jacobi_real_2x2_svd_extreme_ratio<float>()));
+    CALL_SUBTEST_7((jacobi_real_2x2_svd_extreme_ratio<double>()));
+    CALL_SUBTEST_7((jacobi_real_2x2_svd_extreme_ratio<long double>()));
+    CALL_SUBTEST_7((jacobi_rotation_const<float>()));
+    CALL_SUBTEST_7((jacobi_rotation_const<std::complex<double>>()));
     CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<long double>()));
     CALL_SUBTEST_7((jacobi_makejacobi_ratio_boundaries<half>()));

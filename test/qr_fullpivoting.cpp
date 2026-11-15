@@ -130,6 +130,29 @@ void qr_verify_assert() {
   VERIFY_RAISES_ASSERT(qr.signDeterminant())
 }
 
+// A right-hand side without columns, and an empty matrix, give an empty solution of the right size; sanitizer builds
+// reported a reference to the first element of an empty workspace.
+template <typename Decomposition, typename MatrixType>
+void qr_empty_rhs() {
+  const MatrixType A = MatrixType::Random(4, 4);
+  const Decomposition dec(A);
+  const MatrixType empty_rhs(4, 0);
+  VERIFY_IS_EQUAL(dec.solve(empty_rhs).rows(), 4);
+  VERIFY_IS_EQUAL(dec.solve(empty_rhs).cols(), 0);
+  VERIFY_IS_EQUAL(dec.transpose().solve(empty_rhs).rows(), 4);
+  VERIFY_IS_EQUAL(dec.transpose().solve(empty_rhs).cols(), 0);
+  VERIFY_IS_EQUAL(dec.adjoint().solve(empty_rhs).cols(), 0);
+  const MatrixType B = MatrixType::Random(4, 3);
+  const MatrixType X = dec.solve(B);
+  VERIFY_IS_EQUAL(X.cols(), 3);
+  VERIFY_IS_APPROX(A * X, B);
+
+  const Decomposition empty_dec{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(empty_dec.solve(MatrixType(0, 2)).rows(), 0);
+  VERIFY_IS_EQUAL(empty_dec.solve(MatrixType(0, 2)).cols(), 2);
+  VERIFY_IS_EQUAL(empty_dec.transpose().solve(MatrixType(0, 0)).cols(), 0);
+}
+
 EIGEN_DECLARE_TEST(qr_fullpivoting) {
   for (int i = 0; i < 1; i++) {
     CALL_SUBTEST_5(qr<Matrix3f>());
@@ -147,6 +170,9 @@ EIGEN_DECLARE_TEST(qr_fullpivoting) {
     CALL_SUBTEST_3(qr_invertible<MatrixXcd>());
   }
 
+  CALL_SUBTEST_2((qr_empty_rhs<FullPivHouseholderQR<MatrixXd>, MatrixXd>()));
+  CALL_SUBTEST_4((qr_empty_rhs<FullPivHouseholderQR<MatrixXcf>, MatrixXcf>()));
+  CALL_SUBTEST_1((qr_empty_rhs<FullPivHouseholderQR<MatrixXf>, MatrixXf>()));
   CALL_SUBTEST_5(qr_verify_assert<Matrix3f>());
   CALL_SUBTEST_6(qr_verify_assert<Matrix3d>());
   CALL_SUBTEST_1(qr_verify_assert<MatrixXf>());

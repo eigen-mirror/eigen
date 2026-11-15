@@ -204,14 +204,87 @@ void inverse_zerosized() {
   }
 }
 
+// Writes inverse() and computeInverseAndDetWithCheck() through destinations with a non-unit inner stride, an outer
+// stride, or both, and checks that no element outside the destination changes.
+template <typename Dst, typename Scalar, typename Matrix, typename Maker>
+void inverse_check_strided_destination(const Matrix& A, const Matrix& ref, Maker make, Index buffer_size) {
+  for (int variant = 0; variant < 2; ++variant) {
+    std::vector<Scalar> buffer(buffer_size);
+    for (Index i = 0; i < buffer_size; ++i) buffer[i] = Scalar(i + 1);
+    std::vector<Scalar> expected(buffer);
+    Dst dst(make(buffer.data()));
+    Dst dst_expected(make(expected.data()));
+    if (variant == 0) {
+      dst = A.inverse();
+    } else {
+      bool invertible = false;
+      Scalar det;
+      A.computeInverseAndDetWithCheck(dst, det, invertible);
+      VERIFY(invertible);
+    }
+    Matrix got = dst;
+    VERIFY_IS_APPROX(got, ref);
+
+    // Elements outside the destination must be untouched: after storing the exact reference into both
+    // destinations, the two buffers must agree bit for bit.
+    dst = ref;
+    dst_expected = ref;
+    for (Index i = 0; i < buffer_size; ++i) VERIFY_IS_EQUAL(buffer[i], expected[i]);
+  }
+}
+
+template <typename Scalar, int Size, int Options>
+void inverse_strided_destination_order() {
+  using M = Matrix<Scalar, Size, Size, Options>;
+  M A;
+  createRandomPIMatrixOfRank(Size, Size, Size, A);
+  M ref = A.inverse();
+  const Index n = Size;
+  const Index buffer_size = 4 * n * n + 7;
+
+  inverse_check_strided_destination<Map<M, 0, InnerStride<2>>, Scalar>(
+      A, ref, [&](Scalar* p) { return Map<M, 0, InnerStride<2>>(p); }, buffer_size);
+  inverse_check_strided_destination<Map<M, 0, InnerStride<3>>, Scalar>(
+      A, ref, [&](Scalar* p) { return Map<M, 0, InnerStride<3>>(p); }, buffer_size);
+  inverse_check_strided_destination<Map<M, 0, OuterStride<2 * Size + 1>>, Scalar>(
+      A, ref, [&](Scalar* p) { return Map<M, 0, OuterStride<2 * Size + 1>>(p); }, buffer_size);
+  inverse_check_strided_destination<Map<M, 0, Stride<4 * Size + 1, 2>>, Scalar>(
+      A, ref, [&](Scalar* p) { return Map<M, 0, Stride<4 * Size + 1, 2>>(p); }, buffer_size);
+  // Inner stride known only at run time, both unit and non-unit.
+  for (Index inner = 1; inner <= 3; ++inner) {
+    using Dyn = Map<M, 0, Stride<Dynamic, Dynamic>>;
+    inverse_check_strided_destination<Dyn, Scalar>(
+        A, ref, [&](Scalar* p) { return Dyn(p, n, n, Stride<Dynamic, Dynamic>(inner * n + 1, inner)); }, buffer_size);
+    using DynInner = Map<M, 0, InnerStride<Dynamic>>;
+    inverse_check_strided_destination<DynInner, Scalar>(
+        A, ref, [&](Scalar* p) { return DynInner(p, n, n, InnerStride<Dynamic>(inner)); }, buffer_size);
+    using DynRef = Ref<M, 0, Stride<Dynamic, Dynamic>>;
+    inverse_check_strided_destination<DynRef, Scalar>(
+        A, ref,
+        [&](Scalar* p) {
+          return Map<M, 0, Stride<Dynamic, Dynamic>>(p, n, n, Stride<Dynamic, Dynamic>(inner * n + 1, inner));
+        },
+        buffer_size);
+  }
+}
+
+template <typename Scalar, int Size>
+void inverse_strided_destination() {
+  inverse_strided_destination_order<Scalar, Size, ColMajor>();
+  inverse_strided_destination_order<Scalar, Size, RowMajor>();
+}
+
 EIGEN_DECLARE_TEST(inverse) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(inverse(Matrix<double, 1, 1>()));
     CALL_SUBTEST_2(inverse(Matrix2d()));
+    CALL_SUBTEST_2((inverse_strided_destination<double, 2>()));
     CALL_SUBTEST_3(inverse(Matrix3f()));
+    CALL_SUBTEST_3((inverse_strided_destination<float, 3>()));
     CALL_SUBTEST_4(inverse(Matrix4f()));
     CALL_SUBTEST_4(inverse(Matrix<float, 4, 4, DontAlign>()));
+    CALL_SUBTEST_4((inverse_strided_destination<float, 4>()));
 
     s = internal::random<int>(50, 320);
     CALL_SUBTEST_5(inverse(MatrixXf(s, s)));
@@ -226,6 +299,7 @@ EIGEN_DECLARE_TEST(inverse) {
 
     CALL_SUBTEST_7(inverse(Matrix4d()));
     CALL_SUBTEST_7(inverse(Matrix<double, 4, 4, DontAlign>()));
+    CALL_SUBTEST_7((inverse_strided_destination<double, 4>()));
 
     CALL_SUBTEST_8(inverse(Matrix4cd()));
 

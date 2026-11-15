@@ -370,6 +370,44 @@ void inplace_qz_inner_stride() {
   }
 }
 
+template <typename MatrixType>
+using LLTDecomposition = LLT<MatrixType>;
+template <typename MatrixType>
+using LDLTDecomposition = LDLT<MatrixType>;
+template <typename MatrixType>
+using PartialPivLUDecomposition = PartialPivLU<MatrixType>;
+template <typename MatrixType>
+using FullPivLUDecomposition = FullPivLU<MatrixType>;
+
+// In-place decompositions through a Ref with a runtime inner stride must factor the strided storage and leave the
+// buffer elements outside the matrix untouched.
+template <template <typename> class DecType, typename Scalar, int Options>
+void inplace_inner_stride(Index size) {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Options>;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  using StridedRef = Ref<MatrixType, 0, Stride<Dynamic, Dynamic>>;
+  for (Index inner : {Index(1), Index(2), Index(3)}) {
+    const Stride<Dynamic, Dynamic> stride(inner * size + 3, inner);
+    const MatrixType R = MatrixType::Random(size, size);
+    const MatrixType A0 = R.adjoint() * R + MatrixType::Identity(size, size) * Scalar(size);
+    const VectorType b = VectorType::Random(size);
+    VectorType storage = VectorType::Random(stride.outer() * size);
+    const VectorType saved = storage;
+    Map<MatrixType, 0, Stride<Dynamic, Dynamic>> a(storage.data(), size, size, stride);
+    a = A0;
+    StridedRef ar(a);
+    DecType<StridedRef> dec(ar);
+    VERIFY_IS_NOT_APPROX(MatrixType(a), A0);
+    VERIFY_IS_APPROX(A0 * dec.solve(b), b);
+    for (Index offset = 0; offset < storage.size(); ++offset) {
+      const Index outer = offset / stride.outer();
+      const Index innerOffset = offset % stride.outer();
+      if (outer < size && innerOffset % inner == 0 && innerOffset / inner < size) continue;
+      VERIFY_IS_EQUAL(storage(offset), saved(offset));
+    }
+  }
+}
+
 struct InplaceLowerOnly {
   double operator()(Index row, Index col) const {
     VERIFY(row >= col);
@@ -400,6 +438,18 @@ EIGEN_DECLARE_TEST(inplace_decomposition) {
   CALL_SUBTEST_14((inplace_qz_inner_stride<double, RealQZ, RowMajor>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, ColMajor>()));
   CALL_SUBTEST_14((inplace_qz_inner_stride<std::complex<double>, ComplexQZ, RowMajor>()));
+  for (Index size : {Index(5), Index(40)}) {
+    CALL_SUBTEST_1((inplace_inner_stride<LLTDecomposition, double, ColMajor>(size)));
+    CALL_SUBTEST_1((inplace_inner_stride<LLTDecomposition, double, RowMajor>(size)));
+    CALL_SUBTEST_2((inplace_inner_stride<LDLTDecomposition, double, ColMajor>(size)));
+    CALL_SUBTEST_2((inplace_inner_stride<LDLTDecomposition, double, RowMajor>(size)));
+    CALL_SUBTEST_3((inplace_inner_stride<PartialPivLUDecomposition, double, ColMajor>(size)));
+    CALL_SUBTEST_3((inplace_inner_stride<PartialPivLUDecomposition, double, RowMajor>(size)));
+    CALL_SUBTEST_3((inplace_inner_stride<PartialPivLUDecomposition, std::complex<float>, ColMajor>(size)));
+    CALL_SUBTEST_4((inplace_inner_stride<FullPivLUDecomposition, double, ColMajor>(size)));
+    CALL_SUBTEST_4((inplace_inner_stride<FullPivLUDecomposition, double, RowMajor>(size)));
+    TEST_SET_BUT_UNUSED_VARIABLE(size);
+  }
   using Matrix43d EIGEN_UNUSED = Matrix<double, 4, 3>;
   for (int i = 0; i < g_repeat; i++) {
     EIGEN_UNUSED const Index size = internal::random<Index>(2, EIGEN_TEST_MAX_SIZE / 4);

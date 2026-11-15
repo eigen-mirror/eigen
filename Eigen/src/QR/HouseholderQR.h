@@ -201,6 +201,7 @@ class HouseholderQR : public SolverBase<HouseholderQR<MatrixType_>> {
 
   template <typename InputType>
   HouseholderQR& compute(const EigenBase<InputType>& matrix) {
+    m_qr.resize(matrix.rows(), matrix.cols());
     m_qr = matrix.derived();
     computeInPlace();
     return *this;

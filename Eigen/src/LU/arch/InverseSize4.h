@@ -48,6 +48,17 @@
 
 namespace Eigen {
 namespace internal {
+
+// The packet kernels below store whole packets along the inner dimension of the result, so they require a unit inner
+// stride. Other destinations are computed into a contiguous temporary and copied.
+template <typename ResultType>
+EIGEN_STRONG_INLINE bool inverse_size4_has_unit_inner_stride(const ResultType &result) {
+  return ResultType::InnerStrideAtCompileTime == 1 || result.innerStride() == 1;
+}
+
+template <typename Scalar, typename ResultType>
+using inverse_size4_contiguous_result_t = Matrix<Scalar, 4, 4, (ResultType::Flags & RowMajorBit) ? RowMajor : ColMajor>;
+
 template <typename MatrixType, typename ResultType>
 struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType> {
   enum {
@@ -59,6 +70,20 @@ struct compute_inverse_size4<Architecture::Target, float, MatrixType, ResultType
       std::conditional_t<(MatrixType::Flags & LinearAccessBit), const MatrixType &, typename MatrixType::PlainObject>;
 
   static void run(const MatrixType &mat, ResultType &result) {
+    if (EIGEN_PREDICT_FALSE(!inverse_size4_has_unit_inner_stride(result))) {
+      run_strided_result(mat, result);
+    } else {
+      run_unit_inner_stride(mat, result);
+    }
+  }
+
+  static EIGEN_DONT_INLINE void run_strided_result(const MatrixType &mat, ResultType &result) {
+    inverse_size4_contiguous_result_t<float, ResultType> contiguous;
+    compute_inverse_size4<Architecture::Target, float, MatrixType, decltype(contiguous)>::run(mat, contiguous);
+    result = contiguous;
+  }
+
+  static void run_unit_inner_stride(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     const float *data = matrix.data();
@@ -182,6 +207,20 @@ struct compute_inverse_size4<Architecture::Target, double, MatrixType, ResultTyp
       std::conditional_t<(MatrixType::Flags & LinearAccessBit), const MatrixType &, typename MatrixType::PlainObject>;
 
   static void run(const MatrixType &mat, ResultType &result) {
+    if (EIGEN_PREDICT_FALSE(!inverse_size4_has_unit_inner_stride(result))) {
+      run_strided_result(mat, result);
+    } else {
+      run_unit_inner_stride(mat, result);
+    }
+  }
+
+  static EIGEN_DONT_INLINE void run_strided_result(const MatrixType &mat, ResultType &result) {
+    inverse_size4_contiguous_result_t<double, ResultType> contiguous;
+    compute_inverse_size4<Architecture::Target, double, MatrixType, decltype(contiguous)>::run(mat, contiguous);
+    result = contiguous;
+  }
+
+  static void run_unit_inner_stride(const MatrixType &mat, ResultType &result) {
     ActualMatrixType matrix(mat);
 
     // Four 2x2 sub-matrices of the input matrix, each is further divided into upper and lower

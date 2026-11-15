@@ -150,6 +150,8 @@ class FullPivLU : public SolverBase<FullPivLU<MatrixType_, PermutationIndex_> >,
    */
   template <typename InputType>
   FullPivLU& compute(const EigenBase<InputType>& matrix) {
+    // Recomputing with a matrix of another size is allowed, also with EIGEN_NO_AUTOMATIC_RESIZING.
+    m_lu.resize(matrix.rows(), matrix.cols());
     m_lu = matrix.derived();
     computeInPlace();
     return *this;

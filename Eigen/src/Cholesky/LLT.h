@@ -365,7 +365,7 @@ static Index llt_rank_update_lower(MatrixType& mat, const VectorType& vec,
       RealScalar gamma = dj * beta + swj2;
 
       RealScalar x = dj + swj2 / beta;
-      if (x <= RealScalar(0)) return j;
+      if (!(numext::isfinite)(x) || x <= RealScalar(0)) return j;
       RealScalar nLjj = numext::sqrt(x);
       mat.coeffRef(j, j) = nLjj;
       beta += swj2 / dj;
@@ -399,7 +399,7 @@ struct llt_inplace<Scalar, Lower> {
 
       RealScalar x = numext::real(mat.coeff(k, k));
       if (k > 0) x -= A10.squaredNorm();
-      if (x <= RealScalar(0)) return k;
+      if (!(numext::isfinite)(x) || x <= RealScalar(0)) return k;
       mat.coeffRef(k, k) = x = numext::sqrt(x);
       if (k > 0 && rs > 0) A21.noalias() -= A20 * A10.adjoint();
       if (rs > 0) A21 /= x;

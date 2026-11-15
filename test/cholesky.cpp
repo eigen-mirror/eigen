@@ -729,6 +729,69 @@ void cholesky_ldlt_nonfinite(Index n) {
   check_ldlt_nonfinite<MatrixType>(n, Scalar(std::numeric_limits<RealScalar>::infinity()));
 }
 
+// A non-finite entry in the referenced triangle must make LLT report NumericalIssue, as LDLT does, whether it
+// sits on the diagonal or off it, below or above the blocking threshold.
+template <typename MatrixType>
+void check_llt_nonfinite(Index n, const typename MatrixType::Scalar& value) {
+  const Index positions[][2] = {{0, 0}, {n / 2, n / 2}, {n - 1, n - 1}, {n - 1, 0}, {n - 1, n - 2}};
+  for (const auto& position : positions) {
+    const Index i = position[0], j = position[1];
+    if (j < 0 || (i == j && NumTraits<typename MatrixType::Scalar>::IsComplex && numext::real(value) == 0)) continue;
+    MatrixType A = MatrixType::Identity(n, n);
+    A(i, j) = value;
+    A(j, i) = numext::conj(value);
+    VERIFY((LLT<MatrixType, Lower>(A).info() == NumericalIssue));
+    VERIFY((LLT<MatrixType, Upper>(A).info() == NumericalIssue));
+  }
+}
+
+template <typename MatrixType>
+void cholesky_llt_nonfinite(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  check_llt_nonfinite<MatrixType>(n, Scalar(std::numeric_limits<RealScalar>::quiet_NaN()));
+  check_llt_nonfinite<MatrixType>(n, Scalar(std::numeric_limits<RealScalar>::infinity()));
+}
+
+// A NaN in the imaginary part of an off-diagonal entry; the diagonal of a Hermitian matrix has none to read.
+template <typename MatrixType>
+void cholesky_llt_imaginary_nan(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  check_llt_nonfinite<MatrixType>(n, Scalar(RealScalar(0), std::numeric_limits<RealScalar>::quiet_NaN()));
+}
+
+// Entries near the overflow threshold of the squares are not an error as long as every pivot is finite.
+template <typename MatrixType>
+void cholesky_llt_huge_finite(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const MatrixType R = MatrixType::Random(n, n);
+  const RealScalar scale = (std::numeric_limits<RealScalar>::max)() / RealScalar(16 * n);
+  const MatrixType A = Scalar(scale) * (R * R.adjoint() / Scalar(RealScalar(n)) + MatrixType::Identity(n, n));
+  LLT<MatrixType, Lower> lower(A);
+  LLT<MatrixType, Upper> upper(A);
+  VERIFY_IS_EQUAL(lower.info(), Success);
+  VERIFY_IS_EQUAL(upper.info(), Success);
+  VERIFY(lower.matrixLLT().template triangularView<Lower>().toDenseMatrix().allFinite());
+}
+
+// A NaN or Inf vector entry must make a rank-one downdate report NumericalIssue.
+template <typename MatrixType>
+void cholesky_llt_downdate_nonfinite(Index n) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using VectorType = Matrix<Scalar, MatrixType::RowsAtCompileTime, 1>;
+  for (RealScalar bad : {std::numeric_limits<RealScalar>::quiet_NaN(), std::numeric_limits<RealScalar>::infinity()}) {
+    LLT<MatrixType> llt(MatrixType::Identity(n, n));
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    VectorType w = VectorType::Constant(n, Scalar(RealScalar(0.1)));
+    w(n / 2) = Scalar(bad);
+    llt.rankUpdate(w, RealScalar(-1));
+    VERIFY_IS_EQUAL(llt.info(), NumericalIssue);
+  }
+}
+
 // A NaN in the imaginary part of an off-diagonal entry; the diagonal of a Hermitian matrix has none to read.
 template <typename MatrixType>
 void cholesky_ldlt_imaginary_nan(Index n) {
@@ -1254,11 +1317,20 @@ EIGEN_DECLARE_TEST(cholesky) {
       CALL_SUBTEST_6(cholesky_ldlt_graded<MatrixXcd>(n, 80));
       CALL_SUBTEST_2(cholesky_ldlt_nonfinite<MatrixXd>(n));
       CALL_SUBTEST_6(cholesky_ldlt_nonfinite<MatrixXcd>(n));
+      CALL_SUBTEST_2(cholesky_llt_nonfinite<MatrixXd>(n));
+      CALL_SUBTEST_6(cholesky_llt_nonfinite<MatrixXcd>(n));
+      CALL_SUBTEST_6(cholesky_llt_imaginary_nan<MatrixXcd>(n));
+      CALL_SUBTEST_2(cholesky_llt_huge_finite<MatrixXd>(n));
+      CALL_SUBTEST_4(cholesky_llt_huge_finite<MatrixXf>(n));
+      CALL_SUBTEST_2(cholesky_llt_downdate_nonfinite<MatrixXd>(n));
       CALL_SUBTEST_6(cholesky_ldlt_imaginary_nan<MatrixXcd>(n));
       TEST_SET_BUT_UNUSED_VARIABLE(n);
     }
     CALL_SUBTEST_2(cholesky_ldlt_nonfinite<MatrixXd>(1));
     CALL_SUBTEST_5(cholesky_ldlt_nonfinite<Matrix4d>(4));
+    CALL_SUBTEST_2(cholesky_llt_nonfinite<MatrixXd>(1));
+    CALL_SUBTEST_5(cholesky_llt_nonfinite<Matrix4d>(4));
+    CALL_SUBTEST_5(cholesky_llt_nonfinite<MatrixXf>(65));
   }
 
   // Blocking and vectorization boundary tests (deterministic, outside g_repeat).

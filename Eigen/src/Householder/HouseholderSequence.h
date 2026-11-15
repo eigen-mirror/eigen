@@ -136,6 +136,19 @@ assign_householder_operand(ResultType& res, const EigenBase<OtherDerived>& other
   res = other.derived().toDenseMatrix().template cast<typename ResultType::Scalar>();
 }
 
+// A real sequence applied to a complex destination, which happens in a product with a complex matrix.
+template <typename SequenceScalar, typename Dest>
+using hseq_applies_to_complex_parts =
+    bool_constant<!NumTraits<SequenceScalar>::IsComplex && NumTraits<typename Dest::Scalar>::IsComplex>;
+
+// The real matrix holding the real or imaginary part of a destination.
+template <typename SequenceScalar, typename Dest>
+struct hseq_real_part_type {
+  using type = Matrix<SequenceScalar, Dest::RowsAtCompileTime, Dest::ColsAtCompileTime,
+                      (Dest::MaxRowsAtCompileTime == 1 && Dest::MaxColsAtCompileTime != 1) ? RowMajor : ColMajor,
+                      Dest::MaxRowsAtCompileTime, Dest::MaxColsAtCompileTime>;
+};
+
 }  // end namespace internal
 
 template <typename VectorsType, typename CoeffsType, int Side>
@@ -284,6 +297,20 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   /** \internal */
   template <typename Dest, typename Workspace>
   EIGEN_DEVICE_FUNC void evalTo(Dest& dst, Workspace& workspace) const {
+    evalToImpl(dst, workspace, internal::hseq_applies_to_complex_parts<Scalar, Dest>());
+  }
+
+ private:
+  /** \internal A real sequence evaluated into a complex matrix is evaluated into a real matrix first. */
+  template <typename Dest, typename Workspace>
+  EIGEN_DEVICE_FUNC void evalToImpl(Dest& dst, Workspace&, std::true_type) const {
+    typename internal::hseq_real_part_type<Scalar, Dest>::type real_dst;
+    evalTo(real_dst);
+    dst = real_dst.template cast<typename Dest::Scalar>();
+  }
+
+  template <typename Dest, typename Workspace>
+  EIGEN_DEVICE_FUNC void evalToImpl(Dest& dst, Workspace& workspace, std::false_type) const {
     workspace.resize(rows());
     Index vecs = m_length;
     if (internal::is_same_dense(dst, m_vectors)) {
@@ -321,6 +348,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     }
   }
 
+ public:
   /** \internal */
   template <typename Dest>
   inline void applyThisOnTheRight(Dest& dst) const {
@@ -331,6 +359,23 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   /** \internal */
   template <typename Dest, typename Workspace>
   inline void applyThisOnTheRight(Dest& dst, Workspace& workspace) const {
+    applyThisOnTheRightImpl(dst, workspace, internal::hseq_applies_to_complex_parts<Scalar, Dest>());
+  }
+
+ private:
+  /** \internal A real sequence applied to a complex matrix acts on its real and imaginary parts separately. */
+  template <typename Dest, typename Workspace>
+  void applyThisOnTheRightImpl(Dest& dst, Workspace&, std::true_type) const {
+    typename internal::hseq_real_part_type<Scalar, Dest>::type part = dst.real();
+    applyThisOnTheRight(part);
+    dst.real() = part;
+    part = dst.imag();
+    applyThisOnTheRight(part);
+    dst.imag() = part;
+  }
+
+  template <typename Dest, typename Workspace>
+  inline void applyThisOnTheRightImpl(Dest& dst, Workspace& workspace, std::false_type) const {
     // Use the block path when the reflectors are long enough for GEMM to outperform GEMV.
     // The threshold on rows() (the reflector length) is higher than for the left-side path because
     // the right-side block application has more overhead from the tmp = mat * V product layout.
@@ -346,7 +391,6 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     }
   }
 
- private:
   /** \internal Block Householder application on the right, kept out-of-line
    * to avoid template bloat pessimizing the scalar path above. */
   template <typename Dest>
@@ -384,6 +428,23 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
   /** \internal */
   template <typename Dest, typename Workspace>
   inline void applyThisOnTheLeft(Dest& dst, Workspace& workspace, bool inputIsIdentity = false) const {
+    applyThisOnTheLeftImpl(dst, workspace, inputIsIdentity, internal::hseq_applies_to_complex_parts<Scalar, Dest>());
+  }
+
+ private:
+  /** \internal A real sequence applied to a complex matrix acts on its real and imaginary parts separately. */
+  template <typename Dest, typename Workspace>
+  void applyThisOnTheLeftImpl(Dest& dst, Workspace&, bool inputIsIdentity, std::true_type) const {
+    typename internal::hseq_real_part_type<Scalar, Dest>::type part = dst.real();
+    applyThisOnTheLeft(part, inputIsIdentity);
+    dst.real() = part;
+    part = dst.imag();
+    applyThisOnTheLeft(part, inputIsIdentity);
+    dst.imag() = part;
+  }
+
+  template <typename Dest, typename Workspace>
+  inline void applyThisOnTheLeftImpl(Dest& dst, Workspace& workspace, bool inputIsIdentity, std::false_type) const {
     if (inputIsIdentity && m_reverse) inputIsIdentity = false;
     // if the entries are large enough, then apply the reflectors by block
     if (m_length >= BlockSize && dst.cols() > 1) {
@@ -428,6 +489,7 @@ class HouseholderSequence : public EigenBase<HouseholderSequence<VectorsType, Co
     }
   }
 
+ public:
   /** \brief Computes the product of a Householder sequence with a matrix.
    * \param[in]  other  %Matrix being multiplied.
    * \returns    Expression object representing the product.

@@ -310,6 +310,7 @@ class ColPivHouseholderQR : public SolverBase<ColPivHouseholderQR<MatrixType_, P
   EIGEN_STATIC_ASSERT_NON_INTEGER(Scalar)
 
   void computeInPlace();
+  void computeInPlaceNative();
 
   MatrixType m_qr;
   HCoeffsType m_hCoeffs;
@@ -364,6 +365,7 @@ template <typename MatrixType, typename PermutationIndex>
 template <typename InputType>
 ColPivHouseholderQR<MatrixType, PermutationIndex>& ColPivHouseholderQR<MatrixType, PermutationIndex>::compute(
     const EigenBase<InputType>& matrix) {
+  m_qr.resize(matrix.rows(), matrix.cols());
   m_qr = matrix.derived();
   computeInPlace();
   return *this;
@@ -371,6 +373,11 @@ ColPivHouseholderQR<MatrixType, PermutationIndex>& ColPivHouseholderQR<MatrixTyp
 
 template <typename MatrixType, typename PermutationIndex>
 void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
+  computeInPlaceNative();
+}
+
+template <typename MatrixType, typename PermutationIndex>
+void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlaceNative() {
   eigen_assert(m_qr.cols() <= NumTraits<PermutationIndex>::highest());
 
   Index rows = m_qr.rows();
@@ -385,13 +392,16 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   Index number_of_transpositions = 0;
 
   // m_colNormsDirect caches the most recent directly computed column norms.
-  m_colNormsDirect = m_qr.colwise().norm();
+  m_colNormsDirect.resize(cols);
+  m_colNormsUpdated.resize(cols);
+  const bool stable_norms = internal::column_norms_with_fallback(m_qr, m_colNormsDirect);
   m_colNormsUpdated = m_colNormsDirect;
 
+  // A column is negligible when its norm is below eps * maxnorm * sqrt((rows - k) / rows). The test is written without
+  // squaring the norms, which overflow or underflow for entries beyond sqrt(max) or below sqrt(min).
   RealScalar threshold_helper =
       cols == 0 ? RealScalar(0)
-                : numext::abs2<RealScalar>(m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon()) /
-                      RealScalar(rows);
+                : m_colNormsUpdated.maxCoeff() * NumTraits<RealScalar>::epsilon() / numext::sqrt(RealScalar(rows));
   RealScalar norm_downdate_threshold = numext::sqrt(NumTraits<RealScalar>::epsilon());
 
   this->m_nonzero_pivots = size;  // the generic case is that in which all pivots are nonzero (invertible case)
@@ -400,12 +410,12 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   for (Index k = 0; k < size; ++k) {
     // first, we look up in our table m_colNormsUpdated which column has the biggest norm
     Index biggest_col_index;
-    RealScalar biggest_col_sq_norm = numext::abs2(m_colNormsUpdated.tail(cols - k).maxCoeff(&biggest_col_index));
+    RealScalar biggest_col_norm = m_colNormsUpdated.tail(cols - k).maxCoeff(&biggest_col_index);
     biggest_col_index += k;
 
     // Track the number of meaningful pivots but do not stop the decomposition to make
     // sure that the initial matrix is properly reproduced. See bug 941.
-    if (this->m_nonzero_pivots == size && biggest_col_sq_norm < threshold_helper * RealScalar(rows - k))
+    if (this->m_nonzero_pivots == size && biggest_col_norm < threshold_helper * numext::sqrt(RealScalar(rows - k)))
       this->m_nonzero_pivots = k;
 
     // apply the transposition to the columns
@@ -446,7 +456,8 @@ void ColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
         if (temp2 <= norm_downdate_threshold) {
           // The updated norm has become too inaccurate so re-compute the column
           // norm directly.
-          m_colNormsDirect.coeffRef(j) = m_qr.col(j).tail(rows - k - 1).norm();
+          m_colNormsDirect.coeffRef(j) =
+              stable_norms ? m_qr.col(j).tail(rows - k - 1).stableNorm() : m_qr.col(j).tail(rows - k - 1).norm();
           m_colNormsUpdated.coeffRef(j) = m_colNormsDirect.coeffRef(j);
         } else {
           m_colNormsUpdated.coeffRef(j) *= numext::sqrt(temp);

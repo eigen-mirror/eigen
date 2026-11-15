@@ -427,6 +427,7 @@ template <typename MatrixType, typename PermutationIndex>
 template <typename InputType>
 RandColPivHouseholderQR<MatrixType, PermutationIndex>& RandColPivHouseholderQR<MatrixType, PermutationIndex>::compute(
     const EigenBase<InputType>& matrix) {
+  m_qr.resize(matrix.rows(), matrix.cols());
   m_qr = matrix.derived();
   computeInPlace();
   return *this;
@@ -440,17 +441,19 @@ Index RandColPivHouseholderQR<MatrixType, PermutationIndex>::unblocked_pivoted_q
   const Index sub_rows = rows - row0;
   Index num_transpositions = 0;
 
-  Matrix<RealScalar, 1, Dynamic> norms_direct = m_qr.block(row0, col0, sub_rows, ncols).colwise().norm();
+  Matrix<RealScalar, 1, Dynamic> norms_direct;
+  const bool stable_norms = internal::column_norms_with_fallback(m_qr.block(row0, col0, sub_rows, ncols), norms_direct);
   Matrix<RealScalar, 1, Dynamic> norms_updated = norms_direct;
   const RealScalar downdate_threshold = numext::sqrt(NumTraits<RealScalar>::epsilon());
 
   const Index size = (std::min)(sub_rows, ncols);
   for (Index k = 0; k < size; ++k) {
     Index biggest;
-    RealScalar biggest_sq = numext::abs2(norms_updated.tail(ncols - k).maxCoeff(&biggest));
+    RealScalar biggest_norm = norms_updated.tail(ncols - k).maxCoeff(&biggest);
     biggest += k;
 
-    if (this->m_nonzero_pivots == m_qr.diagonalSize() && biggest_sq < threshold_helper * RealScalar(rows - row0 - k))
+    if (this->m_nonzero_pivots == m_qr.diagonalSize() &&
+        biggest_norm < threshold_helper * numext::sqrt(RealScalar(rows - row0 - k)))
       this->m_nonzero_pivots = col0 + k;
 
     if (k != biggest) {
@@ -479,8 +482,10 @@ Index RandColPivHouseholderQR<MatrixType, PermutationIndex>::unblocked_pivoted_q
 
     for (Index j = k + 1; j < ncols; ++j) {
       internal::lawn176_norm_downdate(norms_updated.coeffRef(j), norms_direct.coeffRef(j),
-                                      m_qr.coeff(row0 + k, col0 + j), downdate_threshold,
-                                      [&] { return m_qr.col(col0 + j).tail(sub_rows - k - 1).norm(); });
+                                      m_qr.coeff(row0 + k, col0 + j), downdate_threshold, [&] {
+                                        const auto tail = m_qr.col(col0 + j).tail(sub_rows - k - 1);
+                                        return stable_norms ? tail.stableNorm() : tail.norm();
+                                      });
     }
   }
   return num_transpositions;
@@ -500,7 +505,7 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::finalize_rank(RealSc
   if (this->m_nonzero_pivots == size) {
     for (Index i = 0; i < size; ++i) {
       RealScalar a = numext::abs(m_qr.coeff(i, i));
-      if (numext::abs2(a) < threshold_helper * RealScalar(rows - i)) {
+      if (a < threshold_helper * numext::sqrt(RealScalar(rows - i))) {
         this->m_nonzero_pivots = i;
         break;
       }
@@ -527,11 +532,13 @@ void RandColPivHouseholderQR<MatrixType, PermutationIndex>::computeInPlace() {
   // Global rank-detection scale, derived from the original column norms
   // exactly as ColPivHouseholderQR does (LAWN-176). All panel calls share
   // this threshold so rank revelation is consistent across blocks.
-  RealScalar max_initial_norm = RealScalar(0);
-  for (Index j = 0; j < cols; ++j) max_initial_norm = numext::maxi(max_initial_norm, m_qr.col(j).norm());
+  // The test "norm < eps * max_initial_norm * sqrt((rows - k) / rows)" is written without squaring the norms, which
+  // overflow or underflow for entries beyond sqrt(max) or below sqrt(min).
+  Matrix<RealScalar, 1, Dynamic> initial_norms;
+  internal::column_norms_with_fallback(m_qr, initial_norms);
   const RealScalar threshold_helper =
       cols == 0 ? RealScalar(0)
-                : numext::abs2<RealScalar>(max_initial_norm * NumTraits<RealScalar>::epsilon()) / RealScalar(rows);
+                : initial_norms.maxCoeff() * NumTraits<RealScalar>::epsilon() / numext::sqrt(RealScalar(rows));
 
   const bool auto_block = (m_blockSize == kAutoBlockSize);
   const Index requested_b = auto_block ? computeAutoBlockSize(rows, size) : m_blockSize;

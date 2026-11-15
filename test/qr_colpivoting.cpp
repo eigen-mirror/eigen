@@ -13,6 +13,7 @@
 #include <Eigen/QR>
 #include <Eigen/SVD>
 #include "solverbase.h"
+#include "fp_control.h"
 
 template <typename MatrixType>
 void cod() {
@@ -72,10 +73,10 @@ void cod() {
   setRandomWellConditionedDiagonal(matrix);
   Scalar det = matrix.diagonal().prod();
   RealScalar absdet = numext::abs(det);
-  CompleteOrthogonalDecomposition<MatrixType> cod2(matrix);
-  cod2.compute(matrix);
-  q = cod2.householderQ();
+  // Rotate the diagonal matrix by a random unitary matrix, so that the determinants are those of a dense matrix.
+  q = generateRandomUnitaryMatrix<MatrixQType>(size);
   matrix = q * matrix * q.adjoint();
+  CompleteOrthogonalDecomposition<MatrixType> cod2(matrix);
   VERIFY_IS_APPROX(det, cod2.determinant());
   VERIFY_IS_APPROX(absdet, cod2.absDeterminant());
   VERIFY_IS_APPROX(numext::log(absdet), cod2.logAbsDeterminant());
@@ -443,6 +444,187 @@ void qr_empty() {
   VERIFY_IS_EQUAL(cod.rank(), Index(0));
 }
 
+// Column norms and the rank threshold must not square the entries: pivoting and rank detection have to work for entries
+// whose squares overflow or underflow.
+template <typename MatrixType>
+void qr_configure_blocking(ColPivHouseholderQR<MatrixType>&) {}
+template <typename QRType>
+void qr_configure_blocking(QRType&) {}
+template <typename MatrixType>
+void qr_configure_blocking(RandColPivHouseholderQR<MatrixType>& qr) {
+  qr.setBlockSize(4).setSeed(0x5ca1e);
+}
+
+template <typename QRType>
+void qr_extreme_scale() {
+  using MatrixType = typename QRType::MatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using VectorType = Matrix<Scalar, Dynamic, 1>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar big = numext::pow((std::numeric_limits<Scalar>::max)(), Scalar(0.55));
+  for (const Scalar scale : {big, Scalar(1) / big}) {
+    // Rank one: only the largest column, the second one, can be a pivot.
+    VectorType u(6), v(4);
+    u << 1, 2, -1, Scalar(0.5), 3, -2;
+    v << Scalar(0.5), -2, 1, Scalar(0.25);
+    MatrixType A = u * v.transpose();
+    A *= scale;
+    QRType qr;
+    qr_configure_blocking(qr);
+    qr.compute(A);
+    VERIFY_IS_EQUAL(qr.rank(), Index(1));
+    VERIFY_IS_EQUAL(qr.nonzeroPivots(), Index(1));
+    VERIFY_IS_EQUAL(qr.colsPermutation().indices()(0), 1);
+    VERIFY((A * qr.solve(u) - u).stableNorm() <= Scalar(64) * eps * u.stableNorm());
+
+    // Rank 12 in a size for which the randomized QR takes its blocked path.
+    MatrixType B = MatrixType::Random(60, 12) * MatrixType::Random(12, 40);
+    B *= scale;
+    QRType qr2;
+    qr_configure_blocking(qr2);
+    qr2.compute(B);
+    VERIFY_IS_EQUAL(qr2.rank(), Index(12));
+    const MatrixType R = qr2.matrixR().template triangularView<Upper>();
+    VERIFY((qr2.householderQ() * R - B * qr2.colsPermutation()).stableNorm() <= Scalar(1024) * eps * B.stableNorm());
+  }
+}
+
+// Entries uniform in [-1, 1) from a linear congruential generator, so that the matrices of qr_flush_band are the same
+// on every platform and for every seed of the test.
+template <typename Scalar>
+Scalar qr_lcg_scalar(typename NumTraits<Scalar>::Real re, typename NumTraits<Scalar>::Real, std::false_type) {
+  return Scalar(re);
+}
+template <typename Scalar>
+Scalar qr_lcg_scalar(typename NumTraits<Scalar>::Real re, typename NumTraits<Scalar>::Real im, std::true_type) {
+  return Scalar(re, im);
+}
+
+template <typename MatrixType>
+MatrixType qr_lcg_matrix(Index rows, Index cols, uint32_t& state) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const auto next = [&state]() {
+    state = state * 1664525u + 1013904223u;
+    return RealScalar((state >> 8) & 0xffff) / RealScalar(32768) - RealScalar(1);
+  };
+  MatrixType m(rows, cols);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      const RealScalar re = next();
+      const RealScalar im = next();
+      m(i, j) = qr_lcg_scalar<Scalar>(re, im, internal::bool_constant<NumTraits<Scalar>::IsComplex>());
+    }
+  return m;
+}
+
+// Rank detection compares residual column norms with eps * maxnorm. For maxnorm a few 1e4 times sqrt(min) the squares
+// of the entries of the residual of the last pivot are subnormal: the rank must not drop, whether or not subnormals are
+// flushed to zero. A has rank 7 plus a perturbation of relative size 1e-4, which is above the default threshold; the
+// cancellation in the first seven steps makes the factorization recompute the column norms.
+template <typename QRType, bool Blocked>
+void qr_flush_band() {
+  using MatrixType = typename QRType::MatrixType;
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const Index rows = 40, rank = 7, cols = 8;
+  uint32_t state = 3u * 7919u;
+  // The factors are generated one after the other: the evaluation order of the operands of a product is unspecified.
+  const MatrixType B1 = qr_lcg_matrix<MatrixType>(rows, rank, state);
+  const MatrixType B2 = qr_lcg_matrix<MatrixType>(rank, cols, state);
+  const MatrixType C1 = qr_lcg_matrix<MatrixType>(rows, 1, state);
+  const MatrixType C2 = qr_lcg_matrix<MatrixType>(1, cols, state);
+  const MatrixType B = B1 * B2;
+  const MatrixType C = C1 * C2;
+  const MatrixType A = B + Scalar(RealScalar(1e-4)) * C;
+  const RealScalar maxnorm = A.colwise().norm().maxCoeff();
+  for (const RealScalar factor : {RealScalar(2e4), RealScalar(3e4), RealScalar(4.5e4)}) {
+    const MatrixType scaled = A * Scalar(factor * numext::sqrt((std::numeric_limits<RealScalar>::min)()) / maxnorm);
+    for (const FlushToZeroMode mode : {FlushToZeroMode::None, FlushToZeroMode::Both}) {
+      ScopedFlushToZero flush(mode);
+      QRType qr;
+      EIGEN_IF_CONSTEXPR (Blocked) qr_configure_blocking(qr);
+      qr.compute(scaled);
+      VERIFY_IS_EQUAL(qr.rank(), cols);
+    }
+  }
+}
+
+template <typename MatrixType>
+void cod_extreme_scale() {
+  using Scalar = typename MatrixType::Scalar;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar big = numext::pow((std::numeric_limits<Scalar>::max)(), Scalar(0.55));
+  for (const Scalar scale : {big, Scalar(1) / big}) {
+    MatrixType A = MatrixType::Random(6, 2) * MatrixType::Random(2, 4);
+    A *= scale;
+    const MatrixType b = A * MatrixType::Ones(4, 1);
+    CompleteOrthogonalDecomposition<MatrixType> cod(A);
+    VERIFY_IS_EQUAL(cod.rank(), Index(2));
+    VERIFY((A * cod.solve(b) - b).stableNorm() <= Scalar(256) * eps * b.stableNorm());
+  }
+}
+
+// The rank, and with it the Z reflectors, of a complete orthogonal decomposition are fixed by compute(): a threshold
+// set afterwards applies to the next compute() and leaves the decomposition and its solutions unchanged.
+template <typename MatrixType>
+void cod_set_threshold_after_compute() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const Index rows = 8, cols = 6;
+  MatrixType A = MatrixType::Random(rows, cols);
+  A.col(cols - 1) = A.col(0) + Scalar(RealScalar(1e-6)) * MatrixType::Random(rows, 1);
+  const MatrixType b = MatrixType::Random(rows, 2);
+
+  CompleteOrthogonalDecomposition<MatrixType> cod(A);
+  VERIFY_IS_EQUAL(cod.rank(), cols);
+  const MatrixType x_full = cod.solve(b);
+  cod.setThreshold(RealScalar(1e-4));
+  VERIFY_IS_EQUAL(cod.rank(), cols);
+  VERIFY_IS_APPROX(cod.solve(b), x_full);
+  VERIFY(cod.matrixZ().isUnitary());
+
+  cod.compute(A);
+  VERIFY_IS_EQUAL(cod.rank(), cols - 1);
+  CompleteOrthogonalDecomposition<MatrixType> reference;
+  reference.setThreshold(RealScalar(1e-4));
+  reference.compute(A);
+  VERIFY_IS_EQUAL(reference.rank(), cols - 1);
+  const MatrixType x_deficient = cod.solve(b);
+  VERIFY_IS_APPROX(x_deficient, reference.solve(b));
+  VERIFY(cod.matrixZ().isUnitary());
+
+  // Going back to the default threshold does not change a decomposition that has already been computed either.
+  cod.setThreshold(Default);
+  VERIFY_IS_EQUAL(cod.rank(), cols - 1);
+  VERIFY_IS_APPROX(cod.solve(b), x_deficient);
+  VERIFY_IS_EQUAL(cod.dimensionOfKernel(), Index(1));
+  VERIFY(!cod.isInjective());
+}
+
+// A right-hand side without columns, and an empty matrix, give an empty solution of the right size; sanitizer builds
+// reported a reference to the first element of an empty workspace.
+template <typename Decomposition, typename MatrixType>
+void qr_empty_rhs() {
+  const MatrixType A = MatrixType::Random(4, 4);
+  const Decomposition dec(A);
+  const MatrixType empty_rhs(4, 0);
+  VERIFY_IS_EQUAL(dec.solve(empty_rhs).rows(), 4);
+  VERIFY_IS_EQUAL(dec.solve(empty_rhs).cols(), 0);
+  VERIFY_IS_EQUAL(dec.transpose().solve(empty_rhs).rows(), 4);
+  VERIFY_IS_EQUAL(dec.transpose().solve(empty_rhs).cols(), 0);
+  VERIFY_IS_EQUAL(dec.adjoint().solve(empty_rhs).cols(), 0);
+  const MatrixType B = MatrixType::Random(4, 3);
+  const MatrixType X = dec.solve(B);
+  VERIFY_IS_EQUAL(X.cols(), 3);
+  VERIFY_IS_APPROX(A * X, B);
+
+  const Decomposition empty_dec{MatrixType(0, 0)};
+  VERIFY_IS_EQUAL(empty_dec.solve(MatrixType(0, 2)).rows(), 0);
+  VERIFY_IS_EQUAL(empty_dec.solve(MatrixType(0, 2)).cols(), 2);
+  VERIFY_IS_EQUAL(empty_dec.transpose().solve(MatrixType(0, 0)).cols(), 0);
+}
+
 EIGEN_DECLARE_TEST(qr_colpivoting) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_1(qr<MatrixXf>());
@@ -488,6 +670,29 @@ EIGEN_DECLARE_TEST(qr_colpivoting) {
   // Test problem size constructors
   CALL_SUBTEST_9(ColPivHouseholderQR<MatrixXf>(10, 20));
   CALL_SUBTEST_2(qr_empty<MatrixXd>());
+  CALL_SUBTEST_2((qr_empty_rhs<ColPivHouseholderQR<MatrixXd>, MatrixXd>()));
+  CALL_SUBTEST_2((qr_empty_rhs<CompleteOrthogonalDecomposition<MatrixXd>, MatrixXd>()));
+  CALL_SUBTEST_3((qr_empty_rhs<ColPivHouseholderQR<MatrixXcd>, MatrixXcd>()));
+  CALL_SUBTEST_3((qr_empty_rhs<CompleteOrthogonalDecomposition<MatrixXcd>, MatrixXcd>()));
+  CALL_SUBTEST_2((qr_empty_rhs<RandColPivHouseholderQR<MatrixXd>, MatrixXd>()));
+  CALL_SUBTEST_1((qr_extreme_scale<ColPivHouseholderQR<MatrixXf>>()));
+  CALL_SUBTEST_2((qr_extreme_scale<ColPivHouseholderQR<MatrixXd>>()));
+  CALL_SUBTEST_1((qr_extreme_scale<RandColPivHouseholderQR<MatrixXf>>()));
+  CALL_SUBTEST_2((qr_extreme_scale<RandColPivHouseholderQR<MatrixXd>>()));
+  CALL_SUBTEST_1((qr_flush_band<ColPivHouseholderQR<MatrixXf>, false>()));
+  CALL_SUBTEST_2((qr_flush_band<ColPivHouseholderQR<MatrixXd>, false>()));
+  CALL_SUBTEST_1((qr_flush_band<RandColPivHouseholderQR<MatrixXf>, false>()));
+  CALL_SUBTEST_1((qr_flush_band<RandColPivHouseholderQR<MatrixXf>, true>()));
+  CALL_SUBTEST_2((qr_flush_band<RandColPivHouseholderQR<MatrixXd>, true>()));
+  CALL_SUBTEST_1((qr_flush_band<CompleteOrthogonalDecomposition<MatrixXf>, false>()));
+  CALL_SUBTEST_2((qr_flush_band<CompleteOrthogonalDecomposition<MatrixXd>, false>()));
+  CALL_SUBTEST_3((qr_flush_band<ColPivHouseholderQR<MatrixXcf>, false>()));
+  CALL_SUBTEST_10((qr_flush_band<ColPivHouseholderQR<Matrix<float, Dynamic, Dynamic, RowMajor>>, false>()));
+  CALL_SUBTEST_10((qr_flush_band<RandColPivHouseholderQR<Matrix<float, Dynamic, Dynamic, RowMajor>>, true>()));
+  CALL_SUBTEST_1(cod_extreme_scale<MatrixXf>());
+  CALL_SUBTEST_2(cod_extreme_scale<MatrixXd>());
+  CALL_SUBTEST_2(cod_set_threshold_after_compute<MatrixXd>());
+  CALL_SUBTEST_3(cod_set_threshold_after_compute<MatrixXcd>());
 
   CALL_SUBTEST_1(qr_kahan_matrix<MatrixXf>());
   CALL_SUBTEST_2(qr_kahan_matrix<MatrixXd>());

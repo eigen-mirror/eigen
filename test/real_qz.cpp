@@ -389,6 +389,21 @@ void real_qz_tiny_subdiagonal() {
   }
 }
 
+// The symmetrizing rotation of the 2x2 block of T used to be the null rotation when |T(1,0) - T(0,1)| << |T(0,0) +
+// T(1,1)|, which made S and T vanish.
+template <typename MatrixType>
+void real_qz_tiny_t_coupling() {
+  using Scalar = typename MatrixType::Scalar;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  MatrixType a(2, 2), b(2, 2);
+  a << Scalar(0), Scalar(-1), Scalar(1), Scalar(0);
+  for (const Scalar tiny : {(std::numeric_limits<Scalar>::min)() * Scalar(4), Scalar(1e-3)}) {
+    b << Scalar(1), tiny, Scalar(0), Scalar(1e-3);
+    const RealQZ<MatrixType> qz(a, b);
+    verify_qz_decomposition(a, b, qz, Scalar(128 * 2) * eps);
+  }
+}
+
 EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_2((qz_no_malloc<MatrixXd, RealQZ<MatrixXd>>()));
   CALL_SUBTEST_1((qz_extreme_scaling<MatrixXf, RealQZ<MatrixXf>>()));
@@ -424,6 +439,9 @@ EIGEN_DECLARE_TEST(real_qz) {
   CALL_SUBTEST_1((real_qz_tiny_subdiagonal<MatrixXf>()));
   CALL_SUBTEST_2((real_qz_tiny_subdiagonal<MatrixXd>()));
   CALL_SUBTEST_7((real_qz_tiny_subdiagonal<Matrix<long double, Dynamic, Dynamic>>()));
+  CALL_SUBTEST_1((real_qz_tiny_t_coupling<MatrixXf>()));
+  CALL_SUBTEST_2((real_qz_tiny_t_coupling<MatrixXd>()));
+  CALL_SUBTEST_7((real_qz_tiny_t_coupling<Matrix<long double, Dynamic, Dynamic>>()));
 
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {

@@ -52,7 +52,7 @@ class JacobiRotation {
   EIGEN_DEVICE_FUNC Scalar s() const { return m_s; }
 
   /** Concatenates two planar rotations */
-  EIGEN_DEVICE_FUNC JacobiRotation operator*(const JacobiRotation& other) {
+  EIGEN_DEVICE_FUNC JacobiRotation operator*(const JacobiRotation& other) const {
     return JacobiRotation(m_c * other.m_c - numext::conj(m_s) * other.m_s,
                           numext::conj(m_c * numext::conj(other.m_s) + numext::conj(m_s) * numext::conj(other.m_c)));
   }
@@ -599,11 +599,18 @@ EIGEN_DONT_INLINE void real_2x2_jacobi_svd(const MatrixType& matrix, Index p, In
     c1 = RealScalar(1);
     s1 = RealScalar(0);
   } else {
-    // If d!=0, then t/d cannot overflow because the magnitude of the
-    // entries forming d are not too small compared to the ones forming t.
+    // u = t/d is huge, even infinite, when |d| is tiny compared to |t|. This assumes that t and d are finite, which
+    // JacobiSVD and RealQZ guarantee by scaling their input; u = +-inf is then the limit d/t -> 0.
     RealScalar u = t / d;
     s1 = RealScalar(1) / numext::sqrt<RealScalar>(RealScalar(1) + numext::abs2(u));
     c1 = u * s1;
+    if (EIGEN_PREDICT_FALSE(numext::is_exactly_zero(s1))) {
+      // abs2(u) overflowed (u may be infinite). With v = 1/u: s1 = |v| / sqrt(1 + v^2), c1 = sign(u) / sqrt(1 + v^2).
+      const RealScalar v = RealScalar(1) / u;
+      const RealScalar r = numext::sqrt<RealScalar>(RealScalar(1) + numext::abs2(v));
+      s1 = numext::abs(v) / r;
+      c1 = (u < RealScalar(0) ? RealScalar(-1) : RealScalar(1)) / r;
+    }
   }
 
   // Apply rot1 to the 2x2 submatrix inline (avoids rotation dispatch overhead).

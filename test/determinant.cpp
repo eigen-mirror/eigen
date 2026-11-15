@@ -84,11 +84,14 @@ void determinant_lu_fallback_reference(const MatrixType& m) {
   MatrixType tiny = MatrixType::Identity(size, size);
   tiny(0, 0) = Scalar((std::numeric_limits<RealScalar>::min)());
   verify_determinant_against_reference(tiny);
+  // The absolute tolerance above admits 0, the result of an underflow: the determinant is exactly the pivot.
+  VERIFY_IS_EQUAL(tiny.determinant(), tiny(0, 0));
 
 #if !EIGEN_ARCH_ARM
   MatrixType subnormal = MatrixType::Identity(size, size);
   subnormal(0, 0) = Scalar(std::numeric_limits<RealScalar>::denorm_min() * RealScalar(16));
   verify_determinant_against_reference(subnormal);
+  VERIFY_IS_EQUAL(subnormal.determinant(), subnormal(0, 0));
 #endif
 }
 

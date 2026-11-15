@@ -3,7 +3,10 @@
 
 #define EIGEN_USE_LAPACKE
 #include "main.h"
+#include <Eigen/Cholesky>
 #include <Eigen/Eigenvalues>
+#include <Eigen/LU>
+#include <Eigen/QR>
 
 // A system <lapacke.h> included after Eigen must still declare the full LAPACKE API. Eigen's bundled subset header
 // must neither claim the system header's include guards nor conflict with its declarations. The guard check needs no
@@ -25,6 +28,11 @@ namespace {
 int real_schur_calls = 0;
 int complex_schur_calls = 0;
 int selfadjoint_calls = 0;
+int potrf_calls = 0;
+int getrf_calls = 0;
+int geqp3_calls = 0;
+const double* factor_data = nullptr;
+lapack_int factor_lda = 0;
 }  // namespace
 
 // Dispatch probes return a failure code before Eigen can consume any unwritten output.
@@ -41,6 +49,72 @@ extern "C" lapack_int LAPACKE_zgees(int, char, char, LAPACK_Z_SELECT1, lapack_in
 extern "C" lapack_int LAPACKE_dsyev(int, char, char, lapack_int, double*, lapack_int, double*) {
   ++selfadjoint_calls;
   return 1;
+}
+
+// Record the matrix handed to the factorization and report success, leaving it unchanged.
+extern "C" lapack_int LAPACKE_dpotrf(int, char, lapack_int, double* a, lapack_int lda) {
+  ++potrf_calls;
+  factor_data = a;
+  factor_lda = lda;
+  return 0;
+}
+extern "C" lapack_int LAPACKE_dgetrf(int, lapack_int m, lapack_int n, double* a, lapack_int lda, lapack_int* ipiv) {
+  ++getrf_calls;
+  factor_data = a;
+  factor_lda = lda;
+  for (lapack_int i = 0; i < (std::min)(m, n); ++i) ipiv[i] = i + 1;
+  return 0;
+}
+
+// LAPACKE rejects a NaN input with info = -4 before touching the matrix. The mock does the same for any input, so the
+// binding has to fall back to Eigen's own algorithm and still produce a valid decomposition.
+extern "C" lapack_int LAPACKE_dgeqp3(int, lapack_int, lapack_int, double*, lapack_int, lapack_int*, double*) {
+  ++geqp3_calls;
+  return -4;
+}
+
+void colpiv_qr_lapacke_rejected_input() {
+  const MatrixXd A = MatrixXd::Random(6, 4);
+  const VectorXd b = A * VectorXd::Random(4);
+  const int geqp3Before = geqp3_calls;
+  ColPivHouseholderQR<MatrixXd> qr(A);
+  VERIFY_IS_EQUAL(geqp3_calls, geqp3Before + 1);
+  VERIFY_IS_EQUAL(qr.rank(), Index(4));
+  const MatrixXd R = qr.matrixR().triangularView<Upper>();
+  VERIFY_IS_APPROX(qr.householderQ() * R, A * qr.colsPermutation());
+  VERIFY_IS_APPROX(A * qr.solve(b), b);
+}
+
+// LAPACK addresses a matrix by its leading dimension only, so an in-place factorization of a Ref with an inner stride
+// other than 1 must hand it a contiguous copy, and a Ref with a unit inner stride its own storage.
+template <int Options>
+void inplace_lapacke_inner_stride() {
+  using MatrixType = Matrix<double, Dynamic, Dynamic, Options>;
+  using StridedRef = Ref<MatrixType, 0, Stride<Dynamic, Dynamic>>;
+  const Index size = 4;
+  for (Index inner : {Index(1), Index(2), Index(3)}) {
+    const Stride<Dynamic, Dynamic> stride(inner * size + 2, inner);
+    VectorXd storage = VectorXd::Random(stride.outer() * size);
+    const VectorXd saved = storage;
+    Map<MatrixType, 0, Stride<Dynamic, Dynamic>> a(storage.data(), size, size, stride);
+    StridedRef ref(a);
+    const lapack_int expected_lda = inner == 1 ? lapack_int(stride.outer()) : lapack_int(size);
+
+    const int potrfBefore = potrf_calls;
+    LLT<StridedRef> llt(ref);
+    VERIFY_IS_EQUAL(potrf_calls, potrfBefore + 1);
+    VERIFY_IS_EQUAL(llt.info(), Success);
+    VERIFY_IS_EQUAL(factor_lda, expected_lda);
+    VERIFY((factor_data == storage.data()) == (inner == 1));
+    VERIFY_IS_EQUAL(storage, saved);
+
+    const int getrfBefore = getrf_calls;
+    PartialPivLU<StridedRef> lu(ref);
+    VERIFY_IS_EQUAL(getrf_calls, getrfBefore + 1);
+    VERIFY_IS_EQUAL(factor_lda, expected_lda);
+    VERIFY((factor_data == storage.data()) == (inner == 1));
+    VERIFY_IS_EQUAL(storage, saved);
+  }
 }
 
 template <int Options>
@@ -71,4 +145,7 @@ void inplace_plain_lapacke_dispatch() {
 EIGEN_DECLARE_TEST(inplace_decomposition_lapacke) {
   inplace_plain_lapacke_dispatch<ColMajor>();
   inplace_plain_lapacke_dispatch<RowMajor>();
+  colpiv_qr_lapacke_rejected_input();
+  inplace_lapacke_inner_stride<ColMajor>();
+  inplace_lapacke_inner_stride<RowMajor>();
 }

@@ -79,6 +79,13 @@ struct lapacke_llt {
     if (m.rows() == 0) {
       return -1;
     }
+    if (EIGEN_PREDICT_FALSE(MatrixType::InnerStrideAtCompileTime != 1 && m.innerStride() != 1)) {
+      // LAPACK addresses the matrix by its leading dimension only: factor a contiguous copy.
+      Matrix<Scalar, Dynamic, Dynamic, (MatrixType::Flags & RowMajorBit) ? RowMajor : ColMajor> contiguous = m;
+      const Index ret = blocked(contiguous);
+      m = contiguous;
+      return ret;
+    }
     /* Set up parameters for ?potrf */
     lapack_int size = to_lapack(m.rows());
     lapack_int matrix_order = lapack_storage_of(m);

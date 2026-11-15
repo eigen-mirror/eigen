@@ -129,6 +129,7 @@ class PartialPivLU : public SolverBase<PartialPivLU<MatrixType_, PermutationInde
 
   template <typename InputType>
   PartialPivLU& compute(const EigenBase<InputType>& matrix) {
+    m_lu.resize(matrix.rows(), matrix.cols());
     m_lu = matrix.derived();
     compute();
     return *this;
@@ -609,6 +610,14 @@ void partial_lu_inplace(MatrixType& lu, TranspositionType& row_transpositions,
   EIGEN_INTERNAL_ASSERT_SIZE_MATCHES_COLS(row_transpositions.indices(), lu);
   eigen_assert(row_transpositions.size() < 2 ||
                (&row_transpositions.coeffRef(1) - &row_transpositions.coeffRef(0)) == 1);
+
+  if (EIGEN_PREDICT_FALSE(MatrixType::InnerStrideAtCompileTime != 1 && lu.innerStride() != 1)) {
+    // blocked_lu addresses the matrix by pointer and outer stride only: factor a contiguous copy.
+    typename plain_matrix_type<MatrixType>::type contiguous = lu;
+    partial_lu_inplace(contiguous, row_transpositions, nb_transpositions);
+    lu = contiguous;
+    return;
+  }
 
   partial_lu_impl<typename MatrixType::Scalar, MatrixType::Flags & RowMajorBit ? RowMajor : ColMajor,
                   typename TranspositionType::StorageIndex,

@@ -137,11 +137,14 @@ class CompleteOrthogonalDecompositionImpl
   typename MatrixType::RealScalar logAbsDeterminant() const;
   typename MatrixType::Scalar signDeterminant() const;
 
-  inline Index rank() const { return m_cpqr.rank(); }
-  inline Index dimensionOfKernel() const { return m_cpqr.dimensionOfKernel(); }
-  inline bool isInjective() const { return m_cpqr.isInjective(); }
-  inline bool isSurjective() const { return m_cpqr.isSurjective(); }
-  inline bool isInvertible() const { return m_cpqr.isInvertible(); }
+  inline Index rank() const {
+    eigen_assert(m_cpqr.m_isInitialized && "Decomposition is not initialized.");
+    return m_rank;
+  }
+  inline Index dimensionOfKernel() const { return cols() - rank(); }
+  inline bool isInjective() const { return rank() == cols(); }
+  inline bool isSurjective() const { return rank() == rows(); }
+  inline bool isInvertible() const { return isInjective() && isSurjective(); }
 
   inline Index rows() const { return m_cpqr.rows(); }
   inline Index cols() const { return m_cpqr.cols(); }
@@ -159,6 +162,11 @@ class CompleteOrthogonalDecompositionImpl
     return *this;
   }
 
+  /** \returns the threshold that the next call of compute() will use to determine the rank. After setThreshold() on an
+   * already computed decomposition this is the new value, while rank() keeps the value determined by compute().
+   *
+   * \sa setThreshold()
+   */
   RealScalar threshold() const { return m_cpqr.threshold(); }
 
   inline Index nonzeroPivots() const { return m_cpqr.nonzeroPivots(); }
@@ -204,6 +212,8 @@ class CompleteOrthogonalDecompositionImpl
   RankRevealingQRType m_cpqr;
   HCoeffsType m_zCoeffs;
   RowVectorType m_temp;
+  // The rank for which Z was built by compute(). A threshold set later does not change it.
+  Index m_rank = 0;
 };
 
 template <typename MatrixType, typename PermutationIndex, template <typename, typename> class RankRevealingQR_>
@@ -234,7 +244,7 @@ template <typename MatrixType, typename PermutationIndex, template <typename, ty
 void CompleteOrthogonalDecompositionImpl<MatrixType, PermutationIndex, RankRevealingQR_>::computeInPlace() {
   eigen_assert(m_cpqr.cols() <= NumTraits<PermutationIndex>::highest());
 
-  const Index rank = m_cpqr.rank();
+  const Index rank = m_rank = m_cpqr.rank();
   const Index cols = m_cpqr.cols();
   const Index rows = m_cpqr.rows();
   m_zCoeffs.resize((std::min)(rows, cols));
@@ -439,11 +449,20 @@ class CompleteOrthogonalDecomposition
     return *this;
   }
 
+  /** Prescribes the threshold below which pivots are considered zero when compute() determines the rank, see
+   * ColPivHouseholderQR::setThreshold(const RealScalar&).
+   *
+   * The rank, and the matrix Z that depends on it, are fixed by compute(). Calling setThreshold() on a decomposition
+   * that has already been computed does not change rank(), solve() or any other result; the new threshold takes effect
+   * at the next call of compute(). To use a threshold for the first computation, call setThreshold() before compute()
+   * (for instance on a default-constructed object).
+   */
   CompleteOrthogonalDecomposition& setThreshold(const RealScalar& threshold) {
     Base::setThreshold(threshold);
     return *this;
   }
 
+  /** Returns to the default threshold for the next call of compute(), see setThreshold(const RealScalar&). */
   CompleteOrthogonalDecomposition& setThreshold(Default_t) {
     Base::setThreshold(Default);
     return *this;
@@ -506,11 +525,20 @@ class RandCompleteOrthogonalDecomposition
     return *this;
   }
 
+  /** Prescribes the threshold below which pivots are considered zero when compute() determines the rank, see
+   * ColPivHouseholderQR::setThreshold(const RealScalar&).
+   *
+   * The rank, and the matrix Z that depends on it, are fixed by compute(). Calling setThreshold() on a decomposition
+   * that has already been computed does not change rank(), solve() or any other result; the new threshold takes effect
+   * at the next call of compute(). To use a threshold for the first computation, call setThreshold() before compute()
+   * (for instance on a default-constructed object).
+   */
   RandCompleteOrthogonalDecomposition& setThreshold(const RealScalar& threshold) {
     Base::setThreshold(threshold);
     return *this;
   }
 
+  /** Returns to the default threshold for the next call of compute(), see setThreshold(const RealScalar&). */
   RandCompleteOrthogonalDecomposition& setThreshold(Default_t) {
     Base::setThreshold(Default);
     return *this;

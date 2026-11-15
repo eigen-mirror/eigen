@@ -14,6 +14,7 @@
 #include "main.h"
 #include <Eigen/Core>
 #include <Eigen/LU>
+#include <Eigen/QR>
 #include <Eigen/Sparse>
 
 template <typename Scalar>
@@ -523,6 +524,78 @@ void testProductNoAutomaticResizing() {
   VERIFY_RAISES_ASSERT(row.noalias() = lhs * Vector2d::Ones());
 }
 
+// A decomposition object is reused for matrices of other sizes.
+template <typename = void>
+void testFullPivLURecomputeNoAutomaticResizing() {
+  FullPivLU<MatrixXd> lu;
+  for (Index n : {4, 2, 5, 3}) {
+    const MatrixXd A = MatrixXd::Random(n, n) + 4 * MatrixXd::Identity(n, n);
+    lu.compute(A);
+    VERIFY_IS_APPROX(lu.reconstructedMatrix(), A);
+  }
+}
+
+// The dense decompositions that store the input in a member are reused for matrices of other sizes. The square
+// problems are solved, the rectangular ones only have to be accepted by compute().
+template <typename Decomposition>
+void testDecompositionRecomputeNoAutomaticResizing() {
+  for (int presized = 0; presized < 2; ++presized) {
+    Decomposition d = presized ? Decomposition(3, 3) : Decomposition();
+    for (Index n : {4, 2, 5, 3}) {
+      const MatrixXd A = MatrixXd::Random(n, n) + 4 * MatrixXd::Identity(n, n);
+      const VectorXd b = VectorXd::Random(n);
+      d.compute(A);
+      VERIFY_IS_APPROX(A * d.solve(b), b);
+    }
+    for (Index rows : {4, 2, 3}) {
+      const Index cols = 7 - rows;
+      d.compute(MatrixXd::Random(rows, cols));
+      VERIFY_IS_EQUAL(d.rows(), rows);
+      VERIFY_IS_EQUAL(d.cols(), cols);
+    }
+  }
+}
+
+template <typename = void>
+void testPartialPivLURecomputeNoAutomaticResizing() {
+  for (int presized = 0; presized < 2; ++presized) {
+    PartialPivLU<MatrixXd> lu = presized ? PartialPivLU<MatrixXd>(3) : PartialPivLU<MatrixXd>();
+    for (Index n : {4, 2, 5, 3}) {
+      const MatrixXd A = MatrixXd::Random(n, n) + 4 * MatrixXd::Identity(n, n);
+      lu.compute(A);
+      VERIFY_IS_APPROX(lu.reconstructedMatrix(), A);
+    }
+  }
+}
+
+using IDRSSolver = IDRS<SparseMatrix<double>, DiagonalPreconditioner<double>>;
+using IDRSTABLSolver = IDRSTABL<SparseMatrix<double>, DiagonalPreconditioner<double>>;
+
+// IDRS and IDRSTABL factor small dense systems with a FullPivLU that is reused for matrices of changing size.
+template <typename Solver>
+void testIDRSRecomputeNoAutomaticResizing() {
+  using SM = SparseMatrix<double>;
+  const double solverTol = 1e-10;
+  for (Index n : {20, 12, 33}) {
+    SM A(n, n);
+    for (Index i = 0; i < n; ++i) {
+      A.insert(i, i) = 4;
+      if (i > 0) A.insert(i, i - 1) = -1;
+      if (i + 1 < n) A.insert(i, i + 1) = -1.5;
+      if (i + 5 < n) A.insert(i, i + 5) = 0.25;
+    }
+    A.makeCompressed();
+    const VectorXd b = VectorXd::Random(n);
+    Solver solver;
+    solver.setTolerance(solverTol);
+    solver.compute(A);
+    VectorXd x;
+    x = solver.solve(b);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY((A * x - b).norm() <= 10 * solverTol * b.norm());
+  }
+}
+
 template <typename = void>
 void testSolveNoAutomaticResizing() {
   const Matrix4d A = Matrix4d::Random() + 4 * Matrix4d::Identity();
@@ -549,6 +622,15 @@ EIGEN_DECLARE_TEST(no_automatic_resizing) {
   CALL_SUBTEST_2(testNoAutomaticResizing<double>());
   CALL_SUBTEST_2(testProductNoAutomaticResizing<>());
   CALL_SUBTEST_2(testSolveNoAutomaticResizing<>());
+  CALL_SUBTEST_2(testFullPivLURecomputeNoAutomaticResizing<>());
+  CALL_SUBTEST_2(testPartialPivLURecomputeNoAutomaticResizing<>());
+  CALL_SUBTEST_2(testDecompositionRecomputeNoAutomaticResizing<HouseholderQR<MatrixXd>>());
+  CALL_SUBTEST_2(testDecompositionRecomputeNoAutomaticResizing<ColPivHouseholderQR<MatrixXd>>());
+  CALL_SUBTEST_2(testDecompositionRecomputeNoAutomaticResizing<FullPivHouseholderQR<MatrixXd>>());
+  CALL_SUBTEST_2(testDecompositionRecomputeNoAutomaticResizing<CompleteOrthogonalDecomposition<MatrixXd>>());
+  CALL_SUBTEST_2(testDecompositionRecomputeNoAutomaticResizing<RandColPivHouseholderQR<MatrixXd>>());
+  CALL_SUBTEST_2(testIDRSRecomputeNoAutomaticResizing<IDRSSolver>());
+  CALL_SUBTEST_2(testIDRSRecomputeNoAutomaticResizing<IDRSTABLSolver>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<ColMajor>());
   CALL_SUBTEST_2(testVectorOrientationNoAutomaticResizing<RowMajor>());
   CALL_SUBTEST_2(testResizeToMatchVector<VectorXd>());

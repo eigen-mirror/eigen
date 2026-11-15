@@ -374,6 +374,7 @@ template <typename MatrixType, typename PermutationIndex>
 template <typename InputType>
 FullPivHouseholderQR<MatrixType, PermutationIndex>& FullPivHouseholderQR<MatrixType, PermutationIndex>::compute(
     const EigenBase<InputType>& matrix) {
+  m_qr.resize(matrix.rows(), matrix.cols());
   m_qr = matrix.derived();
   computeInPlace();
   return *this;
@@ -474,7 +475,7 @@ void FullPivHouseholderQR<MatrixType_, PermutationIndex_>::_solve_impl(const Rhs
     Index remainingSize = rows() - k;
     c.row(k).swap(c.row(m_rows_transpositions.coeff(k)));
     c.bottomRightCorner(remainingSize, rhs.cols())
-        .applyHouseholderOnTheLeft(m_qr.col(k).tail(remainingSize - 1), m_hCoeffs.coeff(k), &temp.coeffRef(0));
+        .applyHouseholderOnTheLeft(m_qr.col(k).tail(remainingSize - 1), m_hCoeffs.coeff(k), temp.data());
   }
 
   m_qr.topLeftCorner(l_rank, l_rank).template triangularView<Upper>().solveInPlace(c.topRows(l_rank));
@@ -512,7 +513,7 @@ void FullPivHouseholderQR<MatrixType_, PermutationIndex_>::_solve_impl_transpose
 
     dst.bottomRightCorner(remainingSize, dst.cols())
         .applyHouseholderOnTheLeft(m_qr.col(k).tail(remainingSize - 1).template conjugateIf<!Conjugate>(),
-                                   m_hCoeffs.template conjugateIf<Conjugate>().coeff(k), &temp.coeffRef(0));
+                                   m_hCoeffs.template conjugateIf<Conjugate>().coeff(k), temp.data());
 
     dst.row(k).swap(dst.row(m_rows_transpositions.coeff(k)));
   }
