@@ -743,6 +743,18 @@ struct redux_dispatch<Func, Evaluator, XprType, true> {
   }
 };
 
+// sum() and prod() pass the identity as a std::integral_constant<int, V>, so that its conversion is Scalar(V) of
+// a constant: converting a runtime int to float warns under -Wconversion, even through a cast.
+template <typename Scalar, typename Identity>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar redux_identity_value(Identity&& identity) {
+  return Scalar(std::forward<Identity>(identity));
+}
+
+template <typename Scalar, int Value>
+EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar redux_identity_value(std::integral_constant<int, Value>) {
+  return Scalar(Value);
+}
+
 // Convert identity to Scalar only for empty inputs; otherwise reduce without inserting it.
 // Tag dispatch avoids instantiating redux for statically empty inputs or converting an unused identity in C++14.
 // TODO(C++17): replace tag dispatch with if constexpr.
@@ -751,7 +763,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identi
                                                                                         const Func&,
                                                                                         Identity&& identity,
                                                                                         true_type) {
-  return typename Derived::Scalar(std::forward<Identity>(identity));
+  return redux_identity_value<typename Derived::Scalar>(std::forward<Identity>(identity));
 }
 
 // Compare against 0 rather than Dynamic: non-inline constexpr Dynamic has internal linkage in C++14,
@@ -762,7 +774,7 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE typename Derived::Scalar redux_with_identi
                                                                                         const Func& func,
                                                                                         Identity&& identity,
                                                                                         false_type) {
-  if (xpr.size() == 0) return typename Derived::Scalar(std::forward<Identity>(identity));
+  if (xpr.size() == 0) return redux_identity_value<typename Derived::Scalar>(std::forward<Identity>(identity));
   return xpr.derived().redux(func);
 }
 
@@ -850,7 +862,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::sum() const {
-  return internal::redux_with_identity(*this, internal::scalar_sum_op<Scalar, Scalar>(), 0);
+  return internal::redux_with_identity(*this, internal::scalar_sum_op<Scalar, Scalar>(),
+                                       std::integral_constant<int, 0>());
 }
 
 /** \returns the mean of all coefficients of *this
@@ -878,7 +891,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar
  */
 template <typename Derived>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename internal::traits<Derived>::Scalar DenseBase<Derived>::prod() const {
-  return internal::redux_with_identity(*this, internal::scalar_product_op<Scalar>(), 1);
+  return internal::redux_with_identity(*this, internal::scalar_product_op<Scalar>(), std::integral_constant<int, 1>());
 }
 
 /** \returns the trace of \c *this, i.e. the sum of the coefficients on the main diagonal.

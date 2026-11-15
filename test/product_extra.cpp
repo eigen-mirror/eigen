@@ -1129,6 +1129,55 @@ void alpha_zero_skips_kernel() {
     y.noalias() += neg_zero * (A * x);
     VERIFY_IS_CWISE_EQUAL(y, y_ref);
   }
+
+  // A matrix with a single runtime row (column) times a vector takes an inner-product shortcut that must honor the
+  // same contract; the zero factor is spelled as alpha, on the matrix, or on the vector.
+  {
+    using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+    using RowVec = Matrix<Scalar, 1, Dynamic>;
+    Mat A = Mat::Random(1, k);
+    Mat B = Mat::Random(k, 1);
+    Vec x = Vec::Random(k);
+    RowVec z = RowVec::Random(k);
+    A(0, 0) = nan;
+    B(1, 0) = inf;
+    x(1) = inf;
+    z(0) = nan;
+    for (const Scalar& zero : {pos_zero, neg_zero}) {
+      Vec y = Vec::Random(1);
+      const Vec y_ref = y;
+      y.noalias() += zero * (A * x);
+      VERIFY_IS_CWISE_EQUAL(y, y_ref);
+      y.noalias() -= zero * (A * x);
+      VERIFY_IS_CWISE_EQUAL(y, y_ref);
+      y.noalias() += (zero * A) * x;
+      VERIFY_IS_CWISE_EQUAL(y, y_ref);
+      y.noalias() += A * (x * zero);
+      VERIFY_IS_CWISE_EQUAL(y, y_ref);
+      y.noalias() = zero * (A * x);
+      VERIFY_IS_CWISE_EQUAL(y, Vec::Zero(1));
+
+      RowVec r = RowVec::Random(1);
+      const RowVec r_ref = r;
+      r.noalias() += zero * (z * B);
+      VERIFY_IS_CWISE_EQUAL(r, r_ref);
+      r.noalias() -= zero * (z * B);
+      VERIFY_IS_CWISE_EQUAL(r, r_ref);
+      r.noalias() += (zero * z) * B;
+      VERIFY_IS_CWISE_EQUAL(r, r_ref);
+      r.noalias() += z * (B * zero);
+      VERIFY_IS_CWISE_EQUAL(r, r_ref);
+      r.noalias() = zero * (z * B);
+      VERIFY_IS_CWISE_EQUAL(r, RowVec::Zero(1));
+    }
+    // A nonzero alpha still evaluates the product.
+    Vec y = Vec::Zero(1);
+    y.noalias() += Scalar(2) * (A * x);
+    VERIFY((numext::isnan)(y(0)));
+    RowVec r = RowVec::Zero(1);
+    r.noalias() += Scalar(2) * (z * B);
+    VERIFY((numext::isnan)(r(0)));
+  }
 }
 
 template <typename RealScalar, int Options>
@@ -1375,6 +1424,95 @@ void fixed_gemm_workspace() {
   internal::set_is_malloc_allowed(true);
 }
 
+// (A * B)^T = B^T * A^T and (A * B)^H = B^H * A^H expand into a product of the reversed operands, which sums
+// b(k,j) * a(i,k) instead of a(i,k) * b(k,j). That is only valid when the scalar product commutes.
+template <typename Scalar, int Order>
+void quaternion_transposed_product() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  const MatrixType a =
+      MatrixType::NullaryExpr(3, 2, [](Index i, Index j) { return Scalar(i + 1, 2 * j - 1, i - j, 1); });
+  const MatrixType b =
+      MatrixType::NullaryExpr(2, 4, [](Index i, Index j) { return Scalar(3 - j, i + j, 1 - i, j * j); });
+  MatrixType expected(a.rows(), b.cols()), expectedT(b.cols(), a.rows()), expectedH(b.cols(), a.rows());
+  for (Index i = 0; i < a.rows(); ++i) {
+    for (Index j = 0; j < b.cols(); ++j) {
+      Scalar sum(0);
+      for (Index k = 0; k < a.cols(); ++k) sum += a(i, k) * b(k, j);
+      expected(i, j) = sum;
+      expectedT(j, i) = sum;
+      expectedH(j, i) = numext::conj(sum);
+    }
+  }
+  MatrixType t = (a * b).transpose();
+  VERIFY(t == expectedT);
+  VERIFY(MatrixType((a * b).transpose().eval()) == expectedT);
+  VERIFY(MatrixType((a * b).adjoint()) == expectedH);
+  t.setZero();
+  t.noalias() = (a * b).transpose();
+  VERIFY(t == expectedT);
+  t.setZero();
+  t.noalias() += (a * b).adjoint();
+  VERIFY(t == expectedH);
+  t = Scalar(0, 1, 0, 0) * (a * b).transpose();
+  for (Index k = 0; k < t.size(); ++k) VERIFY(t(k) == Scalar(0, 1, 0, 0) * expectedT(k));
+}
+
+// Built-in scalars commute and keep the expanded form, without a temporary for the product.
+template <typename Scalar>
+void commutative_transposed_product_expression() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using TransposeType = Transpose<const MatrixType>;
+  using ProductType = Product<MatrixType, MatrixType, DefaultProduct>;
+  STATIC_CHECK((std::is_same<decltype(std::declval<const ProductType&>().transpose()),
+                             Product<TransposeType, TransposeType, DefaultProduct>>::value));
+}
+
+void noncommutative_transposed_product_expression() {
+  using QMatrix = Matrix<noncommutative_scalar::Quaternion, Dynamic, Dynamic>;
+  using QProduct = Product<QMatrix, QMatrix, DefaultProduct>;
+  STATIC_CHECK((std::is_same<decltype(std::declval<const QProduct&>().transpose()), Transpose<const QProduct>>::value));
+}
+
+// A scalar factor is folded into a structured lhs only when the view can represent it; a complex factor on a real
+// triangular view times a complex vector is evaluated through the unfolded product instead.
+void scaled_real_structured_complex_vector() {
+  using Cf = std::complex<float>;
+  const Index n = 7;
+  const MatrixXf a = MatrixXf::Random(n, n);
+  const VectorXcf v = VectorXcf::Random(n);
+  const Cf s(2, 1);
+  const MatrixXcf tri = MatrixXf(a.triangularView<Upper>()).cast<Cf>();
+  const MatrixXcf dense = a.cast<Cf>();
+  VectorXcf x = VectorXcf::Zero(n);
+
+  // Same-scalar and real-into-complex factors still fold; a complex factor on a real view does not.
+  using RealTri = TriangularView<const MatrixXf, Upper>;
+  STATIC_CHECK((internal::product_can_fold_scalar_factor<float, RealTri>::value));
+  STATIC_CHECK((internal::product_can_fold_scalar_factor<double, RealTri>::value));
+  STATIC_CHECK((!internal::product_can_fold_scalar_factor<Cf, RealTri>::value));
+  STATIC_CHECK((internal::product_can_fold_scalar_factor<Cf, MatrixXf>::value));
+  STATIC_CHECK((internal::product_can_fold_scalar_factor<Cf, TriangularView<const MatrixXcf, Upper>>::value));
+
+  x.noalias() += s * (a.triangularView<Upper>() * v);
+  VERIFY_IS_APPROX(x, s * (tri * v));
+  x.setOnes();
+  x.noalias() -= s * (a.triangularView<Upper>() * v);
+  VERIFY_IS_APPROX(x, VectorXcf::Ones(n) - s * (tri * v));
+  x.setZero();
+  x.noalias() += 2.0f * (a.triangularView<Upper>() * v);
+  VERIFY_IS_APPROX(x, 2.0f * (tri * v));
+  x = s * (a.triangularView<Upper>() * v);
+  VERIFY_IS_APPROX(x, s * (tri * v));
+  x.noalias() = s * (a.triangularView<Upper>() * v);
+  VERIFY_IS_APPROX(x, s * (tri * v));
+  x = (a.triangularView<Upper>() * v) * s;
+  VERIFY_IS_APPROX(x, (tri * v) * s);
+
+  x.setZero();
+  x.noalias() += s * (a * v);
+  VERIFY_IS_APPROX(x, s * (dense * v));
+}
+
 template <int Order>
 void quaternion_unit_scale() {
   using Q = noncommutative_scalar::Quaternion;
@@ -1412,6 +1550,12 @@ void ordered_gemv_scale_cost() {
 }
 
 EIGEN_DECLARE_TEST(product_extra) {
+  CALL_SUBTEST_20(scaled_real_structured_complex_vector());
+  CALL_SUBTEST_20((quaternion_transposed_product<noncommutative_scalar::Quaternion, ColMajor>()));
+  CALL_SUBTEST_20((quaternion_transposed_product<noncommutative_scalar::Quaternion, RowMajor>()));
+  CALL_SUBTEST_20(commutative_transposed_product_expression<double>());
+  CALL_SUBTEST_20(commutative_transposed_product_expression<std::complex<double>>());
+  CALL_SUBTEST_20(noncommutative_transposed_product_expression());
   CALL_SUBTEST_20((ordered_gemv_scale_cost<ColMajor, false>()));
   CALL_SUBTEST_20((ordered_gemv_scale_cost<RowMajor, false>()));
   CALL_SUBTEST_20((ordered_gemv_scale_cost<ColMajor, true>()));

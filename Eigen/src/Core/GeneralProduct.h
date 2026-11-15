@@ -294,6 +294,10 @@ struct gemv_static_vector_if<Scalar, Size, MaxSize, true> {
 #if EIGEN_MAX_STATIC_ALIGN_BYTES != 0
   internal::plain_array<Scalar, internal::min_size_prefer_fixed(Size, MaxSize), 0, AlignedMax> m_data;
   constexpr Scalar* data() { return m_data.array; }
+#elif EIGEN_MAX_ALIGN_BYTES == 0
+  // No alignment is required: ~(0 - 1) below would clear every bit and return a null pointer.
+  internal::plain_array<Scalar, internal::min_size_prefer_fixed(Size, MaxSize), 0> m_data;
+  constexpr Scalar* data() { return m_data.array; }
 #else
   // Some architectures cannot align on the stack,
   // => let's manually enforce alignment by allocating more data and return the address of the first aligned element.

@@ -193,7 +193,7 @@ struct selfadjoint_rank2_update_selector<Scalar, Index, Upper> {
 
 template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
-EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
   // The rank-2 kernel below addresses the matrix with a unit inner stride.
   if (MatrixType::InnerStrideAtCompileTime != 1 && nestedExpression().innerStride() != 1) {
@@ -233,26 +233,32 @@ EIGEN_DEVICE_FUNC SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType,
   // Copy u to contiguous buffer, applying conjugation if needed
   internal::gemv_static_vector_if<Scalar, DerivedU::SizeAtCompileTime, DerivedU::MaxSizeAtCompileTime, !UseUDirectly>
       static_u;
-  ei_declare_aligned_stack_constructed_variable(Scalar, uPtr, size,
-                                                (UseUDirectly ? const_cast<Scalar*>(actualU.data()) : static_u.data()));
+  // Allocate only for the copy. A directly used u passes a provably non-null dummy with size 0: the macro cannot
+  // take its allocation arm (GCC warns about the uninitialized allocation when it cannot rule out a null data(),
+  // and without alloca that arm would call the allocator).
+  ei_declare_aligned_stack_constructed_variable(Scalar, uBuffer, UseUDirectly ? 0 : size,
+                                                UseUDirectly ? &actualAlpha : static_u.data());
+  const Scalar* uPtr = UseUDirectly ? actualU.data() : uBuffer;
   EIGEN_IF_CONSTEXPR (!UseUDirectly) {
     EIGEN_IF_CONSTEXPR (NeedConjU) {
-      Map<typename ActualUType_::PlainObject>(uPtr, size) = actualU.conjugate();
+      Map<typename ActualUType_::PlainObject>(uBuffer, size) = actualU.conjugate();
     } else {
-      Map<typename ActualUType_::PlainObject>(uPtr, size) = actualU;
+      Map<typename ActualUType_::PlainObject>(uBuffer, size) = actualU;
     }
   }
 
   // Copy v to contiguous buffer, applying conjugation if needed
   internal::gemv_static_vector_if<Scalar, DerivedV::SizeAtCompileTime, DerivedV::MaxSizeAtCompileTime, !UseVDirectly>
       static_v;
-  ei_declare_aligned_stack_constructed_variable(Scalar, vPtr, size,
-                                                (UseVDirectly ? const_cast<Scalar*>(actualV.data()) : static_v.data()));
+  // Likewise for v.
+  ei_declare_aligned_stack_constructed_variable(Scalar, vBuffer, UseVDirectly ? 0 : size,
+                                                UseVDirectly ? &actualAlpha : static_v.data());
+  const Scalar* vPtr = UseVDirectly ? actualV.data() : vBuffer;
   EIGEN_IF_CONSTEXPR (!UseVDirectly) {
     EIGEN_IF_CONSTEXPR (NeedConjV) {
-      Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV.conjugate();
+      Map<typename ActualVType_::PlainObject>(vBuffer, size) = actualV.conjugate();
     } else {
-      Map<typename ActualVType_::PlainObject>(vPtr, size) = actualV;
+      Map<typename ActualVType_::PlainObject>(vBuffer, size) = actualV;
     }
   }
 

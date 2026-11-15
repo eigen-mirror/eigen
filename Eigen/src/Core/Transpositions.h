@@ -124,6 +124,22 @@ struct traits<Transpositions<SizeAtCompileTime, MaxSizeAtCompileTime, StorageInd
  * the rows \c i and \c indices[i] of the matrix \c M.
  * A transposition applied on the right (e.g., \f$ M T_{i}\f$) yields a column interchange.
  *
+ * Let \c P be the PermutationMatrix constructed from the transpositions, so that \c P equals the dense matrix of
+ * <tt>tr * Identity</tt>. The interchanges of <tt>tr * X</tt> and <tt>X * tr</tt> are applied for \c i = 0, ..., n-1 in
+ * the stored order, those of the transposed (inverse) sequence for \c i = n-1, ..., 0. For a matrix \c X this gives:
+ *
+ * <table class="manual">
+ * <tr><th>expression</th><th>equals</th></tr>
+ * <tr><td><tt>tr * X</tt></td><td><tt>P * X</tt> (rows \c i and \c indices[i] swapped)</td></tr>
+ * <tr><td><tt>tr.transpose() * X</tt>, <tt>tr.inverse() * X</tt></td><td><tt>P.transpose() * X</tt></td></tr>
+ * <tr><td><tt>X * tr</tt></td><td><tt>X * P.transpose()</tt> (columns \c i and \c indices[i] swapped)</td></tr>
+ * <tr><td><tt>X * tr.transpose()</tt>, <tt>X * tr.inverse()</tt></td><td><tt>X * P</tt></td></tr>
+ * </table>
+ *
+ * Applying LAPACK-style pivots to the columns of a matrix in stored order, as \c laswp does for rows, is thus
+ * <tt>X * tr</tt>. Note that <tt>X * tr</tt> is <tt>X * P.transpose()</tt> and not <tt>X * P</tt> unless the
+ * transpositions commute.
+ *
  * Compared to the class PermutationMatrix, such a sequence of transpositions is what is
  * computed during a decomposition with pivoting, and it is faster when applying the permutation in-place.
  *

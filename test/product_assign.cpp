@@ -25,8 +25,9 @@ Scalar nan_value() {
 }
 
 // dst = scale * a * b through assignment, from a NaN-filled destination, against the zero-then-accumulate result and
-// the coefficient-based product. The two must be bitwise equal where the product runs GEMM. The coefficient-based
-// product and the GEMV fallbacks compile `=` and `+=` separately, and those may round differently.
+// the coefficient-based product. The two must be bitwise equal where the product runs GEMM, except for complex
+// scalars without packets (see `bitwise`). The coefficient-based product and the GEMV fallbacks compile `=` and `+=`
+// separately, and those may round differently.
 template <typename Dst, typename Lhs, typename Rhs, typename Scalar>
 void check_assign(Dst& dst, const Lhs& a, const Rhs& b, const Scalar& scale) {
   using ScaledLhs = internal::remove_all_t<decltype(scale * a)>;
@@ -35,6 +36,12 @@ void check_assign(Dst& dst, const Lhs& a, const Rhs& b, const Scalar& scale) {
   // Accumulated into dst itself, so that it takes the same kernel (or external BLAS) as the assignment: a row-major or
   // strided destination may take another, which rounds differently.
   using Plain = typename Dst::PlainObject;
+  using DstScalar = typename Dst::Scalar;
+  // Without packets, a complex kernel is scalar complex arithmetic, which GCC (-ffp-contract=fast by default, with FMA)
+  // may contract differently in the overwriting and the accumulating paths: GCC 15.2 -O3 -march=x86-64-v3 with
+  // EIGEN_DONT_VECTORIZE rounds a few coefficients of each differently. Real scalars are immune: contracted or not,
+  // 0 + alpha * acc rounds alpha * acc once.
+  const bool bitwise = gemm && (!NumTraits<DstScalar>::IsComplex || internal::packet_traits<DstScalar>::Vectorizable);
   dst.setZero();
   dst.noalias() += scale * a * b;
   const Plain expected = dst;
@@ -42,7 +49,7 @@ void check_assign(Dst& dst, const Lhs& a, const Rhs& b, const Scalar& scale) {
   dst.setConstant(nan_value<typename Dst::Scalar>());
   dst.noalias() = scale * a * b;
   VERIFY(dst.allFinite());
-  if (gemm)
+  if (bitwise)
     VERIFY(bitwise_equal(dst, expected));
   else
     VERIFY(verifyProduct(dst, expected, scale * a, b));

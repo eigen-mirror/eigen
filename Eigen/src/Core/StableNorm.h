@@ -334,7 +334,7 @@ inline typename NumTraits<typename internal::traits<Derived>::Scalar>::Real Matr
   using Accumulator = typename internal::stable_norm_accumulator<RealScalar>::type;
   // Component reduction avoids rounded complex magnitudes and permits promoted accumulation.
   return RealScalar(internal::redux_with_identity(derived().realView().template cast<Accumulator>().cwiseAbs(),
-                                                  internal::scalar_hypot_op<Accumulator>(), 0));
+                                                  internal::scalar_hypot_op<Accumulator>(), Accumulator(0)));
 }
 
 }  // end namespace Eigen

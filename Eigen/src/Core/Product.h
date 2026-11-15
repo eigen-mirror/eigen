@@ -82,9 +82,23 @@ struct TransposeKind {
                                                                     : TransposeProductEnum::Default;
 };
 
+// (A * B)^T = B^T * A^T and (A * B)^H = B^H * A^H sum b * a instead of a * b, which needs a commutative scalar product.
+// Without it the transposed matrix-matrix product is not expanded.
+template <typename Lhs, typename Rhs, int RawKind>
+struct transpose_product_is_expandable : std::true_type {};
+
+template <typename Lhs, typename Rhs>
+struct transpose_product_is_expandable<Lhs, Rhs, TransposeProductEnum::MatrixMatrix>
+    : bool_constant<functor_is_commutative<
+                        scalar_product_op<typename traits<Lhs>::Scalar, typename traits<Rhs>::Scalar>>::value &&
+                    functor_is_commutative<
+                        scalar_product_op<typename traits<Rhs>::Scalar, typename traits<Lhs>::Scalar>>::value> {};
+
 template <typename Lhs, typename Rhs>
 struct TransposeProductKind {
-  static constexpr int Kind = (TransposeKind<Lhs>::Kind << 8) | TransposeKind<Rhs>::Kind;
+  static constexpr int RawKind = (TransposeKind<Lhs>::Kind << 8) | TransposeKind<Rhs>::Kind;
+  static constexpr int Kind =
+      transpose_product_is_expandable<Lhs, Rhs, RawKind>::value ? RawKind : int(TransposeProductEnum::Default);
 };
 
 template <typename Lhs, typename Rhs, int Option, int Kind = TransposeProductKind<Lhs, Rhs>::Kind>

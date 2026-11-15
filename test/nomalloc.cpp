@@ -178,6 +178,34 @@ void selfadjoint_eigensolver_large_fixed_no_malloc() {
   VERIFY_IS_EQUAL(solver.info(), Eigen::Success);
 }
 
+// The temporary of a gemv-like product with a strided operand is a static buffer for fixed sizes, also when nothing
+// needs aligning (EIGEN_DONT_VECTORIZE, EIGEN_MAX_ALIGN_BYTES=0): the buffer is never null, which would fall back to
+// the allocator (here, with the stack limit at 0, the heap).
+void gemv_static_buffer() {
+  internal::gemv_static_vector_if<double, 4, 4, true> buffer;
+  VERIFY(buffer.data() != nullptr);
+  const Matrix4d m = Matrix4d::Random();
+  Matrix4d r = Matrix4d::Zero();
+  r.col(0).noalias() -= m.adjoint().template triangularView<Upper>() * m.row(0).adjoint();
+  r.col(0).noalias() -= m.adjoint().template selfadjointView<Upper>() * m.row(0).adjoint();
+}
+
+// A rank-2 update and a selfadjoint matrix-vector product with unit-stride operands read them in place: no packing
+// buffer is needed, also where the temporaries are heap allocated (EIGEN_NO_ALLOCA) and over-aligned.
+template <typename Scalar>
+void selfadjoint_direct_operands_no_malloc() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Eigen::internal::set_is_malloc_allowed(true);
+  Mat m = Mat::Random(9, 9), a = Mat::Random(9, 9);
+  Vec u = Vec::Random(9), v = Vec::Random(9), y = Vec::Zero(9);
+  Eigen::internal::set_is_malloc_allowed(false);
+  m.template selfadjointView<Lower>().rankUpdate(u, v, Scalar(0.5));
+  m.template selfadjointView<Upper>().rankUpdate(u, v, Scalar(0.5));
+  y.noalias() = a.template selfadjointView<Lower>() * u;
+  y.noalias() += a.template selfadjointView<Upper>() * v;
+}
+
 // isOrthogonal() compares dynamic vectors without a temporary, also where it scales them by powers of two.
 template <typename Scalar>
 void is_orthogonal_no_malloc() {
@@ -270,6 +298,11 @@ EIGEN_DECLARE_TEST(nomalloc) {
   CALL_SUBTEST_10(selfadjoint_eigensolver_large_fixed_no_malloc<double>());
 
   CALL_SUBTEST_5(test_zerosized());
+  CALL_SUBTEST_13(gemv_static_buffer());
+  CALL_SUBTEST_12(selfadjoint_direct_operands_no_malloc<float>());
+  CALL_SUBTEST_12(selfadjoint_direct_operands_no_malloc<double>());
+  CALL_SUBTEST_12(selfadjoint_direct_operands_no_malloc<std::complex<float>>());
+  CALL_SUBTEST_12(selfadjoint_direct_operands_no_malloc<std::complex<double>>());
   CALL_SUBTEST_11(is_orthogonal_no_malloc<float>());
   CALL_SUBTEST_11(is_orthogonal_no_malloc<double>());
   CALL_SUBTEST_11(is_orthogonal_no_malloc<std::complex<float>>());

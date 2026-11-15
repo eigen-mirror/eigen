@@ -330,6 +330,78 @@ void symm_packers_and_rowmajor_operands() {
   }
 }
 
+// A depth block chosen by the caller; the packing buffers are allocated by the product.
+template <typename Scalar>
+struct symm_depth_blocking : internal::level3_blocking<Scalar, Scalar> {
+  symm_depth_blocking(Index mc, Index kc) {
+    this->m_mc = mc;
+    this->m_nc = 0;
+    this->m_kc = kc;
+  }
+};
+
+// Matrix * selfadjoint with a depth block kc that is not a multiple of nr (e.g. from tiny cache sizes: the
+// blocking clamps its depth to 1). The packed panels must stay within the buffers sized for the depth block.
+template <typename Scalar, int Order>
+void symm_right_depth_block(Index kc, Index rows, Index n) {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic, Order>;
+  using ColMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  Mat stored, full;
+  make_stored_triangle<Mat>(n, stored, full);
+  const ColMat a = ColMat::Random(rows, n);
+  ColMat c = ColMat::Zero(rows, n);
+  symm_depth_blocking<Scalar> blocking(rows, kc);
+  internal::product_selfadjoint_matrix<Scalar, Index, ColMajor, false, false, Order, true, false, ColMajor, 1>::run(
+      rows, n, a.data(), a.outerStride(), stored.data(), stored.outerStride(), c.data(), 1, c.outerStride(), Scalar(1),
+      blocking);
+  VERIFY_IS_APPROX(c, ColMat(a * full));
+}
+
+template <typename Scalar>
+void symm_depth_blocks() {
+  for (Index kc : {1, 2, 3, 5, 7, 8, 9}) {
+    for (Index n : {1, 3, 4, 5, 9, 17, 33}) {
+      for (Index rows : {1, 5, 13}) {
+        symm_right_depth_block<Scalar, ColMajor>(kc, rows, n);
+        symm_right_depth_block<Scalar, RowMajor>(kc, rows, n);
+      }
+    }
+  }
+}
+
+// The same through the public product, with cache sizes that make the blocking depth 1.
+template <typename Scalar>
+void symm_tiny_cache_sizes() {
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  // setCpuCacheSizes clears the per-CPU L3 size, so save and restore all four through manage_caching_sizes.
+  std::ptrdiff_t l1, l2, l3, l3_per_cpu;
+  internal::manage_caching_sizes(GetAction, &l1, &l2, &l3, &l3_per_cpu);
+  // 16 bytes of L1 leave no room for a depth block of one packet: the blocking clamps kc to 1 on every target.
+  setCpuCacheSizes(16, 2048, 4096);
+  for (Index n : {5, 33, 100}) {
+    for (Index rows : {5, 40}) {
+      Mat full = Mat::Random(n, n);
+      full = (full + full.adjoint()).eval();
+      const Mat lower = full.template triangularView<Lower>();
+      const Mat upper = full.template triangularView<Upper>();
+      const Mat a = Mat::Random(rows, n), b = Mat::Random(n, rows);
+      Mat c;
+      c.noalias() = a * lower.template selfadjointView<Lower>();
+      VERIFY_IS_APPROX(c, Mat(a * full));
+      c.noalias() = a * upper.template selfadjointView<Upper>();
+      VERIFY_IS_APPROX(c, Mat(a * full));
+      c.noalias() = lower.template selfadjointView<Lower>() * b;
+      VERIFY_IS_APPROX(c, Mat(full * b));
+      c.noalias() = upper.template selfadjointView<Upper>() * b;
+      VERIFY_IS_APPROX(c, Mat(full * b));
+    }
+  }
+  internal::manage_caching_sizes(SetAction, &l1, &l2, &l3, &l3_per_cpu);
+  std::ptrdiff_t restored_l1, restored_l2, restored_l3, restored_l3_per_cpu;
+  internal::manage_caching_sizes(GetAction, &restored_l1, &restored_l2, &restored_l3, &restored_l3_per_cpu);
+  VERIFY(restored_l1 == l1 && restored_l2 == l2 && restored_l3 == l3 && restored_l3_per_cpu == l3_per_cpu);
+}
+
 template <typename Scalar, int RhsOrder>
 void symm_blas_operand_strides() {
   using Vector = Matrix<Scalar, Dynamic, 1>;
@@ -420,6 +492,14 @@ EIGEN_DECLARE_TEST(product_symm) {
 
   // Packed-buffer contract checks and RowMajor selfadjoint operands.
   CALL_SUBTEST_10(symm_packers_and_rowmajor_operands<0>());
+  CALL_SUBTEST_13(symm_depth_blocks<float>());
+  CALL_SUBTEST_13(symm_depth_blocks<double>());
+  CALL_SUBTEST_13(symm_depth_blocks<std::complex<float>>());
+  CALL_SUBTEST_13(symm_depth_blocks<std::complex<double>>());
+  CALL_SUBTEST_14(symm_tiny_cache_sizes<float>());
+  CALL_SUBTEST_14(symm_tiny_cache_sizes<double>());
+  CALL_SUBTEST_14(symm_tiny_cache_sizes<std::complex<float>>());
+  CALL_SUBTEST_14(symm_tiny_cache_sizes<std::complex<double>>());
   CALL_SUBTEST_11((symm_blas_operand_strides<float, ColMajor>()));
   CALL_SUBTEST_11((symm_blas_operand_strides<double, RowMajor>()));
   CALL_SUBTEST_12((hemm_blas_empty_product<float, ColMajor, RowMajor>()));

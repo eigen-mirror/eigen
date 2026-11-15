@@ -73,6 +73,14 @@ void reductionIdentityArguments() {
   VERIFY_IS_EQUAL(rvalueConversions, 2);
 }
 
+// Constructing the identity Scalar(0) of a std::string is the null-pointer constructor, so sum() of a nonempty
+// fixed-size array must not convert its identity.
+void sumOfStringsDoesNotConvertIdentity() {
+  Array<std::string, 2, 1> strings;
+  strings << "a", "b";
+  VERIFY_IS_EQUAL(strings.sum(), std::string("ab"));
+}
+
 // Complex scalars are unordered and not convertible to bool, so these reductions apply only to the others.
 template <typename MatrixType>
 void zeroOrderedReduction(const MatrixType& m, std::true_type) {
@@ -176,6 +184,7 @@ void zeroSizedVector() {
 }
 
 EIGEN_DECLARE_TEST(zerosized) {
+  sumOfStringsDoesNotConvertIdentity();
   reductionIdentityArguments<double>();
   reductionIdentityArguments<MovableScalar<double>>();
   zeroSizedMatrix<Matrix2d>();

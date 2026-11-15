@@ -336,6 +336,11 @@ product_selfadjoint_matrix<Scalar, Index, LhsStorageOrder, false, ConjugateLhs, 
 
   Index kc = blocking.kc();                    // cache block size along the K direction
   Index mc = (std::min)(rows, blocking.mc());  // cache block size along the M direction
+  // symm_pack_rhs needs every depth block to start and end on the nr-column panel grid, unless one block covers the
+  // whole depth. The blocking rounds kc to a multiple of 8, except that it clamps it to 1 for tiny cache sizes.
+  // Preallocated blocks (fixed-size products) have kc >= size and are never rounded.
+  if (kc < size && kc % Traits::nr != 0) kc = (std::min)(kc + Traits::nr - kc % Traits::nr, size);
+  eigen_internal_assert(kc == blocking.kc() || (blocking.blockA() == 0 && blocking.blockB() == 0));
   std::size_t sizeA = kc * mc;
   std::size_t sizeB = kc * cols;
   ei_declare_aligned_stack_constructed_variable(Scalar, blockA, sizeA, blocking.blockA());
