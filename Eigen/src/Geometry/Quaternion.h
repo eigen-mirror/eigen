@@ -679,6 +679,21 @@ EIGEN_DEVICE_FUNC inline typename QuaternionBase<Derived>::Matrix3 QuaternionBas
   return res;
 }
 
+namespace internal {
+// v / ||v||. This is MatrixBase::normalized() except that a squared norm outside the range in which it is accurate
+// (underflow or overflow of the sum of squares) falls back to stableNormalized(). A zero vector is returned unchanged.
+template <typename Derived>
+EIGEN_DEVICE_FUNC inline typename MatrixBase<Derived>::PlainObject quaternion_normalized(const MatrixBase<Derived>& v) {
+  using Scalar = typename traits<Derived>::Scalar;
+  const typename MatrixBase<Derived>::PlainObject x = v;
+  const Scalar n2 = x.squaredNorm();
+  if (n2 > (numext::numeric_limits<Scalar>::min)() && n2 <= NumTraits<Scalar>::highest()) {
+    return x / numext::sqrt(n2);
+  }
+  return x.stableNormalized();
+}
+}  // namespace internal
+
 /** Sets \c *this to be a quaternion representing a rotation between
  * the two arbitrary vectors \a a and \a b. In other words, the built
  * rotation represent a rotation sending the line of direction \a a
@@ -693,16 +708,27 @@ template <class Derived>
 template <typename Derived1, typename Derived2>
 EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromTwoVectors(const MatrixBase<Derived1>& a,
                                                                              const MatrixBase<Derived2>& b) {
-  Vector3 v0 = a.normalized();
-  Vector3 v1 = b.normalized();
+  Vector3 v0 = internal::quaternion_normalized(a);
+  Vector3 v1 = internal::quaternion_normalized(b);
   Scalar c = v1.dot(v0);
 
-  // if dot == -1, vectors are nearly opposites: an axis orthogonal to v0 alone does not send v0 to v1.
-  // => rotate through a direction m orthogonal to v0, so that both v0 -> m and m -> v1 are ~90 degree rotations.
-  // With u = v0.unitOrthogonal() and m = u x v0, both legs turn about v0 x m = u, so v1 = -v0 still gives (0, u).
-  if (c < Scalar(-1) + NumTraits<Scalar>::dummy_precision()) {
-    const Vector3 m = v0.unitOrthogonal().cross(v0);
-    coeffs() = (Quaternion<Scalar>::FromTwoVectors(m, v1) * Quaternion<Scalar>::FromTwoVectors(v0, m)).coeffs();
+  if (c < Scalar(0)) {
+    // phi in (pi/2, pi]: q = (sin(phi/2) n, cos(phi/2)) with cos(phi/2) = |v0 + v1| / 2, whose absolute error ~ eps
+    // moves the angle by ~ eps since sin(phi/2) >= 1/sqrt(2). (s = 2 cos(phi/2) below has relative error
+    // eps / (1 + c).) n = v0 x v1 projected twice onto the plane orthogonal to v0 and normalized: one projection
+    // leaves ~ eps |v0 x v1| along v0, not small against the projected vector when |v0 + v1| is a few eps.
+    // For |v0 + v1| <= 4 eps, v0 x v1 is mostly noise and any axis orthogonal to v0 moves q v0 by at most 2 |v0 + v1|.
+    const Scalar sum2 = (v0 + v1).squaredNorm();
+    const Scalar cos_half = numext::sqrt(Scalar(0.25) * sum2);
+    Vector3 axis = v0.cross(v1);
+    axis -= axis.dot(v0) * v0;
+    axis -= axis.dot(v0) * v0;
+    const bool nearly_antipodal = !(sum2 > numext::abs2(Scalar(4) * NumTraits<Scalar>::epsilon()));
+    // Not axis / sqrt(axis.squaredNorm()): for a narrow type the squared norm of a meaningful axis can underflow.
+    if (!nearly_antipodal) axis = internal::quaternion_normalized(axis);
+    if (nearly_antipodal || numext::is_exactly_zero(axis.squaredNorm())) axis = v0.unitOrthogonal();
+    this->vec() = numext::sqrt((Scalar(1) - cos_half) * (Scalar(1) + cos_half)) * axis;
+    this->w() = cos_half;
     return derived();
   }
   Vector3 axis = v0.cross(v1);
@@ -736,10 +762,10 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
   const Vector3 v = scaled_axis;
 
   // Fast path with stableNorm() fallback when norm() returns a suspiciously small
-  // value (below epsilon, where squaredNorm() may have underflowed); same idiom
-  // as AngleAxis::operator=(QuaternionBase).
+  // value (below epsilon, where squaredNorm() may have underflowed) or a non-finite
+  // one (squaredNorm() overflowed); same idiom as AngleAxis::operator=(QuaternionBase).
   Scalar angle = v.norm();
-  if (angle < NumTraits<Scalar>::epsilon()) angle = v.stableNorm();
+  if (angle < NumTraits<Scalar>::epsilon() || !(angle <= NumTraits<Scalar>::highest())) angle = v.stableNorm();
   if (numext::is_exactly_zero(angle)) {
     this->w() = Scalar(1);
     this->vec().setZero();

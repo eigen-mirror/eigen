@@ -281,16 +281,20 @@ class AlignedBox {
     return AlignedBox(m_min.cwiseMin(b.m_min), m_max.cwiseMax(b.m_max));
   }
 
-  /** Translate \c *this by the vector \a t and returns a reference to \c *this. */
+  /** Translate \c *this by the vector \a t and returns a reference to \c *this.
+   * An empty box (any min > max) is left unchanged.
+   */
   template <typename Derived>
   EIGEN_DEVICE_FUNC inline AlignedBox& translate(const MatrixBase<Derived>& a_t) {
+    // The corners of an empty box are the extreme values of Scalar, so shifting them would overflow.
+    if (isEmpty()) return *this;
     const typename internal::nested_eval<Derived, 2>::type t(a_t.derived());
     m_min += t;
     m_max += t;
     return *this;
   }
 
-  /** \returns a copy of \c *this translated by the vector \a t. */
+  /** \returns a copy of \c *this translated by the vector \a t. An empty box (any min > max) is left unchanged. */
   template <typename Derived>
   EIGEN_DEVICE_FUNC inline AlignedBox translated(const MatrixBase<Derived>& a_t) const {
     AlignedBox result(m_min, m_max);
@@ -337,7 +341,7 @@ class AlignedBox {
 
   /**
    * Transforms this box by \a transform and recomputes it to
-   * still be an axis-aligned box.
+   * still be an axis-aligned box. An empty box (any min > max) is left unchanged.
    *
    * \note This method is provided under BSD license (see the top of this file).
    */
@@ -346,6 +350,9 @@ class AlignedBox {
     // Only Affine and Isometry transforms are currently supported.
     EIGEN_STATIC_ASSERT(Mode == Affine || Mode == AffineCompact || Mode == Isometry,
                         THIS_METHOD_IS_ONLY_FOR_SPECIFIC_TRANSFORMATIONS);
+
+    // For an empty box, sizes() is negative or overflows, and |linear| * sizes() can be 0 * -inf = NaN.
+    if (isEmpty()) return;
 
     // Method adapted from FCL src/shape/geometric_shapes_utility.cpp#computeBV<AABB, Box>(...)
     // https://github.com/flexible-collision-library/fcl/blob/fcl-0.4/src/shape/geometric_shapes_utility.cpp#L292
@@ -364,7 +371,7 @@ class AlignedBox {
 
   /**
    * \returns a copy of \c *this transformed by \a transform and recomputed to
-   * still be an axis-aligned box.
+   * still be an axis-aligned box. An empty box (any min > max) is left unchanged.
    */
   template <int Mode, int Options>
   EIGEN_DEVICE_FUNC AlignedBox
@@ -378,6 +385,7 @@ class AlignedBox {
    *
    * Note that if \a NewScalarType is equal to the current scalar type of \c *this
    * then this function smartly returns a const reference to \c *this.
+   * An empty box (any min > max) is converted to the empty box, with min = highest() and max = lowest().
    */
   template <typename NewScalarType>
   EIGEN_DEVICE_FUNC inline
@@ -390,6 +398,14 @@ class AlignedBox {
   /** Copy constructor with scalar type conversion */
   template <typename OtherScalarType>
   EIGEN_DEVICE_FUNC inline explicit AlignedBox(const AlignedBox<OtherScalarType, AmbientDimAtCompileTime>& other) {
+    if (other.isEmpty()) {
+      // The extreme values of OtherScalarType need not be representable as Scalar, and a saturating or wrapping
+      // conversion of both corners can produce a non-empty box.
+      m_min.resize(other.dim());
+      m_max.resize(other.dim());
+      setEmpty();
+      return;
+    }
     m_min = (other.min)().template cast<Scalar>();
     m_max = (other.max)().template cast<Scalar>();
   }
