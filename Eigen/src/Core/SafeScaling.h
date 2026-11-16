@@ -16,10 +16,7 @@ namespace internal {
 // Stable reductions separately round up to keep scaled magnitudes at most one. At the upper exponent boundary, the
 // scale is clamped to keep its reciprocal normal; for the standard binary formats this leaves magnitudes below four.
 template <typename Scalar>
-struct supports_power_of_two_scaling
-    : bool_constant<(std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
-                    std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2 &&
-                    (sizeof(Scalar) == sizeof(numext::uint32_t) || sizeof(Scalar) == sizeof(numext::uint64_t))> {};
+struct supports_power_of_two_scaling : has_iec559_binary_encoding<Scalar> {};
 
 #if !defined(EIGEN_GPU_COMPILE_PHASE)
 template <>

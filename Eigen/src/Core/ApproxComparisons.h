@@ -19,14 +19,17 @@ namespace Eigen {
 
 namespace internal {
 
-// Keep custom scalars on the algebraic path: exponent scaling requires binary floating-point arithmetic.
-template <typename Scalar>
+// Keep custom scalars on the algebraic path: exponent scaling requires binary floating-point arithmetic. radix is read
+// only for standard floating-point types, since a custom scalar's numeric_limits need not define it.
+template <typename Scalar, bool = std::is_floating_point<Scalar>::value>
 struct use_scaled_comparison
-    : bool_constant<(std::is_floating_point<Scalar>::value && std::numeric_limits<Scalar>::radix == 2) ||
-                    std::is_same<Scalar, half>::value || std::is_same<Scalar, bfloat16>::value> {};
+    : bool_constant<std::is_same<Scalar, half>::value || std::is_same<Scalar, bfloat16>::value> {};
+
+template <typename Scalar>
+struct use_scaled_comparison<Scalar, true> : bool_constant<std::numeric_limits<Scalar>::radix == 2> {};
 
 template <typename RealScalar>
-struct use_scaled_comparison<std::complex<RealScalar>> : use_scaled_comparison<RealScalar> {};
+struct use_scaled_comparison<std::complex<RealScalar>, false> : use_scaled_comparison<RealScalar> {};
 
 // A nonnegative magnitude fraction * 2^exponent, including norms larger than the scalar range. Positive finite
 // magnitudes order lexicographically by (exponent, fraction), the member order.

@@ -48,9 +48,7 @@ struct trsmKernelR {
 // the rest hold the RHS packets and coefficient broadcasts.
 template <typename Scalar>
 struct triangular_solve_packet_traits {
-  static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable &&
-                                  (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
-                                  std::numeric_limits<Scalar>::is_iec559 && std::numeric_limits<Scalar>::radix == 2;
+  static constexpr bool Enabled = packet_traits<Scalar>::Vectorizable && has_iec559_binary_encoding<Scalar>::value;
   static constexpr int PacketSize = packet_traits<Scalar>::size;
   static constexpr int RegisterRows = 4;
   static constexpr int NumberOfRegisters = gebp_traits<Scalar, Scalar>::NumberOfRegisters;

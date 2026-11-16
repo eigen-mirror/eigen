@@ -162,9 +162,11 @@ struct generic_sqrt_newton_step {
 template <typename RealScalar, typename EnableIf = void>
 struct positive_real_hypot_impl {
   EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE RealScalar run(const RealScalar& x, const RealScalar& y) {
-    // IEEE IEC 60559 special cases.
-    if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
-    if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
+    // IEEE IEC 60559 special cases, taken from the operands: numeric_limits<RealScalar> need not define infinity()
+    // or quiet_NaN(). x and y are nonnegative, so an infinite one is +inf.
+    if ((numext::isinf)(x)) return x;
+    if ((numext::isinf)(y)) return y;
+    if ((numext::isnan)(x) || (numext::isnan)(y)) return x + y;
 
     RealScalar p = numext::maxi(x, y);
     if (numext::is_exactly_zero(p)) return RealScalar(0);

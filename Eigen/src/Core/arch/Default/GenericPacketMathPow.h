@@ -581,9 +581,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet int_pow_wrapping(const Packet& x, c
 // Double-word repeated squaring needs an exact two-product and the binary layout below; it serves binary32 and
 // binary64 bases, real or complex. Other bases keep plain repeated squaring.
 template <typename Scalar>
-struct is_double_word_base
-    : bool_constant<(std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value) &&
-                    std::numeric_limits<Scalar>::is_iec559> {};
+struct is_double_word_base : has_iec559_binary_encoding<Scalar> {};
 template <typename RealScalar>
 struct is_double_word_base<std::complex<RealScalar>> : is_double_word_base<RealScalar> {};
 
