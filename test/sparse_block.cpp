@@ -276,6 +276,72 @@ void check_inner_panel_assignment_from_uncompressed() {
   }
 }
 
+// A storage-order change reads a source with compressed access through its storage arrays: an inner panel from its
+// first outer index, an uncompressed source through innerNonZeroPtr(), and a SparseVector, which has no outer index
+// array, from 0.
+template <int Order>
+void check_storage_order_change_from_storage() {
+  using SM = SparseMatrix<double, Order>;
+  using OtherSM = SparseMatrix<double, Order == RowMajor ? ColMajor : RowMajor>;
+  using NarrowSM = SparseMatrix<double, Order == RowMajor ? ColMajor : RowMajor, short>;
+  using Vec = SparseVector<double, Order>;
+  constexpr bool IsRowMajor = Order == RowMajor;
+  STATIC_CHECK(internal::has_compressed_access<SM>::value);
+  STATIC_CHECK(internal::has_compressed_access<typename SM::Map>::value);
+  STATIC_CHECK(internal::has_compressed_access<Ref<const SM>>::value);
+  STATIC_CHECK(internal::has_compressed_access<Transpose<const SM>>::value);
+  STATIC_CHECK((internal::has_compressed_access<Block<SM, Dynamic, Dynamic, true>>::value));
+  STATIC_CHECK(internal::has_compressed_access<Vec>::value);
+  STATIC_CHECK((!internal::has_compressed_access<Block<SM, Dynamic, Dynamic, false>>::value));
+
+  const Index rows = internal::random<Index>(3, 9), cols = internal::random<Index>(3, 9);
+  const Index outer = IsRowMajor ? rows : cols;
+  auto panel = [&](const MatrixXd& D, Index start, Index n) {
+    return IsRowMajor ? MatrixXd(D.middleRows(start, n)) : MatrixXd(D.middleCols(start, n));
+  };
+  for (int compressed = 0; compressed < 2; ++compressed) {
+    SM A;
+    MatrixXd D;
+    init_gapped_sparse(A, D, rows, cols, compressed);
+    VERIFY_IS_EQUAL(A.isCompressed(), bool(compressed));
+
+    OtherSM B;
+    B = A;
+    verify_valid_sparse(B, D);
+    NarrowSM N;
+    N = A;
+    verify_valid_sparse(N, D);
+    SM T;
+    T = A.transpose();
+    verify_valid_sparse(T, MatrixXd(D.transpose()));
+
+    auto map = make_map(A);
+    B = map;
+    verify_valid_sparse(B, D);
+    Ref<const SM> ref(A);
+    B = ref;
+    verify_valid_sparse(B, D);
+
+    // Inner panels that start past the first outer index, a single inner vector, and an empty panel.
+    const Index start = internal::random<Index>(1, outer - 1), n = internal::random<Index>(1, outer - start);
+    B = innerpanel(A, start, n);
+    verify_valid_sparse(B, panel(D, start, n));
+    B = A.innerVector(start);
+    verify_valid_sparse(B, panel(D, start, 1));
+    B = innerpanel(A, start, 0);
+    verify_valid_sparse(B, panel(D, start, 0));
+
+    // A SparseVector, its transpose, and an inner panel of it, none of which has an outer index array.
+    Vec v = A.innerVector(start);
+    B = v;
+    verify_valid_sparse(B, panel(D, start, 1));
+    T = v.transpose();
+    verify_valid_sparse(T, MatrixXd(panel(D, start, 1).transpose()));
+    B = v.innerVectors(0, 1);
+    verify_valid_sparse(B, panel(D, start, 1));
+  }
+}
+
 template <typename SparseMatrixType>
 void sparse_block(const SparseMatrixType& ref) {
   const Index rows = ref.rows();
@@ -558,6 +624,8 @@ EIGEN_DECLARE_TEST(sparse_block) {
     CALL_SUBTEST_1(check_aliased_inner_panel_assignment());
     CALL_SUBTEST_1(check_inner_panel_assignment_from_uncompressed<ColMajor>());
     CALL_SUBTEST_1(check_inner_panel_assignment_from_uncompressed<RowMajor>());
+    CALL_SUBTEST_1(check_storage_order_change_from_storage<ColMajor>());
+    CALL_SUBTEST_1(check_storage_order_change_from_storage<RowMajor>());
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(8, 8))));
     CALL_SUBTEST_1((sparse_block(SparseMatrix<double>(r, c))));
     CALL_SUBTEST_2((sparse_block(SparseMatrix<std::complex<double>, ColMajor>(r, c))));

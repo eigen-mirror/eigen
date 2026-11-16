@@ -1160,10 +1160,10 @@ template <typename InputIterator, typename SparseMatrixType, typename DupFunctor
 void set_from_triplets(const InputIterator& begin, const InputIterator& end, SparseMatrixType& mat,
                        DupFunctor dup_func) {
   constexpr bool IsRowMajor = SparseMatrixType::IsRowMajor;
+  using Scalar = typename SparseMatrixType::Scalar;
   using StorageIndex = typename SparseMatrixType::StorageIndex;
   using IndexMap = typename VectorX<StorageIndex>::AlignedMapType;
-  using TransposedSparseMatrix =
-      SparseMatrix<typename SparseMatrixType::Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
+  using TransposedSparseMatrix = SparseMatrix<Scalar, IsRowMajor ? ColMajor : RowMajor, StorageIndex>;
 
   if (begin == end) {
     // Clear out existing data (if any), including the inner non-zero counts of an uncompressed matrix.
@@ -1177,8 +1177,9 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
   // B) construct the transposed matrix and use an implicit sort upon assignment to `mat` (less time).
   // This routine uses B) for faster execution time.
   TransposedSparseMatrix trmat(mat.rows(), mat.cols());
+  StorageIndex* outer = trmat.outerIndexPtr();
 
-  // scan triplets to determine allocation size before constructing matrix
+  // outer[j + 1] = number of triplets in vector j.
   Index nonZeros = 0;
   for (InputIterator it(begin); it != end; ++it) {
     eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
@@ -1186,28 +1187,31 @@ void set_from_triplets(const InputIterator& begin, const InputIterator& end, Spa
     eigen_assert(nonZeros < NumTraits<StorageIndex>::highest() &&
                  "non-zero count exceeds StorageIndex range, use a wider StorageIndex (e.g. int64_t)");
     if (nonZeros >= NumTraits<StorageIndex>::highest()) internal::throw_std_bad_alloc();
-    trmat.outerIndexPtr()[j + 1]++;
+    ++outer[j + 1];
     nonZeros++;
   }
 
-  std::partial_sum(trmat.outerIndexPtr(), trmat.outerIndexPtr() + trmat.outerSize() + 1, trmat.outerIndexPtr());
-  eigen_assert(nonZeros == trmat.outerIndexPtr()[trmat.outerSize()]);
+  // outer[j + 1] = start of vector j; pushing the triplets of vector j advances it to the start of vector j + 1.
+  StorageIndex start = 0;
+  for (Index j = 0; j < trmat.outerSize(); ++j) {
+    StorageIndex size = outer[j + 1];
+    outer[j + 1] = start;
+    start += size;
+  }
+  eigen_assert(start == nonZeros);
   trmat.resizeNonZeros(nonZeros);
 
-  // construct temporary array to track insertions (outersize) and collapse duplicates (innersize)
-  ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, numext::maxi(mat.innerSize(), mat.outerSize()), 0);
-  smart_copy(trmat.outerIndexPtr(), trmat.outerIndexPtr() + trmat.outerSize(), tmp);
-
-  // push triplets to back of each vector
+  StorageIndex* cursor = outer + 1;
+  StorageIndex* indices = trmat.innerIndexPtr();
+  Scalar* values = trmat.valuePtr();
   for (InputIterator it(begin); it != end; ++it) {
     StorageIndex j = convert_index<StorageIndex>(IsRowMajor ? it->col() : it->row());
-    StorageIndex i = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
-    StorageIndex k = tmp[j];
-    trmat.data().index(k) = i;
-    trmat.data().value(k) = it->value();
-    tmp[j]++;
+    StorageIndex pos = cursor[j]++;
+    indices[pos] = convert_index<StorageIndex>(IsRowMajor ? it->row() : it->col());
+    values[pos] = it->value();
   }
 
+  ei_declare_aligned_stack_constructed_variable(StorageIndex, tmp, trmat.innerSize(), 0);
   IndexMap wi(tmp, trmat.innerSize());
   trmat.collapseDuplicates(wi, dup_func);
   // implicit sorting
@@ -1331,6 +1335,100 @@ void insert_from_triplets_sorted(const InputIterator& begin, const InputIterator
   // the sparse assignment procedure creates a temporary matrix and swaps the final result
   assign_sparse_to_sparse<SparseMatrixType, SrcXprType>(mat, src);
 }
+
+// The two passes of the transposed copy in SparseMatrix::operator=: count(outer) adds the number of entries of each
+// destination vector i to outer[i + 1]; scatter(cursor, ...) appends entry (inner i, outer j) of the source to
+// destination vector i at cursor[i]++. This version reads any sparse expression through its evaluator.
+template <typename Src, bool HasStorage = has_compressed_access<Src>::value>
+class sparse_transposed_copy_source {
+ public:
+  explicit sparse_transposed_copy_source(const Src& src) : m_src(src), m_eval(src) {}
+
+  template <typename DstIndex>
+  void count(DstIndex* outer) const {
+    for (Index j = 0; j < m_src.outerSize(); ++j)
+      for (typename evaluator<Src>::InnerIterator it(m_eval, j); it; ++it) ++outer[it.index() + 1];
+  }
+
+  template <typename DstIndex, typename Scalar>
+  void scatter(DstIndex* cursor, DstIndex* indices, Scalar* values) const {
+    for (Index j = 0; j < m_src.outerSize(); ++j) {
+      for (typename evaluator<Src>::InnerIterator it(m_eval, j); it; ++it) {
+        DstIndex pos = cursor[it.index()]++;
+        // Converted per entry: an empty source vector may have an index beyond DstIndex.
+        indices[pos] = convert_index<DstIndex>(j);
+        values[pos] = it.value();
+      }
+    }
+  }
+
+ private:
+  const Src& m_src;
+  evaluator<Src> m_eval;
+};
+
+// Reads the storage arrays directly. A null innerNonZeroPtr() means the source is compressed: its entries are then
+// contiguous from outer[0] to outer[outerSize]. A SparseVector has no outer index array; its entries are
+// [0, nonZeros()).
+template <typename Src>
+class sparse_transposed_copy_source<Src, true> {
+ public:
+  explicit sparse_transposed_copy_source(const Src& src)
+      : m_outerSize(src.outerSize()),
+        m_outer(src.outerIndexPtr()),
+        m_innerNonZeros(src.innerNonZeroPtr()),
+        m_inner(src.innerIndexPtr()),
+        m_values(src.valuePtr()),
+        m_vectorNonZeros(m_outer == nullptr ? src.nonZeros() : 0) {}
+
+  template <typename DstIndex>
+  void count(DstIndex* outer) const {
+    if (m_outer == nullptr) {
+      count(outer, 0, m_vectorNonZeros);
+    } else if (m_innerNonZeros == nullptr) {
+      count(outer, m_outer[0], m_outer[m_outerSize]);
+    } else {
+      for (Index j = 0; j < m_outerSize; ++j) count(outer, m_outer[j], m_outer[j] + m_innerNonZeros[j]);
+    }
+  }
+
+  template <typename DstIndex, typename Scalar>
+  void scatter(DstIndex* cursor, DstIndex* indices, Scalar* values) const {
+    if (m_outer == nullptr) {
+      scatter(0, 0, m_vectorNonZeros, cursor, indices, values);
+      return;
+    }
+    for (Index j = 0; j < m_outerSize; ++j) {
+      Index end = m_innerNonZeros == nullptr ? m_outer[j + 1] : m_outer[j] + m_innerNonZeros[j];
+      scatter(j, m_outer[j], end, cursor, indices, values);
+    }
+  }
+
+ private:
+  template <typename DstIndex>
+  void count(DstIndex* outer, Index begin, Index end) const {
+    for (Index p = begin; p < end; ++p) ++outer[m_inner[p] + 1];
+  }
+
+  // Appends entries [begin, end) of source vector j.
+  template <typename DstIndex, typename Scalar>
+  void scatter(Index j, Index begin, Index end, DstIndex* cursor, DstIndex* indices, Scalar* values) const {
+    // Converted per entry: an empty source vector may have an index beyond DstIndex.
+    for (Index p = begin; p < end; ++p) {
+      DstIndex pos = cursor[m_inner[p]]++;
+      indices[pos] = convert_index<DstIndex>(j);
+      values[pos] = m_values[p];
+    }
+  }
+
+  using SrcIndex = typename Src::StorageIndex;
+  Index m_outerSize;
+  const SrcIndex* m_outer;
+  const SrcIndex* m_innerNonZeros;
+  const SrcIndex* m_inner;
+  const typename Src::Scalar* m_values;
+  Index m_vectorNonZeros;
+};
 
 }  // namespace internal
 
@@ -1588,39 +1686,27 @@ SparseMatrix<Scalar, Options_, StorageIndex_>::operator=(const SparseMatrixBase<
     using OtherCopy =
         typename internal::nested_eval<OtherDerived, 2, typename internal::plain_matrix_type<OtherDerived>::type>::type;
     using OtherCopy_ = internal::remove_all_t<OtherCopy>;
-    using OtherCopyEval = internal::evaluator<OtherCopy_>;
     OtherCopy otherCopy(other.derived());
-    OtherCopyEval otherCopyEval(otherCopy);
+    internal::sparse_transposed_copy_source<OtherCopy_> source(otherCopy);
 
     SparseMatrix dest(other.rows(), other.cols());
-    Eigen::Map<IndexVector>(dest.m_outerIndex, dest.outerSize()).setZero();
+    StorageIndex* outer = dest.m_outerIndex;
+    Index destOuterSize = dest.outerSize();
+    // The SparseMatrix constructor zeroes outer.
 
-    // pass 1
+    // outer[i + 1] = number of entries of destination vector i.
     // FIXME: merge the above copy into this pass to avoid iterating twice.
-    for (Index j = 0; j < otherCopy.outerSize(); ++j)
-      for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) ++dest.m_outerIndex[it.index()];
+    source.count(outer);
 
-    // prefix sum
+    // outer[i + 1] = start of vector i; placing the entries of vector i advances it to the start of vector i + 1.
     Index count = 0;
-    IndexVector positions(dest.outerSize());
-    for (Index j = 0; j < dest.outerSize(); ++j) {
-      StorageIndex tmp = dest.m_outerIndex[j];
-      dest.m_outerIndex[j] = internal::convert_index<StorageIndex>(count);
-      positions[j] = internal::convert_index<StorageIndex>(count);
-      count += tmp;
+    for (Index i = 0; i < destOuterSize; ++i) {
+      Index size = outer[i + 1];
+      outer[i + 1] = internal::convert_index<StorageIndex>(count);
+      count += size;
     }
-    dest.m_outerIndex[dest.outerSize()] = internal::convert_index<StorageIndex>(count);
-    // alloc
     dest.m_data.resize(count);
-    // pass 2
-    for (Index j = 0; j < otherCopy.outerSize(); ++j) {
-      for (typename OtherCopyEval::InnerIterator it(otherCopyEval, j); it; ++it) {
-        Index pos = internal::convert_index<Index>(positions.coeff(it.index()));
-        positions.coeffRef(it.index()) = internal::convert_index<StorageIndex>(pos + 1);
-        dest.m_data.index(pos) = internal::convert_index<StorageIndex>(j);
-        dest.m_data.value(pos) = it.value();
-      }
-    }
+    source.scatter(outer + 1, dest.m_data.indexPtr(), dest.m_data.valuePtr());
     this->swap(dest);
     return *this;
   } else {
