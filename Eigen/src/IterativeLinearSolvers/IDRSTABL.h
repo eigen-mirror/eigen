@@ -63,7 +63,8 @@ bool idrstabl(const MatrixType &mat, const Rhs &rhs, Dest &x, const Precondition
   const Index maxIters = iters;
 
   const RealScalar rhs_norm = rhs.stableNorm();
-  const RealScalar tol = tol_error * rhs_norm;
+  const RealScalar tol = internal::iterative_solver_threshold(tol_error, rhs_norm,
+                                                              internal::iterative_solver_residual_floor<RealScalar>());
 
   if (rhs_norm == 0) {
     /*
@@ -409,8 +410,10 @@ struct traits<IDRSTABL<MatrixType_, Preconditioner_>> {
  * By default the iterations start with x=0 as an initial guess of the solution.
  * One can control the start using the solveWithGuess() method.
  *
- * IDR(s)STAB(l) can also be used in a matrix-free context, see the following
- * \link MatrixfreeSolverExample example \endlink.
+ * Unlike most other solvers of this module, IDR(s)STAB(l) cannot be used in a matrix-free context: it forms the
+ * product \f$ R^T A \f$ of its shadow space with A, and for very small systems a dense copy of A, so MatrixType must
+ * be a dense or sparse matrix. IDRS, BiCGSTABL and BiCGSTAB work with the operator of the
+ * \link MatrixfreeSolverExample matrix-free example \endlink.
  *
  * \sa class SimplicialCholesky, DiagonalPreconditioner, IdentityPreconditioner
  */

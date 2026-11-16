@@ -25,6 +25,11 @@ void test_conjugate_gradient_T() {
   CALL_SUBTEST(check_sparse_spd_solving(cg_colmajor_loup_diag));
   CALL_SUBTEST(check_sparse_spd_solving(cg_colmajor_lower_I));
   CALL_SUBTEST(check_sparse_spd_solving(cg_colmajor_upper_I));
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(cg_colmajor_loup_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(cg_colmajor_lower_I));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(cg_colmajor_loup_diag));
 }
 
 // Regression for issue #1704: default-constructing an iterative solver
@@ -79,6 +84,16 @@ void test_solve_with_guess_in_place() {
   VERIFY((A * x2 - b).norm() <= 10 * cg.tolerance() * b.norm());
 }
 
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_conjugate_gradient_small_rhs() {
+  ConjugateGradient<SparseMatrix<double>, Lower | Upper, DiagonalPreconditioner<double>> solver_double;
+  ConjugateGradient<SparseMatrix<float>, Lower | Upper, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+  check_sparse_tiny_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_1((test_conjugate_gradient_T<double, int>()));
   CALL_SUBTEST_2((test_conjugate_gradient_T<std::complex<double>, int>()));
@@ -86,4 +101,7 @@ EIGEN_DECLARE_TEST(conjugate_gradient) {
   CALL_SUBTEST_4(test_default_construct_fixed_size<Matrix3d>());
   CALL_SUBTEST_5(test_conjugate_gradient_extreme_rhs<>());
   CALL_SUBTEST_6(test_solve_with_guess_in_place<>());
+  CALL_SUBTEST_5(test_conjugate_gradient_small_rhs<>());
+  CALL_SUBTEST_6(
+      (check_matrix_free_accessors<ConjugateGradient<MatrixFreeOperator, Lower | Upper, IdentityPreconditioner>>()));
 }

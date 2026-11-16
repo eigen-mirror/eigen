@@ -34,12 +34,65 @@ MatrixType random_orthonormal_basis(Index rows, Index cols) {
   return qr.householderQ() * MatrixType::Identity(rows, cols);
 }
 
+// The more severe of two solver statuses: NumericalIssue, then NoConvergence, then Success. The enumerators are not
+// ordered by severity.
+inline ComputationInfo most_severe_info(ComputationInfo a, ComputationInfo b) {
+  if (a == NumericalIssue || b == NumericalIssue) return NumericalIssue;
+  if (a == NoConvergence || b == NoConvergence) return NoConvergence;
+  return a == Success ? b : a;
+}
+
 template <typename RealScalar>
 EIGEN_DEVICE_FUNC RealScalar iterative_solver_scaling_factor(RealScalar norm) {
-  // Scale only when forming a quadratic recurrence term from norm may underflow or overflow.
+  // Scale only when forming a quadratic recurrence term from norm, or from the eps norm that a solver can reduce it
+  // to, may underflow or overflow. A square below the smallest normal number is subnormal, which loses precision, and
+  // is flushed to 0 where subnormals are not supported (float NEON on ARMv7).
   const RealScalar sqrtMin = numext::sqrt((std::numeric_limits<RealScalar>::min)());
   const RealScalar sqrtMax = numext::sqrt((std::numeric_limits<RealScalar>::max)());
-  return norm < sqrtMin || norm > sqrtMax ? norm : RealScalar(1);
+  return norm < sqrtMin / NumTraits<RealScalar>::epsilon() || norm > sqrtMax ? norm : RealScalar(1);
+}
+
+/** \internal Calls \a solve(b, x) on the problem scaled to a right-hand side of unit norm, \a solve(b / s, x / s), and
+ * scales x back, when iterative_solver_scaling_factor() of |b| is not 1: for a small |b| the products and squares of
+ * residual-sized quantities that a Krylov method forms (inner products, squared norms) are subnormal, which loses
+ * precision, and are flushed to 0 by float NEON on ARMv7. A x = b is equivalent to A (x / s) = b / s, and the
+ * tolerances of the solvers are relative. The problem is left unscaled when b is zero or not finite, or when the scaled
+ * guess is not finite. \a solve must accept a dense vector for b and x, and returns the result of the solver. */
+template <typename Rhs, typename Dest, typename Solve>
+auto iterative_solver_on_scaled_problem(const Rhs& b, Dest& x, Solve solve) -> decltype(solve(b, x)) {
+  using RealScalar = typename Dest::RealScalar;
+  using VectorType = Matrix<typename Dest::Scalar, Dynamic, 1>;
+  const RealScalar normb = b.stableNorm();
+  if (normb > RealScalar(0) && (numext::isfinite)(normb)) {
+    const RealScalar scale = iterative_solver_scaling_factor(normb);
+    if (scale != RealScalar(1)) {
+      VectorType scaledGuess = x / scale;
+      if (scaledGuess.allFinite()) {
+        const VectorType scaledRhs = b / scale;
+        const auto ret = solve(scaledRhs, scaledGuess);
+        x = scaledGuess * scale;
+        return ret;
+      }
+    }
+  }
+  return solve(b, x);
+}
+
+// The least residual norm that a stopping rule can ask for. Recurrences that form squares of residual norms underflow
+// below it, so a tolerance of 0 ("iterate until the residual vanishes") must stop here, not at the first denormal.
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC RealScalar iterative_solver_residual_floor() {
+  return numext::sqrt((std::numeric_limits<RealScalar>::min)());
+}
+
+// The stopping threshold tol |b| for the residual, raised to min(floor, eps |b|). The raise exists only so that a
+// tolerance of 0, or below what the recurrences can resolve, stops where the residual underflows instead of dividing by
+// zero. It never exceeds eps |b|, which a solver cannot reach anyway, so it leaves every tolerance tol >= eps unchanged
+// whatever the size of b, where an absolute floor would exceed tol |b| for small |b| (|b| < 1e-12 in float at the
+// default tolerance).
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC RealScalar iterative_solver_threshold(RealScalar tol, RealScalar norm, RealScalar floor) {
+  return numext::maxi(RealScalar(tol * norm), numext::mini(floor, RealScalar(NumTraits<RealScalar>::epsilon() * norm)));
 }
 
 template <typename MatrixType, bool MatrixFree = !internal::is_ref_compatible<MatrixType>::value>
@@ -64,6 +117,8 @@ class generic_matrix_wrapper<MatrixType, false> {
   generic_matrix_wrapper(const InputType& mat) : m_matrix(mat) {}
 
   const ActualMatrixType& matrix() const { return m_matrix; }
+
+  bool hasMatrix() const { return true; }
 
   template <typename MatrixDerived>
   void grab(const EigenBase<MatrixDerived>& mat) {
@@ -100,6 +155,9 @@ class generic_matrix_wrapper<MatrixType, true> {
   generic_matrix_wrapper(const MatrixType& mat) : mp_matrix(&mat) {}
 
   const ActualMatrixType& matrix() const { return *mp_matrix; }
+
+  // False until compute(): a matrix-free operator has nothing to dereference before it is attached.
+  bool hasMatrix() const { return mp_matrix != nullptr; }
 
   void grab(const MatrixType& mat) { mp_matrix = &mat; }
 
@@ -226,7 +284,10 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
    * documents instead; LeastSquaresConjugateGradient bounds the normal-equation residual |A'(Ax-b)|/|A'b|, and
    * LSMR bounds |A'(Ax-b)|/(|A| |Ax-b|).
    * The default value is the machine precision given by NumTraits<Scalar>::epsilon(), unless the solver documents
-   * another; IDRS derives its default from the size of the matrix.
+   * another; with this default, IDRS and MINRES also report Success up to \f$ 8 \sqrt{n}\, \epsilon \f$ for an n x n
+   * matrix, see MINRES::tolerance().
+   * A tolerance of 0 asks for iterating until the residual vanishes or maxIterations() is reached. The solvers stop
+   * earlier when it underflows or the Krylov space is exhausted, and return a finite solution.
    */
   Derived& setTolerance(const RealScalar& tolerance) {
     m_tolerance = tolerance;
@@ -241,9 +302,9 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
 
   /** \returns the max number of iterations.
    * It is either the value set by setMaxIterations or, by default,
-   * twice the number of columns of the matrix.
+   * twice the number of columns of the matrix, which is 0 for a matrix-free operator not yet attached by compute().
    */
-  Index maxIterations() const { return (m_maxIterations < 0) ? 2 * matrix().cols() : m_maxIterations; }
+  Index maxIterations() const { return (m_maxIterations < 0) ? 2 * attachedCols() : m_maxIterations; }
 
   /** Sets the max number of iterations.
    * Default is twice the number of columns of the matrix.
@@ -300,7 +361,10 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
     derived()._solve_vector_with_guess_impl(b, x);
   }
 
-  /** \returns Success if the iterations converged, and NoConvergence otherwise. */
+  /** \returns Success if the iterations converged, NumericalIssue if the solver broke down, and NoConvergence
+   * otherwise. With several right-hand sides, it is the most severe status over the columns: NumericalIssue if any
+   * column broke down, else NoConvergence if any did not converge, else Success. iterations() and error() then
+   * describe the last column. */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "IterativeSolverBase is not initialized.");
     return m_info;
@@ -328,12 +392,8 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
       derived()._solve_vector_with_guess_impl(tb, tx);
       tmp.col(k) = tx.sparseView(0);
 
-      // The call to _solve_vector_with_guess_impl updates m_info, so if it failed for a previous column
-      // we need to restore it to the worst value.
-      if (m_info == NumericalIssue)
-        global_info = NumericalIssue;
-      else if (m_info == NoConvergence)
-        global_info = NoConvergence;
+      // The call to _solve_vector_with_guess_impl updates m_info, so keep the most severe status over the columns.
+      global_info = internal::most_severe_info(global_info, m_info);
     }
     m_info = global_info;
     dest.swap(tmp);
@@ -352,12 +412,8 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
       typename Rhs::ConstColXpr bk(b, k);
       derived()._solve_vector_with_guess_impl(bk, xk);
 
-      // The call to _solve_vector_with_guess_impl updates m_info, so if it failed for a previous column
-      // we need to restore it to the worst value.
-      if (m_info == NumericalIssue)
-        global_info = NumericalIssue;
-      else if (m_info == NoConvergence)
-        global_info = NoConvergence;
+      // The call to _solve_vector_with_guess_impl updates m_info, so keep the most severe status over the columns.
+      global_info = internal::most_severe_info(global_info, m_info);
     }
     m_info = global_info;
   }
@@ -388,6 +444,31 @@ class IterativeSolverBase : public SparseSolverBase<Derived> {
   using ActualMatrixType = typename MatrixWrapper::ActualMatrixType;
 
   const ActualMatrixType& matrix() const { return m_matrixWrapper.matrix(); }
+
+  /** \internal The number of columns of the matrix, or 0 while a matrix-free operator is not attached yet. */
+  Index attachedCols() const { return m_matrixWrapper.hasMatrix() ? matrix().cols() : Index(0); }
+
+  /** \internal 8 sqrt(max(n, 1)) eps with n = attachedCols(): the residual up to which IDRS and MINRES report Success
+   * at their default tolerance. */
+  RealScalar sizeScaledTolerance() const {
+    return RealScalar(8) * numext::sqrt(RealScalar(numext::maxi(attachedCols(), Index(1)))) *
+           NumTraits<RealScalar>::epsilon();
+  }
+
+  /** \internal The tolerance of a solver whose default is selected by a negative stored tolerance: the stored one, or
+   * eps by default. The solver sets m_tolerance = -1 in its constructors. */
+  RealScalar toleranceOrEps() const {
+    return m_tolerance >= RealScalar(0) ? m_tolerance : NumTraits<RealScalar>::epsilon();
+  }
+
+  /** \internal The status of a solve that ended with the computed relative residual \a error for the tolerance \a tol
+   * of toleranceOrEps(). The residual of the computed x stagnates above eps by an amount that depends on the matrix,
+   * so at the default tolerance only, Success also covers sizeScaledTolerance(). A tolerance set by setTolerance() is
+   * never relaxed. \a error must be the computed |b - A x| / |b|. */
+  ComputationInfo infoAtDefaultOrSetTolerance(RealScalar error, RealScalar tol) const {
+    const bool confirmed = error <= tol || (m_tolerance < RealScalar(0) && error <= sizeScaledTolerance());
+    return confirmed ? Success : NoConvergence;
+  }
 
   template <typename InputType>
   void grab(const InputType& A) {

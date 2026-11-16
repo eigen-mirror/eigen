@@ -43,7 +43,7 @@ namespace internal {
  * \param mat       The matrix A.
  * \param rhs       The right hand side vector b.
  * \param x         On input the initial guess x0 (usually zero), on output the
- *                  computed solution.
+ *                  computed solution. With lambda > 0 the guess is not used.
  * \param precond   A preconditioner.  It is applied as a self-adjoint right
  *                  preconditioner: LSMR is run on the better-conditioned system
  *                  \f$ A M^{-1} z = b \f$ (where \c precond.solve() applies
@@ -91,6 +91,12 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
   // n-vectors needed before the early-return below. u is the only m-vector.
   VectorType v(n), Atu(n);
 
+  // The damped bidiagonalization below starts from (b - A x0; 0), which is the stacked residual of
+  // min ||A x - b||^2 + lambda^2 ||x - x0||^2 rather than of the documented problem, whose stacked residual
+  // (b - A x0; -lambda x0) would need M x0 as well. The damped minimizer is unique and does not depend on x0, so
+  // start from zero.
+  if (lambda > zero) x.setZero();
+
   // Set up the first vectors u and v for the bidiagonalization. These satisfy
   // beta*u = b - A*x0  and  alpha*v = M^{-1} A^T u.
   VectorType u = rhs - mat * x;  // working residual r0 of the initial guess
@@ -110,6 +116,12 @@ EIGEN_DONT_INLINE Index lsmr(const MatrixType& mat, const Rhs& rhs, Dest& x, con
   if (alpha * beta == zero) {
     tol_error = zero;
     return 0;  // istop = 0
+  }
+
+  if (maxIters <= 0) {
+    // No iteration is allowed: x is returned as given, with no reduction of ||A^T r|| / (||A|| ||r||) to report.
+    tol_error = one;
+    return 7;
   }
 
   // dx accumulates the correction (in z-space when a preconditioner is used).
@@ -339,7 +351,7 @@ struct traits<LSMR<MatrixType_, Preconditioner_> > {
    \endcode
  *
  * By default the iterations start with x=0 as an initial guess of the solution.
- * One can control the start using the solveWithGuess() method.
+ * One can control the start using the solveWithGuess() method, except with damping, which ignores the guess.
  *
  * If a non-default preconditioner is supplied it is applied as a self-adjoint
  * right preconditioner (LSMR is run on \f$ A M^{-1} z = b \f$ and the solution
@@ -388,6 +400,9 @@ class LSMR : public IterativeSolverBase<LSMR<MatrixType_, Preconditioner_> > {
    * applies in the preconditioned variable, i.e. the solver minimizes
    * \f$ ||Ax-b||^2 + \lambda^2 ||Mx||^2 \f$. With the default
    * IdentityPreconditioner this is exactly \f$ ||Ax-b||^2 + \lambda^2 ||x||^2 \f$.
+   *
+   * \note With \a lambda > 0 the minimizer is unique, so an initial guess passed to solveWithGuess() does not change
+   * it. It is not used either: the solver starts from x = 0.
    */
   LSMR& setDamping(const RealScalar& lambda) {
     m_lambda = lambda;

@@ -19,6 +19,11 @@ void test_idrs_T() {
 
   CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_diag));
   CALL_SUBTEST(check_sparse_square_solving(idrs_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(idrs_colmajor_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(idrs_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(idrs_colmajor_diag));
 }
 
 // Residual smoothing used to scale its line search by |t| instead of |t|^2 and diverged.
@@ -115,12 +120,17 @@ void test_idrs_default_tolerance() {
   const MatrixType A = MatrixType::Identity(n, n) + RealScalar(0.1) * MatrixType::Random(n, n);
   IDRS<MatrixType, IdentityPreconditioner> solver(A);
   const RealScalar eps = NumTraits<RealScalar>::epsilon();
-  VERIFY_IS_EQUAL(solver.tolerance(), RealScalar(8) * numext::sqrt(RealScalar(n)) * eps);
+  const RealScalar confirmable = RealScalar(8) * numext::sqrt(RealScalar(n)) * eps;
+  VERIFY_IS_EQUAL(solver.tolerance(), eps);
 
   const VectorType b = VectorType::Random(n);
   VectorType x = solver.solve(b);
   VERIFY_IS_EQUAL(solver.info(), Success);
-  VERIFY_LE((b - A * x).norm(), RealScalar(2) * solver.tolerance() * b.norm());
+  VERIFY_LE((b - A * x).norm(), RealScalar(2) * confirmable * b.norm());
+
+  // A negative tolerance selects the default, see MINRES::tolerance().
+  solver.setTolerance(RealScalar(-1));
+  VERIFY_IS_EQUAL(solver.tolerance(), eps);
 
   solver.setTolerance(RealScalar(1e3) * eps);
   VERIFY_IS_EQUAL(solver.tolerance(), RealScalar(1e3) * eps);
@@ -131,6 +141,143 @@ void test_idrs_default_tolerance() {
   x = solver.solve(bnan);
   VERIFY(solver.info() != Success);
   VERIFY_IS_EQUAL(solver.iterations(), 0);
+}
+
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_idrs_small_rhs() {
+  IDRS<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  IDRS<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+  check_sparse_tiny_rhs(solver_float);
+}
+
+// The default tolerance is eps, so that a well-conditioned system is solved to the accuracy of the arithmetic: for
+// tridiag(-1, 4, -1) and x = 1 in float, a default of 8 sqrt(n) eps stopped at a forward error of 3e-5 for n = 10000,
+// and eps gives 3e-8.
+template <typename = void>
+void test_idrs_default_accuracy() {
+  using SpMat = SparseMatrix<float>;
+  const float eps = NumTraits<float>::epsilon();
+  for (Index n : {40, 10000}) {
+    std::vector<Triplet<float>> triplets;
+    for (Index i = 0; i < n; ++i) {
+      triplets.emplace_back(i, i, 4.0f);
+      if (i + 1 < n) {
+        triplets.emplace_back(i, i + 1, -1.0f);
+        triplets.emplace_back(i + 1, i, -1.0f);
+      }
+    }
+    SpMat A(n, n);
+    A.setFromTriplets(triplets.begin(), triplets.end());
+    const VectorXf ones = VectorXf::Ones(n);
+    const VectorXf b = A * ones;
+    IDRS<SpMat, DiagonalPreconditioner<float>> solver(A);
+    VERIFY_IS_EQUAL(solver.tolerance(), eps);
+    const VectorXf x = solver.solve(b);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_LE((x - ones).norm() / ones.norm(), 10 * eps);
+  }
+}
+
+// On D T D for T = tridiag(-1, 4, -1) and D spread over 10^4, without a preconditioner, the recurrence residual of IDRS
+// drifts from b - A x, and a solve that ended at maxIterations() reported the recurrence residual: error() was up to
+// 10^4 times too small (about one solve in seven had it off by more than a factor of 2). error() is now the computed
+// |b - A x| / |b| at every exit but a breakdown.
+template <typename = void>
+void test_idrs_final_residual() {
+  using SpMat = SparseMatrix<double>;
+  const Index n = 120;
+  VectorXd d(n);
+  for (Index i = 0; i < n; ++i) d(i) = std::pow(1e4, double((i * 7) % 9) / 8.0 - 0.5);
+  std::vector<Triplet<double>> triplets;
+  for (Index i = 0; i < n; ++i) {
+    triplets.emplace_back(i, i, d(i) * d(i) * 4);
+    if (i + 1 < n) {
+      triplets.emplace_back(i, i + 1, -d(i) * d(i + 1));
+      triplets.emplace_back(i + 1, i, -d(i) * d(i + 1));
+    }
+  }
+  SpMat A(n, n);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  for (int trial = 0; trial < 20; ++trial) {
+    const VectorXd b = VectorXd::Random(n);
+    for (Index maxit : {60, 80, 100}) {
+      IDRS<SpMat, IdentityPreconditioner> solver(A);
+      solver.setTolerance(1e-14);
+      solver.setMaxIterations(maxit);
+      const VectorXd x = solver.solve(b);
+      if (solver.info() == NumericalIssue) continue;  // a breakdown leaves error() at the tolerance
+      const double res = (b - A * x).norm() / b.norm();
+      VERIFY_LE(numext::abs(solver.error() - res), res / 2);
+    }
+  }
+}
+
+// The 5-point Laplacian on an m x m grid.
+template <typename SpMat>
+SpMat idrs_poisson2d(Index m) {
+  std::vector<Triplet<double>> triplets;
+  for (Index i = 0; i < m; ++i) {
+    for (Index j = 0; j < m; ++j) {
+      const Index k = i * m + j;
+      triplets.emplace_back(k, k, 4.0);
+      if (j + 1 < m) triplets.emplace_back(k, k + 1, -1.0);
+      if (j > 0) triplets.emplace_back(k, k - 1, -1.0);
+      if (i + 1 < m) triplets.emplace_back(k, k + m, -1.0);
+      if (i > 0) triplets.emplace_back(k, k - m, -1.0);
+    }
+  }
+  SpMat A(m * m, m * m);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  return A;
+}
+
+// A tolerance of eps is below the rounding error of b - A x on this matrix. IDRS used to restart after every failed
+// confirmation until maxIterations() = 2 n (1800 iterations for m = 30, against about 25 that suffice). It now stops
+// when a failed confirmation comes 5 iterations after |b - A x| last halved, and error() is the computed
+// |b - A x| / |b| whichever way it ends. A tolerance set by the caller is not relaxed: Success exactly when it is met.
+template <typename = void>
+void test_idrs_stagnation() {
+  using SpMat = SparseMatrix<double>;
+  const double eps = NumTraits<double>::epsilon();
+  for (Index m : {30, 40}) {
+    const SpMat A = idrs_poisson2d<SpMat>(m);
+    const Index n = A.rows();
+    const VectorXd b = VectorXd::Random(n);
+    IDRS<SpMat, DiagonalPreconditioner<double>> solver(A);
+    solver.setTolerance(eps);
+    const VectorXd x = solver.solve(b);
+    VERIFY(x.allFinite());
+    VERIFY_LE(solver.iterations(), 5 * m);
+    const double res = (b - A * x).norm() / b.norm();
+    VERIFY_LE(res, double(n) * eps);
+    VERIFY_LE(numext::abs(solver.error() - res), res / 2 + eps);
+    VERIFY_IS_EQUAL(solver.info(), solver.error() <= eps ? Success : NoConvergence);
+  }
+
+  // The default tolerance is eps too. The residual stagnates above it, and IDRS returns Success there as it is at most
+  // 8 sqrt(n) eps. That error() exceeds eps, which proves that the relaxed branch ran, holds for almost every solve but
+  // not for all (a solve confirms eps in about one of a few thousand for m = 40, and in 3% for m = 25), so it is
+  // required of at least one of four.
+  const Index m = 40;
+  const SpMat A = idrs_poisson2d<SpMat>(m);
+  const Index n = A.rows();
+  const double confirmable = 8 * numext::sqrt(double(n)) * eps;
+  bool relaxed = false;
+  for (int trial = 0; trial < 4; ++trial) {
+    const VectorXd b = VectorXd::Random(n);
+    IDRS<SpMat, DiagonalPreconditioner<double>> solver(A);
+    const VectorXd x = solver.solve(b);
+    VERIFY_IS_EQUAL(solver.tolerance(), eps);
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_LE(solver.error(), confirmable);
+    VERIFY_LE(solver.iterations(), 5 * m);
+    VERIFY_LE((b - A * x).norm(), 2 * confirmable * b.norm());
+    relaxed |= solver.error() > eps;
+  }
+  VERIFY(relaxed);
 }
 
 EIGEN_DECLARE_TEST(idrs) {
@@ -144,4 +291,9 @@ EIGEN_DECLARE_TEST(idrs) {
   CALL_SUBTEST_2(test_idrs_true_residual<std::complex<double> >());
   CALL_SUBTEST_1(test_idrs_default_tolerance<double>());
   CALL_SUBTEST_2(test_idrs_default_tolerance<std::complex<double> >());
+  CALL_SUBTEST_1(test_idrs_small_rhs<>());
+  CALL_SUBTEST_1(test_idrs_stagnation<>());
+  CALL_SUBTEST_1(test_idrs_final_residual<>());
+  CALL_SUBTEST_1(test_idrs_default_accuracy<>());
+  CALL_SUBTEST_1((check_matrix_free_accessors<IDRS<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

@@ -23,6 +23,11 @@ void test_gmres_T() {
   //   CALL_SUBTEST( check_sparse_square_solving(gmres_colmajor_I)     );
   CALL_SUBTEST(check_sparse_square_solving(gmres_colmajor_ilut));
   // CALL_SUBTEST( check_sparse_square_solving(gmres_colmajor_ssor)     );
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(gmres_colmajor_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(gmres_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(gmres_colmajor_diag));
 }
 
 template <typename = void>
@@ -92,10 +97,55 @@ void test_zero_rhs() {
   VERIFY_IS_EQUAL(solver.error(), 0.0);
 }
 
+// The iteration limit is honored, including 0: GMRES used to test iters == maxIters only after incrementing, so 0 never
+// matched. It ran to convergence, and with an unreachable tolerance restarted forever.
+template <typename = void>
+void test_gmres_max_iterations() {
+  const Index n = 60;
+  SparseMatrix<double> A(n, n);
+  for (Index i = 0; i < n; ++i) {
+    A.insert(i, i) = 4.0 + double(i % 7);
+    if (i > 0) A.insert(i, i - 1) = -0.5;
+    if (i + 1 < n) A.insert(i, i + 1) = 1.0;
+  }
+  const VectorXd b = VectorXd::LinSpaced(n, 1.0, 2.0);
+  const VectorXd guess = VectorXd::Constant(n, 0.25);
+  for (double tol : {NumTraits<double>::epsilon(), 0.0}) {
+    for (Index maxit : {0, 1, 2, 5}) {
+      GMRES<SparseMatrix<double>> solver(A);
+      solver.set_restart(10);
+      solver.setTolerance(tol);
+      solver.setMaxIterations(maxit);
+      VectorXd x = solver.solve(b);
+      VERIFY(x.allFinite());
+      VERIFY_LE(solver.iterations(), maxit);
+      VERIFY_IS_EQUAL(solver.info(), NoConvergence);
+      if (maxit == 0) {
+        VERIFY(x.isZero());
+        x = solver.solveWithGuess(b, guess);
+        VERIFY_IS_EQUAL(solver.iterations(), Index(0));
+        VERIFY_IS_EQUAL(x, guess);
+      }
+    }
+  }
+}
+
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_gmres_small_rhs() {
+  GMRES<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  GMRES<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(gmres) {
   CALL_SUBTEST_1(test_gmres_T<double>());
   CALL_SUBTEST_2(test_gmres_T<std::complex<double> >());
   CALL_SUBTEST_3(test_gmres_solve_with_guess_tolerance<>());
   CALL_SUBTEST_4(test_gmres_large_restart<>());
   CALL_SUBTEST_4(test_zero_rhs());
+  CALL_SUBTEST_4(test_gmres_max_iterations<>());
+  CALL_SUBTEST_4(test_gmres_small_rhs<>());
+  CALL_SUBTEST_4((check_matrix_free_accessors<GMRES<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

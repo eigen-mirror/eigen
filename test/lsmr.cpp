@@ -27,6 +27,11 @@ void test_lsmr_T() {
 
   CALL_SUBTEST(check_sparse_square_solving(lsmr_rowmajor_I));
   CALL_SUBTEST(check_sparse_leastsquare_solving(lsmr_rowmajor_diag));
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(lsmr_colmajor_I));
+  CALL_SUBTEST(check_sparse_zero_tolerance(lsmr_colmajor_diag));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(lsmr_colmajor_I));
 }
 
 // LSMR on dense, rectangular, overdetermined problems: the solution must match
@@ -135,7 +140,8 @@ void test_lsmr_minnorm() {
 // With damping lambda > 0 LSMR solves the regularized problem
 //   min ||Ax-b||^2 + lambda^2 ||x||^2,
 // whose solution satisfies the (well-conditioned) normal equation
-//   (A^T A + lambda^2 I) x = A^T b.
+//   (A^T A + lambda^2 I) x = A^T b,
+// from any initial guess.
 template <typename T>
 void test_lsmr_damping() {
   using RealScalar = typename NumTraits<T>::Real;
@@ -158,6 +164,14 @@ void test_lsmr_damping() {
     DenseMatrix normalMat = A.adjoint() * A + (lambda * lambda) * DenseMatrix::Identity(cols, cols);
     DenseVector xref = normalMat.ldlt().solve(A.adjoint() * b);
     VERIFY_IS_APPROX(x, xref);
+
+    // The damped minimizer is unique, so it does not depend on the initial guess. solveWithGuess() used to return the
+    // minimizer of ||Ax-b||^2 + lambda^2 ||x-x0||^2 instead.
+    for (const DenseVector& guess : {DenseVector(DenseVector::Random(cols) * RealScalar(3)), DenseVector(xref)}) {
+      x = lsmr.solveWithGuess(b, guess);
+      VERIFY_IS_EQUAL(lsmr.info(), Success);
+      VERIFY_IS_APPROX(x, xref);
+    }
   }
 }
 
@@ -231,6 +245,40 @@ void test_lsmr_tolerances() {
   }
 }
 
+// The iteration limit is honored, including 0: LSMR used to perform one iteration before testing it.
+template <typename T>
+void test_lsmr_max_iterations() {
+  using DenseMatrix = Matrix<T, Dynamic, Dynamic>;
+  using DenseVector = Matrix<T, Dynamic, 1>;
+  const Index rows = 30, cols = 12;
+  const DenseMatrix A = DenseMatrix::Random(rows, cols);
+  const DenseVector b = DenseVector::Random(rows);
+  const DenseVector guess = DenseVector::Random(cols);
+  for (Index maxit : {0, 1, 2}) {
+    LSMR<DenseMatrix> lsmr(A);
+    lsmr.setMaxIterations(maxit);
+    DenseVector x = lsmr.solve(b);
+    VERIFY(x.allFinite());
+    VERIFY_LE(lsmr.iterations(), maxit);
+    VERIFY_IS_EQUAL(lsmr.info(), NoConvergence);
+    if (maxit == 0) {
+      VERIFY(x.isZero());
+      x = lsmr.solveWithGuess(b, guess);
+      VERIFY_IS_EQUAL(lsmr.iterations(), Index(0));
+      VERIFY_IS_EQUAL(x, guess);
+    }
+  }
+}
+
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_lsmr_small_rhs() {
+  LSMR<SparseMatrix<double>> solver_double;
+  LSMR<SparseMatrix<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(lsmr) {
   CALL_SUBTEST_1(test_lsmr_T<double>());
   CALL_SUBTEST_2(test_lsmr_T<std::complex<double> >());
@@ -243,4 +291,8 @@ EIGEN_DECLARE_TEST(lsmr) {
   CALL_SUBTEST_9(test_lsmr_minnorm<std::complex<double> >());
   CALL_SUBTEST_10(test_lsmr_guess<double>());
   CALL_SUBTEST_11(test_lsmr_tolerances<double>());
+  CALL_SUBTEST_12(test_lsmr_max_iterations<double>());
+  CALL_SUBTEST_12(test_lsmr_max_iterations<std::complex<double>>());
+  CALL_SUBTEST_12(test_lsmr_small_rhs<>());
+  CALL_SUBTEST_12((check_matrix_free_accessors<LSMR<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

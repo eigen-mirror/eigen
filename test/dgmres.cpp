@@ -23,6 +23,11 @@ void test_dgmres_T() {
   //   CALL_SUBTEST( check_sparse_square_solving(dgmres_colmajor_I)     );
   CALL_SUBTEST(check_sparse_square_solving(dgmres_colmajor_ilut));
   // CALL_SUBTEST( check_sparse_square_solving(dgmres_colmajor_ssor)     );
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(dgmres_colmajor_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(dgmres_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(dgmres_colmajor_diag));
 }
 
 // Regression: Arnoldi breakdown used to divide by zero (producing NaN in the
@@ -141,6 +146,57 @@ void test_dgmres_iterations_T() {
     xs = stalled.solve(Vec::Zero(m));
     VERIFY(xs.isZero());
     VERIFY_IS_EQUAL(stalled.info(), Success);
+  }
+}
+
+// With several right-hand sides, info() is the most severe status over the columns: NumericalIssue, then
+// NoConvergence, then Success. It used to be overwritten by whichever of NumericalIssue and NoConvergence came last.
+template <typename T>
+void test_dgmres_multi_rhs_info() {
+  using Mat = SparseMatrix<T>;
+  using DenseMat = Matrix<T, Dynamic, Dynamic>;
+  // A nilpotent block, for which b = e0 breaks down (NumericalIssue), and a general 2 x 2 block, for which b = (0, 0,
+  // 1, 1/2) needs two iterations, so it stops short with the one iteration allowed below (NoConvergence).
+  Mat A(4, 4);
+  A.insert(0, 1) = T(1);
+  A.insert(2, 2) = T(2);
+  A.insert(2, 3) = T(1);
+  A.insert(3, 2) = T(-1);
+  A.insert(3, 3) = T(3);
+  A.makeCompressed();
+  DenseMat cols = DenseMat::Zero(4, 3);  // column 0: Success (b = 0), 1: NoConvergence, 2: NumericalIssue
+  cols(2, 1) = T(1);
+  cols(3, 1) = T(0.5);
+  cols(0, 2) = T(1);
+  const ComputationInfo expected[3] = {Success, NoConvergence, NumericalIssue};
+
+  DGMRES<Mat, IdentityPreconditioner> solver;
+  solver.setMaxIterations(1);
+  solver.setTolerance(1e-14);
+  solver.compute(A);
+  for (int c = 0; c < 3; ++c) {
+    solver.solve(cols.col(c)).eval();
+    VERIFY_IS_EQUAL(solver.info(), expected[c]);
+  }
+
+  // Every ordered choice of two or three of the columns, in dense and sparse destinations.
+  const int orders[][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+  for (const auto& order : orders) {
+    for (int count = 2; count <= 3; ++count) {
+      DenseMat B(4, count);
+      ComputationInfo worst = Success;
+      for (int j = 0; j < count; ++j) {
+        B.col(j) = cols.col(order[j]);
+        // The enumerators are not ordered by severity.
+        if (expected[order[j]] == NumericalIssue || (expected[order[j]] == NoConvergence && worst == Success))
+          worst = expected[order[j]];
+      }
+      const DenseMat X = solver.solve(B);
+      VERIFY(X.allFinite());
+      VERIFY_IS_EQUAL(solver.info(), worst);
+      const Mat Xs = solver.solve(B.sparseView());
+      VERIFY_IS_EQUAL(solver.info(), worst);
+    }
   }
 }
 
@@ -289,6 +345,15 @@ void test_dgmres_deflation_small() {
   VERIFY_IS_APPROX(A * x, b);
 }
 
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_dgmres_small_rhs() {
+  DGMRES<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  DGMRES<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_1(test_dgmres_T<double>());
   CALL_SUBTEST_2(test_dgmres_T<std::complex<double> >());
@@ -297,6 +362,8 @@ EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_5(test_dgmres_iterations_T<double>());
   CALL_SUBTEST_6(test_dgmres_iterations_T<std::complex<double> >());
   CALL_SUBTEST_6(test_dgmres_complex_arnoldi<>());
+  CALL_SUBTEST_9(test_dgmres_multi_rhs_info<double>());
+  CALL_SUBTEST_9(test_dgmres_multi_rhs_info<std::complex<double>>());
   CALL_SUBTEST_7((test_dgmres_deflation<double, IdentityPreconditioner>(0.0)));
   CALL_SUBTEST_7((test_dgmres_deflation<double, DiagonalPreconditioner<double> >(0.0)));
   CALL_SUBTEST_7(test_dgmres_deflation_conjugate_pair<>());
@@ -304,4 +371,6 @@ EIGEN_DECLARE_TEST(dgmres) {
   CALL_SUBTEST_8((test_dgmres_deflation<std::complex<double>, IdentityPreconditioner>(std::complex<double>(0, 1))));
   CALL_SUBTEST_8((test_dgmres_deflation<std::complex<double>, DiagonalPreconditioner<std::complex<double> > >(
       std::complex<double>(0, 1))));
+  CALL_SUBTEST_9(test_dgmres_small_rhs<>());
+  CALL_SUBTEST_9((check_matrix_free_accessors<DGMRES<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

@@ -55,9 +55,9 @@ typename Vector::Scalar omega(const Vector& t, const Vector& s, RealScalar angle
 }
 
 template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
-bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& precond, Index& iter,
-          typename Dest::RealScalar& relres, Index S, bool smoothing, typename Dest::RealScalar angle,
-          bool replacement) {
+bool idrs_unscaled(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& precond, Index& iter,
+                   typename Dest::RealScalar& relres, Index S, bool smoothing, typename Dest::RealScalar angle,
+                   bool replacement) {
   using RealScalar = typename Dest::RealScalar;
   using Scalar = typename Dest::Scalar;
   using VectorType = Matrix<Scalar, Dynamic, 1>;
@@ -95,7 +95,9 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   const RealScalar mp = RealScalar(1e3) * NumTraits<Scalar>::epsilon();
 
   // Compute initial residual
-  const RealScalar tolb = tol * normb;  // Relative tolerance
+  // Relative tolerance, at least the residual floor so that tol = 0 stops at a vanishing residual
+  const RealScalar tolb =
+      internal::iterative_solver_threshold(tol, normb, internal::iterative_solver_residual_floor<RealScalar>());
   VectorType r = b - A * x;
 
   VectorType x_s, r_s;
@@ -129,8 +131,15 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   // r and x follow separate recurrences, and A U(:,k) = G(:,k) holds only up to the rounding error of the
   // bi-orthogonalization, which grows with cond(A) and with the cancellation in G(:,k). The recurrence residual can
   // then fall below the tolerance while b - A x does not. Accept convergence only when b - A x confirms it, and restart
-  // from the current iterate otherwise. A restart counts as an iteration, which bounds their number. A residual that is
-  // not finite ends the iteration, and the caller reports NoConvergence.
+  // from the current iterate otherwise, unless no iteration is left. A restart counts as an iteration, which bounds
+  // their number by maxit. A residual that is not finite ends the iteration, and the caller reports NoConvergence.
+  // Stagnation exit: when |b - A x| cannot reach the threshold (a tolerance below the rounding error of b - A x), the
+  // confirmations fail again and again. A failed confirmation at least 5 iterations after |b - A x| last dropped to
+  // half of its reference value, without such a drop, ends the iteration instead of restarting until maxit.
+  // residualIsTrue is set when normr is the computed |b - A x| at the end of the iteration.
+  bool residualIsTrue = false;
+  RealScalar referenceNorm = (std::numeric_limits<RealScalar>::max)();
+  Index referenceIter = 0;
   const auto done = [&]() {
     if (!(numext::isfinite)(normr)) {
       return true;
@@ -143,7 +152,15 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
     }
     r.noalias() = b - A * x;
     normr = r.stableNorm();
-    if (normr <= tolb) {
+    if (normr <= tolb || iter >= maxit) {
+      residualIsTrue = true;
+      return true;
+    }
+    if (normr <= RealScalar(0.5) * referenceNorm) {
+      referenceNorm = normr;
+      referenceIter = iter;
+    } else if (iter - referenceIter >= 5) {
+      residualIsTrue = true;
       return true;
     }
     if (smoothing) {
@@ -280,8 +297,22 @@ bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& prec
   if (smoothing) {
     x = x_s;
   }
+  if (!residualIsTrue && (numext::isfinite)(normr)) {
+    // The loop ended at maxit with the recurrence residual: report the computed b - A x, which relres documents.
+    normr = (b - A * x).stableNorm();
+  }
   relres = normr / normb;
   return true;
+}
+
+template <typename MatrixType, typename Rhs, typename Dest, typename Preconditioner>
+bool idrs(const MatrixType& A, const Rhs& b, Dest& x, const Preconditioner& precond, Index& iter,
+          typename Dest::RealScalar& relres, Index S, bool smoothing, typename Dest::RealScalar angle,
+          bool replacement) {
+  // The products of omega() are of the order of the residual squared, see iterative_solver_on_scaled_problem().
+  return iterative_solver_on_scaled_problem(b, x, [&](const auto& scaledRhs, auto& scaledGuess) {
+    return idrs_unscaled(A, scaledRhs, scaledGuess, precond, iter, relres, S, smoothing, angle, replacement);
+  });
 }
 
 }  // namespace internal
@@ -325,10 +356,11 @@ struct traits<Eigen::IDRS<MatrixType_, Preconditioner_> > {
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
  * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
- * number of iterations and \f$ 8 \sqrt{n}\, \epsilon \f$ for the tolerance, see tolerance().
+ * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance, see tolerance().
  *
  * The tolerance corresponds to the relative residual error: |Ax-b|/|b|. The solver reports Success only when
- * \f$ \| b - A x \| \f$, computed from the returned x, meets it.
+ * \f$ \| b - A x \| / \| b \| \f$, computed from the returned x, meets it, or, with the default tolerance, the
+ * confirmable bound \f$ 8 \sqrt{n}\, \epsilon \f$, see tolerance().
  *
  * \b Performance: when using sparse matrices, best performance is achieved for a row-major sparse matrix format.
  * Moreover, in this case multi-threading can be exploited if the user code is compiled with OpenMP enabled.
@@ -380,21 +412,20 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
     Base::m_tolerance = RealScalar(-1);
   }
 
-  /** \returns the tolerance set by setTolerance(), or by default \f$ 8 \sqrt{n}\, \epsilon \f$ for an n x n matrix.
+  /** \returns the tolerance set by setTolerance(), or by default NumTraits<Scalar>::epsilon().
    *
-   * The default is the smallest relative residual that b - A x, evaluated in floating point, can confirm reliably.
-   * With m nonzeros in a row of A, each component carries a rounding error of order
-   * \f$ \sqrt{m+1}\, u\, (|b_i| + (|A| |x|)_i) \f$ (Higham and Mary, A new approach to probabilistic rounding error
-   * analysis, SIAM J. Sci. Comput. 41(5), 2019), so \f$ \|b - A x\| / \|b\| \f$ cannot be certified much below
-   * \f$ \sqrt{m+1}\, \epsilon \f$ even for a well-conditioned A, and m + 1 is at most about n. The factor 8 leaves
-   * room for \f$ \| |A| |x| \| \f$ exceeding \f$ \|b\| \f$. A tolerance below this level, or below about
-   * \f$ \epsilon\, \|A\| \|x\| / \|b\| \f$ for an ill-conditioned A, can end in NoConvergence after maxIterations().
+   * IDRS reports Success only when \f$ \| b - A x \| / \| b \| \f$, computed from the returned x, meets the
+   * tolerance. With m nonzeros in a row of A, each component of the computed b - A x carries a rounding error of order
+   * \f$ \sqrt{m+1}\, \epsilon\, (|b_i| + (|A| |x|)_i) \f$ (Higham and Mary, A new approach to probabilistic
+   * rounding error analysis, SIAM J. Sci. Comput. 41(5), 2019), and the recurrences for r and x add to it, so the
+   * residual of the computed x stagnates at a level that depends on the matrix and often exceeds
+   * \f$ \epsilon \f$. With the default tolerance the iteration therefore aims at \f$ \epsilon \f$, ends when the
+   * computed residual stagnates, and reports Success if the computed residual is then at most
+   * \f$ 8 \sqrt{n}\, \epsilon \f$ for an n x n matrix, whichever way it ends. A tolerance set by setTolerance() is
+   * never relaxed, so a tolerance below what the arithmetic can confirm ends in NoConvergence. See MINRES::tolerance()
+   * for the same rule, and for the meaning of a negative tolerance.
    */
-  RealScalar tolerance() const {
-    return Base::m_tolerance >= RealScalar(0)
-               ? Base::m_tolerance
-               : RealScalar(8) * numext::sqrt(RealScalar(Base::cols())) * NumTraits<RealScalar>::epsilon();
-  }
+  RealScalar tolerance() const { return Base::toleranceOrEps(); }
 
   /** \internal */
   /**     Loops over the number of columns of b and does the following:
@@ -410,7 +441,7 @@ class IDRS : public IterativeSolverBase<IDRS<MatrixType_, Preconditioner_> > {
     bool ret = internal::idrs(matrix(), b, x, Base::m_preconditioner, m_iterations, m_error, m_S, m_smoothing, m_angle,
                               m_residual);
 
-    m_info = (!ret) ? NumericalIssue : m_error <= tol ? Success : NoConvergence;
+    m_info = (!ret) ? NumericalIssue : Base::infoAtDefaultOrSetTolerance(m_error, tol);
   }
 
   /** Sets the parameter S, indicating the dimension of the shadow space. Default is 4*/

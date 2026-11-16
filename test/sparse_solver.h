@@ -59,13 +59,10 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
     }
     x = solver.solve(b);
     if (solver.info() != Success) {
-      std::cerr << "WARNING: sparse solver testing: solving failed (" << typeid(Solver).name() << ")\n";
-      // dump call stack:
-      g_test_level++;
-      VERIFY(solver.info() == Success);
-      g_test_level--;
-      return;
+      std::cerr << "ERROR | sparse solver testing, solving failed (" << typeid(Solver).name() << ")\n";
     }
+    // A solver that does not converge must fail the test: the problems of these tests are well conditioned.
+    VERIFY(solver.info() == Success && "sparse solver testing: solving failed");
     VERIFY(oldb.isApprox(b) && "sparse solver testing: the rhs should not be modified!");
     VERIFY(x.isApprox(refX, test_precision<Scalar>()));
 
@@ -164,8 +161,6 @@ void check_sparse_solving(Solver& solver, const typename Solver::MatrixType& A, 
   }
 }
 
-#endif  // EIGEN_TEST_SPARSE_SOLVER_H
-
 // specialization of generic check_sparse_solving for SuperLU in order to also test adjoint and transpose solves
 template <typename Scalar, typename Rhs, typename DenseMat, typename DenseRhs>
 void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>& solver,
@@ -193,9 +188,9 @@ void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>& solver,
     }
     x1 = solver.solve(b);
     if (solver.info() != Success) {
-      std::cerr << "WARNING | sparse solver testing: solving failed (" << typeid(Solver).name() << ")\n";
-      return;
+      std::cerr << "ERROR | sparse solver testing, solving failed (" << typeid(Solver).name() << ")\n";
     }
+    VERIFY(solver.info() == Success && "sparse solver testing: solving failed");
     VERIFY(oldb.isApprox(b, 0.0) && "sparse solver testing: the rhs should not be modified!");
     VERIFY(x1.isApprox(refX1, test_precision<Scalar>()));
 
@@ -248,6 +243,25 @@ void check_sparse_solving(Eigen::SparseLU<Eigen::SparseMatrix<Scalar>>& solver,
     VERIFY(solver.info() == Success && "solving failed when using Map");
     VERIFY(oldb.isApprox(bm, 0.0) && "sparse solver testing: the rhs should not be modified!");
     VERIFY(xm.isApprox(refX1, test_precision<Scalar>()));
+
+    // Test with a Map and non-unit stride.
+    Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> out(2 * xm.rows(), 2 * xm.cols());
+    out.setZero();
+    // The outer stride spans DenseRhs's outer dimension, so it must be taken from outerStride()
+    // rather than from rows(): the two differ when DenseRhs is row major.
+    Eigen::Map<DenseRhs, 0, Stride<Eigen::Dynamic, 2>> outm(out.data(), xm.rows(), xm.cols(),
+                                                            Stride<Eigen::Dynamic, 2>(2 * xm.outerStride(), 2));
+    outm = solver.solve(bm);
+    VERIFY(outm.isApprox(refX1, test_precision<Scalar>()));
+
+    // Test a right-hand side with non-unit strides.
+    Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> bstore(2 * db.rows(), 2 * db.cols());
+    bstore.setZero();
+    Eigen::Map<DenseRhs, 0, Stride<Eigen::Dynamic, 2>> bstrided(bstore.data(), db.rows(), db.cols(),
+                                                                Stride<Eigen::Dynamic, 2>(2 * db.outerStride(), 2));
+    bstrided = db;
+    dx = solver.solve(bstrided);
+    VERIFY(dx.isApprox(refX1, test_precision<Scalar>()));
   }
 
   // if not too large, do some extra check:
@@ -631,12 +645,12 @@ void check_sparse_nonhermitian_determinant(Solver& solver) {
   using Scalar = typename Mat::Scalar;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
-  // generate the problem
-  Mat A, halfA;
-  DenseMatrix dA;
-  generate_sparse_nonhermitian_problem(solver, A, halfA, dA, 30);
-
   for (int i = 0; i < g_repeat; i++) {
+    // generate a new problem for each repetition
+    Mat A, halfA;
+    DenseMatrix dA;
+    generate_sparse_nonhermitian_problem(solver, A, halfA, dA, 30);
+
     check_sparse_determinant(solver, A, dA);
     check_sparse_determinant(solver, halfA, dA);
   }
@@ -648,12 +662,12 @@ void check_sparse_nonhermitian_log_abs_determinant(Solver& solver) {
   using Scalar = typename Mat::Scalar;
   using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
 
-  // generate the problem
-  Mat A, halfA;
-  DenseMatrix dA;
-  generate_sparse_nonhermitian_problem(solver, A, halfA, dA, 30);
-
   for (int i = 0; i < g_repeat; i++) {
+    // generate a new problem for each repetition
+    Mat A, halfA;
+    DenseMatrix dA;
+    generate_sparse_nonhermitian_problem(solver, A, halfA, dA, 30);
+
     check_sparse_log_abs_determinant(solver, A, dA);
     check_sparse_log_abs_determinant(solver, halfA, dA);
   }
@@ -852,3 +866,230 @@ void check_sparse_leastsquare_solving(Solver& solver) {
     }
   }
 }
+
+// Solves systems with tolerance 0, which asks the solver to iterate until the residual vanishes or maxIterations() is
+// reached. The matrices have an exhausted Krylov space after one to a few steps (identity, three distinct eigenvalues),
+// or reach a residual below the range of squares well before the iteration limit (diagonal, tridiagonal, with an
+// iteration limit well above their size). The solvers used to divide by the zero residual and return NaN, or aborted in
+// an assertion.
+template <typename Solver>
+void check_sparse_zero_tolerance(Solver& solver) {
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+
+  for (int kind = 0; kind < 4; ++kind) {
+    const Index n = kind == 3 ? 8 : 12;
+    std::vector<Triplet<Scalar>> triplets;
+    for (Index i = 0; i < n; ++i) {
+      Scalar d(1);
+      if (kind == 1) d = Scalar(1 + i % 3);
+      if (kind == 2) d = Scalar(1 + i);
+      if (kind == 3) d = Scalar(4 + i);
+      triplets.emplace_back(i, i, d);
+      if (kind == 3 && i + 1 < n) {
+        triplets.emplace_back(i, i + 1, Scalar(1));
+        triplets.emplace_back(i + 1, i, Scalar(1));
+      }
+    }
+    Mat A(n, n);
+    A.setFromTriplets(triplets.begin(), triplets.end());
+    const DenseVector xt = DenseVector::LinSpaced(n, Scalar(1), Scalar(2));
+    const DenseVector b = A * xt;
+    // Every system is SPD with condition number below 12, so a residual of 100 n eps bounds the rounding error.
+    const RealScalar bound = RealScalar(100) * RealScalar(n) * NumTraits<RealScalar>::epsilon() * b.norm();
+
+    for (Index maxit : {Index(-1), Index(300)}) {
+      solver.setTolerance(0);
+      solver.setMaxIterations(maxit);
+      solver.compute(A);
+      const DenseVector x = solver.solve(b);
+      VERIFY(x.allFinite());
+      VERIFY((numext::isfinite)(solver.error()));
+      // The tolerance is met only by a residual of exactly 0, so the solver reports Success then and NoConvergence
+      // otherwise; a breakdown at the exact solution is not a numerical issue.
+      VERIFY(solver.info() == Success || solver.info() == NoConvergence);
+      VERIFY_LE(solver.iterations(), solver.maxIterations());
+      VERIFY_LE((b - A * x).norm(), bound);
+    }
+  }
+}
+
+// Solves the 2D Poisson problem on a 30 x 30 grid, an SPD matrix on which every iterative solver converges within about
+// 700 iterations, with a solver constructed with its defaults. The solver must report Success after fewer than
+// maxIterations() iterations, with a true residual within 100 n eps, so that a default that cannot be reached, which
+// makes a solver run to maxIterations() with NoConvergence, does not go unnoticed.
+template <typename Solver>
+void check_sparse_default_tolerance(const Solver&) {
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+
+  const Index m = 30, n = m * m;
+  std::vector<Triplet<Scalar>> triplets;
+  for (Index i = 0; i < m; ++i) {
+    for (Index j = 0; j < m; ++j) {
+      const Index k = i * m + j;
+      triplets.emplace_back(k, k, Scalar(4));
+      if (j + 1 < m) triplets.emplace_back(k, k + 1, Scalar(-1));
+      if (j > 0) triplets.emplace_back(k, k - 1, Scalar(-1));
+      if (i + 1 < m) triplets.emplace_back(k, k + m, Scalar(-1));
+      if (i > 0) triplets.emplace_back(k, k - m, Scalar(-1));
+    }
+  }
+  Mat A(n, n);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  const DenseVector b = DenseVector::Random(n);
+
+  Solver solver(A);
+  const DenseVector x = solver.solve(b);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  VERIFY(solver.iterations() < solver.maxIterations());
+  VERIFY_LE((b - A * x).norm(), RealScalar(100 * n) * NumTraits<RealScalar>::epsilon() * b.norm());
+}
+
+// The matrix-free operator of doc/examples/matrixfree_cg.cpp without its product: enough to attach it to a solver and
+// query the solver.
+class MatrixFreeOperator;
+namespace Eigen {
+namespace internal {
+template <>
+struct traits<MatrixFreeOperator> : public traits<SparseMatrix<double>> {};
+}  // namespace internal
+}  // namespace Eigen
+
+class MatrixFreeOperator : public EigenBase<MatrixFreeOperator> {
+ public:
+  using Scalar = double;
+  using RealScalar = double;
+  using StorageIndex = int;
+  static constexpr int ColsAtCompileTime = Dynamic;
+  static constexpr int MaxColsAtCompileTime = Dynamic;
+  static constexpr bool IsRowMajor = false;
+
+  explicit MatrixFreeOperator(const SparseMatrix<double>& mat) : mp_mat(&mat) {}
+  Index rows() const { return mp_mat->rows(); }
+  Index cols() const { return mp_mat->cols(); }
+
+ private:
+  const SparseMatrix<double>* mp_mat;
+};
+
+// maxIterations() depends on n and used to dereference the null operator pointer of a matrix-free Solver before
+// compute(), and so did the tolerance() of IDRS and MINRES that depended on n. With n = 0 until compute():
+// maxIterations() == 2 n, and eps <= tolerance() <= 8 sqrt(max(n, 1)) eps.
+template <typename Solver>
+void check_matrix_free_accessors() {
+  using RealScalar = typename Solver::RealScalar;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const Index n = 100;
+  SparseMatrix<double> S(n, n);
+  S.setIdentity();
+  const MatrixFreeOperator A(S);
+
+  Solver detached;
+  VERIFY_IS_EQUAL(detached.maxIterations(), Index(0));
+  VERIFY_LE(eps, detached.tolerance());
+  VERIFY_LE(detached.tolerance(), 8 * eps);
+  detached.setMaxIterations(7).setTolerance(RealScalar(1e-3));
+  VERIFY_IS_EQUAL(detached.maxIterations(), Index(7));
+  VERIFY_IS_EQUAL(detached.tolerance(), RealScalar(1e-3));
+
+  Solver attached;
+  attached.compute(A);
+  VERIFY_IS_EQUAL(attached.maxIterations(), 2 * n);
+  VERIFY_LE(eps, attached.tolerance());
+  VERIFY_LE(attached.tolerance(), 8 * numext::sqrt(RealScalar(n)) * eps);
+}
+
+// Solves A x = b for b = s A xt with A = tridiag(-1, 4, -1), n = 40, and |b| so small that tol |b| is below sqrt(min),
+// though |b| is a normal number: a stopping threshold raised to an absolute floor, to keep a tolerance of 0 from
+// dividing by zero, would then exceed tol |b|, and the solvers returned NoConvergence or an inaccurate x without
+// reaching the tolerance (|b| < 1e-12 in float at the default tolerance). Each solver must reach Success with a forward
+// error of at most 1000 cond^2 tol (cond(A) <= 3), at its default tolerance and at a loose one.
+template <typename Solver>
+void check_sparse_small_rhs(const Solver&) {
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+
+  const Index n = 40;
+  std::vector<Triplet<Scalar>> triplets;
+  for (Index i = 0; i < n; ++i) {
+    triplets.emplace_back(i, i, Scalar(4));
+    if (i + 1 < n) {
+      triplets.emplace_back(i, i + 1, Scalar(-1));
+      triplets.emplace_back(i + 1, i, Scalar(-1));
+    }
+  }
+  Mat A(n, n);
+  A.setFromTriplets(triplets.begin(), triplets.end());
+  const DenseVector xt = DenseVector::Random(n);
+  const DenseVector b0 = A * xt;
+
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar sqrtMin = numext::sqrt((std::numeric_limits<RealScalar>::min)());
+  const RealScalar looseTol = RealScalar(1e-2) * numext::sqrt(eps);
+  // tol |b| < sqrt(min) at the default tolerance for s1, and at the loose one for s1 and s2.
+  const RealScalar s1 = sqrtMin / eps / RealScalar(1000), s2 = s1 / RealScalar(30);
+  for (int c = 0; c < 3; ++c) {
+    const RealScalar s = c == 2 ? s2 : s1;
+    const DenseVector b = s * b0;
+    Solver solver(A);
+    if (c > 0) solver.setTolerance(looseTol);
+    const DenseVector x = solver.solve(b);
+    VERIFY(x.allFinite());
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_LE((x / s - xt).stableNorm(), RealScalar(9000) * solver.tolerance() * xt.stableNorm());
+  }
+}
+
+// Solves A x = b for b = s A xt with |b| of order 10 sqrt(min) (1e-18 in float), for A = tridiag(-1, 4, -1), n = 400
+// and tridiag(-1, 2, -1), n = 200, which are well and moderately conditioned. The residual squares of a Krylov method
+// are of the order of |b|^2 eps^2 there, far below the smallest normal number: CG and BiCGSTAB returned NaN, LSCG
+// NoConvergence and IDRS NumericalIssue (or NaN) in float before the problem was solved for b / s, or the residual
+// scaled, as the small-rhs tests do on ARMv7, where NEON flushes subnormals. When the solver succeeds for s = 1, it
+// must succeed with a finite x and a forward error within a factor 30 of that of the s = 1 solve (the scaled problem
+// rounds differently, and the errors of the second matrix are of order cond eps).
+template <typename Solver>
+void check_sparse_tiny_rhs(const Solver&) {
+  using Mat = typename Solver::MatrixType;
+  using Scalar = typename Mat::Scalar;
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using DenseVector = Matrix<Scalar, Dynamic, 1>;
+
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar tiny = RealScalar(10) * numext::sqrt((std::numeric_limits<RealScalar>::min)());
+  for (int c = 0; c < 2; ++c) {
+    const Index n = c == 0 ? 400 : 200;
+    const int diagonal = c == 0 ? 4 : 2;
+    std::vector<Triplet<Scalar>> triplets;
+    for (Index i = 0; i < n; ++i) {
+      triplets.emplace_back(i, i, Scalar(diagonal));
+      if (i + 1 < n) {
+        triplets.emplace_back(i, i + 1, Scalar(-1));
+        triplets.emplace_back(i + 1, i, Scalar(-1));
+      }
+    }
+    Mat A(n, n);
+    A.setFromTriplets(triplets.begin(), triplets.end());
+    const DenseVector xt = DenseVector::Random(n);
+    const DenseVector b0 = A * xt;
+
+    Solver reference(A);
+    const DenseVector xr = reference.solve(b0);
+    if (reference.info() != Success) continue;  // LSCG squares the condition number of the second matrix
+    const RealScalar errorReference = (xr - xt).stableNorm() / xt.stableNorm();
+
+    Solver solver(A);
+    const DenseVector x = solver.solve(tiny * b0);
+    VERIFY(x.allFinite());
+    VERIFY_IS_EQUAL(solver.info(), Success);
+    VERIFY_LE((x / tiny - xt).stableNorm() / xt.stableNorm(), RealScalar(30) * numext::maxi(errorReference, eps));
+  }
+}
+
+#endif  // EIGEN_TEST_SPARSE_SOLVER_H

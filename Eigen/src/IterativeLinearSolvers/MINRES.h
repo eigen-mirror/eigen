@@ -48,7 +48,10 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   // initialize
   const Index maxIters(iters);                      // initialize maxIters to iters
   const Index N(mat.cols());                        // the size of the matrix
-  const RealScalar threshold(tol_error * rhsNorm);  // convergence threshold (compared to residualNorm)
+  // Convergence threshold (compared to residualNorm), raised to at most the smallest normal number so that
+  // tol_error = 0 stops.
+  const RealScalar threshold(
+      internal::iterative_solver_threshold(tol_error, rhsNorm, RealScalar((std::numeric_limits<RealScalar>::min)())));
 
   // Initialize preconditioned Lanczos
   VectorType v_old(N);                // will be initialized inside loop
@@ -67,7 +70,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   VectorType w(N);                         // will be initialized inside loop
   VectorType w_new(precond.solve(v_new));  // initialize w_new
   RealScalar beta_new2(v_new.dot(w_new));
-  eigen_assert(beta_new2 >= 0.0 && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
+  eigen_assert(beta_new2 >= RealScalar(0) && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
   RealScalar beta_new(numext::sqrt(beta_new2));
   const RealScalar beta_one(beta_new);
   // Initialize other variables
@@ -79,6 +82,16 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
   VectorType p_old(VectorType::Zero(N));  // initialize p_old=0
   VectorType p(p_old);                    // initialize p=0
   RealScalar eta(1.0);
+
+  // The recurrence below estimates the residual in the M^{-1}-norm, which MINRES minimizes. With a preconditioner it is
+  // not the 2-norm |b - A x| that error() reports, so convergence is accepted only when b - A x confirms it, and the
+  // estimate restarts from b - A x otherwise. residualNorm is a computed |b - A x| exactly when residualIsTrue is set.
+  // Stagnation exit: a failed confirmation at least 5 iterations after |b - A x| last dropped to half of its reference
+  // value, without such a drop, ends the iteration. Otherwise a tolerance below the rounding error of b - A x would
+  // fail confirmations until maxIterations().
+  bool residualIsTrue = true;
+  RealScalar referenceResidualNorm = (std::numeric_limits<RealScalar>::max)();
+  Index referenceIters = 0;
 
   iters = 0;  // reset iters
   while (iters < maxIters) {
@@ -103,7 +116,7 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     v_new -= alpha * v;            // overwrite v_new
     w_new = precond.solve(v_new);  // overwrite w_new
     beta_new2 = v_new.dot(w_new);  // compute beta_new
-    eigen_assert(beta_new2 >= 0.0 && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
+    eigen_assert(beta_new2 >= RealScalar(0) && "PRECONDITIONER IS NOT POSITIVE DEFINITE");
     beta_new = numext::sqrt(beta_new2);  // compute beta_new
 
     // Givens rotation
@@ -121,21 +134,34 @@ EIGEN_DONT_INLINE void minres(const MatrixType& mat, const Rhs& rhs, Dest& x, co
     p_old = p;
     p = (w - r2 * p_old - r3 * p_oold) / r1;
     x += (residualScale * beta_one * c * eta) * p;
+    iters++;  // increment iteration number (for output purposes)
 
-    /* Update the estimated residual norm. Note that this is the estimated
-    residual; the real residual |Ax-b| may be slightly larger. */
+    // Update the estimated residual norm, then confirm convergence with b - A x. beta_new == 0 means the Krylov space
+    // is exhausted, and the Lanczos recurrence cannot continue.
     residualNorm *= numext::abs(s);
-
-    if (residualNorm < threshold) {
-      break;
+    residualIsTrue = false;
+    const bool krylovExhausted = beta_new == RealScalar(0);
+    if (residualNorm < threshold || krylovExhausted) {
+      residualNorm = (rhs - mat * x).stableNorm();
+      residualIsTrue = true;
+      if (residualNorm < threshold || krylovExhausted) {
+        break;
+      }
+      if (residualNorm <= RealScalar(0.5) * referenceResidualNorm) {
+        referenceResidualNorm = residualNorm;
+        referenceIters = iters;
+      } else if (iters - referenceIters >= 5) {
+        break;
+      }
     }
 
     eta = -s * eta;  // update eta
-    iters++;         // increment iteration number (for output purposes)
   }
 
-  /* Compute error. Note that this is the estimated error. The real
-   error |Ax-b|/|b| may be slightly larger */
+  // error() reports |b - A x| / |b|
+  if (!residualIsTrue) {
+    residualNorm = (rhs - mat * x).stableNorm();
+  }
   tol_error = residualNorm / rhsNorm;
 }
 
@@ -168,7 +194,11 @@ struct traits<MINRES<MatrixType_, UpLo_, Preconditioner_> > {
  *
  * The maximal number of iterations and tolerance value can be controlled via the setMaxIterations()
  * and setTolerance() methods. The defaults are twice the number of columns of the matrix for the maximal
- * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance.
+ * number of iterations and NumTraits<Scalar>::epsilon() for the tolerance, see tolerance().
+ *
+ * The tolerance corresponds to the relative residual error: |Ax-b|/|b|. The solver reports Success only when
+ * \f$ \| b - A x \| / \| b \| \f$, computed from the returned x, meets it, or, with the default tolerance, the
+ * confirmable bound \f$ 8 \sqrt{n}\, \epsilon \f$, see tolerance().
  *
  * This class can be used as the direct solver classes. Here is a typical usage example:
  * \code
@@ -213,7 +243,7 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
 
  public:
   /** Default constructor. */
-  MINRES() : Base() {}
+  MINRES() : Base() { Base::m_tolerance = RealScalar(-1); }
 
   /** Initialize the solver with matrix \a A for further \c Ax=b solving.
    *
@@ -226,7 +256,27 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
    * matrix A, or modify a copy of A.
    */
   template <typename MatrixDerived>
-  explicit MINRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {}
+  explicit MINRES(const EigenBase<MatrixDerived>& A) : Base(A.derived()) {
+    Base::m_tolerance = RealScalar(-1);
+  }
+
+  /** \returns the tolerance set by setTolerance(), or by default NumTraits<Scalar>::epsilon().
+   *
+   * MINRES reports Success only when \f$ \| b - A x \| / \| b \| \f$, computed from the returned x, meets the
+   * tolerance. The rounding error of b - A x is of order \f$ \sqrt{m+1}\, \epsilon\, (|b_i| + (|A| |x|)_i) \f$ per
+   * component for m nonzeros in a row of A (Higham and Mary, A new approach to probabilistic rounding error analysis,
+   * SIAM J. Sci. Comput. 41(5), 2019), and the recurrence for x adds to it, so the residual of the computed x
+   * stagnates at a level that depends on the matrix and often exceeds \f$ \epsilon \f$. With the default tolerance
+   * the iteration therefore aims at \f$ \epsilon \f$, and whichever way it ends (stagnation of the computed residual,
+   * maxIterations(), or an exhausted Krylov space) it reports Success if the computed \f$ \| b - A x \| / \| b \| \f$
+   * is at most \f$ 8 \sqrt{n}\, \epsilon \f$ for an n x n matrix, the default tolerance of IDRS. A tolerance set
+   * by setTolerance() is never relaxed, so a tolerance below what the arithmetic can confirm ends in NoConvergence
+   * with the best iterate and its residual in error().
+   *
+   * The default is selected by a negative stored tolerance, which no residual can meet, so setTolerance() with a
+   * negative value restores the default behavior instead of asking for the impossible.
+   */
+  RealScalar tolerance() const { return Base::toleranceOrEps(); }
 
   /** \internal */
   template <typename Rhs, typename Dest>
@@ -246,10 +296,11 @@ class MINRES : public IterativeSolverBase<MINRES<MatrixType_, UpLo_, Preconditio
                            typename MatrixWrapper::template ConstSelfAdjointViewReturnType<UpLo>::Type>;
 
     m_iterations = Base::maxIterations();
-    m_error = Base::m_tolerance;
+    const RealScalar tol = tolerance();
+    m_error = tol;
     RowMajorWrapper row_mat(matrix());
     internal::minres(SelfAdjointWrapper(row_mat), b, x, Base::m_preconditioner, m_iterations, m_error);
-    m_info = m_error <= Base::m_tolerance ? Success : NoConvergence;
+    m_info = Base::infoAtDefaultOrSetTolerance(m_error, tol);
   }
 
  protected:

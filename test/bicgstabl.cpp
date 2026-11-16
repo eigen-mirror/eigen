@@ -23,6 +23,11 @@ void test_bicgstabl_T() {
 
   CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_diag));
   CALL_SUBTEST(check_sparse_square_solving(bicgstabl_colmajor_ilut));
+
+  // check_sparse_zero_tolerance is not run: BiCGSTABL returns the iterate x_min with the smallest recurrence residual
+  // without comparing true residuals, so for tolerance 0 its b - A x can exceed 100 n eps |b|.
+
+  CALL_SUBTEST(check_sparse_default_tolerance(bicgstabl_colmajor_diag));
 }
 
 template <typename = void>
@@ -45,9 +50,20 @@ void test_zero_rhs() {
   VERIFY_IS_EQUAL(solver.error(), 0.0);
 }
 
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_bicgstabl_small_rhs() {
+  BiCGSTABL<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  BiCGSTABL<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(bicgstabl) {
   CALL_SUBTEST_1(test_bicgstabl_T<double>());
   CALL_SUBTEST_2(test_bicgstabl_T<std::complex<double> >());
   CALL_SUBTEST_3(test_bicgstabl_solve_with_guess_restart<>());
   CALL_SUBTEST_3(test_zero_rhs<>());
+  CALL_SUBTEST_3(test_bicgstabl_small_rhs<>());
+  CALL_SUBTEST_3((check_matrix_free_accessors<BiCGSTABL<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

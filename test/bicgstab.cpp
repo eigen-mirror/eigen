@@ -25,6 +25,11 @@ void test_bicgstab_T() {
   //   CALL_SUBTEST( check_sparse_square_solving(bicgstab_colmajor_I)     );
   CALL_SUBTEST(check_sparse_square_solving(bicgstab_colmajor_ilut));
   // CALL_SUBTEST( check_sparse_square_solving(bicgstab_colmajor_ssor)     );
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(bicgstab_colmajor_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(bicgstab_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(bicgstab_colmajor_diag));
 }
 
 // https://gitlab.com/libeigen/eigen/-/issues/2856
@@ -111,6 +116,16 @@ void test_zero_rhs() {
   VERIFY_IS_EQUAL(solver.error(), 0.0);
 }
 
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_bicgstab_small_rhs() {
+  BiCGSTAB<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  BiCGSTAB<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+  check_sparse_tiny_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(bicgstab) {
   CALL_SUBTEST_1((test_bicgstab_T<double, int>()));
   CALL_SUBTEST_2((test_bicgstab_T<std::complex<double>, int>()));
@@ -119,4 +134,6 @@ EIGEN_DECLARE_TEST(bicgstab) {
   CALL_SUBTEST_5(test_2899());
   CALL_SUBTEST_6(test_solve_with_guess_in_place());
   CALL_SUBTEST_6(test_zero_rhs());
+  CALL_SUBTEST_3(test_bicgstab_small_rhs<>());
+  CALL_SUBTEST_6((check_matrix_free_accessors<BiCGSTAB<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

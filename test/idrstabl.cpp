@@ -23,6 +23,11 @@ void test_idrstabl_T() {
 
   CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_diag));
   CALL_SUBTEST(check_sparse_square_solving(idrstabl_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_zero_tolerance(idrstabl_colmajor_diag));
+  CALL_SUBTEST(check_sparse_zero_tolerance(idrstabl_colmajor_ilut));
+
+  CALL_SUBTEST(check_sparse_default_tolerance(idrstabl_colmajor_diag));
 }
 
 // Neither a zero right-hand side nor the direct solve for n <= S iterates; iterations() used to report the cap.
@@ -60,9 +65,20 @@ void test_normalization_breakdown() {
   }
 }
 
+// See check_sparse_small_rhs: the solvers returned NoConvergence or an inaccurate x for small |b|.
+template <typename = void>
+void test_idrstabl_small_rhs() {
+  IDRSTABL<SparseMatrix<double>, DiagonalPreconditioner<double>> solver_double;
+  IDRSTABL<SparseMatrix<float>, DiagonalPreconditioner<float>> solver_float;
+  check_sparse_small_rhs(solver_double);
+  check_sparse_small_rhs(solver_float);
+}
+
 EIGEN_DECLARE_TEST(idrstabl) {
   CALL_SUBTEST_1((test_idrstabl_T<double>()));
   CALL_SUBTEST_2((test_idrstabl_T<std::complex<double> >()));
   CALL_SUBTEST_1(test_zero_rhs<>());
   CALL_SUBTEST_1(test_normalization_breakdown<>());
+  CALL_SUBTEST_1(test_idrstabl_small_rhs<>());
+  CALL_SUBTEST_1((check_matrix_free_accessors<IDRSTABL<MatrixFreeOperator, IdentityPreconditioner>>()));
 }

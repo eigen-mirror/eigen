@@ -253,7 +253,7 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
   RealScalar beta = r0.norm();
 
   m_error = beta / normRhs;
-  if (m_error < m_tolerance)
+  if (m_error <= m_tolerance)
     m_info = Success;
   else
     m_info = NoConvergence;
@@ -266,6 +266,11 @@ void DGMRES<MatrixType_, Preconditioner_>::dgmres(const MatrixType& mat, const R
     if (nbIts < m_iterations && m_info == NoConvergence) {
       r0.noalias() = rhs - mat * x;
       beta = r0.norm();
+      if (beta == RealScalar(0)) {
+        // x is exact: the next cycle would normalize r0 / beta = 0 / 0.
+        m_error = 0;
+        m_info = Success;
+      }
     }
   }
   // m_iterations carried the iteration cap for the loops above; report the number actually performed.
@@ -308,6 +313,7 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     tv1.noalias() = mat * tv2;
 
     // Orthogonalize it with the previous basis in the basis using modified Gram-Schmidt
+    const RealScalar normBefore = tv1.norm();
     Scalar coef;
     for (Index i = 0; i <= it; ++i) {
       coef = m_V.col(i).dot(tv1);
@@ -315,12 +321,13 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
       m_H(i, it) = coef;
       m_Hes(i, it) = coef;
     }
-    // Normalize the vector. coef == 0 is an Arnoldi happy breakdown: the new
-    // direction lies in span(V[0..it]), so skip the division (which would
-    // poison m_V.col(it+1) with NaN) and fall through to the termination
-    // check below.
-    coef = tv1.norm();
-    const bool happy_breakdown = numext::is_exactly_zero(coef);
+    // Normalize the vector. A coef of the size of the rounding error in A M^{-1} v is an Arnoldi happy breakdown: the
+    // new direction lies in span(V[0..it]), and tv1 / coef would only normalize noise. Skip the division (which for
+    // coef == 0 would poison m_V.col(it+1) with NaN) and fall through to the termination check below.
+    const RealScalar coefNorm = tv1.norm();
+    const bool happy_breakdown =
+        coefNorm <= numext::sqrt(RealScalar(n)) * NumTraits<RealScalar>::epsilon() * normBefore;
+    coef = Scalar(coefNorm);
     if (!happy_breakdown) {
       m_V.col(it + 1) = tv1 / coef;
     }
@@ -351,10 +358,13 @@ Index DGMRES<MatrixType_, Preconditioner_>::dgmresCycle(const MatrixType& mat, c
     it++;
     nbIts++;
 
-    if (m_error < m_tolerance || happy_breakdown) {
-      // Happy breakdown: residual on the current subspace is exactly zero, so
-      // the it-dim triangular system yields the exact solution.
+    if (m_error <= m_tolerance) {
       m_info = Success;
+      break;
+    }
+    if (happy_breakdown) {
+      // Happy breakdown: the residual on the current subspace is zero up to rounding, so the it-dim triangular
+      // system yields the solution, and the Krylov space cannot be extended. m_error is its residual estimate.
       break;
     }
   }
