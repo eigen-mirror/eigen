@@ -543,6 +543,19 @@ struct gemv_ordered_accumulators {
       : values{term(offset + Indices, 0)...} {}
 };
 
+// dst += alpha * P, where accumulate(P) adds the unscaled product into a zeroed P. Never inlined: a stack buffer lives
+// until the function that declared it returns, so a caller that inlines it into a loop grows the stack each iteration.
+template <typename Plain, typename Dest, typename Scalar, typename Accumulate>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void gemv_add_scaled_product(Dest& dst, const Scalar& alpha,
+                                                                 const Accumulate& accumulate) {
+  ei_declare_aligned_stack_constructed_variable(Scalar, buffer, dst.size(), nullptr);
+  Map<Plain> product(buffer, dst.rows(), dst.cols());
+  product.setZero();
+  accumulate(product);
+  for (Index j = 0; j < dst.cols(); ++j)
+    for (Index i = 0; i < dst.rows(); ++i) dst.coeffRef(i, j) += alpha * product.coeff(i, j);
+}
+
 template <typename Lhs, typename Rhs>
 struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
     : generic_product_impl_base<Lhs, Rhs, generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>> {
@@ -578,12 +591,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
     using Impl = generic_product_impl<Inner, Rhs, DenseShape, DenseShape, GemvProduct>;
     if (numext::is_exactly_one(alpha)) return Impl::scaleAndAddTo(dst, lhs.rhs(), rhs, scale);
     // Keep alpha * (scale * sum) separate: forming alpha * scale can underflow or overflow.
-    ei_declare_aligned_stack_constructed_variable(Scalar, buffer, dst.size(), nullptr);
-    Map<typename Product<Lhs, Rhs>::PlainObject> product(buffer, dst.rows(), dst.cols());
-    product.setZero();
-    Impl::scaleAndAddTo(product, lhs.rhs(), rhs, scale);
-    for (Index j = 0; j < dst.cols(); ++j)
-      for (Index i = 0; i < dst.rows(); ++i) dst.coeffRef(i, j) += alpha * product.coeff(i, j);
+    gemv_add_scaled_product<typename Product<Lhs, Rhs>::PlainObject>(
+        dst, alpha, [&](auto& product) { Impl::scaleAndAddTo(product, lhs.rhs(), rhs, scale); });
   }
 
   template <typename Dest>
@@ -612,11 +621,8 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
       if (unit_alpha) {
         accumulate(out);
       } else {
-        ei_declare_aligned_stack_constructed_variable(Scalar, buffer, size, nullptr);
-        Map<Matrix<Scalar, Dynamic, 1>> product(buffer, size);
-        product.setZero();
-        accumulate([&](Index i) -> Scalar& { return product.coeffRef(i); });
-        for (Index i = 0; i < size; ++i) out(i) += alpha * product.coeff(i);
+        gemv_add_scaled_product<typename Product<Lhs, Rhs>::PlainObject>(
+            dst, alpha, [&](auto& product) { accumulate([&](Index i) -> Scalar& { return product.coeffRef(i); }); });
       }
       return;
     }

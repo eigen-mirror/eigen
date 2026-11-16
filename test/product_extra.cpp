@@ -1549,6 +1549,33 @@ void ordered_gemv_scale_cost() {
   internal::set_is_malloc_allowed(true);
 }
 
+// Each update scales a product held in a stack buffer of size * sizeof(Q) = 64 KiB. Kept alive across the loop, the
+// buffers would total 16 MiB and overflow the stack.
+template <int Order, bool Left>
+void ordered_gemv_stack_buffer_in_loop() {
+  using Q = noncommutative_scalar::Quaternion;
+  using MatrixType = Matrix<Q, Dynamic, Dynamic, Order>;
+  using Vector = Matrix<Q, Dynamic, 1>;
+  using Result = Matrix<Q, Left ? 1 : Dynamic, Left ? Dynamic : 1, Left ? RowMajor : ColMajor>;
+  const Index size = 2048, depth = 1, iterations = 256;
+  const Q p(0, 1, 0, 0);
+  const MatrixType matrix = MatrixType::Constant(Left ? depth : size, Left ? size : depth, Q(1, 2, 3, 4));
+  const Vector vector = Vector::Constant(depth, Q(2, 1, 0, 1));
+  Result result = Result::Zero(Left ? 1 : size, Left ? size : 1);
+  for (Index iteration = 0; iteration < iterations; ++iteration) {
+    if (Left) {
+      result.noalias() -= vector.transpose() * matrix;
+      result.noalias() -= (p * vector.transpose()) * matrix;
+    } else {
+      result.noalias() -= matrix * vector;
+      result.noalias() -= (p * matrix) * vector;
+    }
+  }
+  const Q term = Left ? vector(0) * matrix(0, 0) : matrix(0, 0) * vector(0);
+  const Q expected = -(double(iterations) * (term + p * term));
+  for (Index i = 0; i < size; ++i) VERIFY(result(i) == expected);
+}
+
 EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_20(scaled_real_structured_complex_vector());
   CALL_SUBTEST_20((quaternion_transposed_product<noncommutative_scalar::Quaternion, ColMajor>()));
@@ -1556,6 +1583,10 @@ EIGEN_DECLARE_TEST(product_extra) {
   CALL_SUBTEST_20(commutative_transposed_product_expression<double>());
   CALL_SUBTEST_20(commutative_transposed_product_expression<std::complex<double>>());
   CALL_SUBTEST_20(noncommutative_transposed_product_expression());
+  CALL_SUBTEST_20((ordered_gemv_stack_buffer_in_loop<ColMajor, false>()));
+  CALL_SUBTEST_20((ordered_gemv_stack_buffer_in_loop<RowMajor, false>()));
+  CALL_SUBTEST_20((ordered_gemv_stack_buffer_in_loop<ColMajor, true>()));
+  CALL_SUBTEST_20((ordered_gemv_stack_buffer_in_loop<RowMajor, true>()));
   CALL_SUBTEST_20((ordered_gemv_scale_cost<ColMajor, false>()));
   CALL_SUBTEST_20((ordered_gemv_scale_cost<RowMajor, false>()));
   CALL_SUBTEST_20((ordered_gemv_scale_cost<ColMajor, true>()));
