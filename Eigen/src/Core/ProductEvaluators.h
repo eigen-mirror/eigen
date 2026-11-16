@@ -563,6 +563,9 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
   using RhsNested = typename nested_eval<Rhs, 1>::type;
   using Scalar = typename Product<Lhs, Rhs>::Scalar;
   enum { Side = Lhs::IsVectorAtCompileTime ? OnTheLeft : OnTheRight };
+  // A class constant, not a local of run_ordered(): MSVC in C++17 mode does not accept a constexpr local that a
+  // lambda captures by reference as the condition of an if constexpr inside that lambda (C2131).
+  static constexpr bool OnRight = int(Side) == int(OnTheRight);
   using MatrixType = internal::remove_all_t<std::conditional_t<int(Side) == OnTheRight, LhsNested, RhsNested>>;
 
   template <typename Dest>
@@ -602,7 +605,6 @@ struct generic_product_impl<Lhs, Rhs, DenseShape, DenseShape, GemvProduct>
     LhsNested actual_lhs(lhs);
     RhsNested actual_rhs(rhs);
     const bool unit_alpha = numext::is_exactly_one(alpha);
-    constexpr bool OnRight = int(Side) == int(OnTheRight);
     const Index size = OnRight ? lhs.rows() : rhs.cols();
     const Index depth = lhs.cols();
     const auto out = [&](Index i) -> decltype(auto) { return OnRight ? dst.coeffRef(i, 0) : dst.coeffRef(0, i); };
