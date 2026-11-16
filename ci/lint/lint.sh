@@ -23,24 +23,31 @@ ncases=0
 check() {
   name=$1 kind=$2
   shift 2
-  printf '\033[0Ksection_start:%s:%s[collapsed=true]\r\033[0K%s (%s)\n' "$(date +%s)" "$name" "$name" "$kind"
+  out=$(mktemp)
   start=$(date +%s)
-  "$@"
+  "$@" >"$out" 2>&1
   status=$?
-  secs=$(($(date +%s) - start))
-  printf '\033[0Ksection_end:%s:%s\r\033[0K' "$(date +%s)" "$name"
+  end=$(date +%s)
+  secs=$((end - start))
   ncases=$((ncases + 1))
   if [ "$status" -eq 0 ]; then
+    printf '\033[0Ksection_start:%s:%s[collapsed=true]\r\033[0K%s (%s) - pass (%ss)\n' "$start" "$name" "$name" "$kind" "$secs"
+    cat "$out"
+    printf '\n\033[0Ksection_end:%s:%s\r\033[0K\n' "$end" "$name"
     summary="$summary$(printf '  %-10s %-8s pass (%ss)' "$name" "$kind" "$secs")
 "
     cases="$cases<testcase classname=\"lint\" name=\"$name\" time=\"$secs\"/>"
   else
+    printf '\033[0Ksection_start:%s:%s\r\033[0K%s (%s) - FAIL, exit %s (%ss)\n' "$start" "$name" "$name" "$kind" "$status" "$secs"
+    cat "$out"
+    printf '\n\033[0Ksection_end:%s:%s\r\033[0K\n' "$end" "$name"
     summary="$summary$(printf '  %-10s %-8s FAIL, exit %s (%ss)' "$name" "$kind" "$status" "$secs")
 "
     cases="$cases<testcase classname=\"lint\" name=\"$name\" time=\"$secs\"><failure message=\"$kind check exited $status; see the $name section of the job log\"/></testcase>"
     nfail=$((nfail + 1))
     if [ "$kind" = blocking ]; then blocking_failed=1; else advisory_failed=1; fi
   fi
+  rm -f "$out"
 }
 
 scripts() {
