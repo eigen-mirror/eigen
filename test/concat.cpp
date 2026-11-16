@@ -249,6 +249,85 @@ void test_concat_mixed_fixed_dynamic() {
 }
 
 // ============================================================================
+// Test 4b: Compile-time size traits of mixed fixed/dynamic/bounded operands
+// The result must have a valid plain type: when a size is fixed, so is its maximum, and both operands' bounds apply in
+// the direction that is not concatenated.
+// ============================================================================
+template <typename Mat>
+Mat random_with_sizes(Index rows, Index cols) {
+  return Mat::Random(Mat::RowsAtCompileTime == Dynamic ? rows : Index(Mat::RowsAtCompileTime),
+                     Mat::ColsAtCompileTime == Dynamic ? cols : Index(Mat::ColsAtCompileTime));
+}
+
+template <typename Scalar, typename Lhs>
+using ConcatTransposed = Matrix<Scalar, Lhs::ColsAtCompileTime, Lhs::RowsAtCompileTime, 0, Lhs::MaxColsAtCompileTime,
+                                Lhs::MaxRowsAtCompileTime>;
+
+// Checks vcat(Lhs, Rhs) and, with all operands transposed, hcat; the expected traits are those of the vcat.
+template <typename Scalar, typename Lhs, typename Rhs, int Rows, int Cols, int MaxRows, int MaxCols>
+void check_concat_size_traits() {
+  using LhsT = ConcatTransposed<Scalar, Lhs>;
+  using RhsT = ConcatTransposed<Scalar, Rhs>;
+  using Plain = Matrix<Scalar, Rows, Cols, 0, MaxRows, MaxCols>;
+  using PlainT = Matrix<Scalar, Cols, Rows, 0, MaxCols, MaxRows>;
+
+  const Lhs a = random_with_sizes<Lhs>(2, 3);
+  const Rhs b = random_with_sizes<Rhs>(3, 3);
+  const LhsT at = a.transpose();
+  const RhsT bt = b.transpose();
+
+  using VCat = decltype(vcat(a, b));
+  using HCat = decltype(hcat(at, bt));
+  STATIC_CHECK(int(VCat::RowsAtCompileTime) == Rows);
+  STATIC_CHECK(int(VCat::ColsAtCompileTime) == Cols);
+  STATIC_CHECK(int(VCat::MaxRowsAtCompileTime) == MaxRows);
+  STATIC_CHECK(int(VCat::MaxColsAtCompileTime) == MaxCols);
+  STATIC_CHECK(int(HCat::RowsAtCompileTime) == Cols);
+  STATIC_CHECK(int(HCat::ColsAtCompileTime) == Rows);
+  STATIC_CHECK(int(HCat::MaxRowsAtCompileTime) == MaxCols);
+  STATIC_CHECK(int(HCat::MaxColsAtCompileTime) == MaxRows);
+  STATIC_CHECK((std::is_same<typename VCat::PlainObject, Plain>::value));
+  STATIC_CHECK((std::is_same<typename HCat::PlainObject, PlainT>::value));
+
+  Plain expected(a.rows() + b.rows(), a.cols());
+  expected << a, b;
+  const Plain v = vcat(a, b).eval();
+  VERIFY_IS_EQUAL(v, expected);
+  VERIFY_IS_APPROX(Plain(Scalar(2) * vcat(a, b)), Plain(Scalar(2) * expected));
+  VERIFY_IS_APPROX(Plain(vcat(a, b) + expected), Plain(Scalar(2) * expected));
+  const PlainT h = hcat(at, bt).eval();
+  VERIFY_IS_EQUAL(h, expected.transpose());
+  VERIFY_IS_APPROX(PlainT(Scalar(2) * hcat(at, bt)), PlainT(Scalar(2) * expected.transpose()));
+  VERIFY_IS_APPROX(PlainT(hcat(at, bt) + expected.transpose()), PlainT(Scalar(2) * expected.transpose()));
+}
+
+template <typename Scalar>
+void test_concat_size_traits() {
+  using Fixed3 = Matrix<Scalar, 3, 3>;
+  using MatrixX = Matrix<Scalar, Dynamic, Dynamic>;
+  using MatrixX3 = Matrix<Scalar, Dynamic, 3>;
+  using Bounded3 = Matrix<Scalar, Dynamic, 3, 0, 5, 3>;        // at most 5 rows
+  using BoundedX = Matrix<Scalar, Dynamic, Dynamic, 0, 6, 6>;  // at most 6 rows and columns
+  using BoundedRows = Matrix<Scalar, Dynamic, Dynamic, 0, 6, Dynamic>;
+
+  // Fixed and dynamic operands: the non-concatenated size (columns of a vcat) is the fixed one.
+  check_concat_size_traits<Scalar, Fixed3, Fixed3, 6, 3, 6, 3>();
+  check_concat_size_traits<Scalar, Fixed3, MatrixX, Dynamic, 3, Dynamic, 3>();
+  check_concat_size_traits<Scalar, MatrixX, Fixed3, Dynamic, 3, Dynamic, 3>();
+  check_concat_size_traits<Scalar, Fixed3, MatrixX3, Dynamic, 3, Dynamic, 3>();
+  check_concat_size_traits<Scalar, MatrixX3, MatrixX, Dynamic, 3, Dynamic, 3>();
+  check_concat_size_traits<Scalar, MatrixX, MatrixX, Dynamic, Dynamic, Dynamic, Dynamic>();
+  // Bounded operands: bounds add up in the concatenated direction and the tighter one applies in the other.
+  check_concat_size_traits<Scalar, Fixed3, Bounded3, Dynamic, 3, 8, 3>();
+  check_concat_size_traits<Scalar, Bounded3, Bounded3, Dynamic, 3, 10, 3>();
+  check_concat_size_traits<Scalar, Bounded3, MatrixX, Dynamic, 3, Dynamic, 3>();
+  check_concat_size_traits<Scalar, BoundedX, MatrixX, Dynamic, Dynamic, Dynamic, 6>();
+  check_concat_size_traits<Scalar, MatrixX, BoundedX, Dynamic, Dynamic, Dynamic, 6>();
+  check_concat_size_traits<Scalar, BoundedX, BoundedX, Dynamic, Dynamic, 12, 6>();
+  check_concat_size_traits<Scalar, BoundedRows, Bounded3, Dynamic, 3, 11, 3>();
+}
+
+// ============================================================================
 // Test 5: Rvalue temporary lifetime safety
 // Verifies ref_selector properly copies temporaries instead of dangling refs
 // ============================================================================
@@ -941,6 +1020,8 @@ EIGEN_DECLARE_TEST(concat) {
     // Mixed fixed/dynamic
     CALL_SUBTEST_4(test_concat_mixed_fixed_dynamic<float>());
     CALL_SUBTEST_4(test_concat_mixed_fixed_dynamic<double>());
+    CALL_SUBTEST_4(test_concat_size_traits<float>());
+    CALL_SUBTEST_4(test_concat_size_traits<double>());
 
     // Rvalue temporaries (lifetime safety)
     CALL_SUBTEST_5(test_concat_rvalue_temporaries<float>());

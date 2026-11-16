@@ -322,6 +322,39 @@ class RealView : public internal::dense_xpr_base<RealView<Xpr>>::type {
   }
   EIGEN_DEVICE_FUNC const Scalar* data() const { return reinterpret_cast<const Scalar*>(m_xpr.data()); }
 
+  // The product kernels take operand addresses through coeffRef() of a const reference, as MapBase and
+  // CwiseUnaryViewImpl allow for direct access. Declaring any coeffRef() hides the base class's, so all four are here,
+  // with the base class's bounds checks and, for the single-index overloads, the requirement of linear access (as in
+  // MapBase's EIGEN_STATIC_ASSERT_INDEX_BASED_ACCESS).
+  //
+  // They reinterpret the complex scalar as two adjacent reals, which only complex_array_access scalars permit, so the
+  // const overloads require DirectAccessBit and the non-const ones LvalueBit; other complex scalars get neither.
+  template <bool Enable = (int(ExpressionTraits::Flags) & DirectAccessBit) != 0, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC const Scalar& coeffRef(Index row, Index col) const {
+    eigen_internal_assert(row >= 0 && row < rows() && col >= 0 && col < cols());
+    return data()[ExpressionTraits::IsRowMajor ? row * outerStride() + col * innerStride()
+                                               : col * outerStride() + row * innerStride()];
+  }
+  template <bool Enable = (int(ExpressionTraits::Flags) & DirectAccessBit) != 0, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC const Scalar& coeffRef(Index index) const {
+    EIGEN_STATIC_ASSERT((int(ExpressionTraits::Flags) & LinearAccessBit) || RealView::IsVectorAtCompileTime,
+                        YOU_ARE_TRYING_TO_USE_AN_INDEX_BASED_ACCESSOR_ON_AN_EXPRESSION_THAT_DOES_NOT_SUPPORT_THAT)
+    eigen_internal_assert(index >= 0 && index < size());
+    return data()[index * innerStride()];
+  }
+  template <bool Enable = (int(ExpressionTraits::Flags) & LvalueBit) != 0, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC Scalar& coeffRef(Index row, Index col) {
+    eigen_internal_assert(row >= 0 && row < rows() && col >= 0 && col < cols());
+    return internal::evaluator<RealView>(*this).coeffRef(row, col);
+  }
+  template <bool Enable = (int(ExpressionTraits::Flags) & LvalueBit) != 0, std::enable_if_t<Enable, bool> = true>
+  EIGEN_DEVICE_FUNC Scalar& coeffRef(Index index) {
+    EIGEN_STATIC_ASSERT((int(ExpressionTraits::Flags) & LinearAccessBit) || RealView::IsVectorAtCompileTime,
+                        YOU_ARE_TRYING_TO_USE_AN_INDEX_BASED_ACCESSOR_ON_AN_EXPRESSION_THAT_DOES_NOT_SUPPORT_THAT)
+    eigen_internal_assert(index >= 0 && index < size());
+    return internal::evaluator<RealView>(*this).coeffRef(index);
+  }
+
   EIGEN_DEVICE_FUNC RealView(const RealView&) = default;
 
   EIGEN_DEVICE_FUNC RealView& operator=(const RealView& other);

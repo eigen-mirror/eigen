@@ -66,6 +66,44 @@ void unaryview_stride(const VectorType& m) {
   VERIFY(vec_view.innerStride() == (InnerStride == 0 ? 1 : InnerStride));
 }
 
+// A negative stride of the nested expression stays negative, scaled by the scalar size ratio.
+template <typename Scalar>
+void test_unaryview_negative_strides() {
+  using Complex = std::complex<Scalar>;
+  using VectorXc = Matrix<Complex, Dynamic, 1>;
+  using RowMajorMatrixXc = Matrix<Complex, Dynamic, Dynamic, RowMajor>;
+  const Index n = 8;
+  const Index step = -1;  // opaque to the type system: the strides are known only at run time
+
+  VectorXc x = VectorXc::Random(n);
+  auto reversed = x(seqN(n - 1, n, step));
+  VERIFY_IS_EQUAL(reversed.innerStride(), -1);
+  auto re = reversed.real();
+  auto im = reversed.imag();
+  VERIFY_IS_EQUAL(re.innerStride(), -2);
+  VERIFY_IS_EQUAL(im.innerStride(), -2);
+  for (Index i = 0; i < n; ++i) {
+    VERIFY_IS_EQUAL(re(i), numext::real(x(n - 1 - i)));
+    VERIFY_IS_EQUAL(im(i), numext::imag(x(n - 1 - i)));
+  }
+  Ref<Matrix<Scalar, Dynamic, 1>, 0, InnerStride<>> ref(re);
+  VERIFY_IS_EQUAL(ref.innerStride(), -2);
+  VERIFY(ref.data() == re.data());
+  for (Index i = 0; i < n; ++i) VERIFY_IS_EQUAL(ref(i), re(i));
+
+  RowMajorMatrixXc A = RowMajorMatrixXc::Random(n, 3);
+  auto flipped = A(seqN(n - 1, n, step), Eigen::placeholders::all);
+  VERIFY_IS_EQUAL(flipped.outerStride(), -3);
+  VERIFY_IS_EQUAL(flipped.real().outerStride(), -6);
+  VERIFY_IS_EQUAL(flipped.real().innerStride(), 2);
+  VERIFY_IS_EQUAL(flipped.imag().outerStride(), -6);
+  for (Index i = 0; i < n; ++i)
+    for (Index j = 0; j < 3; ++j) VERIFY_IS_EQUAL(flipped.real()(i, j), numext::real(A(n - 1 - i, j)));
+  Ref<Matrix<Scalar, Dynamic, Dynamic, RowMajor>, 0, Stride<Dynamic, Dynamic>> refm(flipped.imag());
+  VERIFY_IS_EQUAL(refm.outerStride(), -6);
+  VERIFY_IS_EQUAL(refm.innerStride(), 2);
+}
+
 void test_mutable_unaryview() {
   struct Vec3 {
     double x;
@@ -206,6 +244,8 @@ EIGEN_DECLARE_TEST(unaryviewstride) {
   CALL_SUBTEST_3((unaryview_stride<1, 2>(RowVectorXf())));
   CALL_SUBTEST_3((unaryview_stride<0, 0>(RowVectorXf())));
   CALL_SUBTEST_4(test_mutable_unaryview());
+  CALL_SUBTEST_4(test_unaryview_negative_strides<float>());
+  CALL_SUBTEST_4(test_unaryview_negative_strides<double>());
   CALL_SUBTEST_4(test_unaryview_pointer_result());
   CALL_SUBTEST_4(test_unaryview_solve());
   CALL_SUBTEST_4(test_unaryview_direct_access_product());

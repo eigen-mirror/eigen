@@ -50,11 +50,11 @@ struct traits<Concat<Direction, LhsType, RhsType>> : traits<LhsType> {
     MaxRowsAtCompileTime =
         Direction == Vertical
             ? (LhsMaxRows == Dynamic || RhsMaxRows == Dynamic ? int(Dynamic) : LhsMaxRows + RhsMaxRows)
-            : max_size_prefer_dynamic(LhsMaxRows, RhsMaxRows),
+            : min_size_prefer_fixed(LhsMaxRows, RhsMaxRows),
     MaxColsAtCompileTime =
         Direction == Horizontal
             ? (LhsMaxCols == Dynamic || RhsMaxCols == Dynamic ? int(Dynamic) : LhsMaxCols + RhsMaxCols)
-            : max_size_prefer_dynamic(LhsMaxCols, RhsMaxCols),
+            : min_size_prefer_fixed(LhsMaxCols, RhsMaxCols),
 
     IsRowMajor = MaxRowsAtCompileTime == 1 && MaxColsAtCompileTime != 1   ? 1
                  : MaxColsAtCompileTime == 1 && MaxRowsAtCompileTime != 1 ? 0

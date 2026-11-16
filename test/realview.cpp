@@ -312,6 +312,169 @@ void test_strided_realview(const ComplexScalar&) {
   VERIFY_IS_EQUAL(aColsView.data(), aCol1);
 }
 
+// A RealView over contiguous complex storage is a direct-access operand of the matrix-matrix product, which takes the
+// operands' addresses through coeffRef() of a const reference.
+template <typename ComplexScalar, int Options>
+void test_realview_gemm_operand() {
+  using RealScalar = typename NumTraits<ComplexScalar>::Real;
+  using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, Options>;
+  using RealMatrix = Matrix<RealScalar, Dynamic, Dynamic, Options>;
+  const Index rows = internal::random<Index>(20, 30), cols = internal::random<Index>(20, 30);
+  ComplexMatrix a = ComplexMatrix::Random(rows, cols);
+  const ComplexMatrix& ca = a;
+  const bool rowMajor = Options == RowMajor;
+  const Index viewRows = rowMajor ? rows : 2 * rows, viewCols = rowMajor ? 2 * cols : cols;
+  RealMatrix expected(viewRows, viewCols);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      expected(rowMajor ? i : 2 * i, rowMajor ? 2 * j : j) = numext::real(a(i, j));
+      expected(rowMajor ? i : 2 * i + 1, rowMajor ? 2 * j + 1 : j) = numext::imag(a(i, j));
+    }
+  const RealMatrix left = RealMatrix::Random(25, viewRows), right = RealMatrix::Random(viewCols, 25);
+  const RealMatrix leftExpected = left * expected, rightExpected = expected * right;
+  const RealMatrix gram = expected.transpose() * expected;
+
+  VERIFY_IS_APPROX(RealMatrix(left * a.realView()), leftExpected);
+  VERIFY_IS_APPROX(RealMatrix(a.realView() * right), rightExpected);
+  VERIFY_IS_APPROX(RealMatrix(left * ca.realView()), leftExpected);
+  VERIFY_IS_APPROX(RealMatrix(ca.realView() * right), rightExpected);
+  VERIFY_IS_APPROX(RealMatrix(a.realView().transpose() * a.realView()), gram);
+  VERIFY_IS_APPROX(RealMatrix(left * a.block(0, 0, rows, cols).realView()), leftExpected);
+  RealMatrix sum = RealMatrix::Ones(25, 25);
+  sum.noalias() += left * a.realView() * right;
+  VERIFY_IS_APPROX(sum, RealMatrix(RealMatrix::Ones(25, 25) + leftExpected * right));
+}
+
+// Single-index coeffRef() of a view with linear access, written through and read back against the dense reference; the
+// views without direct access go through the evaluator.
+template <typename ComplexScalar, int Options>
+void test_realview_linear_coeff_ref() {
+  using RealScalar = typename NumTraits<ComplexScalar>::Real;
+  using ComplexMatrix = Matrix<ComplexScalar, Dynamic, Dynamic, Options>;
+  using ComplexVector = Matrix<ComplexScalar, Dynamic, 1>;
+  using RealVector = Matrix<RealScalar, Dynamic, 1>;
+  const Index rows = internal::random<Index>(2, 9), cols = internal::random<Index>(2, 9);
+
+  // Contiguous matrix: the linear order is the storage order, two scalars per complex coefficient.
+  ComplexMatrix a = ComplexMatrix::Random(rows, cols);
+  const ComplexMatrix& ca = a;
+  const RealScalar* storage = reinterpret_cast<const RealScalar*>(a.data());
+  auto aView = a.realView();
+  const auto cView = ca.realView();
+  for (Index i = 0; i < aView.size(); ++i) {
+    VERIFY_IS_EQUAL(aView.coeffRef(i), storage[i]);
+    VERIFY_IS_EQUAL(cView.coeffRef(i), storage[i]);
+    VERIFY_IS_EQUAL(a.realView().coeffRef(i), storage[i]);
+  }
+  const ComplexMatrix original = a;
+  for (Index i = 0; i < aView.size(); ++i) aView.coeffRef(i) = RealScalar(i);
+  for (Index i = 0; i < a.size(); ++i) VERIFY_IS_EQUAL(a(i), ComplexScalar(RealScalar(2 * i), RealScalar(2 * i + 1)));
+  a = original;
+
+  // A contiguous column vector, and a vector that is a block of the matrix.
+  ComplexVector v = ComplexVector::Random(rows);
+  RealVector vExpected(2 * rows);
+  for (Index i = 0; i < rows; ++i) {
+    vExpected(2 * i) = numext::real(v(i));
+    vExpected(2 * i + 1) = numext::imag(v(i));
+  }
+  auto vView = v.realView();
+  for (Index i = 0; i < vView.size(); ++i) VERIFY_IS_EQUAL(vView.coeffRef(i), vExpected(i));
+  const Index col = internal::random<Index>(0, cols - 1);
+  auto colBlock = a.col(col);
+  auto colView = colBlock.realView();
+  for (Index i = 0; i < colView.size(); ++i) {
+    VERIFY_IS_EQUAL(colView.coeffRef(i), (i & 1) ? numext::imag(a(i / 2, col)) : numext::real(a(i / 2, col)));
+  }
+  colView.coeffRef(1) = RealScalar(7);
+  VERIFY_IS_EQUAL(numext::imag(a(0, col)), RealScalar(7));
+
+  // Vectors without direct access: a row of the matrix, and a Map with inner stride 2.
+  const Index row = internal::random<Index>(0, rows - 1);
+  auto rowBlock = a.row(row);
+  auto rowView = rowBlock.realView();
+  for (Index i = 0; i < rowView.size(); ++i) {
+    VERIFY_IS_EQUAL(rowView.coeffRef(i), (i & 1) ? numext::imag(a(row, i / 2)) : numext::real(a(row, i / 2)));
+  }
+  ComplexVector buffer = ComplexVector::Random(2 * rows);
+  Map<ComplexVector, 0, InnerStride<2>> strided(buffer.data(), rows);
+  auto stridedView = strided.realView();
+  for (Index i = 0; i < stridedView.size(); ++i) {
+    VERIFY_IS_EQUAL(stridedView.coeffRef(i),
+                    (i & 1) ? numext::imag(buffer(2 * (i / 2))) : numext::real(buffer(2 * (i / 2))));
+  }
+  stridedView.coeffRef(2 * rows - 1) = RealScalar(5);
+  VERIFY_IS_EQUAL(numext::imag(buffer(2 * (rows - 1))), RealScalar(5));
+}
+
+// A complex scalar whose members are in the reverse order of std::complex, so it is not an array of two reals: a
+// RealView of it reads through real() and imag() and has no coeffRef().
+namespace reordered_complex {
+struct Complex {
+  Complex(double r = 0, double i = 0) : imag_value(i), real_value(r) {}
+  double imag_value;
+  double real_value;
+};
+double real(const Complex& x) { return x.real_value; }
+double imag(const Complex& x) { return x.imag_value; }
+}  // namespace reordered_complex
+template <>
+struct Eigen::NumTraits<reordered_complex::Complex> : Eigen::NumTraits<double> {
+  static constexpr bool IsComplex = true;
+};
+
+// True when both coeffRef(row, col) and coeffRef(index) can be called on a V&.
+template <typename V, typename = void>
+struct has_coeff_ref : std::false_type {};
+template <typename V>
+struct has_coeff_ref<V, internal::void_t<decltype(std::declval<V&>().coeffRef(Index(0), Index(0))),
+                                         decltype(std::declval<V&>().coeffRef(Index(0)))>> : std::true_type {};
+
+// RealView::coeffRef() exists for std::complex views only: non-const with LvalueBit, const with DirectAccessBit.
+void test_realview_coeff_ref_availability() {
+  using StdVector = Matrix<std::complex<double>, Dynamic, 1>;
+  using StdView = decltype(std::declval<StdVector&>().realView());
+  using ConstStdView = decltype(std::declval<const StdVector&>().realView());
+  static_assert(has_coeff_ref<StdView>::value, "std::complex view");
+  static_assert(has_coeff_ref<const StdView>::value, "const view object");
+  static_assert(has_coeff_ref<ConstStdView>::value, "view of const xpr");
+  // A view of a const expression has no LvalueBit, so only the const overloads are candidates.
+  static_assert(std::is_same<decltype(std::declval<ConstStdView&>().coeffRef(Index(0))), const double&>::value,
+                "view of const xpr is read-only");
+  static_assert(std::is_same<decltype(std::declval<StdView&>().coeffRef(Index(0))), double&>::value, "writable");
+
+  using Custom = reordered_complex::Complex;
+  using CustomMatrix = Matrix<Custom, Dynamic, Dynamic>;
+  using CustomView = decltype(std::declval<CustomMatrix&>().realView());
+  using ConstCustomView = decltype(std::declval<const CustomMatrix&>().realView());
+  static_assert(!has_coeff_ref<CustomView>::value, "custom, non-const");
+  static_assert(!has_coeff_ref<const CustomView>::value, "custom, const view object");
+  static_assert(!has_coeff_ref<ConstCustomView>::value, "custom, view of const xpr");
+
+  // The coefficients are still read through real() and imag().
+  const Index rows = internal::random<Index>(1, 9), cols = internal::random<Index>(1, 9);
+  CustomMatrix m(rows, cols);
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) m(i, j) = Custom(internal::random<double>(), internal::random<double>());
+  const CustomMatrix& cm = m;
+  auto view = m.realView();
+  auto constView = cm.realView();
+  for (Index j = 0; j < cols; ++j)
+    for (Index i = 0; i < rows; ++i) {
+      VERIFY_IS_EQUAL(view.coeff(2 * i, j), m(i, j).real_value);
+      VERIFY_IS_EQUAL(view.coeff(2 * i + 1, j), m(i, j).imag_value);
+      VERIFY_IS_EQUAL(constView.coeff(2 * i, j), m(i, j).real_value);
+      VERIFY_IS_EQUAL(constView.coeff(2 * i + 1, j), m(i, j).imag_value);
+    }
+  Matrix<Custom, Dynamic, 1> v(rows);
+  for (Index i = 0; i < rows; ++i) v(i) = Custom(internal::random<double>(), internal::random<double>());
+  auto vView = v.realView();
+  for (Index i = 0; i < rows; ++i) {
+    VERIFY_IS_EQUAL(vView.coeff(2 * i), v(i).real_value);
+    VERIFY_IS_EQUAL(vView.coeff(2 * i + 1), v(i).imag_value);
+  }
+}
+
 template <typename Scalar, int Rows, int Cols, int MaxRows = Rows, int MaxCols = Cols>
 void test_realview_readonly() {
   // if Rows == 1, don't test ColMajor as it is not a valid array
@@ -373,8 +536,17 @@ EIGEN_DECLARE_TEST(realview) {
     CALL_SUBTEST_10((test_realview<1, 1>()));
     CALL_SUBTEST_11(test_edge_cases(std::complex<float>()));
     CALL_SUBTEST_11(test_strided_realview(std::complex<float>()));
+    CALL_SUBTEST_11((test_realview_gemm_operand<std::complex<float>, ColMajor>()));
+    CALL_SUBTEST_11((test_realview_gemm_operand<std::complex<float>, RowMajor>()));
+    CALL_SUBTEST_11((test_realview_linear_coeff_ref<std::complex<float>, ColMajor>()));
+    CALL_SUBTEST_11((test_realview_linear_coeff_ref<std::complex<float>, RowMajor>()));
     CALL_SUBTEST_12(test_edge_cases(std::complex<double>()));
     CALL_SUBTEST_12(test_strided_realview(std::complex<double>()));
+    CALL_SUBTEST_12((test_realview_gemm_operand<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_12((test_realview_gemm_operand<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_12((test_realview_linear_coeff_ref<std::complex<double>, ColMajor>()));
+    CALL_SUBTEST_12((test_realview_linear_coeff_ref<std::complex<double>, RowMajor>()));
+    CALL_SUBTEST_11(test_realview_coeff_ref_availability());
     CALL_SUBTEST_13((test_realview_long_double<Dynamic, Dynamic, Dynamic, Dynamic>()));
     CALL_SUBTEST_13((test_realview_long_double<17, 19, 17, 19>()));
   }

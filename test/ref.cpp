@@ -268,6 +268,161 @@ void test_ref_zero_strides() {
   VERIFY_IS_EQUAL(indexedRef, VectorXf::Constant(3, v(2)));
 }
 
+// A Ref whose outer stride is the default (0) must report inner * rows (inner * cols if row-major), the
+// layout Map and the direct-bind test in Ref::construct assume. Verifies reads, writes, and re-use of the strides
+// of a Ref bound to `src`.
+template <typename RefType, typename Src>
+void check_ref_default_outer_stride(Src &src, bool expect_direct) {
+  using Plain = typename Src::PlainObject;
+  const Plain expected = src;
+  RefType r(src);
+  VERIFY_IS_EQUAL(r.rows(), expected.rows());
+  VERIFY_IS_EQUAL(r.cols(), expected.cols());
+  if (expect_direct) {
+    VERIFY(r.data() == src.data());
+    VERIFY_IS_EQUAL(r.innerStride(), src.innerStride());
+    VERIFY_IS_EQUAL(r.outerStride(), src.outerStride());
+  }
+  VERIFY_IS_EQUAL(r, expected);
+  for (Index j = 0; j < expected.cols(); ++j)
+    for (Index i = 0; i < expected.rows(); ++i) VERIFY_IS_EQUAL(r.coeff(i, j), expected.coeff(i, j));
+
+  // Pass the strides on to a Map.
+  Map<const Plain, 0, Stride<Dynamic, Dynamic>> m(r.data(), r.rows(), r.cols(),
+                                                  Stride<Dynamic, Dynamic>(r.outerStride(), r.innerStride()));
+  VERIFY_IS_EQUAL(m, expected);
+  // Pass the Ref on to a product.
+  VERIFY_IS_APPROX((r.transpose() * r).eval(), (expected.transpose() * expected).eval());
+  VERIFY_IS_APPROX((r * expected.transpose()).eval(), (expected * expected.transpose()).eval());
+}
+
+template <typename RefType, typename Src>
+void check_ref_default_outer_stride_write(Src &src) {
+  using Plain = typename Src::PlainObject;
+  const Plain values = Plain::Random(src.rows(), src.cols());
+  RefType r(src);
+  r = values;
+  VERIFY_IS_EQUAL(src, values);
+  r.setZero();
+  VERIFY(src.isZero());
+}
+
+// Every second row of a column-major (column of a row-major) matrix, and the transposed selection.
+template <typename Mat>
+auto every_other_inner(Mat &A, std::false_type) {
+  return A(seq(0, Eigen::placeholders::last, 2), Eigen::placeholders::all);
+}
+template <typename Mat>
+auto every_other_inner(Mat &A, std::true_type) {
+  return A(Eigen::placeholders::all, seq(0, Eigen::placeholders::last, 2));
+}
+
+// Matrix of runtime size whose storage is interleaved with `stride` unused coefficients.
+template <typename Mat>
+void check_ref_default_outer_stride_matrix(Index rows, Index cols) {
+  using Scalar = typename Mat::Scalar;
+  using RefDyn = Ref<Mat, 0, InnerStride<>>;
+  using CRefDyn = Ref<const Mat, 0, InnerStride<>>;
+  using Plain = Matrix<Scalar, Dynamic, Dynamic, Mat::Options>;
+
+  for (Index s = 1; s <= 3; ++s) {
+    Plain buf = Plain::Random(s * rows * cols, 1);
+    Map<Mat, 0, InnerStride<>> m(buf.data(), rows, cols, InnerStride<>(s));
+    check_ref_default_outer_stride<RefDyn>(m, true);
+    check_ref_default_outer_stride<CRefDyn>(m, true);
+    check_ref_default_outer_stride_write<RefDyn>(m);
+  }
+  {
+    Plain buf = Plain::Random(2 * rows * cols, 1);
+    Map<Mat, 0, InnerStride<2>> m(buf.data(), rows, cols);
+    check_ref_default_outer_stride<Ref<Mat, 0, InnerStride<2>>>(m, true);
+    check_ref_default_outer_stride<Ref<const Mat, 0, InnerStride<2>>>(m, true);
+    check_ref_default_outer_stride_write<Ref<Mat, 0, InnerStride<2>>>(m);
+    check_ref_default_outer_stride<Ref<Mat, 0, InnerStride<Dynamic>>>(m, true);
+  }
+
+  // Every second row (column-major) or column (row-major) of a matrix: inner stride 2, outer stride of the source.
+  Mat A = Mat::Random(2 * rows, 2 * cols);
+  constexpr bool row_major = (int(Mat::Options) & int(RowMajor)) != 0;
+  auto sub = every_other_inner(A, internal::bool_constant<row_major>());
+  auto sub_sized = every_other_inner(A, internal::bool_constant<!row_major>());
+  // The first has inner stride 2 and outer stride == 2 * size of its inner dimension, so a default Ref binds to it.
+  // The second keeps the unit inner stride and a larger outer stride: only a copy matches.
+  VERIFY_IS_EQUAL(sub.innerStride(), 2);
+  check_ref_default_outer_stride<RefDyn>(sub, true);
+  check_ref_default_outer_stride<CRefDyn>(sub, true);
+  check_ref_default_outer_stride_write<RefDyn>(sub);
+  check_ref_default_outer_stride<CRefDyn>(sub_sized, false);
+
+  // Outer stride that is not inner * rows: copied.
+  Plain buf = Plain::Random(3 * (rows + 3) * (cols + 3), 1);
+  Map<Mat, 0, Stride<Dynamic, Dynamic>> padded(buf.data(), rows, cols,
+                                               Stride<Dynamic, Dynamic>((row_major ? cols + 3 : rows + 3) * 2, 2));
+  check_ref_default_outer_stride<CRefDyn>(padded, false);
+  // A Ref of a Ref.
+  RefDyn first(sub);
+  check_ref_default_outer_stride<CRefDyn>(first, true);
+}
+
+template <typename Scalar, int Storage>
+void check_ref_default_outer_stride_fixed() {
+  using Mat = Matrix<Scalar, 4, 3, Storage>;
+  using Sq = Matrix<Scalar, 3, 3, Storage>;
+  Matrix<Scalar, 24, 1> buf = Matrix<Scalar, 24, 1>::Random();
+  {
+    Map<Mat, 0, InnerStride<2>> m(buf.data());
+    check_ref_default_outer_stride<Ref<Mat, 0, InnerStride<>>>(m, true);
+    check_ref_default_outer_stride<Ref<const Mat, 0, InnerStride<>>>(m, true);
+    check_ref_default_outer_stride<Ref<Mat, 0, InnerStride<2>>>(m, true);
+    check_ref_default_outer_stride<Ref<const Mat, 0, InnerStride<2>>>(m, true);
+    check_ref_default_outer_stride_write<Ref<Mat, 0, InnerStride<2>>>(m);
+  }
+  {
+    Map<Sq, 0, InnerStride<>> m(buf.data(), 3, 3, InnerStride<>(2));
+    check_ref_default_outer_stride<Ref<Sq, 0, InnerStride<>>>(m, true);
+    check_ref_default_outer_stride<Ref<const Sq, 0, InnerStride<>>>(m, true);
+    check_ref_default_outer_stride_write<Ref<Sq, 0, InnerStride<>>>(m);
+  }
+}
+
+template <typename Vec>
+void check_ref_default_outer_stride_vector(Index n) {
+  using Scalar = typename Vec::Scalar;
+  for (Index s = 1; s <= 3; ++s) {
+    Matrix<Scalar, Dynamic, 1> buf = Matrix<Scalar, Dynamic, 1>::Random(s * n);
+    Map<Vec, 0, InnerStride<>> v(buf.data(), n, InnerStride<>(s));
+    check_ref_default_outer_stride<Ref<Vec, 0, InnerStride<>>>(v, true);
+    check_ref_default_outer_stride<Ref<const Vec, 0, InnerStride<>>>(v, true);
+    check_ref_default_outer_stride_write<Ref<Vec, 0, InnerStride<>>>(v);
+  }
+  // A row of a column-major matrix is a strided vector, which a column vector Ref binds to by transposing.
+  Matrix<Scalar, Dynamic, Dynamic> A = Matrix<Scalar, Dynamic, Dynamic>::Random(n, n + 1);
+  Ref<Vec, 0, InnerStride<>> r(A.row(n / 2));
+  const Ref<const Vec, 0, InnerStride<>> cr(A.row(n / 2));
+  VERIFY(r.data() == &A(n / 2, 0) && cr.data() == r.data());
+  VERIFY_IS_EQUAL(r.outerStride(), r.size() * r.innerStride());
+  VERIFY_IS_EQUAL(cr.outerStride(), cr.size() * cr.innerStride());
+  for (Index k = 0; k < A.cols(); ++k) VERIFY_IS_EQUAL(r(k), A(n / 2, k));
+  VERIFY_IS_EQUAL(cr, r);
+}
+
+void test_ref_default_outer_stride() {
+  for (int i = 0; i < 3; ++i) {
+    const Index r = internal::random<Index>(1, 5), c = internal::random<Index>(1, 5);
+    check_ref_default_outer_stride_matrix<MatrixXf>(r + 1, c + 1);
+    check_ref_default_outer_stride_matrix<Matrix<float, Dynamic, Dynamic, RowMajor>>(r + 1, c + 1);
+    check_ref_default_outer_stride_matrix<MatrixXd>(r + 1, c + 1);
+    check_ref_default_outer_stride_matrix<MatrixXcf>(r + 1, c + 1);
+    check_ref_default_outer_stride_matrix<Matrix<int, Dynamic, Dynamic, RowMajor>>(r + 1, c + 1);
+    check_ref_default_outer_stride_vector<VectorXf>(r + 1);
+    check_ref_default_outer_stride_vector<RowVectorXf>(r + 1);
+    check_ref_default_outer_stride_vector<VectorXcd>(r + 1);
+  }
+  check_ref_default_outer_stride_fixed<float, ColMajor>();
+  check_ref_default_outer_stride_fixed<float, RowMajor>();
+  check_ref_default_outer_stride_fixed<std::complex<double>, ColMajor>();
+}
+
 template <typename B>
 EIGEN_DONT_INLINE void call_ref_1(Ref<VectorXf> a, const B &b) {
   VERIFY_IS_EQUAL(a, b);
@@ -455,4 +610,5 @@ EIGEN_DECLARE_TEST(ref) {
   CALL_SUBTEST_10(test_contiguous_ref_no_copy(Matrix3d()));
   CALL_SUBTEST_10(test_ref_alignment_matching());
   CALL_SUBTEST_10(test_ref_zero_strides());
+  CALL_SUBTEST_10(test_ref_default_outer_stride());
 }

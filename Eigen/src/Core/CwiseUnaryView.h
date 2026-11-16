@@ -68,15 +68,17 @@ class CwiseUnaryViewImpl<ViewOp, MatrixType, StrideType, Dense, false>
   EIGEN_DEVICE_FUNC inline const Scalar* data() const { return &(this->coeffRef(0)); }
 
   EIGEN_DEVICE_FUNC constexpr Index innerStride() const {
-    return StrideType::InnerStrideAtCompileTime != 0 ? int(StrideType::InnerStrideAtCompileTime)
-                                                     : derived().nestedExpression().innerStride() *
-                                                           sizeof(typename traits<MatrixType>::Scalar) / sizeof(Scalar);
+    return StrideType::InnerStrideAtCompileTime != 0
+               ? int(StrideType::InnerStrideAtCompileTime)
+               : derived().nestedExpression().innerStride() * Index(sizeof(typename traits<MatrixType>::Scalar)) /
+                     Index(sizeof(Scalar));
   }
 
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const {
-    return StrideType::OuterStrideAtCompileTime != 0 ? int(StrideType::OuterStrideAtCompileTime)
-                                                     : derived().nestedExpression().outerStride() *
-                                                           sizeof(typename traits<MatrixType>::Scalar) / sizeof(Scalar);
+    return StrideType::OuterStrideAtCompileTime != 0
+               ? int(StrideType::OuterStrideAtCompileTime)
+               : derived().nestedExpression().outerStride() * Index(sizeof(typename traits<MatrixType>::Scalar)) /
+                     Index(sizeof(Scalar));
   }
 
  protected:

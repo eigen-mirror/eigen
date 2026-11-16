@@ -454,6 +454,42 @@ void reshape_inner_iterator() {
   VERIFY_IS_APPROX(view.blueNorm(), a.blueNorm());
 }
 
+// An empty expression reshaped to a zero size and AutoSize: the other size is any value, so choose 0, not 0 / 0.
+template <int Order, typename MatType>
+void reshape_empty_auto(const MatType& empty) {
+  const Index zero = internal::random<Index>(0, 0);  // opaque to the optimizer
+  VERIFY_IS_EQUAL(empty.size(), 0);
+  VERIFY_IS_EQUAL(internal::get_runtime_reshape_size(AutoSize, zero, empty.size()), 0);
+  VERIFY_IS_EQUAL(internal::get_runtime_reshape_size(AutoSize, Index(3), empty.size()), 0);
+
+  auto rows_auto = empty.template reshaped<Order>(AutoSize, zero);
+  VERIFY_IS_EQUAL(rows_auto.rows(), 0);
+  VERIFY_IS_EQUAL(rows_auto.cols(), 0);
+  auto cols_auto = empty.template reshaped<Order>(zero, AutoSize);
+  VERIFY_IS_EQUAL(cols_auto.rows(), 0);
+  VERIFY_IS_EQUAL(cols_auto.cols(), 0);
+  VERIFY_IS_EQUAL(rows_auto.size(), 0);
+  VERIFY_IS_EQUAL(MatType(empty).template reshaped<Order>(AutoSize, zero).eval().size(), 0);
+}
+
+void reshape_empty_auto_all() {
+  reshape_empty_auto<ColMajor>(MatrixXf(0, 4));
+  reshape_empty_auto<RowMajor>(MatrixXf(4, 0));
+  reshape_empty_auto<AutoOrder>(MatrixXf(0, 0));
+  reshape_empty_auto<ColMajor>(Matrix<float, 0, 4>());
+  reshape_empty_auto<RowMajor>(Matrix<float, 3, 0>());
+  // A fixed zero other size: the AutoSize dimension is resolved at compile time.
+  using internal::get_compiletime_reshape_size;
+  STATIC_CHECK((int(get_compiletime_reshape_size<AutoSize_t, internal::FixedInt<0>, 0>::value) == 0));
+  const Matrix<float, 0, 4> fixed_empty;
+  VERIFY_IS_EQUAL(fixed_empty.reshaped(AutoSize, fix<0>).rows(), 0);
+  VERIFY_IS_EQUAL(fixed_empty.reshaped(fix<0>, AutoSize).cols(), 0);
+  // The ordinary AutoSize results are unchanged.
+  const MatrixXf a = MatrixXf::Random(4, 6);
+  VERIFY_IS_EQUAL(a.reshaped(AutoSize, 3).rows(), 8);
+  VERIFY_IS_EQUAL(a.reshaped(8, AutoSize).cols(), 3);
+}
+
 EIGEN_DECLARE_TEST(reshape) {
   using RowMatrixXi = Matrix<int, Dynamic, Dynamic, RowMajor>;
   using RowMatrix4i = Matrix<int, 4, 4, RowMajor>;
@@ -486,6 +522,7 @@ EIGEN_DECLARE_TEST(reshape) {
   CALL_SUBTEST_8(reshape_evaluator_outlives_expression<ColMajor>());
   CALL_SUBTEST_8(reshape_evaluator_outlives_expression<RowMajor>());
   CALL_SUBTEST_8(reshape_inner_iterator());
+  CALL_SUBTEST_8(reshape_empty_auto_all());
 
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_7(reshape_copies<float>(17, 13));

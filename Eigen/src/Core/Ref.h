@@ -72,9 +72,9 @@ class RefBase : public MapBase<Derived> {
 
   EIGEN_DEVICE_FUNC constexpr Index outerStride() const {
     return StrideType::OuterStrideAtCompileTime != 0 ? m_stride.outer()
-           : IsVectorAtCompileTime                   ? this->size()
-           : int(Flags) & RowMajorBit                ? this->cols()
-                                                     : this->rows();
+           : IsVectorAtCompileTime                   ? this->size() * innerStride()
+           : int(Flags) & RowMajorBit                ? this->cols() * innerStride()
+                                                     : this->rows() * innerStride();
   }
 
   EIGEN_DEVICE_FUNC RefBase()
