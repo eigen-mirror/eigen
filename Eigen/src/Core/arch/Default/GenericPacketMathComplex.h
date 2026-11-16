@@ -66,7 +66,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pdiv_complex(const Pa
     RealPacket denom_in = pmul(y_in, y_scaled);
     denom_in = padd(denom_in, pcplxflip(Packet(denom_in)).v);
     const Packet num_in = pmul(x_in, pconj(Packet(y_scaled)));
-    const RealPacket inf = pset1<RealPacket>(NumTraits<RealScalar>::infinity());
+    const RealPacket inf = pinf<RealPacket>();
     RealPacket overflow = por(pcmp_eq(pabs(num.v), inf), pcmp_eq(pabs(denom), inf));
     overflow = por(overflow, pcplxflip(Packet(overflow)).v);
     result = pselect(overflow, pmul(pdiv(num_in.v, denom_in), unscale), result);
@@ -194,7 +194,12 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
   if (predux_any(pcmp_le(pset1<RealPacket>(large_x), pabs(x)))) {
     const RealPacket cst_pos_inf = pinf<RealPacket>();
     const RealPacket is_x_pos_inf = pcmp_eq(x, cst_pos_inf);
-    const RealPacket split = pandnot(pcmp_eq(expx, cst_pos_inf), is_x_pos_inf);
+    // exp(x) overflows above ln(highest) < max_exponent ln(2). The bound is compared with x, as a comparison of exp(x)
+    // with an infinity is folded to false under -ffinite-math-only; it is lowered by 4 epsilon, which no x that
+    // overflows lies below. The split is exact for the elements between, whose exp(x) is finite.
+    const RealScalar x_overflow = RealScalar(NumTraits<RealScalar>::max_exponent()) * RealScalar(EIGEN_LN2) *
+                                  (RealScalar(1) - RealScalar(4) * NumTraits<RealScalar>::epsilon());
+    const RealPacket split = pandnot(pcmp_lt(pset1<RealPacket>(x_overflow), x), is_x_pos_inf);
     const RealPacket cst_neg_inf = por(psignmask<RealPacket>(), pinf<RealPacket>());
 
     // If x is -inf, we know that cossin(y) is bounded,
@@ -221,7 +226,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
     //   exp(x) cis(y) = (exp(r) (2^digits cis(y))) 2^(n - digits),
     // where 2^digits cis(y) is exact and normal and the result is normal or overflows, so only exp(r) and one product
     // round. x is clamped to x_max, one ln(2) further so that its rounding stays past the overflow point, and
-    // r = (x - n ln2_hi) - n ln2_lo as in pexp_float/pexp_double, the first difference exact for x <= x_max. Other
+    // r = (x - n ln2_hi) - n ln2_lo as in generic_expm1, the first difference exact for x <= x_max. Other
     // elements use x = 0, which raises no exception, and keep exp(x) cis(y), whatever shares their packet.
     const int digits = NumTraits<RealScalar>::digits();
     const RealScalar x_max =
@@ -232,7 +237,9 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_complex(const Pa
     const RealScalar ln2_lo = is_float ? RealScalar(-2.12194440e-4f) : RealScalar(1.42860682030941723212e-6);
     const RealPacket x_split = pselect(split, pmin(x, pset1<RealPacket>(x_max)), pzero(x));
     const RealPacket n = print(pmul(x_split, pset1<RealPacket>(RealScalar(EIGEN_LOG2E))));
-    const RealPacket r = pnmadd(n, pset1<RealPacket>(ln2_lo), pnmadd(n, pset1<RealPacket>(ln2_hi), x_split));
+    RealPacket r = pnmadd(n, pset1<RealPacket>(ln2_hi), x_split);
+    pbarrier(r);  // -ffast-math would otherwise fuse the two products into n (ln2_hi + ln2_lo), which rounds.
+    r = pnmadd(n, pset1<RealPacket>(ln2_lo), r);
     const RealPacket scaled_cisy = pmul(cisy, pset1<RealPacket>(RealScalar(numext::uint64_t(1) << digits)));
     const RealPacket split_result = pldexp(pmul(pexp_reduced_impl<RealPacket>::run(r), scaled_cisy),
                                            psub(n, pset1<RealPacket>(RealScalar(digits))));

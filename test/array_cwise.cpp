@@ -1506,6 +1506,19 @@ void integer_typed_predicates_test(const ArrayType& m) {
   VERIFY((finite != Scalar(0)).all());
 }
 
+// The logistic functor derives its saturation threshold from NumTraits<Scalar>::epsilon(), which is 0 for integer
+// scalars. The result of an integer logistic is not meaningful, but the call must not divide by zero (SIGFPE at -O0,
+// a trap at -O2) and must stay in [0, 1].
+template <typename Scalar>
+void integer_logistic_test() {
+  const Scalar values[] = {Scalar(0), Scalar(1), Scalar(-1), Scalar(5), Scalar(-5)};
+  const Index num_values = sizeof(values) / sizeof(values[0]);
+  Array<Scalar, Dynamic, 1> x(2 * num_values + 3);
+  for (Index i = 0; i < x.size(); ++i) x(i) = values[i % num_values];
+  const Array<Scalar, Dynamic, 1> y = x.logistic();
+  for (Index i = 0; i < y.size(); ++i) VERIFY(y(i) == Scalar(0) || y(i) == Scalar(1));
+}
+
 template <typename SrcType, typename DstType, int RowsAtCompileTime, int ColsAtCompileTime>
 struct cast_test_impl {
   using SrcArray = Array<SrcType, RowsAtCompileTime, ColsAtCompileTime>;
@@ -1866,6 +1879,9 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_23(integer_typed_predicates_test(ArrayXX<int64_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE),
                                                                    internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_23(integer_typed_predicates_test(ArrayX<uint32_t>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
+    CALL_SUBTEST_23(integer_logistic_test<int>());
+    CALL_SUBTEST_23(integer_logistic_test<int64_t>());
+    CALL_SUBTEST_23(integer_logistic_test<int16_t>());
     CALL_SUBTEST_24(typed_logicals_test(ArrayX<float>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_24(typed_logicals_test(ArrayX<Eigen::half>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_25(typed_logicals_test(ArrayX<double>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));

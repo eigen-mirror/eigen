@@ -413,7 +413,7 @@ struct generic_k0e<T, float> {
                        2.76681363944501510342E-7f,  -1.83175552271911948767E-6f, 1.39498137188764993662E-5f,
                        -1.28495495816278026384E-4f, 1.56988388573005337491E-3f,  -3.14481013119645005427E-2f,
                        2.44030308206595545468E0f};
-    const T MAXNUM = pset1<T>(NumTraits<float>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A);
     x_le_two = pmadd(generic_i0<T, float>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
@@ -469,7 +469,7 @@ struct generic_k0e<T, double> {
                         2.76681363944501510342E-7,   -1.83175552271911948767E-6,  1.39498137188764993662E-5,
                         -1.28495495816278026384E-4,  1.56988388573005337491E-3,   -3.14481013119645005427E-2,
                         2.44030308206595545468E0};
-    const T MAXNUM = pset1<T>(NumTraits<double>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 10>::run(pmadd(x, x, pset1<T>(-2.0)), A);
     x_le_two = pmadd(generic_i0<T, double>::run(x), pmul(pset1<T>(-1.0), plog(pmul(pset1<T>(0.5), x))), x_le_two);
@@ -542,7 +542,7 @@ struct generic_k0<T, float> {
                        2.76681363944501510342E-7f,  -1.83175552271911948767E-6f, 1.39498137188764993662E-5f,
                        -1.28495495816278026384E-4f, 1.56988388573005337491E-3f,  -3.14481013119645005427E-2f,
                        2.44030308206595545468E0f};
-    const T MAXNUM = pset1<T>(NumTraits<float>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A);
     x_le_two = pmadd(generic_i0<T, float>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
@@ -599,7 +599,7 @@ struct generic_k0<T, double> {
                         2.76681363944501510342E-7,   -1.83175552271911948767E-6,  1.39498137188764993662E-5,
                         -1.28495495816278026384E-4,  1.56988388573005337491E-3,   -3.14481013119645005427E-2,
                         2.44030308206595545468E0};
-    const T MAXNUM = pset1<T>(NumTraits<double>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 10>::run(pmadd(x, x, pset1<T>(-2.0)), A);
     x_le_two = pmadd(generic_i0<T, double>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
@@ -664,7 +664,7 @@ struct generic_k1e<T, float> {
                        -3.50196060308781257119E-7f, 2.40648494783721712015E-6f,  -1.93619797416608296024E-5f,
                        1.95215518471351631108E-4f,  -2.85781685962277938680E-3f, 1.03923736576817238437E-1f,
                        2.72062619048444266945E0f};
-    const T MAXNUM = pset1<T>(NumTraits<float>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
@@ -723,7 +723,7 @@ struct generic_k1e<T, double> {
                         -3.50196060308781257119E-7,  2.40648494783721712015E-6,   -1.93619797416608296024E-5,
                         1.95215518471351631108E-4,   -2.85781685962277938680E-3,  1.03923736576817238437E-1,
                         2.72062619048444266945E0};
-    const T MAXNUM = pset1<T>(NumTraits<double>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 11>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
@@ -793,7 +793,7 @@ struct generic_k1<T, float> {
                        -3.50196060308781257119E-7f, 2.40648494783721712015E-6f,  -1.93619797416608296024E-5f,
                        1.95215518471351631108E-4f,  -2.85781685962277938680E-3f, 1.03923736576817238437E-1f,
                        2.72062619048444266945E0f};
-    const T MAXNUM = pset1<T>(NumTraits<float>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
@@ -856,7 +856,7 @@ struct generic_k1<T, double> {
                         -3.50196060308781257119E-7,  2.40648494783721712015E-6,   -1.93619797416608296024E-5,
                         1.95215518471351631108E-4,   -2.85781685962277938680E-3,  1.03923736576817238437E-1,
                         2.72062619048444266945E0};
-    const T MAXNUM = pset1<T>(NumTraits<double>::infinity());
+    const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 11>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
@@ -1109,7 +1109,7 @@ struct generic_y0<T, float> {
     const T YZ1 = pset1<T>(0.43221455686510834878f);
     const T TWOOPI = pset1<T>(0.636619772367581343075535f); /* 2 / pi */
     const T NEG_PIO4F = pset1<T>(-0.7853981633974483096f);  /* -pi / 4 */
-    const T NEG_MAXNUM = pset1<T>(-NumTraits<float>::infinity());
+    const T NEG_MAXNUM = por(psignmask<T>(), pinf<T>());
     T z = pmul(x, x);
     T x_le_two = pmul(TWOOPI, pmul(plog(x), generic_j0<T, float>::run(x)));
     x_le_two = pmadd(psub(z, YZ1), internal::ppolevl<T, 4>::run(z, YP), x_le_two);
@@ -1187,7 +1187,7 @@ struct generic_y0<T, double> {
     const T SQ2OPI = pset1<T>(7.9788456080286535587989E-1); /* sqrt(2 / pi) */
     const T TWOOPI = pset1<T>(0.636619772367581343075535);  /* 2 / pi */
     const T NEG_PIO4 = pset1<T>(-0.7853981633974483096);    /* -pi / 4 */
-    const T NEG_MAXNUM = pset1<T>(-NumTraits<double>::infinity());
+    const T NEG_MAXNUM = por(psignmask<T>(), pinf<T>());
 
     T z = pmul(x, x);
     T x_le_five = pdiv(internal::ppolevl<T, 7>::run(z, YP), internal::ppolevl<T, 7>::run(z, YQ));
@@ -1438,7 +1438,7 @@ struct generic_y1<T, float> {
     const T YO1 = pset1<T>(4.66539330185668857532f);
     const T NEG_THPIO4F = pset1<T>(-2.35619449019234492885f); /* -3*pi/4 */
     const T TWOOPI = pset1<T>(0.636619772367581343075535f);   /* 2/pi */
-    const T NEG_MAXNUM = pset1<T>(-NumTraits<float>::infinity());
+    const T NEG_MAXNUM = por(psignmask<T>(), pinf<T>());
 
     T z = pmul(x, x);
     T x_le_two = pmul(psub(z, YO1), internal::ppolevl<T, 4>::run(z, YP));
@@ -1514,7 +1514,7 @@ struct generic_y1<T, double> {
     const T SQ2OPI = pset1<T>(.79788456080286535588);
     const T NEG_THPIO4 = pset1<T>(-2.35619449019234492885); /* -3*pi/4 */
     const T TWOOPI = pset1<T>(0.636619772367581343075535);  /* 2/pi */
-    const T NEG_MAXNUM = pset1<T>(-NumTraits<double>::infinity());
+    const T NEG_MAXNUM = por(psignmask<T>(), pinf<T>());
 
     T z = pmul(x, x);
     T x_le_five = pdiv(internal::ppolevl<T, 5>::run(z, YP), internal::ppolevl<T, 8>::run(z, YQ));

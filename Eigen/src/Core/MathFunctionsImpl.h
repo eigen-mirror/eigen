@@ -141,7 +141,7 @@ struct generic_sqrt_newton_step {
     const Packet one_point_five = pset1<Packet>(Scalar(1.5));
     const Packet minus_half = pset1<Packet>(Scalar(-0.5));
     // If a is inf or zero, return a directly.
-    const Packet inf_mask = pcmp_eq(a, pset1<Packet>(NumTraits<Scalar>::infinity()));
+    const Packet inf_mask = pcmp_eq(a, pinf<Packet>());
     const Packet return_a = por(pcmp_eq(a, pzero(a)), inf_mask);
     // Do a single step of Newton's iteration for reciprocal square root:
     //   x_{n+1} = x_n * (1.5 + (-0.5 * x_n) * (a * x_n))).

@@ -93,7 +93,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet8f prsqrt<Packet8f>(co
   // reads a subnormal as zero too, and the estimate's +-inf is the DAZ result.
   const Packet8f e = _mm256_rsqrt_ps(a);
   const Packet8f r = generic_rsqrt_newton_step<Packet8f, /*Steps=*/1>::run(a, e);
-  const Packet8f redo = pcmp_eq(pmul(a, e), pset1<Packet8f>(NumTraits<float>::infinity()));
+  const Packet8f redo = pcmp_eq(pmul(a, e), pinf<Packet8f>());
   return predux_any(redo) ? pselect(redo, pdiv(pset1<Packet8f>(1.0f), psqrt(a)), r) : r;
 }
 

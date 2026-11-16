@@ -10,6 +10,8 @@
 
 #include "main.h"
 #include <Eigen/QR>
+#include <iomanip>
+#include <vector>
 
 void check(bool b, bool ref) {
   std::cout << b;
@@ -379,6 +381,228 @@ void check_sign_dependent_functions() {
   }
 }
 
+// Packet exp, expm1, log1p, asinh and acosh under -ffast-math, against exact references. A wrong value, not isfinite or
+// isnan (which fast-math folds), shows an overflow or a cancellation. The inputs and the C library references go
+// through volatiles: fast-math folds calls on constants and rewrites acosh and the like, even inside std::acosh.
+using LongDoubleFunction = long double (*)(long double);
+
+// Whether v is finite, from its bits: fast-math folds isfinite and compares as if a NaN or an infinity never occurred.
+template <typename Scalar>
+bool has_finite_bits(Scalar v) {
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  constexpr int kMantissaBits = NumTraits<Scalar>::digits() - 1;
+  constexpr int kExponentBits = int(8 * sizeof(Scalar)) - 1 - kMantissaBits;
+  const Bits exponent_mask = static_cast<Bits>(((Bits(1) << kExponentBits) - 1) << kMantissaBits);
+  return (numext::bit_cast<Bits>(v) & exponent_mask) != exponent_mask;
+}
+
+template <typename Scalar, typename Func>
+bool check_fastmath_accuracy(const char* name, const std::vector<Scalar>& values, Func func,
+                             LongDoubleFunction reference) {
+  LongDoubleFunction volatile ref = reference;
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  // Long enough for several packets of any size and a remainder.
+  const Index n = 3 * 64 + 5;
+  // The kernels are within 2 ulp, and the limit leaves room for the reciprocal approximation that fast-math divides
+  // by.
+  const long double tolerance = 4 * static_cast<long double>(NumTraits<Scalar>::epsilon());
+  ArrayType x(n);
+  for (Index i = 0; i < n; ++i) {
+    const volatile Scalar* v = &values[static_cast<size_t>(i) % values.size()];
+    x[i] = *v;
+  }
+  const ArrayType y = func(x);
+  bool passed = true;
+  for (Index i = 0; i < n; ++i) {
+    const long double expected = ref(static_cast<long double>(x[i]));
+    const long double error = numext::abs(static_cast<long double>(y[i]) - expected);
+    // An infinite reference would make the comparison below true for every finite y.
+    if (!has_finite_bits(static_cast<Scalar>(expected)) || !has_finite_bits(y[i]) ||
+        !(error <= tolerance * numext::abs(expected))) {
+      passed = false;
+      if (static_cast<size_t>(i) < values.size()) {
+        std::cerr << std::setprecision(std::numeric_limits<Scalar>::max_digits10) << name << "(" << x[i]
+                  << ") = " << y[i] << ", expected " << static_cast<Scalar>(expected) << "\n";
+      }
+    }
+  }
+  return passed;
+}
+
+template <typename Scalar>
+void check_exp_family_accuracy() {
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  const bool is_float = std::is_same<Scalar, float>::value;
+  // Small and moderate arguments, where expm1, log1p and asinh rely on the low bits of fl(1 + x).
+  const Scalar tiny = is_float ? Scalar(1e-7) : Scalar(1e-10);
+  const std::vector<Scalar> small_values = {tiny,        -tiny,       Scalar(1e-3), Scalar(-1e-3),
+                                            Scalar(0.1), Scalar(0.7), Scalar(3)};
+  // The largest finite results of exp and expm1 need a scale 2^m with m at the top of the exponent range.
+  const Scalar exp_edge = is_float ? Scalar(88.38) : Scalar(709.1);
+  const std::vector<Scalar> large_values = {
+      exp_edge,    is_float ? Scalar(88.5) : Scalar(709.5), is_float ? Scalar(88.72) : Scalar(709.78), Scalar(10),
+      Scalar(-10), is_float ? Scalar(-80) : Scalar(-700)};
+  // Arguments up to the largest finite value, where asinh and acosh switch to log(2 x) without squaring x.
+  const std::vector<Scalar> huge_values = {is_float ? Scalar(1e10) : Scalar(1e150),
+                                           is_float ? Scalar(1e30) : Scalar(1e300),
+                                           is_float ? Scalar(1e38) : Scalar(1e307), NumTraits<Scalar>::highest()};
+
+  auto exp_fn = [](const ArrayType& x) -> ArrayType { return x.exp(); };
+  LongDoubleFunction exp_ref = ::expl;
+  auto expm1_fn = [](const ArrayType& x) -> ArrayType { return x.expm1(); };
+  LongDoubleFunction expm1_ref = ::expm1l;
+  auto log1p_fn = [](const ArrayType& x) -> ArrayType { return x.log1p(); };
+  LongDoubleFunction log1p_ref = ::log1pl;
+  auto asinh_fn = [](const ArrayType& x) -> ArrayType { return x.asinh(); };
+  LongDoubleFunction asinh_ref = ::asinhl;
+  auto acosh_fn = [](const ArrayType& x) -> ArrayType { return x.acosh(); };
+  LongDoubleFunction acosh_ref = ::acoshl;
+  auto sinh_fn = [](const ArrayType& x) -> ArrayType { return x.sinh(); };
+  LongDoubleFunction sinh_ref = ::sinhl;
+  auto cosh_fn = [](const ArrayType& x) -> ArrayType { return x.cosh(); };
+  LongDoubleFunction cosh_ref = ::coshl;
+
+  // Every call runs, so that one failure report lists all the functions that are wrong.
+  bool passed = true;
+  passed &= check_fastmath_accuracy("exp", small_values, exp_fn, exp_ref);
+  passed &= check_fastmath_accuracy("exp", large_values, exp_fn, exp_ref);
+  passed &= check_fastmath_accuracy("expm1", small_values, expm1_fn, expm1_ref);
+  passed &= check_fastmath_accuracy("expm1", large_values, expm1_fn, expm1_ref);
+  passed &= check_fastmath_accuracy("log1p", small_values, log1p_fn, log1p_ref);
+  passed &= check_fastmath_accuracy("log1p", huge_values, log1p_fn, log1p_ref);
+  passed &= check_fastmath_accuracy("asinh", small_values, asinh_fn, asinh_ref);
+  passed &= check_fastmath_accuracy("asinh", huge_values, asinh_fn, asinh_ref);
+  std::vector<Scalar> negative_huge_values;
+  for (Scalar v : huge_values) negative_huge_values.push_back(-v);
+  passed &= check_fastmath_accuracy("asinh", negative_huge_values, asinh_fn, asinh_ref);
+
+  // acosh is defined for x >= 1: x = 1 + tiny, 1 + 1e-3, ... and the huge values.
+  std::vector<Scalar> acosh_values = huge_values;
+  for (Scalar v : small_values) {
+    if (v > Scalar(0)) acosh_values.push_back(Scalar(1) + v);
+  }
+  passed &= check_fastmath_accuracy("acosh", acosh_values, acosh_fn, acosh_ref);
+
+  // sinh and cosh scale exp(r) by 2^(n - 1) from the same reduction as expm1, and are finite up to ln(2 highest).
+  std::vector<Scalar> hyperbolic_values = large_values;
+  // sinhl and coshl overflow at 710.3 where long double has the range of double (MSVC, Apple arm64).
+  if (std::numeric_limits<long double>::max_exponent > std::numeric_limits<Scalar>::max_exponent) {
+    hyperbolic_values.push_back(is_float ? Scalar(89.2) : Scalar(710.3));
+    hyperbolic_values.push_back(is_float ? Scalar(-89.2) : Scalar(-710.3));
+  }
+  hyperbolic_values.push_back(Scalar(-1.5));
+  passed &= check_fastmath_accuracy("sinh", hyperbolic_values, sinh_fn, sinh_ref);
+  passed &= check_fastmath_accuracy("cosh", hyperbolic_values, cosh_fn, cosh_ref);
+  VERIFY(passed);
+}
+
+// For x = 1000, the packet logistic computes exp(x) = inf, which it must recognize and map to 1, though fast-math
+// deletes a comparison with an infinity literal.
+long double logistic_reference(long double x) { return 1 / (1 + ::expl(-x)); }
+
+template <typename Scalar>
+void check_logistic_overflow() {
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  const std::vector<Scalar> values = {Scalar(1000), Scalar(-5), Scalar(100), Scalar(-50), Scalar(0.5)};
+  VERIFY(check_fastmath_accuracy(
+      "logistic", values, [](const ArrayType& x) -> ArrayType { return x.logistic(); }, logistic_reference));
+}
+
+// Finite arguments of sqrt and rsqrt, whose Newton steps compare the argument with an infinity.
+long double rsqrt_reference(long double x) { return 1 / ::sqrtl(x); }
+
+// bfloat16 divides in float, where -ffast-math may compute 1 / (1 + e) by an approximation that flushes it to 0 once
+// 1 + e exceeds 2^126: logistic(88) has e = exp(88) = 1.6e38 and is 1.
+void check_logistic_bfloat16() {
+  const float values[] = {88, 89, 100, 30, -30, 0, 50, -50};
+  const int n = 37;
+  Array<bfloat16, Dynamic, 1> x(n);
+  for (int i = 0; i < n; ++i) {
+    const volatile float* v = &values[i % 8];
+    x[i] = bfloat16(*v);
+  }
+  const Array<bfloat16, Dynamic, 1> y = x.logistic();
+  LongDoubleFunction volatile reference = logistic_reference;
+  for (int i = 0; i < n; ++i) {
+    const long double expected = reference(static_cast<long double>(static_cast<float>(x[i])));
+    const long double tolerance = 2 * static_cast<long double>(NumTraits<bfloat16>::epsilon());
+    VERIFY(has_finite_bits(static_cast<float>(y[i])));
+    VERIFY(numext::abs(static_cast<long double>(static_cast<float>(y[i])) - expected) <= tolerance * expected);
+  }
+}
+
+template <typename Scalar>
+void check_sqrt_rsqrt_finite() {
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  const std::vector<Scalar> values = {Scalar(4), Scalar(9), Scalar(2), Scalar(1e-3), Scalar(7.5), Scalar(1e20)};
+  bool passed = true;
+  passed &= check_fastmath_accuracy(
+      "sqrt", values, [](const ArrayType& x) -> ArrayType { return x.sqrt(); }, ::sqrtl);
+  passed &= check_fastmath_accuracy(
+      "rsqrt", values, [](const ArrayType& x) -> ArrayType { return x.rsqrt(); }, rsqrt_reference);
+  VERIFY(passed);
+}
+
+// exp(x + iy) with exp(x) above the largest finite value and cos(y) or sin(y) small enough that the component is
+// finite: the packet code splits exp(x) = 2^n exp(r) for those, and finds them by the overflow of exp(x), which
+// fast-math must not hide.
+template <typename Scalar>
+void check_complex_exp_overflow() {
+  using Complex = std::complex<Scalar>;
+  const bool is_float = std::is_same<Scalar, float>::value;
+  // Real parts at x_overflow of pexp_complex, the bound of the split, which lies 4 epsilon below ln(highest), and next
+  // to it; ln(highest), where exp(x) is the largest finite value; and larger ones. Up to x_overflow exp(x) is computed
+  // by the packet exp.
+  using Bits = typename numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type;
+  const Scalar x_overflow = Scalar(NumTraits<Scalar>::max_exponent()) * Scalar(EIGEN_LN2) *
+                            (Scalar(1) - Scalar(4) * NumTraits<Scalar>::epsilon());
+  const Bits x_overflow_bits = numext::bit_cast<Bits>(x_overflow);
+  const std::vector<Scalar> x_values = {
+      is_float ? Scalar(89) : Scalar(710),
+      is_float ? Scalar(92) : Scalar(720),
+      is_float ? Scalar(95) : Scalar(735),
+      numext::bit_cast<Scalar>(Bits(x_overflow_bits - 1)),
+      x_overflow,
+      numext::bit_cast<Scalar>(Bits(x_overflow_bits + 1)),
+      static_cast<Scalar>(::logl(static_cast<long double>(NumTraits<Scalar>::highest())))};
+  const Scalar y_values[] = {Scalar(1.5707963267948966), Scalar(3.141592653589793), Scalar(-1.5707963267948966),
+                             Scalar(0.7)};
+  const Index n = 4 * static_cast<Index>(x_values.size());
+  Array<Complex, Dynamic, 1> z(n);
+  for (Index i = 0; i < n; ++i) {
+    const volatile Scalar* x = &x_values[static_cast<size_t>(i / 4)];
+    const volatile Scalar* y = &y_values[i % 4];
+    const Scalar re = *x, im = *y;  // std::complex takes const Scalar&, which cannot bind to a volatile lvalue.
+    z[i] = Complex(re, im);
+  }
+  const Array<Complex, Dynamic, 1> w = z.exp();
+  // The reference is exp(x) cos(y) = 2^n m with m = exp(r) cos(y), x = n ln2 + r, |r| <= ln2 / 2, in double: exp(x)
+  // itself overflows, and long double is no wider than double with MSVC and on Apple arm64. The constants are those of
+  // fdlibm's exp: ln2_hi has 32 trailing zero bits, so n ln2_hi is exact, and the first difference goes through a
+  // volatile because fast-math fuses n ln2_hi + n ln2_lo into the rounded n (ln2_hi + ln2_lo).
+  const volatile double ln2_hi = 6.93147180369123816490e-01, ln2_lo = 1.90821492927058770002e-10;
+  const double highest = static_cast<double>(NumTraits<Scalar>::highest());
+  const double tolerance = 8 * static_cast<double>(NumTraits<Scalar>::epsilon());
+  for (Index i = 0; i < n; ++i) {
+    const double x = static_cast<double>(z[i].real()), y = static_cast<double>(z[i].imag());
+    const int exponent = static_cast<int>(std::floor(x / EIGEN_LN2 + 0.5));
+    const volatile double reduced_hi = x - exponent * ln2_hi;
+    const double r = reduced_hi - exponent * ln2_lo;
+    const double m = std::exp(r);
+    const double mantissa[2] = {m * std::cos(y), m * std::sin(y)};
+    const Scalar actual[2] = {w[i].real(), w[i].imag()};
+    for (int k = 0; k < 2; ++k) {
+      // A component above the largest finite value is infinite, which fast-math cannot be asked about. Compared before
+      // scaling, so that no infinity occurs.
+      if (numext::abs(mantissa[k]) <= std::ldexp(highest, -exponent)) {
+        const double expected = std::ldexp(mantissa[k], exponent);
+        VERIFY(has_finite_bits(actual[k]));
+        VERIFY(numext::abs(static_cast<double>(actual[k]) - expected) <= tolerance * numext::abs(expected));
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(fastmath) {
   std::cout << "*** float *** \n\n";
   check_inf_nan<float>(true);
@@ -395,4 +619,13 @@ EIGEN_DECLARE_TEST(fastmath) {
   CALL_SUBTEST_2(check_complex_fastmath<double>());
   CALL_SUBTEST_3(check_sign_dependent_functions<float>());
   CALL_SUBTEST_4(check_sign_dependent_functions<double>());
+  CALL_SUBTEST_5(check_exp_family_accuracy<float>());
+  CALL_SUBTEST_6(check_exp_family_accuracy<double>());
+  CALL_SUBTEST_7(check_sqrt_rsqrt_finite<float>());
+  CALL_SUBTEST_8(check_sqrt_rsqrt_finite<double>());
+  CALL_SUBTEST_9(check_logistic_overflow<float>());
+  CALL_SUBTEST_10(check_logistic_overflow<double>());
+  CALL_SUBTEST_11(check_logistic_bfloat16());
+  CALL_SUBTEST_12(check_complex_exp_overflow<float>());
+  CALL_SUBTEST_13(check_complex_exp_overflow<double>());
 }

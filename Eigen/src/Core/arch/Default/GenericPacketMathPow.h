@@ -739,7 +739,7 @@ struct repeated_squaring_ops {
   // Whether a finite nonzero base has a power r below the smallest normal.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE bool any_below_normal(const Packet& x, const Packet& r) {
     Packet abs_x = pabs(x);
-    Packet regular = pand(pcmp_lt(pzero(x), abs_x), pcmp_lt(abs_x, pset1<Packet>(NumTraits<Scalar>::infinity())));
+    Packet regular = pand(pcmp_lt(pzero(x), abs_x), pcmp_lt(abs_x, pinf<Packet>()));
     return predux_any(pand(regular, pcmp_lt(pabs(r), pset1<Packet>((numext::numeric_limits<Scalar>::min)()))));
   }
   // Whether every lane lies within [1/bound, bound], where the power and its residuals stay normal without scaling.
@@ -860,7 +860,7 @@ struct complex_components {
   // In both lanes of each pair: both components zero; a component infinite; a component NaN and none infinite.
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE void special_masks(const Packet& z, R& zero, R& inf, R& nan) {
     R zero_lane = pcmp_eq(z.v, pzero(z.v));
-    R inf_lane = pcmp_eq(pabs(z.v), pset1<R>(NumTraits<RealScalar>::infinity()));
+    R inf_lane = pcmp_eq(pabs(z.v), pinf<R>());
     R nan_lane = pisnan(z.v);
     zero = pand(zero_lane, flip(zero_lane));
     inf = por(inf_lane, flip(inf_lane));

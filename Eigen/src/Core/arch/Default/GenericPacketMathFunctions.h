@@ -356,7 +356,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_float(c
 
   // u = 1 + x, with rounding. Recover the lost low bits: dx = x - (u - 1).
   Packet u = padd(one, x);
-  Packet dx = psub(x, psub(u, one));
+  pbarrier(u);  // -ffast-math would otherwise fold x - (u - 1) to 0.
+  Packet u_minus_one = psub(u, one);
+  pbarrier(u_minus_one);  // ... or reassociate it to (x - u) + 1.
+  Packet dx = psub(x, u_minus_one);
 
   // For |x| tiny enough that u rounds to 1, return x directly.
   Packet small_mask = pcmp_eq(u, one);
@@ -398,7 +401,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_log1p_double(
 
   // u = 1 + x, with rounding.  Recover the lost low bits: dx = x - (u - 1).
   Packet u = padd(one, x);
-  Packet dx = psub(x, psub(u, one));
+  pbarrier(u);  // -ffast-math would otherwise fold x - (u - 1) to 0.
+  Packet u_minus_one = psub(u, one);
+  pbarrier(u_minus_one);  // ... or reassociate it to (x - u) + 1.
+  Packet dx = psub(x, u_minus_one);
 
   // For |x| tiny enough that u rounds to 1, return x directly.
   Packet small_mask = pcmp_eq(u, one);
@@ -506,6 +512,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const Packet cst_cephes_exp_C1 = pset1<Packet>(-0.693359375f);
   const Packet cst_cephes_exp_C2 = pset1<Packet>(2.12194440e-4f);
   Packet r = pmadd(m, cst_cephes_exp_C1, x);
+  pbarrier(r);  // -ffast-math would otherwise fuse the two products into m (C1 + C2), which rounds.
   r = pmadd(m, cst_cephes_exp_C2, r);
 
   Packet y = pexp_float_reduced(r);
@@ -530,7 +537,10 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_float(const Pack
   const PacketI biased_lo = psub(biased_sum, biased_hi);          // (m - m/2) + 127
   const Packet pow2_hi = preinterpret<Packet>(plogical_shift_left<23>(biased_hi));
   const Packet pow2_lo = preinterpret<Packet>(plogical_shift_left<23>(biased_lo));
-  y = pmul(pmul(y, pow2_hi), pow2_lo);
+  // For m = 128, pow2_hi = pow2_lo = 2^64 and y < 1. The barrier keeps -ffast-math from forming 2^64 2^64 = inf.
+  y = pmul(y, pow2_hi);
+  pbarrier(y);
+  y = pmul(y, pow2_lo);
 
   EIGEN_IF_CONSTEXPR (!IsFinite) {
     // Handle NaN: exp(nan) = nan. Use pmax to propagate NaN from input.
@@ -623,6 +633,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet pexp_double(const Pac
   // n*log(2) out in two steps, i.e. n*C1 + n*C2, C1+C2=log2 to get the last
   // digits right.
   x = pnmadd(fx, cst_cephes_exp_C1, x);
+  pbarrier(x);  // -ffast-math would otherwise fuse the two products into fx (C1 + C2), which rounds.
   x = pnmadd(fx, cst_cephes_exp_C2, x);
 
   x = pexp_double_reduced(x);
@@ -685,12 +696,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_expm1(const P
 
   const Packet n = print(pmul(x, pset1<Packet>(Scalar(EIGEN_LOG2E))));
   Packet r = pnmadd(n, pset1<Packet>(Impl::ln2_hi()), x);
+  pbarrier(r);  // -ffast-math would otherwise fuse the two products into n (ln2_hi + ln2_lo), which rounds.
   r = pnmadd(n, pset1<Packet>(Impl::ln2_lo()), r);
   const Packet em1 = Impl::run(r);
 
   // c = 1 - 2^-n, exact while it has at most `digits` bits. Beyond that, 2^-n is below half an ulp of 1 for a
   // positive n, hence the cap, and 1 is below half an ulp of 2^-n for a negative one.
-  const Packet c = psub(one, pldexp_fast(one, pnegate(pmin(n, pset1<Packet>(Scalar(digits + 2))))));
+  // The barrier keeps -ffast-math from forming (em1 + 1) - 2^-n, which cancels em1 for n = 0.
+  Packet c = psub(one, pldexp_fast(one, pnegate(pmin(n, pset1<Packet>(Scalar(digits + 2))))));
+  pbarrier(c);
   // 2^n (em1 + c) in two steps: 2^n itself overflows for the largest n. The barrier keeps -ffast-math from forming
   // 2^(n - 1) 2, which overflows for n = max_exponent.
   Packet y = pldexp_fast(padd(em1, c), psub(n, one));
@@ -720,6 +734,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_half_exp(cons
 
   const Packet n = print(pmul(x, pset1<Packet>(Scalar(EIGEN_LOG2E))));
   Packet r = pnmadd(n, pset1<Packet>(Impl::ln2_hi()), x);
+  pbarrier(r);  // -ffast-math would otherwise fuse the two products into n (ln2_hi + ln2_lo), which rounds.
   r = pnmadd(n, pset1<Packet>(Impl::ln2_lo()), r);
   // 2^(n - 1) exp(r) in two steps: 2^(n - 1) itself overflows for the largest n. The barrier keeps -ffast-math from
   // forming 2^(n - 2) 2.
