@@ -860,48 +860,66 @@ int log2_floor(const BitsType& x) {
 
 // Implementation of is* functions
 
+// Read has_infinity / has_*_NaN only when numeric_limits<T> defines them; partial specializations for custom scalars
+// may omit them.
+template <typename T, typename = void>
+struct numeric_limits_has_infinity : false_type {};
+
 template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<!(std::numeric_limits<T>::has_infinity || std::numeric_limits<T>::has_quiet_NaN ||
-                                     std::numeric_limits<T>::has_signaling_NaN),
-                                   bool>
-isfinite_impl(const T&) {
+struct numeric_limits_has_infinity<T, void_t<decltype(std::numeric_limits<T>::has_infinity)>>
+    : bool_constant<bool(std::numeric_limits<T>::has_infinity)> {};
+
+template <typename T, typename = void>
+struct numeric_limits_has_quiet_nan : false_type {};
+
+template <typename T>
+struct numeric_limits_has_quiet_nan<T, void_t<decltype(std::numeric_limits<T>::has_quiet_NaN)>>
+    : bool_constant<bool(std::numeric_limits<T>::has_quiet_NaN)> {};
+
+template <typename T, typename = void>
+struct numeric_limits_has_signaling_nan : false_type {};
+
+template <typename T>
+struct numeric_limits_has_signaling_nan<T, void_t<decltype(std::numeric_limits<T>::has_signaling_NaN)>>
+    : bool_constant<bool(std::numeric_limits<T>::has_signaling_NaN)> {};
+
+template <typename T>
+struct numeric_limits_has_nan
+    : bool_constant<numeric_limits_has_quiet_nan<T>::value || numeric_limits_has_signaling_nan<T>::value> {};
+
+template <typename T>
+struct numeric_limits_has_nonfinite
+    : bool_constant<numeric_limits_has_infinity<T>::value || numeric_limits_has_nan<T>::value> {};
+
+template <typename T, std::enable_if_t<!numeric_limits_has_nonfinite<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool isfinite_impl(const T&) {
   return true;
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity || std::numeric_limits<T>::has_quiet_NaN ||
-                                    std::numeric_limits<T>::has_signaling_NaN) &&
-                                       (!NumTraits<T>::IsComplex),
-                                   bool>
-isfinite_impl(const T& x) {
+template <typename T, std::enable_if_t<numeric_limits_has_nonfinite<T>::value && !NumTraits<T>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC bool isfinite_impl(const T& x) {
   EIGEN_USING_STD(isfinite);
   return isfinite EIGEN_NOT_A_MACRO(x);
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<!std::numeric_limits<T>::has_infinity, bool> isinf_impl(const T&) {
+template <typename T, std::enable_if_t<!numeric_limits_has_infinity<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool isinf_impl(const T&) {
   return false;
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<(std::numeric_limits<T>::has_infinity && !NumTraits<T>::IsComplex), bool> isinf_impl(
-    const T& x) {
+template <typename T, std::enable_if_t<numeric_limits_has_infinity<T>::value && !NumTraits<T>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC bool isinf_impl(const T& x) {
   EIGEN_USING_STD(isinf);
   return isinf EIGEN_NOT_A_MACRO(x);
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC
-    std::enable_if_t<!(std::numeric_limits<T>::has_quiet_NaN || std::numeric_limits<T>::has_signaling_NaN), bool>
-    isnan_impl(const T&) {
+template <typename T, std::enable_if_t<!numeric_limits_has_nan<T>::value, int> = 0>
+EIGEN_DEVICE_FUNC bool isnan_impl(const T&) {
   return false;
 }
 
-template <typename T>
-EIGEN_DEVICE_FUNC std::enable_if_t<
-    (std::numeric_limits<T>::has_quiet_NaN || std::numeric_limits<T>::has_signaling_NaN) && (!NumTraits<T>::IsComplex),
-    bool>
-isnan_impl(const T& x) {
+template <typename T, std::enable_if_t<numeric_limits_has_nan<T>::value && !NumTraits<T>::IsComplex, int> = 0>
+EIGEN_DEVICE_FUNC bool isnan_impl(const T& x) {
   EIGEN_USING_STD(isnan);
   return isnan EIGEN_NOT_A_MACRO(x);
 }
@@ -1153,6 +1171,20 @@ struct madd_impl<Scalar, std::enable_if_t<scalar_madd_uses_fma<Scalar>::value>> 
   }
 };
 
+// IEEE 754 binary32 or binary64 representation; specialized so custom scalars need not define is_iec559 or radix.
+template <typename Scalar>
+struct has_iec559_binary_encoding : false_type {};
+
+template <>
+struct has_iec559_binary_encoding<float>
+    : bool_constant<std::numeric_limits<float>::is_iec559 && std::numeric_limits<float>::radix == 2 &&
+                    sizeof(float) == sizeof(numext::uint32_t)> {};
+
+template <>
+struct has_iec559_binary_encoding<double>
+    : bool_constant<std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::radix == 2 &&
+                    sizeof(double) == sizeof(numext::uint64_t)> {};
+
 // Representation properties shared by operations that inspect an IEEE-style binary floating-point value.
 template <typename Scalar>
 struct binary_floating_point_traits {
@@ -1258,10 +1290,7 @@ namespace numext {
 
 template <typename X>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush(const X& x) {
-  constexpr bool HasBinaryEncoding = (std::is_same<X, float>::value || std::is_same<X, double>::value) &&
-                                     std::numeric_limits<X>::is_iec559 && std::numeric_limits<X>::radix == 2 &&
-                                     (sizeof(X) == sizeof(uint32_t) || sizeof(X) == sizeof(uint64_t));
-  return internal::is_exactly_zero_no_flush_impl(x, internal::bool_constant<HasBinaryEncoding>());
+  return internal::is_exactly_zero_no_flush_impl(x, internal::has_iec559_binary_encoding<X>());
 }
 
 #if !defined(EIGEN_GPUCC)

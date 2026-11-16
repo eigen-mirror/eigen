@@ -1597,6 +1597,215 @@ void check_zero_no_flush_custom_scalar() {
   VERIFY(!numext::is_exactly_zero_no_flush(EqualityOnly(1)));
 }
 
+namespace partial_limits_test {
+// Minimal arithmetic scalar with partial numeric_limits (value bounds and precision only, no format/nonfinite members)
+// and no ADL isfinite/isinf/isnan so numext must use the !numeric_limits_has_* fallback.
+struct Scalar {
+  double v = 0.0;
+  constexpr Scalar() = default;
+  template <typename U, std::enable_if_t<std::is_arithmetic<U>::value, int> = 0>
+  constexpr Scalar(U x) : v(static_cast<double>(x)) {}
+  constexpr Scalar operator+() const { return *this; }
+  constexpr Scalar operator-() const { return Scalar(-v); }
+  friend constexpr Scalar operator+(const Scalar& a, const Scalar& b) { return Scalar(a.v + b.v); }
+  friend constexpr Scalar operator-(const Scalar& a, const Scalar& b) { return Scalar(a.v - b.v); }
+  friend constexpr Scalar operator*(const Scalar& a, const Scalar& b) { return Scalar(a.v * b.v); }
+  friend constexpr Scalar operator/(const Scalar& a, const Scalar& b) { return Scalar(a.v / b.v); }
+  Scalar& operator+=(const Scalar& b) {
+    v += b.v;
+    return *this;
+  }
+  Scalar& operator-=(const Scalar& b) {
+    v -= b.v;
+    return *this;
+  }
+  Scalar& operator*=(const Scalar& b) {
+    v *= b.v;
+    return *this;
+  }
+  Scalar& operator/=(const Scalar& b) {
+    v /= b.v;
+    return *this;
+  }
+  friend constexpr bool operator==(const Scalar& a, const Scalar& b) { return a.v == b.v; }
+  friend constexpr bool operator!=(const Scalar& a, const Scalar& b) { return a.v != b.v; }
+  friend constexpr bool operator<(const Scalar& a, const Scalar& b) { return a.v < b.v; }
+  friend constexpr bool operator<=(const Scalar& a, const Scalar& b) { return a.v <= b.v; }
+  friend constexpr bool operator>(const Scalar& a, const Scalar& b) { return a.v > b.v; }
+  friend constexpr bool operator>=(const Scalar& a, const Scalar& b) { return a.v >= b.v; }
+};
+
+inline Scalar abs(const Scalar& x) { return Scalar(std::abs(x.v)); }
+inline Scalar sqrt(const Scalar& x) { return Scalar(std::sqrt(x.v)); }
+inline Scalar sin(const Scalar& x) { return Scalar(std::sin(x.v)); }
+inline Scalar cos(const Scalar& x) { return Scalar(std::cos(x.v)); }
+inline Scalar acos(const Scalar& x) { return Scalar(std::acos(x.v)); }
+inline Scalar atan2(const Scalar& y, const Scalar& x) { return Scalar(std::atan2(y.v, x.v)); }
+inline std::ostream& operator<<(std::ostream& os, const Scalar& x) { return os << x.v; }
+}  // namespace partial_limits_test
+
+namespace std {
+template <>
+class numeric_limits<partial_limits_test::Scalar> {
+ public:
+  static constexpr bool is_specialized = true;
+  static constexpr bool is_signed = true;
+  static constexpr bool is_integer = false;
+  static constexpr bool is_exact = false;
+  static constexpr int digits = numeric_limits<double>::digits;
+  static constexpr int digits10 = numeric_limits<double>::digits10;
+
+  static constexpr partial_limits_test::Scalar(min)() {
+    return partial_limits_test::Scalar((numeric_limits<double>::min)());
+  }
+  static constexpr partial_limits_test::Scalar(max)() {
+    return partial_limits_test::Scalar((numeric_limits<double>::max)());
+  }
+  static constexpr partial_limits_test::Scalar lowest() {
+    return partial_limits_test::Scalar(numeric_limits<double>::lowest());
+  }
+  static constexpr partial_limits_test::Scalar epsilon() {
+    return partial_limits_test::Scalar(numeric_limits<double>::epsilon());
+  }
+};
+
+#if EIGEN_COMP_CXXVER < 17
+constexpr bool numeric_limits<partial_limits_test::Scalar>::is_specialized;
+constexpr bool numeric_limits<partial_limits_test::Scalar>::is_signed;
+constexpr bool numeric_limits<partial_limits_test::Scalar>::is_integer;
+constexpr bool numeric_limits<partial_limits_test::Scalar>::is_exact;
+constexpr int numeric_limits<partial_limits_test::Scalar>::digits;
+constexpr int numeric_limits<partial_limits_test::Scalar>::digits10;
+#endif
+}  // namespace std
+
+namespace Eigen {
+template <>
+struct NumTraits<partial_limits_test::Scalar> : GenericNumTraits<partial_limits_test::Scalar> {
+  static inline Real dummy_precision() { return Real(NumTraits<double>::dummy_precision()); }
+};
+}  // namespace Eigen
+
+template <typename S>
+void check_partial_numeric_limits() {
+  STATIC_CHECK(!internal::has_iec559_binary_encoding<S>::value);
+  STATIC_CHECK(!internal::supports_power_of_two_scaling<S>::value);
+  STATIC_CHECK(!internal::twoprod_full_range_uses_dekker<S>::value);
+  STATIC_CHECK(!internal::use_scaled_comparison<S>::value);
+  STATIC_CHECK(!internal::unary_pow::is_double_word_base<S>::value);
+  STATIC_CHECK(!internal::triangular_solve_packet_traits<S>::Enabled);
+  STATIC_CHECK(!internal::numeric_limits_has_infinity<S>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_nan<S>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_nonfinite<S>::value);
+
+  STATIC_CHECK((internal::use_scaled_comparison<float>::value == (std::numeric_limits<float>::radix == 2)));
+  STATIC_CHECK((internal::use_scaled_comparison<double>::value == (std::numeric_limits<double>::radix == 2)));
+  STATIC_CHECK((internal::use_scaled_comparison<long double>::value == (std::numeric_limits<long double>::radix == 2)));
+  STATIC_CHECK(internal::use_scaled_comparison<half>::value);
+  STATIC_CHECK(internal::use_scaled_comparison<bfloat16>::value);
+  STATIC_CHECK(
+      (internal::use_scaled_comparison<std::complex<double>>::value == (std::numeric_limits<double>::radix == 2)));
+  STATIC_CHECK(internal::use_scaled_comparison<std::complex<bfloat16>>::value);
+#if defined(__SIZEOF_FLOAT128__) && !defined(__STRICT_ANSI__) && !defined(EIGEN_GPUCC)
+  STATIC_CHECK((internal::use_scaled_comparison<__float128>::value ==
+                (std::is_floating_point<__float128>::value && std::numeric_limits<__float128>::radix == 2)));
+#endif
+
+  STATIC_CHECK(internal::numeric_limits_has_infinity<double>::value);
+  STATIC_CHECK(internal::numeric_limits_has_nan<double>::value);
+  STATIC_CHECK(internal::numeric_limits_has_infinity<half>::value);
+  STATIC_CHECK(internal::numeric_limits_has_nan<half>::value);
+  STATIC_CHECK(internal::numeric_limits_has_infinity<bfloat16>::value);
+  STATIC_CHECK(internal::numeric_limits_has_nan<bfloat16>::value);
+  STATIC_CHECK(internal::numeric_limits_has_infinity<adl_template_math_test::Scalar>::value);
+  STATIC_CHECK(internal::numeric_limits_has_nan<adl_template_math_test::Scalar>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_infinity<int>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_nan<int>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_infinity<adl_non_template_math_test::Scalar>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_nan<adl_non_template_math_test::Scalar>::value);
+
+#ifndef _MSC_VER
+  STATIC_CHECK(!internal::use_scaled_comparison<std::complex<S>>::value);
+  STATIC_CHECK(!internal::unary_pow::is_double_word_base<std::complex<S>>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_infinity<std::complex<S>>::value);
+  STATIC_CHECK(!internal::numeric_limits_has_nan<std::complex<S>>::value);
+#endif
+
+  VERIFY(numext::is_exactly_zero_no_flush(S(0.0)));
+  VERIFY(!numext::is_exactly_zero_no_flush(S(1.0)));
+  VERIFY((numext::isfinite)(S(2.5)));
+  VERIFY(!(numext::isinf)(S(2.5)));
+  VERIFY(!(numext::isnan)(S(2.5)));
+
+  const double tol = 32 * NumTraits<double>::epsilon();
+  const Matrix<S, 3, 1> v1(S(1.0), S(-2.0), S(3.0));
+  const Matrix<S, 3, 1> v2 = v1 + Matrix<S, 3, 1>::Constant(S(4 * NumTraits<double>::epsilon()));
+  VERIFY(v1.isApprox(v2));
+  const Matrix<S, 3, 1> small = Matrix<S, 3, 1>::Constant(S(4 * NumTraits<double>::epsilon()));
+  VERIFY(small.isMuchSmallerThan(v1));
+
+#ifndef _MSC_VER
+  using CS = std::complex<S>;
+  const CS cz(S(1.5), S(-2.5));
+  VERIFY((numext::isfinite)(cz));
+  VERIFY(!(numext::isinf)(cz));
+  VERIFY(!(numext::isnan)(cz));
+  const Matrix<CS, 3, 1> cv1(CS(S(1.0), S(0.5)), CS(S(-2.0), S(1.0)), CS(S(3.0), S(-1.5)));
+  const Matrix<CS, 3, 1> cv2 = cv1 + Matrix<CS, 3, 1>::Constant(CS(S(4 * NumTraits<double>::epsilon()), S(0.0)));
+  VERIFY(cv1.isApprox(cv2));
+  const Matrix<CS, 3, 1> csmall = Matrix<CS, 3, 1>::Constant(CS(S(4 * NumTraits<double>::epsilon()), S(0.0)));
+  VERIFY(csmall.isMuchSmallerThan(cv1));
+#endif
+
+  const Matrix<S, 3, 1> pyth(S(3.0), S(-4.0), S(12.0));
+  VERIFY(std::abs(pyth.norm().v - 13.0) <= tol);
+  VERIFY(std::abs(pyth.stableNorm().v - 13.0) <= tol);
+
+  Matrix<S, 3, 3> l3;
+  l3 << S(2.0), S(0.0), S(0.0), S(-0.5), S(4.0), S(0.0), S(1.0), S(-1.5), S(3.0);
+  const Matrix<S, 3, 1> x3 = l3.template triangularView<Lower>().solve(pyth);
+  VERIFY((l3 * x3 - pyth).cwiseAbs().maxCoeff().v <= tol);
+
+  Matrix<S, 6, 6> l6 = Matrix<S, 6, 6>::Zero();
+  for (Index i = 0; i < 6; ++i) {
+    l6(i, i) = S(2.0 + 0.25 * i);
+    for (Index j = 0; j < i; ++j) l6(i, j) = S(0.125 * ((i + j) % 3 + 1));
+  }
+  Matrix<S, 6, 2> rhs62;
+  for (Index i = 0; i < 6; ++i) {
+    rhs62(i, 0) = S(1.0 + 0.5 * i);
+    rhs62(i, 1) = S(-2.0 + 0.75 * i);
+  }
+  const Matrix<S, 6, 2> x62 = l6.template triangularView<Lower>().solve(rhs62);
+  VERIFY((l6 * x62 - rhs62).cwiseAbs().maxCoeff().v <= tol);
+
+  Matrix<S, 3, 3> a3;
+  a3 << S(4.0), S(1.0), S(0.5), S(-1.0), S(5.0), S(1.0), S(0.5), S(-1.0), S(6.0);
+  const Matrix<S, 3, 1> x_lu = a3.partialPivLu().solve(pyth);
+  VERIFY((a3 * x_lu - pyth).cwiseAbs().maxCoeff().v <= tol);
+
+  Matrix<S, 3, 3> spd3;
+  spd3 << S(4.0), S(1.0), S(0.5), S(1.0), S(5.0), S(-1.0), S(0.5), S(-1.0), S(6.0);
+  SelfAdjointEigenSolver<Matrix<S, 3, 3>> eig_direct;
+  eig_direct.computeDirect(spd3);
+  VERIFY_IS_EQUAL(eig_direct.info(), Success);
+  const Matrix<S, 3, 3> rec_direct =
+      eig_direct.eigenvectors() * eig_direct.eigenvalues().asDiagonal() * eig_direct.eigenvectors().transpose();
+  VERIFY((rec_direct - spd3).cwiseAbs().maxCoeff().v <= tol);
+
+  SelfAdjointEigenSolver<Matrix<S, 3, 3>> eig_iter;
+  eig_iter.compute(spd3);
+  VERIFY_IS_EQUAL(eig_iter.info(), Success);
+  const Matrix<S, 3, 3> rec_iter =
+      eig_iter.eigenvectors() * eig_iter.eigenvalues().asDiagonal() * eig_iter.eigenvectors().transpose();
+  VERIFY((rec_iter - spd3).cwiseAbs().maxCoeff().v <= tol);
+
+  const Array<S, 4, 1> arr(S(1.5), S(-2.0), S(0.5), S(3.0));
+  const Array<S, 4, 1> cubed = arr.pow(3);
+  const Array<S, 4, 1> expected_cubed(S(3.375), S(-8.0), S(0.125), S(27.0));
+  VERIFY((cubed - expected_cubed).abs().maxCoeff().v <= tol);
+}
+
 template <typename Scalar>
 EIGEN_DONT_INLINE bool zero_no_flush_predicate(Scalar value) {
   return numext::is_exactly_zero_no_flush(value);
@@ -2003,6 +2212,7 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST_1(check_zero_no_flush<float>());
     CALL_SUBTEST_1(check_zero_no_flush<double>());
     CALL_SUBTEST_1(check_zero_no_flush_custom_scalar());
+    CALL_SUBTEST_1(check_partial_numeric_limits<partial_limits_test::Scalar>());
     CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<half>());
     CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<bfloat16>());
     CALL_SUBTEST_1(check_binary_floating_point_traits_odr_use<float>());

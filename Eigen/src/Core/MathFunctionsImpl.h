@@ -157,14 +157,38 @@ struct generic_sqrt_newton_step {
   }
 };
 
+template <typename RealScalar, std::enable_if_t<numeric_limits_has_infinity<RealScalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar hypot_infinity() {
+  return NumTraits<RealScalar>::infinity();
+}
+
+template <typename RealScalar, std::enable_if_t<!numeric_limits_has_infinity<RealScalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar hypot_infinity() {
+  return RealScalar(0);
+}
+
+template <typename RealScalar, std::enable_if_t<numeric_limits_has_quiet_nan<RealScalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar hypot_quiet_nan() {
+  return NumTraits<RealScalar>::quiet_NaN();
+}
+
+template <typename RealScalar, std::enable_if_t<!numeric_limits_has_quiet_nan<RealScalar>::value, int> = 0>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE RealScalar hypot_quiet_nan() {
+  return RealScalar(0);
+}
+
 // sqrt(x^2 + y^2) for x, y >= 0. The generic version divides, so that no intermediate over- or underflows; it is
 // within 2 ulps. float and double have their own below.
 template <typename RealScalar, typename EnableIf = void>
 struct positive_real_hypot_impl {
   EIGEN_DEVICE_FUNC static constexpr EIGEN_STRONG_INLINE RealScalar run(const RealScalar& x, const RealScalar& y) {
-    // IEEE IEC 60559 special cases.
-    if ((numext::isinf)(x) || (numext::isinf)(y)) return NumTraits<RealScalar>::infinity();
-    if ((numext::isnan)(x) || (numext::isnan)(y)) return NumTraits<RealScalar>::quiet_NaN();
+    // IEEE IEC 60559 special cases; skip infinity/quiet_NaN lookup when numeric_limits omits them.
+    EIGEN_IF_CONSTEXPR (numeric_limits_has_infinity<RealScalar>::value) {
+      if ((numext::isinf)(x) || (numext::isinf)(y)) return hypot_infinity<RealScalar>();
+    }
+    EIGEN_IF_CONSTEXPR (numeric_limits_has_nan<RealScalar>::value) {
+      if ((numext::isnan)(x) || (numext::isnan)(y)) return hypot_quiet_nan<RealScalar>();
+    }
 
     RealScalar p = numext::maxi(x, y);
     if (numext::is_exactly_zero(p)) return RealScalar(0);

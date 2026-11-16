@@ -148,8 +148,11 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void twoprod(const Packet& x, const Packet
 template <typename Scalar>
 struct twoprod_full_range_uses_dekker : std::false_type {};
 #else
+template <typename Scalar, bool = std::is_floating_point<Scalar>::value>
+struct twoprod_full_range_uses_dekker : std::false_type {};
+
 template <typename Scalar>
-struct twoprod_full_range_uses_dekker
+struct twoprod_full_range_uses_dekker<Scalar, true>
     : bool_constant<!has_fast_fma<Scalar>::value && std::numeric_limits<Scalar>::is_iec559 &&
                     std::numeric_limits<Scalar>::radix == 2 &&
                     std::numeric_limits<Scalar>::min_exponent == 3 - std::numeric_limits<Scalar>::max_exponent &&
