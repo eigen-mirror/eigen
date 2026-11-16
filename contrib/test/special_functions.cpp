@@ -10,6 +10,7 @@
 
 #include <limits.h>
 #include "main.h"
+#include "fp_control.h"
 #include "../Eigen/SpecialFunctions"
 
 // Workaround to allow "implicit" conversions from double to Scalar via comma-initialization.
@@ -541,6 +542,643 @@ void custom_scalar_erf_erfc() {
   }
 }
 
+// betainc for b so large that 1 - x rounds to 1 in Scalar (x < eps / 2): these used to loop forever or return NaN.
+// References: long double continued fraction (DLMF 8.17.22) with the exact complement of x; a = 1 and a = 1/2 also
+// follow from I_x(1, b) = 1 - (1 - x)^b and I_x(1/2, b) -> erf(sqrt(b x)).
+template <typename Scalar>
+void test_betainc_large_b() {
+  struct Case {
+    double a, b, x, ref;
+  };
+  std::vector<Case> cases;
+  if (sizeof(Scalar) == 4) {
+    cases = {{20.5, 1e10, 3e-9, 0.97205905127192506},
+             {20, 1e10, 3e-9, 0.97812653455614376},
+             {2.5, 1e9, 1e-8, 0.99875026943340965},
+             {30.5, 1e12, 5e-11, 0.99878628135546261},
+             {2.5, 1e9, 2e-9, 0.45058403336738364},
+             {1, 1e9, 1e-9, 0.63212054860815611},
+             {0.5, 1e8, 2e-8, 0.95449973625714398},
+             {11141.5, 7.8e32, 1.26e-20, 1},
+             {3.2e10, 1.05e28, 5.4e-17, 1}};
+  } else {
+    cases = {{20.5, 1e20, 3e-18, 1}, {20, 1e20, 3e-18, 1}, {2.5, 1e17, 2e-17, 0.45058404864721982}};
+  }
+  // The exponent a log x + ... + (b - 1) log1p(-x) + log(Gamma(a + b) / (Gamma(a) Gamma(b))) sums terms of size
+  // a |log x| (and m log M with m = a) that nearly cancel, so the relative error is eps (c0 + c a |log x|), with
+  // c0 = 8 (the cases with value 1 measure 0) and c = 1.5. The measured error is at most 0.12 of this bound (8.9 eps
+  // vs 83 for float (2.5, 1e9, 2e-9) with clang++ -march=x86-64-v3, 14.4 vs 152 for double (2.5, 1e17, 2e-17); g++ and
+  // -ffp-contract=off measure the same or less), i.e. the bound is at least 8 times the error.
+  const double eps = static_cast<double>(NumTraits<Scalar>::epsilon());
+  Array<Scalar, Dynamic, 1> a(cases.size()), b(cases.size()), x(cases.size());
+  for (size_t i = 0; i < cases.size(); ++i) {
+    a(i) = Scalar(cases[i].a);
+    b(i) = Scalar(cases[i].b);
+    x(i) = Scalar(cases[i].x);
+    const Scalar v = numext::betainc(a(i), b(i), x(i));
+    VERIFY(!((numext::isnan)(v)));
+    const Scalar ref = Scalar(cases[i].ref);
+    const double tol = eps * (8 + (cases[i].ref == 1 ? 0.0 : 1.5 * cases[i].a * std::abs(std::log(double(x(i))))));
+    VERIFY(numext::abs(v - ref) <= Scalar(tol) * ref);
+  }
+  Array<Scalar, Dynamic, 1> res = betainc(a, b, x);
+  for (size_t i = 0; i < cases.size(); ++i) {
+    const Scalar ref = Scalar(cases[i].ref);
+    const double tol = eps * (8 + (cases[i].ref == 1 ? 0.0 : 1.5 * cases[i].a * std::abs(std::log(double(x(i))))));
+    VERIFY(numext::abs(res(i) - ref) <= Scalar(tol) * ref);
+  }
+}
+
+// polygamma(n, x) = (-1)^(n+1) n! zeta(n + 1, x) for n! overflowing, or zeta(n + 1, x) ~ x^-(n+1) underflowing, where
+// the product is representable: these used to return NaN, inf or 0. References: long double sum of (1 + k / x)^-(n+1)
+// combined with n! in the log domain.
+template <typename Scalar>
+void test_polygamma_large_order() {
+  struct Case {
+    double n, x, ref;
+  };
+  std::vector<Case> cases;
+  if (sizeof(Scalar) == 4) {
+    cases = {{40, 50, -3.261035087314967e-22},  {35, 100, 3.499912459241533e-32},   {30, 30, -6.8043629582669342e-14},
+             {34, 50, -2.0576445694243446e-21}, {20, 171, -2.8206264083990782e-28}, {36, 10, -38339.459700163335}};
+  } else {
+    cases = {{180, 100, -2.40802169974166e-33},
+             {171, 171, 1.6510804421365765e-75},
+             {300, 100, -3222042538708.5125},
+             {200, 30, -9.9109053899111735e+77},
+             {170, 100, -8.8841193781856056e-36}};
+  }
+  // The relative error is that of the exponent lgamma(n + 1) - (n + 1) log x, about |exponent| eps. Largest measured:
+  // 40 eps (float), 620 eps (double); the margin is a factor of 10 and 8.
+  const Scalar tol = Scalar(sizeof(Scalar) == 4 ? 400 : 5000) * NumTraits<Scalar>::epsilon();
+  Array<Scalar, Dynamic, 1> n(cases.size()), x(cases.size());
+  for (size_t i = 0; i < cases.size(); ++i) {
+    n(i) = Scalar(cases[i].n);
+    x(i) = Scalar(cases[i].x);
+  }
+  const Array<Scalar, Dynamic, 1> res = polygamma(n, x);
+  for (size_t i = 0; i < cases.size(); ++i) {
+    const Scalar ref = Scalar(cases[i].ref);
+    const Scalar v = numext::polygamma(n(i), x(i));
+    VERIFY(numext::abs(v - ref) <= tol * numext::abs(ref));
+    VERIFY(numext::abs(res(i) - ref) <= tol * numext::abs(ref));
+  }
+  // Subnormal x: 1 / x overflows and n! zeta(n + 1, x) is infinite; it was never 0.
+  VERIFY_IS_EQUAL(numext::polygamma(Scalar(sizeof(Scalar) == 4 ? 35 : 171), std::numeric_limits<Scalar>::denorm_min()),
+                  std::numeric_limits<Scalar>::infinity());
+  // x < 0 where zeta(n + 1, x) cancels to exactly 0 and n! overflows: inf * 0 is not the answer. The true value
+  // (-1)^(n+1) n! zeta(n + 1, 1 - x) underflows to a zero with the sign of (-1)^(n+1), here -0 for n = 200. (In float
+  // zeta(201, 1/2) overflows and the result is NaN.)
+  if (sizeof(Scalar) == 8) {
+    const Scalar v = numext::polygamma(Scalar(200), Scalar(-1e6 - 0.5));
+    VERIFY_IS_EQUAL(v, Scalar(0));
+    VERIFY((std::signbit)(v));
+  }
+  // Representable in double but not in float.
+  if (sizeof(Scalar) == 4) {
+    VERIFY_IS_EQUAL(numext::polygamma(Scalar(170), Scalar(2)), -std::numeric_limits<Scalar>::infinity());
+  }
+}
+
+// polygamma(n, x) = (-1)^(n+1) n! zeta(n + 1, x) at x = +inf (limit 0, with the sign of (-1)^(n+1); inf * 0 was NaN)
+// and near the largest number, where 1 / x is subnormal or, with flush to zero, 0, and the true value underflows to 0
+// or a subnormal number with the sign of (-1)^(n+1). Scalar and array, with and without flush to zero.
+template <typename Scalar>
+void test_polygamma_extreme_x() {
+  const Scalar inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar largest = (std::numeric_limits<Scalar>::max)();
+  const Scalar smallest_normal = (std::numeric_limits<Scalar>::min)();
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    const int orders[] = {1, 2, 3, 5, 35, 171};
+    const Scalar xs[] = {inf, largest, largest / Scalar(2)};
+    for (int n : orders) {
+      Array<Scalar, Dynamic, 1> nv = Array<Scalar, Dynamic, 1>::Constant(3, Scalar(n));
+      Array<Scalar, Dynamic, 1> xv(3);
+      xv << xs[0], xs[1], xs[2];
+      const Array<Scalar, Dynamic, 1> av = polygamma(nv, xv);
+      for (int k = 0; k < 3; ++k) {
+        for (int path = 0; path < 2; ++path) {
+          const Scalar v = path ? av(k) : numext::polygamma(Scalar(n), xs[k]);
+          VERIFY((numext::isfinite)(v));
+          VERIFY(numext::abs(v) <= smallest_normal);
+          if (k == 0 || v != Scalar(0)) VERIFY((std::signbit)(v) == (n % 2 == 0));
+          if (k == 0) VERIFY_IS_EQUAL(v, Scalar(0));
+        }
+      }
+    }
+  });
+}
+
+// zeta(x, q) for integer x and large negative non-integer q used to sum about |q| terms (seconds for |q| = 1e9, years
+// for 1e15). For q = -N - 1/2 and even x, zeta(x, q) = 2 zeta(x, 1/2) - zeta(x, N + 3/2), with
+// zeta(2, 1/2) = pi^2 / 2, zeta(4, 1/2) = pi^4 / 6 and zeta(x, z) = z^(1-x) / (x - 1) + z^-x / 2 + x z^(-x-1) / 12 +
+// ...
+template <typename Scalar>
+void test_zeta_large_negative_q() {
+  const double pi2 = EIGEN_PI * EIGEN_PI;
+  // Largest measured relative error: 1 eps (float and double); the margin is a factor of 32.
+  const Scalar tol = Scalar(32) * NumTraits<Scalar>::epsilon();
+  const double n_values[] = {999, 1e3, 1e5, 1e6, 1e9, 1e12};
+  for (double n : n_values) {
+    if (sizeof(Scalar) == 4 && n > 1e6) continue;  // N + 1/2 is not representable
+    const double z = n + 1.5;
+    const double ref2 = pi2 - (1 / z + 1 / (2 * z * z) + 1 / (6 * z * z * z));
+    const double ref4 = pi2 * pi2 / 3 - (1 / (3 * z * z * z) + 1 / (2 * z * z * z * z));
+    const Scalar q = Scalar(-n - 0.5);
+    VERIFY(numext::abs(numext::zeta(Scalar(2), q) - Scalar(ref2)) <= tol * Scalar(ref2));
+    VERIFY(numext::abs(numext::zeta(Scalar(4), q) - Scalar(ref4)) <= tol * Scalar(ref4));
+  }
+  // polygamma(1, x) = zeta(2, x)
+  {
+    const double z = 1e6 + 1.5;
+    const double ref = pi2 - (1 / z + 1 / (2 * z * z) + 1 / (6 * z * z * z));
+    VERIFY(numext::abs(numext::polygamma(Scalar(1), Scalar(-1e6 - 0.5)) - Scalar(ref)) <= tol * Scalar(ref));
+  }
+  // Odd x: zeta(x, q) = zeta(x, f) - zeta(x, 1 - f) + zeta(x, 1 - q) is a difference of O(1) numbers, which is exact at
+  // f = 1/2: zeta(3, -N - 1/2) = zeta(3, N + 3/2) ~ 5.0e-13 for N = 1e6, from z^-2 / 2 + z^-3 / 2 + z^-4 / 4 - z^-6
+  // / 12.
+  {
+    const long double z = 1e6L + 1.5L;
+    const long double ref =
+        1 / (2 * z * z) + 1 / (2 * z * z * z) + 1 / (4 * z * z * z * z) - 1 / (12 * z * z * z * z * z * z);
+    VERIFY(numext::abs(numext::zeta(Scalar(3), Scalar(-1e6 - 0.5)) - Scalar(ref)) <= tol * Scalar(ref));
+  }
+  // x = inf: the terms with |k + q| < 1 are infinite.
+  VERIFY_IS_EQUAL(numext::zeta(std::numeric_limits<Scalar>::infinity(), Scalar(-1e6 - 0.5)),
+                  std::numeric_limits<Scalar>::infinity());
+}
+
+// The sign of polygamma(n, x) = (-1)^(n+1) n! zeta(n + 1, x) is that of n even: n + 1 is not representable for
+// n >= 2^24 (float), 2^53 (double), where n is even and (-1)^(n+1) = -1. The values are -inf where n! zeta(n + 1, x)
+// overflows (x = 1, 2) and -0 in the limit x = +inf, scalar and array. n = +inf is not an integer: NaN.
+template <typename Scalar>
+void test_polygamma_sign_huge_order() {
+  const Scalar inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar n0 = Scalar(sizeof(Scalar) == 4 ? 16777216.0 : 9007199254740992.0);
+  const int num = 9;
+  Array<Scalar, Dynamic, 1> n(num), x(num);
+  n << n0, n0, n0, n0 * 2, n0 * 2, n0 * 2, inf, inf, inf;
+  x << Scalar(1), Scalar(2), inf, Scalar(1), Scalar(2), inf, Scalar(1), Scalar(2), inf;
+  const Array<Scalar, Dynamic, 1> res = polygamma(n, x);
+  for (int i = 0; i < num; ++i) {
+    for (int path = 0; path < 2; ++path) {
+      const Scalar v = path ? res(i) : numext::polygamma(n(i), x(i));
+      if (n(i) == inf) {
+        VERIFY((numext::isnan)(v));
+        continue;
+      }
+      VERIFY((std::signbit)(v));
+      if (x(i) == inf) {
+        VERIFY_IS_EQUAL(v, Scalar(0));
+      } else {
+        VERIFY_IS_EQUAL(v, -inf);
+      }
+    }
+  }
+}
+
+// For q >= 1 and q^-x below the smallest normal number, the terms of zeta(x, q) ~ q^(1-x) / (x - 1) underflow: the sum
+// was 0 or had the relative error of subnormals (zeta(27, 1e12 + 1.5) = 3.8e-314 was 0). For q = -N - 1/2 and odd x,
+// zeta(x, q) = zeta(x, N + 3/2), and for even n polygamma(n, q) = -n! zeta(n + 1, N + 3/2) is normal. References:
+// Euler-Maclaurin with 8 tail terms in 2000-bit MPFR. The log-domain form has the relative error ~ 2 eps x log(q); the
+// bounds are 2x that for zeta and 4x for polygamma, and the measured error is at most 0.3 of the bound. The float
+// cases are past the switch to the log-domain form (x log(q) > 92.6). polygamma(10, -2e4 - 1/2) is normal although
+// zeta(11, 2e4 + 3/2) = 9.8e-45 (7 denorm_min) is subnormal, through polygamma's substitution x -> 1 - x.
+template <typename Scalar>
+void test_zeta_underflowing_terms() {
+  struct Case {
+    double x, q, ref;
+  };
+  const bool is_float = sizeof(Scalar) == 4;
+  // zeta(x, q) = ref; for polygamma, n = x - 1 and q < 0 with ref = -n! zeta(x, 1 - q).
+  const Case zeta_cases_f[] = {{5, 1e9, 2.5000000050000001e-37}, {7, 1e6, 1.6666716666725001e-37}};
+  const Case zeta_cases_d[] = {{20, 1e16, 5.2631578947368468e-306}, {27, 1e12 + 1.5, 3.8461538460149259e-314}};
+  const Case poly_cases_f[] = {{9, -1e5 - 0.5, -5.039596816631546e-37}, {11, -2e4 - 0.5, -3.5419785715870746e-38}};
+  const Case poly_cases_d[] = {{27, -1e6 - 0.5, -1.5510806756860553e-131}, {27, -1e12 - 0.5, -1.5511210042927696e-287}};
+  const Case* zc = is_float ? zeta_cases_f : zeta_cases_d;
+  const Case* pc = is_float ? poly_cases_f : poly_cases_d;
+  const int num_cases = 2;
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  // A subnormal result is rounded to a multiple of denorm_min.
+  const double denorm_min = double(std::numeric_limits<Scalar>::denorm_min());
+  for (int i = 0; i < num_cases; ++i) {
+    const double tol = 4 * eps * zc[i].x * std::log(zc[i].q);
+    const double v = double(numext::zeta(Scalar(zc[i].x), Scalar(zc[i].q)));
+    VERIFY(std::abs(v - zc[i].ref) <= denorm_min + tol * zc[i].ref);
+  }
+  Array<Scalar, Dynamic, 1> n(num_cases), x(num_cases);
+  for (int i = 0; i < num_cases; ++i) {
+    n(i) = Scalar(pc[i].x - 1);
+    x(i) = Scalar(pc[i].q);
+  }
+  const Array<Scalar, Dynamic, 1> res = polygamma(n, x);
+  for (int i = 0; i < num_cases; ++i) {
+    const double tol = 8 * eps * pc[i].x * std::log(-pc[i].q);
+    for (int path = 0; path < 2; ++path) {
+      const double v = double(path ? res(i) : numext::polygamma(n(i), x(i)));
+      VERIFY(std::abs(v - pc[i].ref) <= tol * std::abs(pc[i].ref));
+    }
+  }
+  if (!is_float) {
+    // zeta(27, -1e12 - 1/2) = zeta(27, 1e12 + 3/2), subnormal.
+    const double ref = 3.8461538460149259e-314;
+    const double tol = 4 * eps * 27 * std::log(1e12);
+    const double v = double(numext::zeta(Scalar(27), Scalar(-1e12 - 0.5)));
+    VERIFY(std::abs(v - ref) <= denorm_min + tol * ref);
+  }
+  // q = 1: x log(q) = 0, so zeta(x, 1) is the plain sum, bit for bit. Its relative error near the pole is 1 eps at
+  // x = 1 + 1e-10 (double); the log-domain form had 14.
+  const double one_plus = is_float ? 1.001 : 1.0000000001;
+  const double ref_pole = is_float ? 1000.5305606213946 : 9999999173.1735744;
+  VERIFY(std::abs(double(numext::zeta(Scalar(one_plus), Scalar(1))) - ref_pole) <= 8 * eps * ref_pole);
+  const double xs[] = {1.0000001, 1.5, 2, 3.5, 20, 100};
+  for (double xv : xs) {
+    VERIFY_IS_EQUAL(numext::zeta(Scalar(xv), Scalar(1)),
+                    (internal::zeta_impl<Scalar>::sum(Scalar(xv), Scalar(1), Scalar(1))));
+  }
+}
+
+// The log-domain forms of zeta(x, q) for q^-x below the smallest normal number: the sum scaled by 1 / q is
+// ~ q / (x - 1), which overflows for x - 1 < 1/16 and q near max / 16 (double zeta(1.03, 1e307) was inf), and 1 / q is
+// subnormal for q > 1 / min and flushed to zero for q > max / 16, where the plain sum returned 0 or had the error of
+// subnormal terms (zeta(1.0624, max / 16 + 1ulp) = 0, true 1.1e-18; zeta(1.05, max) = 0, true 7.7e-15). The rescaled
+// form, selected for x < 2 or q > max / 16, forms neither. References: Euler-Maclaurin in 3000-bit MPFR at the
+// arguments rounded to Scalar; the error of the forms is ~ eps (1 + (x - 1) log(q)), measured at most 0.5 of the bound.
+// Cases marked 'N' are those where the plain sum is within the tolerance of the log-domain form, so the choice of
+// form is not visible (float x log(q) just above 87.3, x within 1e-4 of 1, q^-x normal), and are checked against the
+// reference only. The tolerance is the bound 8 eps (1 + (x - 1) log(q)) also for the forms' agreement, since the
+// rounding of their exponent differs between compilers and targets.
+template <typename Scalar>
+void test_zeta_log_domain_range() {
+  struct Case {
+    double x, q, ref;
+    char form;  // 'L': the log-domain form, which differs from the plain sum by more than the tolerance; 'N': not
+                // checked.
+  };
+  const bool is_float = sizeof(Scalar) == 4;
+  const Case cases_f[] = {{1.0623999834060669, 2.1267647932558654e+37, 0.075087293531669665, 'N'},
+                          {1.0499999523162842, 3.4028234663852886e+38, 0.23683194202994449, 'L'},
+                          {1.0499999523162842, 2.4999999200714231e+37, 0.26985793539306468, 'N'},
+                          {1.0299999713897705, 2.1267647932558654e+37, 2.5295813085892365, 'N'},
+                          {1.0269999504089355, 1.9999999867631625e+37, 3.643435398682416, 'N'},
+                          {2, 3.4028234663852886e+38, 2.9387360522180373e-39, 'L'},
+                          {1.5, 3.4028234663852886e+38, 1.0842022047972486e-19, 'L'},
+                          {1.0010000467300415, 3.0000000054977558e+38, 915.16791680630282, 'N'},
+                          {1.2000000476837158, 9.9999996802856925e+37, 1.2559376842600161e-07, 'L'},
+                          {30, 3.4028234663852886e+38, 0, 'N'},
+                          {2, 1.9999999867631625e+37, 5.000000033092094e-38, 'L'},
+                          {1.0000001192092896, 3.4028234663852886e+38, 8388519.2776301387, 'N'}};
+  const Case cases_d[] = {{1.0624, 1.1235582092889474e+307, 1.1088128397196225e-18, 'L'},
+                          {1.05, 2.2500000000000001e+307, 8.5786879325781094e-15, 'L'},
+                          {1.05, 1.7976931348623157e+308, 7.7320422357738033e-15, 'L'},
+                          {1.03, 1.1235582092889474e+307, 2.0481458411441312e-08, 'L'},
+                          {1.03, 1e307, 2.05531667287156683e-08, 'L'},
+                          {1.02, 1e307, 3.62217980037490158e-05, 'L'},
+                          {1.05, 1.1e307, 8.89119963076898069e-15, 'L'},
+                          {1.0124, 9.9999999999999999e+306, 0.012582829586234699, 'L'},
+                          {2, 1.7976931348623157e+308, 5.5626846462680041e-309, 'L'},
+                          {1.5, 1.7976931348623157e+308, 1.4916681462400414e-154, 'L'},
+                          {1.0001, 1.7976931348623157e+308, 9314.8213181353866, 'N'},
+                          {1.2, 4.5000000000000002e+307, 1.4734231924042045e-61, 'L'},
+                          {27, 1.7976931348623157e+308, 0, 'N'},
+                          {1.0000001000000001, 1.7976931348623157e+308, 9999290.2366374139, 'N'},
+                          {2, 9.9999999999999999e+306, 1e-307, 'L'}};
+  const Case* cases = is_float ? cases_f : cases_d;
+  const int num_cases = is_float ? 12 : 15;
+  Array<Scalar, Dynamic, 1> xv(num_cases), qv(num_cases);
+  for (int i = 0; i < num_cases; ++i) {
+    xv(i) = Scalar(cases[i].x);
+    qv(i) = Scalar(cases[i].q);
+  }
+  const Array<Scalar, Dynamic, 1> zv = zeta(xv, qv);
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  const double denorm_min = double(std::numeric_limits<Scalar>::denorm_min());
+  for (int i = 0; i < num_cases; ++i) {
+    const Case& c = cases[i];
+    const Scalar x = Scalar(c.x), q = Scalar(c.q);
+    const double tol = 8 * eps * (1 + (c.x - 1) * std::log(c.q));
+    if (c.form == 'L') {
+      // The result is the rescaled form up to the rounding of its exponent, not the plain sum, which is off by more.
+      const double form = double(internal::zeta_impl<Scalar>::log_domain_sum_rescaled(x, q));
+      const double plain = double(internal::zeta_impl<Scalar>::sum(x, q, Scalar(1)));
+      VERIFY(std::abs(double(numext::zeta(x, q)) - form) <= denorm_min + tol * form);
+      VERIFY(std::abs(plain - form) > tol * form);
+    }
+    for (int path = 0; path < 2; ++path) {
+      const double v = double(path ? zv(i) : numext::zeta(x, q));
+      VERIFY(std::abs(v - c.ref) <= denorm_min + tol * c.ref);
+    }
+    // polygamma(1, q) = zeta(2, q); for larger n the product n! zeta(n + 1, q) underflows to a signed zero.
+    if (c.x == 2) {
+      const double v = double(numext::polygamma(Scalar(1), q));
+      VERIFY(std::abs(v - c.ref) <= denorm_min + tol * c.ref);
+    }
+    if (c.x == 2 && c.form == 'L') {
+      const Scalar even = numext::polygamma(Scalar(2), q), odd = numext::polygamma(Scalar(3), q);
+      VERIFY_IS_EQUAL(even, Scalar(0));
+      VERIFY((std::signbit)(even));
+      VERIFY_IS_EQUAL(odd, Scalar(0));
+      VERIFY(!(std::signbit)(odd));
+    }
+  }
+}
+
+// For huge a and x one ulp apart the continued fraction overflows and produces an internal NaN, which the clamping of
+// igamma to [0, 1] used to turn into 0 (igammac returned the NaN). The true values are P = 1 and Q = 0 (x - a is
+// ~1e8 standard deviations): the answer must be that or NaN, in the scalar and the array paths, never a silent 0.
+template <typename Scalar>
+void test_igamma_internal_nan() {
+  const Scalar a = Scalar(sizeof(Scalar) == 4 ? 1e30 : 1e300);
+  const Scalar x = std::nextafter(a, std::numeric_limits<Scalar>::infinity());
+  const Array<Scalar, Dynamic, 1> av = Array<Scalar, Dynamic, 1>::Constant(5, a),
+                                  xv = Array<Scalar, Dynamic, 1>::Constant(5, x);
+  const Array<Scalar, Dynamic, 1> pv = igamma(av, xv), qv = igammac(av, xv);
+  const Scalar p[2] = {numext::igamma(a, x), pv(4)}, q[2] = {numext::igammac(a, x), qv(4)};
+  for (int i = 0; i < 2; ++i) {
+    VERIFY((numext::isnan)(p[i]) || p[i] == Scalar(1));
+    VERIFY((numext::isnan)(q[i]) || q[i] == Scalar(0));
+  }
+}
+
+// For x > 1 / min (8.5e37 in float, 4.5e307 in double) the continued fraction of igammac, ~ 1 / x, is subnormal and
+// Lentz's method, which clamps it at min, does not converge. The main term underflows there, so Q = 0 and P = 1, which
+// was reported as NaN (the check for convergence preceded that for the main term).
+template <typename Scalar>
+void test_igamma_huge_x() {
+  const bool is_float = sizeof(Scalar) == 4;
+  const double a_f[] = {30, 79.6292877, 5000, 9999}, a_d[] = {24000, 50000, 99000, 99999};
+  const Scalar x = is_float ? Scalar(9.41301965e37) : Scalar(1.7e308);
+  for (int i = 0; i < 4; ++i) {
+    const Scalar a = Scalar(is_float ? a_f[i] : a_d[i]);
+    bool converged = true;
+    internal::igammac_cf_lentz<Scalar>(a, x, &converged);
+    VERIFY(!converged);
+    VERIFY_IS_EQUAL(numext::igammac(a, x), Scalar(0));
+    VERIFY_IS_EQUAL(numext::igamma(a, x), Scalar(1));
+  }
+}
+
+// For a ~ x >~ 1 / eps, ax = x^a exp(-x) / Gamma(a) is inaccurate, and the igammac recurrence overflows once
+// (x - a) x > max (inf - inf = NaN, which igamma turned into 0). For finite arguments with x != a, P and Q must not be
+// NaN (they are clamped to [0, 1]), with P + Q = 1 where both use the same evaluation. Where the recurrence overflows
+// here, t = (x - a) / sqrt(a) >~ 40, so Q underflows: P = 1 and Q = 0 exactly. At x = a Lentz's fraction does not
+// converge for a >~ 1e7 (a >~ 5e7 in float).
+template <typename Scalar>
+void test_igamma_large_arguments() {
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  const bool is_float = sizeof(Scalar) == 4;
+  // Arguments of similar size, a <= x, a >= 1e15 (float) or a >= 1e56 (double).
+  const double a_f[] = {5.91395965e35, 1.35730605e30, 8.87793298e23, 5.8135072e18,  6.47320813e18,
+                        7.71149728e15, 2.65364438e18, 3.17027468e36, 1.89243253e30, 4.04864182e36};
+  const double x_f[] = {5.91395965e35, 1.35730605e30, 8.87793298e23, 5.81351325e18, 6.47320813e18,
+                        7.71149728e15, 2.65364438e18, 3.17948384e36, 1.89432495e30, 8.23012518e36};
+  const double a_d[] = {3.11504927e56,  3.044355e117,   4.27351094e138, 2.23741782e108, 1.44216162e111,
+                        1.86758896e108, 2.41798259e105, 5.52553743e287, 1.20190782e199, 3.896103e300};
+  const double x_d[] = {3.1150493e56,   3.044355e117,   4.27351094e138, 2.23741784e108, 1.44216162e111,
+                        1.86758898e108, 2.41798259e105, 5.52553748e287, 1.20190784e199, 5e300};
+  // The last three pairs have (x - a) * x > max.
+  const int n = 10, num_overflow = 3;
+  ArrayType a(n), x(n);
+  for (int i = 0; i < n; ++i) {
+    a(i) = Scalar(is_float ? a_f[i] : a_d[i]);
+    x(i) = Scalar(is_float ? x_f[i] : x_d[i]);
+  }
+  const ArrayType p_array = igamma(a, x), q_array = igammac(a, x);
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  for (int i = 0; i < n; ++i) {
+    if (x(i) == a(i)) {
+      bool converged = true;
+      internal::igammac_cf_lentz<Scalar>(a(i), x(i), &converged);
+      VERIFY(!converged);
+    }
+    for (int path = 0; path < 2; ++path) {
+      const Scalar p = path ? p_array(i) : numext::igamma(a(i), x(i));
+      const Scalar q = path ? q_array(i) : numext::igammac(a(i), x(i));
+      // Written so that a NaN fails; no claim at x = a, where neither evaluation converges.
+      if (x(i) != a(i)) {
+        VERIFY(p >= Scalar(0) && p <= Scalar(1));
+        VERIFY(q >= Scalar(0) && q <= Scalar(1));
+        VERIFY(numext::abs(p + q - Scalar(1)) <= 2 * eps);
+      }
+      if (i >= n - num_overflow) {
+        VERIFY_IS_EQUAL(p, Scalar(1));
+        VERIFY_IS_EQUAL(q, Scalar(0));
+      }
+    }
+  }
+}
+
+// Temme's uniform expansion (igamma_temme) is used for a >= 1e5 (double), 1e4 (float). It covers the band near x = a
+// where Lentz's fraction does not converge (|t| <~ 0.4 for a >~ 1e7 in double, 5e7 in float, where the recurrence gave
+// values above 1: igammac(1.1959741656683808e15, 1.1959741715277768e15) was 842.8, true 0.4327; float igammac(1e8, 1e8)
+// was 1.25e-4, true 0.5) and the series side, with no iterations. References as in test_igamma_stirling_regime (the
+// terms c0 and c1 of the same expansion in 800-bit MPFR above 2e6, for which this checks the double evaluation of
+// c0(eta), c1(eta) and of the cancelling forms; mpfr_gamma_inc below, an independent reference at a = 1e5). The
+// bound is the 2 (log(a) / 2 + t^2 + 2) eps of that test, measured at most 0.7 of it. The last two points of each type
+// are at |eta| ~ 0.1, in the Taylor series of c0 and c1 (P and Q ~ 1e-206 and 1e-235 in double), and the one before is
+// just below the threshold, which takes the continued fraction and the series. P is relative only where it is tiny; it
+// is otherwise 1 - Q, or the series, whose error is that of the sum of ~ sqrt(a) terms.
+template <typename Scalar>
+void test_igamma_temme_regime() {
+  struct Reference {
+    double a, x, p, q;
+  };
+  const Reference refs_f[] = {{1e8, 100000008, 0.50033245185326008, 0.49966754814673992},
+                              {1e9, 1000001024, 0.51292037981548138, 0.48707962018451862},
+                              {3e8, 300000512, 0.5117988173178956, 0.4882011826821044},
+                              {999999995904.0, 1000000126976.0, 0.55214095428130504, 0.44785904571869496},
+                              {1e4, 10050, 0.69234244070256556, 0.30765755929743444},
+                              {1e4, 10000, 0.5013298083399552, 0.4986701916600448},
+                              {9999.9990234375, 9949.9990234375, 0.30941787626932313, 0.69058212373067687},
+                              {10000, 10900, 1, 1.0988648788660544e-18},
+                              {10000, 9100, 8.3344447234757691e-21, 1}};
+  const Reference refs_d[] = {{1195974165668380.8, 1195974171527776.8, 0.56727104130332627, 0.43272895869667373},
+                              {11000000, 11000008, 0.50100237890445836, 0.49899762109554164},
+                              {1000000000000.0, 1000000300000.0, 0.61791153787658355, 0.38208846212341645},
+                              {10000000000.0, 10000010000.0, 0.53982914722011697, 0.46017085277988303},
+                              {100000, 100100, 0.6244451307044055, 0.3755548692955945},
+                              {100000, 99684, 0.15882956241747924, 0.84117043758252076},
+                              {99999.999999999985, 99899.999999999985, 0.3762748927543433, 0.6237251072456567},
+                              {100000, 110000, 1, 2.6554004793766945e-206},
+                              {100000, 90000, 1.9782570322356405e-235, 1}};
+  const bool is_float = sizeof(Scalar) == 4;
+  const Reference* refs = is_float ? refs_f : refs_d;
+  const int n = 9;
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  ArrayType a(n), x(n);
+  for (int i = 0; i < n; ++i) {
+    a(i) = Scalar(refs[i].a);
+    x(i) = Scalar(refs[i].x);
+  }
+  const ArrayType p_array = igamma(a, x), q_array = igammac(a, x);
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  for (int i = 0; i < n; ++i) {
+    const double t = (double(x(i)) - double(a(i))) / std::sqrt(double(a(i)));
+    const double tol = 2 * (0.5 * std::log(double(a(i))) + t * t + 2) * eps;
+    if (i < 4) {  // The band of the continued fraction.
+      bool converged = true;
+      internal::igammac_cf_lentz<Scalar>(a(i), x(i), &converged);
+      VERIFY(!converged);
+    }
+    for (int path = 0; path < 2; ++path) {
+      const double p = double(path ? p_array(i) : numext::igamma(a(i), x(i)));
+      const double q = double(path ? q_array(i) : numext::igammac(a(i), x(i)));
+      VERIFY(numext::abs(q - refs[i].q) <= tol * refs[i].q);
+      VERIFY(numext::abs(p - refs[i].p) <=
+             (refs[i].p < 1e-3 ? tol * refs[i].p : 2 * eps * refs[i].p + tol * refs[i].q));
+    }
+  }
+  // |eta| > 0.15 (here x / a < 0.8 or > 1.2 or a, x far apart): the smaller of P and Q is below denorm_min / 2.
+  const Scalar a0 = Scalar(is_float ? 1e4 : 1e5), inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar xs[] = {a0 * Scalar(1.3), a0 * Scalar(0.7), inf, Scalar(0), Scalar(1)};
+  const Scalar p_ref[] = {1, 0, 1, 0, 0}, q_ref[] = {0, 1, 0, 1, 1};
+  for (int i = 0; i < 5; ++i) {
+    VERIFY_IS_EQUAL(numext::igamma(a0, xs[i]), p_ref[i]);
+    VERIFY_IS_EQUAL(numext::igammac(a0, xs[i]), q_ref[i]);
+  }
+}
+
+// Q = igammac(a, x) and P = igamma(a, x), x = a + t sqrt(a), through the scalar and array functions, for a above
+// igamma_use_stirling_main_term's threshold (a >~ 29 in float, a >~ 2.3e4 in double). The ordinary main term would
+// have the error eps a log(a) in its exponent: 1e3 eps at a = 1e3, O(1) for a >~ 1 / eps. References: MPFR (>= 600
+// bits) at the arguments rounded to Scalar, mpfr_gamma_inc for a < 1e6 and Temme's uniform expansion (DLMF 8.12.3,
+// 8.12.8, terms c0 and c1) above. The relative error of Q is ~ (log(a) / 2 + t^2) eps, from log Gamma(a) and
+// exp(-t^2 / 2). The bound at these test points is 2 (log(a) / 2 + t^2 + 2) eps, the 2 eps from truncating Stirling's
+// series at the threshold; measured <= 0.5 of it in g++ and clang++, with and without FMA. It is not a general bound:
+// near x = a at large a the error is larger (63 eps at a = 4.40e6, t = 4.6e-4, where the bound is 15 eps).
+// |P - P_ref| <= 2 eps P_ref + the bound on |Q - Q_ref| for x != a; at x = a igamma uses the series, not tested here.
+template <typename Scalar>
+void test_igamma_stirling_regime() {
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  struct Reference {
+    double a, x, q;
+  };
+  // The first three of each are at the threshold: a = 29 (float), 23300 (double), for x = a, t = 1 and t = 4.
+  const Reference refs_f[] = {{29, 29, 0.47530172814254118},
+                              {29, 34.385166168212891, 0.15742604999135354},
+                              {29, 50.540657043457031, 0.00039717534593627728},
+                              {40, 46.3245544, 0.157748569},
+                              {1000, 1015.8114, 0.305755924},
+                              {1000000, 1002000, 0.0228040959},
+                              {1e+09, 1.00003162e+09, 0.158707111},
+                              {9.99999996e+11, 1.00000052e+12, 0.300039037},
+                              {9.99999996e+11, 1.00000203e+12, 0.0210963254},
+                              {1e+14, 1.00000009e+14, 0.200773711}};
+  const Reference refs_d[] = {{23300, 23300, 0.49912881386668523},
+                              {23300, 23452.643375224736, 0.15865353112085209},
+                              {23300, 23910.57350089895, 3.6275102017670049e-05},
+                              {30000, 30173.205080756888, 0.15865391514519289},
+                              {100000, 100632.45553203368, 0.022920595778153613},
+                              {100000000, 100010000, 0.15865525352820117},
+                              {1000000000000, 1000000500000, 0.30853745070965705},
+                              {10000000000000000, 10000000050000000, 0.30853753784582361},
+                              {1e+17, 1.0000000031622776e+17, 0.15865525853541282},
+                              {1e+18, 1.000000001e+18, 0.15865525393145705},
+                              {1e+20, 1.00000000005e+20, 0.30853741253698347},
+                              {1e+20, 1.0000000001000001e+20, 0.15865508048690388},
+                              {1e+20, 1.0000000002e+20, 0.02275014301093051},
+                              {1e+20, 1.0000000007999999e+20, 6.2210020687104885e-16},
+                              {9.9999999999999998e+23, 1.000000000001e+24, 0.15864163346140472},
+                              {9.9999999999999998e+23, 1.00000000002e+24, 2.7507500517774874e-89}};
+  const bool is_float = sizeof(Scalar) == 4;
+  const Reference* refs = is_float ? refs_f : refs_d;
+  const int n = is_float ? 10 : 16;
+  ArrayType a(n), x(n);
+  for (int i = 0; i < n; ++i) {
+    a(i) = Scalar(refs[i].a);
+    x(i) = Scalar(refs[i].x);
+  }
+  const ArrayType p_array = igamma(a, x), q_array = igammac(a, x);
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  const double factor = 2;
+  for (int i = 0; i < n; ++i) {
+    const double q_ref = refs[i].q, p_ref = 1 - q_ref;
+    const double t = (double(x(i)) - double(a(i))) / std::sqrt(double(a(i)));
+    const double tol = factor * (0.5 * std::log(double(a(i))) + t * t + 2) * eps;
+    for (int path = 0; path < 2; ++path) {
+      const double q = double(path ? q_array(i) : numext::igammac(a(i), x(i)));
+      const double p = double(path ? p_array(i) : numext::igamma(a(i), x(i)));
+      VERIFY(numext::abs(q - q_ref) <= tol * q_ref);
+      if (x(i) != a(i)) VERIFY(numext::abs(p - p_ref) <= 2 * eps * p_ref + tol * q_ref);
+    }
+  }
+}
+
+// P = igamma(a, x) for x <= a (and igamma at x = a), below the threshold of igamma_temme (a < 1e5 in double, 1e4 in
+// float) and above that of the Stirling main term (a >~ 2.3e4, 29): the power series stopped after 2000 terms and used
+// the ordinary main term with the error eps a log(a) in its exponent. The terms decay as exp(-k^2 / (2 a)), so
+// ~ 8.6 sqrt(a) (double) are needed near x = a, 2700 at a = 1e5. Double igamma(99990, 99990) had the relative error
+// 2.7e-10 (1.2e6 eps), float igamma(5000, 4990) 2.4e-3. The series takes the Stirling main term and a limit that grows
+// with sqrt(a). References as in test_igamma_stirling_regime, here all mpfr_gamma_inc. The error of P is ~ eps sqrt(a),
+// from the sum of ~ sqrt(a) terms; the bound is (10 + sqrt(a) / 4) eps, measured at most 0.5 of it.
+template <typename Scalar>
+void test_igamma_series_side() {
+  struct Reference {
+    double a, x, p, q;
+  };
+  const Reference refs_f[] = {
+      {29, 25, 0.23659925813359777, 0.76340074186640223},     {29, 29, 0.52469827185745882, 0.47530172814254118},
+      {100, 90, 0.15822098918643017, 0.84177901081356983},    {1000, 1000, 0.50420524418021551, 0.49579475581978449},
+      {5000, 4990, 0.44559408878966122, 0.55440591121033878}, {9999, 9999, 0.50132987483543325, 0.49867012516456675}};
+  const Reference refs_d[] = {{23300, 23150, 0.16289860911857687, 0.83710139088142313},
+                              {23300, 23300, 0.50087118613331477, 0.49912881386668523},
+                              {50000, 50000, 0.50059470810479331, 0.49940529189520669},
+                              {99000, 99000, 0.50042264062330677, 0.49957735937669323},
+                              {99990, 99990, 0.50042054313805012, 0.49957945686194988},
+                              {99990, 99390, 0.02870242637511175, 0.97129757362488825}};
+  const bool is_float = sizeof(Scalar) == 4;
+  const Reference* refs = is_float ? refs_f : refs_d;
+  const int n = 6;
+  using ArrayType = Array<Scalar, Dynamic, 1>;
+  ArrayType a(n), x(n);
+  for (int i = 0; i < n; ++i) {
+    a(i) = Scalar(refs[i].a);
+    x(i) = Scalar(refs[i].x);
+  }
+  const ArrayType p_array = igamma(a, x), q_array = igammac(a, x);
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  for (int i = 0; i < n; ++i) {
+    const double tol = (10 + std::sqrt(refs[i].a) / 4) * eps;
+    for (int path = 0; path < 2; ++path) {
+      const double p = double(path ? p_array(i) : numext::igamma(a(i), x(i)));
+      const double q = double(path ? q_array(i) : numext::igammac(a(i), x(i)));
+      VERIFY(numext::abs(p - refs[i].p) <= tol * refs[i].p);
+      VERIFY(numext::abs(q - refs[i].q) <= tol * refs[i].q);
+      VERIFY(numext::abs(p + q - 1) <= 2 * tol);
+    }
+  }
+}
+
+// Limiting values, in the scalar and the array code paths. NaN must not be turned into a number by the clamping of
+// igamma to [0, 1].
+template <typename Scalar>
+void test_igamma_limits() {
+  const Scalar inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar nan = std::numeric_limits<Scalar>::quiet_NaN();
+  const Scalar a_in[] = {Scalar(1), Scalar(1), inf, inf, Scalar(3), nan, Scalar(3), nan};
+  const Scalar x_in[] = {inf, Scalar(0), Scalar(1), Scalar(0), inf, Scalar(2), nan, nan};
+  // igamma, igammac
+  const Scalar p_ref[] = {Scalar(1), Scalar(0), Scalar(0), Scalar(0), Scalar(1), nan, nan, nan};
+  const Scalar q_ref[] = {Scalar(0), Scalar(1), Scalar(1), Scalar(1), Scalar(0), nan, nan, nan};
+  const int n = 8;
+  Array<Scalar, Dynamic, 1> a = Map<const Array<Scalar, Dynamic, 1>>(a_in, n);
+  Array<Scalar, Dynamic, 1> x = Map<const Array<Scalar, Dynamic, 1>>(x_in, n);
+  const Array<Scalar, Dynamic, 1> p = igamma(a, x), q = igammac(a, x);
+  for (int i = 0; i < n; ++i) {
+    for (int path = 0; path < 2; ++path) {
+      const Scalar ps = path ? p(i) : numext::igamma(a_in[i], x_in[i]);
+      const Scalar qs = path ? q(i) : numext::igammac(a_in[i], x_in[i]);
+      if ((numext::isnan)(p_ref[i])) {
+        VERIFY((numext::isnan)(ps));
+        VERIFY((numext::isnan)(qs));
+      } else {
+        VERIFY_IS_EQUAL(ps, p_ref[i]);
+        VERIFY_IS_EQUAL(qs, q_ref[i]);
+      }
+    }
+  }
+}
+
 template <typename Scalar>
 void test_special_functions_edge_cases() {
   const Scalar plusinf = std::numeric_limits<Scalar>::infinity();
@@ -678,9 +1316,37 @@ EIGEN_DECLARE_TEST(special_functions) {
   CALL_SUBTEST_1(ndtri_tail_accuracy<float>());
   CALL_SUBTEST_1(array_special_functions<ArrayXf>());
   CALL_SUBTEST_1(test_special_functions_edge_cases<float>());
+  CALL_SUBTEST_1(test_betainc_large_b<float>());
+  CALL_SUBTEST_1(test_polygamma_large_order<float>());
+  CALL_SUBTEST_1(test_zeta_large_negative_q<float>());
+  CALL_SUBTEST_1(test_polygamma_extreme_x<float>());
+  CALL_SUBTEST_1(test_polygamma_sign_huge_order<float>());
+  CALL_SUBTEST_1(test_zeta_underflowing_terms<float>());
+  CALL_SUBTEST_1(test_zeta_log_domain_range<float>());
+  CALL_SUBTEST_1(test_igamma_limits<float>());
+  CALL_SUBTEST_1(test_igamma_internal_nan<float>());
+  CALL_SUBTEST_1(test_igamma_huge_x<float>());
+  CALL_SUBTEST_1(test_igamma_large_arguments<float>());
+  CALL_SUBTEST_1(test_igamma_temme_regime<float>());
+  CALL_SUBTEST_1(test_igamma_series_side<float>());
+  CALL_SUBTEST_1(test_igamma_stirling_regime<float>());
   CALL_SUBTEST_2(ndtri_tail_accuracy<double>());
   CALL_SUBTEST_2(array_special_functions<ArrayXd>());
   CALL_SUBTEST_2(test_special_functions_edge_cases<double>());
+  CALL_SUBTEST_2(test_betainc_large_b<double>());
+  CALL_SUBTEST_2(test_polygamma_large_order<double>());
+  CALL_SUBTEST_2(test_zeta_large_negative_q<double>());
+  CALL_SUBTEST_2(test_polygamma_extreme_x<double>());
+  CALL_SUBTEST_2(test_polygamma_sign_huge_order<double>());
+  CALL_SUBTEST_2(test_zeta_underflowing_terms<double>());
+  CALL_SUBTEST_2(test_zeta_log_domain_range<double>());
+  CALL_SUBTEST_2(test_igamma_limits<double>());
+  CALL_SUBTEST_2(test_igamma_internal_nan<double>());
+  CALL_SUBTEST_2(test_igamma_huge_x<double>());
+  CALL_SUBTEST_2(test_igamma_large_arguments<double>());
+  CALL_SUBTEST_2(test_igamma_temme_regime<double>());
+  CALL_SUBTEST_2(test_igamma_series_side<double>());
+  CALL_SUBTEST_2(test_igamma_stirling_regime<double>());
   CALL_SUBTEST_3(scalar_ndtri<long double>());
   CALL_SUBTEST_4(scalar_erf_erfc<long double>());
   CALL_SUBTEST_5(custom_scalar_erf_erfc());

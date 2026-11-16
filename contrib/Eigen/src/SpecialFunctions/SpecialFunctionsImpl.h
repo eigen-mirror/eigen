@@ -874,6 +874,13 @@ EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar main_igamma_term(Scalar a, S
   return numext::exp(logax);
 }
 
+/* Clamp a probability to [0, 1], passing NaN through: numext::maxi(0, NaN) is 0, which would turn a failed
+ * evaluation into a confident answer. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar igamma_clamp_to_unit_interval(Scalar r) {
+  return (numext::isnan)(r) ? r : numext::mini(Scalar(1), numext::maxi(Scalar(0), r));
+}
+
 template <typename Scalar, IgammaComputationMode mode>
 EIGEN_DEVICE_FUNC constexpr int igamma_num_iterations() {
   /* Returns the maximum number of internal iterations for igamma computation.
@@ -882,6 +889,178 @@ EIGEN_DEVICE_FUNC constexpr int igamma_num_iterations() {
          : std::is_same<Scalar, float>::value  ? 200
          : std::is_same<Scalar, double>::value ? 500
                                                : 2000;
+}
+
+/* log1p(d) - d for |d| < 1/4, with s = d / (2 + d), so that log1p(d) = 2 atanh(s):
+ *   log1p(d) - d = -d s + 2 (s^3 / 3 + s^5 / 5 + ...),   |s| < 1/7: the tail past s^21 / 21 is below 2^-60 relative. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static Scalar igamma_log1p_minus_d(Scalar d) {
+  const Scalar s = d / (Scalar(2) + d);
+  const Scalar s2 = s * s;
+  Scalar power = s * s2;
+  Scalar sum = Scalar(0);
+  for (int k = 3; k <= 21; k += 2) {
+    sum += power / Scalar(k);
+    power *= s2;
+  }
+  return Scalar(2) * sum - d * s;
+}
+
+/* Temme's uniform asymptotic expansion of P = igamma(a, x) and Q = igammac(a, x) = 1 - P for large a
+ * (DLMF 8.12.3, 8.12.4 and 8.12.8; Temme, SIAM J. Math. Anal. 10, 1979):
+ *
+ *   Q = erfc(z) / 2 + R,   P = erfc(-z) / 2 - R,   R = exp(-a psi) / sqrt(2 pi a) (c_0(eta) + c_1(eta) / a + O(a^-2)),
+ *
+ * with d = (x - a) / a, psi = d - log1p(d) = eta^2 / 2, sign(eta) = sign(d), z = eta sqrt(a / 2) = sign(d) sqrt(a psi),
+ *   c_0(eta) = 1 / d - 1 / eta,   c_1(eta) = 1 / eta^3 - 1 / d^3 - 1 / d^2 - 1 / (12 d).
+ * Both cancel for small eta and are evaluated from their Taylor series at eta = 0, c_0 = -1/3 + eta/12 - 2 eta^2 / 135
+ * + ..., c_1 = -1/540 - eta/288 + eta^2 / 378 - .... The coefficients were computed with GMP (mpq_class power series):
+ * d = u(eta) from eta^2 / 2 = d - log1p(d) by the fixed-point iteration u = eta / sqrt(h(u)), h(u) = 2 sum_{k >= 2}
+ * (-1)^k u^(k-2) / k, then the series of the closed forms above with d = u(eta). The leading terms of both match DLMF
+ * 8.12(ii).
+ *
+ * Used for |eta| <= 0.15, where the truncation after eta^12 (c_0) and eta^8 (c_1) is 9e-20 and 9e-16 absolute (c_1 / a
+ * is below 3e-19 relative to c_0), and a >= 1e5 (double), 1e4 (float). Outside, a psi > 1125 (112 in float), and P (x <
+ * a) or Q (x > a) is <= exp(-a psi) (Chernoff bound) < denorm_min / 2, so it is 0 and the other is 1. The error of the
+ * O(a^-2) term is the measured one: Q to 53 epsilon at a = 1e5 and |t|
+ * <= 8, t = (x - a) / sqrt(a), against mpfr_gamma_inc, 0.7 of 2 (log(a) / 2 + t^2 + 2) epsilon. It takes no iterations
+ * and is accurate near x = a for every a, where the continued fraction and the series need ~ sqrt(a) of them. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool igamma_use_temme(Scalar a) {
+  return (numext::isfinite)(a) && a >= (sizeof(Scalar) == 4 ? Scalar(1e4) : Scalar(1e5));
+}
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static void igamma_temme(Scalar a, Scalar x, Scalar* p, Scalar* q) {
+  const Scalar zero = 0, one = 1, half = Scalar(0.5);
+  const Scalar d = (x - a) / a;
+  // |d| >= 1/4 gives |eta| >= 0.23. The series for log1p(d) - d needs |d| < 1/4.
+  const Scalar psi = numext::abs(d) < Scalar(0.25) ? -igamma_log1p_minus_d(d) : Scalar(1);
+  if (!(Scalar(2) * psi <= Scalar(0.15) * Scalar(0.15))) {
+    *p = d > zero ? one : zero;
+    *q = one - *p;
+    return;
+  }
+  const Scalar eta = (d < zero ? -one : one) * numext::sqrt(Scalar(2) * psi);
+  const Scalar c0[] = {Scalar(-1) / Scalar(3),
+                       Scalar(1) / Scalar(12),
+                       Scalar(-2) / Scalar(135),
+                       Scalar(1) / Scalar(864),
+                       Scalar(1) / Scalar(2835),
+                       Scalar(-139) / Scalar(777600),
+                       Scalar(1) / Scalar(25515),
+                       Scalar(-571) / Scalar(261273600),
+                       Scalar(-281) / Scalar(151559100),
+                       Scalar(163879) / Scalar(197522841600.0),
+                       Scalar(-5221) / Scalar(29554024500.0),
+                       Scalar(5246819) / Scalar(782190452736000.0),
+                       Scalar(5459) / Scalar(531972441000.0)};
+  const Scalar c1[] = {Scalar(-1) / Scalar(540),          Scalar(-1) / Scalar(288),
+                       Scalar(1) / Scalar(378),           Scalar(-77) / Scalar(77760),
+                       Scalar(1) / Scalar(4860),          Scalar(-1) / Scalar(2488320),
+                       Scalar(-2743) / Scalar(151559100), Scalar(41969) / Scalar(5486745600.0),
+                       Scalar(-11) / Scalar(6823440)};
+  Scalar c0_eta = c0[12], c1_eta = c1[8];
+  for (int k = 11; k >= 0; --k) c0_eta = c0_eta * eta + c0[k];
+  for (int k = 7; k >= 0; --k) c1_eta = c1_eta * eta + c1[k];
+  const Scalar a_psi = a * psi;
+  const Scalar r = numext::exp(-a_psi) / (numext::sqrt(Scalar(2 * EIGEN_PI)) * numext::sqrt(a)) * (c0_eta + c1_eta / a);
+  const Scalar half_erfc = half * erfc_impl<Scalar>::run(numext::sqrt(a_psi));
+  if (d >= zero) {
+    *q = igamma_clamp_to_unit_interval(half_erfc + r);
+    *p = one - *q;
+  } else {
+    *p = igamma_clamp_to_unit_interval(half_erfc - r);
+    *q = one - *p;
+  }
+}
+
+/* The iteration limit of the power series of igamma(a, x) for x <= a in VALUE mode. The terms are
+ * c_k = prod_{j <= k} x / (a + j) <= exp(-k^2 / (2 a)) for x <= a, so the sum has converged to machep (c_k <= machep,
+ * and the sum is >= 1) once k >= sqrt(-2 a log(machep)), at most 8.6 sqrt(a) in double and 5.8 sqrt(a) in float, which
+ * exceeds the limit 2000 of igamma_num_iterations for a >~ 5e4 (double) and 1.2e5 (float). The limit is 1.25 times
+ * that, but at most 1e5. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static int igamma_series_num_iterations(Scalar a) {
+  const Scalar n = Scalar(1.25) * numext::sqrt(-Scalar(2) * a * numext::log(cephes_helper<Scalar>::machep()));
+  return !(n > Scalar(2000)) ? 2000 : n > Scalar(100000) ? 100000 : static_cast<int>(n);
+}
+
+/* x^a exp(-x) / Gamma(a) for x > 0 and a >> 1 from Stirling's series. a log(x) - x - lgamma(a) in main_igamma_term
+ * cancels to an absolute error of about eps a log(a), more than 1 for a >~ 1 / eps. With d = (x - a) / a:
+ *
+ *   log(x^a exp(-x) / Gamma(a)) = a (log1p(d) - d) + (1/2) log(a / (2 pi)) - 1 / (12 a) + O(a^-3),
+ *   with log1p(d) - d from igamma_log1p_minus_d for -1/4 < d < 1/4.
+ * For d <= -1/4 (x <= 3a/4), 1 + d = x / a is formed by the division, not as 1 + d, which has the absolute error eps
+ * and so the relative error eps / (1 + d) for x << a. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static Scalar main_igamma_term_stirling(Scalar a, Scalar x) {
+  const Scalar d = (x - a) / a;
+  Scalar log1pmx;
+  if (d >= Scalar(0.25)) {
+    log1pmx = numext::log1p(d) - d;
+  } else if (d <= Scalar(-0.25)) {
+    log1pmx = numext::log(x / a) - d;
+  } else {
+    log1pmx = igamma_log1p_minus_d(d);
+  }
+  const Scalar logax =
+      a * log1pmx + Scalar(0.5) * (numext::log(a) - numext::log(Scalar(2 * EIGEN_PI))) - Scalar(1) / (Scalar(12) * a);
+  // Written so that a NaN, from a = inf, gives 0 as main_igamma_term does.
+  return !(logax >= -numext::log(NumTraits<Scalar>::highest())) ? Scalar(0) : numext::exp(logax);
+}
+
+/* Whether igammac_cf_impl evaluates igammac(a, x), x >= a, as main_igamma_term_stirling * igammac_cf_lentz rather
+ * than main_igamma_term * recurrence: true once the error 1 / (360 a^3) of Stirling's series for log Gamma(a),
+ * truncated after 1 / (12 a), is below eps, i.e. a >~ 2.3e4 (double), a >~ 29 (float), and when a^3 overflows.
+ * The ordinary main term has the absolute error eps a log(a) in its exponent: better for a <~ 1500 (double),
+ * a <~ 16 (float), worse above, and meaningless for a >~ 1 / eps. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool igamma_use_stirling_main_term(Scalar a) {
+  return Scalar(360) * NumTraits<Scalar>::epsilon() * a * a * a >= Scalar(1);
+}
+
+/* The continued fraction of igammac(a, x) / main_igamma_term(a, x), for x >= a > 0, by the modified Lentz algorithm
+ * (Thompson and Barnett, J. Comput. Phys. 64, 1986; Press et al., Numerical Recipes, 3rd ed., section 6.2):
+ *
+ *   K = 1 / (b_0 + a_1 / (b_1 + a_2 / (b_2 + ...))),   b_i = x + 2i + 1 - a,   a_i = -i (i - a).
+ *
+ * The forward recurrence of igammac_cf_impl evaluates the odd convergents of the Legendre fraction, Lentz's method
+ * its even part (the same limit). The recurrence forms z x with z = x + 2 - a, which overflows once (x - a) x exceeds
+ * the largest number; Lentz's method forms no product of two large quantities, and a_i * d is grouped as
+ * -i * ((i - a) * d) so that it does not overflow for a near the largest number.
+ *
+ * The fraction needs ~ 355 / t^2 iterations (double), t = (x - a) / sqrt(a), for large a. It does not converge within
+ * the iteration limit from (measured) a ~ 1.1e7 at t = 0, 1.8e7 at t = 0.1, 3.3e7 at t = 0.2, 1.4e8 at t = 0.3 and
+ * 8e10 at t = 0.4 in double, and from a ~ 5.6e7 at t = 0 and 2.2e8 at t = 0.1 in float. Then *converged is false and
+ * the returned value is meaningless; igammac_cf_impl returns NaN. igamma and igammac use igamma_temme from a = 1e5
+ * (double), 1e4 (float), so this band is not reached through them. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static Scalar igammac_cf_lentz(Scalar a, Scalar x, bool* converged) {
+  const Scalar one = 1;
+  const Scalar tiny = (numext::numeric_limits<Scalar>::min)();
+  const Scalar machep = cephes_helper<Scalar>::machep();
+  Scalar b = (x - a) + one;  // x - a is exact for a <= x <= 2a; in (x + 1) - a the 1 is lost for x >= 2 / eps.
+  Scalar c = one / tiny;
+  Scalar d = one / b;
+  Scalar h = d;
+  for (int i = 1; i <= igamma_num_iterations<Scalar, VALUE>(); i++) {
+    const Scalar ci = Scalar(i);
+    b += Scalar(2);
+    d = b - ci * ((ci - a) * d);
+    if (numext::abs(d) < tiny) d = tiny;
+    c = b - ci * ((ci - a) / c);
+    if (numext::abs(c) < tiny) c = tiny;
+    d = one / d;
+    const Scalar delta = d * c;
+    h *= delta;
+    if (numext::abs(delta - one) <= machep) {
+      *converged = true;
+      return h;
+    }
+  }
+  *converged = false;
+  return h;
 }
 
 template <typename Scalar, IgammaComputationMode mode>
@@ -905,6 +1084,20 @@ struct igammac_cf_impl {
 
     if ((numext::isinf)(x)) {
       return zero;
+    }
+
+    if (mode == VALUE && igamma_use_stirling_main_term(a)) {
+      // Where the main term underflows so does Q. The fraction ~ 1 / x is below the smallest normal number for
+      // x > 1 / min (8.5e37 in float, 4.5e307 in double), where Lentz's method clamps it and does not converge.
+      const Scalar ax_stirling = main_igamma_term_stirling<Scalar>(a, x);
+      if (ax_stirling == zero) return zero;
+      bool converged;
+      const Scalar h = igammac_cf_lentz<Scalar>(a, x, &converged);
+      // Unconverged only in the band documented at igammac_cf_lentz, where igamma_temme is used instead. The recurrence
+      // and the ordinary main term are wrong there (values above 1, or float igammac(1e8, 1e8) = 1.25e-4 for a true
+      // value ~ 0.5), so the result is NaN: a converged fraction or NaN.
+      if (!converged) return NumTraits<Scalar>::quiet_NaN();
+      return ax_stirling * h;
     }
 
     Scalar ax = main_igamma_term<Scalar>(a, x);
@@ -990,8 +1183,11 @@ struct igammac_cf_impl {
     Scalar dax_da = ax * dlogax_da;
 
     switch (mode) {
-      case VALUE:
-        return ans * ax;
+      case VALUE: {
+        // An overflow of the recurrence (inf - inf) is reported as NaN rather than returned as inf or a silent 0.
+        const Scalar result = ans * ax;
+        return EIGEN_PREDICT_FALSE(!(numext::isfinite)(result)) ? NumTraits<Scalar>::quiet_NaN() : result;
+      }
       case DERIVATIVE:
         return ans * dax_da + dans_da * ax;
       case SAMPLE_DERIVATIVE:
@@ -1016,7 +1212,8 @@ struct igamma_series_impl {
     const Scalar one = 1;
     const Scalar machep = cephes_helper<Scalar>::machep();
 
-    Scalar ax = main_igamma_term<Scalar>(a, x);
+    const bool stirling = mode == VALUE && igamma_use_stirling_main_term(a);
+    Scalar ax = stirling ? main_igamma_term_stirling<Scalar>(a, x) : main_igamma_term<Scalar>(a, x);
 
     // This is independent of mode. If this value is zero,
     // then the function value is zero. If the function value is zero,
@@ -1036,8 +1233,11 @@ struct igamma_series_impl {
     Scalar dc_da = zero;
     Scalar dans_da = zero;
 
-    for (int i = 0; i < igamma_num_iterations<Scalar, mode>(); i++) {
-      r += one;
+    const int num_iterations = mode == VALUE ? igamma_series_num_iterations(a) : igamma_num_iterations<Scalar, mode>();
+    bool converged = false;
+    for (int i = 0; i < num_iterations; i++) {
+      // r += 1 stalls once a >= 2^24 in float: a + 1 rounds to a.
+      r = mode == VALUE ? a + Scalar(i + 1) : r + one;
       Scalar term = x / r;
       Scalar dterm_da = -x / (r * r);
       dc_da = term * dc_da + dterm_da * c;
@@ -1047,6 +1247,7 @@ struct igamma_series_impl {
 
       if (mode == VALUE) {
         if (c <= machep * ans) {
+          converged = true;
           break;
         }
       } else {
@@ -1055,6 +1256,9 @@ struct igamma_series_impl {
         }
       }
     }
+    // A truncated sum is wrong by an unbounded amount (double igamma(1e6, 1e6) was 0.477, true 0.500): a converged sum
+    // or NaN.
+    if (mode == VALUE && !converged) return NumTraits<Scalar>::quiet_NaN();
 
     Scalar dlogax_da = numext::log(x) - digamma_impl<Scalar>::run(a + one);
     Scalar dax_da = ax * dlogax_da;
@@ -1141,13 +1345,20 @@ struct igammac_impl {
       return nan;
     }
 
+    if (igamma_use_temme(a)) {
+      Scalar p, q;
+      igamma_temme(a, x, &p, &q);
+      return q;
+    }
+
     if ((x < one) || (x < a)) {
       // Clamp to [0,1] since 1-igamma can produce tiny negative values
       // due to floating-point cancellation for extreme arguments.
-      return numext::mini(one, numext::maxi(zero, one - igamma_series_impl<Scalar, VALUE>::run(a, x)));
+      return igamma_clamp_to_unit_interval(one - igamma_series_impl<Scalar, VALUE>::run(a, x));
     }
 
-    return igammac_cf_impl<Scalar, VALUE>::run(a, x);
+    // NaN where Lentz's fraction does not converge (igammac_cf_impl); the clamp keeps NaN.
+    return igamma_clamp_to_unit_interval(igammac_cf_impl<Scalar, VALUE>::run(a, x));
   }
 };
 
@@ -1180,12 +1391,18 @@ struct igamma_generic_impl {
       return nan;
     }
 
+    if (mode == VALUE && igamma_use_temme(a)) {
+      Scalar p, q;
+      igamma_temme(a, x, &p, &q);
+      return p;
+    }
+
     if ((x > one) && (x > a)) {
       Scalar ret = igammac_cf_impl<Scalar, mode>::run(a, x);
       if (mode == VALUE) {
         // Clamp to [0,1] since 1-igammac can produce tiny negative values
         // due to floating-point cancellation for extreme arguments.
-        return numext::mini(one, numext::maxi(zero, one - ret));
+        return igamma_clamp_to_unit_interval(one - ret);
       } else {
         return -ret;
       }
@@ -1195,7 +1412,7 @@ struct igamma_generic_impl {
     if (mode == VALUE) {
       // Clamp to [0,1] since accumulated series terms can slightly exceed 1.0
       // due to floating-point rounding for extreme arguments.
-      return numext::mini(one, numext::maxi(zero, ret));
+      return igamma_clamp_to_unit_interval(ret);
     }
     return ret;
   }
@@ -1335,6 +1552,9 @@ struct gamma_sample_der_alpha_impl : igamma_generic_impl<Scalar, SAMPLE_DERIVATI
  * Implementation of Riemann zeta function of two arguments, based on Cephes *
  *****************************************************************************/
 
+// For q < -kZetaMaxNegativeQ, zeta(x, q) is evaluated by a reflection rather than by summing about |q| terms.
+constexpr int kZetaMaxNegativeQ = 1000;
+
 template <typename Scalar>
 struct zeta_impl_series {
   EIGEN_STATIC_ASSERT((std::is_same<Scalar, Scalar>::value == false), THIS_TYPE_IS_NOT_SUPPORTED)
@@ -1344,13 +1564,13 @@ struct zeta_impl_series {
 
 template <>
 struct zeta_impl_series<float> {
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(float& a, float& b, float& s, const float x,
-                                                        const float machep) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(float& a, float& b, float& s, const float x, const float machep,
+                                                        const float inv_scale) {
     int i = 0;
     while ((i < 9) || (a <= 9.0f)) {
       i += 1;
       a += 1.0f;
-      b = numext::pow(a, -x);
+      b = numext::pow(a * inv_scale, -x);
       s += b;
       if (numext::abs(b / s) < machep) return true;
     }
@@ -1363,12 +1583,12 @@ struct zeta_impl_series<float> {
 template <>
 struct zeta_impl_series<double> {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool run(double& a, double& b, double& s, const double x,
-                                                        const double machep) {
+                                                        const double machep, const double inv_scale) {
     int i = 0;
     while ((i < 9) || (a <= 9.0)) {
       i += 1;
       a += 1.0;
-      b = numext::pow(a, -x);
+      b = numext::pow(a * inv_scale, -x);
       s += b;
       if (numext::abs(b / s) < machep) return true;
     }
@@ -1380,6 +1600,115 @@ struct zeta_impl_series<double> {
 
 template <typename Scalar>
 struct zeta_impl {
+  /* Euler-Maclaurin summation of the Hurwitz zeta function (see run()), for x > 1 and q > 0 or q < 0 non-integer, and
+   * multiplied by scale^x where inv_scale = 1 / scale. Every term (k + q)^-x is computed as (inv_scale (k + q))^-x,
+   * which does not underflow when scale is of the size of q, so scale = q gives a result of order 1 where zeta(x, q)
+   * itself underflows. */
+  EIGEN_DEVICE_FUNC static Scalar sum(Scalar x, Scalar q, Scalar inv_scale) {
+    int i;
+    Scalar a, b, k, s, t, w;
+
+    const Scalar A[] = {
+        Scalar(12.0),
+        Scalar(-720.0),
+        Scalar(30240.0),
+        Scalar(-1209600.0),
+        Scalar(47900160.0),
+        Scalar(-1.8924375803183791606e9), /*1.307674368e12/691*/
+        Scalar(7.47242496e10),
+        Scalar(-2.950130727918164224e12),  /*1.067062284288e16/3617*/
+        Scalar(1.1646782814350067249e14),  /*5.109094217170944e18/43867*/
+        Scalar(-4.5979787224074726105e15), /*8.028576626982912e20/174611*/
+        Scalar(1.8152105401943546773e17),  /*1.5511210043330985984e23/854513*/
+        Scalar(-7.1661652561756670113e18)  /*1.6938241367317436694528e27/236364091*/
+    };
+
+    const Scalar zero = Scalar(0.0), half = Scalar(0.5), one = Scalar(1.0);
+    const Scalar machep = cephes_helper<Scalar>::machep();
+
+    /* Permit negative q but continue sum until n+q > +9 . For q < -kZetaMaxNegativeQ, run() uses the reflection
+     * below instead, so this runs for at most kZetaMaxNegativeQ + 10 iterations. */
+    s = numext::pow(q * inv_scale, -x);
+    a = q;
+    b = zero;
+    // Run the summation in a helper function that is specific to the floating precision
+    if (zeta_impl_series<Scalar>::run(a, b, s, x, machep, inv_scale)) {
+      return s;
+    }
+
+    // If b is zero, then the tail sum will also end up being zero.
+    // Exiting early here can prevent NaNs for some large inputs, where
+    // the tail sum computed below has term `a` which can overflow to `inf`.
+    if (numext::equal_strict(b, zero)) {
+      return s;
+    }
+
+    w = a;
+    s += b * w / (x - one);
+    s -= half * b;
+    a = one;
+    k = zero;
+
+    for (i = 0; i < 12; i++) {
+      a *= x + k;
+      b /= w;
+      t = a * b / A[i];
+      s = s + t;
+      t = numext::abs(t / s);
+      if (t < machep) {
+        break;
+      }
+      k += one;
+      a *= x + k;
+      b /= w;
+      k += one;
+    }
+    return s;
+  }
+
+  /* zeta(x, q) = exp(log(sum(x, q, 1 / q)) - x log(q)), for q >= 1. The terms are scaled to ~ 1 and the sum to
+   * ~ q / (x - 1), which is finite for x >= 2 and q <= max / 16; 1 / q is then also normal under flush to zero. */
+  EIGEN_DEVICE_FUNC static Scalar log_domain_sum_scaled_by_q(Scalar x, Scalar q) {
+    return numext::exp(numext::log(sum(x, q, Scalar(1) / q)) - x * numext::log(q));
+  }
+
+  /* The same for any finite q >= 1 and x > 1, with the terms scaled to ~ 1 / q_c, q_c = min(q, 1 / (16 min)), so
+   * that neither the first term nor the sum ~ q / (q_c (x - 1)) <= 64 / (x - 1) leaves the normal range, however
+   * close x is to 1 and up to q = max. With L = log(q), L_c = log(q_c) and e = L_c - x L = (L_c - L) - (x - 1) L:
+   *   zeta(x, q) = exp(log(sum(x, q, exp(e / x))) + e).
+   * The relative error is ~ eps (x - 1) log(q). Where e < log(denorm_min) - 6, x - 1 > 1 and the sum is < 64, so zeta
+   * rounds to 0; returning it there also avoids exp(e / x) ~ 1 / q, which is subnormal or flushed to zero. */
+  EIGEN_DEVICE_FUNC static Scalar log_domain_sum_rescaled(Scalar x, Scalar q) {
+    const Scalar log_q = numext::log(q);
+    const Scalar q_c = numext::mini(q, Scalar(1) / (Scalar(16) * (numext::numeric_limits<Scalar>::min)()));
+    const Scalar e = (numext::log(q_c) - log_q) - (x - Scalar(1)) * log_q;
+    const Scalar log_denorm_min = numext::log((numext::numeric_limits<Scalar>::min)()) -
+                                  Scalar(numext::numeric_limits<Scalar>::digits - 1) * Scalar(0.6931471805599453);
+    if (e < log_denorm_min - Scalar(6)) return Scalar(0);
+    return numext::exp(numext::log(sum(x, q, numext::exp(e / x))) + e);
+  }
+
+  /* sum(x, q, 1) for q >= 1, also where q^-x is subnormal or zero but the sum ~ q^(1-x) / (x - 1) is normal. The
+   * first term b = q^-x = min 2^-k then has the relative error ~ eps 2^k and dominates the sum for x near 1. Once
+   * that exceeds the error ~ eps (1 + 2 (x - 1) log(q)) of a log-domain form, use one. For x >= 2 and q <= max / 16
+   * that is the scaling by 1 / q; otherwise the rescaled form, since the sum ~ q / (x - 1) of the first overflows for
+   * x - 1 < 1/16 and its 1 / q is subnormal, or flushed to zero, for q > max / 16. q^-x < min is x log(q) > -log(min);
+   * this also excludes q = 1. */
+  EIGEN_DEVICE_FUNC static Scalar sum_without_underflow(Scalar x, Scalar q) {
+    if (q >= Scalar(1) && !(numext::isinf)(x)) {
+      const Scalar log_q = numext::log(q);
+      const Scalar x_log_q = x * log_q;
+      const Scalar log_min = numext::log((numext::numeric_limits<Scalar>::min)());
+      if (x_log_q > -log_min && x_log_q + log_min > numext::log(Scalar(2) * (Scalar(1) + (x - Scalar(1)) * log_q))) {
+        if (x >= Scalar(2) && q <= (numext::numeric_limits<Scalar>::max)() / Scalar(16)) {
+          return log_domain_sum_scaled_by_q(x, q);
+        }
+        return log_domain_sum_rescaled(x, q);
+      }
+    }
+    return sum(x, q, Scalar(1));
+  }
+
   EIGEN_DEVICE_FUNC static Scalar run(Scalar x, Scalar q) {
     /*							zeta.c
      *
@@ -1442,27 +1771,10 @@ struct zeta_impl {
      *
      */
 
-    int i;
-    Scalar p, r, a, b, k, s, t, w;
-
-    const Scalar A[] = {
-        Scalar(12.0),
-        Scalar(-720.0),
-        Scalar(30240.0),
-        Scalar(-1209600.0),
-        Scalar(47900160.0),
-        Scalar(-1.8924375803183791606e9), /*1.307674368e12/691*/
-        Scalar(7.47242496e10),
-        Scalar(-2.950130727918164224e12),  /*1.067062284288e16/3617*/
-        Scalar(1.1646782814350067249e14),  /*5.109094217170944e18/43867*/
-        Scalar(-4.5979787224074726105e15), /*8.028576626982912e20/174611*/
-        Scalar(1.8152105401943546773e17),  /*1.5511210043330985984e23/854513*/
-        Scalar(-7.1661652561756670113e18)  /*1.6938241367317436694528e27/236364091*/
-    };
+    Scalar p, r;
 
     const Scalar maxnum = NumTraits<Scalar>::infinity();
     const Scalar zero = Scalar(0.0), half = Scalar(0.5), one = Scalar(1.0);
-    const Scalar machep = cephes_helper<Scalar>::machep();
     const Scalar nan = NumTraits<Scalar>::quiet_NaN();
 
     if (x == one) return maxnum;
@@ -1484,47 +1796,20 @@ struct zeta_impl {
       if (p != r) return nan;
     }
 
-    /* Permit negative q but continue sum until n+q > +9 .
-     * This case should be handled by a reflection formula.
-     * If q<0 and x is an integer, there is a relation to
-     * the polygamma function.
-     */
-    s = numext::pow(q, -x);
-    a = q;
-    b = zero;
-    // Run the summation in a helper function that is specific to the floating precision
-    if (zeta_impl_series<Scalar>::run(a, b, s, x, machep)) {
-      return s;
+    /* The sum for q < 0 has about |q| terms. Beyond kZetaMaxNegativeQ split it at the sign change of k + q, with
+     * q = f - M, f in (0, 1) and M a positive integer, for integer x (checked above):
+     *
+     *   zeta(x, q) = zeta(x, f) + sum_{j=1}^M (f - j)^-x
+     *              = zeta(x, f) + (-1)^x (zeta(x, 1 - f) - zeta(x, 1 - q)),
+     *
+     * using sum_{j=1}^M (j - f)^-x = zeta(x, 1 - f) - zeta(x, M + 1 - f) and M + 1 - f = 1 - q. */
+    if (q < -Scalar(kZetaMaxNegativeQ)) {
+      const Scalar f = q - numext::floor(q);
+      const Scalar x_is_even = (numext::rint(half * x) == half * x) ? one : -one;
+      return (sum(x, f, one) + x_is_even * sum(x, one - f, one)) - x_is_even * sum_without_underflow(x, one - q);
     }
 
-    // If b is zero, then the tail sum will also end up being zero.
-    // Exiting early here can prevent NaNs for some large inputs, where
-    // the tail sum computed below has term `a` which can overflow to `inf`.
-    if (numext::equal_strict(b, zero)) {
-      return s;
-    }
-
-    w = a;
-    s += b * w / (x - one);
-    s -= half * b;
-    a = one;
-    k = zero;
-
-    for (i = 0; i < 12; i++) {
-      a *= x + k;
-      b /= w;
-      t = a * b / A[i];
-      s = s + t;
-      t = numext::abs(t / s);
-      if (t < machep) {
-        break;
-      }
-      k += one;
-      a *= x + k;
-      b /= w;
-      k += one;
-    }
-    return s;
+    return sum_without_underflow(x, q);
   }
 };
 
@@ -1540,7 +1825,7 @@ struct polygamma_impl {
     const Scalar nan = NumTraits<Scalar>::quiet_NaN();
 
     // Check that n is a non-negative integer
-    if (numext::floor(n) != n || n < zero) {
+    if (numext::floor(n) != n || n < zero || (numext::isinf)(n)) {
       return nan;
     }
     // Just return the digamma function for n = 0
@@ -1549,8 +1834,34 @@ struct polygamma_impl {
     }
     // Use the same implementation as scipy
     else {
+      // (-1)^(n+1) from the parity of n: n + 1 is not representable for n >= 2^24 (float), 2^53 (double).
+      const Scalar half = Scalar(0.5);
+      const bool n_is_even = numext::floor(half * n) == half * n;
+      const Scalar sign = n_is_even ? -one : one;
+      // For odd n + 1 and x = -M - 1/2 < -kZetaMaxNegativeQ the reflection in zeta_impl reduces exactly to
+      // zeta(n + 1, x) = zeta(n + 1, 1 - x); with 1 - x > 0 the log-domain evaluation below applies.
+      if (n_is_even && x < -Scalar(kZetaMaxNegativeQ) && x - numext::floor(x) == half) x = one - x;
       Scalar factorial = numext::exp(lgamma_impl<Scalar>::run(nplus));
-      return numext::pow(-one, nplus) * factorial * zeta_impl<Scalar>::run(nplus, x);
+      Scalar zeta = zeta_impl<Scalar>::run(nplus, x);
+      // The limit at +inf is 0, with the sign of (-1)^(n+1); n! zeta(n + 1, inf) would be NaN for n! = inf.
+      if (x == NumTraits<Scalar>::infinity()) return sign * zero;
+      // 1 / x must be a normal number, also when subnormals are flushed to zero: for x <= max / 16 it is >= 16 / max,
+      // which is above the smallest normal number (4.7e-38 vs 1.2e-38 in float, 8.9e-308 vs 2.2e-308 in double).
+      if (x > zero && x <= (numext::numeric_limits<Scalar>::max)() / Scalar(16) &&
+          ((numext::isinf)(factorial) || !(zeta >= (numext::numeric_limits<Scalar>::min)()))) {
+        // n! overflows, or zeta(n + 1, x) ~ x^-(n+1) underflows, while n! zeta(n + 1, x) can be representable (a
+        // product of inf and 0 is NaN). With Z = x^(n+1) zeta(n + 1, x), which is >= 1 and ~ x / n for x >> n, form
+        // the product in the log domain:
+        //   n! zeta(n + 1, x) = exp(lgamma(n + 1) - (n + 1) log x + log Z).
+        const Scalar log_z = numext::log(zeta_impl<Scalar>::sum(nplus, x, one / x));
+        if ((numext::isfinite)(log_z)) {
+          return sign * numext::exp(lgamma_impl<Scalar>::run(nplus) - nplus * numext::log(x) + log_z);
+        }
+      }
+      // x < 0: zeta(n + 1, x) = 0 where the sums cancel exactly (x = -N - 1/2) and the true value, n! zeta(n + 1, 1 -
+      // x) with 1 - x > 1000, underflows; likewise for x > max / 16, where n! x^-n underflows. inf * 0 would be NaN.
+      if ((numext::isinf)(factorial) && zeta == zero) return sign * zero;
+      return sign * factorial * zeta;
     }
   }
 };
@@ -1643,7 +1954,8 @@ struct incbeta_cfe {
   EIGEN_STATIC_ASSERT((std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value),
                       THIS_TYPE_IS_NOT_SUPPORTED)
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar a, Scalar b, Scalar x, bool small_branch) {
+  // xc is 1 - x: for x close to 1 it cannot be recovered from x, so the caller may supply it.
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar a, Scalar b, Scalar x, Scalar xc, bool small_branch) {
     const Scalar big = cephes_helper<Scalar>::big();
     const Scalar machep = cephes_helper<Scalar>::machep();
     const Scalar biginv = cephes_helper<Scalar>::biginv();
@@ -1681,7 +1993,7 @@ struct incbeta_cfe {
       k7 = a + one;
       k8 = a + two;
       k26update = -one;
-      x = x / (one - x);
+      x = x / xc;
     }
 
     pkm2 = zero;
@@ -1743,6 +2055,35 @@ struct incbeta_cfe {
   }
 };
 
+/* log(Gamma(a + b) / (Gamma(a) Gamma(b))) is evaluated as lgamma(a + b) - lgamma(a) - lgamma(b), whose error is about
+ * eps M (log M - 1) for M = max(a, b), the rounding of lgamma(M), which the caller's exp() turns into relative error.
+ * Where that reaches ~0.1, i.e. M >= 1 / (64 eps) (1.3e5 in float, 7e13 in double), the result is garbage and
+ * betainc_stirling_ratio, which has no such cancellation when m = min(a, b) <= M / 4, is used instead. Below that
+ * threshold the sum is kept: its rounding errors are correlated with those of the continued fraction, which uses the
+ * same a + b, and the Stirling form is not systematically better there. The callers apply this only where 1 - x
+ * rounds to 1, the inputs that otherwise hang; every other input keeps the original arithmetic. */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE bool betainc_use_stirling_ratio(Scalar a, Scalar b) {
+  const Scalar big = numext::maxi(a, b);
+  return big * NumTraits<Scalar>::epsilon() >= Scalar(1.0 / 64) && Scalar(4) * numext::mini(a, b) <= big;
+}
+
+/* Stirling's series (DLMF 5.11.1) with the large terms combined, for L = M + m, M >= 1 / (64 eps):
+ *   lgamma(L) - lgamma(M) = m log M + (L - 1/2) log1p(m / M) - m + (1/12)(1/L - 1/M) - (1/360)(1/L^3 - 1/M^3) + O(M^-5)
+ * and the remaining term is -lgamma(m). */
+template <typename Scalar>
+EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar betainc_stirling_ratio(Scalar a, Scalar b) {
+  const Scalar M = numext::maxi(a, b);
+  const Scalar m = numext::mini(a, b);
+  const Scalar sum = M + m;
+  const Scalar sum_inv = Scalar(1) / sum;
+  const Scalar M_inv = Scalar(1) / M;
+  Scalar d = m * numext::log(M) + (sum - Scalar(0.5)) * numext::log1p(m / M) - m;
+  d += (Scalar(1) / Scalar(12)) * (sum_inv - M_inv) -
+       (Scalar(1) / Scalar(360)) * (sum_inv * sum_inv * sum_inv - M_inv * M_inv * M_inv);
+  return d - lgamma_impl<Scalar>::run(m);
+}
+
 /* Helper functions depending on the Scalar type */
 template <typename Scalar>
 struct betainc_helper {};
@@ -1751,10 +2092,12 @@ template <>
 struct betainc_helper<float> {
   /* Core implementation, assumes a large (> 1.0) */
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float incbsa(float aa, float bb, float xx) {
-    float ans, a, b, t, x, onemx;
+    float ans, a, b, t, x, onemx, xc, logx;
     bool reversed_a_b = false;
 
     onemx = 1.0f - xx;
+    // 1 - xx rounds to 1: after reversing, x would be 1 and its complement x / (1 - x) infinite.
+    const bool onemx_is_one = (onemx == 1.0f);
 
     /* see if x is greater than the mean */
     if (xx > (aa / (aa + bb))) {
@@ -1770,25 +2113,36 @@ struct betainc_helper<float> {
       x = xx;
     }
 
+    // In the degenerate case use the exact 1 - x = xx (reversed) or log(1 - xx) = log1p(-xx) in place of the rounded 1.
+    const bool degenerate = reversed_a_b && onemx_is_one;
+    xc = degenerate ? t : 1.0f - x;
+    logx = degenerate ? numext::log1p(-xx) : numext::log(x);
+
     /* Choose expansion for optimal convergence */
     if (b > 10.0f) {
       if (numext::abs(b * x / a) < 0.3f) {
-        t = betainc_helper<float>::incbps(a, b, x);
+        t = betainc_helper<float>::incbps(a, b, x, xc, logx, degenerate ? numext::log(t) : numext::log1p(-x),
+                                          onemx_is_one);
         if (reversed_a_b) t = 1.0f - t;
         return t;
       }
     }
 
+    const float log_t = (onemx_is_one && !reversed_a_b) ? numext::log1p(-xx) : numext::log(t);
     ans = x * (a + b - 2.0f) / (a - 1.0f);
     if (ans < 1.0f) {
-      ans = incbeta_cfe<float>::run(a, b, x, true /* small_branch */);
-      t = b * numext::log(t);
+      ans = incbeta_cfe<float>::run(a, b, x, xc, true /* small_branch */);
+      t = b * log_t;
     } else {
-      ans = incbeta_cfe<float>::run(a, b, x, false /* small_branch */);
-      t = (b - 1.0f) * numext::log(t);
+      ans = incbeta_cfe<float>::run(a, b, x, xc, false /* small_branch */);
+      t = (b - 1.0f) * log_t;
     }
 
-    t += a * numext::log(x) + lgamma_impl<float>::run(a + b) - lgamma_impl<float>::run(a) - lgamma_impl<float>::run(b);
+    if (onemx_is_one && betainc_use_stirling_ratio(a, b)) {
+      t += a * logx + betainc_stirling_ratio(a, b);
+    } else {
+      t += a * logx + lgamma_impl<float>::run(a + b) - lgamma_impl<float>::run(a) - lgamma_impl<float>::run(b);
+    }
     t += numext::log(ans / a);
     t = numext::exp(t);
 
@@ -1796,17 +2150,25 @@ struct betainc_helper<float> {
     return t;
   }
 
-  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float incbps(float a, float b, float x) {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE float incbps(float a, float b, float x, float xc, float logx,
+                                                            float logxc, bool xc_rounds_to_one) {
     float t, u, y, s;
     const float machep = cephes_helper<float>::machep();
 
-    y = a * numext::log(x) + (b - 1.0f) * numext::log1p(-x) - numext::log(a);
-    y -= lgamma_impl<float>::run(a) + lgamma_impl<float>::run(b);
-    y += lgamma_impl<float>::run(a + b);
+    y = a * logx + (b - 1.0f) * logxc - numext::log(a);
+    if (xc_rounds_to_one && betainc_use_stirling_ratio(a, b)) {
+      y += betainc_stirling_ratio(a, b);
+    } else {
+      y -= lgamma_impl<float>::run(a) + lgamma_impl<float>::run(b);
+      y += lgamma_impl<float>::run(a + b);
+    }
 
-    t = x / (1.0f - x);
+    t = x / xc;
     s = 0.0f;
     u = 1.0f;
+    // Safety net against an endless loop: for b >= 2^24, b -= 1 changes nothing, and a ratio u_{k+1} / u_k of 1 never
+    // decays. Convergent sums need at most b + 1 < 2^24 iterations (thousands for b ~ 5e4 with t b / a ~ 1).
+    int n = 0;
     do {
       b -= 1.0f;
       if (b == 0.0f) {
@@ -1815,7 +2177,7 @@ struct betainc_helper<float> {
       a += 1.0f;
       u *= t * b / a;
       s += u;
-    } while (numext::abs(u) > machep);
+    } while (numext::abs(u) > machep && ++n < (1 << 24));
 
     return numext::exp(y) * (1.0f + s);
   }
@@ -1841,8 +2203,13 @@ struct betainc_impl<float> {
     /* transformation for small aa */
     if (a <= 1.0f) {
       ans = betainc_helper<float>::incbsa(a + 1.0f, b, x);
-      t = a * numext::log(x) + b * numext::log1p(-x) + lgamma_impl<float>::run(a + b) -
-          lgamma_impl<float>::run(a + 1.0f) - lgamma_impl<float>::run(b);
+      if (1.0f - x == 1.0f && betainc_use_stirling_ratio(a + 1.0f, b)) {
+        // Gamma(a + b) / (Gamma(a + 1) Gamma(b)) = Gamma(a + 1 + b) / (Gamma(a + 1) Gamma(b)) / (a + b).
+        t = a * numext::log(x) + b * numext::log1p(-x) + betainc_stirling_ratio(a + 1.0f, b) - numext::log(a + b);
+      } else {
+        t = a * numext::log(x) + b * numext::log1p(-x) + lgamma_impl<float>::run(a + b) -
+            lgamma_impl<float>::run(a + 1.0f) - lgamma_impl<float>::run(b);
+      }
       return (ans + numext::exp(t));
     } else {
       return betainc_helper<float>::incbsa(a, b, x);
@@ -1883,8 +2250,12 @@ struct betainc_helper<double> {
       s = s * t * pow(x, a);
     }
     */
-    t = lgamma_impl<double>::run(a + b) - lgamma_impl<double>::run(a) - lgamma_impl<double>::run(b) + u +
-        numext::log(s);
+    if (1.0 - x == 1.0 && betainc_use_stirling_ratio(a, b)) {
+      t = betainc_stirling_ratio(a, b) + u + numext::log(s);
+    } else {
+      t = lgamma_impl<double>::run(a + b) - lgamma_impl<double>::run(a) - lgamma_impl<double>::run(b) + u +
+          numext::log(s);
+    }
     return numext::exp(t);
   }
 };
@@ -1914,7 +2285,9 @@ struct betainc_impl<double> {
 
     w = 1.0 - xx;
 
-    /* Reverse a and b if x is greater than the mean. */
+    /* Reverse a and b if x is greater than the mean. If 1 - xx rounds to 1, x = w = 1 below and its complement
+     * x / (1 - x) is infinite: use the exact xc = xx instead. */
+    const bool w_is_one = (w == 1.0);
     if (xx > (aa / (aa + bb))) {
       reversed_a_b = true;
       a = bb;
@@ -1941,17 +2314,17 @@ struct betainc_impl<double> {
     /* Choose expansion for better convergence. */
     y = x * (a + b - 2.0) - (a - 1.0);
     if (y < 0.0) {
-      w = incbeta_cfe<double>::run(a, b, x, true /* small_branch */);
+      w = incbeta_cfe<double>::run(a, b, x, reversed_a_b && w_is_one ? xc : 1.0 - x, true /* small_branch */);
     } else {
-      w = incbeta_cfe<double>::run(a, b, x, false /* small_branch */) / xc;
+      w = incbeta_cfe<double>::run(a, b, x, reversed_a_b && w_is_one ? xc : 1.0 - x, false /* small_branch */) / xc;
     }
 
     /* Multiply w by the factor
          a      b   _             _     _
         x  (1-x)   | (a+b) / ( a | (a) | (b) ) .   */
 
-    y = a * numext::log(x);
-    t = b * numext::log(xc);
+    y = a * ((reversed_a_b && w_is_one) ? numext::log1p(-xx) : numext::log(x));
+    t = b * ((xc < 1.0) ? numext::log(xc) : numext::log1p(-xx));
     // TODO: gamma is not directly implemented in Eigen.
     /*
     if ((a + b) < maxgam && numext::abs(y) < maxlog && numext::abs(t) < maxlog)
@@ -1964,7 +2337,11 @@ struct betainc_impl<double> {
     } else {
     */
     /* Resort to logarithms.  */
-    y += t + lgamma_impl<double>::run(a + b) - lgamma_impl<double>::run(a) - lgamma_impl<double>::run(b);
+    if (w_is_one && betainc_use_stirling_ratio(a, b)) {
+      y += t + betainc_stirling_ratio(a, b);
+    } else {
+      y += t + lgamma_impl<double>::run(a + b) - lgamma_impl<double>::run(a) - lgamma_impl<double>::run(b);
+    }
     y += numext::log(w / a);
     t = numext::exp(y);
 

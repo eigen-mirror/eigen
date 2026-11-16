@@ -314,9 +314,48 @@ void test_bessel_i_large_finite_double() {
   test_bessel_i_large_finite<ArrayXd>(x, i0_truth, i1_truth);
 }
 
+// k1 and k1e overflow for the smallest subnormal x (log(x / 2) = -inf times i1(x) = 0 was NaN), and the limits of
+// j0, j1, y0, y1 at +-inf are 0, not the NaN of cos(inf). The arrays have more than one packet and a remainder.
+template <typename ArrayType>
+void test_bessel_special_values() {
+  using Scalar = typename ArrayType::Scalar;
+  const Scalar inf = std::numeric_limits<Scalar>::infinity();
+  const Scalar denorm_min = std::numeric_limits<Scalar>::denorm_min();
+  const Index n = 19;
+  ArrayType x = ArrayType::Constant(n, Scalar(1));
+  for (Index i = 0; i < n; i += 3) x(i) = denorm_min;
+  for (Index i = 1; i < n; i += 3) x(i) = inf;
+  ArrayType ninf = x.cwiseProduct(ArrayType::Constant(n, Scalar(-1)));
+  ArrayType k1 = bessel_k1(x), k1e = bessel_k1e(x), j0 = bessel_j0(x), j1 = bessel_j1(x), y0 = bessel_y0(x),
+            y1 = bessel_y1(x), j0n = bessel_j0(ninf), j1n = bessel_j1(ninf);
+  for (Index i = 0; i < n; ++i) {
+    if (x(i) == denorm_min) {
+      VERIFY_IS_EQUAL(k1(i), inf);
+      VERIFY_IS_EQUAL(k1e(i), inf);
+      VERIFY_IS_EQUAL(numext::bessel_k1(denorm_min), inf);
+      VERIFY_IS_EQUAL(numext::bessel_k1e(denorm_min), inf);
+    } else if (x(i) == inf) {
+      VERIFY_IS_EQUAL(j0(i), Scalar(0));
+      VERIFY_IS_EQUAL(j1(i), Scalar(0));
+      VERIFY_IS_EQUAL(y0(i), Scalar(0));
+      VERIFY_IS_EQUAL(y1(i), Scalar(0));
+      VERIFY_IS_EQUAL(j0n(i), Scalar(0));
+      VERIFY_IS_EQUAL(j1n(i), Scalar(0));
+      VERIFY((std::signbit)(j1n(i)));  // j1 is odd: j1(-inf) = -0
+      VERIFY((std::signbit)(numext::bessel_j1(-inf)));
+      VERIFY_IS_EQUAL(numext::bessel_j0(inf), Scalar(0));
+      VERIFY_IS_EQUAL(numext::bessel_j1(-inf), Scalar(0));
+      VERIFY_IS_EQUAL(numext::bessel_y0(inf), Scalar(0));
+      VERIFY_IS_EQUAL(numext::bessel_y1(inf), Scalar(0));
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(bessel_functions) {
   CALL_SUBTEST_1(array_bessel_functions<ArrayXf>());
   CALL_SUBTEST_1(test_bessel_i_large_finite_float());
+  CALL_SUBTEST_1(test_bessel_special_values<ArrayXf>());
   CALL_SUBTEST_2(array_bessel_functions<ArrayXd>());
   CALL_SUBTEST_2(test_bessel_i_large_finite_double());
+  CALL_SUBTEST_2(test_bessel_special_values<ArrayXd>());
 }

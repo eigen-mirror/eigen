@@ -669,7 +669,7 @@ struct generic_k1e<T, float> {
     T x_le_two = pdiv(internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pmul(x_le_two, pexp(x));
-    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(pmul(pset1<T>(0.5), x), pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two = pmul(internal::pchebevl<T, 10>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x));
     return pselect(pcmp_le(x, two), x_le_two, x_gt_two);
   }
@@ -728,7 +728,7 @@ struct generic_k1e<T, double> {
     T x_le_two = pdiv(internal::pchebevl<T, 11>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pmul(x_le_two, pexp(x));
-    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(pmul(pset1<T>(0.5), x), pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two = pmul(internal::pchebevl<T, 25>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x));
     return pselect(pcmp_le(x, two), x_le_two, x_gt_two);
   }
@@ -797,7 +797,7 @@ struct generic_k1<T, float> {
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
-    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(pmul(pset1<T>(0.5), x), pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two =
         pmul(pexp(pnegate(x)), pmul(internal::pchebevl<T, 10>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x)));
     return pselect(pcmp_le(x, two), x_le_two, x_gt_two);
@@ -860,7 +860,7 @@ struct generic_k1<T, double> {
     const T two = pset1<T>(2.0);
     T x_le_two = pdiv(internal::pchebevl<T, 11>::run(pmadd(x, x, pset1<T>(-2.0)), A), x);
     x_le_two = pmadd(generic_i1<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
-    x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
+    x_le_two = pselect(pcmp_le(pmul(pset1<T>(0.5), x), pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two = pmul(pexp(-x), pmul(internal::pchebevl<T, 25>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x)));
     return pselect(pcmp_le(x, two), x_le_two, x_gt_two);
   }
@@ -947,6 +947,7 @@ struct generic_j0<T, float> {
     w = pmul(q, q);
     T yn = pmadd(q, internal::ppolevl<T, 7>::run(w, PH), NEG_PIO4F);
     T y_gt_two = pmul(p, pcos(padd(yn, y)));
+    y_gt_two = pselect(pcmp_eq(y, pinf<T>()), pset1<T>(0.0), y_gt_two);
     return pselect(pcmp_le(y, pset1<T>(2.0)), y_le_two, y_gt_two);
   }
 };
@@ -1031,6 +1032,7 @@ struct generic_j0<T, double> {
     T w = pdiv(pset1<T>(-5.0), y);
     p = pmadd(p, pcos(yn), pmul(w, pmul(q, psin(yn))));
     T y_gt_five = pmul(p, pmul(SQ2OPI, prsqrt(y)));
+    y_gt_five = pselect(pcmp_eq(y, pinf<T>()), pset1<T>(0.0), y_gt_five);
     return pselect(pcmp_le(y, pset1<T>(5.0)), y_le_five, y_gt_five);
   }
 };
@@ -1120,6 +1122,7 @@ struct generic_y0<T, float> {
     T u = pmul(q, q);
     T xn = pmadd(q, internal::ppolevl<T, 7>::run(u, PH), NEG_PIO4F);
     T x_gt_two = pmul(p, psin(padd(xn, x)));
+    x_gt_two = pselect(pcmp_eq(x, pinf<T>()), pset1<T>(0.0), x_gt_two);
     return pselect(pcmp_le(x, pset1<T>(2.0)), x_le_two, x_gt_two);
   }
 };
@@ -1200,6 +1203,7 @@ struct generic_y0<T, double> {
     T w = pdiv(pset1<T>(5.0), x);
     p = pmadd(p, psin(xn), pmul(w, pmul(q, pcos(xn))));
     T x_gt_five = pmul(p, pmul(SQ2OPI, prsqrt(x)));
+    x_gt_five = pselect(pcmp_eq(x, pinf<T>()), pset1<T>(0.0), x_gt_five);
     return pselect(pcmp_le(x, pset1<T>(5.0)), x_le_five, x_gt_five);
   }
 };
@@ -1282,6 +1286,7 @@ struct generic_j1<T, float> {
     w = pmul(q, q);
     T yn = pmadd(q, internal::ppolevl<T, 7>::run(w, PH1), NEG_THPIO4F);
     T y_gt_two = pmul(p, pcos(padd(yn, y)));
+    y_gt_two = pselect(pcmp_eq(y, pinf<T>()), pset1<T>(0.0), y_gt_two);
     // j1 is an odd function. This implementation differs from cephes to
     // take this fact into account. Cephes returns -j1(x) for y > 2 range.
     y_gt_two = pselect(pcmp_lt(x, pset1<T>(0.0f)), pnegate(y_gt_two), y_gt_two);
@@ -1357,6 +1362,7 @@ struct generic_j1<T, double> {
     T w = pdiv(pset1<T>(-5.0), y);
     p = pmadd(p, pcos(yn), pmul(w, pmul(q, psin(yn))));
     T y_gt_five = pmul(p, pmul(SQ2OPI, prsqrt(y)));
+    y_gt_five = pselect(pcmp_eq(y, pinf<T>()), pset1<T>(0.0), y_gt_five);
     // j1 is an odd function. This implementation differs from cephes to
     // take this fact into account. Cephes returns -j1(x) for y > 5 range.
     y_gt_five = pselect(pcmp_lt(x, pset1<T>(0.0)), pnegate(y_gt_five), y_gt_five);
@@ -1451,6 +1457,7 @@ struct generic_y1<T, float> {
     w = pmul(q, q);
     T xn = pmadd(q, internal::ppolevl<T, 7>::run(w, PH1), NEG_THPIO4F);
     T x_gt_two = pmul(p, psin(padd(xn, x)));
+    x_gt_two = pselect(pcmp_eq(x, pinf<T>()), pset1<T>(0.0), x_gt_two);
     return pselect(pcmp_le(x, pset1<T>(2.0)), x_le_two, x_gt_two);
   }
 };
@@ -1529,6 +1536,7 @@ struct generic_y1<T, double> {
     T w = pdiv(pset1<T>(5.0), x);
     p = pmadd(p, psin(xn), pmul(w, pmul(q, pcos(xn))));
     T x_gt_five = pmul(p, pmul(SQ2OPI, prsqrt(x)));
+    x_gt_five = pselect(pcmp_eq(x, pinf<T>()), pset1<T>(0.0), x_gt_five);
     return pselect(pcmp_le(x, pset1<T>(5.0)), x_le_five, x_gt_five);
   }
 };
