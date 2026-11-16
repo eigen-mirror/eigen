@@ -675,7 +675,8 @@ void check_preserving_subnormals_fallbacks() {
 }
 
 // prod_k x_k with every factor and every partial product renormalized by the C library's frexp: the form
-// scaled_product must agree with bit for bit, since scaling by a power of two is exact.
+// scaled_product must agree with bit for bit, since scaling by a power of two is exact (see
+// scaling_commutes_with_multiplication() for the exception).
 template <typename RealScalar>
 struct EagerProduct {
   void multiply(const RealScalar& factor) {
@@ -703,6 +704,28 @@ struct EagerProduct {
 template <typename RealScalar>
 bool identical(const RealScalar& a, const RealScalar& b) {
   return ((std::isnan)(a) && (std::isnan)(b)) || (a == b && (std::signbit)(a) == (std::signbit)(b));
+}
+
+// A significand wider than double's on double's exponent range can only be the pair of doubles of IBM double-double
+// (long double on ppc64le), whose low half is a double of its own: it underflows to a multiple of 2^-1074 for a result
+// a few bits above numeric_limits<>::min() (2^-969), so one multiplication there rounds differently from the same one
+// scaled by a power of two, by about 2^-105 relative. Elsewhere scaling by a power of two commutes with every
+// operation.
+template <typename RealScalar>
+constexpr bool scaling_commutes_with_multiplication() {
+  return !(std::numeric_limits<RealScalar>::digits > std::numeric_limits<double>::digits &&
+           std::numeric_limits<RealScalar>::max_exponent == std::numeric_limits<double>::max_exponent);
+}
+
+// identical(), up to the rounding of n multiplications where scaling does not commute with them. A zero, an infinity
+// or a NaN is not within reach of that rounding.
+template <typename RealScalar>
+bool same_product(const RealScalar& a, const RealScalar& b, Index n) {
+  if (scaling_commutes_with_multiplication<RealScalar>() || !(std::isfinite)(a) || !(std::isfinite)(b) ||
+      a == RealScalar(0) || b == RealScalar(0))
+    return identical(a, b);
+  return (std::signbit)(a) == (std::signbit)(b) &&
+         numext::abs(a - b) <= RealScalar(4 * n) * NumTraits<RealScalar>::epsilon() * numext::abs(b);
 }
 
 template <typename RealScalar>
@@ -753,8 +776,8 @@ void check_scaled_product_real() {
       eager.multiply(factor);
     }
     const RealScalar expected = eager.value();
-    VERIFY(identical(scaled.value(), expected));
-    VERIFY(identical(scaled.abs(), RealScalar(std::abs(expected))));
+    VERIFY(same_product(scaled.value(), expected, size));
+    VERIFY(same_product(scaled.abs(), RealScalar(std::abs(expected)), size));
     // log(mantissa) and exponent log(2) each round once, and the mantissa is the eager one: the log is right
     // whether or not the product itself is representable.
     const long double expectedLog = eager.logAbs();
