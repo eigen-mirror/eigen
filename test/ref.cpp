@@ -269,7 +269,7 @@ void test_ref_zero_strides() {
 }
 
 // A Ref whose outer stride is the default (0) must report inner * rows (inner * cols if row-major), the
-// layout Map and the direct-bind test in Ref::construct assume. Verifies reads, writes, and re-use of the strides
+// layout Map and the direct-bind test in Ref::construct assume. Verifies reads, writes, and reuse of the strides
 // of a Ref bound to `src`.
 template <typename RefType, typename Src>
 void check_ref_default_outer_stride(Src &src, bool expect_direct) {
