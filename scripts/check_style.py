@@ -26,16 +26,16 @@ Modes:
   --diff BASE     check lines added relative to ``merge-base(BASE, HEAD)``,
                   including uncommitted changes and untracked source files;
                   exit 1 if findings
-  --claude-hook   run as a Claude Code PostToolUse hook: read the tool-call
-                  JSON from stdin; exit 2 if findings so the harness feeds
-                  them back to the model.  After an edit it checks the text
-                  the edit added.  After a shell command that committed it
-                  checks the lines the commit added, which is where a file
-                  changed through the shell is first seen.
+  --hook HARNESS  run as a PostToolUse hook of Claude Code (claude) or Codex
+                  (codex): read the tool-call JSON from stdin and hand the
+                  findings to the model (agent_hooks.py).  After an edit it
+                  checks the text the edit added.  After a shell command that
+                  committed it checks the lines the commit added, which is
+                  where a file changed through the shell is first seen.
 
-The Claude Code hook is registered for this repository in
-``.claude/settings.json``.  Other agents and humans can run the diff mode
-directly, e.g. ``python3 scripts/check_style.py --diff origin/master``.
+The hook is registered for this repository in ``.claude/settings.json`` and
+``.codex/hooks.json``.  Other agents and humans can run the diff mode directly,
+e.g. ``python3 scripts/check_style.py --diff origin/master``.
 """
 
 import argparse
@@ -48,6 +48,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from agent_hooks import add_hook_arguments, answer, tool_calls  # noqa: E402
 from style_common import (REPO_ROOT, added_lines_from_diff, added_from_structured_patch,  # noqa: E402,F401
                           diff_added_lines, hook_added_line_numbers, hook_commit_added, hook_edit_snippets,
                           hook_post_image_and_added, is_cxx_path, read_post_image)
@@ -472,42 +473,42 @@ def run_diff_mode(base, root=REPO_ROOT):
     return check_files(diff_added_lines(base, root), root)
 
 
-def run_hook_mode():
+def run_hook_mode(harness="claude"):
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
     feedback = []
-    for root, per_file in hook_commit_added(payload, hook="check-style"):
-        results = check_files(per_file, root, rev="HEAD")
-        if results:
-            feedback.append("style check (lines added by the commit in %s) — review before proceeding:\n" % root)
-            feedback.extend("  - %s:%d: %s\n" % result for result in results[:8])
-    rel_path, snippets = hook_edit_snippets(payload)
-    if rel_path is not None:
+    for call in tool_calls(harness, payload):
+        for root, per_file in hook_commit_added(call, hook="check-style"):
+            results = check_files(per_file, root, rev="HEAD")
+            if results:
+                feedback.append("style check (lines added by the commit in %s) — review before proceeding:\n" % root)
+                feedback.extend("  - %s:%d: %s\n" % result for result in results[:8])
+        rel_path, snippets = hook_edit_snippets(call)
+        if rel_path is None:
+            continue
         # The hook runs after the edit, so the file on disk is the post-image; it is
         # lexed whole so enclosing comments and initializers classify correctly.
-        lines, added, _ = hook_post_image_and_added(payload, rel_path, snippets)
+        lines, added, _ = hook_post_image_and_added(call, rel_path, snippets)
         findings = find_findings(rel_path, lines, added)
         if findings:
             feedback.append("style check (%s) — review before proceeding:\n" % rel_path)
             feedback.extend("  - %s\n" % message for _, message in findings[:8])
-    if not feedback:
-        return 0
-    feedback.append("Advisory: keep a flagged construct only if it is justified, and say why at the construct.\n")
-    sys.stderr.write("".join(feedback))
-    return 2
+    if feedback:
+        feedback.append("Advisory: keep a flagged construct only if it is justified, and say why at the construct.\n")
+    return answer(harness, "".join(feedback))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--diff", metavar="BASE", help="check lines added relative to merge-base(BASE, HEAD)")
-    mode.add_argument("--claude-hook", action="store_true", help="run as a Claude Code PostToolUse hook")
+    add_hook_arguments(mode)
     args = parser.parse_args()
-    if args.claude_hook:
+    if args.hook:
         try:
-            return run_hook_mode()
+            return run_hook_mode(args.hook)
         except Exception:
             return 0  # a broken hook must not block the harness
     results = run_diff_mode(args.diff)

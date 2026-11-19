@@ -6,9 +6,10 @@
 
 Both ``check_style.py`` (textual conventions) and ``clang_tidy_hook.py``
 (clang-tidy conventions) need the same two things: the set of line numbers a
-change ADDED to each file, and the ability to turn a Claude Code PostToolUse
-payload into that set.  That logic lives here so the two checkers cannot drift
-apart in what they consider an added line.
+change ADDED to each file, and the ability to turn a tool call, in the Claude
+Code form ``agent_hooks.py`` gives every harness's payload, into that set.
+That logic lives here so the two checkers cannot drift apart in what they
+consider an added line.
 
 Run directly to emit a clang-tidy ``--line-filter`` argument for the files a
 diff touches, which is how ``ci/scripts/run-clang-tidy.sh`` restricts an MR's
@@ -126,6 +127,25 @@ def added_from_structured_patch(tool_response):
         return None
 
 
+def added_from_hunks(lines, hunks):
+    """Added line numbers for patch hunks, each a list of ``' '``/``'+'``/``'-'``
+    lines as Codex's ``apply_patch`` writes them.  A hunk's context and added
+    lines together must occur exactly once in the post-image ``lines``; None
+    when one does not, which enables the snippet fallback."""
+    added = set()
+    for hunk in hunks:
+        post = [line for line in hunk if not line.startswith("-")]
+        text = [line[1:] for line in post]
+        if not text:
+            continue
+        starts = [i for i in range(len(lines) - len(text) + 1)
+                  if lines[i] == text[0] and lines[i:i + len(text)] == text]
+        if len(starts) != 1:
+            return None
+        added.update(starts[0] + 1 + k for k, line in enumerate(post) if line.startswith("+"))
+    return added
+
+
 def hook_added_line_numbers(content, snippets):
     """Map the strings an edit added onto post-image line numbers.
 
@@ -176,9 +196,10 @@ def hook_post_image_and_added(payload, rel_path, snippets):
 
     The hook runs after the edit, so the file on disk is the post-image.  The
     edited lines come from the tool response's structured patch when present,
-    else from locating a uniquely occurring added string.  Returns
-    (lines, added, exact): ``exact`` is False when the lines could not be
-    located in the real file and the snippet text is being checked standalone.
+    else from the hunks of a Codex patch, else from locating a uniquely
+    occurring added string.  Returns (lines, added, exact): ``exact`` is False
+    when the lines could not be located in the real file and the snippet text
+    is being checked standalone.
     """
     text = read_post_image(REPO_ROOT, rel_path)
     added = None
@@ -186,6 +207,9 @@ def hook_post_image_and_added(payload, rel_path, snippets):
     if text is not None:
         lines = text.splitlines()
         added = added_from_structured_patch(payload.get("tool_response") or {})
+        hunks = (payload.get("tool_input") or {}).get("hunks")
+        if added is None and hunks:
+            added = added_from_hunks(lines, hunks)
         if added is None:
             if payload.get("tool_name") == "Write":
                 added = set(range(1, len(lines) + 1))

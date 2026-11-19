@@ -270,14 +270,30 @@ def test_commit_targets():
         write(names[0], "int inserted;\nint a;\nint b;\n")
 
         payload = {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}, "cwd": tmp}
-        targets, unchecked = clang_tidy_hook.hook_targets(payload)
+        targets, unchecked = clang_tidy_hook.hook_targets("claude", payload)
         assert targets == {tmp: {name: {2} for name in names[1:clang_tidy_hook.HOOK_MAX_FILES + 1]}}, targets
         assert unchecked == [(names[0], "changed since the commit"),
                              (names[-1], "over the hook's %d-file limit" % clang_tidy_hook.HOOK_MAX_FILES)], unchecked
         notice = clang_tidy_hook.unchecked_notice(unchecked)
         assert names[0] in notice and names[-1] in notice and "file limit" in notice, notice
         # The same commit is not linted twice.
-        assert clang_tidy_hook.hook_targets(payload) == ({}, [])
+        assert clang_tidy_hook.hook_targets("claude", payload) == ({}, [])
+
+
+def test_hook_targets_keep_every_section_of_a_file():
+    # A Codex patch may update one file in two sections; both sets of added lines are linted.
+    rel = "Eigen/src/Core/Dot.h"
+    with open(os.path.join(REPO_ROOT, rel), encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    unique = [i for i, line in enumerate(lines) if line.strip() and lines.count(line) == 1]
+    first, second = unique[0], unique[-1]
+    patch = "\n".join(["*** Begin Patch",
+                       "*** Update File: " + rel, "@@", "+" + lines[first],
+                       "*** Update File: " + rel, "@@", "+" + lines[second],
+                       "*** End Patch"])
+    payload = {"tool_name": "apply_patch", "cwd": REPO_ROOT, "tool_input": {"command": patch}}
+    targets, unchecked = clang_tidy_hook.hook_targets("codex", payload)
+    assert targets == {clang_tidy_hook.REPO_ROOT: {rel: {first + 1, second + 1}}} and not unchecked, targets
 
 
 def test_new_src_header_is_checked():

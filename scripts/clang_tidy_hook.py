@@ -24,9 +24,9 @@ LLVM's ``clang-tidy-diff.py`` cannot replace this routing: it invokes changed
 headers directly, which trips Eigen's internal-header guard, and a PostToolUse
 payload is not a unified diff.
 
-``--claude-hook`` runs it as a Claude Code PostToolUse hook: after an edit it
-lints the lines the edit added, and after a shell command that committed, the
-lines the commit added.
+``--hook HARNESS`` runs it as a PostToolUse hook of Claude Code or Codex
+(``agent_hooks.py``): after an edit it lints the lines the edit added, and
+after a shell command that committed, the lines the commit added.
 
 No compilation database is required: ``-std=c++14 -I<repo>`` parses any file
 in the C++14 trees, with ``test/`` added for the test sources and
@@ -49,6 +49,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from agent_hooks import add_hook_arguments, answer, tool_calls  # noqa: E402
 from style_common import (REPO_ROOT, diff_added_lines, git, hook_commit_added, hook_edit_snippets,  # noqa: E402
                           hook_post_image_and_added, is_cxx_path, line_filter_json)
 
@@ -69,7 +70,7 @@ ISA_BACKEND = re.compile(r"/arch/(?!Default/)[^/]+/")
 GATE_CONDITION = re.compile(r"#\s*(?:ifdef\s+(EIGEN_USE_\w+)|if\s+defined\s*\(\s*(EIGEN_USE_\w+)\s*\))$")
 TIMEOUT_SECONDS = 30
 # The files one commit-time hook run lints: each takes up to TIMEOUT_SECONDS,
-# and .claude/settings.json gives the whole hook 300 s.
+# and .claude/settings.json and .codex/hooks.json give the whole hook 300 s.
 HOOK_MAX_FILES = 8
 
 
@@ -250,31 +251,36 @@ def run_clang_tidy(per_file, root=REPO_ROOT, tidy=None):
     return diagnostics, skipped
 
 
-def hook_targets(payload):
-    """Return (targets, unchecked) for the lines a hook payload's edit, or the
+def hook_targets(harness, payload):
+    """Return (targets, unchecked) for the lines a hook payload's edits, or the
     commit its shell command made, added: ``targets`` is {root: {rel_path:
     added line numbers}}, and ``unchecked`` a list of (rel_path, reason) for
     committed files the hook leaves out."""
     targets, unchecked = {}, []
-    for root, per_file in hook_commit_added(payload, hook="clang-tidy"):
-        paths = sorted(path for path in per_file if is_cxx_path(path) and path.startswith(CHECKED_TREES))
-        # clang-tidy reads the work tree, where an edit made since the commit
-        # moves the lines the commit's numbers name.
-        changed = set(git(root, "diff", "--name-only", "HEAD", "--", *paths).stdout.splitlines()) if paths else set()
-        unchecked += [(path, "changed since the commit") for path in paths if path in changed]
-        paths = [path for path in paths if path not in changed]
-        budget = HOOK_MAX_FILES - sum(len(files) for files in targets.values())
-        paths, over_limit = paths[:budget], paths[budget:]
-        unchecked += [(path, "over the hook's %d-file limit" % HOOK_MAX_FILES) for path in over_limit]
-        if paths:
-            targets[root] = {path: per_file[path] for path in paths}
-    rel_path, snippets = hook_edit_snippets(payload)
-    if rel_path is not None and is_cxx_path(rel_path) and rel_path.startswith(CHECKED_TREES):
-        _, added, exact = hook_post_image_and_added(payload, rel_path, snippets)
+    for call in tool_calls(harness, payload):
+        for root, per_file in hook_commit_added(call, hook="clang-tidy"):
+            paths = sorted(path for path in per_file if is_cxx_path(path) and path.startswith(CHECKED_TREES))
+            # clang-tidy reads the work tree, where an edit made since the
+            # commit moves the lines the commit's numbers name.
+            changed = set()
+            if paths:
+                changed = set(git(root, "diff", "--name-only", "HEAD", "--", *paths).stdout.splitlines())
+            unchecked += [(path, "changed since the commit") for path in paths if path in changed]
+            paths = [path for path in paths if path not in changed]
+            budget = HOOK_MAX_FILES - sum(len(files) for files in targets.values())
+            paths, over_limit = paths[:budget], paths[budget:]
+            unchecked += [(path, "over the hook's %d-file limit" % HOOK_MAX_FILES) for path in over_limit]
+            for path in paths:
+                targets.setdefault(root, {}).setdefault(path, set()).update(per_file[path])
+        rel_path, snippets = hook_edit_snippets(call)
+        if rel_path is None or not is_cxx_path(rel_path) or not rel_path.startswith(CHECKED_TREES):
+            continue
+        _, added, exact = hook_post_image_and_added(call, rel_path, snippets)
         # Without real line numbers a line filter would point at the wrong
         # lines; silence beats a misplaced diagnostic.
+        # One patch can update a file in two sections: keep the lines of both.
         if exact and added:
-            targets[REPO_ROOT] = {rel_path: added}
+            targets.setdefault(REPO_ROOT, {}).setdefault(rel_path, set()).update(added)
     return targets, unchecked
 
 
@@ -288,12 +294,12 @@ def unchecked_notice(unchecked):
         for reason, paths in reasons.items())
 
 
-def run_hook_mode(tidy=None):
+def run_hook_mode(harness="claude", tidy=None):
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return 0
-    targets, unchecked = hook_targets(payload)
+    targets, unchecked = hook_targets(harness, payload)
     diagnostics, checked = [], []
     for root, per_file in targets.items():
         found, skipped = run_clang_tidy(per_file, root=root, tidy=tidy)
@@ -302,23 +308,20 @@ def run_hook_mode(tidy=None):
                       if reason == "translation unit did not compile"]
         checked.extend(sorted(per_file))
     if not diagnostics:
-        if unchecked:
-            # A header edited mid-refactor routinely fails to parse on its own,
-            # so show the user a non-blocking notice rather than feeding Claude
-            # an error with no finding to act on.
-            sys.stdout.write(json.dumps({"systemMessage": unchecked_notice(unchecked)}) + "\n")
-        return 0
+        # A header edited mid-refactor routinely fails to parse on its own,
+        # so show the user a non-blocking notice rather than feeding the model
+        # an error with no finding to act on.
+        return answer(harness, notice=unchecked_notice(unchecked) if unchecked else "")
     names = checked[:4] + (["..."] if len(checked) > 4 else [])
-    sys.stderr.write("clang-tidy (%s) — added lines only:\n" % ", ".join(names))
-    for line in diagnostics[:8]:
-        sys.stderr.write("  %s\n" % line)
+    feedback = ["clang-tidy (%s) — added lines only:\n" % ", ".join(names)]
+    feedback.extend("  %s\n" % line for line in diagnostics[:8])
     if len(diagnostics) > 8:
-        sys.stderr.write("  ... and %d more\n" % (len(diagnostics) - 8))
+        feedback.append("  ... and %d more\n" % (len(diagnostics) - 8))
     if unchecked:
-        sys.stderr.write(unchecked_notice(unchecked) + "\n")
-    sys.stderr.write("Advisory: these are Eigen conventions from .clang-tidy; keep a flagged construct "
-                     "only if it is justified, and say why at the construct.\n")
-    return 2
+        feedback.append(unchecked_notice(unchecked) + "\n")
+    feedback.append("Advisory: these are Eigen conventions from .clang-tidy; keep a flagged construct only if it is "
+                    "justified, and say why at the construct.\n")
+    return answer(harness, "".join(feedback))
 
 
 def run_diff_mode(base, tidy=None):
@@ -340,7 +343,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--diff", metavar="BASE", help="lint lines added since merge-base(BASE, HEAD)")
-    mode.add_argument("--claude-hook", action="store_true", help="run as a Claude Code PostToolUse hook")
+    add_hook_arguments(mode)
     mode.add_argument("--gate-macros", nargs=2, metavar=("UMBRELLA", "HEADER"),
                       help="print the EIGEN_USE_* macros UMBRELLA needs defined to include HEADER, one per line")
     parser.add_argument("-b", "--binary", metavar="CLANG_TIDY",
@@ -352,9 +355,9 @@ def main():
         for macro in gate_macros(*args.gate_macros):
             print(macro)
         return 0
-    if args.claude_hook:
+    if args.hook:
         try:
-            return run_hook_mode(tidy=args.binary)
+            return run_hook_mode(args.hook, tidy=args.binary)
         except Exception:
             return 0  # a broken hook must not block the harness
     if args.binary and shutil.which(args.binary) is None:

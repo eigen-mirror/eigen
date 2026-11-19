@@ -46,6 +46,8 @@ CLAUDE.md
 .claude/*
 !.claude/settings.json
 !.claude/rules/
+.codex/*
+!.codex/hooks.json
 .DS_Store
 .ccache/
 .ccache-bin/

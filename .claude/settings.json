@@ -6,13 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/check_style.py\" --claude-hook"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/check_style.py\" --hook claude"
           },
           {
             "type": "command",
             "asyncRewake": true,
             "timeout": 300,
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --hook claude"
           }
         ]
       },
@@ -22,14 +22,14 @@
           {
             "type": "command",
             "if": "Bash(git *)",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/check_style.py\" --claude-hook"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/check_style.py\" --hook claude"
           },
           {
             "type": "command",
             "if": "Bash(git *)",
             "asyncRewake": true,
             "timeout": 300,
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --claude-hook"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/clang_tidy_hook.py\" --hook claude"
           }
         ]
       }

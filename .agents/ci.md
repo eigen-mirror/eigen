@@ -214,12 +214,14 @@ driver source file that includes the module's umbrella header and then the edite
 `ci/scripts/run-clang-tidy.sh` does for merge requests. It skips silently when clang-tidy is not installed, and shows
 the user a non-blocking notice when a file's translation unit does not compile.
 
-Claude Code sessions run both scripts automatically, through the hooks registered in `.claude/settings.json`. The
+Claude Code and Codex sessions run both scripts automatically, through the hooks registered in
+`.claude/settings.json` and `.codex/hooks.json`. Codex runs project hooks only after the user has trusted them with
+`/hooks`. [`scripts/agent_hooks.py`](../scripts/agent_hooks.py) translates each harness's payload and reply. The
 hooks fire at two points:
 
-- **After a file edit.** Both scripts check the lines the edit added. `clang_tidy_hook.py` runs in the background,
-  because parsing a module takes 10–30 s. Its findings arrive as a reminder after the edit has returned, and they
-  name the file they apply to.
+- **After a file edit.** Both scripts check the lines the edit added. Under Claude Code, `clang_tidy_hook.py` runs
+  in the background, because parsing a module takes 10–30 s. Its findings arrive as a reminder after the edit has
+  returned, and they name the file they apply to.
 - **After a shell command that committed.** Both scripts check the lines the commit added. A file changed through
   the shell (`sed -i`, a heredoc, `git apply`) fires no edit hook, so the commit is the first point at which a hook
   sees those lines. Findings the edit hook already reported appear again here. Each hook reports a commit once,
@@ -228,9 +230,10 @@ hooks fire at two points:
   out.
 
 With another harness, or before committing a file that was changed through the shell, run the two `--diff` commands
-above by hand. After changing a hook script, run its unit test:
-[`scripts/test_check_style.py`](../scripts/test_check_style.py) or
-[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py); `checkformat:lint` runs them too.
+above by hand. After changing a hook script, run its unit tests:
+[`scripts/test_check_style.py`](../scripts/test_check_style.py),
+[`scripts/test_clang_tidy_hook.py`](../scripts/test_clang_tidy_hook.py) and
+[`scripts/test_agent_hooks.py`](../scripts/test_agent_hooks.py); `checkformat:lint` runs them too.
 
 [`scripts/check_agent_guides.py`](../scripts/check_agent_guides.py) checks the guidance itself: every relative link
 and every repository path that `AGENTS.md`, a guide under `.agents/`, or a pointer under `.claude/` names must exist.
