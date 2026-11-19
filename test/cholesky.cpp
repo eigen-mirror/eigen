@@ -283,6 +283,19 @@ void cholesky(const MatrixType& m) {
       matX = matB;
       VERIFY_EVALUATION_COUNT(matX = ldltup.solve(matX), 0);
       VERIFY_IS_APPROX(matX, ldltup.solve(matB).eval());
+
+      // solveInPlace() overwrites the right-hand side, and must agree with solve().
+      matX = matB;
+      VERIFY(ldltlo.solveInPlace(matX));
+      VERIFY_IS_APPROX(matX, ldltlo.solve(matB).eval());
+
+      matX = matB;
+      VERIFY(ldltup.solveInPlace(matX));
+      VERIFY_IS_APPROX(matX, ldltup.solve(matB).eval());
+
+      vecX = vecB;
+      VERIFY(ldltlo.solveInPlace(vecX));
+      VERIFY_IS_APPROX(vecX, ldltlo.solve(vecB).eval());
     }
 
     // restore
