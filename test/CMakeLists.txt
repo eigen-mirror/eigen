@@ -719,6 +719,11 @@ if(EIGEN_GPU_TEST_MODE MATCHES "^(cuda|hip)")
 endif()
 
 ei_add_test(sycl_macro_collision)
+# Part 2 simulates a SYCL device pass, whose EIGEN_UNROLL_LOOP expands to _Pragma("unroll"), which GCC does not know.
+# Before GCC 13, #pragma GCC diagnostic cannot silence a warning the C++ preprocessor emits (GCC bug 53431).
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND TARGET sycl_macro_collision_2)
+  target_compile_options(sycl_macro_collision_2 PRIVATE -Wno-unknown-pragmas)
+endif()
 
 if(EIGEN_TEST_SYCL)
   set(EIGEN_SYCL ON)

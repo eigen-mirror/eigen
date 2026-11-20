@@ -365,11 +365,7 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
     ei_declare_aligned_stack_constructed_variable(ResScalar, actualDestPtr, dest.size(),
                                                   EvalToDest ? dest.data() : static_dest.data());
 
-    // Allocate only for the copy. A directly used rhs passes a provably non-null dummy with size 0: the macro cannot
-    // take its allocation arm (GCC warns about the uninitialized allocation when it cannot rule out a null data(),
-    // and without alloca that arm would call the allocator).
-    ei_declare_aligned_stack_constructed_variable(RhsScalar, rhsBuffer, UseRhs ? 0 : rhs.size(),
-                                                  UseRhs ? &actualAlpha : static_rhs.data());
+    ei_declare_aligned_stack_constructed_variable_if(!UseRhs, RhsScalar, rhsBuffer, rhs.size(), static_rhs.data());
     const RhsScalar* actualRhsPtr = UseRhs ? rhs.data() : rhsBuffer;
 
     internal::gemv_prepare_destination<EvalToDest>(dest, actualDestPtr);

@@ -151,6 +151,10 @@ struct packet_segment_test_impl {
     }
   }
   static EIGEN_DONT_INLINE void verify_invalid_range(Index begin, Index count) {
+    // The range is meant to fail the assertion. Hidden from the optimizer, it cannot be propagated into the copy loops,
+    // where GCC 10 would report the out-of-range iterations with -Waggressive-loop-optimizations.
+    EIGEN_OPTIMIZATION_BARRIER(begin);
+    EIGEN_OPTIMIZATION_BARRIER(count);
     VectorX<Scalar> data = VectorX<Scalar>::Zero(PacketSize);
     const Packet a = internal::pset1<Packet>(Scalar(0));
     VERIFY_RAISES_ASSERT(internal::ploaduSegment<Packet>(data.data(), begin, count));

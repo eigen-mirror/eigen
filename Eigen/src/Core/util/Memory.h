@@ -916,15 +916,16 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 
 // TYPE and NAME form declarations, not expressions.
 // NOLINTBEGIN(bugprone-macro-parentheses)
-#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                                   \
+#define ei_declare_aligned_stack_constructed_variable_if(NEEDED, TYPE, NAME, SIZE, BUFFER)                        \
   Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                           \
-  TYPE* NAME = (BUFFER) != 0                                                                                      \
+  TYPE* NAME = !(NEEDED) ? static_cast<TYPE*>(0)                                                                  \
+               : (BUFFER) != 0                                                                                    \
                    ? (BUFFER)                                                                                     \
                    : reinterpret_cast<TYPE*>((sizeof(TYPE) * (SIZE) <= EIGEN_STACK_ALLOCATION_LIMIT)              \
                                                  ? EIGEN_TYPED_ALIGNED_ALLOCA(TYPE, sizeof(TYPE) * (SIZE))        \
                                                  : Eigen::internal::scratch_malloc<TYPE>(sizeof(TYPE) * (SIZE))); \
   Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(                  \
-      (BUFFER) == 0 ? NAME : 0, SIZE, sizeof(TYPE) * (SIZE) > EIGEN_STACK_ALLOCATION_LIMIT)
+      (NEEDED) && (BUFFER) == 0 ? NAME : 0, SIZE, (NEEDED) && sizeof(TYPE) * (SIZE) > EIGEN_STACK_ALLOCATION_LIMIT)
 // NOLINTEND(bugprone-macro-parentheses)
 
 #define ei_declare_local_nested_eval(XPR_T, XPR, N, NAME)                                                              \
@@ -940,17 +941,24 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* eigen_aligned_alloca_helper(void* pt
 
 // TYPE and NAME form declarations, not expressions.
 // NOLINTBEGIN(bugprone-macro-parentheses)
-#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER)                         \
-  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                                 \
-  TYPE* NAME = (BUFFER) != 0 ? (BUFFER) : Eigen::internal::scratch_malloc<TYPE>(sizeof(TYPE) * (SIZE)); \
-  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)(        \
-      (BUFFER) == 0 ? NAME : 0, SIZE, true)
+#define ei_declare_aligned_stack_constructed_variable_if(NEEDED, TYPE, NAME, SIZE, BUFFER)       \
+  Eigen::internal::check_size_for_overflow<TYPE>(SIZE);                                          \
+  TYPE* NAME = !(NEEDED)       ? static_cast<TYPE*>(0)                                           \
+               : (BUFFER) != 0 ? (BUFFER)                                                        \
+                               : Eigen::internal::scratch_malloc<TYPE>(sizeof(TYPE) * (SIZE));   \
+  Eigen::internal::aligned_stack_memory_handler<TYPE> EIGEN_CAT(NAME, _stack_memory_destructor)( \
+      (NEEDED) && (BUFFER) == 0 ? NAME : 0, SIZE, (NEEDED))
 // NOLINTEND(bugprone-macro-parentheses)
 
 #define ei_declare_local_nested_eval(XPR_T, XPR, N, NAME) \
   typename Eigen::internal::nested_eval<XPR_T, N>::type NAME(XPR)
 
 #endif
+
+// In ei_declare_aligned_stack_constructed_variable_if, a false NEEDED leaves NAME null without evaluating BUFFER, so a
+// compile-time NEEDED removes the allocation.
+#define ei_declare_aligned_stack_constructed_variable(TYPE, NAME, SIZE, BUFFER) \
+  ei_declare_aligned_stack_constructed_variable_if(true, TYPE, NAME, SIZE, BUFFER)
 
 /*****************************************************************************
 *** Implementation of EIGEN_MAKE_ALIGNED_OPERATOR_NEW [_IF]                ***

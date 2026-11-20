@@ -910,8 +910,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index scaled_prod_blocks(const Evaluator& 
   using RealScalar = typename NumTraits<Scalar>::Real;
   const RealScalar upper = numext::ldexp(RealScalar(1), std::numeric_limits<RealScalar>::max_exponent / 10);
   const RealScalar lower = RealScalar(1) / upper;
-  Index i = 0;
-  for (; i + kScaledProdBlock <= size; i += kScaledProdBlock) {
+  Index end = numext::round_down(size, kScaledProdBlock);
+  for (Index i = 0; i < end; i += kScaledProdBlock) {
     Scalar chains[4] = {Scalar(1), Scalar(1), Scalar(1), Scalar(1)};
     RealScalar smallest = upper, largest = lower;
     for (int j = 0; j < kScaledProdBlock; ++j) {
@@ -927,7 +927,7 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Index scaled_prod_blocks(const Evaluator& 
       for (int j = 0; j < kScaledProdBlock; ++j) product.multiply(coeffs.coeff(i + j));
     }
   }
-  return i;
+  return end;
 }
 
 // The product of the coefficients of a vector expression.

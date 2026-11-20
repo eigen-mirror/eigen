@@ -169,13 +169,13 @@ void jacobisvd_large_tau_regression() {
   m << 3.7855173218304116745e-07f, 0.0f, 500.0f, -4.9999995231628417969f, -0.0f, -1.9106853686029490191e-12f,
       -8.6602544784545898438f, 0.0f, 2.1855694285477511585f;
 
-  JacobiSVD<Matrix3f> svd;
+  JacobiSVD<Matrix3f, ComputeFullU | ComputeFullV> svd;
 #ifdef FE_OVERFLOW
-  const int overflow = fp_exceptions_raised_by(FE_OVERFLOW, [&] { svd.compute(m, ComputeFullU | ComputeFullV); });
+  const int overflow = fp_exceptions_raised_by(FE_OVERFLOW, [&] { svd.compute(m); });
   if (overflow >= 0) VERIFY_IS_EQUAL(overflow, 0);
 #else
   std::cout << "SKIP: JacobiSVD overflow flag check: FE_OVERFLOW is unavailable.\n";
-  svd.compute(m, ComputeFullU | ComputeFullV);
+  svd.compute(m);
 #endif
   svd_check_full(m, svd);
 }

@@ -233,11 +233,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE SelfAdjointView<MatrixType, UpLo>& SelfAdjoi
   // Copy u to contiguous buffer, applying conjugation if needed
   internal::gemv_static_vector_if<Scalar, DerivedU::SizeAtCompileTime, DerivedU::MaxSizeAtCompileTime, !UseUDirectly>
       static_u;
-  // Allocate only for the copy. A directly used u passes a provably non-null dummy with size 0: the macro cannot
-  // take its allocation arm (GCC warns about the uninitialized allocation when it cannot rule out a null data(),
-  // and without alloca that arm would call the allocator).
-  ei_declare_aligned_stack_constructed_variable(Scalar, uBuffer, UseUDirectly ? 0 : size,
-                                                UseUDirectly ? &actualAlpha : static_u.data());
+  ei_declare_aligned_stack_constructed_variable_if(!UseUDirectly, Scalar, uBuffer, size, static_u.data());
   const Scalar* uPtr = UseUDirectly ? actualU.data() : uBuffer;
   EIGEN_IF_CONSTEXPR (!UseUDirectly) {
     EIGEN_IF_CONSTEXPR (NeedConjU) {
@@ -250,9 +246,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE SelfAdjointView<MatrixType, UpLo>& SelfAdjoi
   // Copy v to contiguous buffer, applying conjugation if needed
   internal::gemv_static_vector_if<Scalar, DerivedV::SizeAtCompileTime, DerivedV::MaxSizeAtCompileTime, !UseVDirectly>
       static_v;
-  // Likewise for v.
-  ei_declare_aligned_stack_constructed_variable(Scalar, vBuffer, UseVDirectly ? 0 : size,
-                                                UseVDirectly ? &actualAlpha : static_v.data());
+  ei_declare_aligned_stack_constructed_variable_if(!UseVDirectly, Scalar, vBuffer, size, static_v.data());
   const Scalar* vPtr = UseVDirectly ? actualV.data() : vBuffer;
   EIGEN_IF_CONSTEXPR (!UseVDirectly) {
     EIGEN_IF_CONSTEXPR (NeedConjV) {
