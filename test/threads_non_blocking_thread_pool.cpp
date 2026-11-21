@@ -156,6 +156,107 @@ static void test_cancel() {
   tp.Cancel();
 }
 
+// A closure that is still running when Cancel() is called, and then schedules another one, leaves that closure in
+// its worker's queue. The destructor must discard it only after the workers have exited: ~RunQueue asserts that the
+// queue is empty, and the queues' owner-only operations must not run beside the workers.
+static void test_cancel_while_task_schedules() {
+  for (int threads : {1, 2, 4}) {
+    std::atomic<bool> started(false), cancelled(false);
+    {
+      ThreadPool tp(threads);
+      tp.Schedule([&] {
+        started = true;
+        while (!cancelled) std::this_thread::yield();
+        // By now the destructor is waiting to join this worker; the closures scheduled below must still be discarded.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        for (int i = 0; i < 4; ++i) tp.Schedule([] {});
+      });
+      VERIFY(spin_wait([&] { return started.load(); }));
+      tp.Cancel();
+      cancelled = true;
+    }
+  }
+}
+
+// A closure that is running at Cancel() may wait for something that a queued closure owns. Cancel() discards queued
+// closures without running them, so destroying them must not wait for the running one to return: it is destroyed
+// before the workers are joined. The pool is destroyed in a thread, so that a hang fails the test instead of
+// stopping it.
+static void test_cancel_destroys_queued_closures_before_join() {
+  struct State {
+    std::atomic<bool> finished{false}, released{false};
+  };
+  for (int threads : {1, 2, 4}) {
+    auto state = std::make_shared<State>();
+    std::thread driver([state, threads] {
+      {
+        ThreadPool tp(threads);
+        // The owner of a queued closure: its destruction releases the waiting closure.
+        std::shared_ptr<void> owner(nullptr, [state](void*) { state->released = true; });
+        std::atomic<int> running(0);
+        // Occupy every worker, so that the closure scheduled below stays queued.
+        for (int i = 0; i < threads; ++i) {
+          tp.Schedule([state, &running] {
+            ++running;
+            while (!state->released) std::this_thread::yield();
+          });
+        }
+        while (running < threads) std::this_thread::yield();
+        tp.Schedule([owner] {});
+        owner.reset();
+        tp.Cancel();
+      }
+      state->finished = true;
+    });
+    const bool done = spin_wait([&] { return state->finished.load(); }, 30);
+    if (!done) std::cerr << "~ThreadPool did not return after Cancel(), " << threads << " threads\n";
+    VERIFY(done);
+    if (!done) {
+      driver.detach();
+      return;
+    }
+    driver.join();
+  }
+}
+
+// A worker that passed the cancellation check of its loop may reach WaitForWork() after Cancel() has notified the
+// waiters. It must see the cancellation after Prewait(): the other workers leave without blocking, so nothing would
+// wake it again, and the destructor would wait for it forever. The window is narrow, so run many short lifetimes with
+// a Cancel() at a random point, in a thread that a hang cannot take the test down with: the test fails when the
+// lifetimes stop completing.
+static void test_cancel_races_with_idle_workers() {
+  std::atomic<bool> finished(false);
+  std::atomic<int> completed(0);
+  std::thread driver([&] {
+    for (int iter = 0; iter < 3000; ++iter) {
+      {
+        ThreadPool tp(2 + iter % 3);
+        const int tasks = internal::random<int>(0, 4);
+        for (int i = 0; i < tasks; ++i) {
+          const int micros = internal::random<int>(0, 50);
+          tp.Schedule([micros] {
+            const auto end = std::chrono::steady_clock::now() + std::chrono::microseconds(micros);
+            while (std::chrono::steady_clock::now() < end) {
+            }
+          });
+        }
+        for (int i = internal::random<int>(0, 100); i > 0; --i) std::this_thread::yield();
+        tp.Cancel();
+      }  // The destructor returns only when every worker has exited.
+      completed = iter + 1;
+    }
+    finished = true;
+  });
+  int seen = 0;
+  while (!finished) {
+    const bool progress = spin_wait([&] { return finished.load() || completed.load() > seen; }, 30);
+    if (!progress) std::cerr << "no pool was destroyed after iteration " << seen << "\n";
+    VERIFY(progress);
+    seen = completed.load();
+  }
+  driver.join();
+}
+
 static void test_pool_partitions() {
   const int kThreads = 2;
 
@@ -241,6 +342,9 @@ EIGEN_DECLARE_TEST(threads_non_blocking_thread_pool) {
   CALL_SUBTEST(test_parallelism(true));
   CALL_SUBTEST(test_parallelism(false));
   CALL_SUBTEST(test_cancel());
+  CALL_SUBTEST(test_cancel_while_task_schedules());
+  CALL_SUBTEST(test_cancel_destroys_queued_closures_before_join());
+  CALL_SUBTEST(test_cancel_races_with_idle_workers());
   CALL_SUBTEST(test_pool_partitions());
   CALL_SUBTEST(test_maybe_get_task_from_other_pool());
 }

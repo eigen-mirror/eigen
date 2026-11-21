@@ -30,8 +30,34 @@ You can disable %Eigen's multi threading at compile time by defining the \link T
 \subsection TopicMultiThreading_ThreadPool Alternative: ThreadPool backend
 
 As an alternative to OpenMP, %Eigen supports a custom thread pool backend for GEMM operations.
-Define \c EIGEN_GEMM_THREADPOOL and use \c Eigen::setGemmThreadPool(Eigen::ThreadPool*) to
-provide a thread pool. OpenMP and \c EIGEN_GEMM_THREADPOOL are mutually exclusive.
+Define \c EIGEN_GEMM_THREADPOOL and use \ref Eigen::setGemmThreadPool() "Eigen::setGemmThreadPool(Eigen::ThreadPool*)"
+to provide a thread pool (see also \ref Eigen::getGemmThreadPool()). OpenMP and \c EIGEN_GEMM_THREADPOOL are mutually
+exclusive.
+\c Eigen::nbThreads() is 1 until a pool is registered or \c Eigen::setNbThreads() is called.
+
+\subsubsection TopicMultiThreading_ThreadPoolSerial When a product runs on the calling thread alone
+
+A product runs on the calling thread alone, without using the pool, when
+ - \c Eigen::nbThreads() is 1, or the product is too small for two threads, or its result has at most 32 rows at
+   compile time;
+ - the calling thread is itself a thread of the registered pool (there is no nested parallelism);
+ - or another thread is already running a parallel product on the pool. The pool serves one parallel product at a
+   time: the threads of a product wait for each other's packed panels, so if two products shared the workers, each
+   could hold some of them while its remaining threads waited in the queue, and neither would finish (four threads
+   issuing products on a pool of three threads did exactly that). A caller that finds the pool in use runs its
+   product itself and does not wait. The check is a test-and-set of one process-wide flag, made for every product that
+   would otherwise use two or more threads, however many threads that is.
+
+To keep products parallel, issue them from one thread at a time. There is a single registered pool and a single
+\c Eigen::nbThreads() for the process, so concurrent callers cannot be given pools of their own. Lowering
+\c Eigen::nbThreads() below the number of threads in the pool does not avoid the third case, because the check is
+made whatever the count is, as long as it is at least 2. If the callers themselves are the unit of parallelism, call
+\c Eigen::setNbThreads(1) before starting them: every product then runs on its calling thread, and the pool is not
+used. \c Eigen::setNbThreads() is process-wide, and must not be called while a product runs on another thread.
+
+On the ARM SME kernel, a product that is split into independent parts (see the paragraph on \c Eigen::nbSmeUnits()
+above) does not wait for other products and is not restricted by the third case. With OpenMP, each product runs on a
+team of its own threads, unless the caller is already inside an OpenMP parallel region.
 
 \subsection TopicMultiThreading_ParallelOps Parallelized operations
 

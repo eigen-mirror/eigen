@@ -35,7 +35,8 @@ namespace Eigen {
 //   f(i,j) = [&](){ for(Index k = i; k < j; ++k) g(k); };
 //
 // Note that the parameter `granularity` should be tuned by the user based on the trade-off of running the
-// given task function sequentially vs. scheduling individual tasks in parallel. An example of a partially
+// given task function sequentially vs. scheduling individual tasks in parallel. A `granularity` below 1, such as
+// 0 from a computed `size / num_threads` on a short range, is treated as 1. An example of a partially
 // tuned `granularity` is in `Eigen::CoreThreadPoolDevice::parallelFor(...)` where the template
 // parameter `PacketSize` and float input `cost` are used to indirectly compute a granularity level for a
 // given task function.
@@ -73,6 +74,7 @@ class ForkJoinScheduler {
       done();
       return;
     }
+    granularity = numext::maxi<Index>(granularity, 1);
     thread_pool->Schedule([start, end, granularity, thread_pool, do_func = std::forward<DoFnType>(do_func),
                            done = std::forward<DoneFnType>(done)]() {
       RunParallelFor(start, end, granularity, do_func, thread_pool);

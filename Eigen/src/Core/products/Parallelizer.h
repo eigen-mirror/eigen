@@ -50,7 +50,9 @@ inline void manage_multi_threading(Action action, int* v);
 /** \deprecated Does nothing. No initialization is required before calling Eigen from multiple threads. */
 EIGEN_DEPRECATED_WITH_REASON("Initialization is no longer needed.") inline void initParallel() {}
 
-/** \returns the max number of threads reserved for Eigen
+/** \returns the max number of threads reserved for Eigen. With \c EIGEN_GEMM_THREADPOOL this is 1 until a pool is
+ * registered with setGemmThreadPool() or setNbThreads() is called; it is then the number of threads of the pool, or
+ * the smaller count given to setNbThreads().
  * \sa setNbThreads */
 inline int nbThreads() {
   int ret;
@@ -58,7 +60,9 @@ inline int nbThreads() {
   return ret;
 }
 
-/** Sets the max number of threads reserved for Eigen
+/** Sets the max number of threads reserved for Eigen. 0 restores the maximum given by OpenMP, or by the number of
+ * threads of the pool with \c EIGEN_GEMM_THREADPOOL; a larger count is lowered to that maximum. The setting is
+ * process-wide, and must not be changed while a product runs on another thread.
  * \sa nbThreads */
 inline void setNbThreads(int v) { internal::manage_multi_threading(SetAction, &v); }
 
@@ -128,15 +132,40 @@ inline void setNbSmeUnits(int v) {
 #endif
 }
 
-#ifdef EIGEN_GEMM_THREADPOOL
-// Sets the ThreadPool used by Eigen parallel Gemm.
-//
-// NOTICE: This function has a known race condition with
-// parallelize_gemm below, and should not be called while
-// an instance of that function is running.
-//
+// Doxygen does not define EIGEN_GEMM_THREADPOOL; it reads the declarations below through EIGEN_PARSED_BY_DOXYGEN.
+#if defined(EIGEN_GEMM_THREADPOOL) || defined(EIGEN_PARSED_BY_DOXYGEN)
 // TODO(rmlarsen): Make the device API available instead of
-// storing a local static pointer variable to avoid this issue.
+// storing a local static pointer variable to avoid the race condition below.
+
+/** \ingroup Core_Module
+ * Sets the ThreadPool used by Eigen's parallel matrix-matrix product, and returns the registered pool. A null
+ * argument registers nothing and only returns the current pool. Registering a pool resets nbThreads() to the number of
+ * threads of the pool. There is one registered pool and one nbThreads() for the whole process.
+ *
+ * This function and getGemmThreadPool() exist only when \c EIGEN_GEMM_THREADPOOL is defined before %Eigen is
+ * included. Including \c Eigen/Core then includes \c Eigen/ThreadPool itself. \c EIGEN_GEMM_THREADPOOL cannot be
+ * combined with OpenMP, and with \c EIGEN_USE_BLAS the pool is not used.
+ *
+ * A product runs on the calling thread alone, without using the pool, when
+ *  - nbThreads() is 1, or the product is too small for two threads (the number of threads of a product is also
+ *    bounded by its size and its amount of work), or its result has at most 32 rows at compile time;
+ *  - the calling thread is a thread of the registered pool;
+ *  - another thread is running a parallel product on the pool. The pool serves one parallel product at a time,
+ *    because the threads of a product wait for each other's packed panels, and the workers could otherwise be
+ *    divided among several products with none of them able to finish. A caller that finds the pool in use does not
+ *    wait for it. This is decided per product by a test-and-set of one process-wide flag, whatever nbThreads() is, so
+ *    lowering nbThreads() below the number of threads of the pool does not avoid it.
+ *
+ * Products issued by one thread at a time never meet the third case. Concurrent callers share the one pool, and cannot
+ * be given pools or thread counts of their own. To make the callers the unit of parallelism, call setNbThreads(1)
+ * before they start: every product then runs on its calling thread.
+ *
+ * A product on the ARM SME kernel with a nonzero nbSmeUnits() and no preallocated buffers splits into independent
+ * parts that do not wait for each other, and is not restricted by the third case.
+ *
+ * \warning This function has a known race condition with parallelize_gemm, and must not be called while a product is
+ * running.
+ * \sa getGemmThreadPool, setNbThreads */
 inline ThreadPool* setGemmThreadPool(ThreadPool* new_pool) {
   static ThreadPool* pool = nullptr;
   if (new_pool != nullptr) {
@@ -151,9 +180,10 @@ inline ThreadPool* setGemmThreadPool(ThreadPool* new_pool) {
   return pool;
 }
 
-// Gets the ThreadPool used by Eigen parallel Gemm.
+/** \ingroup Core_Module
+ * \returns the ThreadPool registered with setGemmThreadPool(), or a null pointer if there is none. */
 inline ThreadPool* getGemmThreadPool() { return setGemmThreadPool(nullptr); }
-#endif
+#endif  // EIGEN_GEMM_THREADPOOL || EIGEN_PARSED_BY_DOXYGEN
 
 namespace internal {
 
@@ -252,12 +282,40 @@ inline void manage_multi_threading(Action action, int* v) {
     else
       *v = omp_get_max_threads();
 #else
-    *v = m_maxThreads;
+    // m_maxThreads is -1 until a pool is registered or setNbThreads is called.
+    *v = m_maxThreads > 0 ? m_maxThreads : 1;
 #endif
   } else {
     eigen_internal_assert(false);
   }
 }
+
+#if defined(EIGEN_GEMM_THREADPOOL)
+// The parts of one shared parallel session wait for each other's packed panels. Sessions of different products on one
+// pool could each occupy some workers while their other parts wait in the queue, so only one session at a time uses
+// the pool. A product that finds it busy runs on its calling thread.
+//
+// The flag is an atomic rather than a std::mutex because the thread that holds the session can issue another product
+// from inside it, when the scalar's own multiplication is a matrix product. std::mutex::try_lock is undefined for the
+// owning thread; the exchange reports the session as busy.
+class gemm_session_guard {
+ public:
+  gemm_session_guard() : m_owns(!busy().exchange(true, std::memory_order_acquire)) {}
+  ~gemm_session_guard() {
+    if (m_owns) busy().store(false, std::memory_order_release);
+  }
+  gemm_session_guard(const gemm_session_guard&) = delete;
+  gemm_session_guard& operator=(const gemm_session_guard&) = delete;
+  bool owns() const { return m_owns; }
+
+ private:
+  static std::atomic<bool>& busy() {
+    static std::atomic<bool> flag(false);
+    return flag;
+  }
+  const bool m_owns;
+};
+#endif
 
 template <bool Condition, typename Functor, typename Index>
 EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index cols, Index depth, bool transpose) {
@@ -380,6 +438,11 @@ EIGEN_STRONG_INLINE void parallelize_gemm(const Functor& func, Index rows, Index
       return;
     }
   }
+#endif
+
+#if defined(EIGEN_GEMM_THREADPOOL)
+  const gemm_session_guard session;
+  if (!session.owns()) return func(0, rows, 0, cols);
 #endif
 
   func.initParallelSession(threads);

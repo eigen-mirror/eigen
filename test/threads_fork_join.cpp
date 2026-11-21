@@ -61,6 +61,9 @@ static void test_async_parallel_for() {
 }
 
 EIGEN_DECLARE_TEST(fork_join) {
+  // A granularity below 1 is treated as 1.
+  CALL_SUBTEST(test_parallel_for(0));
+  CALL_SUBTEST(test_parallel_for(-3));
   CALL_SUBTEST(test_parallel_for(1));
   CALL_SUBTEST(test_parallel_for(2));
   CALL_SUBTEST(test_async_parallel_for());

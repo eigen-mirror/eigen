@@ -93,15 +93,24 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     if (!cancelled_) {
       ec_.Notify(true);
     } else {
-      // Since we were cancelled, there might be entries in the queues.
-      // Empty them to prevent their destructor from asserting.
+      // Queued closures will never run. Destroy them before joining: a running closure may wait on something one of
+      // them owns (a promise, say). PopBack() locks and pops the end that is not the owner's, so it is safe beside a
+      // running worker; Flush() is not.
       for (size_t i = 0; i < thread_data_.size(); i++) {
-        thread_data_[i].queue.Flush();
+        while (!thread_data_[i].queue.Empty()) thread_data_[i].queue.PopBack();
       }
     }
     // Join threads explicitly (by destroying) to avoid destruction order within
     // this class.
     for (size_t i = 0; i < thread_data_.size(); ++i) thread_data_[i].thread.reset();
+    if (cancelled_) {
+      // Closures that were still running at Cancel() may have scheduled more after the drain above. Empty the queues
+      // to prevent their destructor from asserting. This must wait until the workers have exited: Flush() pops from
+      // the owner's end of the queues, and a running worker may push to it.
+      for (size_t i = 0; i < thread_data_.size(); i++) {
+        thread_data_[i].queue.Flush();
+      }
+    }
   }
 
   void SetStealPartitions(const std::vector<std::pair<unsigned, unsigned>>& partitions) {
@@ -132,7 +141,12 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
       eigen_plain_assert(start < limit);
       eigen_plain_assert(limit <= num_threads_);
       int num_queues = limit - start;
+#ifdef EIGEN_THREAD_LOCAL
       int rnd = Rand(&pt->rand) % num_queues;
+#else
+      // Without thread-local storage all non-workers share one PerThread, so draw from a shared atomic state.
+      int rnd = SharedRand() % num_queues;
+#endif
       eigen_plain_assert(start + rnd < limit);
       Queue& q = thread_data_[start + rnd].queue;
       t = q.PushBack(std::move(t));
@@ -421,6 +435,14 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     // We already did best-effort emptiness check in Steal, so prepare for
     // blocking.
     ec_.Prewait();
+    // Cancel() sets cancelled_ and then notifies, so this check, which follows Prewait(), either sees it or is
+    // observed by that Notify(). Without it a worker that passed the check in WorkerLoop() before Cancel() and
+    // reaches here after its Notify() blocks for good once the other workers have left without blocking: the
+    // destructor does not notify a cancelled pool, and blocked_ never reaches num_threads_.
+    if (cancelled_) {
+      ec_.CancelWait();
+      return false;
+    }
     // Now do a reliable emptiness check.
     int victim = NonEmptyQueueIndex();
     if (victim != -1) {
@@ -576,6 +598,15 @@ class ThreadPoolTempl : public Eigen::ThreadPoolInterface {
     return pt;
 #endif
   }
+
+#ifndef EIGEN_THREAD_LOCAL
+  // Rand() on a state that every concurrent caller advances by a fixed odd stride.
+  static unsigned SharedRand() {
+    static std::atomic<uint64_t> shared_state(0);
+    uint64_t state = shared_state.fetch_add(0x9E3779B97F4A7C15ULL, std::memory_order_relaxed);
+    return Rand(&state);
+  }
+#endif
 
   static EIGEN_STRONG_INLINE unsigned Rand(uint64_t* state) {
     uint64_t current = *state;
