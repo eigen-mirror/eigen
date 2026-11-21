@@ -87,6 +87,22 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr void swap_plain_array(plain_arra
     smart_copy(b.array + common_size, b.array + b_size, a.array + common_size);
 }
 
+/** \internal Copies \a size elements into the buffer \a dst obtained from conditional_aligned_new_auto. If an element
+ * assignment throws, the buffer is destroyed and freed before the exception propagates, because the storage object that
+ * owns \a dst is not yet constructed and its destructor will not run. */
+template <typename T, bool Align>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void copy_to_new_buffer(const T* src, Index size, T* dst) {
+  EIGEN_IF_CONSTEXPR (!std::is_nothrow_copy_assignable<T>::value) {
+    EIGEN_TRY { smart_copy(src, src + size, dst); }
+    EIGEN_CATCH(...) {
+      conditional_aligned_delete_auto<T, Align>(dst, size);
+      EIGEN_THROW;
+    }
+  } else {
+    smart_copy(src, src + size, dst);
+  }
+}
+
 template <typename T, int Size, int Rows, int Cols, int Options>
 class DenseStorage_impl {
   plain_array<T, Size, Options> m_data;
@@ -328,7 +344,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Cols, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_rows(other.m_rows) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = other.size())
-    smart_copy(other.m_data, other.m_data + other.size(), m_data);
+    copy_to_new_buffer<T, Align>(other.m_data, other.size(), m_data);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index rows, Index /*cols*/)
       : m_data(conditional_aligned_new_auto<T, Align>(size)), m_rows(rows) {
@@ -388,7 +404,7 @@ class DenseStorage_impl<T, Dynamic, Rows, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_cols(other.m_cols) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = other.size())
-    smart_copy(other.m_data, other.m_data + other.size(), m_data);
+    copy_to_new_buffer<T, Align>(other.m_data, other.size(), m_data);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index /*rows*/, Index cols)
       : m_data(conditional_aligned_new_auto<T, Align>(size)), m_cols(cols) {
@@ -449,7 +465,7 @@ class DenseStorage_impl<T, Dynamic, Dynamic, Dynamic, Options> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(const DenseStorage_impl& other)
       : m_data(conditional_aligned_new_auto<T, Align>(other.size())), m_rows(other.m_rows), m_cols(other.m_cols) {
     EIGEN_INTERNAL_DENSE_STORAGE_CTOR_PLUGIN(Index size = other.size())
-    smart_copy(other.m_data, other.m_data + other.size(), m_data);
+    copy_to_new_buffer<T, Align>(other.m_data, other.size(), m_data);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE constexpr DenseStorage_impl(Index size, Index rows, Index cols)
       : m_data(conditional_aligned_new_auto<T, Align>(size)), m_rows(rows), m_cols(cols) {

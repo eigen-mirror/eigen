@@ -130,6 +130,42 @@ void check_initialize_by_nan() {
 #endif
 }
 
+// std::numeric_limits is not specialized for std::complex, so both parts of a complex entry must be set explicitly.
+template <typename PlainType>
+void check_complex_nan(const PlainType& a) {
+  VERIFY((a.array().real().isNaN().all()) && (a.array().imag().isNaN().all()));
+}
+
+void check_initialize_complex_by_nan() {
+#if defined(EIGEN_TEST_PART_5)
+  using ComplexD = std::complex<double>;
+  using ComplexF = std::complex<float>;
+  check_complex_nan(MatrixXcd(2, 3));
+  check_complex_nan(ArrayXXcf(2, 3));
+  check_complex_nan(VectorXcd(4));
+  check_complex_nan(Matrix<ComplexD, 2, 3>());
+  check_complex_nan(Array<ComplexF, 3, 3>());
+  check_complex_nan((Matrix<ComplexD, Dynamic, Dynamic, ColMajor, 4, 4>(2, 2)));
+
+  MatrixXcd m = MatrixXcd::Zero(2, 2);
+  m.resize(3, 3);
+  check_complex_nan(m);
+  m.setZero(2, 2);
+  m.conservativeResize(2, 3);
+  VERIFY(m.leftCols(2).isZero(0));
+  check_complex_nan(m.col(2));
+  m.conservativeResize(3, 3);
+  check_complex_nan(m.row(2));
+  ArrayXcf v = ArrayXcf::Zero(2);
+  v.conservativeResize(5);
+  VERIFY((v.head(2) == ComplexF(0)).all());
+  check_complex_nan(v.tail(3).matrix());
+  Matrix<ComplexD, Dynamic, Dynamic, RowMajor> r = Matrix<ComplexD, Dynamic, Dynamic, RowMajor>::Zero(2, 2);
+  r.conservativeResize(3, 2);
+  check_complex_nan(r.row(2));
+#endif
+}
+
 EIGEN_DECLARE_TEST(preprocessor_directives) {
   CALL_SUBTEST_1(check_index_type());
   CALL_SUBTEST_1(check_false_sharing_alignment());
@@ -137,4 +173,5 @@ EIGEN_DECLARE_TEST(preprocessor_directives) {
   CALL_SUBTEST_3(check_blas_index());
   CALL_SUBTEST_4(check_false_sharing_alignment());
   CALL_SUBTEST_5(check_initialize_by_nan());
+  CALL_SUBTEST_5(check_initialize_complex_by_nan());
 }

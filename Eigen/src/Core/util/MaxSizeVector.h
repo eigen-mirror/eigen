@@ -35,12 +35,12 @@ class MaxSizeVector {
  public:
   // Construct a new MaxSizeVector, reserve n elements.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit MaxSizeVector(size_t n)
-      : m_reserve(n), m_size(0), m_data(static_cast<T*>(internal::handmade_aligned_malloc(n * sizeof(T), alignment))) {}
+      : m_reserve(n), m_size(0), m_data(allocate(n)) {}
 
   // Construct a new MaxSizeVector, reserve and resize to n.
   // Copy the init value to all elements.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE MaxSizeVector(size_t n, const T& init)
-      : m_reserve(n), m_size(n), m_data(static_cast<T*>(internal::handmade_aligned_malloc(n * sizeof(T), alignment))) {
+      : m_reserve(n), m_size(n), m_data(allocate(n)) {
     size_t i = 0;
     EIGEN_TRY {
       for (; i < m_size; ++i) {
@@ -135,6 +135,14 @@ class MaxSizeVector {
   EIGEN_DEVICE_FUNC constexpr const T* end() const { return m_data + m_size; }
 
  private:
+  // Throws std::bad_alloc if n * sizeof(T) overflows or the allocation fails.
+  EIGEN_DEVICE_FUNC static T* allocate(size_t n) {
+    internal::check_size_for_overflow<T>(n);
+    T* result = static_cast<T*>(internal::handmade_aligned_malloc(n * sizeof(T), alignment));
+    if (result == nullptr) internal::throw_std_bad_alloc();
+    return result;
+  }
+
   size_t m_reserve;
   size_t m_size;
   T* m_data;

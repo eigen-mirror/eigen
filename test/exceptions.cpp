@@ -30,6 +30,70 @@
     VERIFY((AnnoyingScalar::dont_throw) || (exception_thrown && " no exception thrown in " && EIGEN_MAKESTRING(OP))); \
   }
 
+#ifdef EIGEN_EXCEPTIONS
+struct assign_exception {};
+
+// Scalar whose copy assignment throws once `budget` assignments have been made. `live` counts the constructed objects.
+struct ThrowingAssignScalar {
+  static int live;
+  static int budget;
+  double v;
+  ThrowingAssignScalar() : v(0) { ++live; }
+  ThrowingAssignScalar(const ThrowingAssignScalar& other) : v(other.v) { ++live; }
+  ~ThrowingAssignScalar() { --live; }
+  ThrowingAssignScalar& operator=(const ThrowingAssignScalar& other) {
+    if (budget >= 0) {
+      const bool exhausted = budget == 0;
+      --budget;
+      if (exhausted) throw assign_exception();
+    }
+    v = other.v;
+    return *this;
+  }
+};
+int ThrowingAssignScalar::live = 0;
+int ThrowingAssignScalar::budget = -1;
+
+namespace Eigen {
+template <>
+struct NumTraits<ThrowingAssignScalar> : NumTraits<double> {
+  static constexpr int RequireInitialization = 1;
+};
+}  // namespace Eigen
+
+// A copy-assignment that throws partway through must destroy every element and free the buffer: the copy constructor
+// of the dynamic DenseStorage specializations, and the (exception-safe) copy assignment, for each of their layouts.
+template <typename MatrixType>
+void check_throwing_assign(Index rows, Index cols) {
+  VERIFY_IS_EQUAL(ThrowingAssignScalar::live, 0);
+  {
+    MatrixType src(rows, cols);
+    for (int budget = 0; budget < rows * cols; budget += 3) {
+      bool thrown = false;
+      ThrowingAssignScalar::budget = budget;
+      // NOLINTNEXTLINE(performance-unnecessary-copy-initialization): the copy is the operation under test.
+      EIGEN_TRY { MatrixType copy(src); }
+      EIGEN_CATCH(assign_exception) { thrown = true; }
+      ThrowingAssignScalar::budget = -1;
+      VERIFY(thrown);
+      VERIFY_IS_EQUAL(ThrowingAssignScalar::live, static_cast<int>(src.size()));
+
+      // A different size, so that the assignment reallocates.
+      MatrixType dst(MatrixType::RowsAtCompileTime == Dynamic ? rows + 1 : rows,
+                     MatrixType::RowsAtCompileTime != Dynamic ? cols + 1 : cols);
+      thrown = false;
+      ThrowingAssignScalar::budget = budget;
+      EIGEN_TRY { dst = src; }
+      EIGEN_CATCH(assign_exception) { thrown = true; }
+      ThrowingAssignScalar::budget = -1;
+      VERIFY(thrown);
+      VERIFY_IS_EQUAL(ThrowingAssignScalar::live, static_cast<int>(src.size() + dst.size()));
+    }
+  }
+  VERIFY_IS_EQUAL(ThrowingAssignScalar::live, 0);
+}
+#endif
+
 EIGEN_DECLARE_TEST(exceptions) {
   using VectorType = Eigen::Matrix<AnnoyingScalar, Dynamic, 1>;
   using MatrixType = Eigen::Matrix<AnnoyingScalar, Dynamic, Dynamic>;
@@ -52,5 +116,12 @@ EIGEN_DECLARE_TEST(exceptions) {
     CHECK_MEMLEAK(m2 = m0 * m1 * m2);
     CHECK_MEMLEAK((v0 + v1).dot(v0 + v1));
   }
+#ifdef EIGEN_EXCEPTIONS
+  check_throwing_assign<Matrix<ThrowingAssignScalar, Dynamic, Dynamic>>(4, 4);
+  check_throwing_assign<Matrix<ThrowingAssignScalar, Dynamic, 3>>(5, 3);
+  check_throwing_assign<Matrix<ThrowingAssignScalar, 3, Dynamic>>(3, 5);
+  check_throwing_assign<Matrix<ThrowingAssignScalar, Dynamic, 1>>(7, 1);
+  check_throwing_assign<Matrix<ThrowingAssignScalar, Dynamic, Dynamic, RowMajor>>(3, 6);
+#endif
   VERIFY(AnnoyingScalar::instances == 0 && "global memory leak detected in " && EIGEN_MAKESTRING(OP));
 }

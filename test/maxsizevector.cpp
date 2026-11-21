@@ -9,8 +9,41 @@
 using Foo = lifetime_scalar::LifetimeScalar<128>;
 using lifetime_scalar::Failure;
 
+#ifdef EIGEN_EXCEPTIONS
+template <typename T>
+void check_throws_bad_alloc(size_t n) {
+  bool threw = false;
+  try {
+    MaxSizeVector<T> vect(n);
+  } catch (const std::bad_alloc&) {
+    threw = true;
+  }
+  VERIFY(threw);
+  threw = false;
+  try {
+    MaxSizeVector<T> vect(n, T());
+  } catch (const std::bad_alloc&) {
+    threw = true;
+  }
+  VERIFY(threw);
+}
+
+// Sizes that cannot be reserved must throw std::bad_alloc rather than wrap around or return a null buffer.
+void check_oversized_allocation() {
+  const size_t max_size = static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)());
+  // n * sizeof(int) wraps around to 0 for n = 2^(bits - 2).
+  check_throws_bad_alloc<int>(static_cast<size_t>(1) << (std::numeric_limits<size_t>::digits - 2));
+  check_throws_bad_alloc<double>(max_size / sizeof(double) + 1);
+  // PTRDIFF_MAX bytes leave no room for the alignment padding, so handmade_aligned_malloc rejects them on every target.
+  check_throws_bad_alloc<char>(max_size);
+}
+#endif
+
 EIGEN_DECLARE_TEST(maxsizevector) {
   using VectorX = MaxSizeVector<Foo>;
+#ifdef EIGEN_EXCEPTIONS
+  check_oversized_allocation();
+#endif
   // A copy would share, and then free twice, the owned buffer.
   VERIFY(!std::is_copy_constructible<VectorX>::value);
   VERIFY(!std::is_copy_assignable<VectorX>::value);

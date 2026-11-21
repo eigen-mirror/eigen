@@ -19,7 +19,7 @@
 #elif defined(EIGEN_INITIALIZE_MATRICES_BY_NAN)
 #define EIGEN_INITIALIZE_COEFFS
 #define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED \
-  for (Index i = 0; i < base().size(); ++i) coeffRef(i) = std::numeric_limits<Scalar>::quiet_NaN();
+  for (Index i = 0; i < base().size(); ++i) coeffRef(i) = ::Eigen::internal::initialization_nan<Scalar>::run();
 #else
 #undef EIGEN_INITIALIZE_COEFFS
 #define EIGEN_INITIALIZE_COEFFS_IF_THAT_OPTION_IS_ENABLED
@@ -31,6 +31,19 @@
 namespace Eigen {
 
 namespace internal {
+
+/** \internal The value EIGEN_INITIALIZE_MATRICES_BY_NAN stores. std::numeric_limits is not specialized for
+ * std::complex, so for complex scalars both parts are set. */
+template <typename Scalar>
+struct initialization_nan {
+  EIGEN_DEVICE_FUNC static constexpr Scalar run() { return std::numeric_limits<Scalar>::quiet_NaN(); }
+};
+template <typename RealScalar>
+struct initialization_nan<std::complex<RealScalar>> {
+  EIGEN_DEVICE_FUNC static constexpr std::complex<RealScalar> run() {
+    return std::complex<RealScalar>(NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::quiet_NaN());
+  }
+};
 
 // Dense coefficient assignment requires scalar compatibility; evalTo expressions may
 // implement their own conversion instead.
