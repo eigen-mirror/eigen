@@ -256,6 +256,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    * The vectors \a u and \c v \b must be column vectors, however they can be
    * an adjoint expression without any overhead. Only the meaningful triangular
    * part of the matrix is updated, the rest is left unchanged.
+   * For built-in floating-point and complex scalars, zero \a alpha leaves the matrix unchanged without
+   * reading coefficients of \a u or \a v, even if those coefficients are nonfinite.
    *
    * \sa rankUpdate(const MatrixBase<DerivedU>&, Scalar)
    */
@@ -270,6 +272,8 @@ class SelfAdjointView : public TriangularBase<SelfAdjointView<MatrixType_, UpLo>
    *
    * Note that to perform \f$ this = this + \alpha ( u^* u ) \f$ you can simply
    * call this function with u.adjoint().
+   * For built-in floating-point and complex scalars, zero \a alpha leaves the matrix unchanged without
+   * reading coefficients of \a u, even if those coefficients are nonfinite.
    *
    * \sa rankUpdate(const MatrixBase<DerivedU>&, const MatrixBase<DerivedV>&, Scalar)
    */

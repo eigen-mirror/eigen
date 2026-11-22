@@ -641,7 +641,7 @@ struct blas_traits<
     return x.lhs().functor().m_other * Base::extractScalarFactor(x.rhs());
   }
   EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
-    return numext::is_exactly_zero(x.lhs().functor().m_other) || Base::hasZeroScalarFactor(x.rhs());
+    return is_identically_zero(x.lhs().functor().m_other) || Base::hasZeroScalarFactor(x.rhs());
   }
 };
 template <typename Scalar, typename NestedXpr, typename Plain>
@@ -658,7 +658,7 @@ struct blas_traits<
     return Base::extractScalarFactor(x.lhs()) * x.rhs().functor().m_other;
   }
   EIGEN_DEVICE_FUNC static bool hasZeroScalarFactor(const XprType& x) {
-    return numext::is_exactly_zero(x.rhs().functor().m_other) || Base::hasZeroScalarFactor(x.lhs());
+    return is_identically_zero(x.rhs().functor().m_other) || Base::hasZeroScalarFactor(x.lhs());
   }
 };
 // Constant * Constant matches both specializations above; pop the left factor, as the first one does.

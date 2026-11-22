@@ -327,7 +327,7 @@ EIGEN_STRONG_INLINE void gemm_run_overwrite_impl(std::false_type, Index rows, In
   // A cooperative session needs every thread in Gemm::run, so only a sequential call returns on an empty result.
   if (info == nullptr && (rows <= 0 || cols <= 0)) return;
   gemm_zero_result(res, rows, cols, resIncr, resStride);
-  if (numext::is_exactly_zero(alpha) || depth <= 0) return;
+  if (is_identically_zero(alpha) || depth <= 0) return;
   Gemm::run(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res, resIncr, resStride, alpha, blocking, info);
 }
 template <typename Gemm, typename Index, typename LhsScalar, typename RhsScalar, typename ResScalar, typename Blocking>
@@ -414,12 +414,12 @@ struct general_matrix_matrix_product<Index, LhsScalar, LhsStorageOrder, Conjugat
     if (info == nullptr && (rows <= 0 || cols <= 0)) return;
     // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read); overwriting, it is zero.
     // A kernel that only accumulates or finds it does not pay, and an empty depth, overwrite by zeroing first.
-    if (overwrite && (numext::is_exactly_zero(alpha) || depth == 0 || !gebp_kernel_overwrites<Gebp>::value ||
+    if (overwrite && (is_identically_zero(alpha) || depth == 0 || !gebp_kernel_overwrites<Gebp>::value ||
                       !gebp_overwrite_pays<Gebp>(rows, cols, depth))) {
       gemm_zero_result(res_, rows, cols, resIncr, resStride);
       overwrite = false;
     }
-    if (numext::is_exactly_zero(alpha) || depth == 0) return;
+    if (is_identically_zero(alpha) || depth == 0) return;
 #ifdef EIGEN_VECTORIZE_SME
     // A parallel session needs every thread to take the packed path; scaleAndAddTo runs tiny results on one thread.
     // The tiny-result and NEON kernels accumulate, so overwriting zeroes their result first; the tiny one runs exactly
@@ -847,7 +847,7 @@ struct gemm_product_impl<Lhs, Rhs, false>
   template <bool Assign, bool Subtract = false, typename Dest>
   static void run(Dest& dst, const Lhs& lhs, const Rhs& rhs, const Scalar& alpha) {
     // Test factors before materializing operands: zero times a nonfinite coefficient need not be evaluated.
-    if (lhs.cols() == 0 || numext::is_exactly_zero(alpha) || blas_traits<Lhs>::hasZeroScalarFactor(lhs) ||
+    if (lhs.cols() == 0 || is_identically_zero(alpha) || blas_traits<Lhs>::hasZeroScalarFactor(lhs) ||
         blas_traits<Rhs>::hasZeroScalarFactor(rhs)) {
       EIGEN_IF_CONSTEXPR (Assign) dst.setZero();
       return;
@@ -971,7 +971,7 @@ struct gemm_product_impl<Lhs, Rhs, true>
   }
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool scalarFactorIsZero(std::false_type, const Lhs& lhs,
                                                                        const Rhs& rhs) {
-    return numext::is_exactly_zero(combine_scalar_factors<Scalar>(lhs, rhs));
+    return is_identically_zero(combine_scalar_factors<Scalar>(lhs, rhs));
   }
   // The float GEMM combines the factors in float, where their product may not underflow. The coefficient-based path
   // recombines them in Scalar and would then evaluate 0 * lazyProduct, so such a product takes the GEMM.
@@ -983,7 +983,7 @@ struct gemm_product_impl<Lhs, Rhs, true>
   // A factor that underflows in Scalar but not in float takes the float GEMM (see scalarFactorIsZero).
   template <typename Dst>
   static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool useCoeffBasedPath(const Dst& dst, const Lhs& lhs, const Rhs& rhs) {
-    return useRuntimeCoeffBasedProduct(dst, rhs) && !numext::is_exactly_zero(combine_scalar_factors<Scalar>(lhs, rhs));
+    return useRuntimeCoeffBasedProduct(dst, rhs) && !is_identically_zero(combine_scalar_factors<Scalar>(lhs, rhs));
   }
 
   template <typename Dst>

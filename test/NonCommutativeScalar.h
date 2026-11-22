@@ -117,6 +117,13 @@ struct NumTraits<noncommutative_scalar::Quaternion> : GenericNumTraits<noncommut
   static constexpr bool IsComplex = true;
   static constexpr bool RequireInitialization = true;
 };
+namespace internal {
+// Quaternion equality compares all four components.
+template <>
+struct is_identically_zero_impl<noncommutative_scalar::Quaternion> {
+  static bool run(const noncommutative_scalar::Quaternion& q) { return q == noncommutative_scalar::Quaternion(0); }
+};
+}  // namespace internal
 namespace numext {
 // The generic numext::abs of a complex scalar is hypot(real, imag), which would ignore the j and k components.
 template <>

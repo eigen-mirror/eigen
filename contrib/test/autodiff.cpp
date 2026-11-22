@@ -635,7 +635,38 @@ void test_autodiff_sparse_product_commutativity() {
   }
 }
 
+void test_autodiff_structured_zero_scale() {
+  using AD = AutoDiffScalar<Vector2d>;
+  using MatrixType = Matrix<AD, Dynamic, Dynamic>;
+  using VectorType = Matrix<AD, Dynamic, 1>;
+  const AD activeZero(0.0, Vector2d::UnitX());
+  const AD one(1.0, Vector2d::Zero());
+  for (Index n : {4, 24}) {
+    const MatrixType a = MatrixType::Constant(n, n, one);
+    const VectorType v = VectorType::Constant(n, one);
+    VERIFY(!internal::is_identically_zero(activeZero));
+    VERIFY(!internal::is_identically_zero(std::complex<AD>(activeZero, AD(0.0, Vector2d::Zero()))));
+    VERIFY(internal::is_identically_zero(AD(0.0, Vector2d::Zero())));
+    VectorType result = (activeZero * a).triangularView<Lower>() * v;
+    for (Index i = 0; i < result.size(); ++i) {
+      VERIFY_IS_EQUAL(result(i).value(), 0.0);
+      VERIFY_IS_EQUAL(result(i).derivatives()(0), double(i + 1));
+    }
+    result = a.selfadjointView<Lower>() * (activeZero * v);
+    for (Index i = 0; i < result.size(); ++i) {
+      VERIFY_IS_EQUAL(result(i).value(), 0.0);
+      VERIFY_IS_EQUAL(result(i).derivatives()(0), double(n));
+    }
+    MatrixType update = (activeZero * a) * a;
+    VERIFY_IS_EQUAL(update(n - 1, 0).derivatives()(0), double(n));
+    update.setConstant(one);
+    update.selfadjointView<Lower>().rankUpdate(v, activeZero);
+    VERIFY_IS_EQUAL(update(0, 0).derivatives()(0), 1.0);
+  }
+}
+
 EIGEN_DECLARE_TEST(autodiff) {
+  CALL_SUBTEST_5(test_autodiff_structured_zero_scale());
   CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<Vector4d, ColMajor>()));
   CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<Vector4d, RowMajor>()));
   CALL_SUBTEST_8((test_autodiff_sparse_product_commutativity<VectorXd, ColMajor>()));

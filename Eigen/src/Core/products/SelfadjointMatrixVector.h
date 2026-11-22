@@ -342,14 +342,17 @@ struct selfadjoint_product_impl<Lhs, LhsMode, false, Rhs, 0, true> {
     EIGEN_INTERNAL_ASSERT_SAME_ROWS(dest, a_lhs);
     EIGEN_INTERNAL_ASSERT_SAME_COLS(dest, a_rhs);
 
+    if (is_identically_zero(alpha) || LhsBlasTraits::hasZeroScalarFactor(a_lhs) ||
+        RhsBlasTraits::hasZeroScalarFactor(a_rhs))
+      return;
+    Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
+
     add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
     add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
 
     // Empty product, return early.  Otherwise, we get `nullptr` use errors below when we try to access
     // coeffRef(0,0).
     if (lhs.size() == 0) return;
-
-    Scalar actualAlpha = combine_scalar_factors(alpha, a_lhs, a_rhs);
 
     enum {
       EvalToDest = (Dest::InnerStrideAtCompileTime == 1),

@@ -267,6 +267,34 @@ struct triangular_product_impl<Mode, false, Lhs, true, Rhs, false> {
 
 namespace internal {
 
+// A zero factor inside a unit triangle annihilates only its stored, strictly triangular part.
+template <int Mode, bool LhsIsTriangular, typename Dest, typename Lhs, typename Rhs>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool triangular_product_zero_scale(Dest& dst, const Lhs& lhs, const Rhs& rhs,
+                                                                         const typename Dest::Scalar& alpha) {
+  const bool lhsZero = blas_traits<Lhs>::hasZeroScalarFactor(lhs);
+  const bool rhsZero = blas_traits<Rhs>::hasZeroScalarFactor(rhs);
+  EIGEN_IF_CONSTEXPR ((Mode & UnitDiag) != 0) {
+    EIGEN_IF_CONSTEXPR (LhsIsTriangular) {
+      if (rhsZero) return true;
+      if (lhsZero) {
+        const Index diagonal = (numext::mini)(lhs.rows(), lhs.cols());
+        dst.matrix().topRows(diagonal) += alpha * rhs.topRows(diagonal);
+        return true;
+      }
+    } else {
+      if (lhsZero) return true;
+      if (rhsZero) {
+        const Index diagonal = (numext::mini)(rhs.rows(), rhs.cols());
+        dst.matrix().leftCols(diagonal) += alpha * lhs.leftCols(diagonal);
+        return true;
+      }
+    }
+    return false;
+  } else {
+    return lhsZero || rhsZero;
+  }
+}
+
 // A factor s nested in a unit triangle reached the kernel through the product's alpha, so the unit diagonal
 // contributed alpha * s * rhs instead of alpha * rhs: subtract alpha * (s - 1) * rhs.
 template <int Mode, typename Lhs, typename Rhs, typename Dest, typename LhsScalar>
@@ -293,12 +321,14 @@ struct trmv_selector<Mode, ColMajor> {
     using ActualLhsType = typename LhsBlasTraits::DirectLinearAccessType;
     using RhsBlasTraits = internal::blas_traits<Rhs>;
     using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
-    add_const_on_value_type_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
-    add_const_on_value_type_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
 
+    if (is_identically_zero(alpha)) return;
     LhsScalar lhs_alpha = LhsBlasTraits::extractScalarFactor(lhs);
     RhsScalar rhs_alpha = RhsBlasTraits::extractScalarFactor(rhs);
+    if (triangular_product_zero_scale<Mode, true>(dest, lhs, rhs, alpha)) return;
     ResScalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
+    add_const_on_value_type_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
+    add_const_on_value_type_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
 
     // FIXME find a way to allow an inner stride on the result if packet_traits<Scalar>::size==1
     // On the other hand, it is good for the cache to pack the vector anyways...
@@ -343,12 +373,13 @@ struct trmv_selector<Mode, RowMajor> {
     using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
     using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
-    std::add_const_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
-    std::add_const_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
-
+    if (is_identically_zero(alpha)) return;
     LhsScalar lhs_alpha = LhsBlasTraits::extractScalarFactor(lhs);
     RhsScalar rhs_alpha = RhsBlasTraits::extractScalarFactor(rhs);
+    if (triangular_product_zero_scale<Mode, true>(dest, lhs, rhs, alpha)) return;
     ResScalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
+    std::add_const_t<ActualLhsType> actualLhs = LhsBlasTraits::extract(lhs);
+    std::add_const_t<ActualRhsType> actualRhs = RhsBlasTraits::extract(rhs);
 
     constexpr bool DirectlyUseRhs = ActualRhsTypeCleaned::InnerStrideAtCompileTime == 1;
 

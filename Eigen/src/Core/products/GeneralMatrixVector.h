@@ -349,7 +349,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   eigen_internal_assert(resIncr == 1);
 
   // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
-  if (numext::is_exactly_zero(alpha)) return;
+  if (is_identically_zero(alpha)) return;
 
   // The following copy tells the compiler that lhs's attributes are not modified outside this function
   // This helps GCC to generate proper code.
@@ -512,7 +512,7 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, RowMajor, ConjugateLh
                               Version>::run(Index rows, Index cols, const LhsMapper& alhs, const RhsMapper& rhs,
                                             ResScalar* res, Index resIncr, ResScalar alpha) {
   // BLAS contract: if alpha == 0, the result is unchanged (and lhs/rhs need not be read).
-  if (numext::is_exactly_zero(alpha)) return;
+  if (is_identically_zero(alpha)) return;
 
   // When cols < full packet size, the main vectorized loops are empty.
   // Use the sub-packet helper only when half or quarter packets can do useful work;

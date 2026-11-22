@@ -465,15 +465,36 @@ constexpr EIGEN_STRONG_INLINE EIGEN_DEVICE_FUNC bool not_equal_strict(const long
 
 }  // end namespace numext
 
+struct half;
+struct bfloat16;
+
 namespace internal {
 
-template <typename Scalar>
-struct is_identically_zero_impl {
-  static constexpr bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
+template <typename Scalar, typename = void>
+struct is_identically_zero_default {
+  // Unknown scalar equality cannot prove that skipping arithmetic preserves all components.
+  static EIGEN_DEVICE_FUNC constexpr bool run(const Scalar&) { return false; }
 };
 
 template <typename Scalar>
-constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
+struct is_identically_zero_default<
+    Scalar, std::enable_if_t<std::is_arithmetic<Scalar>::value || std::is_same<Scalar, half>::value ||
+                             std::is_same<Scalar, bfloat16>::value>> {
+  static EIGEN_DEVICE_FUNC constexpr bool run(const Scalar& s) { return numext::is_exactly_zero(s); }
+};
+
+template <typename Scalar>
+struct is_identically_zero_impl : is_identically_zero_default<Scalar> {};
+
+template <typename Scalar>
+struct is_identically_zero_impl<std::complex<Scalar>> {
+  static EIGEN_DEVICE_FUNC constexpr bool run(const std::complex<Scalar>& s) {
+    return is_identically_zero_impl<Scalar>::run(s.real()) && is_identically_zero_impl<Scalar>::run(s.imag());
+  }
+};
+
+template <typename Scalar>
+EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE bool is_identically_zero(const Scalar& s) {
   return is_identically_zero_impl<Scalar>::run(s);
 }
 

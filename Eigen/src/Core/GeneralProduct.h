@@ -441,7 +441,7 @@ struct gemv_single_column<true, ConjugateLhs, ConjugateRhs> {
   template <typename Lhs, typename Rhs, typename Scalar, typename Dest>
   static EIGEN_STRONG_INLINE bool run(const Lhs& lhs, const Rhs& rhs, const Scalar& alpha, Dest& dest, bool eligible) {
     if (!eligible || lhs.cols() != 1) return false;
-    if (!numext::is_exactly_zero(alpha)) {
+    if (!is_identically_zero(alpha)) {
       gemv_single_column_update<ConjugateLhs>(lhs.data(), lhs.rows(), lhs.col(0).innerStride(),
                                               conj_if<ConjugateRhs>()(rhs.coeff(0, 0)), alpha, dest);
     }

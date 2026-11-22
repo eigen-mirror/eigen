@@ -195,18 +195,24 @@ template <typename MatrixType, unsigned int UpLo>
 template <typename DerivedU, typename DerivedV>
 EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE SelfAdjointView<MatrixType, UpLo>& SelfAdjointView<MatrixType, UpLo>::rankUpdate(
     const MatrixBase<DerivedU>& u, const MatrixBase<DerivedV>& v, const Scalar& alpha) {
+  if (internal::is_identically_zero(alpha)) return *this;
+  using UBlasTraits = internal::blas_traits<DerivedU>;
+  using VBlasTraits = internal::blas_traits<DerivedV>;
+  const Scalar uFactor = UBlasTraits::extractScalarFactor(u.derived());
+  const Scalar vFactor = VBlasTraits::extractScalarFactor(v.derived());
+  if (UBlasTraits::hasZeroScalarFactor(u.derived()) || VBlasTraits::hasZeroScalarFactor(v.derived())) return *this;
+
   // The rank-2 kernel below addresses the matrix with a unit inner stride.
   if (MatrixType::InnerStrideAtCompileTime != 1 && nestedExpression().innerStride() != 1) {
     nestedExpression().template triangularView<UpLo>() +=
         typename MatrixType::PlainObject(alpha * u * v.adjoint() + numext::conj(alpha) * v * u.adjoint());
     return *this;
   }
-  using UBlasTraits = internal::blas_traits<DerivedU>;
+  Scalar actualAlpha = alpha * uFactor * numext::conj(vFactor);
   using ActualUType = typename UBlasTraits::DirectLinearAccessType;
   using ActualUType_ = internal::remove_all_t<ActualUType>;
   internal::add_const_on_value_type_t<ActualUType> actualU = UBlasTraits::extract(u.derived());
 
-  using VBlasTraits = internal::blas_traits<DerivedV>;
   using ActualVType = typename VBlasTraits::DirectLinearAccessType;
   using ActualVType_ = internal::remove_all_t<ActualVType>;
   internal::add_const_on_value_type_t<ActualVType> actualV = VBlasTraits::extract(v.derived());
@@ -222,8 +228,6 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE SelfAdjointView<MatrixType, UpLo>& SelfAdjoi
     UseVDirectly = ActualVType_::InnerStrideAtCompileTime == 1 && !NeedConjV
   };
 
-  Scalar actualAlpha = alpha * UBlasTraits::extractScalarFactor(u.derived()) *
-                       numext::conj(VBlasTraits::extractScalarFactor(v.derived()));
   EIGEN_IF_CONSTEXPR (IsRowMajor) {
     actualAlpha = numext::conj(actualAlpha);
   }

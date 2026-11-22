@@ -371,6 +371,8 @@ struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
     using Scalar = typename Dest::Scalar;
 
     if (a_lhs.rows() == 0 || a_lhs.cols() == 0 || a_rhs.cols() == 0) return;
+    if (is_identically_zero(alpha)) return;
+    if (triangular_product_zero_scale<Mode, LhsIsTriangular>(dst, a_lhs, a_rhs, alpha)) return;
     // Reuse GEMM's generic crossover: below it, packing costs more than a coefficient-based product.
     if (a_lhs.rows() + a_lhs.cols() + a_rhs.cols() < EIGEN_GEMM_TO_COEFFBASED_THRESHOLD) {
       constexpr bool lower = (Mode & Lower) != 0;
@@ -402,12 +404,11 @@ struct triangular_product_impl<Mode, LhsIsTriangular, Lhs, false, Rhs, false> {
     using ActualRhsType = typename RhsBlasTraits::DirectLinearAccessType;
     using ActualRhsTypeCleaned = internal::remove_all_t<ActualRhsType>;
 
-    internal::add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
-    internal::add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
-
     LhsScalar lhs_alpha = LhsBlasTraits::extractScalarFactor(a_lhs);
     RhsScalar rhs_alpha = RhsBlasTraits::extractScalarFactor(a_rhs);
     Scalar actualAlpha = alpha * lhs_alpha * rhs_alpha;
+    internal::add_const_on_value_type_t<ActualLhsType> lhs = LhsBlasTraits::extract(a_lhs);
+    internal::add_const_on_value_type_t<ActualRhsType> rhs = RhsBlasTraits::extract(a_rhs);
 
     using BlockingType = internal::gemm_blocking_space<(Dest::Flags & RowMajorBit) ? RowMajor : ColMajor, Scalar,
                                                        Scalar, Lhs::MaxRowsAtCompileTime, Rhs::MaxColsAtCompileTime,
