@@ -10,6 +10,10 @@ namespace {
 const void* expected_a = nullptr;
 int svd_calls = 0;
 bool args_match = false;
+// When nonempty, the probes succeed and report these singular values, in this order, instead of failing.
+std::vector<double> mock_singular_values;
+// What the probes return when they fail: positive for no convergence, negative for a rejected argument.
+lapack_int mock_failure_info = 1;
 
 // Columns of U, or rows of V^T, that a LAPACK job references; 0 when it references none.
 lapack_int job_extent(char job, lapack_int full, lapack_int thin) { return job == 'A' ? full : job == 'S' ? thin : 0; }
@@ -43,30 +47,37 @@ bool matches_expected(int layout, char jobu, char jobvt, lapack_int m, lapack_in
   return true;
 }
 
-// Probes return a failure code, so Eigen reads no output but the singular values, which it checks for finiteness.
+// Probes return a failure code, so Eigen reads no output but the singular values, which it checks for finiteness. A
+// probe that succeeds zero-fills the U and VT arrays its jobs reference, because the bindings go on to copy them.
 template <typename Scalar, typename RealScalar>
 lapack_int svd_probe(int layout, char jobu, char jobvt, lapack_int m, lapack_int n, const Scalar* a, lapack_int lda,
-                     RealScalar* s, lapack_int ldu, lapack_int ldvt) {
+                     RealScalar* s, Scalar* u, lapack_int ldu, Scalar* vt, lapack_int ldvt) {
   ++svd_calls;
   args_match = expected_a != nullptr && matches_expected(layout, jobu, jobvt, m, n, a, lda, ldu, ldvt);
-  std::fill_n(s, numext::mini(m, n), RealScalar(0));
-  return 1;
+  const lapack_int k = numext::mini(m, n);
+  std::fill_n(s, k, RealScalar(0));
+  if (mock_singular_values.empty()) return mock_failure_info;
+  for (lapack_int i = 0; i < k; ++i) s[i] = RealScalar(mock_singular_values[i]);
+  const bool col_major = layout == LAPACK_COL_MAJOR;
+  if (jobu != 'N') std::fill_n(u, ldu * (col_major ? job_extent(jobu, m, k) : m), Scalar{});
+  if (jobvt != 'N') std::fill_n(vt, ldvt * (col_major ? n : job_extent(jobvt, n, k)), Scalar{});
+  return 0;
 }
 }  // namespace
 
 // The bindings take the address of every scalar type's routine, so an unoptimized build needs all of them.
 // TYPE and RTYPE form declarations, not expressions.
 // NOLINTBEGIN(bugprone-macro-parentheses)
-#define EIGEN_SVD_PROBES(PREFIX, TYPE, RTYPE)                                                                    \
-  extern "C" lapack_int LAPACKE_##PREFIX##gesvd(int layout, char jobu, char jobvt, lapack_int m, lapack_int n,   \
-                                                TYPE* a, lapack_int lda, RTYPE* s, TYPE*, lapack_int ldu, TYPE*, \
-                                                lapack_int ldvt, RTYPE*) {                                       \
-    return svd_probe(layout, jobu, jobvt, m, n, a, lda, s, ldu, ldvt);                                           \
-  }                                                                                                              \
-  extern "C" lapack_int LAPACKE_##PREFIX##gesdd(int layout, char jobz, lapack_int m, lapack_int n, TYPE* a,      \
-                                                lapack_int lda, RTYPE* s, TYPE*, lapack_int ldu, TYPE*,          \
-                                                lapack_int ldvt) {                                               \
-    return svd_probe(layout, jobz, jobz, m, n, a, lda, s, ldu, ldvt);                                            \
+#define EIGEN_SVD_PROBES(PREFIX, TYPE, RTYPE)                                                                         \
+  extern "C" lapack_int LAPACKE_##PREFIX##gesvd(int layout, char jobu, char jobvt, lapack_int m, lapack_int n,        \
+                                                TYPE* a, lapack_int lda, RTYPE* s, TYPE* u, lapack_int ldu, TYPE* vt, \
+                                                lapack_int ldvt, RTYPE*) {                                            \
+    return svd_probe(layout, jobu, jobvt, m, n, a, lda, s, u, ldu, vt, ldvt);                                         \
+  }                                                                                                                   \
+  extern "C" lapack_int LAPACKE_##PREFIX##gesdd(int layout, char jobz, lapack_int m, lapack_int n, TYPE* a,           \
+                                                lapack_int lda, RTYPE* s, TYPE* u, lapack_int ldu, TYPE* vt,          \
+                                                lapack_int ldvt) {                                                    \
+    return svd_probe(layout, jobz, jobz, m, n, a, lda, s, u, ldu, vt, ldvt);                                          \
   }
 // NOLINTEND(bugprone-macro-parentheses)
 EIGEN_SVD_PROBES(s, float, float)
@@ -127,6 +138,54 @@ void svd_lapacke_input_layout() {
   check_lapacke_empty<SVD>(m, 0);
 }
 
+// nonzeroSingularValues() is the number of singular values that are not exactly 0, as on the native paths, not the
+// number of values LAPACK returned.
+template <typename SVD>
+void svd_lapacke_nonzero_count() {
+  using MatrixType = typename SVD::MatrixType;
+  const Index rows = 6, cols = 4;
+  const std::vector<std::vector<double>> cases = {{3, 2, 1, 0.5}, {3, 1, 0, 0}, {0, 0, 0, 0}, {2, 0, 0, 0}};
+  const std::vector<Index> counts = {4, 2, 0, 1};
+  for (const bool transposed : {false, true}) {
+    for (size_t k = 0; k < cases.size(); ++k) {
+      mock_singular_values = cases[k];
+      const MatrixType m = transposed ? MatrixType(MatrixType::Random(cols, rows)) : MatrixType::Random(rows, cols);
+      const SVD svd(m);
+      mock_singular_values.clear();
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), counts[k]);
+    }
+  }
+}
+
+// Invalid input reports no singular values, as on the native paths, also on an object that held a valid decomposition.
+// LAPACKE rejects a NaN argument with a negative info; with its NaN check compiled out, the values come back
+// non-finite.
+template <typename SVD>
+void svd_lapacke_invalid_input() {
+  using MatrixType = typename SVD::MatrixType;
+  const MatrixType m = MatrixType::Random(6, 4);
+  SVD svd;
+  for (const bool rejected : {false, true}) {
+    mock_singular_values = {3, 2, 1, 0.5};
+    svd.compute(m);
+    VERIFY_IS_EQUAL(svd.info(), Success);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 4);
+    if (rejected) {
+      mock_singular_values.clear();
+      mock_failure_info = -4;
+    } else {
+      mock_singular_values = {3, std::numeric_limits<double>::quiet_NaN(), 1, 0.5};
+    }
+    svd.compute(m);
+    mock_singular_values.clear();
+    mock_failure_info = 1;
+    VERIFY_IS_EQUAL(svd.info(), InvalidInput);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 0);
+    VERIFY((svd.singularValues().array() == 0).all());
+  }
+}
+
 template <typename Scalar, int Options>
 void svd_lapacke_options() {
   using ColMatrix = Matrix<Scalar, Dynamic, Dynamic>;
@@ -135,6 +194,14 @@ void svd_lapacke_options() {
   svd_lapacke_input_layout<JacobiSVD<RowMatrix, Options>>();
   svd_lapacke_input_layout<BDCSVD<ColMatrix, Options>>();
   svd_lapacke_input_layout<BDCSVD<RowMatrix, Options>>();
+  svd_lapacke_nonzero_count<JacobiSVD<ColMatrix, Options>>();
+  svd_lapacke_nonzero_count<JacobiSVD<RowMatrix, Options>>();
+  svd_lapacke_nonzero_count<BDCSVD<ColMatrix, Options>>();
+  svd_lapacke_nonzero_count<BDCSVD<RowMatrix, Options>>();
+  svd_lapacke_invalid_input<JacobiSVD<ColMatrix, Options>>();
+  svd_lapacke_invalid_input<JacobiSVD<RowMatrix, Options>>();
+  svd_lapacke_invalid_input<BDCSVD<ColMatrix, Options>>();
+  svd_lapacke_invalid_input<BDCSVD<RowMatrix, Options>>();
 }
 
 // ThinU | FullV is the case where the BDCSVD binding computes U in a local buffer.

@@ -51,7 +51,6 @@ namespace Eigen {
     /*typedef MatrixType::RealScalar RealScalar;*/                                                                  \
     allocate(matrix.rows(), matrix.cols(), computationOptions);                                                     \
                                                                                                                     \
-    /*const RealScalar precision = RealScalar(2) * NumTraits<Scalar>::epsilon();*/                                  \
     m_nonzeroSingularValues = diagSize();                                                                           \
     /* LAPACK rejects the zero leading dimensions of an empty input, and given valid ones it returns without */     \
     /* writing U or VT. Set the identities the native path returns. */                                              \
@@ -100,14 +99,15 @@ namespace Eigen {
     /* Check the result of the LAPACK call */                                                                       \
     if (info < 0 || !m_singularValues.allFinite()) {                                                                \
       m_info = InvalidInput;                                                                                        \
+      m_nonzeroSingularValues = 0;                                                                                  \
+      m_singularValues.setZero();                                                                                   \
     } else if (info > 0) {                                                                                          \
       m_info = NoConvergence;                                                                                       \
     } else {                                                                                                        \
       m_info = Success;                                                                                             \
       if (computeV()) m_matrixV = localV.adjoint();                                                                 \
+      m_nonzeroSingularValues = internal::count_nonzero_singular_values(m_singularValues);                          \
     }                                                                                                               \
-    /* for(int i=0;i<diagSize();i++) if (m_singularValues.coeffRef(i) < precision) { m_nonzeroSingularValues--;     \
-     * m_singularValues.coeffRef(i)=RealScalar(0);}*/                                                               \
     m_isInitialized = true;                                                                                         \
     return *this;                                                                                                   \
   }

@@ -803,27 +803,29 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
   RealScalar epsilon_coarse =
       Literal(8) * NumTraits<RealScalar>::epsilon() * numext::maxi<RealScalar>(col0.cwiseAbs().maxCoeff(), maxDiag);
 
-  // condition 4.1
-  if (diag(0) < epsilon_coarse) {
-    diag(0) = epsilon_coarse;
-  }
-
   // condition 4.2
   for (Index i = 1; i < length; ++i)
     if (numext::abs(col0(i)) < epsilon_strict) {
       col0(i) = Literal(0);
     }
 
-  // condition 4.3
+  // condition 4.3. With z_i = 0, d_i is a singular value of M already and stays as computed.
   for (Index i = 1; i < length; i++)
     if (diag(i) < epsilon_coarse) {
-      deflation43(firstCol, shift, i, length);
+      if (!numext::is_exactly_zero(col0(i)))
+        deflation43(firstCol, shift, i, length);
+      else if (diag(i) < considerZero)
+        diag(i) = Literal(0);
     }
 
   {
     // Check for total deflation:
     // If we have a total deflation, then we have to consider col0(0)==diag(0) as a singular value during sorting.
     const bool total_deflation = (col0.tail(length - 1).array().abs() < considerZero).all();
+
+    // condition 4.1: the secular equation needs z_0 != 0. After a total deflation M is diagonal and z_0 is one of its
+    // singular values; raising it would return 8 * epsilon * ||M|| for an exactly zero singular value.
+    if (!total_deflation && diag(0) < epsilon_coarse) diag(0) = epsilon_coarse;
 
     // Sort the diagonal entries, since diag(1:k-1) and diag(k:length) are already sorted, let's do a sorted merge.
     // First, compute the respective permutation.
@@ -836,8 +838,11 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
       for (Index i = 1; i < length; ++i)
         if (diag(i) < considerZero) permutation[p++] = i;
 
+      // Condition 4.3 zeroes the entries with z_i != 0 only, so the zeros of a half need not be at its end.
       Index i = 1, j = k + 1;
       for (; p < length; ++p) {
+        while (i <= k && diag(i) < considerZero) ++i;
+        while (j < length && diag(j) < considerZero) ++j;
         if (i > k)
           permutation[p] = j++;
         else if (j >= length)
@@ -907,7 +912,9 @@ void bdcsvd_impl<RealScalar_>::deflation(Index firstCol, Index lastCol, Index k,
     // Find last non-deflated entry.
     while (i > 0 && (diag(i) < considerZero || numext::abs(col0(i)) < considerZero)) --i;
 
-    for (; i > 1; --i)
+    // Condition 4.3 leaves z_j = 0 wherever d_j < epsilon_coarse, and the d_j increase with j: at such an entry no
+    // active pole is left below, and deflation44 would only overwrite d_j with d_i.
+    for (; i > 1 && diag(i - 1) >= epsilon_coarse; --i)
       if ((diag(i) - diag(i - 1)) < epsilon_coarse) {
         deflation44(firstCol, firstCol + shift, firstRowW, firstColW, i, i - 1, length);
       }

@@ -116,10 +116,13 @@ class BDCSVD_LAPACKE : public BDCSVD<MatrixType_, Options> {
     if (info < 0 || !SVD::m_singularValues.allFinite()) {
       // this includes info == -4 => NaN entry in A
       SVD::m_info = InvalidInput;
+      SVD::m_nonzeroSingularValues = 0;
+      SVD::m_singularValues.setZero();
     } else if (info > 0) {
       SVD::m_info = NoConvergence;
     } else {
       SVD::m_info = Success;
+      SVD::m_nonzeroSingularValues = internal::count_nonzero_singular_values(SVD::m_singularValues);
       if (SVD::m_computeThinU && SVD::m_computeFullV) {
         SVD::m_matrixU = localU.leftCols(SVD::m_matrixU.cols());
       }

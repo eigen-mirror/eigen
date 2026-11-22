@@ -34,6 +34,15 @@ constexpr int get_qr_preconditioner(int options) { return options & QRPreconditi
 
 constexpr int get_computation_options(int options) { return options & ComputationOptionsBits; }
 
+// The number of leading entries of the descending singular values that are not exactly 0 (a subnormal counts as nonzero
+// also under FTZ/DAZ).
+template <typename ValuesType>
+Index count_nonzero_singular_values(const ValuesType& values) {
+  Index i = 0;
+  while (i < values.size() && !numext::is_exactly_zero_no_flush(values.coeff(i))) ++i;
+  return i;
+}
+
 constexpr bool should_svd_precondition_square_matrix(int options) { return (options & PreconditionSquareMatrix) != 0; }
 
 constexpr bool should_svd_compute_thin_u(int options) { return (options & ComputeThinU) != 0; }

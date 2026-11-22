@@ -20,6 +20,7 @@
 #include "tridiag_test_matrices.h"
 #include <Eigen/SVD>
 #include <cstdlib>
+#include <random>
 
 #define SVD_DEFAULT(M) BDCSVD<M>
 #define SVD_FOR_MIN_NORM(M) BDCSVD<M>
@@ -50,11 +51,11 @@ void compare_bdc_jacobi(const MatrixType& a = MatrixType(), int algoswap = 16, b
   VERIFY_IS_APPROX(bdc_svd.singularValues(), jacobi_svd.singularValues());
 }
 
-#if defined(EIGEN_TEST_PART_46) || defined(EIGEN_TEST_PART_47) || defined(EIGEN_TEST_PART_48) || \
-    defined(EIGEN_TEST_PART_49) || defined(EIGEN_TEST_PART_ALL)
-// Verifies total deflation is **not** triggered.
+#if defined(EIGEN_TEST_PART_48) || defined(EIGEN_TEST_PART_49) || defined(EIGEN_TEST_PART_ALL)
+// Verifies total deflation is **not** triggered. The instances have 3 columns, so the switch size must be at most 3 for
+// BDCSVD to run divide and conquer instead of its JacobiSVD fallback.
 template <typename = void>
-void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
+void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap) {
   MatrixXd m(4, 3);
   if (structure_as_m) {
     // The first 3 rows are the reduced form of Matrix 1 as shown below, and it
@@ -65,6 +66,7 @@ void compare_bdc_jacobi_instance(bool structure_as_m, int algoswap = 16) {
     m << 0.882336, 18.3914, -26.7921, -5.58135, 17.1931, -24.0892, -20.794, 8.68496, -4.83103, -8.4981, -10.5451,
         23.9072;
   }
+  VERIFY(m.cols() >= algoswap);  // BDCSVD does not fall back to JacobiSVD.
   compare_bdc_jacobi(m, algoswap, false);
 }
 #endif
@@ -368,6 +370,75 @@ void bdcsvd_flushed_subnormal_bidiagonal(Index n, int switchSize) {
   });
 }
 
+// nonzeroSingularValues() is the number of singular values that are not exactly 0: the leading entries of
+// singularValues() read from the representation, which FTZ/DAZ hardware compares as zero if they are subnormal. A value
+// that is above the smallest normal number in the scaled frame can unscale to exactly 0 and must not be counted.
+template <typename SvdType>
+void bdcsvd_check_nonzero_count(const SvdType& svd) {
+  using RealScalar = typename SvdType::RealScalar;
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  const Index size = svd.singularValues().size();
+  Index nonzero = 0;
+  while (nonzero < size && Binary::magnitude(svd.singularValues()(nonzero)) != 0) ++nonzero;
+  VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), nonzero);
+  for (Index i = nonzero; i < size; ++i) VERIFY_IS_EQUAL(Binary::magnitude(svd.singularValues()(i)), 0);
+}
+
+template <typename RealScalar>
+void bdcsvd_nonzero_count_after_unscaling() {
+  using Binary = internal::binary_floating_point_traits<RealScalar>;
+  using Bits = typename Binary::Bits;
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  const Index n = 20;
+  // Subnormal entries 2^10, 2^9 and 1 times denorm_min: the scaled frame holds 1, 1/2, 2^-10, and the rounding noise
+  // below them, which unscales to exactly 0 (or to a subnormal) while still above the smallest normal number.
+  const RealScalar big = numext::bit_cast<RealScalar>(Bits(1) << 10);
+  const RealScalar mid = numext::bit_cast<RealScalar>(Bits(1) << 9);
+  const RealScalar tiny = numext::bit_cast<RealScalar>(Bits(1));
+  Mat subnormalMatrix = Mat::Zero(n, n);
+  subnormalMatrix(0, 0) = big;
+  subnormalMatrix(1, 1) = mid;
+  subnormalMatrix(2, 3) = tiny;
+  Vec diagonal = Vec::Zero(n), superdiagonal = Vec::Zero(n - 1);
+  diagonal(0) = big;
+  diagonal(1) = mid;
+  superdiagonal(1) = tiny;
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    BDCSVD<Mat> dense;
+    dense.compute(subnormalMatrix);
+    bdcsvd_check_nonzero_count(dense);
+    BDCSVD<Mat> bidiagonal;
+    bidiagonal.compute(diagonal, superdiagonal);
+    bdcsvd_check_nonzero_count(bidiagonal);
+  });
+  // A singular bidiagonal matrix with entries of 1024 to 2047 denorm_min and d(n / 2) = 0: its smallest singular
+  // value is 0, and the scaled frame, in which the largest entry is about 1, holds the rest as O(1) numbers. n = 8 and
+  // 15 are below the switch size, 20 above it.
+  std::mt19937 gen(99);
+  std::uniform_int_distribution<int> multiplier(1 << 10, (1 << 11) - 1);
+  // The entries are assembled from their bit patterns, so that no flush-to-zero arithmetic touches them.
+  const auto subnormal = [&]() { return numext::bit_cast<RealScalar>(Bits(multiplier(gen))); };
+  for (const Index size : {8, 15, 20}) {
+    for (int trial = 0; trial < 50; ++trial) {
+      Vec d(size), e(size - 1);
+      for (Index i = 0; i < size; ++i) d(i) = subnormal();
+      for (Index i = 0; i < size - 1; ++i) e(i) = subnormal();
+      d(size / 2) = 0;
+      BDCSVD<Mat> bidiagonal;
+      bidiagonal.compute(d, e);
+      bdcsvd_check_nonzero_count(bidiagonal);
+      Mat dense = Mat::Zero(size, size);
+      dense.diagonal() = d;
+      dense.diagonal(1) = e;
+      BDCSVD<Mat> svd;
+      svd.compute(dense);
+      bdcsvd_check_nonzero_count(svd);
+    }
+  }
+}
+
 template <typename = void>
 void bdcsvd_power_of_two_scaling() {
   // Reciprocal scaling rounds the smaller singular value down by one ULP in both entry paths.
@@ -530,6 +601,213 @@ void bdcsvd_qr_crossover() {
   }
 }
 
+// An invalid (non-finite) input reports no singular values on an object that computed a valid matrix before: the
+// values are zero and the count is 0, as for JacobiSVD, on every entry point and on both sides of the switch size.
+template <typename RealScalar>
+void bdcsvd_invalid_input_resets() {
+  using Mat = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Vec = Matrix<RealScalar, Dynamic, 1>;
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  for (const Index n : {8, 20}) {
+    const Mat valid = Mat::Random(n, n);
+    Mat invalid = valid;
+    invalid(n / 2, 1) = nan;
+    BDCSVD<Mat> svd;
+    svd.compute(valid);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), n);
+    svd.compute(invalid);
+    VERIFY_IS_EQUAL(svd.info(), InvalidInput);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 0);
+    VERIFY(svd.singularValues().isZero());
+
+    const Vec d = Vec::Random(n), e = Vec::Random(n - 1);
+    Vec badDiagonal = d;
+    badDiagonal(n / 2) = nan;
+    svd.compute(d, e);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), n);
+    svd.compute(badDiagonal, e);
+    VERIFY_IS_EQUAL(svd.info(), InvalidInput);
+    VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 0);
+    VERIFY(svd.singularValues().isZero());
+  }
+}
+
+// An empty matrix, whose divide-and-conquer path has no bidiagonal: 0 x n and n x 0 on both sides of the switch size
+// return no singular values and identity unitaries, also when the object computed a nonempty matrix before.
+template <typename MatrixType, int Options>
+void bdcsvd_empty_matrices_options() {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  const Index nonempty = 20;
+  const bool thin = (Options & ComputeThinU) != 0;
+  BDCSVD<MatrixType, Options> svd;
+  for (const Index n : {1, 3, 15, 16, 17, 20, 40}) {
+    for (const bool wide : {true, false}) {
+      const Index rows = wide ? 0 : n;
+      const Index cols = wide ? n : 0;
+      const MatrixType m(rows, cols);
+      svd.compute(m);
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      VERIFY_IS_EQUAL(svd.singularValues().size(), 0);
+      VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), 0);
+      VERIFY_IS_EQUAL(svd.rank(), 0);
+      VERIFY_IS_EQUAL(svd.matrixU().rows(), rows);
+      VERIFY_IS_EQUAL(svd.matrixU().cols(), thin ? 0 : rows);
+      VERIFY_IS_EQUAL(svd.matrixV().rows(), cols);
+      VERIFY_IS_EQUAL(svd.matrixV().cols(), thin ? 0 : cols);
+      if (!thin) {
+        VERIFY_IS_EQUAL(svd.matrixU(), MatrixType::Identity(rows, rows));
+        VERIFY_IS_EQUAL(svd.matrixV(), MatrixType::Identity(cols, cols));
+      }
+      // The object is reusable after the empty problem.
+      MatrixType a = MatrixType::Random(nonempty, nonempty - 2);
+      if (wide) a = a.adjoint().eval();
+      svd.compute(a);
+      VERIFY_IS_EQUAL(svd.info(), Success);
+      const Index k = (std::min)(a.rows(), a.cols());
+      const RealScalar bound = RealScalar(64 * nonempty) * NumTraits<RealScalar>::epsilon();
+      Matrix<Scalar, Dynamic, Dynamic> reconstruction = svd.matrixU().leftCols(k) *
+                                                        svd.singularValues().template cast<Scalar>().asDiagonal() *
+                                                        svd.matrixV().leftCols(k).adjoint();
+      VERIFY_LE((reconstruction - a).norm(), bound * a.norm());
+    }
+  }
+}
+
+template <typename MatrixType>
+void bdcsvd_empty_matrices() {
+  bdcsvd_empty_matrices_options<MatrixType, ComputeThinU | ComputeThinV>();
+  bdcsvd_empty_matrices_options<MatrixType, ComputeFullU | ComputeFullV>();
+}
+
+// B = U S V^T to bound * ||B||, U and V orthogonal to bound, and S sorted in decreasing order.
+template <typename SvdType, typename RealScalar>
+void verify_bidiagonal_decomposition(const Matrix<RealScalar, Dynamic, 1>& diagonal,
+                                     const Matrix<RealScalar, Dynamic, 1>& superdiagonal, const SvdType& svd,
+                                     RealScalar bound) {
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic>;
+  const Index n = diagonal.size();
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  for (Index i = 1; i < n; ++i) VERIFY(svd.singularValues()(i - 1) >= svd.singularValues()(i));
+  VERIFY(svd.singularValues()(n - 1) >= RealScalar(0));
+  verify_bidiagonal_reconstruction(bidiagonal_matrix(diagonal, superdiagonal), svd, bound);
+  VERIFY((svd.matrixU().transpose() * svd.matrixU() - MatrixXr::Identity(n, n)).norm() <= bound);
+  VERIFY((svd.matrixV().transpose() * svd.matrixV() - MatrixXr::Identity(n, n)).norm() <= bound);
+}
+
+// With z_i = 0, the entry d_i of the merged matrix M is a singular value of M, and divide and conquer must return it as
+// computed. It must not raise z_0 to the deflation tolerance tol = 8 eps ||M|| when every z_i deflated (an exact 0
+// would come back as tol), nor set d_i < tol to 0 or to a deflated neighbor within tol. The base cases of a diagonal
+// block are exact, so its z_i are exactly 0; a block whose z_i are 0 only to rounding still loses its values below tol.
+template <typename RealScalar>
+void bdcsvd_deflated_values_stay_as_computed() {
+  using MatrixXr = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorXr = Matrix<RealScalar, Dynamic, 1>;
+  using Svd = BDCSVD<MatrixXr, ComputeFullU | ComputeFullV>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  // A decoupled entry passes through the base-case JacobiSVD of its block and no other arithmetic.
+  const RealScalar relative_bound = RealScalar(16) * eps;
+  const auto random_sign = [] { return internal::random<bool>() ? RealScalar(1) : RealScalar(-1); };
+  const auto sorted_abs = [](const VectorXr& values) {
+    VectorXr sorted = values.cwiseAbs();
+    std::sort(sorted.data(), sorted.data() + sorted.size(), std::greater<RealScalar>());
+    return sorted;
+  };
+
+  for (const Index n : {16, 20, 40, 100}) {
+    // Backward error and loss of orthogonality of the decomposition: c n eps, with c of order 1.
+    const RealScalar bound = RealScalar(16 * n) * eps;
+    for (const int switch_size : {16, 3}) {
+      Svd svd;
+      svd.setSwitchSize(switch_size);
+      const VectorXr no_superdiagonal = VectorXr::Zero(n - 1);
+
+      // Rank one: every other singular value is exactly 0.
+      VectorXr diagonal = VectorXr::Zero(n);
+      diagonal(internal::random<Index>(0, n - 1)) = random_sign();
+      for (const bool dense : {false, true}) {
+        if (dense)
+          svd.compute(MatrixXr(diagonal.asDiagonal()));
+        else
+          svd.compute(diagonal, no_superdiagonal);
+        verify_bidiagonal_decomposition(diagonal, no_superdiagonal, svd, bound);
+        VERIFY_IS_EQUAL(svd.singularValues()(0), RealScalar(1));
+        VERIFY((svd.singularValues().tail(n - 1).array() == RealScalar(0)).all());
+        VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), Index(1));
+        VERIFY_IS_EQUAL(svd.rank(), Index(1));
+      }
+
+      // A diagonal matrix with entries from 1 down to 2^-59, far below 8 eps, in random order.
+      for (Index i = 0; i < n; ++i) diagonal(i) = random_sign() * std::ldexp(RealScalar(1), -int((60 * i) / n));
+      for (Index i = n - 1; i > 0; --i) std::swap(diagonal(i), diagonal(internal::random<Index>(0, i)));
+      const VectorXr sorted_diagonal = sorted_abs(diagonal);
+      for (const bool dense : {false, true}) {
+        if (dense)
+          svd.compute(MatrixXr(diagonal.asDiagonal()));
+        else
+          svd.compute(diagonal, no_superdiagonal);
+        verify_bidiagonal_decomposition(diagonal, no_superdiagonal, svd, bound);
+        VERIFY(
+            ((svd.singularValues() - sorted_diagonal).array().abs() <= relative_bound * sorted_diagonal.array()).all());
+        VERIFY_IS_EQUAL(svd.nonzeroSingularValues(), n);
+      }
+
+      // The top merge splits at column k = n / 2. One half is diagonal with entries below 8 eps, so its entries of z
+      // are exactly 0, and the other half is a coupled block of order 1, so the merge still solves a secular equation.
+      // The diagonal half holds the smallest singular values.
+      for (const bool left : {false, true}) {
+        const Index k = n / 2;
+        const auto decoupled = [=](Index i) { return left ? i < k : i > k; };
+        VectorXr superdiagonal = VectorXr::Zero(n - 1);
+        for (Index i = 0; i < n; ++i) {
+          diagonal(i) = random_sign() * (decoupled(i) ? std::ldexp(eps, -internal::random<int>(8, 22))
+                                                      : internal::random<RealScalar>(RealScalar(0.5), RealScalar(1.5)));
+        }
+        for (Index i = 0; i + 1 < n; ++i)
+          if (!decoupled(i) && !decoupled(i + 1)) superdiagonal(i) = internal::random<RealScalar>(-1, 1);
+        const Index decoupled_count = left ? k : n - k - 1;
+        const VectorXr decoupled_values = sorted_abs(left ? diagonal.head(k).eval() : diagonal.tail(n - k - 1).eval());
+        svd.compute(diagonal, superdiagonal);
+        verify_bidiagonal_decomposition(diagonal, superdiagonal, svd, bound);
+        VERIFY(((svd.singularValues().tail(decoupled_count) - decoupled_values).array().abs() <=
+                relative_bound * decoupled_values.array())
+                   .all());
+      }
+
+      // A decoupled entry t < tol whose neighbor in sorted order is a coupled pole s with s - t < tol: condition 4.4
+      // must not merge the two. Column n / 2 and the next one carry the coupling of the top merge.
+      {
+        const Index k = n / 2;
+        VectorXr superdiagonal = VectorXr::Zero(n - 1);
+        for (Index i = 0; i < n; ++i) diagonal(i) = random_sign() * internal::random<RealScalar>(RealScalar(0.2), 1);
+        const RealScalar t = RealScalar(0.8) * eps, s = RealScalar(8.4) * eps;
+        diagonal(0) = t;
+        diagonal(k) = RealScalar(1);
+        diagonal(k + 1) = s;
+        superdiagonal(k) = RealScalar(1);
+        svd.compute(diagonal, superdiagonal);
+        verify_bidiagonal_decomposition(diagonal, superdiagonal, svd, bound);
+        VERIFY(numext::abs(svd.singularValues()(n - 1) - t) <= relative_bound * t);
+      }
+
+      // Graded: condition 4.3 zeroes some of the small values of each half and keeps others, and the merge of the two
+      // halves must still sort the kept ones.
+      for (const bool reversed : {false, true}) {
+        const int step = internal::random<int>(1, 3);
+        VectorXr superdiagonal(n - 1);
+        for (Index i = 0; i < n; ++i) diagonal(i) = std::ldexp(RealScalar(1), -int((step * i) / 2));
+        for (Index i = 0; i + 1 < n; ++i) superdiagonal(i) = diagonal(i) * internal::random<RealScalar>(-1, 1);
+        if (reversed) {
+          diagonal.reverseInPlace();
+          superdiagonal.reverseInPlace();
+        }
+        svd.compute(diagonal, superdiagonal);
+        verify_bidiagonal_decomposition(diagonal, superdiagonal, svd, bound);
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
   CALL_SUBTEST_72((svd_normal_equation_roundoff<double, RowMajor>()));
@@ -625,10 +903,8 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_71((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_80((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
   CALL_SUBTEST_81((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));
-
-  // Without total deflation issues.
-  CALL_SUBTEST_46((compare_bdc_jacobi_instance<>(true)));
-  CALL_SUBTEST_47((compare_bdc_jacobi_instance<>(false)));
+  CALL_SUBTEST_82(bdcsvd_empty_matrices<MatrixXd>());
+  CALL_SUBTEST_82(bdcsvd_empty_matrices<MatrixXcf>());
 
   // With total deflation issues before, when it shouldn't be triggered.
   CALL_SUBTEST_48((compare_bdc_jacobi_instance<>(true, 3)));
@@ -658,4 +934,12 @@ EIGEN_DECLARE_TEST(bdcsvd) {
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(16, 8)));
   CALL_SUBTEST_60((bdcsvd_flushed_subnormal_bidiagonal<double>(6, 8)));
   CALL_SUBTEST_65((bdcsvd_switch_size<>()));
+  CALL_SUBTEST_83(bdcsvd_nonzero_count_after_unscaling<float>());
+  CALL_SUBTEST_83(bdcsvd_nonzero_count_after_unscaling<double>());
+  CALL_SUBTEST_84(bdcsvd_invalid_input_resets<float>());
+  CALL_SUBTEST_84(bdcsvd_invalid_input_resets<double>());
+  for (int i = 0; i < g_repeat; i++) {
+    CALL_SUBTEST_85(bdcsvd_deflated_values_stay_as_computed<float>());
+    CALL_SUBTEST_85(bdcsvd_deflated_values_stay_as_computed<double>());
+  }
 }

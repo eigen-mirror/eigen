@@ -292,7 +292,8 @@ template <typename MatrixType, int Options>
 void BDCSVD<MatrixType, Options>::allocate(Index rows, Index cols, unsigned int computationOptions) {
   if (Base::allocate(rows, cols, computationOptions)) return;
 
-  if (cols < m_impl.algoSwap())
+  // An empty matrix has no bidiagonal to divide: the JacobiSVD fallback handles it.
+  if (cols < m_impl.algoSwap() || diagSize() == 0)
     smallSvd.allocate(rows, cols, internal::get_computation_options(Options | computationOptions));
 
   m_isTranspose = (cols > rows);
@@ -350,11 +351,12 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   smallSvd.compute(matrix);
   m_isInitialized = true;
   m_info = smallSvd.info();
+  // JacobiSVD zeroes the values and the count for an invalid input, which must not leave stale ones here.
+  m_singularValues = smallSvd.singularValues();
+  m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
   if (m_info == Success || m_info == NoConvergence) {
     if (computeU()) m_matrixU = smallSvd.matrixU();
     if (computeV()) m_matrixV = smallSvd.matrixV();
-    m_singularValues = smallSvd.singularValues();
-    m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
   }
   return *this;
 }
@@ -367,16 +369,16 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
 
   const RealScalar considerZero = (std::numeric_limits<RealScalar>::min)();
 
-  //**** step -1 - If the problem is too small, directly falls back to JacobiSVD and return
-  if (matrix.cols() < m_impl.algoSwap()) {
+  //**** step -1 - If the problem is too small or empty, directly falls back to JacobiSVD and return
+  if (matrix.cols() < m_impl.algoSwap() || diagSize() == 0) {
     smallSvd.compute(matrix);
     m_isInitialized = true;
     m_info = smallSvd.info();
+    m_singularValues = smallSvd.singularValues();
+    m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
     if (m_info == Success || m_info == NoConvergence) {
       if (computeU()) m_matrixU = smallSvd.matrixU();
       if (computeV()) m_matrixV = smallSvd.matrixV();
-      m_singularValues = smallSvd.singularValues();
-      m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
     }
     return *this;
   }
@@ -388,6 +390,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
+    m_nonzeroSingularValues = 0;
+    m_singularValues.setZero();
     return *this;
   }
 
@@ -433,16 +437,14 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
     RealScalar a = numext::abs(m_impl.computed().coeff(i, i));
     m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
-      m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();
-      break;
-    } else if (i == diagSize() - 1) {
-      m_nonzeroSingularValues = i + 1;
       break;
     }
   }
-  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ.
+  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ. The count follows it, as
+  // a value above the smallest normal number in the scaled frame can unscale to exactly 0.
   internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
+  m_nonzeroSingularValues = internal::count_nonzero_singular_values(m_singularValues);
 
   //**** step 4 - Finalize unitaries U and V
   if (m_isTranspose)
@@ -531,6 +533,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
   if (!(numext::isfinite)(maxCoeff)) {
     m_isInitialized = true;
     m_info = InvalidInput;
+    m_nonzeroSingularValues = 0;
+    m_singularValues.setZero();
     return *this;
   }
 
@@ -552,7 +556,8 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
     m_info = smallSvd.info();
     if (m_info == Success || m_info == NoConvergence) {
       internal::safe_scaling<RealScalar>::unscale_to(m_singularValues, smallSvd.singularValues(), maxCoeff, factors);
-      m_nonzeroSingularValues = smallSvd.nonzeroSingularValues();
+      // The count follows the unscaling: a value that is nonzero in the scaled frame can unscale to exactly 0.
+      m_nonzeroSingularValues = internal::count_nonzero_singular_values(m_singularValues);
       if (computeU()) m_matrixU = smallSvd.matrixU();
       if (computeV()) m_matrixV = smallSvd.matrixV();
     }
@@ -590,16 +595,14 @@ EIGEN_DONT_INLINE BDCSVD<MatrixType, Options>& BDCSVD<MatrixType, Options>::comp
     RealScalar a = numext::abs(m_impl.computed().coeff(i, i));
     m_singularValues.coeffRef(i) = a;
     if (a < considerZero) {
-      m_nonzeroSingularValues = i;
       m_singularValues.tail(diagSize() - i - 1).setZero();
-      break;
-    } else if (i == diagSize() - 1) {
-      m_nonzeroSingularValues = i + 1;
       break;
     }
   }
-  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ.
+  // Unscaling with maxCoeff keeps singular values that land in the subnormal range under FTZ. The count follows it, as
+  // a value above the smallest normal number in the scaled frame can unscale to exactly 0.
   internal::safe_scaling<RealScalar>::unscale_in_place(m_singularValues, maxCoeff, factors);
+  m_nonzeroSingularValues = internal::count_nonzero_singular_values(m_singularValues);
 
   //**** Copy U and V directly (no Householder to apply).
   // D&C computes B^T = naiveU * S * naiveV^T, so B = naiveV * S * naiveU^T.

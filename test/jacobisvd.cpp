@@ -15,6 +15,7 @@
 #include "main.h"
 #include <Eigen/SVD>
 #include <cfenv>
+#include <random>
 #include "fp_control.h"
 
 #define SVD_DEFAULT(M) JacobiSVD<M>
@@ -315,6 +316,147 @@ void jacobisvd_power_of_two_scaling() {
   forEachFlushToZeroMode([&](FlushToZeroMode) { checkSubnormalScaling(); });
 }
 
+// Backward error and unitarity of a full decomposition, each bounded by 64 n eps (times |A|_max for the residual). The
+// maxima propagate NaN, so a NaN in a factor fails the bound.
+template <typename MatrixType, int Options>
+void jacobisvd_check_backward_error(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using RealScalar = typename MatrixType::RealScalar;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index n = (std::max)(m.rows(), m.cols());
+  const RealScalar tolerance = RealScalar(64 * n) * NumTraits<RealScalar>::epsilon();
+  const JacobiSVD<MatrixType, Options | ComputeFullU | ComputeFullV> svd(m);
+  VERIFY_IS_EQUAL(svd.info(), Success);
+  DenseMatrix sigma = DenseMatrix::Zero(m.rows(), m.cols());
+  sigma.diagonal() = svd.singularValues().template cast<Scalar>();
+  const RealScalar scale = m.cwiseAbs().maxCoeff();
+  const RealScalar residual =
+      (svd.matrixU() * sigma * svd.matrixV().adjoint() - m).cwiseAbs().template maxCoeff<PropagateNaN>();
+  VERIFY_LE(residual, tolerance * scale);
+  const DenseMatrix iu = DenseMatrix::Identity(m.rows(), m.rows());
+  const DenseMatrix iv = DenseMatrix::Identity(m.cols(), m.cols());
+  VERIFY_LE((svd.matrixU().adjoint() * svd.matrixU() - iu).cwiseAbs().template maxCoeff<PropagateNaN>(), tolerance);
+  VERIFY_LE((svd.matrixV().adjoint() * svd.matrixV() - iv).cwiseAbs().template maxCoeff<PropagateNaN>(), tolerance);
+}
+
+// Runs the backward-error check on each matrix, under every flush-to-zero mode the host selects exactly, for the QR
+// preconditioners that reach the complex pivot code: NoQR on the square matrices, and the others with the square
+// preconditioner so that they also decompose them.
+template <typename MatrixType>
+void jacobisvd_check_backward_error_all(const std::vector<MatrixType>& matrices) {
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    for (const MatrixType& m : matrices) {
+      jacobisvd_check_backward_error<MatrixType, NoQRPreconditioner>(m);
+      jacobisvd_check_backward_error<MatrixType, ColPivHouseholderQRPreconditioner | PreconditionSquareMatrix>(m);
+      jacobisvd_check_backward_error<MatrixType, HouseholderQRPreconditioner | PreconditionSquareMatrix>(m);
+      jacobisvd_check_backward_error<MatrixType, FullPivHouseholderQRPreconditioner | PreconditionSquareMatrix>(m);
+    }
+  });
+}
+
+// Pivot scales s: the normal decades from 1e-10 down, then subnormal ones, k denorm_min and min / 2^j. Computed here,
+// in the default floating-point mode, so that a flush-to-zero mode does not flush the fixtures.
+template <typename RealScalar>
+std::vector<RealScalar> jacobisvd_pivot_scales() {
+  std::vector<RealScalar> scales;
+  const int exponent = std::numeric_limits<RealScalar>::min_exponent10;  // -37 (float), -307 (double)
+  for (int e = 10; e < -exponent; ++e) scales.push_back(std::pow(RealScalar(10), -RealScalar(e)));
+  const RealScalar denormMin = std::numeric_limits<RealScalar>::denorm_min();
+  const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
+  for (const int k : {1, 3, 5, 1 << 10}) scales.push_back(RealScalar(k) * denormMin);
+  for (const int j : {4, 8, 20}) scales.push_back(std::ldexp(normalMin, -j));
+  return scales;
+}
+
+// The 2x2 pivot block of the complex preconditioning has the first column (w_pp, w_qp), and its norm
+// n = |(w_pp, w_qp)| gives the rotation c = conj(w_pp) / n, s = w_qp / n, which is unitary only if n is accurate.
+// With n = sqrt(|w_pp|^2 + |w_qp|^2), the squares are subnormal once |w| < sqrt(min) (about 1e-19 for float, 1e-154
+// for double) and n loses its relative accuracy, so U and V stop being unitary. The pivot column is (m(0,1), m(1,1)),
+// at the scales of jacobisvd_pivot_scales().
+template <typename RealScalar>
+void jacobisvd_complex_tiny_pivot() {
+  using ComplexScalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<ComplexScalar, Dynamic, Dynamic>;
+  std::vector<MatrixType> matrices;
+  for (const RealScalar scale : jacobisvd_pivot_scales<RealScalar>()) {
+    const RealScalar a = -scale;
+    for (int variant = 0; variant < 6; ++variant) {
+      MatrixType m = MatrixType::Zero(2, 2);
+      m(0, 0) = RealScalar(-4.75);
+      m(1, 0) = ComplexScalar(RealScalar(1.3), RealScalar(1.7));
+      if (variant == 0) m(1, 1) = ComplexScalar(a);
+      if (variant == 1) m(1, 1) = ComplexScalar(a, -a);
+      if (variant == 2) {
+        // Tiny entries in the first column, as the QR factor of a rank-deficient matrix has.
+        m(0, 0) = ComplexScalar(a, RealScalar(2) * a);
+        m(1, 0) = ComplexScalar(RealScalar(-3) * a, a);
+        m(0, 1) = ComplexScalar(RealScalar(1.5), RealScalar(-0.5));
+        m(1, 1) = ComplexScalar(RealScalar(0.25), RealScalar(2));
+      }
+      if (variant == 3) {
+        m(1, 1) = ComplexScalar(a, a);
+        m(0, 1) = ComplexScalar(a);
+      }
+      if (variant == 4) {
+        m(1, 1) = ComplexScalar(RealScalar(3) * a, RealScalar(3) * a);
+        m(0, 1) = ComplexScalar(0, RealScalar(5) * a);
+      }
+      if (variant == 5) {
+        // The pivot column of the reproducer: [[1, s], [0.5 + 0.3i, s (1 + i)]].
+        m(0, 0) = RealScalar(1);
+        m(1, 0) = ComplexScalar(RealScalar(0.5), RealScalar(0.3));
+        m(0, 1) = ComplexScalar(scale);
+        m(1, 1) = ComplexScalar(scale, scale);
+      }
+      matrices.push_back(m);
+    }
+  }
+  jacobisvd_check_backward_error_all(matrices);
+}
+
+// A square matrix whose diagonal and strict upper triangle, the pivot columns of the sweeps, are scale times
+// a random complex matrix, and whose strict lower triangle is of order 1: the first column of every 2x2 pivot block
+// starts at the pivot scale. It reaches the non-blocking sweep for small n and the blocked sweep for large n.
+template <typename RealScalar>
+void jacobisvd_complex_tiny_pivot_sweeps(Index n) {
+  using ComplexScalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<ComplexScalar, Dynamic, Dynamic>;
+  std::mt19937 gen(777u + unsigned(n));
+  std::normal_distribution<double> dist;
+  std::vector<MatrixType> matrices;
+  for (const RealScalar scale : jacobisvd_pivot_scales<RealScalar>()) {
+    MatrixType m(n, n);
+    for (Index j = 0; j < n; ++j) {
+      for (Index i = 0; i < n; ++i) {
+        const RealScalar re = RealScalar(dist(gen));
+        const ComplexScalar value(re, RealScalar(dist(gen)));
+        m(i, j) = i <= j ? value * scale : value;
+      }
+    }
+    matrices.push_back(m);
+  }
+  jacobisvd_check_backward_error_all(matrices);
+}
+
+// A rank-one matrix u 1^T: the QR factor R has a diagonal falling like eps^k, so the pivot blocks the sweeps see
+// pass through the subnormal-square range, as in the 4x20 float example below.
+template <typename RealScalar, int Options>
+void jacobisvd_rank_deficient_family(Index rows, Index cols) {
+  using Scalar = std::complex<RealScalar>;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  std::mt19937 gen(12345u + unsigned(rows * 131 + cols));
+  std::normal_distribution<double> dist;
+  for (int seed = 0; seed < 100; ++seed) {
+    MatrixType u(rows, 1);
+    for (Index i = 0; i < rows; ++i) {
+      const RealScalar re = RealScalar(dist(gen));
+      u(i) = Scalar(re, RealScalar(dist(gen)));
+    }
+    const MatrixType m = u * MatrixType::Ones(1, cols);
+    jacobisvd_check_backward_error<MatrixType, Options>(m);
+  }
+}
+
 EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_60((svd_normal_equation_roundoff<float, ColMajor>()));
   CALL_SUBTEST_60((svd_normal_equation_roundoff<double, RowMajor>()));
@@ -424,6 +566,19 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_65((jacobisvd_flushed_subnormal_matrix<MatrixXcd>(3, 5)));
   CALL_SUBTEST_66(jacobisvd_subnormal_diagonals<float>());
   CALL_SUBTEST_66(jacobisvd_subnormal_diagonals<double>());
+  CALL_SUBTEST_70(jacobisvd_complex_tiny_pivot<float>());
+  CALL_SUBTEST_70(jacobisvd_complex_tiny_pivot<double>());
+  CALL_SUBTEST_73(jacobisvd_complex_tiny_pivot_sweeps<float>(6));
+  CALL_SUBTEST_73(jacobisvd_complex_tiny_pivot_sweeps<double>(6));
+  CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, ColPivHouseholderQRPreconditioner>(4, 20)));
+  CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, HouseholderQRPreconditioner>(4, 20)));
+  CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, FullPivHouseholderQRPreconditioner>(4, 20)));
+  CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, HouseholderQRPreconditioner>(20, 4)));
+  CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, NoQRPreconditioner>(8, 8)));
+  CALL_SUBTEST_72((jacobisvd_rank_deficient_family<double, ColPivHouseholderQRPreconditioner>(4, 20)));
+  CALL_SUBTEST_72((jacobisvd_rank_deficient_family<double, HouseholderQRPreconditioner>(8, 40)));
+  CALL_SUBTEST_72((jacobisvd_rank_deficient_family<double, FullPivHouseholderQRPreconditioner>(4, 20)));
+  CALL_SUBTEST_72((jacobisvd_rank_deficient_family<double, NoQRPreconditioner>(8, 8)));
   CALL_SUBTEST_67((svd_zero_matrix_solvers<Matrix3d>(3, 3)));
   CALL_SUBTEST_67((svd_zero_matrix_solvers<Matrix<float, 2, 5>>(2, 5)));
   CALL_SUBTEST_67((svd_zero_matrix_solvers<MatrixXcf>(5, 3)));

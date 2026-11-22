@@ -360,6 +360,45 @@ class qr_preconditioner_impl<MatrixType, Options, HouseholderQRPreconditioner, P
   WorkspaceType m_workspace;
 };
 
+// The complex preconditioning rotates by c = conj(a) / n, s = b / n with n = |(a, b)|_2, the norm of the first column
+// of a 2x2 pivot block. The rotation is unitary to rounding only if n is accurate to a few eps in the relative sense.
+
+// Cold path of jacobi_pivot_norm: returns the norm, in [1, 2], of (a_s, b_s) = (a, b) / m with m the largest of the
+// four real components, so no square underflows or overflows. Division by m, not by a power of two via frexp/ldexp
+// (which a custom scalar need not provide), rounds each component to relative error <= eps / 2, or absolute error
+// <= min against a norm >= 1, so the rotation built from (a_s, b_s) is unitary to rounding and within O(eps) of the
+// exact one.
+template <typename Scalar>
+EIGEN_DONT_INLINE typename NumTraits<Scalar>::Real jacobi_pivot_norm_scaled(
+    const Scalar& a, const Scalar& b, Scalar& a_scaled, Scalar& b_scaled, typename NumTraits<Scalar>::Real sumSquares) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const RealScalar m = numext::maxi(numext::maxi(numext::abs(numext::real(a)), numext::abs(numext::imag(a))),
+                                    numext::maxi(numext::abs(numext::real(b)), numext::abs(numext::imag(b))));
+  // A zero pair, which FTZ/DAZ hardware may also read from subnormal entries, or NaN: nothing to scale.
+  if (!(m > RealScalar(0))) return numext::sqrt(sumSquares);
+  a_scaled = a / m;
+  b_scaled = b / m;
+  const RealScalar scaledSumSquares = numext::abs2(a_scaled) + numext::abs2(b_scaled);
+  return numext::sqrt(scaledSumSquares);
+}
+
+// Returns n = |(a_s, b_s)|_2, where (a_s, b_s) is (a, b) itself or, below the bound, the scaled pair of the cold path,
+// so that c = conj(a_s) / n, s = b_s / n is the rotation for (a, b), unitary to rounding. For S = |a|^2 + |b|^2 >=
+// 4 min / eps the largest real component m has m^2 >= S / 4 >= min / eps, so m^2 is normal. A subnormal square is off
+// by at most min eps / 2, or by at most min if FTZ flushes it, and three such terms total <= 3 min <= 0.75 eps S: S
+// stays accurate to eps. Below that bound the squares lose their accuracy, so the pair is scaled first.
+template <typename Scalar>
+EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real jacobi_pivot_norm(const Scalar& a, const Scalar& b,
+                                                                       Scalar& a_scaled, Scalar& b_scaled) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  const RealScalar sumSquares = numext::abs2(a) + numext::abs2(b);
+  a_scaled = a;
+  b_scaled = b;
+  const RealScalar bound = RealScalar(4) * (std::numeric_limits<RealScalar>::min)() / NumTraits<RealScalar>::epsilon();
+  if (EIGEN_PREDICT_TRUE(sumSquares >= bound)) return numext::sqrt(sumSquares);
+  return jacobi_pivot_norm_scaled(a, b, a_scaled, b_scaled, sumSquares);
+}
+
 /*** 2x2 SVD implementation
  ***
  *** JacobiSVD consists in performing a series of 2x2 SVD subproblems
@@ -380,8 +419,8 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
   static bool run(typename SVD::WorkMatrixType& work_matrix, SVD& svd, Index p, Index q, RealScalar& maxDiagEntry) {
     Scalar z;
     JacobiRotation<Scalar> rot;
-    RealScalar n =
-        numext::sqrt<RealScalar>(numext::abs2(work_matrix.coeff(p, p)) + numext::abs2(work_matrix.coeff(q, p)));
+    Scalar w_pp, w_qp;
+    RealScalar n = jacobi_pivot_norm(work_matrix.coeff(p, p), work_matrix.coeff(q, p), w_pp, w_qp);
 
     const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
     const RealScalar precision = NumTraits<Scalar>::epsilon();
@@ -391,8 +430,7 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
       work_matrix.coeffRef(p, p) = work_matrix.coeffRef(q, p) = Scalar(0);
 
       if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
-        // work_matrix.coeff(p,q) can be zero if work_matrix.coeff(q,p) is not zero but small enough to underflow when
-        // computing n
+        // n is zero only if both entries are zero, or are subnormal and flushed by FTZ/DAZ.
         z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
         work_matrix.row(p) *= z;
         if (svd.computeU()) svd.m_matrixU.col(p) *= numext::conj(z);
@@ -404,8 +442,8 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
       }
       // otherwise the second row is already zero, so we have nothing to do.
     } else {
-      rot.c() = numext::conj(work_matrix.coeff(p, p)) / n;
-      rot.s() = work_matrix.coeff(q, p) / n;
+      rot.c() = numext::conj(w_pp) / n;
+      rot.s() = w_qp / n;
       work_matrix.applyOnTheLeft(p, q, rot);
       if (svd.computeU()) svd.m_matrixU.applyOnTheRight(p, q, rot.adjoint());
       if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
@@ -450,16 +488,15 @@ EIGEN_DONT_INLINE bool jacobi_svd_nonblocking_sweep(WorkMatrixType& work_matrix,
           notFinished = true;
           Scalar z;
           bool doRealSvd = true;
-          RealScalar nn =
-              numext::sqrt<RealScalar>(numext::abs2(work_matrix.coeff(p, p)) + numext::abs2(work_matrix.coeff(q, p)));
+          Scalar w_pp, w_qp;
+          RealScalar nn = jacobi_pivot_norm(work_matrix.coeff(p, p), work_matrix.coeff(q, p), w_pp, w_qp);
 
           if (numext::is_exactly_zero(nn)) {
             // Make sure first column is zero.
             work_matrix.coeffRef(p, p) = work_matrix.coeffRef(q, p) = Scalar(0);
 
             if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
-              // work_matrix.coeff(p, q) can be zero if work_matrix.coeff(q, p) is not zero but small enough to
-              // underflow when computing nn.
+              // nn is zero only if both entries are zero, or are subnormal and flushed by FTZ/DAZ.
               z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
               work_matrix.row(p) *= z;
               if (compute_u) matrix_u.col(p) *= numext::conj(z);
@@ -471,8 +508,8 @@ EIGEN_DONT_INLINE bool jacobi_svd_nonblocking_sweep(WorkMatrixType& work_matrix,
             }
           } else {
             JacobiRotation<Scalar> rot;
-            rot.c() = numext::conj(work_matrix.coeff(p, p)) / nn;
-            rot.s() = work_matrix.coeff(q, p) / nn;
+            rot.c() = numext::conj(w_pp) / nn;
+            rot.s() = w_qp / nn;
             work_matrix.applyOnTheLeft(p, q, rot);
             if (compute_u) matrix_u.applyOnTheRight(p, q, rot.adjoint());
             if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
@@ -1044,8 +1081,9 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
           EIGEN_IF_CONSTEXPR (NumTraits<Scalar>::IsComplex) {
             Scalar z;
             // nn = ||(w_pp, w_qp)||_2, the norm of the first column of the 2x2 block.
-            RealScalar nn = numext::sqrt<RealScalar>(numext::abs2(blockBuffer.coeff(kBlockSize, kBlockSize)) +
-                                                     numext::abs2(blockBuffer.coeff(qq, kBlockSize)));
+            Scalar w_pp, w_qp;
+            RealScalar nn = internal::jacobi_pivot_norm(blockBuffer.coeff(kBlockSize, kBlockSize),
+                                                        blockBuffer.coeff(qq, kBlockSize), w_pp, w_qp);
 
             if (numext::is_exactly_zero(nn)) {
               // First column is zero => block is already upper triangular.
@@ -1071,8 +1109,8 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
               //   [-s c] [w_qp] = [0 ]  c = ----------,  s = ------
               //                                 nn              nn
               JacobiRotation<Scalar> rot;
-              rot.c() = numext::conj(blockBuffer.coeff(kBlockSize, kBlockSize)) / nn;
-              rot.s() = blockBuffer.coeff(qq, kBlockSize) / nn;
+              rot.c() = numext::conj(w_pp) / nn;
+              rot.s() = w_qp / nn;
               blockBuffer.applyOnTheLeft(kBlockSize, qq, rot);
               accum.applyOnTheLeft(kBlockSize, qq, rot);  // accumulate left op
               if (computeU()) m_matrixU.applyOnTheRight(p, q + qq, rot.adjoint());
