@@ -227,6 +227,26 @@ void test_bccb_mixed_scalar(Index n2, Index n1) {
   RVec xr = RVec::Random(N);
   CVec z = Cc * xr;
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
+
+  // solve() promotes like the product: the solution of a real operator for a complex right-hand side is complex.
+  RMat Gd = RMat::Random(n2, n1);
+  Gd(0, 0) += RealScalar(2 * N);
+  Bccb<RealScalar> Cd(Gd);
+  CMat denseD = reference_bccb<RealScalar>(Gd).template cast<Complex>();
+  CVec b = CVec::Random(N);
+  CVec xs = Cd.solve(b);
+  VERIFY_IS_APPROX((denseD * xs).eval(), b);
+  CMat B = CMat::Random(N, 3);
+  CMat Xs = Cd.solve(B);
+  VERIFY_IS_APPROX((denseD * Xs).eval(), B);
+
+  CMat Gdc = CMat::Random(n2, n1);
+  Gdc(0, 0) += Complex(RealScalar(2 * N));
+  Bccb<Complex> Cdc(Gdc);
+  CMat denseDc = reference_bccb<Complex>(Gdc);
+  RVec br = RVec::Random(N);
+  CVec xc = Cdc.solve(br);
+  VERIFY_IS_APPROX((denseDc * xc).eval(), br.template cast<Complex>().eval());
 }
 
 // Non-5-smooth block dimensions: products transform on the padded per-axis

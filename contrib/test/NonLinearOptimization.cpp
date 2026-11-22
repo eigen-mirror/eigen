@@ -554,6 +554,23 @@ void testLmdif() {
   // VERIFY_IS_APPROX( covfac*fjac.topLeftCorner<n,n>() , cov_ref);
 }
 
+// The Jacobian of scaled_sine_functor is of order 1 / scale, so a step relative to |x| = scale resolves it for any
+// scale, which the default step of at least sqrt(epsilon) does not for scale << sqrt(epsilon). The solution is found
+// to within the stopping tolerance xtol = sqrt(epsilon) of the relative change of the parameter.
+void testLmdifTinyParameter() {
+  const double xtol = std::sqrt(NumTraits<double>::epsilon());
+  for (const double scale : {1.0, 1e-3, 1e-6, 1e-9}) {
+    scaled_sine_functor functor(scale);
+    VectorXd x(1);
+    x << 1.3 * scale;
+    NumericalDiff<scaled_sine_functor> numDiff(functor);
+    numDiff.setAbsTol(0);
+    LevenbergMarquardt<NumericalDiff<scaled_sine_functor> > lm(numDiff);
+    lm.minimize(x);
+    VERIFY(numext::abs(x[0] / scale - 1.0) <= xtol);
+  }
+}
+
 // r1mpyq() indexed its argument through a raw pointer with a hard-coded
 // column-major layout, so it corrupted the accumulated orthogonal factor
 // whenever Matrix<Scalar, Dynamic, Dynamic> is row major, which is what
@@ -633,6 +650,7 @@ EIGEN_DECLARE_TEST(NonLinearOptimization) {
   CALL_SUBTEST /*_3*/ (testCovarRankDeficient());
   CALL_SUBTEST /*_3*/ (testLmdif1());
   CALL_SUBTEST /*_3*/ (testLmdif());
+  CALL_SUBTEST /*_3*/ (testLmdifTinyParameter());
 
   // NIST tests, level of difficulty = "Lower"
   CALL_SUBTEST /*_4*/ (testNistMisra1a());

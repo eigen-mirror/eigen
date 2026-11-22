@@ -151,7 +151,7 @@ when there are no longer runs.
 | Member | Meaning |
 |---|---|
 | `setMaxBlockSize(p)` | $`p_{\max}`$, default 4; call before `compute()` |
-| `info()` | `Success`, or `NumericalIssue` when `conditionEstimate()` reaches $`1/\varepsilon`$; a run of ill-conditioned leading submatrices longer than the look-ahead is reported only through that estimate |
+| `info()` | `Success`, or `NumericalIssue` when `conditionEstimate()` reaches $`1/\varepsilon`$; a run of ill-conditioned leading submatrices longer than the look-ahead is reported only through that estimate; if the recursion cannot proceed at all (non-finite generators, or an overflow that leaves no acceptable candidate block) the estimate is infinite and every solve returns NaN; a finite generator whose overflow still leaves an accepted block, possible with `setMaxBlockSize(p)`, `p >= 2`, is also reported as `NumericalIssue`, but its solutions are unspecified and may be only partly NaN |
 | `conditionEstimate()` | estimate of $`\kappa_2(T)`$, the "algorithm condition number" of [1] |
 | `transpose().solve(b)`, `adjoint().solve(b)` | reuse the factorization through the persymmetry $`T^T = E T E`$ ($`E`$ the exchange matrix) |
 
@@ -175,8 +175,8 @@ operators skip the FFT. `transpose()` keeps $`h`$ and swaps the dimensions; its 
 the phases $`e^{2\pi i f (m-n)/p}`$, with no new FFT.
 
 `solve(b)` solves a square system in $`O(n^2)`$ as $`T (Ex) = b`$ with `LookAheadLevinson`. It factorizes on every
-call and `eigen_assert`s that the recursion did not break down; to reuse the factorization or check `info()` instead,
-run `LookAheadLevinson` on `toToeplitz()` and reverse the rows of its solution.
+call and returns NaN when the recursion cannot proceed (non-finite entries, or overflow); to reuse the factorization or
+check `info()` instead, run `LookAheadLevinson` on `toToeplitz()` and reverse the rows of its solution.
 
 ## Bccb
 

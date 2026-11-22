@@ -256,17 +256,21 @@ class Circulant : public EigenBase<Circulant<Scalar_, Size_>> {
    * the rank threshold (see \ref rank) are inverted; the remaining ones are
    * treated as exact zeros, so the result is the pseudo-inverse applied to \a b.
    * For a non-singular operator this is the exact solution
-   * \c x = ifft( fft(b) ./ fft(c) ). Supports multiple right-hand sides. */
+   * \c x = ifft( fft(b) ./ fft(c) ). Supports multiple right-hand sides. The result
+   * has the scalar promoted from the operator and \a b, as for a product: a real
+   * operator solved against a complex right-hand side gives a complex solution. */
   template <typename Rhs>
-  Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  Matrix<typename ScalarBinaryOpTraits<Scalar, typename Rhs::Scalar>::ReturnType, Size_, Rhs::ColsAtCompileTime> solve(
+      const MatrixBase<Rhs>& b) const {
+    using ResultScalar = typename ScalarBinaryOpTraits<Scalar, typename Rhs::Scalar>::ReturnType;
     EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const Index n = rows();
     const ComplexVector s = symbol();
     const RealVector mods = s.cwiseAbs();
     const ComplexVector sinv = internal::structured_pinv_symbol(s, mods, internal::structured_rank_threshold(s, mods));
-    Matrix<Scalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
+    Matrix<ResultScalar, Size_, Rhs::ColsAtCompileTime> x(n, b.cols());
     x.setZero();
-    internal::structured_fft_apply(x, sinv, n, b.derived(), Scalar(1));
+    internal::structured_fft_apply(x, sinv, n, b.derived(), ResultScalar(1));
     return x;
   }
 

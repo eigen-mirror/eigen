@@ -477,9 +477,11 @@ void MatrixPower<MatrixType>::compute(ResultType& res, RealScalar p) {
       RealScalar intpart;
       split(p, intpart);
 
-      res = MatrixType::Identity(rows(), cols());
-      computeIntPower(res, intpart);
-      if (p) computeFracPower(res, p);
+      // res may alias the base m_A (A = A.pow(p)), which the integer power and the Schur decomposition still read.
+      MatrixType power = MatrixType::Identity(rows(), cols());
+      computeIntPower(power, intpart);
+      if (p) computeFracPower(power, p);
+      res = power;
   }
 }
 

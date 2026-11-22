@@ -805,6 +805,26 @@ void test_circulant_mixed_scalar(Index n) {
   RVec xr = RVec::Random(n);
   CVec z = Cc * xr;
   VERIFY_IS_APPROX(z, (denseC * xr).eval());
+
+  // solve() promotes like the product: the solution of a real operator for a complex right-hand side is complex.
+  RVec cd = RVec::Random(n);
+  cd[0] += RealScalar(2 * n);
+  Circulant<RealScalar> Cd(cd);
+  CMat denseD = reference_circulant<RealScalar>(cd).template cast<Complex>();
+  CVec b = CVec::Random(n);
+  CVec xs = Cd.solve(b);
+  VERIFY_IS_APPROX((denseD * xs).eval(), b);
+  CMat B = CMat::Random(n, 3);
+  CMat Xs = Cd.solve(B);
+  VERIFY_IS_APPROX((denseD * Xs).eval(), B);
+
+  CVec cdc = CVec::Random(n);
+  cdc[0] += Complex(RealScalar(2 * n));
+  Circulant<Complex> Cdc(cdc);
+  CMat denseDc = reference_circulant<Complex>(cdc);
+  RVec br = RVec::Random(n);
+  CVec xc = Cdc.solve(br);
+  VERIFY_IS_APPROX((denseDc * xc).eval(), br.template cast<Complex>().eval());
 }
 
 template <typename RealScalar>
@@ -1413,6 +1433,111 @@ void test_levinson_singular() {
   }
 }
 
+// When every candidate block step has a NaN conditioning measure (non-finite generators, or a recursion that
+// overflows on a finite, extremely ill-conditioned matrix) the factorization cannot continue: info() reports
+// NumericalIssue and every solve, like BartelsStewart's, returns NaN of the right size instead of reading the
+// factors that were never built.
+template <typename Solution>
+bool structured_all_nan(const Solution& x) {
+  for (Index j = 0; j < x.cols(); ++j)
+    for (Index i = 0; i < x.rows(); ++i)
+      if (!(numext::isnan)(x(i, j))) return false;
+  return true;
+}
+
+template <typename Scalar>
+void test_levinson_breakdown_solves(const Matrix<Scalar, Dynamic, 1>& c, const Matrix<Scalar, Dynamic, 1>& r,
+                                    Index max_block_size) {
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  using Mat = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index n = c.size();
+  Toeplitz<Scalar> T(c, r);
+  LookAheadLevinson<Scalar> lev;
+  lev.setMaxBlockSize(max_block_size);
+  lev.compute(T);
+  VERIFY(lev.info() == NumericalIssue);
+  VERIFY(!((numext::isfinite)(lev.conditionEstimate())));
+  Vec b = Vec::Random(n);
+  Mat B = Mat::Random(n, 3);
+  // No step could be taken: every solve is NaN of the right size.
+  VERIFY_IS_EQUAL(Mat(lev.solve(B)).cols(), 3);
+  VERIFY_IS_EQUAL(Mat(lev.solve(B)).rows(), n);
+  VERIFY(structured_all_nan(Vec(lev.solve(b))));
+  VERIFY(structured_all_nan(Mat(lev.solve(B))));
+  VERIFY(structured_all_nan(Vec(lev.transpose().solve(b))));
+  VERIFY(structured_all_nan(Mat(lev.adjoint().solve(B))));
+
+  // A Hankel system is the column-reversed Toeplitz system.
+  Hankel<Scalar> H(r.reverse().eval(), c);  // H.toToeplitz() == T
+  VERIFY_IS_EQUAL(Vec(H.solve(b)).size(), n);
+  VERIFY(structured_all_nan(Vec(H.solve(b))));
+}
+
+// A non-finite generator entry, anywhere and for any block size, is a breakdown: info() is NumericalIssue and every
+// solve is NaN of the right size. A look-ahead step of block size >= 2 would otherwise accept a block whose singular
+// value is reported as 0 (the NaN is dropped by maxi) and return zeros or partly finite vectors.
+template <typename Scalar>
+void test_levinson_breakdown() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  for (Real bad : {std::numeric_limits<Real>::quiet_NaN(), std::numeric_limits<Real>::infinity()}) {
+    for (Index n = 4; n <= 9; ++n) {
+      for (Index pos = 0; pos < n; ++pos) {
+        for (Index pmax = 1; pmax <= 4; ++pmax) {
+          for (int rep = 0; rep < 2; ++rep) {
+            Vec c = Vec::Random(n), r = Vec::Random(n);
+            c[pos] = Scalar(bad);
+            r[0] = c[0];
+            test_levinson_breakdown_solves<Scalar>(c, r, pmax);
+            // The same entry in the row generator (pos >= 1; r[0] is the shared diagonal).
+            if (pos >= 1) {
+              Vec c2 = Vec::Random(n), r2 = Vec::Random(n);
+              r2[0] = c2[0];
+              r2[pos] = Scalar(bad);
+              test_levinson_breakdown_solves<Scalar>(c2, r2, pmax);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// A finite generator whose breakdown is certain on every platform. With the maximum block size 1 the factorization
+// starts from the 1 x 1 block [c_0] and y = -r_1 / c_0 = -2 highest overflows to -inf by one division (or by the
+// reciprocal 1 / c_0 = 4 times r_1; either overflows, whatever the contraction). Then muY = inf, and the candidate's
+// psi = |c_0 + c_1 y| / max(1, muY, ...) is inf / inf = NaN, so no step can be taken.
+template <typename Scalar>
+void test_levinson_finite_overflow() {
+  using Real = typename NumTraits<Scalar>::Real;
+  using Vec = Matrix<Scalar, Dynamic, 1>;
+  Vec c = Vec::Ones(4), r = Vec::Ones(4);
+  c[0] = r[0] = Scalar(Real(0.25));
+  r[1] = Scalar(NumTraits<Real>::highest() / Real(2));
+  VERIFY(c.allFinite() && r.allFinite());
+  test_levinson_breakdown_solves<Scalar>(c, r, 1);
+}
+
+// An ill-conditioned matrix that does not break down (generator 1.5^i, n = 100): the condition estimate is about
+// 1e18 to 1e19, close enough to 1 / eps that info() is not asserted. LookAheadLevinson::solve and Hankel::solve return
+// finite values of the right size and, since Hankel::solve no longer asserts on info(), do not assert.
+template <typename = void>
+void test_levinson_ill_conditioned() {
+  using Vec = Matrix<double, Dynamic, 1>;
+  const Index n = 100;
+  Vec c(n);
+  for (Index i = 0; i < n; ++i) c[i] = std::pow(1.5, double(i));
+  LookAheadLevinson<double> lev(Toeplitz<double>(c, c));
+  const Vec b = Vec::Random(n);
+  const Vec x = lev.solve(b);
+  VERIFY_IS_EQUAL(x.size(), n);
+  VERIFY(x.allFinite());
+  const Hankel<double> H(c.reverse().eval(), c);
+  const Vec y = H.solve(b);
+  VERIFY_IS_EQUAL(y.size(), n);
+  VERIFY(y.allFinite());
+}
+
 template <typename RealScalar>
 bool structured_same_bits(const RealScalar& a, const RealScalar& b) {
   using Binary = internal::binary_floating_point_traits<RealScalar>;
@@ -1691,6 +1816,12 @@ EIGEN_DECLARE_TEST(structured_matrices) {
     CALL_SUBTEST_13(test_levinson_lookahead<>());
     CALL_SUBTEST_13(test_levinson_fixed<>());
     CALL_SUBTEST_13(test_levinson_singular<>());
+    CALL_SUBTEST_13(test_levinson_breakdown<double>());
+    CALL_SUBTEST_13(test_levinson_breakdown<std::complex<double>>());
+    CALL_SUBTEST_13(test_levinson_finite_overflow<double>());
+    CALL_SUBTEST_13(test_levinson_finite_overflow<float>());
+    CALL_SUBTEST_13(test_levinson_finite_overflow<std::complex<double>>());
+    CALL_SUBTEST_13(test_levinson_ill_conditioned<>());
     CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(1)));
     CALL_SUBTEST_13((test_levinson_solve_in_expression<double>(24)));
     CALL_SUBTEST_14((test_levinson_wellcond<std::complex<float>>(24)));

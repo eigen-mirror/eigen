@@ -116,6 +116,89 @@ void check_min_max_equal_values() {
   VERIFY_IS_EQUAL((max)(b, a).derivatives(), b.derivatives());
 }
 
+// d(a/b) = (da - (a/b) db) / b is finite for a tiny or huge divisor b even though b*b underflows, or overflows.
+template <typename Derivatives>
+void check_division_by_tiny_divisor() {
+  using Scalar = typename Derivatives::Scalar;
+  using AD = AutoDiffScalar<Derivatives>;
+  const Scalar eps = NumTraits<Scalar>::epsilon();
+  const Scalar root_min = numext::sqrt((numext::numeric_limits<Scalar>::min)());
+  for (Scalar tiny : {root_min * Scalar(0.99), root_min / Scalar(4), root_min / Scalar(16), root_min / Scalar(1000)}) {
+    // b*b < min, so 1 / (b*b) is inexact or infinite.
+    Derivatives da = Derivatives::Zero(2), db = Derivatives::Zero(2);
+    da[0] = Scalar(1);
+    db[1] = tiny;
+    const AD a(tiny, da), b(tiny, db);
+    const AD q = a / b;
+    // a / b = 1 with da/b = (1/tiny, 0) and -(a/b) db / b = (0, -1).
+    VERIFY(numext::abs(q.value() - Scalar(1)) <= 2 * eps);
+    VERIFY(numext::abs(q.derivatives()[0] * tiny - Scalar(1)) <= 4 * eps);
+    VERIFY(numext::abs(q.derivatives()[1] + Scalar(1)) <= 4 * eps);
+    // A constant divisor is the same quotient without the second term.
+    const AD c = a / AD(tiny);
+    VERIFY(numext::abs(c.derivatives()[0] * tiny - Scalar(1)) <= 4 * eps);
+    VERIFY_IS_EQUAL(c.derivatives()[1], Scalar(0));
+    AD d = a;
+    d /= b;
+    VERIFY_IS_EQUAL(d.derivatives(), q.derivatives());
+  }
+  // (da - (a/b) db) / b = (1/b, -1/b) for these operands; the quotient rule's intermediates b^2 and (a/b) db / b
+  // underflow or overflow, as do 1/b^2 and a db / b^2 for the large divisor.
+  const Scalar small = root_min / Scalar(4), large = Scalar(16) / root_min;
+  const Scalar values[2][3] = {{Scalar(1), small, small}, {large, large, Scalar(1)}};  // a, b, derivative of b
+  for (const auto& v : values) {
+    Derivatives da = Derivatives::Zero(2), db = Derivatives::Zero(2);
+    da[0] = Scalar(1);
+    db[1] = v[2];
+    const AD q = AD(v[0], da) / AD(v[1], db);
+    VERIFY(numext::abs(q.derivatives()[0] * v[1] - Scalar(1)) <= 4 * eps);
+    VERIFY(numext::abs(q.derivatives()[1] * v[1] + Scalar(1)) <= 4 * eps);
+  }
+  // c / b has the derivative -(c/b) db / b, which is -1/b for c = b and db = 1; b*b underflows or overflows here.
+  for (Scalar b : {small, root_min * Scalar(0.99), large, -small, -large}) {
+    const AD q = b / AD(b, Derivatives::Ones(2));
+    VERIFY(numext::abs(q.value() - Scalar(1)) <= 2 * eps);
+    VERIFY(numext::abs(q.derivatives()[0] * b + Scalar(1)) <= 4 * eps);
+    VERIFY(numext::abs(q.derivatives()[1] * b + Scalar(1)) <= 4 * eps);
+  }
+  // The quotient is finite, so no division by zero is raised even though b*b underflows to zero (b < sqrt of the
+  // smallest subnormal).
+  {
+    volatile Scalar volatile_b = numext::sqrt(std::numeric_limits<Scalar>::denorm_min()) / Scalar(16);
+    Derivatives da = Derivatives::Zero(2), db = Derivatives::Zero(2);
+    da[0] = Scalar(1);
+    db[1] = Scalar(1);
+    const int raised = fp_exceptions_raised_by(FE_DIVBYZERO, [&] {
+      const AD q = AD(Scalar(1), da) / AD(Scalar(volatile_b), db);
+      volatile Scalar sink = q.derivatives()[0];
+      (void)sink;
+    });
+    if (raised >= 0) VERIFY_IS_EQUAL(raised, 0);
+  }
+  // An ordinary divisor keeps the quotient rule (da b - a db) / b^2.
+  const Derivatives seed_a = (Derivatives(2) << Scalar(0.5), Scalar(-2)).finished();
+  const Derivatives seed_b = (Derivatives(2) << Scalar(3), Scalar(0.25)).finished();
+  const AD a(Scalar(1.5), seed_a), b(Scalar(-0.75), seed_b);
+  const Derivatives expected = (seed_a * b.value() - seed_b * a.value()) / (b.value() * b.value());
+  VERIFY(((a / b).derivatives() - expected).norm() <= 4 * eps * expected.norm());
+  const Derivatives expected_scalar = -Scalar(2) * seed_b / (b.value() * b.value());
+  VERIFY(((Scalar(2) / b).derivatives() - expected_scalar).norm() <= 4 * eps * expected_scalar.norm());
+}
+
+// d/dx x^0 = 0 also at x = 0, where y * x^(y-1) is 0 * inf.
+template <typename Derivatives>
+void check_pow_zero_exponent() {
+  using Scalar = typename Derivatives::Scalar;
+  using AD = AutoDiffScalar<Derivatives>;
+  for (Scalar x : {Scalar(0), Scalar(-0.0), Scalar(0.5), Scalar(-3)}) {
+    const AD p = pow(AD(x, Derivatives::Ones(2)), Scalar(0));
+    VERIFY_IS_EQUAL(p.value(), Scalar(1));
+    VERIFY(p.derivatives().isZero());
+  }
+  const AD q = pow(AD(Scalar(2), Derivatives::Ones(2)), Scalar(3));
+  VERIFY_IS_APPROX(q.derivatives()[0], Scalar(12));
+}
+
 // The overflow and infinity edges of atan'. The rest of its battery runs through CHECK_AUTODIFF_MATH below.
 template <typename Derivatives>
 void check_atan_extremes() {
@@ -372,9 +455,17 @@ EIGEN_DECLARE_TEST(autodiff_scalar) {
     CALL_SUBTEST_8(check_atan_extremes<Vector2f>());
     CALL_SUBTEST_8(check_atan_extremes<VectorXf>());
     CALL_SUBTEST_8(check_issue234_operations<float>());
+    CALL_SUBTEST_8(check_division_by_tiny_divisor<Vector2f>());
+    CALL_SUBTEST_8(check_division_by_tiny_divisor<VectorXf>());
+    CALL_SUBTEST_8(check_pow_zero_exponent<Vector2f>());
+    CALL_SUBTEST_8(check_pow_zero_exponent<VectorXf>());
     CALL_SUBTEST_9(check_atan_extremes<Vector2d>());
     CALL_SUBTEST_9(check_atan_extremes<VectorXd>());
     CALL_SUBTEST_9(check_issue234_operations<double>());
+    CALL_SUBTEST_9(check_division_by_tiny_divisor<Vector2d>());
+    CALL_SUBTEST_9(check_division_by_tiny_divisor<VectorXd>());
+    CALL_SUBTEST_9(check_pow_zero_exponent<Vector2d>());
+    CALL_SUBTEST_9(check_pow_zero_exponent<VectorXd>());
     CALL_SUBTEST_10(check_additional_math<Vector2f>());
     CALL_SUBTEST_10(check_additional_math<VectorXf>());
     CALL_SUBTEST_11(check_additional_math<Vector2d>());

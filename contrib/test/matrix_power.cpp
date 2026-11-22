@@ -261,6 +261,35 @@ using Matrix3dRowMajor = Matrix<double, 3, 3, RowMajor>;
 using Matrix3e = Matrix<long double, 3, 3>;
 using MatrixXe = Matrix<long double, Dynamic, Dynamic>;
 
+// `A = A.pow(p)` must agree with the out-of-place result: the evaluation reads A (its integer power and its Schur
+// decomposition) after the destination, which is A itself, would have been overwritten.
+template <typename MatrixType>
+void testInPlace(const MatrixType& m, const typename MatrixType::RealScalar& tol) {
+  using RealScalar = typename MatrixType::RealScalar;
+  using ComplexScalar = std::complex<RealScalar>;
+  MatrixType m1, expected, actual;
+  generateTestMatrix<MatrixType>::run(m1, m.rows());
+  for (double exponent : {0., 1., 2., 3., 5., -1., -2., 0.5, 0.25, 2.5, 3.75, -0.5, -1.5}) {
+    const RealScalar p = RealScalar(exponent);
+    expected = m1.pow(p);
+    actual = m1;
+    actual = actual.pow(p);
+    VERIFY(actual.isApprox(expected, tol));
+
+    // The same through a MatrixPower object that holds a reference to the destination.
+    actual = m1;
+    MatrixPower<MatrixType> mpow(actual);
+    actual = mpow(p);
+    VERIFY(actual.isApprox(expected, tol));
+  }
+  const ComplexScalar complex_exponent(RealScalar(1.5), RealScalar(0.25));
+  MatrixType a = m1;
+  auto complex_expected = (complex_exponent * m1.log()).exp().eval();
+  auto complex_actual = a.template cast<ComplexScalar>().eval();
+  complex_actual = complex_actual.pow(complex_exponent);
+  VERIFY(complex_actual.isApprox(complex_expected, tol));
+}
+
 EIGEN_DECLARE_TEST(matrix_power) {
   // Factors are the smallest powers of two above the worst relative error seen over ~50k randomized trials per
   // instantiation (4x that maximum). testGeneral is dominated by the A^(x+y) = A^x A^y and (A^x)^y identities,
@@ -290,6 +319,11 @@ EIGEN_DECLARE_TEST(matrix_power) {
   CALL_SUBTEST_11(testGeneral(Matrix3f(), 32768 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_12(testGeneral(Matrix3e(), 4096 * NumTraits<long double>::epsilon()));
 
+  CALL_SUBTEST_2(testInPlace(Matrix2d(), 2048 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_7(testInPlace(Matrix3dRowMajor(), 4096 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_3(testInPlace(Matrix4cd(), 4096 * NumTraits<std::complex<double>>::epsilon()));
+  CALL_SUBTEST_4(testInPlace(MatrixXd(8, 8), 16384 * NumTraits<double>::epsilon()));
+  CALL_SUBTEST_1(testInPlace(Matrix2f(), 2048 * NumTraits<float>::epsilon()));
   CALL_SUBTEST_2(testSingular(Matrix2d(), 8 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_7(testSingular(Matrix3dRowMajor(), 512 * NumTraits<double>::epsilon()));
   CALL_SUBTEST_3(testSingular(Matrix4cd(), 8 * NumTraits<std::complex<double>>::epsilon()));

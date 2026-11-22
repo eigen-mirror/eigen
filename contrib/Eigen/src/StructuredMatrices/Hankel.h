@@ -212,15 +212,13 @@ class Hankel : public EigenBase<Hankel<Scalar_, Rows_, Cols_>> {
    * Supports multiple right-hand sides. Each call factorizes anew; to reuse a
    * factorization across calls, or to check for numerical breakdown through
    * \c info(), use \c LookAheadLevinson on \ref toToeplitz directly and reverse
-   * the solution rows. */
+   * the solution rows. When the recursion cannot proceed at all (non-finite
+   * entries, or overflow) the result is NaN, as for \c LookAheadLevinson. */
   template <typename Rhs>
   Matrix<Scalar, SolveRowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
     EIGEN_INTERNAL_ASSERT_SQUARE_MSG(*this, "Hankel::solve requires a square matrix");
     EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     LookAheadLevinson<Scalar> levinson(toToeplitz());
-    eigen_assert(levinson.info() == Success &&
-                 "Hankel::solve: the Levinson recursion broke down; "
-                 "use LookAheadLevinson on toToeplitz() for diagnostics");
     return levinson.solve(b).colwise().reverse();
   }
 

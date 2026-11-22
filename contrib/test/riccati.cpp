@@ -119,6 +119,22 @@ void check_real_dare_relative(const MatrixXd& A, const MatrixXd& B, const Matrix
   VERIFY(dare_residual(a, b, q, r, X).norm() <= RealScalar(bound) * NumTraits<RealScalar>::epsilon() * scale);
 }
 
+// The generalized counterpart of check_real_dare_relative(), with scale
+//   ||A^* X A||_F + ||E^* X E||_F + ||Q||_F + ||G||_F,  G = (A^* X B + S) (R + B^* X B)^-1 (B^* X A + S^*).
+template <typename MatrixType>
+void check_generalized_dare_relative(const MatrixType& A, const MatrixType& B, const MatrixType& Q, const MatrixType& R,
+                                     const MatrixType& E, const MatrixType& S, typename MatrixType::RealScalar bound) {
+  using RealScalar = typename MatrixType::RealScalar;
+  DiscreteAlgebraicRiccatiSolver<MatrixType> dare(A, B, Q, R, E, S);
+  VERIFY_IS_EQUAL(dare.info(), Success);
+  const MatrixType& X = dare.solution();
+  VERIFY_IS_EQUAL(X, X.adjoint());
+  const MatrixType AXB = A.adjoint() * X * B + S;
+  const MatrixType G = AXB * (R + B.adjoint() * X * B).fullPivLu().solve(AXB.adjoint());
+  const RealScalar scale = (A.adjoint() * X * A).norm() + (E.adjoint() * X * E).norm() + Q.norm() + G.norm();
+  VERIFY(dare_residual(A, B, Q, R, E, S, X).norm() <= bound * NumTraits<RealScalar>::epsilon() * scale);
+}
+
 // Backward error check for a computed solution X:
 //   rho = ||res||_F / (m eps (||A^* X A||_F + ||E^* X E||_F + ||Q||_F) kappa) <= 30,
 //   kappa = max(1, ||E^* X E||_F / ||Q||_F),
@@ -199,7 +215,11 @@ void dare_scipy_real_cases() {
     B << 1, -1;
     Q << 9, 6, 6, 4;
     R << 1;
-    check_real_dare<MatrixType>(A, B, Q, R, 1.5e-13);
+    // SciPy's 1.5e-13 is about 10 eps scale, with scale = ||A^* X A|| + ||X|| + ||Q|| + ||G|| = 68 for the exact
+    // solution X, inside the rounding spread of the solver (FMA contraction): ||res||_F / (eps scale) is 2 to 18 in
+    // real and 2 to 5 in complex arithmetic over GCC 15 and Clang 21 with and without vectorization, AVX2 + FMA and
+    // -ffp-contract=off (18 is GCC without vectorization). The bound is more than twice the maximum.
+    check_real_dare_relative<MatrixType>(A, B, Q, R, 40);
   }
   {  // DAREX 2
     MatrixXd A(2, 2), B(2, 2), Q(2, 2), R(2, 2);
@@ -342,12 +362,15 @@ void dare_generalized_scipy_cases() {
       4.983641e-01;
   const MatrixXd Q = MatrixXd::Identity(3, 3), R = MatrixXd::Identity(2, 2);
   // SciPy's 1.5e-11 matches LAPACK's rounding; depending on vectorization and scalar type, the residuals reach
-  // 1.8e-11.
+  // 1.8e-11 (S = 0). With S = 1, where scale = ||A^* X A|| + ||E^* X E|| + ||Q|| + ||G|| = 645, they reach 2e-11 in
+  // complex arithmetic, 0.66 of the absolute tolerance, so that case is checked relative to eps scale instead:
+  // ||res||_F / (eps scale) is 32 to 145 in real and 46 to 194 in complex arithmetic over GCC 15 and Clang 21 with and
+  // without vectorization, AVX2 + FMA and -ffp-contract=off. The bound is twice the maximum.
   const double atol = 3e-11;
   check_generalized_dare<MatrixType>(A.cast<Scalar>(), B.cast<Scalar>(), Q.cast<Scalar>(), R.cast<Scalar>(),
                                      E.cast<Scalar>(), MatrixType::Zero(3, 2), atol);
-  check_generalized_dare<MatrixType>(A.cast<Scalar>(), B.cast<Scalar>(), Q.cast<Scalar>(), R.cast<Scalar>(),
-                                     E.cast<Scalar>(), MatrixType::Ones(3, 2), atol);
+  check_generalized_dare_relative<MatrixType>(A.cast<Scalar>(), B.cast<Scalar>(), Q.cast<Scalar>(), R.cast<Scalar>(),
+                                              E.cast<Scalar>(), MatrixType::Ones(3, 2), 400);
   if (NumTraits<Scalar>::IsComplex) return;
 
   // Reported under SciPy PR 6616: E omitted, S given.

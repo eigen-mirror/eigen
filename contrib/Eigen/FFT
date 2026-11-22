@@ -99,6 +99,11 @@
  * transform.  This facilitates generic template programming by obviating
  * separate specializations for real vs complex.  On the inverse
  * transform, only half the spectrum is actually used if the output type is real.
+ *
+ * A half spectrum of S bins does not record the parity of the signal it came from. The inverse transform with
+ * the default length takes it to be the spectrum of an even-length signal of 2 (S - 1) samples, and the inverse
+ * with an explicit length resamples it under the same assumption: see the inverse transform with a length that
+ * differs from the spectrum's.
  */
 
 #include "../../Eigen/src/Core/util/DisableStupidWarnings.h"
@@ -272,11 +277,15 @@ class FFT {
   inline void ClearFlag(Flag f) { m_flag &= (~(int)f); }
 
   inline void fwd(Complex* dst, const Scalar* src, Index nfft) {
+    if (nfft <= 0) return;  // the backends cannot plan an empty transform
     m_impl.fwd(dst, src, static_cast<int>(nfft));
     if (HasFlag(HalfSpectrum) == false) ReflectSpectrum(dst, nfft);
   }
 
-  inline void fwd(Complex* dst, const Complex* src, Index nfft) { m_impl.fwd(dst, src, static_cast<int>(nfft)); }
+  inline void fwd(Complex* dst, const Complex* src, Index nfft) {
+    if (nfft <= 0) return;
+    m_impl.fwd(dst, src, static_cast<int>(nfft));
+  }
 
 #if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \
     defined EIGEN_MKL_DEFAULT
@@ -287,13 +296,13 @@ class FFT {
   inline void fwd(std::vector<Complex>& dst, const std::vector<Input_>& src) {
     EIGEN_IF_CONSTEXPR (NumTraits<Input_>::IsComplex == 0) {
       if (HasFlag(HalfSpectrum))
-        dst.resize((src.size() >> 1) + 1);  // half the bins + Nyquist bin
+        dst.resize(src.empty() ? 0 : (src.size() >> 1) + 1);  // half the bins + Nyquist bin
       else
         dst.resize(src.size());
     } else {
       dst.resize(src.size());
     }
-    fwd(&dst[0], &src[0], src.size());
+    fwd(dst.data(), src.data(), src.size());
   }
 
   template <typename InputDerived, typename ComplexDerived>
@@ -314,7 +323,7 @@ class FFT {
 
     Index dst_size = nfft;
     EIGEN_IF_CONSTEXPR (NumTraits<src_type>::IsComplex == 0) {
-      if (HasFlag(HalfSpectrum)) {
+      if (HasFlag(HalfSpectrum) && nfft > 0) {
         dst_size = (nfft >> 1) + 1;
       }
     }
@@ -358,15 +367,31 @@ class FFT {
   }
 
   inline void inv(Complex* dst, const Complex* src, Index nfft) {
+    if (nfft <= 0) return;
     m_impl.inv(dst, src, static_cast<int>(nfft));
     if (HasFlag(Unscaled) == false) scale(dst, Scalar(1. / nfft), nfft);  // scale the time series
   }
 
   inline void inv(Scalar* dst, const Complex* src, Index nfft) {
+    if (nfft <= 0) return;
     m_impl.inv(dst, src, static_cast<int>(nfft));
     if (HasFlag(Unscaled) == false) scale(dst, Scalar(1. / nfft), nfft);  // scale the time series
   }
 
+  /** Inverse transform of the vector \a src into \a dst, of length \a nfft (default: the length implied by \a src).
+   *
+   * When \a nfft differs from the length of \a src, the spectrum is truncated or zero-padded to \a nfft bins
+   * (no amplitude rescaling) before the inverse transform. With n = min(size, nfft), the bins at frequencies
+   * |f| < n / 2 keep their place. For even n the Nyquist bin is the mean of the two bins that fold into it when
+   * shrinking, and the old Nyquist bin is split into two halves when expanding. For odd n there is no Nyquist bin.
+   * The inverse of the spectrum of a real signal is then real.
+   *
+   * With the HalfSpectrum flag and a real \a dst, \a src holds the bins 0..S-1 and the source length is taken to
+   * be the even number 2 (S - 1), whose last bin is the Nyquist bin. A half spectrum that is expanded is
+   * therefore resampled correctly only if it came from a signal of even length: for an odd-length signal its
+   * last bin is an ordinary bin, which is wrongly made real and halved. Shrinking is correct for either parity.
+   * A half spectrum of S bins with nfft / 2 + 1 == S is used as is, as the half spectrum of an nfft-point signal.
+   */
   template <typename OutputDerived, typename ComplexDerived>
   inline void inv(DenseBase<OutputDerived>& dst, const DenseBase<ComplexDerived>& src, Index nfft = -1) {
     using src_type = typename ComplexDerived::Scalar;
@@ -385,11 +410,12 @@ class FFT {
 
     if (nfft < 1) {  // automatic FFT size determination
       if (realfft && HasFlag(HalfSpectrum))
-        nfft = 2 * (src.size() - 1);  // assume even fft size
+        nfft = src.size() > 0 ? 2 * (src.size() - 1) : 0;  // assume even fft size
       else
         nfft = src.size();
     }
     internal::fft_resize_as_vector(dst, nfft, src.rows() == 1);
+    if (nfft == 0) return;
 
     // check for nfft that does not fit the input data size
     Index resize_input = (realfft && HasFlag(HalfSpectrum)) ? ((nfft / 2 + 1) - src.size()) : (nfft - src.size());
@@ -399,24 +425,32 @@ class FFT {
       const auto src_lin = src.reshaped();
       Matrix<src_type, 1, Dynamic> tmp;
       if (resize_input) {
-        size_t ncopy = (std::min)(src.size(), src.size() + resize_input);
+        // Resample the spectrum to nfft bins: the bins with frequencies |f| < min(size, nfft) / 2 keep their place, and
+        // an even min(size, nfft) adds the Nyquist bin at nfft / 2, which is the mean of the bins at +-nfft / 2 when
+        // shrinking and is split into two halves at +-size / 2 when expanding. An odd count has no Nyquist bin.
+        const Index ncopy = (std::min)(src.size(), src.size() + resize_input);
         tmp.setZero(src.size() + resize_input);
         if (realfft && HasFlag(HalfSpectrum)) {
-          // pad at the Nyquist bin
+          // bins 0..nfft/2 of a spectrum whose last bin is real: the Nyquist bin of an even length
           tmp.head(ncopy) = src_lin.head(ncopy);
-          tmp(ncopy - 1) = real(tmp(ncopy - 1));  // enforce real-only Nyquist bin
+          if (ncopy > 0 && resize_input > 0) {
+            // the old Nyquist bin is now an interior bin, which the transform counts twice (with its mirror image)
+            tmp(ncopy - 1) = numext::real(tmp(ncopy - 1)) * (ncopy > 1 ? real_type(.5) : real_type(1));
+          } else if (resize_input < 0 && nfft % 2 == 0) {
+            tmp(ncopy - 1) = numext::real(tmp(ncopy - 1));  // enforce real-only Nyquist bin
+          }
         } else {
-          size_t nhead, ntail;
-          nhead = 1 + ncopy / 2 - 1;  // range  [0:pi)
-          ntail = ncopy / 2 - 1;      // range (-pi:0)
+          const Index nhead = (ncopy + 1) / 2;  // range [0:pi)
+          const Index ntail = (ncopy - 1) / 2;  // range (-pi:0)
           tmp.head(nhead) = src_lin.head(nhead);
           tmp.tail(ntail) = src_lin.tail(ntail);
-          if (resize_input <
-              0) {  // shrinking -- create the Nyquist bin as the average of the two bins that fold into it
-            tmp(nhead) = (src_lin(nfft / 2) + src_lin(src.size() - nfft / 2)) * real_type(.5);
-          } else {  // expanding -- split the old Nyquist bin into two halves
-            tmp(nhead) = src_lin(nhead) * real_type(.5);
-            tmp(tmp.size() - nhead) = tmp(nhead);
+          if (ncopy > 0 && ncopy % 2 == 0) {
+            if (resize_input < 0) {  // shrinking -- the Nyquist bin is the mean of the two bins that fold into it
+              tmp(nhead) = (src_lin(nfft / 2) + src_lin(src.size() - nfft / 2)) * real_type(.5);
+            } else {  // expanding -- split the old Nyquist bin into two halves
+              tmp(nhead) = src_lin(nhead) * real_type(.5);
+              tmp(tmp.size() - nhead) = tmp(nhead);
+            }
           }
         }
       } else {
@@ -443,10 +477,12 @@ class FFT {
 
   template <typename Output_>
   inline void inv(std::vector<Output_>& dst, const std::vector<Complex>& src, Index nfft = -1) {
-    if (nfft < 1)
-      nfft = (NumTraits<Output_>::IsComplex == 0 && HasFlag(HalfSpectrum)) ? 2 * (src.size() - 1) : src.size();
+    if (nfft < 1) {
+      nfft = src.size();
+      if (NumTraits<Output_>::IsComplex == 0 && HasFlag(HalfSpectrum)) nfft = nfft > 0 ? 2 * (nfft - 1) : 0;
+    }
     dst.resize(nfft);
-    inv(&dst[0], &src[0], nfft);
+    inv(dst.data(), src.data(), nfft);
   }
 
 #if defined EIGEN_FFTW_DEFAULT || defined EIGEN_POCKETFFT_DEFAULT || defined EIGEN_DUCCFFT_DEFAULT || \

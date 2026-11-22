@@ -158,7 +158,13 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
 
   /** \returns \c Success, or \c NumericalIssue when conditionEstimate() reaches
    * \f$ 1/\varepsilon \f$; a run of ill-conditioned leading submatrices longer
-   * than the look-ahead is reported only through that estimate. */
+   * than the look-ahead is reported only through that estimate. If the recursion
+   * cannot proceed at all (a non-finite generator entry, for every block size, or
+   * an overflow that leaves no acceptable candidate block), conditionEstimate() is
+   * infinite and every solve returns NaN. A finite generator whose overflow still
+   * leaves an accepted block, possible with setMaxBlockSize(p), p >= 2, is also
+   * reported as \c NumericalIssue with a large or infinite estimate, but its
+   * solutions are unspecified and may be only partly NaN (the rest zeros). */
   ComputationInfo info() const {
     eigen_assert(m_isInitialized && "LookAheadLevinson is not initialized.");
     return m_info;
@@ -177,6 +183,7 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
   template <typename Rhs>
   DenseMatrix solveForward(const Rhs& b) const {
     const Index nrhs = b.cols();
+    if (!m_complete) return DenseMatrix::Constant(m_n, nrhs, Scalar(NumTraits<RealScalar>::quiet_NaN()));
     DenseMatrix x = m_luInit.solve(b.topRows(m_k0));
     DenseMatrix rhs, a, xn;
     for (const Step& s : m_steps) {
@@ -228,6 +235,7 @@ class LookAheadLevinson : public SolverBase<LookAheadLevinson<Scalar_>> {
   Index m_k0;
   FullPivLU<DenseMatrix> m_luInit;  // LU of the leading T_{k0}
   std::vector<Step> m_steps;
+  bool m_complete = false;  // the steps reach order n; else every solve is NaN
   bool m_isInitialized;
   ComputationInfo m_info;
   RealScalar m_sMin;
@@ -250,8 +258,19 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
 
   m_n = n;
   m_steps.clear();
+  m_complete = true;
   m_info = Success;
   m_normEst = c.cwiseAbs().sum() + r.cwiseAbs().sum();  // cheap upper bound on ||T||_2
+
+  if (!(c.allFinite() && r.allFinite())) {
+    // A non-finite entry of T is a breakdown whatever the block size: a block with a NaN entry has the computed
+    // singular value 0 (maxi drops the NaN), is accepted, and its LU solves to zeros or to partly finite vectors.
+    m_complete = false;
+    m_sMin = RealScalar(0);
+    m_info = NumericalIssue;
+    m_isInitialized = true;
+    return *this;
+  }
 
   Index k;
   DenseVector y, z;
@@ -380,6 +399,14 @@ LookAheadLevinson<Scalar_>& LookAheadLevinson<Scalar_>::compute(const Toeplitz<S
         bestGamma = Gamma;
         break;
       }
+    }
+
+    if (bestGamma.size() == 0) {
+      // Every candidate block has a NaN psi (an overflowing recursion on finite generators): no step can be taken.
+      m_complete = false;
+      m_steps.clear();
+      m_sMin = RealScalar(0);
+      break;
     }
 
     DenseMatrix Gamma = bestGamma;

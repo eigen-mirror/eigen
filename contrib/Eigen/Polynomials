@@ -28,8 +28,8 @@
 
 /**
  * \defgroup Polynomials_Module Polynomials module
- * \brief This module provides a polynomial solver based on companion-matrix eigenvalues refined by Ehrlich-Aberth
- * iterations.
+ * \brief This module provides a polynomial solver based on companion-matrix eigenvalues, with an optional
+ * Ehrlich-Aberth refinement.
  *
  * To use this module, add
  * \code
@@ -100,8 +100,8 @@
 
 
         \section QR polynomial solver class
-        Computes the complex roots of a polynomial in two steps. The eigenvalues of the associated companion matrix,
-  computed with the QR algorithm, give a first approximation of the roots.
+        Computes the complex roots of a polynomial as the eigenvalues of the associated companion matrix, computed with
+  the QR algorithm.
 
         The roots of \f$ p(x) = a_0 + a_1 x + a_2 x^2 + a_{3} x^3 + x^4 \f$ are the eigenvalues of
         \f$
@@ -115,11 +115,13 @@
         \f$
 
         The QR algorithm is backward stable for the companion matrix, but a perturbation of that matrix is not a
-  perturbation of the coefficients of \f$ p \f$, so the eigenvalues can be much less accurate than the conditioning of
-  the roots allows, frequently so with 32bit (float) floating types. Each approximation is therefore refined by
-  simultaneous Ehrlich-Aberth iterations on \f$ p \f$ itself, targeting a residual within the rounding error of
-  evaluation. The number of sweeps is limited; an unfinished iterate whose residual increased falls back to its
-  initial eigenvalue estimate. A root of multiplicity \f$ m \f$ can only be located to about \f$ \epsilon^{1/m} \f$.
+  perturbation of the coefficients of \f$ p \f$, so an individual eigenvalue can be much less accurate than the
+  conditioning of its root allows, frequently so with 32bit (float) floating types. A root of multiplicity \f$ m \f$ can
+  only be located to about \f$ \epsilon^{1/m} \f$. Passing \c true as the second argument of the constructor or of
+  \c compute() refines the eigenvalues by simultaneous Ehrlich-Aberth iterations on \f$ p \f$ itself, targeting a
+  residual within the rounding error of evaluation. Refined roots are individually more accurate for well-separated
+  roots, but for multiple or clustered roots they are no longer jointly the roots of one nearby polynomial, which is why
+  the refinement is off by default.
 
         \include PolynomialSolver1.cpp
 

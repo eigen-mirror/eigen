@@ -91,6 +91,25 @@ void CauchyBounds_scalar() {
   CALL_SUBTEST_9((CauchyBounds<Scalar_, Dynamic>(internal::random<int>(18, 26))));
 }
 
+// The monic polynomial with no roots is the constant 1.
+template <typename Scalar_>
+void roots_to_monicPolynomial_empty() {
+  Matrix<Scalar_, Dynamic, 1> roots(0), poly = Matrix<Scalar_, Dynamic, 1>::Constant(3, Scalar_(7));
+  roots_to_monicPolynomial(roots, poly);
+  VERIFY_IS_EQUAL(poly.size(), 1);
+  VERIFY_IS_EQUAL(poly[0], Scalar_(1));
+
+  Matrix<std::complex<Scalar_>, Dynamic, 1> complex_roots(0), complex_poly;
+  roots_to_monicPolynomial(complex_roots, complex_poly);
+  VERIFY_IS_EQUAL(complex_poly.size(), 1);
+  VERIFY_IS_EQUAL(complex_poly[0], std::complex<Scalar_>(1));
+
+  Matrix<Scalar_, 0, 1> fixed_roots;
+  Matrix<Scalar_, 1, 1> fixed_poly;
+  roots_to_monicPolynomial(fixed_roots, fixed_poly);
+  VERIFY_IS_EQUAL(fixed_poly[0], Scalar_(1));
+}
+
 EIGEN_DECLARE_TEST(polynomialutils) {
   for (int i = 0; i < g_repeat; i++) {
     realRoots_to_monicPolynomial_scalar<double>();
@@ -98,4 +117,6 @@ EIGEN_DECLARE_TEST(polynomialutils) {
     CauchyBounds_scalar<double>();
     CauchyBounds_scalar<float>();
   }
+  CALL_SUBTEST_1(roots_to_monicPolynomial_empty<double>());
+  CALL_SUBTEST_1(roots_to_monicPolynomial_empty<float>());
 }

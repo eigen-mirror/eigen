@@ -166,6 +166,33 @@ void testMatrixType(const MatrixType& m) {
   }
 }
 
+// A = f(A) must agree with the out-of-place result for every matrix function.
+template <typename MatrixType>
+void testInPlace(const MatrixType& m) {
+  using Scalar = typename MatrixType::Scalar;
+  using ComplexScalar = std::complex<typename NumTraits<Scalar>::Real>;
+  const Index size = m.rows();
+  // Symmetric positive definite, so that sqrt and log are defined and the functions take their real code paths.
+  MatrixType A = MatrixType::Random(size, size);
+  A = (A * A.adjoint() + MatrixType::Identity(size, size)).eval();
+  MatrixType expected, actual;
+
+#define CHECK_IN_PLACE(EXPR) \
+  expected = A.EXPR;         \
+  actual = A;                \
+  actual = actual.EXPR;      \
+  VERIFY_IS_APPROX(actual, expected)
+  CHECK_IN_PLACE(exp());
+  CHECK_IN_PLACE(log());
+  CHECK_IN_PLACE(sqrt());
+  CHECK_IN_PLACE(cos());
+  CHECK_IN_PLACE(sin());
+  CHECK_IN_PLACE(cosh());
+  CHECK_IN_PLACE(sinh());
+  CHECK_IN_PLACE(matrixFunction(internal::stem_function_exp<ComplexScalar>));
+#undef CHECK_IN_PLACE
+}
+
 template <typename MatrixType>
 void testMapRef(const MatrixType& A) {
   // Test if passing Ref and Map objects is possible
@@ -236,6 +263,14 @@ EIGEN_DECLARE_TEST(matrix_function) {
   CALL_SUBTEST_5(testMatrixType(Matrix<double, 5, 5, RowMajor>()));
   CALL_SUBTEST_6(testMatrixType(Matrix4cd()));
   CALL_SUBTEST_7(testMatrixType(MatrixXd(13, 13)));
+
+  CALL_SUBTEST_1(testInPlace(Matrix<float, 1, 1>()));
+  CALL_SUBTEST_2(testInPlace(Matrix3cf()));
+  CALL_SUBTEST_3(testInPlace(MatrixXf(8, 8)));
+  CALL_SUBTEST_4(testInPlace(Matrix2d()));
+  CALL_SUBTEST_5(testInPlace(Matrix<double, 5, 5, RowMajor>()));
+  CALL_SUBTEST_6(testInPlace(Matrix4cd()));
+  CALL_SUBTEST_7(testInPlace(MatrixXd(13, 13)));
 
   CALL_SUBTEST_1(testMapRef(Matrix<float, 1, 1>()));
   CALL_SUBTEST_2(testMapRef(Matrix3cf()));

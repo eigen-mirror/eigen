@@ -229,16 +229,21 @@ class Bccb : public EigenBase<Bccb<Scalar_, BlockSize_, NumBlocks_>> {
    * reaches the rank threshold (see \ref rank) are inverted; the remaining ones
    * are treated as exact zeros, so the result is the pseudo-inverse applied to
    * \a b. For a non-singular operator this is the exact solution. Supports
-   * multiple right-hand sides. */
+   * multiple right-hand sides. The result has the scalar promoted from the
+   * operator and \a b, as for a product: a real operator solved against a complex
+   * right-hand side gives a complex solution. */
   template <typename Rhs>
-  Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> solve(const MatrixBase<Rhs>& b) const {
+  Matrix<typename ScalarBinaryOpTraits<Scalar, typename Rhs::Scalar>::ReturnType, RowsAtCompileTime,
+         Rhs::ColsAtCompileTime>
+  solve(const MatrixBase<Rhs>& b) const {
+    using ResultScalar = typename ScalarBinaryOpTraits<Scalar, typename Rhs::Scalar>::ReturnType;
     EIGEN_INTERNAL_ASSERT_SOLVER_RHS_MSG(*this, b, false, "right-hand side has the wrong number of rows");
     const Index N = rows();
     const ComplexArray s = symbol();
     const RealArray mods = s.cwiseAbs();
     const ComplexArray sinv = internal::structured_pinv_symbol(s, mods, internal::structured_rank_threshold(s, mods));
-    Matrix<Scalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
-    applySymbol(x, sinv, b.derived(), Scalar(1), /*accumulate=*/false);
+    Matrix<ResultScalar, RowsAtCompileTime, Rhs::ColsAtCompileTime> x(N, b.cols());
+    applySymbol(x, sinv, b.derived(), ResultScalar(1), /*accumulate=*/false);
     return x;
   }
 

@@ -91,6 +91,20 @@ struct lmdif_functor : LmFunctorBase {
   }
 };
 
+// Residuals sin(t_i x / scale) - sin(t_i) of a single parameter whose solution is x = scale: the problem is
+// the same for every scale, but the parameter and its Jacobian scale as scale and 1 / scale.
+struct scaled_sine_functor : LmFunctorBase {
+  explicit scaled_sine_functor(double scale) : LmFunctorBase(1, 8), m_scale(scale) {}
+  int operator()(const VectorXd &x, VectorXd &fvec) const {
+    for (int i = 0; i < values(); ++i) {
+      const double t = 0.1 * (i + 1);
+      fvec[i] = std::sin(t * x[0] / m_scale) - std::sin(t);
+    }
+    return 0;
+  }
+  double m_scale;
+};
+
 struct chwirut2_functor : LmFunctorBase {
   chwirut2_functor(void) : LmFunctorBase(3, 54) {}
   static const double m_x[54];

@@ -79,6 +79,36 @@ void check_sparse_kronecker_product(const MatrixType& ab) {
   VERIFY_IS_APPROX(ab.coeff(8, 9), -0.15);
 }
 
+// The sparse result is a compressed matrix, whatever the storage orders and densities of the operands.
+template <int ResultOptions, typename Lhs, typename Rhs>
+void check_kronecker_compressed(const Lhs& a, const Rhs& b, const MatrixXd& expected) {
+  SparseMatrix<double, ResultOptions> ab = kroneckerProduct(a, b);
+  VERIFY(ab.isCompressed());
+  VERIFY_IS_EQUAL(ab.coeffs().size(), ab.nonZeros());
+  VERIFY_IS_APPROX(MatrixXd(ab), expected);
+}
+
+void check_kronecker_compressed_results() {
+  MatrixXd da = MatrixXd::Random(3, 4), db = MatrixXd::Random(2, 5);
+  da = (da.array().abs() < 0.3).select(0, da);
+  db = (db.array().abs() < 0.3).select(0, db);
+  const SparseMatrix<double, ColMajor> sa_col = da.sparseView(), sb_col = db.sparseView();
+  const SparseMatrix<double, RowMajor> sa_row = da.sparseView(), sb_row = db.sparseView();
+  MatrixXd expected(da.rows() * db.rows(), da.cols() * db.cols());
+  for (Index i = 0; i < da.rows(); ++i)
+    for (Index j = 0; j < da.cols(); ++j)
+      expected.block(i * db.rows(), j * db.cols(), db.rows(), db.cols()) = da(i, j) * db;
+
+  check_kronecker_compressed<ColMajor>(sa_col, sb_col, expected);
+  check_kronecker_compressed<RowMajor>(sa_row, sb_row, expected);
+  check_kronecker_compressed<ColMajor>(sa_row, sb_col, expected);
+  check_kronecker_compressed<RowMajor>(sa_col, sb_row, expected);
+  check_kronecker_compressed<ColMajor>(sa_col, db, expected);
+  check_kronecker_compressed<RowMajor>(sa_row, db, expected);
+  check_kronecker_compressed<ColMajor>(da, sb_col, expected);
+  check_kronecker_compressed<RowMajor>(da, sb_row, expected);
+}
+
 EIGEN_DECLARE_TEST(kronecker_product) {
   // DM = dense matrix; SM = sparse matrix
 
@@ -164,6 +194,8 @@ EIGEN_DECLARE_TEST(kronecker_product) {
   SM_ab.insert(0, 0) = 37.0;
   SM_ab = kroneckerProduct(SM_a, SM_b);
   CALL_SUBTEST(check_sparse_kronecker_product(SM_ab));
+
+  CALL_SUBTEST(check_kronecker_compressed_results());
 
   // test dimension of result of DM = kroneckerProduct(DM,DM)
   MatrixXd DM_a2 = Eigen::MatrixXd::Random(2, 1);

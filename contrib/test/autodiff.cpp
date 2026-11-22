@@ -400,6 +400,46 @@ void test_autodiff_padded_block_derivatives() {
   VERIFY_IS_EQUAL(jac.col(0), store.col(0));
 }
 
+// Compound assignment and `x = x op y` evaluate an expression that refers to the derivatives of x. When the
+// derivative vectors differ in length, x is resized before that expression is read unless it is evaluated first.
+// The values are only wrong by chance without a memory checker, which reports the read of the old storage.
+void test_autodiff_grow_derivatives_in_place() {
+  using AD = AutoDiffScalar<VectorXd>;
+  const int sizes[] = {0, 1, 3, 4, 8, 17};
+  for (int na : sizes) {
+    for (int nb : sizes) {
+      AD a(1.7, VectorXd::LinSpaced(na, 0.5, 3.0));
+      AD b(-0.6, VectorXd::LinSpaced(nb, -2.0, 1.0));
+      const AD sum = a + b, difference = a - b, product = a * b, quotient = a / b;
+      AD c = a;
+      c += b;
+      VERIFY_IS_APPROX(c.value(), sum.value());
+      VERIFY_IS_APPROX(c.derivatives(), sum.derivatives());
+      c = a;
+      c -= b;
+      VERIFY_IS_APPROX(c.derivatives(), difference.derivatives());
+      c = a;
+      c *= b;
+      VERIFY_IS_APPROX(c.value(), product.value());
+      VERIFY_IS_APPROX(c.derivatives(), product.derivatives());
+      c = a;
+      c /= b;
+      VERIFY_IS_APPROX(c.value(), quotient.value());
+      VERIFY_IS_APPROX(c.derivatives(), quotient.derivatives());
+      c = a;
+      c = c + b;
+      VERIFY_IS_APPROX(c.derivatives(), sum.derivatives());
+      c = a;
+      c = b - c;
+      VERIFY_IS_APPROX(c.derivatives(), (-difference.derivatives()).eval());
+      // A nested expression reads the destination as well.
+      c = a;
+      c = (c * b) + c;
+      VERIFY_IS_APPROX(c.derivatives(), (product + a).derivatives());
+    }
+  }
+}
+
 // LLT stores the 1-norm of its input for rcond(); the sum of AutoDiffScalars is an expression, so
 // the norm must materialize its column totals before comparing them.
 void test_autodiff_selfadjoint_l1norm() {
@@ -618,6 +658,7 @@ EIGEN_DECLARE_TEST(autodiff) {
   CALL_SUBTEST_5(test_autodiff_selfadjoint_l1norm());
   CALL_SUBTEST_5(test_autodiff_padded_block_derivatives());
   CALL_SUBTEST_5(test_autodiff_atan2_constant());
+  CALL_SUBTEST_5(test_autodiff_grow_derivatives_in_place());
   CALL_SUBTEST_5(test_autodiff_hypot<Vector2d>());
   CALL_SUBTEST_5(test_autodiff_hypot<VectorXd>());
   CALL_SUBTEST_5(test_autodiff_geometry_atan2<Vector2d>());

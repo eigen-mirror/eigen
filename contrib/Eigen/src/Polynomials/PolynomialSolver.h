@@ -289,12 +289,17 @@ class PolynomialSolverBase {
  * WARNING: this polynomial solver is experimental, part of the contrib Eigen modules.
  *
  *
- * The eigenvalues of the balanced companion matrix of the polynomial give first approximations of
- * the roots. Ehrlich-Aberth iterations on the polynomial itself target a residual within the rounding
- * error of evaluation, with a finite sweep limit and an initial-estimate fallback for unfinished
- * iterates whose residual increased. The roots of a real polynomial are returned as real numbers or exact
- * conjugate pairs. A root of multiplicity \f$ m \f$ can only be located to about
- * \f$ \varepsilon^{1/m} \f$.
+ * By default the roots are the eigenvalues of the balanced companion matrix of the polynomial, which are, as a set, the
+ * roots of one polynomial near the given one, also for multiple and clustered roots, followed by a clean-up that
+ * returns the roots of a real polynomial as real numbers or exact conjugate pairs. A root of multiplicity \f$ m \f$ can
+ * only be located to about \f$ \varepsilon^{1/m} \f$.
+ *
+ * With the optional argument \c refine = true of the constructor and of compute(), Ehrlich-Aberth iterations on the
+ * polynomial itself first refine the eigenvalues, targeting a residual within the rounding error of evaluation, with a
+ * finite sweep limit and an initial-estimate fallback for iterates whose residual increased, or that would leave
+ * Cauchy's bound on the root moduli. Coincident estimates keep their eigenvalues. Refined roots are individually more
+ * accurate for well-separated roots, but for multiple or clustered roots they are no longer jointly the roots of one
+ * nearby polynomial, which is why the refinement is off by default.
  */
 template <typename Scalar_, int Deg_>
 class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
@@ -310,21 +315,27 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
   using ComplexScalar = internal::make_complex_t<Scalar_>;
 
  public:
-  /** Computes the complex roots of a new polynomial. */
+  /** Computes the complex roots of a new polynomial. With \a refine, the eigenvalues of the companion matrix are
+   * refined by Ehrlich-Aberth iterations before the clean-up, see the class documentation. */
   template <typename OtherPolynomial>
-  void compute(const OtherPolynomial& poly) {
+  void compute(const OtherPolynomial& poly, bool refine = false) {
     eigen_assert(Scalar(0) != poly[poly.size() - 1]);
     eigen_assert(poly.size() > 1);
     if (poly.size() > 2) {
       internal::companion<Scalar, Deg_> companion(poly);
       companion.balance();
       m_eigenSolver.compute(companion.denseMatrix());
-      eigen_assert(m_eigenSolver.info() == Eigen::Success);
+      if (m_eigenSolver.info() != Eigen::Success) {
+        // A companion entry a_k / a_n that overflows, or a non-finite coefficient: one NaN root per degree.
+        m_roots.setConstant(poly.size() - 1,
+                            RootType(NumTraits<RealScalar>::quiet_NaN(), NumTraits<RealScalar>::quiet_NaN()));
+        return;
+      }
       m_roots = m_eigenSolver.eigenvalues();
       // Uniform coefficient scaling must not overflow or underflow the refinement's Horner recurrences.
       const RealScalar scale = poly.realView().cwiseAbs().maxCoeff();
       const auto scaledPoly = (poly / scale).eval();
-      refineRoots(scaledPoly);
+      if (refine) refineRoots(scaledPoly);
       cleanUpRoots(scaledPoly);
     } else if (poly.size() == 2) {
       m_roots.resize(1);
@@ -334,8 +345,8 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
 
  public:
   template <typename OtherPolynomial>
-  inline PolynomialSolver(const OtherPolynomial& poly) {
-    compute(poly);
+  inline PolynomialSolver(const OtherPolynomial& poly, bool refine = false) {
+    compute(poly, refine);
   }
 
   inline PolynomialSolver() {}
@@ -392,7 +403,11 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
         }
       }
     }
+    // Cauchy's bound on the moduli of the roots: |z| <= 1 + max_k |a_k / a_n|.
+    const RealScalar rootBound = (RealScalar(1) + (poly.head(n).cwiseAbs() / numext::abs(poly[n])).maxCoeff()) *
+                                 (RealScalar(1) + RealScalar(4) * eps);  // margin for the rounding of the sum
     Array<bool, Deg_, 1> active = Array<bool, Deg_, 1>::Constant(n, true);
+    Array<bool, Deg_, 1> stepped = Array<bool, Deg_, 1>::Constant(n, false);
     RootType value, derivative;
     for (int sweep = 0; sweep < maxSweeps; ++sweep) {
       bool moving = false;
@@ -413,25 +428,42 @@ class PolynomialSolver : public PolynomialSolverBase<Scalar_, Deg_> {
           active[i] = false;
           continue;
         }
+        // The repulsion sum has no term for a coincident estimate (the zero eigenvalues of a polynomial with a tiny
+        // cluster of roots), so the step would no longer separate the iterates: the denominator can vanish or the
+        // iterate can land on another root. Such an estimate keeps its eigenvalue, as does a pole of the correction.
         RootType repulsion(0);
+        bool coincident = false;
         for (Index j = 0; j < n; ++j) {
           const RootType gap = z - m_roots[j];
-          if (j != i && gap != RootType(0)) repulsion += RootType(1) / gap;
+          if (j == i) continue;
+          if (gap == RootType(0)) {
+            coincident = true;
+            break;
+          }
+          repulsion += RootType(1) / gap;
         }
         const RootType denominator = RootType(1) - newton * repulsion;
-        const RootType refined = z - (denominator == RootType(0) ? newton : RootType(newton / denominator));
-        if ((numext::isfinite)(numext::abs(refined))) {
+        if (coincident || denominator == RootType(0)) {
+          active[i] = false;
+          continue;
+        }
+        const RootType refined = z - RootType(newton / denominator);
+        if ((numext::isfinite)(numext::abs(refined)) && !(numext::abs(refined) > rootBound)) {
           m_roots[i] = refined;
+          stepped[i] = true;
           moving = true;
         } else {
           active[i] = false;
         }
       }
-      if (!moving) return;
+      if (!moving) break;
     }
-    // Keep improvements to slowly converging multiple roots, but reject a larger residual at the sweep cap.
+    // Keep improvements, but never return an estimate whose residual is larger than that of its eigenvalue.
     for (Index i = 0; i < n; ++i) {
-      if (!active[i]) continue;
+      if (!stepped[i]) {
+        m_roots[i] = m_eigenSolver.eigenvalues()[i];  // drops the synthetic perturbation
+        continue;
+      }
       RootType initialValue;
       evaluate(poly, m_roots[i], value, derivative, false);
       evaluate(poly, m_eigenSolver.eigenvalues()[i], initialValue, derivative, false);
@@ -497,9 +529,9 @@ class PolynomialSolver<Scalar_, 1> : public PolynomialSolverBase<Scalar_, 1> {
   EIGEN_POLYNOMIAL_SOLVER_BASE_INHERITED_TYPES(PS_Base)
 
  public:
-  /** Computes the complex roots of a new polynomial. */
+  /** Computes the complex roots of a new polynomial. \a refine is ignored. */
   template <typename OtherPolynomial>
-  void compute(const OtherPolynomial& poly) {
+  void compute(const OtherPolynomial& poly, bool /*refine*/ = false) {
     eigen_assert(poly.size() == 2);
     eigen_assert(Scalar(0) != poly[1]);
     m_roots[0] = -poly[0] / poly[1];
@@ -507,8 +539,8 @@ class PolynomialSolver<Scalar_, 1> : public PolynomialSolverBase<Scalar_, 1> {
 
  public:
   template <typename OtherPolynomial>
-  inline PolynomialSolver(const OtherPolynomial& poly) {
-    compute(poly);
+  inline PolynomialSolver(const OtherPolynomial& poly, bool refine = false) {
+    compute(poly, refine);
   }
 
   inline PolynomialSolver() {}

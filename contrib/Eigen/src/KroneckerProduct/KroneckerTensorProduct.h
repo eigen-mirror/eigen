@@ -177,6 +177,7 @@ void KroneckerProductSparse<Lhs, Rhs>::evalTo(Dest& dst) const {
       }
     }
   }
+  dst.makeCompressed();  // reserve() and insert() leave the matrix uncompressed
 }
 
 namespace internal {

@@ -209,6 +209,25 @@ void testLmdif() {
   // VERIFY_IS_APPROX( covfac*fjac.topLeftCorner<n,n>() , cov_ref);
 }
 
+// The Jacobian of scaled_sine_functor is of order 1 / scale, so a step relative to |x| = scale resolves it for any
+// scale, which the default step of at least sqrt(epsilon) does not for scale << sqrt(epsilon). The solution is found
+// to within the stopping tolerance xtol = sqrt(epsilon) of the relative change of the parameter.
+void testLmdifTinyParameter() {
+  const double xtol = std::sqrt(NumTraits<double>::epsilon());
+  for (const double scale : {1.0, 1e-3, 1e-6, 1e-9}) {
+    scaled_sine_functor functor(scale);
+    VectorXd x(1);
+    x << 1.3 * scale;
+    NumericalDiff<scaled_sine_functor> numDiff(functor);
+    numDiff.setAbsTol(0);
+    LevenbergMarquardt<NumericalDiff<scaled_sine_functor> > lm(numDiff);
+    const LevenbergMarquardtSpace::Status info = lm.minimize(x);
+    VERIFY(info > LevenbergMarquardtSpace::ImproperInputParameters &&
+           info < LevenbergMarquardtSpace::TooManyFunctionEvaluation);
+    VERIFY(numext::abs(x[0] / scale - 1.0) <= xtol);
+  }
+}
+
 // covar() takes the rank to end at the first pivot below tol * |r(0,0)| (MINPACK) and zeroes the rest;
 // a NaN pivot is not negligible, so it reaches the result instead of reading as zero variance.
 void testCovarRankDeficient() {
@@ -329,6 +348,7 @@ EIGEN_DECLARE_TEST(levenberg_marquardt) {
   //     CALL_SUBTEST(testLmstr1());
   //     CALL_SUBTEST(testLmstr());
   CALL_SUBTEST(testLmdif());
+  CALL_SUBTEST(testLmdifTinyParameter());
 
   // NIST tests, level of difficulty = "Lower"
   CALL_SUBTEST(testNistMisra1a());

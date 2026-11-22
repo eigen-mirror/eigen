@@ -83,6 +83,48 @@ void test_small() {
   check_lmder_jacobian<Central>(x);
 }
 
+// f(x) = exp(x / scale) with scale = |x0| (1 for zero or subnormal x0) has f'(x0) = e / scale. With abs_tol = 0 the
+// step is relative to |x0|, so the relative error is the truncation error rel_tol / 2 (forward) or rel_tol^2 / 6
+// (central) plus the rounding error O(epsilon / rel_tol) of the quotient, within 2 rel_tol^order for order 1 (forward)
+// and 2 (central). The default step of at least rel_tol would leave the scale 1e-9 of f, where the quotient is
+// meaningless.
+template <typename Scalar>
+struct exp_scaled_functor : Functor<Scalar, 1, 1> {
+  explicit exp_scaled_functor(Scalar s) : scale(s) {}
+  int operator()(const Matrix<Scalar, 1, 1> &x, Matrix<Scalar, 1, 1> &fvec) const {
+    fvec[0] = numext::exp(x[0] / scale);
+    return 0;
+  }
+  Scalar scale;
+};
+
+template <typename Scalar, NumericalDiffMode Mode>
+void check_derivative_accuracy(Scalar x0) {
+  const Scalar x0_abs = numext::abs(x0);
+  const Scalar scale = x0_abs >= (std::numeric_limits<Scalar>::min)() ? x0_abs : Scalar(1);
+  exp_scaled_functor<Scalar> functor(scale);
+  NumericalDiff<exp_scaled_functor<Scalar>, Mode> numDiff(functor);
+  numDiff.setAbsTol(0);
+  Matrix<Scalar, 1, 1> x, jac;
+  x << x0;
+  numDiff.df(x, jac);
+
+  const Scalar rel_tol = numDiff.relTol();
+  const Scalar order_bound = Mode == Central ? rel_tol * rel_tol : rel_tol;
+  const Scalar exact = numext::exp(x0 / scale) / scale;
+  const Scalar error = numext::abs(jac[0] - exact) / exact;
+  VERIFY(error <= Scalar(2) * order_bound);
+}
+
+template <typename Scalar>
+void test_derivative_accuracy() {
+  const Scalar denorm = std::numeric_limits<Scalar>::denorm_min();
+  for (const Scalar x0 : {Scalar(1e-9), Scalar(-1e-9), Scalar(1), Scalar(1e9), Scalar(-1e9), Scalar(0), denorm}) {
+    check_derivative_accuracy<Scalar, Forward>(x0);
+    check_derivative_accuracy<Scalar, Central>(x0);
+  }
+}
+
 template <NumericalDiffMode Mode>
 void test_step_alignment(double epsfcn) {
   pow2_scaling_functor functor;
@@ -139,6 +181,24 @@ void check_step_size(double rel_only_eps, double default_tol) {
   check_step(defaults, 1000.0, 1000.0 * default_tol);
   NumericalDiff<step_size_functor_abs, Mode> defaults_abs(functor_abs);
   check_step(defaults_abs, 0.0, default_tol);
+  VERIFY_IS_EQUAL(defaults_abs.absTol(), defaults_abs.relTol());
+
+  // By default abs_tol = rel_tol floors the step also for tiny |x| = 1e-9. The derivative of x |x| is 2 x; the
+  // quotient is 2 x + h (forward) and (x^2 + h^2) / h (central) with h = default_tol.
+  const double x_small = 1e-9;
+  check_step(defaults_abs, x_small,
+             Mode == Forward ? default_tol + 2 * x_small : default_tol + x_small * x_small / default_tol);
+  // A floor set with setAbsTol applies where it exceeds |x| rel_tol: h = max(|x| rel_tol, abs_tol) = 1e-6.
+  check_step(both_set_abs, x_small, Mode == Forward ? 1e-6 + 2 * x_small : 1e-6 + x_small * x_small / 1e-6);
+
+  // With abs_tol = 0 the step is rel_tol |x| (the quotient of x |x| is x (2 + rel_tol) forward, 2 x central), and
+  // rel_tol where that product is 0: at x = 0 and, as |x| rel_tol underflows, at the smallest subnormal.
+  NumericalDiff<step_size_functor_abs, Mode> relative_only(functor_abs);
+  relative_only.setAbsTol(0);
+  VERIFY_IS_EQUAL(relative_only.absTol(), 0.0);
+  check_step(relative_only, x_small, Mode == Forward ? x_small * (2 + default_tol) : 2 * x_small);
+  check_step(relative_only, 0.0, default_tol);
+  check_step(relative_only, std::numeric_limits<double>::denorm_min(), default_tol);
 }
 
 void test_step_size() {
@@ -204,6 +264,8 @@ EIGEN_DECLARE_TEST(NumericalDiff) {
   CALL_SUBTEST(test_forward());
   CALL_SUBTEST(test_central());
   CALL_SUBTEST(test_small());
+  CALL_SUBTEST(test_derivative_accuracy<double>());
+  CALL_SUBTEST(test_derivative_accuracy<float>());
   CALL_SUBTEST(test_step_size());
   CALL_SUBTEST(test_constructors());
   CALL_SUBTEST(test_step_alignment<Forward>(0.0));

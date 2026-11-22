@@ -130,6 +130,10 @@ void roots_to_monicPolynomial(const RootVector& rv, Polynomial& poly) {
   using Scalar = typename Polynomial::Scalar;
 
   poly.setZero(rv.size() + 1);
+  if (rv.size() == 0) {
+    poly[0] = Scalar(1);  // the empty product
+    return;
+  }
   poly[0] = -rv[0];
   poly[1] = Scalar(1);
   for (DenseIndex i = 1; i < rv.size(); ++i) {
