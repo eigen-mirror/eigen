@@ -4620,12 +4620,20 @@ EIGEN_STRONG_INLINE Packet2f prsqrt_float_unsafe(const Packet2f& a) {
 
 template <typename Packet>
 Packet prsqrt_float_common(const Packet& a) {
-  const Packet cst_zero = pzero(a);
-  const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
+  const Packet cst_inf = pinf<Packet>();
   Packet return_zero = pcmp_eq(a, cst_inf);
-  Packet return_inf = pcmp_eq(a, cst_zero);
+#if EIGEN_ARCH_ARM64
+  Packet return_inf = pcmp_eq(a, pzero(a));
+#else
+  // ARMv7 NEON flushes subnormals, so the estimate is +-inf for a subnormal a as for +-0. Select on |a| < min_normal,
+  // which holds for a subnormal in every reading of the input (a == 0 can be compiled to a compare of the bits).
+  Packet return_inf = pcmp_lt(pabs(a), pset1<Packet>((std::numeric_limits<float>::min)()));
+#endif
+  // Keep only the sign of a: where the lane is selected for a subnormal a (always on ARMv7; on AArch64 when FPCR.FZ
+  // makes a == 0 true for it), the bits of a would make a NaN of the infinity.
+  const Packet inf_with_sign_of_a = por(cst_inf, pand(a, psignmask<Packet>()));
   Packet result = prsqrt_float_unsafe(a);
-  result = pselect(return_inf, por(cst_inf, a), result);
+  result = pselect(return_inf, inf_with_sign_of_a, result);
   result = pandnot(result, return_zero);
   return result;
 }
@@ -4684,11 +4692,14 @@ EIGEN_STRONG_INLINE Packet2f pdiv(const Packet2f& a, const Packet2f& b) {
 #else
 template <typename Packet>
 EIGEN_STRONG_INLINE Packet psqrt_float_common(const Packet& a) {
-  const Packet cst_zero = pzero(a);
-  const Packet cst_inf = pset1<Packet>(NumTraits<float>::infinity());
+  const Packet cst_min_normal = pset1<Packet>((std::numeric_limits<float>::min)());
+  const Packet cst_inf = pinf<Packet>();
 
   Packet result = pmul(a, prsqrt_float_unsafe(a));
-  Packet a_is_zero = pcmp_eq(a, cst_zero);
+  // ARMv7 NEON flushes subnormal inputs to zero, so vrsqrte gives +-inf and the product is 0 * inf = NaN. Select on
+  // |a| < min_normal: true for +-0 and for every subnormal in either reading of the input, whereas a == 0 can be
+  // compiled to a compare of the bits, which is false for a subnormal.
+  Packet a_is_zero = pcmp_lt(pabs(a), cst_min_normal);
   Packet a_is_inf = pcmp_eq(a, cst_inf);
   Packet return_a = por(a_is_zero, a_is_inf);
 

@@ -8,6 +8,21 @@
 #pragma GCC diagnostic ignored "-Wignored-attributes"
 #endif
 
+// ploadquad reads ceil(Size / 4) scalars.
+template <typename Scalar, typename Packet, int Size = internal::unpacket_traits<Packet>::size>
+void loadquad_boundary() {
+  constexpr int Count = (Size + 3) / 4;
+  const test::GuardPageBuffer buffer(Count * sizeof(Scalar));
+  Scalar* const data = buffer.place_at_end<Scalar>(Count);
+  for (Index i = 0; i < Count; ++i) data[i] = Scalar(i + 1);
+  Scalar actual[Size];
+  internal::pstoreu(actual, internal::ploadquad<Packet>(data));
+  for (Index i = 0; i < Size; ++i) {
+    const Index source = i / 4;
+    VERIFY_IS_EQUAL(actual[i], Scalar(source + 1));
+  }
+}
+
 template <typename Scalar, typename Packet = typename internal::packet_traits<Scalar>::type,
           int Size = internal::unpacket_traits<Packet>::size>
 void loaddup_boundary() {
@@ -21,6 +36,12 @@ void loaddup_boundary() {
     const Index source = i / 2;
     VERIFY_IS_EQUAL(actual[i], Scalar(source + 1));
   }
+}
+
+template <typename Scalar, typename Packet>
+void loaddup_loadquad_boundary() {
+  loaddup_boundary<Scalar, Packet>();
+  loadquad_boundary<Scalar, Packet>();
 }
 
 template <typename Scalar>
@@ -85,14 +106,21 @@ EIGEN_DECLARE_TEST(packetmath_loaddup) {
 #endif
 #if defined(EIGEN_VECTORIZE_RVV10)
   // Explicit LMULs cover half packets even when the default packet uses a larger register group.
-#define EIGEN_TEST_RVV_DUP(Scalar, Packet) \
-  loaddup_boundary<Scalar, internal::Packet, internal::unpacket_traits<internal::Packet>::size>()
+#define EIGEN_TEST_RVV_DUP(Scalar, Packet) loaddup_loadquad_boundary<Scalar, internal::Packet>()
   CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(float, Packet1Xf)));
   CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(float, Packet2Xf)));
   CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(float, Packet4Xf)));
   CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(double, Packet1Xd)));
   CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(double, Packet2Xd)));
   CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(double, Packet4Xd)));
+#if EIGEN_RISCV64_DEFAULT_LMUL == 1  // the RVV complex packets exist only for the LMUL 1 default
+  CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(std::complex<float>, Packet1Xcf)));
+  CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(std::complex<float>, Packet2Xcf)));
+  CALL_SUBTEST_1((EIGEN_TEST_RVV_DUP(std::complex<float>, Packet4Xcf)));
+  CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(std::complex<double>, Packet1Xcd)));
+  CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(std::complex<double>, Packet2Xcd)));
+  CALL_SUBTEST_2((EIGEN_TEST_RVV_DUP(std::complex<double>, Packet4Xcd)));
+#endif
   CALL_SUBTEST_3((EIGEN_TEST_RVV_DUP(numext::int32_t, Packet1Xi)));
   CALL_SUBTEST_3((EIGEN_TEST_RVV_DUP(numext::int32_t, Packet2Xi)));
   CALL_SUBTEST_3((EIGEN_TEST_RVV_DUP(numext::int32_t, Packet4Xi)));

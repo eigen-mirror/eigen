@@ -174,8 +174,10 @@ EIGEN_STRONG_INLINE Packet1Xbf psignbit(const Packet1Xbf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf pmul<Packet1Xbf>(const Packet1Xbf& a, const Packet1Xbf& b) {
-  Packet2Xf c;
-  return F32ToBf16(__riscv_vfwmaccbf16_vv_f32m2(pzero<Packet2Xf>(c), a, b, unpacket_traits<Packet1Xbf>::size));
+  // -0 + a * b == a * b exactly, including the sign of a zero product; +0 would turn -0 into +0. The -0 is built from
+  // its bits so that -ffast-math (-fno-signed-zeros) cannot treat it as +0.
+  return F32ToBf16(
+      __riscv_vfwmaccbf16_vv_f32m2(pset1frombits<Packet2Xf>(0x80000000u), a, b, unpacket_traits<Packet1Xbf>::size));
 }
 
 template <>
@@ -202,8 +204,9 @@ EIGEN_STRONG_INLINE Packet1Xbf pnmadd(const Packet1Xbf& a, const Packet1Xbf& b, 
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xbf pnmsub(const Packet1Xbf& a, const Packet1Xbf& b, const Packet1Xbf& c) {
-  return pnegate<Packet1Xbf>(
-      F32ToBf16(__riscv_vfwmaccbf16_vv_f32m2(Bf16ToF32(c), a, b, unpacket_traits<Packet1Xbf>::size)));
+  // -(a * b) - c, as the float packet pnmsub (vfnmadd) computes it; -(a * b + c) differs in the sign of an exact zero.
+  return F32ToBf16(__riscv_vfwmaccbf16_vv_f32m2(Bf16ToF32(pnegate<Packet1Xbf>(c)), pnegate<Packet1Xbf>(a), b,
+                                                unpacket_traits<Packet1Xbf>::size));
 }
 
 template <>
@@ -565,8 +568,10 @@ EIGEN_STRONG_INLINE Packet2Xbf psignbit(const Packet2Xbf& a) {
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pmul<Packet2Xbf>(const Packet2Xbf& a, const Packet2Xbf& b) {
-  Packet4Xf c;
-  return F32ToBf16(__riscv_vfwmaccbf16_vv_f32m4(pzero<Packet4Xf>(c), a, b, unpacket_traits<Packet2Xbf>::size));
+  // -0 + a * b == a * b exactly, including the sign of a zero product; +0 would turn -0 into +0. The -0 is built from
+  // its bits so that -ffast-math (-fno-signed-zeros) cannot treat it as +0.
+  return F32ToBf16(
+      __riscv_vfwmaccbf16_vv_f32m4(pset1frombits<Packet4Xf>(0x80000000u), a, b, unpacket_traits<Packet2Xbf>::size));
 }
 
 template <>
@@ -593,8 +598,9 @@ EIGEN_STRONG_INLINE Packet2Xbf pnmadd(const Packet2Xbf& a, const Packet2Xbf& b, 
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xbf pnmsub(const Packet2Xbf& a, const Packet2Xbf& b, const Packet2Xbf& c) {
-  return pnegate<Packet2Xbf>(
-      F32ToBf16(__riscv_vfwmaccbf16_vv_f32m4(Bf16ToF32(c), a, b, unpacket_traits<Packet2Xbf>::size)));
+  // -(a * b) - c, as the float packet pnmsub (vfnmadd) computes it; -(a * b + c) differs in the sign of an exact zero.
+  return F32ToBf16(__riscv_vfwmaccbf16_vv_f32m4(Bf16ToF32(pnegate<Packet2Xbf>(c)), pnegate<Packet2Xbf>(a), b,
+                                                unpacket_traits<Packet2Xbf>::size));
 }
 
 template <>

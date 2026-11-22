@@ -990,8 +990,10 @@ EIGEN_STRONG_INLINE Packet1Xcd ploaddup<Packet1Xcd>(const std::complex<double>* 
   Packet1Xul idx1 =
       __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 1, unpacket_traits<Packet1Xd>::size);
   Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
-  return Packet1Xcd(__riscv_vrgather_vv_f64m1(pload<Packet1Xd>(reinterpret_cast<const double*>(from)), idx2,
-                                              unpacket_traits<Packet1Xd>::size));
+  return Packet1Xcd(
+      __riscv_vrgather_vv_f64m1(__riscv_vle64_v_f64m1(reinterpret_cast<const double*>(from),
+                                                      2 * numext::div_ceil<int>(unpacket_traits<Packet1Xcd>::size, 2)),
+                                idx2, unpacket_traits<Packet1Xd>::size));
 }
 
 template <>
@@ -1001,8 +1003,10 @@ EIGEN_STRONG_INLINE Packet1Xcd ploadquad<Packet1Xcd>(const std::complex<double>*
   Packet1Xul idx1 =
       __riscv_vsrl_vx_u64m1(__riscv_vid_v_u64m1(unpacket_traits<Packet1Xd>::size), 2, unpacket_traits<Packet1Xd>::size);
   Packet1Xul idx2 = __riscv_vxor_vx_u64m1_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet1Xl>::size);
-  return Packet1Xcd(__riscv_vrgather_vv_f64m1(pload<Packet1Xd>(reinterpret_cast<const double*>(from)), idx2,
-                                              unpacket_traits<Packet1Xd>::size));
+  return Packet1Xcd(
+      __riscv_vrgather_vv_f64m1(__riscv_vle64_v_f64m1(reinterpret_cast<const double*>(from),
+                                                      2 * numext::div_ceil<int>(unpacket_traits<Packet1Xcd>::size, 4)),
+                                idx2, unpacket_traits<Packet1Xd>::size));
 }
 
 template <>

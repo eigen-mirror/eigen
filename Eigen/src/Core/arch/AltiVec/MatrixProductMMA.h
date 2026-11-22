@@ -596,7 +596,7 @@ void gemmMMA(const DataMapper& res, const Scalar* blockA, const Scalar* blockB, 
 #define MICRO_COMPLEX_MMA_TYPE_PEEL(funcw, funcl, type, peel) \
   if (PEEL_COMPLEX_MMA > peel) {                              \
     Packet lhsV0, lhsV1, lhsV2, lhsV3;                        \
-    Packet lhsVi0, lhsVi1, lhsVi2, lhsVi3;                    \
+    Packet lhsVi0{}, lhsVi1{}, lhsVi2{}, lhsVi3{};            \
     MICRO_COMPLEX_MMA_LOAD_ONE_RHS(peel)                      \
     MICRO_COMPLEX_MMA_UNROLL(funcl)                           \
     MICRO_COMPLEX_MMA_WORK(funcw, type, peel)                 \

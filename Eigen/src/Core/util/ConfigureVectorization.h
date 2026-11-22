@@ -586,6 +586,8 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_ZVECTOR
+// pmadd maps to the fused vec_madd (z14 has the fused multiply-add instructions for scalars too).
+#define EIGEN_VECTORIZE_FMA
 #include <vecintrin.h>
 
 #elif defined __mips_msa

@@ -76,7 +76,7 @@ EIGEN_STRONG_INLINE Packet8us pcast<Packet8bf, Packet8us>(const Packet8bf& a) {
   }
   if (vec_any_gt(int_odd, p4ui_low_mask)) {
     overflow_selector = vec_cmpgt(int_odd, p4ui_low_mask);
-    low_odd = vec_sel(low_even, p4ui_low_mask, overflow_selector);
+    low_odd = vec_sel(low_odd, p4ui_low_mask, overflow_selector);
   }
 
   return pmerge(low_even, low_odd);

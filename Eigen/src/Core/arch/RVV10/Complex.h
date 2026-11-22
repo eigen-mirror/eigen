@@ -758,8 +758,9 @@ EIGEN_STRONG_INLINE Packet2Xcd ploadquad<Packet2Xcd>(const std::complex<double>*
       __riscv_vsrl_vx_u64m2(__riscv_vid_v_u64m2(unpacket_traits<Packet2Xd>::size), 2, unpacket_traits<Packet2Xd>::size);
   Packet2Xul idx2 = __riscv_vxor_vx_u64m2_tumu(mask, idx1, idx1, 1, unpacket_traits<Packet2Xl>::size);
   return Packet2Xcd(__riscv_vrgather_vv_f64m2(
-      __riscv_vlmul_ext_v_f64m1_f64m2(pload<Packet1Xd>(reinterpret_cast<const double*>(from))), idx2,
-      unpacket_traits<Packet2Xd>::size));
+      __riscv_vlmul_ext_v_f64m1_f64m2(__riscv_vle64_v_f64m1(
+          reinterpret_cast<const double*>(from), 2 * numext::div_ceil<int>(unpacket_traits<Packet2Xcd>::size, 4))),
+      idx2, unpacket_traits<Packet2Xd>::size));
 }
 
 template <>

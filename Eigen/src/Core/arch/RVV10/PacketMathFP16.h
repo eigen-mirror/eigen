@@ -192,8 +192,7 @@ struct pminmax_propagates_nan<Packet1Xh> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xh pmin<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
-  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  Packet1Xh nans = __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size);
+  Packet1Xh nans = pnan<Packet1Xh>();
   PacketMask16 mask = __riscv_vmfeq_vv_f16m1_b16(a, a, unpacket_traits<Packet1Xh>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f16m1_b16(b, b, unpacket_traits<Packet1Xh>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet1Xh>::size);
@@ -208,8 +207,7 @@ EIGEN_STRONG_INLINE Packet1Xh pmin<PropagateNumbers, Packet1Xh>(const Packet1Xh&
 
 template <>
 EIGEN_STRONG_INLINE Packet1Xh pmax<Packet1Xh>(const Packet1Xh& a, const Packet1Xh& b) {
-  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  Packet1Xh nans = __riscv_vfmv_v_f_f16m1(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet1Xh>::size);
+  Packet1Xh nans = pnan<Packet1Xh>();
   PacketMask16 mask = __riscv_vmfeq_vv_f16m1_b16(a, a, unpacket_traits<Packet1Xh>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f16m1_b16(b, b, unpacket_traits<Packet1Xh>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet1Xh>::size);
@@ -577,8 +575,7 @@ struct pminmax_propagates_nan<Packet2Xh> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pmin<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
-  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  Packet2Xh nans = __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size);
+  Packet2Xh nans = pnan<Packet2Xh>();
   PacketMask8 mask = __riscv_vmfeq_vv_f16m2_b8(a, a, unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask2 = __riscv_vmfeq_vv_f16m2_b8(b, b, unpacket_traits<Packet2Xh>::size);
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);
@@ -593,8 +590,7 @@ EIGEN_STRONG_INLINE Packet2Xh pmin<PropagateNumbers, Packet2Xh>(const Packet2Xh&
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xh pmax<Packet2Xh>(const Packet2Xh& a, const Packet2Xh& b) {
-  const Eigen::half nan = (std::numeric_limits<Eigen::half>::quiet_NaN)();
-  Packet2Xh nans = __riscv_vfmv_v_f_f16m2(numext::bit_cast<_Float16>(nan), unpacket_traits<Packet2Xh>::size);
+  Packet2Xh nans = pnan<Packet2Xh>();
   PacketMask8 mask = __riscv_vmfeq_vv_f16m2_b8(a, a, unpacket_traits<Packet2Xh>::size);
   PacketMask8 mask2 = __riscv_vmfeq_vv_f16m2_b8(b, b, unpacket_traits<Packet2Xh>::size);
   mask = __riscv_vmand_mm_b8(mask, mask2, unpacket_traits<Packet2Xh>::size);

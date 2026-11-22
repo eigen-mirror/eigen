@@ -188,7 +188,9 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xi ploadquad<Packet2Xi>(const numext::int32_t* from) {
   Packet2Xu idx =
       __riscv_vsrl_vx_u32m2(__riscv_vid_v_u32m2(unpacket_traits<Packet2Xi>::size), 2, unpacket_traits<Packet2Xi>::size);
-  return __riscv_vrgather_vv_i32m2(pload<Packet2Xi>(from), idx, unpacket_traits<Packet2Xi>::size);
+  return __riscv_vrgather_vv_i32m2(
+      __riscv_vle32_v_i32m2(from, numext::div_ceil<int>(unpacket_traits<Packet2Xi>::size, 4)), idx,
+      unpacket_traits<Packet2Xi>::size);
 }
 
 template <>
@@ -400,7 +402,7 @@ struct pminmax_propagates_nan<Packet2Xf> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xf pmin<Packet2Xf>(const Packet2Xf& a, const Packet2Xf& b) {
-  Packet2Xf nans = __riscv_vfmv_v_f_f32m2((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet2Xf>::size);
+  Packet2Xf nans = pnan<Packet2Xf>();
   PacketMask16 mask = __riscv_vmfeq_vv_f32m2_b16(a, a, unpacket_traits<Packet2Xf>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f32m2_b16(b, b, unpacket_traits<Packet2Xf>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet2Xf>::size);
@@ -415,7 +417,7 @@ EIGEN_STRONG_INLINE Packet2Xf pmin<PropagateNumbers, Packet2Xf>(const Packet2Xf&
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xf pmax<Packet2Xf>(const Packet2Xf& a, const Packet2Xf& b) {
-  Packet2Xf nans = __riscv_vfmv_v_f_f32m2((std::numeric_limits<float>::quiet_NaN)(), unpacket_traits<Packet2Xf>::size);
+  Packet2Xf nans = pnan<Packet2Xf>();
   PacketMask16 mask = __riscv_vmfeq_vv_f32m2_b16(a, a, unpacket_traits<Packet2Xf>::size);
   PacketMask16 mask2 = __riscv_vmfeq_vv_f32m2_b16(b, b, unpacket_traits<Packet2Xf>::size);
   mask = __riscv_vmand_mm_b16(mask, mask2, unpacket_traits<Packet2Xf>::size);
@@ -529,7 +531,9 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xf ploadquad<Packet2Xf>(const float* from) {
   Packet2Xu idx =
       __riscv_vsrl_vx_u32m2(__riscv_vid_v_u32m2(unpacket_traits<Packet2Xf>::size), 2, unpacket_traits<Packet2Xf>::size);
-  return __riscv_vrgather_vv_f32m2(pload<Packet2Xf>(from), idx, unpacket_traits<Packet2Xf>::size);
+  return __riscv_vrgather_vv_f32m2(
+      __riscv_vle32_v_f32m2(from, numext::div_ceil<int>(unpacket_traits<Packet2Xf>::size, 4)), idx,
+      unpacket_traits<Packet2Xf>::size);
 }
 
 template <>
@@ -841,7 +845,9 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xl ploadquad<Packet2Xl>(const numext::int64_t* from) {
   Packet2Xul idx =
       __riscv_vsrl_vx_u64m2(__riscv_vid_v_u64m2(unpacket_traits<Packet2Xl>::size), 2, unpacket_traits<Packet2Xl>::size);
-  return __riscv_vrgather_vv_i64m2(pload<Packet2Xl>(from), idx, unpacket_traits<Packet2Xl>::size);
+  return __riscv_vrgather_vv_i64m2(
+      __riscv_vle64_v_i64m2(from, numext::div_ceil<int>(unpacket_traits<Packet2Xl>::size, 4)), idx,
+      unpacket_traits<Packet2Xl>::size);
 }
 
 template <>
@@ -1055,7 +1061,7 @@ struct pminmax_propagates_nan<Packet2Xd> : bool_constant<true> {};
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xd pmin<Packet2Xd>(const Packet2Xd& a, const Packet2Xd& b) {
-  Packet2Xd nans = __riscv_vfmv_v_f_f64m2((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet2Xd>::size);
+  Packet2Xd nans = pnan<Packet2Xd>();
   PacketMask32 mask = __riscv_vmfeq_vv_f64m2_b32(a, a, unpacket_traits<Packet2Xd>::size);
   PacketMask32 mask2 = __riscv_vmfeq_vv_f64m2_b32(b, b, unpacket_traits<Packet2Xd>::size);
   mask = __riscv_vmand_mm_b32(mask, mask2, unpacket_traits<Packet2Xd>::size);
@@ -1070,7 +1076,7 @@ EIGEN_STRONG_INLINE Packet2Xd pmin<PropagateNumbers, Packet2Xd>(const Packet2Xd&
 
 template <>
 EIGEN_STRONG_INLINE Packet2Xd pmax<Packet2Xd>(const Packet2Xd& a, const Packet2Xd& b) {
-  Packet2Xd nans = __riscv_vfmv_v_f_f64m2((std::numeric_limits<double>::quiet_NaN)(), unpacket_traits<Packet2Xd>::size);
+  Packet2Xd nans = pnan<Packet2Xd>();
   PacketMask32 mask = __riscv_vmfeq_vv_f64m2_b32(a, a, unpacket_traits<Packet2Xd>::size);
   PacketMask32 mask2 = __riscv_vmfeq_vv_f64m2_b32(b, b, unpacket_traits<Packet2Xd>::size);
   mask = __riscv_vmand_mm_b32(mask, mask2, unpacket_traits<Packet2Xd>::size);
@@ -1183,8 +1189,9 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xd ploadquad<Packet2Xd>(const double* from) {
   Packet2Xul idx =
       __riscv_vsrl_vx_u64m2(__riscv_vid_v_u64m2(unpacket_traits<Packet2Xd>::size), 2, unpacket_traits<Packet2Xd>::size);
-  return __riscv_vrgather_vv_f64m2(__riscv_vlmul_ext_v_f64m1_f64m2(pload<Packet1Xd>(from)), idx,
-                                   unpacket_traits<Packet2Xd>::size);
+  return __riscv_vrgather_vv_f64m2(
+      __riscv_vle64_v_f64m2(from, numext::div_ceil<int>(unpacket_traits<Packet2Xd>::size, 4)), idx,
+      unpacket_traits<Packet2Xd>::size);
 }
 
 template <>
@@ -1501,7 +1508,9 @@ template <>
 EIGEN_STRONG_INLINE Packet2Xs ploadquad<Packet2Xs>(const numext::int16_t* from) {
   Packet2Xsu idx =
       __riscv_vsrl_vx_u16m2(__riscv_vid_v_u16m2(unpacket_traits<Packet2Xs>::size), 2, unpacket_traits<Packet2Xs>::size);
-  return __riscv_vrgather_vv_i16m2(pload<Packet2Xs>(from), idx, unpacket_traits<Packet2Xs>::size);
+  return __riscv_vrgather_vv_i16m2(
+      __riscv_vle16_v_i16m2(from, numext::div_ceil<int>(unpacket_traits<Packet2Xs>::size, 4)), idx,
+      unpacket_traits<Packet2Xs>::size);
 }
 
 template <>

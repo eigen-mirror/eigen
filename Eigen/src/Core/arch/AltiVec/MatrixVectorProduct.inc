@@ -1562,9 +1562,11 @@ EIGEN_ALWAYS_INLINE T convertComplex(T a) {
   return a;
 }
 
-EIGEN_ALWAYS_INLINE Packet2cf convertComplex(const Packet4f& a) { return Packet2cf(a); }
+// By value, for the same reason as the AltiVec packet shifts: a const reference overload set draws clang's
+// -Wdeprecate-lax-vec-conv-all.
+EIGEN_ALWAYS_INLINE Packet2cf convertComplex(Packet4f a) { return Packet2cf(a); }
 
-EIGEN_ALWAYS_INLINE Packet1cd convertComplex(const Packet2d& a) { return Packet1cd(a); }
+EIGEN_ALWAYS_INLINE Packet1cd convertComplex(Packet2d a) { return Packet1cd(a); }
 
 /** \internal load a vector from a complex location (for MMA version) */
 template <typename ScalarPacket, typename LhsPacket, typename SLhsPacket, typename ResPacket>

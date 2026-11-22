@@ -136,6 +136,46 @@ void verify_minmax_reduction() {
   VERIFY_IS_EQUAL(output[1], Scalar(packet_size));
 }
 
+template <typename Scalar, typename Packet>
+EIGEN_DONT_INLINE void minmax_packets(const Scalar* a, const Scalar* b, Scalar* min_output, Scalar* max_output) {
+  const Packet pa = Eigen::internal::ploadu<Packet>(a);
+  const Packet pb = Eigen::internal::ploadu<Packet>(b);
+  Eigen::internal::pstoreu<Scalar, Packet>(min_output, Eigen::internal::pmin<Packet>(pa, pb));
+  Eigen::internal::pstoreu<Scalar, Packet>(max_output, Eigen::internal::pmax<Packet>(pa, pb));
+}
+
+// pmin and pmax return a quiet NaN in the lanes where an operand is NaN, and the exact minimum or maximum elsewhere.
+// The NaN operands are built from runtime bits and the lanes are classified by their bits, since -ffast-math folds
+// isnan; a NaN constant inside pmin or pmax that the compiler treats as poison shows up as a garbage lane.
+template <typename Scalar, typename Packet>
+void verify_minmax_nan_propagation() {
+  using Binary = Eigen::internal::binary_floating_point_traits<Scalar>;
+  using Bits = typename Binary::Bits;
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  volatile Bits nan_bits = Binary::kExponentMask | (Binary::kExponentUnit >> 1);
+  Scalar a[packet_size], b[packet_size], min_output[packet_size], max_output[packet_size];
+  for (int i = 0; i < packet_size; ++i) {
+    a[i] = Scalar(i + 1);
+    b[i] = Scalar(packet_size - i);
+    const Bits bits = nan_bits;
+    if (i % 3 == 0) std::memcpy(&a[i], &bits, sizeof(Bits));
+    if (i % 5 == 1) std::memcpy(&b[i], &bits, sizeof(Bits));
+  }
+  minmax_packets<Scalar, Packet>(a, b, min_output, max_output);
+  for (int i = 0; i < packet_size; ++i) {
+    const Bits min_bits = Binary::bits(min_output[i]);
+    const Bits max_bits = Binary::bits(max_output[i]);
+    if (i % 3 == 0 || i % 5 == 1) {
+      const Bits quiet_nan = Binary::kExponentMask | (Binary::kExponentUnit >> 1);
+      VERIFY_IS_EQUAL(Bits(min_bits & quiet_nan), quiet_nan);
+      VERIFY_IS_EQUAL(Bits(max_bits & quiet_nan), quiet_nan);
+    } else {
+      VERIFY_IS_EQUAL(min_bits, Binary::bits(a[i] < b[i] ? a[i] : b[i]));
+      VERIFY_IS_EQUAL(max_bits, Binary::bits(a[i] < b[i] ? b[i] : a[i]));
+    }
+  }
+}
+
 // Complementary to the opaque-mask calls: the all-ones mask flows straight
 // from ptrue into the packet op, the way comparison-mask producers feed it,
 // which gives constant folding under -ffinite-math-only a chance to see the
@@ -398,6 +438,73 @@ void verify_sqrt_special_lanes() {
   }
 }
 
+template <typename Packet>
+EIGEN_DONT_INLINE void finite_sqrt_packet(const float* a, float* output) {
+  Eigen::internal::pstoreu<float, Packet>(output, Eigen::internal::psqrt(Eigen::internal::ploadu<Packet>(a)));
+}
+
+template <typename Packet>
+EIGEN_DONT_INLINE void finite_rsqrt_packet(const float* a, float* output) {
+  Eigen::internal::pstoreu<float, Packet>(output, Eigen::internal::prsqrt(Eigen::internal::ploadu<Packet>(a)));
+}
+
+EIGEN_DONT_INLINE void finite_sqrt_array(const float* input, float* output, Index size) {
+  Map<Array<float, Dynamic, 1>>(output, size) = Map<const Array<float, Dynamic, 1>>(input, size).sqrt();
+}
+
+EIGEN_DONT_INLINE void finite_rsqrt_array(const float* input, float* output, Index size) {
+  Map<Array<float, Dynamic, 1>>(output, size) = Map<const Array<float, Dynamic, 1>>(input, size).rsqrt();
+}
+
+// Distance in ulps, taken on the bits since -ffinite-math-only folds floating-point classification.
+inline Eigen::numext::uint32_t float_ulp_distance(float a, float b) {
+  const Eigen::numext::uint32_t x = Eigen::numext::bit_cast<Eigen::numext::uint32_t>(a);
+  const Eigen::numext::uint32_t y = Eigen::numext::bit_cast<Eigen::numext::uint32_t>(b);
+  return x > y ? x - y : y - x;
+}
+
+// sqrt and rsqrt of finite positive normal values. The NEON implementations guard the zero and infinity inputs with
+// an infinity constant; clang >= 19 under -ffinite-math-only folds that constant to poison and used to delete the
+// guarded computation, so every finite input returned 0 (rsqrt) or garbage (sqrt on ARMv7). The references are
+// computed in double and compared on the bits; the tolerance only has to separate the Newton iterations from a
+// deleted computation.
+template <typename Packet>
+void verify_sqrt_rsqrt_finite_packet() {
+  constexpr int packet_size = Eigen::internal::unpacket_traits<Packet>::size;
+  constexpr Eigen::numext::uint32_t max_ulps = 64;
+  float input[packet_size], output[packet_size];
+  for (int offset = 0; offset < 64; ++offset) {
+    for (int i = 0; i < packet_size; ++i) {
+      input[i] = std::ldexp(1.0f + 0.37f * float(i), (offset + 5 * i) % 61 - 30);
+    }
+    finite_sqrt_packet<Packet>(input, output);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY(float_ulp_distance(output[i], float(std::sqrt(double(input[i])))) <= max_ulps);
+    }
+    finite_rsqrt_packet<Packet>(input, output);
+    for (int i = 0; i < packet_size; ++i) {
+      VERIFY(float_ulp_distance(output[i], float(1.0 / std::sqrt(double(input[i])))) <= max_ulps);
+    }
+  }
+}
+
+void verify_sqrt_rsqrt_finite_array() {
+  constexpr Eigen::numext::uint32_t max_ulps = 64;
+  constexpr Index size = 67;
+  float input[size], output[size];
+  for (Index i = 0; i < size; ++i) {
+    input[i] = std::ldexp(1.0f + 0.37f * float(i % 11), int(i % 61) - 30);
+  }
+  finite_sqrt_array(input, output, size);
+  for (Index i = 0; i < size; ++i) {
+    VERIFY(float_ulp_distance(output[i], float(std::sqrt(double(input[i])))) <= max_ulps);
+  }
+  finite_rsqrt_array(input, output, size);
+  for (Index i = 0; i < size; ++i) {
+    VERIFY(float_ulp_distance(output[i], float(1.0 / std::sqrt(double(input[i])))) <= max_ulps);
+  }
+}
+
 template <typename Scalar,
           bool HasIntegerBits =
               !std::is_void<typename Eigen::numext::get_integer_by_size<sizeof(Scalar)>::unsigned_type>::value>
@@ -435,6 +542,7 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST(verify_ldexp_beyond_exponent_range<double>());
   CALL_SUBTEST(expm1_near_overflow_runner<float>::run());
   CALL_SUBTEST(expm1_near_overflow_runner<double>::run());
+  CALL_SUBTEST(verify_sqrt_rsqrt_finite_array());
 
 #if defined(EIGEN_VECTORIZE_AVX512)
   CALL_SUBTEST((verify_sqrt_special_lanes<float, Eigen::internal::Packet16f>()));
@@ -458,6 +566,14 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet1Xd>()));
   CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet2Xd>()));
   CALL_SUBTEST((verify_minmax_reduction<double, Eigen::internal::Packet4Xd>()));
+#if EIGEN_COMP_CLANG  // GCC folds the NaN self-comparison inside pmin and pmax under -ffinite-math-only
+  CALL_SUBTEST((verify_minmax_nan_propagation<float, Eigen::internal::Packet1Xf>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<float, Eigen::internal::Packet2Xf>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<float, Eigen::internal::Packet4Xf>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<double, Eigen::internal::Packet1Xd>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<double, Eigen::internal::Packet2Xd>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<double, Eigen::internal::Packet4Xd>()));
+#endif
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10FP16)
@@ -465,6 +581,10 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
   CALL_SUBTEST((verify_mask_reduction<Eigen::half, Eigen::internal::Packet2Xh>()));
   CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet1Xh>()));
   CALL_SUBTEST((verify_minmax_reduction<Eigen::half, Eigen::internal::Packet2Xh>()));
+#if EIGEN_COMP_CLANG
+  CALL_SUBTEST((verify_minmax_nan_propagation<Eigen::half, Eigen::internal::Packet1Xh>()));
+  CALL_SUBTEST((verify_minmax_nan_propagation<Eigen::half, Eigen::internal::Packet2Xh>()));
+#endif
 #endif
 
 #if defined(EIGEN_VECTORIZE_RVV10BF16)
@@ -473,6 +593,8 @@ EIGEN_DECLARE_TEST(packetmath_fastmath) {
 #endif
 
 #if defined(EIGEN_VECTORIZE_NEON)
+  CALL_SUBTEST((verify_sqrt_rsqrt_finite_packet<Eigen::internal::Packet4f>()));
+  CALL_SUBTEST((verify_sqrt_rsqrt_finite_packet<Eigen::internal::Packet2f>()));
   CALL_SUBTEST((verify_mask_reduction<float, Eigen::internal::Packet2f>()));
   CALL_SUBTEST((verify_low_bit_mask_any_ftz<float, Eigen::internal::Packet2f>()));
   CALL_SUBTEST((verify_low_bit_mask_any_ftz<Eigen::bfloat16, Eigen::internal::Packet4bf>()));

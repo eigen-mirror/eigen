@@ -2498,6 +2498,72 @@ packetmath_special_value_lanes() {
   }
 }
 
+// A float packet op that reads a subnormal input as zero (32-bit ARM NEON always; AArch64 under FPCR.FZ) may give a
+// subnormal lane of psqrt the input or a zero, and one of prsqrt a signed infinity, but neither may give a NaN, nor
+// disturb the other lanes. clang compiled the zero test of psqrt on the bits of the input, which is false for a
+// subnormal, while vrsqrte and vmul flush it: the lane became 0 * inf = NaN. prsqrt on AArch64 OR-ed the bits of a
+// flushed subnormal into the infinity, which also gave a NaN. The inputs are built from their bits, since scalar
+// arithmetic would flush them too.
+template <typename Scalar, typename Packet>
+std::enable_if_t<!std::is_same<Scalar, float>::value, void> packetmath_flushed_subnormal_lanes() {}
+
+#if EIGEN_ARCH_ARM_OR_ARM64
+template <typename Packet>
+void packetmath_flushed_subnormal_lanes_check() {
+  using Scalar = float;
+  using PacketTraits = internal::packet_traits<Scalar>;
+  constexpr bool kCheck = !internal::is_scalar<Packet>::value && PacketTraits::HasSqrt && PacketTraits::HasRsqrt;
+  EIGEN_IF_CONSTEXPR (kCheck) {
+    constexpr int PacketSize = internal::unpacket_traits<Packet>::size;
+    const Scalar inf = NumTraits<Scalar>::infinity();
+    const numext::uint32_t subnormal_bits[] = {0x00000001u, 0x00000400u, 0x00400000u, 0x007fffffu};
+    const Scalar neighbors[] = {Scalar(4), Scalar(0), inf};
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar in[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar root[PacketSize];
+    EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<Packet>::alignment) Scalar rroot[PacketSize];
+    test::packet_helper<PacketTraits::HasSqrt, Packet> h;
+    for (const bool negative : {false, true}) {
+      for (const numext::uint32_t magnitude : subnormal_bits) {
+        const Scalar subnormal = numext::bit_cast<Scalar>(magnitude | (negative ? 0x80000000u : 0u));
+        for (int k = 0; k < PacketSize; ++k) {
+          for (int i = 0; i < PacketSize; ++i) in[i] = i == k ? subnormal : neighbors[(i + k) % 3];
+          h.store(root, internal::psqrt(h.load(in)));
+          h.store(rroot, internal::prsqrt(h.load(in)));
+          for (int i = 0; i < PacketSize; ++i) {
+            if (i == k) {
+              VERIFY(test::biteq(root[i], in[i]) || root[i] == Scalar(0) ||
+                     (!negative && numext::abs(root[i] - numext::sqrt(in[i])) <= Scalar(1e-3) * numext::sqrt(in[i])));
+              VERIFY(!(numext::isnan)(rroot[i]) && (rroot[i] > 0) == !negative);
+            } else if (in[i] == Scalar(4)) {
+              VERIFY_IS_APPROX(root[i], Scalar(2));
+              VERIFY_IS_APPROX(rroot[i], Scalar(0.5));
+            } else if (in[i] == Scalar(0)) {
+              VERIFY(test::biteq(root[i], Scalar(0)));
+              VERIFY(test::biteq(rroot[i], inf));
+            } else {
+              VERIFY(test::biteq(root[i], inf));
+              VERIFY(test::biteq(rroot[i], Scalar(0)));
+            }
+          }
+        }
+      }
+    }
+  }
+}
+#endif
+
+template <typename Scalar, typename Packet>
+std::enable_if_t<std::is_same<Scalar, float>::value, void> packetmath_flushed_subnormal_lanes() {
+#if EIGEN_ARCH_ARM
+  packetmath_flushed_subnormal_lanes_check<Packet>();  // 32-bit ARM flushes whatever FPSCR says.
+#elif EIGEN_ARCH_ARM64
+  ScopedFlushToZero flush;
+  if (!flush.isSupported()) return;
+  VERIFY(ScopedFlushToZero::hardwareFlushesSubnormalInputs());
+  packetmath_flushed_subnormal_lanes_check<Packet>();
+#endif
+}
+
 template <typename Scalar, typename Packet>
 void packetmath_redux_infinities() {
   const Scalar infinity = NumTraits<Scalar>::infinity();
@@ -2690,6 +2756,7 @@ void packetmath_notcomplex() {
   packetmath_ieee_special_values<Scalar, Packet>();
   packetmath_special_value_lanes<Scalar, Packet>();
   packetmath_sqrt_rounding<Scalar, Packet>();
+  packetmath_flushed_subnormal_lanes<Scalar, Packet>();
 
   using PacketTraits = internal::packet_traits<Scalar>;
   const int PacketSize = internal::unpacket_traits<Packet>::size;
@@ -2981,11 +3048,23 @@ struct exp_complex_test_impl {
         if (is_sign_exp_unspecified(z)) {
           Scalar abs_w = Scalar(numext::abs(numext::real_ref(w)), numext::abs(numext::imag_ref(w)));
           Scalar expected = numext::exp(z);
+          // C99 Annex G: exp(+inf + i inf) = (+-inf, NaN); the macOS libm returns (NaN, NaN).
+          if (numext::real_ref(z) == std::numeric_limits<RealScalar>::infinity() &&
+              (numext::isinf)(numext::imag_ref(z))) {
+            expected =
+                Scalar(std::numeric_limits<RealScalar>::infinity(), std::numeric_limits<RealScalar>::quiet_NaN());
+          }
           Scalar abs_expected =
               Scalar(numext::abs(numext::real_ref(expected)), numext::abs(numext::imag_ref(expected)));
           VERIFY(is_exactly_equal(abs_w, abs_expected));
         } else {
           Scalar expected = numext::exp(z);
+          // C99 Annex G requires cexp(conj(z)) = conj(cexp(z)), so exp(x -+ 0i) has the imaginary part -+0. The macOS
+          // libm returns +0 for -0i, and libstdc++ forwards std::exp(std::complex) to it; for an infinite or overflowed
+          // real part, the comparison below then takes the relative error of (inf, +0) and (inf, -0), which is NaN.
+          if (numext::imag_ref(z) == RealScalar(0) && numext::imag_ref(expected) == RealScalar(0)) {
+            numext::imag_ref(expected) = std::copysign(RealScalar(0), numext::imag_ref(z));
+          }
           // First try exact equality (handles NaN, signed zeros correctly).
           // Fall back to approximate comparison to allow for small differences
           // in trig functions near zero crossings (e.g., vectorized sincos may
@@ -3896,8 +3975,28 @@ void packetmath_bfloat16_sign_bits() {
 }
 #endif
 
+#if defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+// Lanes above 65535 saturate and leave the other lanes alone, for every placement of the overflowing lanes among the
+// even and the odd lanes.
+void packetmath_bfloat16_to_unsigned_short_cast() {
+  using BfPacket = internal::Packet8bf;
+  using UsPacket = internal::Packet8us;
+  EIGEN_ALIGN_MAX bfloat16 input[8];
+  EIGEN_ALIGN_MAX numext::uint16_t output[8];
+  for (int overflow = 0; overflow < 256; ++overflow) {
+    for (int i = 0; i < 8; ++i) {
+      input[i] = bfloat16(((overflow >> i) & 1) ? 70000.0f + 1000.0f * i : 10.0f * (i + 1));
+    }
+    internal::pstore(output, internal::pcast<BfPacket, UsPacket>(internal::pload<BfPacket>(input)));
+    for (int i = 0; i < 8; ++i) {
+      VERIFY_IS_EQUAL(output[i], static_cast<numext::uint16_t>(((overflow >> i) & 1) ? 65535 : 10 * (i + 1)));
+    }
+  }
+}
+#endif
+
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
-    defined(EIGEN_VECTORIZE_SME)
+    defined(EIGEN_VECTORIZE_SME) || defined(EIGEN_VECTORIZE_RVV10BF16)
 // The bfloat16 arithmetic packets round a float result to nearest even. Check them against that rounding applied to
 // the float packet op, over every encoding of one operand and a fixed set for the other that puts sums and products
 // on exact midpoints: 1 and 3 against [256, 512), 1 + 2^-7 and 2^-7 against values near 1, plus the range ends and
@@ -4119,12 +4218,20 @@ EIGEN_DECLARE_TEST(packetmath) {
   CALL_SUBTEST_15(packetmath_with_flushed_inputs(packetmath_bfloat16_sign_bits));
 #endif
 
+#if defined(EIGEN_VECTORIZE_ALTIVEC) || defined(EIGEN_VECTORIZE_VSX)
+  CALL_SUBTEST_15(packetmath_bfloat16_to_unsigned_short_cast());
+#endif
+
 #if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
-    defined(EIGEN_VECTORIZE_SME)
+    defined(EIGEN_VECTORIZE_SME) || defined(EIGEN_VECTORIZE_RVV10BF16)
   using Bf16Packet = internal::packet_traits<bfloat16>::type;
   using Bf16HalfPacket = internal::packet_traits<bfloat16>::half;
   CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding<Bf16Packet>());
   CALL_SUBTEST_15(packetmath_bfloat16_arithmetic_rounding<Bf16HalfPacket>());
+#endif
+
+#if defined(EIGEN_VECTORIZE_AVX) || defined(EIGEN_VECTORIZE_AVX512) || defined(EIGEN_VECTORIZE_NEON) || \
+    defined(EIGEN_VECTORIZE_SME)
   // 32-bit ARM NEON flushes subnormals whatever FPSCR says.
   CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive<Bf16Packet>(EIGEN_ARCH_ARM != 0));
   CALL_SUBTEST_15(packetmath_bfloat16_sqrt_exhaustive<Bf16HalfPacket>(EIGEN_ARCH_ARM != 0));
