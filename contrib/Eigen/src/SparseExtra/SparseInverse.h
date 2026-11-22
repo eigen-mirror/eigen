@@ -71,15 +71,11 @@ class FABSum {
   }
 };
 
-/**
- * @brief computes an accurate dot product on two sparse vectors
- *
- * Uses an accurate summation algorithm for the accumulator in order to
- * compute an accurate dot product for two sparse vectors.
- *
- */
-template <typename Derived, typename OtherDerived>
-typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const SparseMatrixBase<OtherDerived>& other) {
+namespace internal {
+// Accurate sum of A_k * B_k over the shared indices, with A_k conjugated when Conjugate is true.
+template <bool Conjugate, typename Derived, typename OtherDerived>
+typename Derived::Scalar accurate_sparse_dot(const SparseMatrixBase<Derived>& A,
+                                             const SparseMatrixBase<OtherDerived>& other) {
   using Scalar = typename Derived::Scalar;
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(Derived)
   EIGEN_STATIC_ASSERT_VECTOR_ONLY(OtherDerived)
@@ -95,7 +91,7 @@ typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const S
   FABSum<Scalar> res;
   while (i && j) {
     if (i.index() == j.index()) {
-      res += numext::conj(i.value()) * j.value();
+      res += (Conjugate ? numext::conj(i.value()) : i.value()) * j.value();
       --i;
       --j;
     } else if (i.index() > j.index())
@@ -104,6 +100,20 @@ typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const S
       --j;
   }
   return res.value();
+}
+}  // namespace internal
+
+/**
+ * @brief computes an accurate dot product on two sparse vectors
+ *
+ * Uses an accurate summation algorithm for the accumulator in order to
+ * compute an accurate dot product for two sparse vectors. Like MatrixBase::dot(),
+ * the first argument is conjugated for complex scalars.
+ *
+ */
+template <typename Derived, typename OtherDerived>
+typename Derived::Scalar accurateDot(const SparseMatrixBase<Derived>& A, const SparseMatrixBase<OtherDerived>& other) {
+  return internal::accurate_sparse_dot<true>(A, other);
 }
 
 /**
@@ -203,7 +213,7 @@ class SparseInverse {
       // Calculate the inverse values for the nonzeros in this column
       typename MatrixType::ReverseInnerIterator colIter(colInv, recurseLevel);
       for (; recurseLevel < colIter.index(); --colIter) {
-        const Scalar element = -accurateDot(col, rowInv.row(colIter.index()));
+        const Scalar element = -internal::accurate_sparse_dot<false>(col, rowInv.row(colIter.index()));
         colIter.valueRef() = element;
         rowInv.coeffRef(colIter.index(), recurseLevel) = element;
       }
@@ -211,13 +221,14 @@ class SparseInverse {
       // Calculate the inverse values for the nonzeros in this row
       typename RowMatrixType::ReverseInnerIterator rowIter(rowInv, recurseLevel);
       for (; recurseLevel < rowIter.index(); --rowIter) {
-        const Scalar element = -accurateDot(row, colInv.col(rowIter.index()));
+        const Scalar element = -internal::accurate_sparse_dot<false>(row, colInv.col(rowIter.index()));
         rowIter.valueRef() = element;
         colInv.coeffRef(recurseLevel, rowIter.index()) = element;
       }
 
       // And finally the diagonal, which corresponds to both row and col iterator now
-      const Scalar diag = inverseDiagonal(recurseLevel) - accurateDot(row, colInv.col(recurseLevel));
+      const Scalar diag =
+          inverseDiagonal(recurseLevel) - internal::accurate_sparse_dot<false>(row, colInv.col(recurseLevel));
       rowIter.valueRef() = diag;
       colIter.valueRef() = diag;
     }

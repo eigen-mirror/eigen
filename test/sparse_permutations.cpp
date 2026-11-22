@@ -203,6 +203,39 @@ void sparse_permutations(const SparseMatrixType& ref) {
   res_d = ((p * up_sym_d) * p.inverse()).eval().template triangularView<Lower>();
   VERIFY(res.isApprox(res_d) && "upper selfadjoint twisted to lower");
 
+  // A symmetric matrix with both triangles stored, viewed as Upper | Lower: only one triangle may be copied, so
+  // each off-diagonal entry appears once.
+  const SparseMatrixType sym = mat + SparseMatrixType(mat.adjoint());
+  const DenseMatrix sym_d = mat_d + mat_d.adjoint();
+  const DenseMatrix sym_twisted_d = ((p * sym_d) * p.inverse()).eval();
+  Index sym_triangle_nonzeros = 0;
+  for (Index k = 0; k < sym.outerSize(); ++k)
+    for (typename SparseMatrixType::InnerIterator it(sym, k); it; ++it)
+      if (it.row() <= it.col()) ++sym_triangle_nonzeros;
+
+  res.template selfadjointView<Upper>() = sym.template selfadjointView<Upper | Lower>().twistedBy(p_null);
+  res_d = sym_d.template triangularView<Upper>();
+  VERIFY(res.isApprox(res_d) && "both selfadjoint to upper");
+  VERIFY_IS_EQUAL(res.nonZeros(), sym_triangle_nonzeros);
+
+  res.template selfadjointView<Lower>() = sym.template selfadjointView<Upper | Lower>().twistedBy(p_null);
+  res_d = sym_d.template triangularView<Lower>();
+  VERIFY(res.isApprox(res_d) && "both selfadjoint to lower");
+  VERIFY_IS_EQUAL(res.nonZeros(), sym_triangle_nonzeros);
+
+  res.template selfadjointView<Upper>() = sym.template selfadjointView<Upper | Lower>().twistedBy(p);
+  res_d = sym_twisted_d.template triangularView<Upper>();
+  VERIFY(res.isApprox(res_d) && "both selfadjoint twisted to upper");
+  VERIFY_IS_EQUAL(res.nonZeros(), sym_triangle_nonzeros);
+
+  res.template selfadjointView<Lower>() = sym.template selfadjointView<Upper | Lower>().twistedBy(p);
+  res_d = sym_twisted_d.template triangularView<Lower>();
+  VERIFY(res.isApprox(res_d) && "both selfadjoint twisted to lower");
+  VERIFY_IS_EQUAL(res.nonZeros(), sym_triangle_nonzeros);
+
+  VERIFY(is_sorted(res = sym.template selfadjointView<Upper | Lower>().twistedBy(p)));
+  VERIFY(res.isApprox(sym_twisted_d) && "both selfadjoint twisted to full");
+
   VERIFY(is_sorted(res = mat.template selfadjointView<Upper>().twistedBy(p)));
   res_d = (p * up_sym_d) * p.inverse();
   VERIFY(res.isApprox(res_d) && "full selfadjoint upper twisted to full");

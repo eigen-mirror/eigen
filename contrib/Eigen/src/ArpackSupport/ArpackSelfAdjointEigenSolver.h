@@ -56,6 +56,7 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
   ArpackGeneralizedSelfAdjointEigenSolver()
       : m_eivec(),
         m_eivalues(),
+        m_info(InvalidInput),
         m_isInitialized(false),
         m_eigenvectorsOk(false),
         m_nbrConverged(0),
@@ -88,6 +89,7 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
                                           RealScalar tol = 0.0)
       : m_eivec(),
         m_eivalues(),
+        m_info(InvalidInput),
         m_isInitialized(false),
         m_eigenvectorsOk(false),
         m_nbrConverged(0),
@@ -121,6 +123,7 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
                                           int options = ComputeEigenvectors, RealScalar tol = 0.0)
       : m_eivec(),
         m_eivalues(),
+        m_info(InvalidInput),
         m_isInitialized(false),
         m_eigenvectorsOk(false),
         m_nbrConverged(0),
@@ -276,12 +279,12 @@ class ArpackGeneralizedSelfAdjointEigenSolver {
 
   /** \brief Reports whether previous computation was successful.
    *
-   * \returns \c Success if computation was successful, \c NoConvergence otherwise.
+   * \returns \c Success if computation was successful, otherwise \c NoConvergence, \c NumericalIssue (the
+   * factorization used by the solver failed, or ARPACK reported a numerical problem) or \c InvalidInput.
+   * It can be called after any compute(), whether it succeeded or not; before the first compute() it returns
+   * \c InvalidInput. eigenvalues() and eigenvectors() require that the last compute() succeeded.
    */
-  ComputationInfo info() const {
-    eigen_assert(m_isInitialized && "ArpackGeneralizedSelfAdjointEigenSolver is not initialized.");
-    return m_info;
-  }
+  ComputationInfo info() const { return m_info; }
 
   size_t getNbrConvergedEigenValues() const { return m_nbrConverged; }
 
@@ -322,6 +325,12 @@ ArpackGeneralizedSelfAdjointEigenSolver<MatrixType, MatrixSolver, BisSPD>::compu
   eigen_assert(B.rows() == 0 || A.cols() == B.rows());
   eigen_assert((options & ~(EigVecMask | GenEigMask)) == 0 && (options & EigVecMask) != EigVecMask &&
                "invalid option parameter");
+
+  m_info = InvalidInput;
+  m_isInitialized = false;
+  m_eigenvectorsOk = false;
+  m_nbrConverged = 0;
+  m_nbrIterations = 0;
 
   bool isBempty = (B.rows() == 0) || (B.cols() == 0);
 
@@ -516,9 +525,9 @@ ArpackGeneralizedSelfAdjointEigenSolver<MatrixType, MatrixSolver, BisSPD>::compu
     m_info = NumericalIssue;
   else if (info < 0)
     m_info = InvalidInput;
-  else if (info != 0)
+  else if (info != 0) {
     eigen_assert(false && "Unknown ARPACK return value!");
-  else {
+  } else {
     // Do we compute eigenvectors or not?
     //
     int rvec = (options & ComputeEigenvectors) == ComputeEigenvectors;
@@ -600,16 +609,15 @@ namespace internal {
 
 template <typename Scalar, typename RealScalar>
 struct arpack_wrapper {
-  static inline void saupd(int *ido, char *bmat, int *n, char *which, int *nev, RealScalar *tol, Scalar *resid,
-                           int *ncv, Scalar *v, int *ldv, int *iparam, int *ipntr, Scalar *workd, Scalar *workl,
-                           int *lworkl, int *info) {
+  // Unsupported scalar types: the parameters are those of ssaupd_/sseupd_, all unused.
+  static inline void saupd(int *, char *, int *, char *, int *, RealScalar *, Scalar *, int *, Scalar *, int *, int *,
+                           int *, Scalar *, Scalar *, int *, int *) {
     EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
   }
 
-  static inline void seupd(int *rvec, char *All, int *select, Scalar *d, Scalar *z, int *ldz, RealScalar *sigma,
-                           char *bmat, int *n, char *which, int *nev, RealScalar *tol, Scalar *resid, int *ncv,
-                           Scalar *v, int *ldv, int *iparam, int *ipntr, Scalar *workd, Scalar *workl, int *lworkl,
-                           int *ierr) {
+  static inline void seupd(int *, char *, int *, Scalar *, Scalar *, int *, RealScalar *, char *, int *, char *, int *,
+                           RealScalar *, Scalar *, int *, Scalar *, int *, int *, int *, Scalar *, Scalar *, int *,
+                           int *) {
     EIGEN_STATIC_ASSERT(!NumTraits<Scalar>::IsComplex, NUMERIC_TYPE_MUST_BE_REAL)
   }
 };
@@ -641,7 +649,7 @@ struct arpack_wrapper<double, double> {
   static inline void seupd(int *rvec, char *All, int *select, double *d, double *z, int *ldz, double *sigma, char *bmat,
                            int *n, char *which, int *nev, double *tol, double *resid, int *ncv, double *v, int *ldv,
                            int *iparam, int *ipntr, double *workd, double *workl, int *lworkl, int *ierr) {
-    dseupd_(rvec, All, select, d, v, ldv, sigma, bmat, n, which, nev, tol, resid, ncv, v, ldv, iparam, ipntr, workd,
+    dseupd_(rvec, All, select, d, z, ldz, sigma, bmat, n, which, nev, tol, resid, ncv, v, ldv, iparam, ipntr, workd,
             workl, lworkl, ierr);
   }
 };
@@ -684,11 +692,11 @@ struct OP<MatrixSolver, MatrixType, Scalar, true> {
 
 template <typename MatrixSolver, typename MatrixType, typename Scalar>
 struct OP<MatrixSolver, MatrixType, Scalar, false> {
-  static inline void applyOP(MatrixSolver &OP, const MatrixType &A, int n, Scalar *in, Scalar *out) {
+  static inline void applyOP(MatrixSolver &, const MatrixType &, int, Scalar *, Scalar *) {
     eigen_assert(false && "Should never be in here...");
   }
 
-  static inline void project(MatrixSolver &OP, int n, int k, Scalar *vecs) {
+  static inline void project(MatrixSolver &, int, int, Scalar *) {
     eigen_assert(false && "Should never be in here...");
   }
 };

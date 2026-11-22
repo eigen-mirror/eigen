@@ -298,28 +298,17 @@ struct SPQR_QProduct : ReturnByValue<SPQR_QProduct<SPQRType, Derived> > {
   }
 
  private:
-  template <typename ResType, typename OtherDerived,
-            std::enable_if_t<(int(OtherDerived::Flags) & DirectAccessBit) == DirectAccessBit, int> = 0>
+  template <typename ResType, typename OtherDerived>
   void evalToImpl(ResType& res, const MatrixBase<OtherDerived>& otherExpr) const {
     cholmod_dense y_cd;
     cholmod_dense* x_cd;
     int method = m_transpose ? SPQR_QTX : SPQR_QX;
     cholmod_common* cc = m_spqr.cholmodCommon();
-    y_cd = viewAsCholmod(otherExpr.const_cast_derived());
-    x_cd = SuiteSparseQR_qmult<Scalar>(method, m_spqr.m_H, m_spqr.m_HTau, m_spqr.m_HPinv, &y_cd, cc);
-    res = Matrix<Scalar, ResType::RowsAtCompileTime, ResType::ColsAtCompileTime>::Map(
-        reinterpret_cast<Scalar*>(x_cd->x), x_cd->nrow, x_cd->ncol);
-    cholmod_l_free_dense(&x_cd, cc);
-  }
-
-  template <typename ResType, typename OtherDerived,
-            std::enable_if_t<(int(OtherDerived::Flags) & DirectAccessBit) == 0, int> = 0>
-  void evalToImpl(ResType& res, const MatrixBase<OtherDerived>& otherExpr) const {
-    cholmod_dense y_cd;
-    cholmod_dense* x_cd;
-    int method = m_transpose ? SPQR_QTX : SPQR_QX;
-    cholmod_common* cc = m_spqr.cholmodCommon();
-    typename OtherDerived::PlainObject other = otherExpr;
+    // CHOLMOD needs column-major storage with unit inner stride; Ref copies the argument when it has neither,
+    // and evaluates an expression without direct access.
+    // The scalar type must match Q's: it selects the CHOLMOD xtype that SuiteSparseQR_qmult<Scalar> requires.
+    EIGEN_STATIC_ASSERT((std::is_same<Scalar, typename OtherDerived::Scalar>::value), YOU_MIXED_DIFFERENT_NUMERIC_TYPES)
+    Ref<const Matrix<Scalar, Dynamic, Dynamic, ColMajor> > other(otherExpr.derived());
     y_cd = viewAsCholmod(other);
     x_cd = SuiteSparseQR_qmult<Scalar>(method, m_spqr.m_H, m_spqr.m_HTau, m_spqr.m_HPinv, &y_cd, cc);
     res = Matrix<Scalar, ResType::RowsAtCompileTime, ResType::ColsAtCompileTime>::Map(

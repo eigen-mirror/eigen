@@ -71,6 +71,7 @@ ei_add_test(structured_cauchy)
 
 ei_add_test(sparse_extra   "" "")
 ei_add_test(legacy_iterative_solvers)
+ei_add_test(arpack_stub)
 
 find_package(FFTW)
 if(FFTW_FOUND)

@@ -525,7 +525,9 @@ void permute_symm_to_symm(const MatrixType& mat,
     SrcOrder = MatrixType::IsRowMajor ? RowMajor : ColMajor,
     StorageOrderMatch = int(SrcOrder) == int(DstOrder),
     DstMode = DstOrder == RowMajor ? (DstMode_ == Upper ? Lower : Upper) : DstMode_,
-    SrcMode = SrcOrder == RowMajor ? (SrcMode_ == Upper ? Lower : Upper) : SrcMode_
+    // A source viewed as Upper | Lower stores both triangles: copy the upper one.
+    SrcMode =
+        SrcOrder == RowMajor ? (SrcMode_ == Upper ? Lower : Upper) : (SrcMode_ == (Upper | Lower) ? Upper : SrcMode_)
   };
 
   MatEval matEval(mat);

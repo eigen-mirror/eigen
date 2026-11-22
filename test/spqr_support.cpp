@@ -151,9 +151,43 @@ void test_spqr_matrix_q_times_identity_expression() {
   VERIFY_IS_APPROX(recoveredA, dA);
 }
 
+// Q * X and Q^H * X for dense X that is not a plain column-major matrix: a vector or matrix with a non-unit inner
+// stride (a transposed row block), a row-major matrix, and an expression without direct access.
+template <typename Scalar>
+void test_spqr_q_product_strided_rhs() {
+  using MatrixType = SparseMatrix<Scalar, ColMajor>;
+  using DenseMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  using RowMajorDenseMatrix = Matrix<Scalar, Dynamic, Dynamic, RowMajor>;
+  MatrixType A;
+  DenseMatrix dA;
+  const Index m = generate_sparse_rectangular_problem(A, dA, 40, 40);
+  SPQR<MatrixType> solver(A);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  const DenseMatrix Q = solver.matrixQ() * DenseMatrix::Identity(m, m);
+
+  const DenseMatrix wide = DenseMatrix::Random(4, m);     // wide.row(i).transpose() has inner stride 4
+  const DenseMatrix tall = DenseMatrix::Random(m, 5);     // a column block with an outer stride
+  const RowMajorDenseMatrix rowMajor = wide.transpose();  // m x 4, row-major
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * wide.row(2).transpose(),
+                   Q.adjoint() * wide.row(2).transpose().eval());
+  VERIFY_IS_APPROX(solver.matrixQ() * wide.row(1).transpose(), Q * wide.row(1).transpose().eval());
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * wide.transpose(), Q.adjoint() * DenseMatrix(wide.transpose()));
+  VERIFY_IS_APPROX(solver.matrixQ() * wide.transpose(), Q * DenseMatrix(wide.transpose()));
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * tall.col(3), Q.adjoint() * tall.col(3).eval());
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * tall.middleCols(1, 3), Q.adjoint() * tall.middleCols(1, 3).eval());
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * rowMajor, Q.adjoint() * DenseMatrix(rowMajor));
+  VERIFY_IS_APPROX(solver.matrixQ() * rowMajor.col(2), Q * DenseMatrix(rowMajor.col(2)));
+  // arguments without direct access
+  VERIFY_IS_APPROX(solver.matrixQ().transpose() * (rowMajor + rowMajor),
+                   Q.adjoint() * DenseMatrix(rowMajor + rowMajor));
+  VERIFY_IS_APPROX(solver.matrixQ() * (tall + tall), Q * DenseMatrix(tall + tall));
+}
+
 EIGEN_DECLARE_TEST(spqr_support) {
   CALL_SUBTEST_1(test_spqr_scalar<double>());
   CALL_SUBTEST_2(test_spqr_scalar<std::complex<double> >());
   CALL_SUBTEST_3(test_spqr_fixed_ordering_uses_identity_permutation<>());
   CALL_SUBTEST_3(test_spqr_matrix_q_times_identity_expression<>());
+  CALL_SUBTEST_4(test_spqr_q_product_strided_rhs<double>());
+  CALL_SUBTEST_4(test_spqr_q_product_strided_rhs<std::complex<double> >());
 }
