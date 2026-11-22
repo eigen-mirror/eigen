@@ -232,6 +232,70 @@ void unary_ops_test() {
   */
 }
 
+// The scalar tanh approximations return +-1 where tanh rounds to it, whether or not the compiler fuses their
+// multiply-adds (GCC does, with FMA available, even when Eigen is not vectorized).
+inline float scalar_tanh_approximation(float x) { return internal::ptanh_float(x); }
+inline double scalar_tanh_approximation(double x) { return internal::ptanh_double(x); }
+
+template <typename Scalar>
+void tanh_saturation_test() {
+  const Scalar inf = NumTraits<Scalar>::infinity(), highest = NumTraits<Scalar>::highest();
+  const Scalar rounds_to_one = std::is_same<Scalar, float>::value ? Scalar(9.1) : Scalar(19.1);
+  for (const Scalar x : {rounds_to_one, Scalar(2) * rounds_to_one, Scalar(100), Scalar(1e10), highest, inf}) {
+    VERIFY_IS_EQUAL(scalar_tanh_approximation(x), Scalar(1));
+    VERIFY_IS_EQUAL(scalar_tanh_approximation(-x), Scalar(-1));
+    VERIFY_IS_EQUAL(numext::tanh(x), Scalar(1));
+    VERIFY_IS_EQUAL(numext::tanh(-x), Scalar(-1));
+  }
+  // The approximation never exceeds 1 in magnitude on the way to saturation.
+  for (Scalar x = Scalar(0.5); x < rounds_to_one; x += Scalar(0.0125)) {
+    VERIFY(numext::abs(scalar_tanh_approximation(x)) <= Scalar(1));
+    VERIFY(numext::abs(scalar_tanh_approximation(-x)) <= Scalar(1));
+  }
+  VERIFY((numext::isnan)(scalar_tanh_approximation(NumTraits<Scalar>::quiet_NaN())));
+}
+
+// log2 of half and bfloat16 is exact at powers of two, subnormal ones included, on the scalar path (size 1) and in the
+// packet body and tail.
+template <typename Scalar>
+void log2_narrow_test() {
+#if EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  const int min_exp = NumTraits<Scalar>::min_exponent() - 1;
+#else
+  const int min_exp = NumTraits<Scalar>::min_exponent() - NumTraits<Scalar>::digits();  // 2^-24 and 2^-133
+#endif
+  const int max_exp = NumTraits<Scalar>::max_exponent() - 1;
+  for (const Index size : {Index(1), 2 * Index(internal::packet_traits<Scalar>::size) + 1}) {
+    for (int e = min_exp; e <= max_exp; ++e) {
+      const ArrayX<Scalar> x = ArrayX<Scalar>::Constant(size, Scalar(std::ldexp(1.0f, e)));
+      const ArrayX<Scalar> y = x.log2();
+      for (Index i = 0; i < size; ++i) VERIFY_IS_EQUAL(float(y(i)), float(e));
+    }
+  }
+}
+
+// |x - y| of signed integers that differ by more than the maximum wraps modulo 2^digits, as pabsdiff does.
+template <typename Scalar>
+void absolute_difference_integer_test() {
+  using Unsigned = std::make_unsigned_t<Scalar>;
+  const Scalar lowest = (std::numeric_limits<Scalar>::min)(), highest = (std::numeric_limits<Scalar>::max)();
+  const Scalar values[] = {lowest, Scalar(lowest + 1), Scalar(-1), Scalar(0), Scalar(1), Scalar(highest - 1), highest};
+  const Index n = Index(sizeof(values) / sizeof(values[0]));
+  const Index size = n * n;
+  ArrayX<Scalar> x(size), y(size), expected(size);
+  for (Index i = 0; i < n; ++i) {
+    for (Index j = 0; j < n; ++j) {
+      x(i * n + j) = values[i];
+      y(i * n + j) = values[j];
+      const Unsigned a = Unsigned(values[i]), b = Unsigned(values[j]);
+      expected(i * n + j) = Scalar(Unsigned(values[i] > values[j] ? a - b : b - a));
+    }
+  }
+  const ArrayX<Scalar> got = x.absolute_difference(y);
+  VERIFY_IS_CWISE_EQUAL(got, expected);
+  for (Index k = 0; k < size; ++k) VERIFY_IS_EQUAL(numext::absdiff(x(k), y(k)), expected(k));
+}
+
 template <typename Scalar>
 void ldexp_test() {
   const std::vector<Scalar> vals = special_values<Scalar>();
@@ -246,19 +310,24 @@ void ldexp_test() {
   const int digits = std::numeric_limits<Scalar>::digits;
   const int max_exp = std::numeric_limits<Scalar>::max_exponent;
   // Include denormals, saturation, and unrepresentable 2^e scale factors.
-  const int exponents[] = {0,
-                           1,
-                           -1,
-                           digits - 1,
-                           1 - digits,
-                           max_exp - 1,
-                           1 - max_exp,
-                           max_exp + digits,
-                           -(max_exp + digits),
-                           2 * max_exp,
-                           -2 * max_exp,
-                           (std::numeric_limits<int>::max)(),
-                           (std::numeric_limits<int>::min)()};
+  std::vector<int> exponents = {0,
+                                1,
+                                -1,
+                                digits - 1,
+                                1 - digits,
+                                max_exp - 1,
+                                1 - max_exp,
+                                max_exp + digits,
+                                -(max_exp + digits),
+                                2 * max_exp,
+                                -2 * max_exp,
+                                (std::numeric_limits<int>::max)(),
+                                (std::numeric_limits<int>::min)(),
+                                70000,
+                                -70000};
+  // Every exponent that matters for subnormal inputs and near-overflow results, including those that bfloat16 cannot
+  // represent as a Scalar (odd |e| > 256).
+  for (int exponent = -300; exponent <= 300; ++exponent) exponents.push_back(exponent);
 
   bool all_pass = true;
   for (const int exponent : exponents) {
@@ -266,10 +335,13 @@ void ldexp_test() {
     const Array<Scalar, Dynamic, 1> global_result = Eigen::ldexp(x, exponent);
     for (Index i = 0; i < x.size(); ++i) {
       // double covers every tested Scalar, so one conversion back gives the exact reference.
-      const double expected = static_cast<double>(static_cast<Scalar>(std::ldexp(static_cast<double>(x(i)), exponent)));
+      const double exact = std::ldexp(static_cast<double>(x(i)), exponent);
+      const double expected = static_cast<double>(static_cast<Scalar>(exact));
 #if EIGEN_ARCH_ARM
-      // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results.
-      if (expected != 0.0 && std::abs(expected) < static_cast<double>((std::numeric_limits<Scalar>::min)())) continue;
+      // Work around 32-bit ARM flush-to-zero mode: skip cases with subnormal results. Tininess is detected before
+      // rounding, so a result below the smallest normal that rounds up to it, such as (2 - 2^-23) * 2^-127, is
+      // flushed too.
+      if (expected != 0.0 && std::abs(exact) < static_cast<double>((std::numeric_limits<Scalar>::min)())) continue;
 #endif
       for (const Scalar& result : {method_result(i), global_result(i)}) {
         const double actual = static_cast<double>(result);
@@ -283,6 +355,31 @@ void ldexp_test() {
     }
   }
   VERIFY(all_pass);
+}
+
+// A custom scalar whose NumTraits members are plain functions, not constexpr (as for mpfr::mpreal), still has ldexp.
+struct NonConstexprReal {
+  NonConstexprReal() : value(0) {}
+  explicit NonConstexprReal(double v) : value(v) {}
+  double value;
+};
+inline NonConstexprReal ldexp(const NonConstexprReal& x, int exponent) {
+  return NonConstexprReal(std::ldexp(x.value, exponent));
+}
+namespace Eigen {
+template <>
+struct NumTraits<NonConstexprReal> : GenericNumTraits<NonConstexprReal> {
+  static int digits() { return 53; }
+  static int min_exponent() { return -1021; }
+  static int max_exponent() { return 1024; }
+};
+}  // namespace Eigen
+
+void ldexp_custom_scalar_test() {
+  ArrayX<NonConstexprReal> x(5);
+  for (Index i = 0; i < x.size(); ++i) x(i) = NonConstexprReal(double(i) + 0.5);
+  const ArrayX<NonConstexprReal> y = x.ldexp(3);
+  for (Index i = 0; i < x.size(); ++i) VERIFY_IS_EQUAL(y(i).value, 8.0 * (double(i) + 0.5));
 }
 
 template <typename Base, typename Exponent, bool ExpIsInteger = NumTraits<Exponent>::IsInteger>
@@ -1870,8 +1967,13 @@ EIGEN_DECLARE_TEST(array_cwise) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_34(ldexp_test<float>());
     CALL_SUBTEST_35(ldexp_test<double>());
+    CALL_SUBTEST_34(tanh_saturation_test<float>());
+    CALL_SUBTEST_35(tanh_saturation_test<double>());
     CALL_SUBTEST_36(ldexp_test<Eigen::half>());
     CALL_SUBTEST_37(ldexp_test<Eigen::bfloat16>());
+    CALL_SUBTEST_36(log2_narrow_test<Eigen::half>());
+    CALL_SUBTEST_37(log2_narrow_test<Eigen::bfloat16>());
+    CALL_SUBTEST_37(ldexp_custom_scalar_test());
   }
   for (int i = 0; i < g_repeat; i++) {
     CALL_SUBTEST_23(typed_logicals_test(ArrayX<int>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
@@ -1890,6 +1992,10 @@ EIGEN_DECLARE_TEST(array_cwise) {
     CALL_SUBTEST_27(typed_logicals_test(ArrayX<std::complex<double>>(internal::random<int>(1, EIGEN_TEST_MAX_SIZE))));
     CALL_SUBTEST_42(bool_logical_ops<>());
     CALL_SUBTEST_43(modulus_tests());
+    CALL_SUBTEST_43(absolute_difference_integer_test<int8_t>());
+    CALL_SUBTEST_43(absolute_difference_integer_test<int16_t>());
+    CALL_SUBTEST_43(absolute_difference_integer_test<int32_t>());
+    CALL_SUBTEST_43(absolute_difference_integer_test<int64_t>());
   }
 
   for (int i = 0; i < g_repeat; i++) {

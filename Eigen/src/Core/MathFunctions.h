@@ -937,12 +937,36 @@ struct sign_impl<Scalar, true, IsInteger> {
   EIGEN_DEVICE_FUNC static inline Scalar run(const Scalar& a) {
     using real_type = typename NumTraits<Scalar>::Real;
     EIGEN_USING_STD(abs);
-    real_type aa = abs(a);
-    if (aa == real_type(0)) return Scalar(0);
+    EIGEN_USING_STD(sqrt);
+    const real_type re = numext::real(a);
+    const real_type im = numext::imag(a);
+    if (numext::is_exactly_zero(re) && numext::is_exactly_zero(im)) return Scalar(0);
+    // |z| lies in [m, sqrt(2) m] for m = max(|re|, |im|): it overflows only for m > max / sqrt(2) and is rounded to the
+    // subnormal grid for m < min. Then u = z / m, with max(|Re u|, |Im u|) = 1, gives sign(z) = u / sqrt(|u|^2). The
+    // trigger is on the components, as in psign_impl. Non-finite z keeps z / |z|. Under -ffast-math only m > max / 2
+    // is known to give a unit result (tested from 0.6 max). |z| is formed only after the rescaling branch: for large m
+    // it would raise a spurious overflow, and a NaN component must not reach the 0 / 0 of the rescaling.
+    if ((isfinite_impl<real_type>)(re) && (isfinite_impl<real_type>)(im)) {
+      const real_type abs_re = abs(re);
+      const real_type abs_im = abs(im);
+      const real_type m = abs_re < abs_im ? abs_im : abs_re;
+      const real_type half_highest = NumTraits<real_type>::highest() / real_type(2);
+      if (EIGEN_PREDICT_FALSE(m < (numext::numeric_limits<real_type>::min)() || m > half_highest)) {
+        // For large m, z / m is formed as (z / 4) / (m / 4): -ffast-math rewrites z / m as z * (1 / m), and 1 / m is
+        // subnormal for m near max and flushed. The barrier keeps m / 4 from being folded back into the quotient.
+        const real_type scale = m > half_highest ? real_type(0.25) : real_type(1);
+        real_type scaled_m = m * scale;
+        volatile_barrier(scaled_m);
+        const real_type u_re = (re * scale) / scaled_m;
+        const real_type u_im = (im * scale) / scaled_m;
+        const real_type norm = sqrt(u_re * u_re + u_im * u_im);
+        return Scalar(u_re / norm, u_im / norm);
+      }
+    }
+    const real_type aa = abs(a);
     // Divide rather than multiply by 1/aa: the reciprocal overflows for subnormal aa and is itself
-    // subnormal, hence inexact, for aa near the top of the range. psign_impl for complex packets
-    // divides for the same reason.
-    return Scalar(numext::real(a) / aa, numext::imag(a) / aa);
+    // subnormal, hence inexact, for aa near the top of the range.
+    return Scalar(re / aa, im / aa);
   }
 };
 
@@ -1234,7 +1258,8 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE bool is_exactly_zero_no_flush_impl(const S
 }
 
 // |x - y|, as the packet path computes it: abs keeps the +0 of (+0, -0) and the NaN of (inf, inf).
-template <typename T, bool IsInteger = NumTraits<T>::IsInteger>
+template <typename T, bool IsInteger = NumTraits<T>::IsInteger,
+          bool IsSignedIntegral = std::is_integral<T>::value && std::is_signed<T>::value>
 struct absdiff_impl {
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x, const T& y) {
     EIGEN_USING_STD(abs);
@@ -1244,8 +1269,18 @@ struct absdiff_impl {
 
 // Unsigned x - y wraps, so integers order the operands.
 template <typename T>
-struct absdiff_impl<T, true> {
+struct absdiff_impl<T, true, false> {
   EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x, const T& y) { return x > y ? x - y : y - x; }
+};
+
+// A signed integer subtracts in the unsigned type, since |x - y| > max overflows the signed one.
+template <typename T>
+struct absdiff_impl<T, true, true> {
+  EIGEN_DEVICE_FUNC static EIGEN_ALWAYS_INLINE T run(const T& x, const T& y) {
+    using U = std::make_unsigned_t<T>;
+    const U ux = static_cast<U>(x), uy = static_cast<U>(y);
+    return static_cast<T>(static_cast<U>(x > y ? ux - uy : uy - ux));
+  }
 };
 
 }  // end namespace internal
@@ -2526,10 +2561,15 @@ struct log1p_impl<std::complex<RealScalar>> {
     const RealScalar y = z.imag();
     // log|1 + z| = log1p(x (2 + x) + y^2) / 2. Rounding |1 + z| instead loses the real part to cancellation near
     // |1 + z| = 1, and with it the relative accuracy of log1p(z) for small z off the real axis.
-    if (numext::abs(x) < RealScalar(0.5) && numext::abs(y) < RealScalar(0.5) && !numext::is_exactly_zero(y)) {
+    const bool is_small = numext::abs(x) < RealScalar(0.5) && numext::abs(y) < RealScalar(0.5);
+    if (is_small && !numext::is_exactly_zero(y)) {
       return std::complex<RealScalar>(numext::log1p(x * (RealScalar(2) + x) + y * y) / RealScalar(2),
                                       numext::atan2(y, RealScalar(1) + x));
     }
+    // The correction in std_fallback::log1p, z log(u) / (u - 1) for u = 1 + z, presumes log(u) ~ u - 1, so small z. For
+    // |z| >= 1/2 it only adds error, up to ~1e2 ulps in the argument for |x| >= 1e4 in float, where the quotient's
+    // imaginary part cancels; log(u) is accurate there.
+    if (!is_small) return numext::log(std::complex<RealScalar>(RealScalar(1) + x, y));
     return std_fallback::log1p(z);
   }
 };
@@ -2648,6 +2688,38 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_fast(const 
   return std::complex<T>((a_real * b_real + a_imag * b_imag) / norm, (a_imag * b_real - a_real * b_imag) / norm);
 }
 
+// x / y as a scalar division, which the optimizer cannot pack with another one. Clang 14 packs the two quotients of
+// complex_divide_smith_large into one divps, whose spare lanes divide the denominator by itself (or another value that
+// is not an operand), so an infinite denominator raises FE_INVALID where both quotients are zeros.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE T complex_divide_scalar_quotient(T x, T y) {
+  return x / y;
+}
+
+// Smith's quotient where a numerator or the denominator has overflowed: a (b) is scaled by 1/4 where a component
+// exceeds highest / 4, and the quotient by the inverse scale. rscale and iscale are Smith's ratios for b.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE std::complex<T> complex_divide_smith_large(const std::complex<T>& a,
+                                                                               const std::complex<T>& b, T rscale,
+                                                                               T iscale) {
+  const T quarter_highest = NumTraits<T>::highest() / T(4);
+  const T a_real = numext::real(a);
+  const T a_imag = numext::imag(a);
+  const T b_real = numext::real(b);
+  const T b_imag = numext::imag(b);
+  const bool large_a = numext::abs(a_real) > quarter_highest || numext::abs(a_imag) > quarter_highest;
+  const bool large_b = numext::abs(b_real) > quarter_highest || numext::abs(b_imag) > quarter_highest;
+  const T a_scale = large_a ? T(0.25) : T(1);
+  const T b_scale = large_b ? T(0.25) : T(1);
+  const T scaled_denominator = (b_real * b_scale) * rscale + (b_imag * b_scale) * iscale;
+  const T unscale = (large_a ? T(4) : T(1)) * b_scale;
+  const T real_quotient =
+      complex_divide_scalar_quotient((a_real * a_scale) * rscale + (a_imag * a_scale) * iscale, scaled_denominator);
+  const T imag_quotient =
+      complex_divide_scalar_quotient((a_imag * a_scale) * rscale - (a_real * a_scale) * iscale, scaled_denominator);
+  return std::complex<T>(real_quotient * unscale, imag_quotient * unscale);
+}
+
 template <typename T>
 EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_smith(const std::complex<T>& a,
                                                                            const std::complex<T>& b) {
@@ -2676,8 +2748,19 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE std::complex<T> complex_divide_smith(const
     rscale = b_real / b_imag;
   }
   const T denominator = b_real * rscale + b_imag * iscale;
-  return std::complex<T>((a_real * rscale + a_imag * iscale) / denominator,
-                         (a_imag * rscale - a_real * iscale) / denominator);
+  const T numerator_real = a_real * rscale + a_imag * iscale;
+  const T numerator_imag = a_imag * rscale - a_real * iscale;
+  // The numerators are at most 2 max(|a_r|, |a_i|) and the denominator lies in [m, 2 m] for m = max(|b_r|, |b_i|), so
+  // any of them can overflow where the quotient does not, as in pdiv_complex, which this follows. Each is tested on its
+  // own, by a test that raises no exception for a NaN: a test of their sum raises FE_OVERFLOW, and FE_INVALID
+  // for inf - inf, where no term overflows. The tests are folded under -ffinite-math-only, where division then behaves
+  // as before the guard (no rescaling).
+  const int overflowed =
+      int((numext::isinf)(numerator_real)) | int((numext::isinf)(numerator_imag)) | int((numext::isinf)(denominator));
+  if (EIGEN_PREDICT_FALSE(overflowed != 0)) {
+    return complex_divide_smith_large(a, b, rscale, iscale);
+  }
+  return std::complex<T>(numerator_real / denominator, numerator_imag / denominator);
 }
 
 template <typename T>

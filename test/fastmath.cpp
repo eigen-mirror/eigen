@@ -9,6 +9,7 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include "main.h"
+#include "fp_control.h"
 #include <Eigen/QR>
 #include <iomanip>
 #include <vector>
@@ -603,7 +604,46 @@ void check_complex_exp_overflow() {
   }
 }
 
+template <typename Scalar>
+EIGEN_DONT_INLINE Scalar fastmath_scalar_sign(const Scalar& z) {
+  return numext::sign(z);
+}
+
+// The scalar numext::sign of z with max(|Re z|, |Im z|) above highest / 2 tests the components, not an inf |z|, and
+// divides by m / 4 behind a barrier, because -ffast-math turns z / m into z * (1 / m) and 1 / m is flushed there. The
+// operands come from a volatile scale, so that nothing is folded at compile time, and subnormals are flushed.
+// Array::sign() is not checked: its packet path is wrong near overflow under -ffast-math. Only m >= 0.6 max is covered;
+// the scalar result under -ffast-math can still be 0 or NaN for sqrt(max) < |z| <= max / 2 and for |z| < sqrt(min).
+template <typename RealScalar>
+void check_complex_sign_overflow() {
+  using Scalar = std::complex<RealScalar>;
+  // Subnormals are flushed, as in a program linked with -ffast-math, which a test linked without it would not do.
+  ScopedFlushToZero flush_to_zero(FlushToZeroMode::Both);
+  volatile RealScalar unit = RealScalar(1);
+  const RealScalar highest = (std::numeric_limits<RealScalar>::max)() * unit;
+  const RealScalar h = RealScalar(0.75) * highest;
+  // The quotient, the square root and the final quotient round at most 0.5 ulp each (about 1.5 eps together), and the
+  // constant sqrt_half rounds 0.5 ulp more; 8 eps leaves margin. Not a measured maximum.
+  const RealScalar tol = RealScalar(8) * NumTraits<RealScalar>::epsilon();
+  const RealScalar sqrt_half = RealScalar(0.70710678118654752440);
+  // A NaN result must fail: under -ffast-math a comparison with a NaN is not reliable, but the bits of a nonnegative
+  // float order like its value, and those of a NaN lie above every finite one.
+  using Bits = typename numext::get_integer_by_size<sizeof(RealScalar)>::unsigned_type;
+  const auto close = [&](const Scalar& x, const Scalar& y) {
+    const RealScalar bound = tol * numext::abs(y);
+    return numext::bit_cast<Bits>(numext::abs(numext::real(x) - numext::real(y))) <= numext::bit_cast<Bits>(bound) &&
+           numext::bit_cast<Bits>(numext::abs(numext::imag(x) - numext::imag(y))) <= numext::bit_cast<Bits>(bound);
+  };
+  VERIFY(close(fastmath_scalar_sign(Scalar(highest, highest)), Scalar(sqrt_half, sqrt_half)));
+  VERIFY(close(fastmath_scalar_sign(Scalar(-highest, highest)), Scalar(-sqrt_half, sqrt_half)));
+  VERIFY(close(fastmath_scalar_sign(Scalar(h, -h)), Scalar(sqrt_half, -sqrt_half)));
+  VERIFY(close(fastmath_scalar_sign(Scalar(RealScalar(0.6) * highest, unit)), Scalar(RealScalar(1), RealScalar(0))));
+}
+
 EIGEN_DECLARE_TEST(fastmath) {
+  CALL_SUBTEST_14(check_complex_sign_overflow<float>());
+  CALL_SUBTEST_15(check_complex_sign_overflow<double>());
+
   std::cout << "*** float *** \n\n";
   check_inf_nan<float>(true);
   std::cout << "*** double ***\n\n";

@@ -929,12 +929,65 @@ void check_complex_sign() {
     VERIFY_IS_EQUAL(numext::sign(T(zero, r)), T(zero, one));
   }
 
-  // Off the axes the magnitude is only as accurate as abs() itself, which cannot resolve |z| for a z
-  // whose components are at the bottom of the subnormal range; from the smallest normal upwards it can.
-  for (Real r : {(std::numeric_limits<Real>::min)(), one, (std::numeric_limits<Real>::max)() / Real(2)}) {
-    const T s = numext::sign(T(r, r));
-    VERIFY_IS_APPROX(numext::abs(s), one);
-    VERIFY_IS_EQUAL(numext::real(s), numext::imag(s));
+  // Off the axes, sign(z) = (x, y) / m / sqrt(1 + (min(|x|, |y|) / m)^2) for m = max(|x|, |y|), also where |z|
+  // overflows (z = (max, max)) or is subnormal, which abs() cannot resolve.
+  const Real eps = NumTraits<Real>::epsilon();
+  const Real denorm_min = std::numeric_limits<Real>::denorm_min();
+  const Real highest = (std::numeric_limits<Real>::max)();
+  const Real sqrt_half = Real(0.70710678118654752440);
+  const Real two_over_sqrt5 = Real(0.89442719099991587856), one_over_sqrt5 = Real(0.44721359549995793928);
+  struct Case {
+    Real x, y, sign_x, sign_y;
+  };
+  const Case cases[] = {{(std::numeric_limits<Real>::min)(), (std::numeric_limits<Real>::min)(), sqrt_half, sqrt_half},
+                        {one, one, sqrt_half, sqrt_half},
+                        {highest / Real(2), highest / Real(2), sqrt_half, sqrt_half},
+                        {highest, highest, sqrt_half, sqrt_half},
+                        {-highest, highest, -sqrt_half, sqrt_half},
+                        {highest, -highest / Real(2), two_over_sqrt5, -one_over_sqrt5},
+                        {denorm_min, denorm_min, sqrt_half, sqrt_half},
+                        {-denorm_min, denorm_min, -sqrt_half, sqrt_half},
+                        {Real(6) * denorm_min, Real(3) * denorm_min, two_over_sqrt5, one_over_sqrt5},
+                        {Real(2) * denorm_min, -Real(4) * denorm_min, one_over_sqrt5, -two_over_sqrt5}};
+  const auto check = [&](const T& value, const Case& c) {
+    VERIFY(numext::abs(numext::real(value) - c.sign_x) <= Real(4) * eps);
+    VERIFY(numext::abs(numext::imag(value) - c.sign_y) <= Real(4) * eps);
+  };
+  // Array::sign() takes the packet path in the body and the scalar path in the remainder.
+  Array<T, Dynamic, 1> z(19), s_array;
+  for (const Case& c : cases) {
+    check(numext::sign(T(c.x, c.y)), c);
+#if EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals in packet operations.
+    if (numext::abs(c.x) < (std::numeric_limits<Real>::min)()) continue;
+#endif
+    z.setConstant(T(c.x, c.y));
+    s_array = z.sign();
+    check(s_array(0), c);
+    check(s_array(s_array.size() - 1), c);
+  }
+
+  // Lane isolation: extreme, NaN and infinite elements next to ordinary ones, at every lane position, agree with the
+  // scalar function (NaN in either component gives NaN in both).
+  const Real nan = NumTraits<Real>::quiet_NaN(), inf = NumTraits<Real>::infinity();
+  std::vector<T> lanes = {T(highest, highest), T(nan, highest),  T(highest, nan), T(inf, one),   T(3, 4),
+                          T(-highest, one),    T(one, -highest), T(zero, zero),   T(-inf, -inf), T(one, 2)};
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals in packet operations.
+  lanes.push_back(T(denorm_min, denorm_min));
+  lanes.push_back(T(nan, denorm_min));
+  lanes.push_back(T(-denorm_min, nan));
+  lanes.push_back(T(Real(6) * denorm_min, Real(3) * denorm_min));
+#endif
+  const auto same = [&](const Real& x, const Real& y) {
+    return ((numext::isnan)(x) && (numext::isnan)(y)) || x == y || numext::abs(x - y) <= Real(4) * eps;
+  };
+  for (size_t shift = 0; shift < lanes.size(); ++shift) {
+    for (Index i = 0; i < z.size(); ++i) z(i) = lanes[(size_t(i) + shift) % lanes.size()];
+    s_array = z.sign();
+    for (Index i = 0; i < z.size(); ++i) {
+      const T expected = numext::sign(z(i));
+      VERIFY(same(numext::real(s_array(i)), numext::real(expected)));
+      VERIFY(same(numext::imag(s_array(i)), numext::imag(expected)));
+    }
   }
 }
 
@@ -994,6 +1047,23 @@ void check_complex_log1p_accuracy() {
   }
 }
 
+// log1p(z) for |z| of at least 1, where 1 + z is accurate: the argument is atan2(y, 1 + x) to a few ulps, however large
+// |x| is. W is wider than T.
+template <typename T, typename W>
+void check_complex_log1p_large() {
+  const T eps = NumTraits<T>::epsilon();
+  const T big = (std::numeric_limits<T>::max)() / T(4);
+  for (const T x : {T(3), -T(5), T(1e3), -T(1e5), T(1e10), -T(1e10), T(1e20), big, -big}) {
+    for (const T y : {T(1), -T(0.25), T(1e-3) * x, T(1e-10) * x, big / T(2)}) {
+      const std::complex<T> got = numext::log1p(std::complex<T>(x, y));
+      const W ref_re = std::log(std::hypot(W(1) + W(x), W(y)));
+      const W ref_im = std::atan2(W(y), W(1) + W(x));
+      VERIFY(numext::abs(W(got.imag()) - ref_im) <= W(4) * W(eps) * numext::abs(ref_im));
+      VERIFY(numext::abs(W(got.real()) - ref_re) <= W(4) * W(eps) * numext::abs(ref_re));
+    }
+  }
+}
+
 // C99 Annex G: a nonzero finite numerator over a zero divisor gives an infinity, and a finite one over an infinite
 // divisor gives zero, also where the divisor's parts have equal magnitudes. scalar_quotient_op is the coefficient-wise
 // quotient's scalar path.
@@ -1014,6 +1084,101 @@ void check_complex_divide() {
       }
     }
   }
+}
+
+// Quotients that are representable although Smith's numerator a_r + a_i d / c or denominator c + d^2 / c is not: the
+// operands lie above max / 2 or the divisor's parts are. Both the scalar and the packet (Array) path must give them.
+template <typename T>
+void check_complex_divide_extreme() {
+  using Complex = std::complex<T>;
+  const T zero(0), half(0.5), one(1);
+  const T highest = (std::numeric_limits<T>::max)();
+  const T h = T(0.75) * highest, big = T(0.9) * highest, lowest = (std::numeric_limits<T>::min)();
+  struct Case {
+    Complex a, b, quotient;
+  };
+  const Case cases[] = {{Complex(h, h), Complex(h, h), Complex(one, zero)},
+                        {Complex(h, -h), Complex(h, h), Complex(zero, -one)},
+                        {Complex(-h, h), Complex(h, -h), Complex(-one, zero)},
+                        {Complex(h, zero), Complex(h, h), Complex(half, -half)},
+                        {Complex(-h, zero), Complex(h, h), Complex(-half, half)},
+                        {Complex(zero, h), Complex(-h, h), Complex(half, -half)},
+                        {Complex(highest, highest), Complex(T(2), T(2)), Complex(highest / T(2), zero)},
+                        {Complex(highest, -highest), Complex(T(2), T(2)), Complex(zero, -highest / T(2))},
+                        {Complex(big, zero), Complex(big, zero), Complex(one, zero)},
+                        {Complex(zero, big), Complex(zero, -big), Complex(-one, zero)},
+                        {Complex(lowest, lowest), Complex(T(2) * lowest, T(2) * lowest), Complex(half, zero)},
+                        {Complex(lowest, zero), Complex(zero, -T(2) * lowest), Complex(zero, half)}};
+  const T tol = T(8) * NumTraits<T>::epsilon();
+  Array<Complex, Dynamic, 1> a(19), b(19), q;
+  for (const Case& c : cases) {
+    a.setConstant(c.a);
+    b.setConstant(c.b);
+    q = a / b;
+    for (const Complex& value : {numext::divide(c.a, c.b), internal::scalar_quotient_op<Complex, Complex>()(c.a, c.b),
+                                 q(0), q(q.size() - 1)}) {
+      VERIFY(numext::abs(value.real() - c.quotient.real()) <= tol * numext::abs(c.quotient));
+      VERIFY(numext::abs(value.imag() - c.quotient.imag()) <= tol * numext::abs(c.quotient));
+    }
+  }
+  // Random quotients of operands near the top of the range: a = q b with 0.25 <= |q| < 1 and the parts of b up to
+  // max / 2.
+  for (int i = 0; i < 50; ++i) {
+    const Complex b_big(internal::random<T>(T(-0.5), T(0.5)) * highest, internal::random<T>(T(-0.5), T(0.5)) * highest);
+    const Complex q_ref(internal::random<T>(T(-0.7), T(0.7)), internal::random<T>(T(-0.7), T(0.7)));
+    if (numext::abs(b_big) < T(0.2) * highest || numext::abs(q_ref) < T(0.25)) continue;
+    const Complex a_big = q_ref * b_big;
+    a.setConstant(a_big);
+    b.setConstant(b_big);
+    q = a / b;
+    for (const Complex& value : {numext::divide(a_big, b_big), q(0), q(q.size() - 1)}) {
+      VERIFY(numext::abs(value - q_ref) <= tol * numext::abs(q_ref));
+    }
+  }
+}
+
+// The unscaled quotient is right where no numerator overflows. |a_r| + |a_i| = highest + ulp / 2 at a tie does overflow
+// the sum a_r + a_i of Smith's numerator for b = 1 + i, but the quotient does not: it rounds to 2^(emax - 1). A
+// subnormal component beside a large one survives division by one. Those two are the regression checks; the assertions
+// on the zero signs of a division by an infinity pin the existing behavior and do not guard the rework.
+template <typename T>
+void check_complex_divide_ties_and_zero_signs() {
+  using Complex = std::complex<T>;
+  const T zero(0), one(1);
+  const T highest = (std::numeric_limits<T>::max)();
+  const T denorm_min = std::numeric_limits<T>::denorm_min();
+  const T inf = std::numeric_limits<T>::infinity();
+  const int ulp_exponent = NumTraits<T>::max_exponent() - NumTraits<T>::digits();  // ulp(highest) = 2^ulp_exponent
+  const T ulp = numext::ldexp(one, ulp_exponent);
+  const Complex tie(highest - ulp, T(1.5) * ulp);
+  const Complex one_plus_i(one, one);
+  const T tol = T(8) * NumTraits<T>::epsilon();
+  const Complex expected(numext::ldexp(one, NumTraits<T>::max_exponent() - 1),
+                         -numext::ldexp(one, NumTraits<T>::max_exponent() - 1));
+  for (const Complex& q :
+       {numext::divide(tie, one_plus_i), internal::scalar_quotient_op<Complex, Complex>()(tie, one_plus_i)}) {
+    VERIFY(numext::abs(q - expected) <= tol * numext::abs(expected));
+  }
+  const T tiny_cases[] = {denorm_min, -denorm_min};
+#if !EIGEN_ARCH_ARM  // 32-bit ARM flushes subnormals.
+  for (const T tiny : tiny_cases) {
+    const Complex q = numext::divide(Complex(tiny, highest), Complex(one, zero));
+    VERIFY_IS_EQUAL(q.real(), tiny);
+    VERIFY_IS_EQUAL(q.imag(), highest);
+    // Plain Smith's quotient by an infinite divisor: 0 with the sign of the numerator component.
+    for (const T large : {one, -one}) {
+      const Complex r = numext::divide(Complex(tiny, large), Complex(inf, zero));
+      VERIFY_IS_EQUAL(r.real(), T(tiny / inf));
+      VERIFY_IS_EQUAL((std::signbit)(r.real()), (std::signbit)(tiny));
+      VERIFY_IS_EQUAL(r.imag(), zero);
+      VERIFY_IS_EQUAL((std::signbit)(r.imag()), (std::signbit)(large));
+    }
+  }
+#else
+  (void)tiny_cases;
+  (void)inf;
+  (void)denorm_min;
+#endif
 }
 
 #if EIGEN_COMP_MSVC
@@ -1052,6 +1217,52 @@ void check_complex_divide_exceptions() {
         Complex(-small, small), Complex(small, -small), Complex(-small, -small), Complex(two, zero),
         Complex(-two, zero), Complex(zero, two), Complex(zero, -two)}) {
     const int exceptions = complex_divide_exceptions(Complex(T(1), T(0)), b);
+    if (exceptions >= 0) VERIFY_IS_EQUAL(exceptions, 0);
+  }
+
+  // The test for an overflowed numerator or denominator raises nothing where no term overflows, although their sum
+  // does (the terms are at most 2 max|a| and 2 max|b|), and nothing for an infinite or NaN operand whose quotient
+  // is infinite or NaN without an invalid operation.
+  const T highest = (std::numeric_limits<T>::max)(), infinity = NumTraits<T>::infinity();
+  const T nan = NumTraits<T>::quiet_NaN(), one(1);
+  const Complex cases[][2] = {{Complex(highest / 4, zero), Complex(highest, zero)},
+                              {Complex(T(0.6) * highest, T(0.6) * highest), Complex(one, zero)},
+                              {Complex(highest, highest), Complex(one, zero)},
+                              {Complex(highest, zero), Complex(highest, zero)},
+                              {Complex(highest / 2, highest / 2), Complex(-one, zero)},
+                              {Complex(T(0.6) * highest, zero), Complex(zero, T(0.6) * highest)},
+                              {Complex(infinity, one), Complex(one, one)},
+                              {Complex(nan, one), Complex(one, one)},
+                              {Complex(one, one), Complex(infinity, one)}};
+  for (const auto& operands : cases) {
+    const int exceptions = complex_divide_exceptions(operands[0], operands[1]);
+    if (exceptions >= 0) VERIFY_IS_EQUAL(exceptions, 0);
+  }
+}
+
+// The exceptions numext::sign(z) raises, or -1 where the environment cannot be held.
+template <typename T>
+EIGEN_DONT_INLINE int complex_sign_exceptions(const std::complex<T>& z) {
+  const T operands[2] = {z.real(), z.imag()};
+  T result[2];
+  return fp_exceptions_raised_by_staged<2, 2>(FE_OVERFLOW | FE_UNDERFLOW | FE_INVALID | FE_DIVBYZERO, operands, result,
+                                              [](const T* in, T* out) {
+                                                const std::complex<T> s = numext::sign(std::complex<T>(in[0], in[1]));
+                                                out[0] = s.real();
+                                                out[1] = s.imag();
+                                              });
+}
+
+// |z| is not formed where it overflows (z = (max, max), whose sign is finite), and a NaN component raises nothing
+// (the rescaling for m = 0 would divide 0 by 0).
+template <typename T>
+void check_complex_sign_exceptions() {
+  using Complex = std::complex<T>;
+  const T highest = (std::numeric_limits<T>::max)(), nan = NumTraits<T>::quiet_NaN(), zero(0), one(1);
+  for (const Complex z : {Complex(highest, highest), Complex(-highest, highest), Complex(highest, zero),
+                          Complex(T(0.6) * highest, T(0.6) * highest), Complex(one, one), Complex(zero, nan),
+                          Complex(nan, zero), Complex(nan, nan), Complex(one, nan), Complex(zero, zero)}) {
+    const int exceptions = complex_sign_exceptions(z);
     if (exceptions >= 0) VERIFY_IS_EQUAL(exceptions, 0);
   }
 }
@@ -1910,8 +2121,14 @@ EIGEN_DECLARE_TEST(numext) {
 
     CALL_SUBTEST_1(check_complex_divide<float>());
     CALL_SUBTEST_1(check_complex_divide<double>());
+    CALL_SUBTEST_1(check_complex_divide_extreme<float>());
+    CALL_SUBTEST_1(check_complex_divide_extreme<double>());
+    CALL_SUBTEST_1(check_complex_divide_ties_and_zero_signs<float>());
+    CALL_SUBTEST_1(check_complex_divide_ties_and_zero_signs<double>());
     CALL_SUBTEST_1(check_complex_divide_exceptions<float>());
     CALL_SUBTEST_1(check_complex_divide_exceptions<double>());
+    CALL_SUBTEST_1(check_complex_sign_exceptions<float>());
+    CALL_SUBTEST_1(check_complex_sign_exceptions<double>());
     CALL_SUBTEST_1(check_narrow_fma_nonfinite<half>());
     CALL_SUBTEST_1(check_narrow_fma_nonfinite<bfloat16>());
 
@@ -1919,8 +2136,10 @@ EIGEN_DECLARE_TEST(numext) {
     CALL_SUBTEST_1(check_complex_fuzzy<double>());
 
     CALL_SUBTEST_1((check_complex_log1p_accuracy<float, double>()));
+    CALL_SUBTEST_1((check_complex_log1p_large<float, double>()));
     if (std::numeric_limits<long double>::digits > std::numeric_limits<double>::digits) {
       CALL_SUBTEST_1((check_complex_log1p_accuracy<double, long double>()));
+      CALL_SUBTEST_1((check_complex_log1p_large<double, long double>()));
     }
 
     CALL_SUBTEST_1(check_complex_digits<float>());

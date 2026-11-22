@@ -474,11 +474,55 @@ EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void MatrixBase<Derived>::stableNormalize(
 
 namespace internal {
 
+// The p-th root of a nonnegative sum of p-th powers. RealScalar(1) / p is 0 for an integer RealScalar, so an integer
+// root is truncated to the integer type, like the square root in norm(): it is the largest r with r^p <= sum.
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC inline RealScalar lp_norm_root(const RealScalar& sum, int p, std::false_type /* IsInteger */) {
+  return numext::pow(sum, RealScalar(1) / p);
+}
+
+// Whether base^p <= limit, without overflowing.
+EIGEN_DEVICE_FUNC inline bool lp_norm_power_at_most(unsigned long long base, int p, unsigned long long limit) {
+  unsigned long long power = 1;
+  for (int i = 0; i < p; ++i) {
+    if (base != 0 && power > limit / base) return false;
+    power *= base;
+  }
+  return true;
+}
+
+// Built-in integers: an estimate from double, which is off by at most a few units, is corrected by comparing exactly
+// with the powers of its neighbors; pow(64., 1. / 3) = 3.9999999999999996 would otherwise truncate to 3.
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC inline RealScalar lp_norm_integer_root(const RealScalar& sum, int p,
+                                                         std::true_type /* is_integral */) {
+  // p <= 0 is outside the domain, and no root is at most the sum there: the loops below would not end. 1 / 0 is not
+  // evaluated either.
+  if (p <= 0) return numext::pow(sum, p == 0 ? RealScalar(0) : RealScalar(1) / p);
+  const unsigned long long s = static_cast<unsigned long long>(sum);
+  unsigned long long root = static_cast<unsigned long long>(numext::pow(static_cast<double>(s), 1.0 / p));
+  while (lp_norm_power_at_most(root + 1, p, s)) ++root;
+  while (!lp_norm_power_at_most(root, p, s)) --root;
+  return static_cast<RealScalar>(root);
+}
+
+// Other integer types: the estimate from double, truncated.
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC inline RealScalar lp_norm_integer_root(const RealScalar& sum, int p,
+                                                         std::false_type /* is_integral */) {
+  return static_cast<RealScalar>(numext::floor(numext::pow(static_cast<double>(sum), 1.0 / p)));
+}
+
+template <typename RealScalar>
+EIGEN_DEVICE_FUNC inline RealScalar lp_norm_root(const RealScalar& sum, int p, std::true_type /* IsInteger */) {
+  return lp_norm_integer_root(sum, p, bool_constant<std::is_integral<RealScalar>::value>());
+}
+
 template <typename Derived, int p>
 struct lpNorm_selector {
   using RealScalar = typename NumTraits<typename traits<Derived>::Scalar>::Real;
   EIGEN_DEVICE_FUNC static inline RealScalar run(const MatrixBase<Derived>& m) {
-    return numext::pow(m.cwiseAbs().array().pow(p).sum(), RealScalar(1) / p);
+    return lp_norm_root(m.cwiseAbs().array().pow(p).sum(), p, bool_constant<NumTraits<RealScalar>::IsInteger>());
   }
 };
 
@@ -515,6 +559,10 @@ struct lpNorm_selector<Derived, Infinity> {
  * \c *this.
  *
  * In all cases, if \c *this is empty, then the value 0 is returned.
+ *
+ * For the built-in integer scalar types the root is truncated to the integer type, as norm() does for \a p = 2: the
+ * result is the largest integer whose \a p-th power does not exceed the sum, which is exact for every sum that the type
+ * can hold. For other integer types it is truncated from an estimate in double.
  *
  * \note For matrices, this function does not compute the <a
  * href="https://en.wikipedia.org/wiki/Operator_norm">operator-norm</a>. That is, if \c *this is a matrix, then its

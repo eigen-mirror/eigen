@@ -623,14 +623,31 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS Packet generic_atan(const Pa
 // Hyperbolic Functions
 //----------------------------------------------------------------------
 
+// Whether a scalar a * b + c is fused is up to the compiler (GCC contracts it across statements whatever
+// scalar_madd_uses_fma says), and the rational approximations of tanh below first reach 1 at different arguments when
+// it is, and stay within a few ulps of 1 beyond it. A scalar therefore returns +-1 for |x| >= clamp, which is no
+// smaller than either point (the error at the clamp is stated at ptanh_float and ptanh_double). Packets use pmadd,
+// which is deterministic.
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T ptanh_saturate(const T&, const T& tanh_x, const T&, std::false_type) {
+  return tanh_x;
+}
+template <typename T>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE T ptanh_saturate(const T& x, const T& tanh_x, const T& clamp, std::true_type) {
+  return numext::abs(x) >= clamp ? numext::copysign(T(1), x) : tanh_x;
+}
+
 #if EIGEN_FAST_MATH
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
-    Doesn't do anything fancy, just a 9/8-degree rational interpolant which
-    is accurate up to a couple of ulps in the (approximate) range [-8, 8],
-    outside of which tanh(x) = +/-1 in single precision. The input is clamped
-    to the range [-c, c]. The value c is chosen as the smallest value where
-    the approximation evaluates to exactly 1.
+    Doesn't do anything fancy, just a 9/8-degree rational interpolant. The input
+    is clamped to the range [-c, c], where c is the smallest argument at which
+    the approximation evaluates to exactly 1: c = 7.91 without FMA, 8.02 with.
+    That is short of where tanh rounds to 1 (x > 9.01), so at c the result
+    exceeds tanh(c) by 2 exp(-2c) = 4.5 (3.6) ulp of float below 1 (computed
+    from the formula, not measured). Measured maximum error, with
+    test/ulp_accuracy against MPFR over all floats in [1e-3, 9.5], in ulps of
+    float: 6 at x = 4.9 on SSE2 (no FMA), 5 at x = 4.1 on AVX2 with FMA.
 
     This implementation works on both scalars and packets.
 */
@@ -643,8 +660,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
 #ifdef EIGEN_VECTORIZE_FMA
   constexpr float kClamp = 8.01773357391357422f;
 #else
-  constexpr bool kUsesFma = is_scalar<T>::value && scalar_madd_uses_fma<T>::value;
-  constexpr float kClamp = kUsesFma ? 8.01773357391357422f : 7.90738964080810547f;
+  constexpr float kClamp = is_scalar<T>::value ? 8.01773357391357422f : 7.90738964080810547f;
 #endif
   const T plus_clamp = pset1<T>(kClamp);
   const T minus_clamp = pset1<T>(-kClamp);
@@ -674,7 +690,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& a_x) 
   p = pmadd(x3, p, x);
 
   // Divide the numerator by the denominator.
-  return pdiv(p, q);
+  return ptanh_saturate(a_x, pdiv(p, q), plus_clamp, bool_constant<is_scalar<T>::value>());
 }
 
 #else
@@ -726,11 +742,15 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_float(const T& x) {
 #endif  // EIGEN_FAST_MATH
 
 /** \internal \returns the hyperbolic tan of \a a (coeff-wise)
-    This uses a 19/18-degree rational interpolant which
-    is accurate up to a couple of ulps in the (approximate) range [-18.7, 18.7],
-    outside of which tanh(x) = +/-1 in double precision. The input is clamped
-    to the range [-c, c]. The value c is chosen as the smallest value where
-    the approximation evaluates to exactly 1.
+    This uses a 19/18-degree rational interpolant. The input is clamped to the
+    range [-c, c], where c is the smallest argument at which the approximation
+    evaluates to exactly 1: c = 17.71 without FMA, 17.66 with. That is short of
+    where tanh rounds to 1 (x > 19.06), so at c the result exceeds tanh(c) by
+    2 exp(-2c) = 7.4 (8.2) ulp of double below 1 (computed from the formula, not
+    measured). Measured maximum error, with test/ulp_accuracy against MPFR
+    sampled in geometric steps of 1e-7 on [1e-3, 8] and 1e-8 on [8, 19.5], in
+    ulps of double: 10 at x = 14.2 on SSE2 (no FMA), 8 at x = 16.0 on AVX2 with
+    FMA.
 
     This implementation works on both scalars and packets.
 */
@@ -743,8 +763,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_double(const T& a_x)
 #ifdef EIGEN_VECTORIZE_FMA
   constexpr double kClamp = 17.6610191624600077;
 #else
-  constexpr bool kUsesFma = is_scalar<T>::value && scalar_madd_uses_fma<T>::value;
-  constexpr double kClamp = kUsesFma ? 17.6610191624600077 : 17.714196154005176;
+  constexpr double kClamp = 17.714196154005176;
 #endif
   const T plus_clamp = pset1<T>(kClamp);
   const T minus_clamp = pset1<T>(-kClamp);
@@ -781,7 +800,7 @@ EIGEN_DEFINE_FUNCTION_ALLOWING_MULTIPLE_DEFINITIONS T ptanh_double(const T& a_x)
   p = pmadd(x3, p, x);
 
   // Divide the numerator by the denominator.
-  return pdiv(p, q);
+  return ptanh_saturate(a_x, pdiv(p, q), plus_clamp, bool_constant<is_scalar<T>::value>());
 }
 
 template <typename Packet>

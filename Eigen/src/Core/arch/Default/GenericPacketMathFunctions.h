@@ -933,6 +933,21 @@ struct psign_impl<Packet, std::enable_if_t<!is_scalar<Packet>::value &&
     l = pselect(a_min_zero_mask, a_max, l);
     // Step 2 compute a / abs(a).
     RealPacket sign_as_real = pandnot(pdiv(a.v, l), a_max_zero_mask);
+    // l overflows only for a_max > highest / sqrt(2), and is inexact for subnormal a_max. Elements with a_max < min or
+    // a_max > highest / 2, as in the scalar sign_impl, are recomputed as (a / a_max) / sqrt(1 + r^2), whose first
+    // factor has max(|Re|, |Im|) = 1; the others keep a / l. A NaN component gives NaN in both, as the scalar version
+    // does. Non-finite a_max keeps a / l.
+    const RealPacket cst_min = pset1<RealPacket>((numext::numeric_limits<RealScalar>::min)());
+    const RealPacket cst_highest = pset1<RealPacket>(NumTraits<RealScalar>::highest());
+    const RealPacket cst_half_highest = pset1<RealPacket>(NumTraits<RealScalar>::highest() / RealScalar(2));
+    const RealPacket extreme = por(pandnot(pcmp_lt(a_max, cst_min), a_max_zero_mask), pcmp_lt(cst_half_highest, a_max));
+    if (EIGEN_PREDICT_FALSE(predux_any(extreme))) {
+      RealPacket unit_sign = pdiv(pdiv(a.v, a_max), psqrt(pmadd(r, r, cst_one)));
+      const RealPacket a_nan = pisnan(a.v);
+      const RealPacket any_nan = por(a_nan, pcplxflip(Packet(a_nan)).v);
+      unit_sign = pselect(any_nan, padd(a.v, pcplxflip(a).v), unit_sign);
+      sign_as_real = pselect(pand(extreme, pcmp_le(a_max, cst_highest)), unit_sign, sign_as_real);
+    }
     Packet sign;
     sign.v = sign_as_real;
     return sign;

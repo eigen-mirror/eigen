@@ -733,7 +733,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Hyperbolic</th></tr>
 <tr><td>sinh</td>  <td>2</td>  <td>0.008</td> <td>99.2%</td> <td></td></tr>
 <tr><td>cosh</td>  <td>2</td>  <td>0.014</td> <td>98.6%</td> <td></td></tr>
-<tr><td>tanh</td>  <td>6</td>  <td>0.030</td> <td>97.2%</td> <td></td></tr>
+<tr><td>tanh</td>  <td>6</td>  <td>0.030</td> <td>97.2%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note8 "8"</td></tr>
 <tr><td>asinh</td> <td>2</td>  <td>0.165</td> <td>83.5%</td> <td></td></tr>
 <tr><td>acosh</td> <td>3</td>  <td>0.074</td> <td>92.6%</td> <td></td></tr>
 <tr><td>atanh</td> <td>2</td>  <td>0.004</td> <td>99.6%</td> <td></td></tr>
@@ -770,7 +770,7 @@ in <tt>test/ulp_accuracy/</tt>.
 <tr><th colspan="5">Hyperbolic</th></tr>
 <tr><td>sinh</td>  <td>2</td>  <td>0.001</td> <td>99.9%</td> <td></td></tr>
 <tr><td>cosh</td>  <td>2</td>  <td>0.003</td> <td>99.7%</td> <td></td></tr>
-<tr><td>tanh</td>  <td>8</td>  <td>0.008</td> <td>99.3%</td> <td></td></tr>
+<tr><td>tanh</td>  <td>10</td> <td>0.008</td> <td>99.3%</td> <td>\ref CoeffwiseMathFunctionsAccuracy_note8 "8"</td></tr>
 <tr><td>asinh</td> <td>2</td>  <td>0.199</td> <td>80.2%</td> <td></td></tr>
 <tr><td>acosh</td> <td>3</td>  <td>0.098</td> <td>90.3%</td> <td></td></tr>
 <tr><td>atanh</td> <td>2</td>  <td>&lt;0.001</td> <td>&gt;99.9%</td> <td></td></tr>
@@ -844,6 +844,16 @@ With AVX512 and \c EIGEN_FAST_MATH, which is on by default, the square root is r
 \c rsqrt14 estimate of the reciprocal square root, which is faster than the square root
 instruction. The last step is taken on the square root itself with a fused residual: the max error
 is 1 ULP, and 99.5% of the float and 99.4% of the double results are exact.
+
+\anchor CoeffwiseMathFunctionsAccuracy_note8
+<b>8. tanh near saturation:</b>
+The vectorized tanh clamps its argument where its rational approximation first evaluates to exactly 1, which is short of
+where tanh rounds to 1 (|x| &gt; 9.01 in float, |x| &gt; 19.06 in double). At the clamp the result exceeds the true value
+by 2 exp(-2c), computed from the formula: 4.5 ULP in float without FMA (c = 7.91) and 3.6 with FMA (c = 8.02), 7.4 ULP
+in double without FMA (c = 17.71) and 8.2 with FMA (c = 17.66). The maximum errors in the tables are measured with
+<tt>ulp_accuracy</tt> against MPFR on SSE2: 6 ULP in float (exhaustive over [1e-3, 9.5], at |x| = 4.9) and 10 ULP in
+double, which samples a finer step (1e-8 above |x| = 8, at |x| = 14.2) than the 10<sup>-6</sup> of the other double
+entries. With AVX2 and FMA the same measurements give 5 ULP in float and 8 ULP in double.
 
 */
 
