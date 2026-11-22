@@ -164,8 +164,98 @@ static void test_simple_patch() {
   }
 }
 
+// A reduction operand has no block access, so adding a (zero) reduction to the patches takes the vectorized
+// coefficient/packet path instead of block(). A packet that straddles a patch row is not contiguous in the input.
+template <int DataLayout>
+static void test_patch_packet_path(Index rows, Index cols, Index patch_rows, Index patch_cols) {
+  Tensor<float, 2, DataLayout> input(rows, cols);
+  for (Index i = 0; i < rows; ++i) {
+    for (Index j = 0; j < cols; ++j) input(i, j) = static_cast<float>(i + rows * j);
+  }
+  const Index patches_per_col = rows - patch_rows + 1;
+  const Index num_patches = patches_per_col * (cols - patch_cols + 1);
+
+  Eigen::array<Index, 2> patch_dims{{patch_rows, patch_cols}};
+  Tensor<float, 3, DataLayout> result;
+  if (DataLayout == ColMajor) {
+    Tensor<float, 4, DataLayout> zeros(patch_rows, patch_cols, num_patches, 2);
+    zeros.setZero();
+    result = input.extract_patches(patch_dims) + zeros.sum(Eigen::array<int, 1>{{3}});
+  } else {
+    Tensor<float, 4, DataLayout> zeros(num_patches, patch_rows, patch_cols, 2);
+    zeros.setZero();
+    result = input.extract_patches(patch_dims) + zeros.sum(Eigen::array<int, 1>{{3}});
+  }
+
+  for (Index p = 0; p < num_patches; ++p) {
+    // Patches are enumerated with the first input dimension varying fastest (ColMajor) or slowest (RowMajor).
+    const Index patch_row = DataLayout == ColMajor ? p % patches_per_col : p / (cols - patch_cols + 1);
+    const Index patch_col = DataLayout == ColMajor ? p / patches_per_col : p % (cols - patch_cols + 1);
+    for (Index c = 0; c < patch_cols; ++c) {
+      for (Index r = 0; r < patch_rows; ++r) {
+        const float expected = input(patch_row + r, patch_col + c);
+        VERIFY_IS_EQUAL(DataLayout == ColMajor ? result(r, c, p) : result(p, r, c), expected);
+      }
+    }
+  }
+}
+
+template <int DataLayout>
+static void test_patch_packet_path() {
+  // Packets of 2, 4, 8 and 16 coefficients straddle the patch rows of these shapes.
+  test_patch_packet_path<DataLayout>(4, 4, 1, 2);
+  test_patch_packet_path<DataLayout>(2, 4, 1, 2);
+  test_patch_packet_path<DataLayout>(4, 4, 2, 2);
+  test_patch_packet_path<DataLayout>(7, 9, 3, 2);
+  test_patch_packet_path<DataLayout>(8, 8, 1, 4);
+  test_patch_packet_path<DataLayout>(9, 7, 4, 3);
+  test_patch_packet_path<DataLayout>(16, 5, 2, 5);
+  for (int i = 0; i < 10; ++i) {
+    const Index rows = internal::random<Index>(1, 20);
+    const Index cols = internal::random<Index>(1, 20);
+    test_patch_packet_path<DataLayout>(rows, cols, internal::random<Index>(1, rows), internal::random<Index>(1, cols));
+  }
+}
+
+// Three-dimensional input, so that the index decomposition in packet() runs more than one reduction step.
+template <int DataLayout>
+static void test_patch_packet_path_3d() {
+  const Index d0 = 5, d1 = 6, d2 = 4;
+  const Index p0 = 2, p1 = 3, p2 = 2;
+  Tensor<float, 3, DataLayout> input(d0, d1, d2);
+  for (Index i = 0; i < input.size(); ++i) input.data()[i] = static_cast<float>(i);
+  Eigen::array<Index, 3> patch_dims{{p0, p1, p2}};
+  const Index n0 = d0 - p0 + 1, n1 = d1 - p1 + 1, n2 = d2 - p2 + 1;
+  const Index num_patches = n0 * n1 * n2;
+  Tensor<float, 4, DataLayout> result;
+  if (DataLayout == ColMajor) {
+    Tensor<float, 5, DataLayout> zeros(p0, p1, p2, num_patches, 2);
+    zeros.setZero();
+    result = input.extract_patches(patch_dims) + zeros.sum(Eigen::array<int, 1>{{4}});
+  } else {
+    Tensor<float, 5, DataLayout> zeros(num_patches, p0, p1, p2, 2);
+    zeros.setZero();
+    result = input.extract_patches(patch_dims) + zeros.sum(Eigen::array<int, 1>{{4}});
+  }
+  for (Index p = 0; p < num_patches; ++p) {
+    const Index a = DataLayout == ColMajor ? p % n0 : p / (n1 * n2);
+    const Index b = DataLayout == ColMajor ? (p / n0) % n1 : (p / n2) % n1;
+    const Index c = DataLayout == ColMajor ? p / (n0 * n1) : p % n2;
+    for (Index k = 0; k < p2; ++k)
+      for (Index j = 0; j < p1; ++j)
+        for (Index i = 0; i < p0; ++i) {
+          const float expected = input(a + i, b + j, c + k);
+          VERIFY_IS_EQUAL(DataLayout == ColMajor ? result(i, j, k, p) : result(p, i, j, k), expected);
+        }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_patch) {
   CALL_SUBTEST(test_simple_patch<ColMajor>());
   CALL_SUBTEST(test_simple_patch<RowMajor>());
+  CALL_SUBTEST(test_patch_packet_path<ColMajor>());
+  CALL_SUBTEST(test_patch_packet_path<RowMajor>());
+  CALL_SUBTEST(test_patch_packet_path_3d<ColMajor>());
+  CALL_SUBTEST(test_patch_packet_path_3d<RowMajor>());
   //   CALL_SUBTEST(test_expr_shuffling());
 }

@@ -103,7 +103,8 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
     m_dimensions = m_impl.dimensions();
     m_is_identity = true;
     for (int i = 0; i < NumDims; ++i) {
-      m_dimensions[i] = Eigen::numext::ceil(static_cast<float>(m_dimensions[i]) / op.strides()[i]);
+      eigen_assert(op.strides()[i] > 0);
+      m_dimensions[i] = numext::div_ceil<Index>(m_dimensions[i], op.strides()[i]);
       if (op.strides()[i] != 1) m_is_identity = false;
     }
 
@@ -130,6 +131,13 @@ struct TensorEvaluator<const TensorStridingOp<Strides, ArgType>, Device> {
   }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
+
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+    m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
+  }
+#endif  // EIGEN_USE_THREADS
 
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(nullptr);

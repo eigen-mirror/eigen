@@ -129,6 +129,13 @@ struct TensorEvaluator<const TensorLayoutSwapOp<ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType data, EvalSubExprsCallback done) {
+    m_impl.evalSubExprsIfNeededAsync(data, std::move(done));
+  }
+#endif  // EIGEN_USE_THREADS
+
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType data) { return m_impl.evalSubExprsIfNeeded(data); }
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
 

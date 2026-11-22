@@ -229,6 +229,22 @@ static void test_roll_write_blocks() {
   }
 }
 
+// roll() applied twice: the op's accessor of the same name must not hide TensorBase::roll(shifts).
+template <int DataLayout>
+static void test_chained_roll() {
+  Tensor<float, 3, DataLayout> tensor(2, 3, 5);
+  tensor.setRandom();
+  Tensor<float, 3, DataLayout> chained = tensor.roll(array<Index, 3>{{1, 0, 0}}).roll(array<Index, 3>{{0, 2, 0}});
+  Tensor<float, 3, DataLayout> expected = tensor.roll(array<Index, 3>{{1, 2, 0}});
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 5; ++k) {
+        VERIFY_IS_EQUAL(chained(i, j, k), expected(i, j, k));
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_simple_roll<ColMajor>());
   CALL_SUBTEST(test_simple_roll<RowMajor>());
@@ -240,4 +256,6 @@ EIGEN_DECLARE_TEST(tensor_roll) {
   CALL_SUBTEST(test_packet_roll<RowMajor>());
   CALL_SUBTEST(test_roll_write_blocks<ColMajor>());
   CALL_SUBTEST(test_roll_write_blocks<RowMajor>());
+  CALL_SUBTEST(test_chained_roll<ColMajor>());
+  CALL_SUBTEST(test_chained_roll<RowMajor>());
 }

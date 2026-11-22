@@ -875,6 +875,13 @@ struct TensorEvaluator<const TensorStridingSlicingOp<StartIndices, StopIndices, 
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+    m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
+  }
+#endif  // EIGEN_USE_THREADS
+
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_impl.evalSubExprsIfNeeded(nullptr);
     return true;

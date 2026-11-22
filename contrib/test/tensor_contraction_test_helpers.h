@@ -338,6 +338,31 @@ void test_zero_dim_contraction_output_kernel(const Assign& assign) {
   }
 }
 
+// A rank-0 operand contributes no dimensions: scalar x vector, vector x scalar and scalar x scalar products.
+template <int DataLayout, typename Assign>
+void test_rank0_operand_contraction(const Assign& assign) {
+  Tensor<float, 0, DataLayout> scalar1;
+  Tensor<float, 0, DataLayout> scalar2;
+  scalar1() = 3.0f;
+  scalar2() = -2.0f;
+  Tensor<float, 1, DataLayout> vector(5);
+  vector.setRandom();
+  const Eigen::array<DimPair, 0> no_dims;
+
+  Tensor<float, 1, DataLayout> scalar_vector(5);
+  assign(scalar_vector, scalar1.contract(vector, no_dims));
+  Tensor<float, 1, DataLayout> vector_scalar(5);
+  assign(vector_scalar, vector.contract(scalar2, no_dims));
+  for (Index i = 0; i < vector.size(); ++i) {
+    VERIFY_IS_APPROX(scalar_vector(i), 3.0f * vector(i));
+    VERIFY_IS_APPROX(vector_scalar(i), -2.0f * vector(i));
+  }
+
+  Tensor<float, 0, DataLayout> scalar_scalar;
+  assign(scalar_scalar, scalar1.contract(scalar2, no_dims));
+  VERIFY_IS_APPROX(scalar_scalar(), -6.0f);
+}
+
 }  // namespace tensor_test
 
 #endif  // EIGEN_TENSOR_CONTRACTION_TEST_HELPERS_H

@@ -142,6 +142,13 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+    m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
+  }
+#endif  // EIGEN_USE_THREADS
+
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
@@ -183,60 +190,48 @@ struct TensorEvaluator<const TensorPatchOp<PatchDim, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketReturnType packet(Index index) const {
     eigen_assert(index + PacketSize - 1 < dimensions().TotalSize());
 
+    // Same index decomposition as coeff(). On exit patchOffset == index % inner_size, because the last reduction is
+    // modulo the stride of the inner patch dimension (m_outputStrides[1] in ColMajor, [NumDims - 2] in RowMajor, or
+    // the initial modulus itself when NumDims == 2).
     Index output_stride_index = (static_cast<int>(Layout) == static_cast<int>(ColMajor)) ? NumDims - 1 : 0;
-    Index indices[2] = {index, index + PacketSize - 1};
-    Index patchIndices[2] = {indices[0] / m_outputStrides[output_stride_index],
-                             indices[1] / m_outputStrides[output_stride_index]};
-    Index patchOffsets[2] = {indices[0] - patchIndices[0] * m_outputStrides[output_stride_index],
-                             indices[1] - patchIndices[1] * m_outputStrides[output_stride_index]};
-
-    Index inputIndices[2] = {0, 0};
+    Index patchIndex = index / m_outputStrides[output_stride_index];
+    Index patchOffset = index - patchIndex * m_outputStrides[output_stride_index];
+    Index inputIndex = 0;
     EIGEN_IF_CONSTEXPR (static_cast<int>(Layout) == static_cast<int>(ColMajor)) {
       EIGEN_UNROLL_LOOP
       for (int i = NumDims - 2; i > 0; --i) {
-        const Index patchIdx[2] = {patchIndices[0] / m_patchStrides[i], patchIndices[1] / m_patchStrides[i]};
-        patchIndices[0] -= patchIdx[0] * m_patchStrides[i];
-        patchIndices[1] -= patchIdx[1] * m_patchStrides[i];
-
-        const Index offsetIdx[2] = {patchOffsets[0] / m_outputStrides[i], patchOffsets[1] / m_outputStrides[i]};
-        patchOffsets[0] -= offsetIdx[0] * m_outputStrides[i];
-        patchOffsets[1] -= offsetIdx[1] * m_outputStrides[i];
-
-        inputIndices[0] += (patchIdx[0] + offsetIdx[0]) * m_inputStrides[i];
-        inputIndices[1] += (patchIdx[1] + offsetIdx[1]) * m_inputStrides[i];
+        const Index patchIdx = patchIndex / m_patchStrides[i];
+        patchIndex -= patchIdx * m_patchStrides[i];
+        const Index offsetIdx = patchOffset / m_outputStrides[i];
+        patchOffset -= offsetIdx * m_outputStrides[i];
+        inputIndex += (patchIdx + offsetIdx) * m_inputStrides[i];
       }
     } else {
       EIGEN_UNROLL_LOOP
       for (int i = 0; i < NumDims - 2; ++i) {
-        const Index patchIdx[2] = {patchIndices[0] / m_patchStrides[i], patchIndices[1] / m_patchStrides[i]};
-        patchIndices[0] -= patchIdx[0] * m_patchStrides[i];
-        patchIndices[1] -= patchIdx[1] * m_patchStrides[i];
-
-        const Index offsetIdx[2] = {patchOffsets[0] / m_outputStrides[i + 1], patchOffsets[1] / m_outputStrides[i + 1]};
-        patchOffsets[0] -= offsetIdx[0] * m_outputStrides[i + 1];
-        patchOffsets[1] -= offsetIdx[1] * m_outputStrides[i + 1];
-
-        inputIndices[0] += (patchIdx[0] + offsetIdx[0]) * m_inputStrides[i];
-        inputIndices[1] += (patchIdx[1] + offsetIdx[1]) * m_inputStrides[i];
+        const Index patchIdx = patchIndex / m_patchStrides[i];
+        patchIndex -= patchIdx * m_patchStrides[i];
+        const Index offsetIdx = patchOffset / m_outputStrides[i + 1];
+        patchOffset -= offsetIdx * m_outputStrides[i + 1];
+        inputIndex += (patchIdx + offsetIdx) * m_inputStrides[i];
       }
     }
-    inputIndices[0] += (patchIndices[0] + patchOffsets[0]);
-    inputIndices[1] += (patchIndices[1] + patchOffsets[1]);
+    inputIndex += (patchIndex + patchOffset);
 
-    if (inputIndices[1] - inputIndices[0] == PacketSize - 1) {
-      PacketReturnType rslt = m_impl.template packet<Unaligned>(inputIndices[0]);
-      return rslt;
+    // The input is contiguous only along the inner patch dimension; a packet that crosses into the next patch row
+    // is gathered, even if its first and last coefficients happen to be PacketSize - 1 apart.
+    const Index inner_size = m_dimensions[static_cast<int>(Layout) == static_cast<int>(ColMajor) ? 0 : NumDims - 1];
+    if (patchOffset + PacketSize <= inner_size) {
+      return m_impl.template packet<Unaligned>(inputIndex);
     } else {
       EIGEN_ALIGN_TO_BOUNDARY(internal::unpacket_traits<PacketReturnType>::alignment)
       CoeffReturnType values[PacketSize];
-      values[0] = m_impl.coeff(inputIndices[0]);
-      values[PacketSize - 1] = m_impl.coeff(inputIndices[1]);
+      values[0] = m_impl.coeff(inputIndex);
       EIGEN_UNROLL_LOOP
-      for (int i = 1; i < PacketSize - 1; ++i) {
+      for (int i = 1; i < PacketSize; ++i) {
         values[i] = coeff(index + i);
       }
-      PacketReturnType rslt = internal::pload<PacketReturnType>(values);
-      return rslt;
+      return internal::pload<PacketReturnType>(values);
     }
   }
 

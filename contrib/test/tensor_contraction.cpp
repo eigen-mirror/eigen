@@ -792,6 +792,8 @@ EIGEN_DECLARE_TEST(tensor_contraction) {
   // Zero-dimension contraction tests:
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, float>()));
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, float>()));
+  CALL_SUBTEST_10(tensor_test::test_rank0_operand_contraction<ColMajor>(AssignOnDefaultDevice()));
+  CALL_SUBTEST_10(tensor_test::test_rank0_operand_contraction<RowMajor>(AssignOnDefaultDevice()));
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, double>()));
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<RowMajor, double>()));
   CALL_SUBTEST_10((test_zero_dim_contraction_2d<ColMajor, std::complex<float>>()));

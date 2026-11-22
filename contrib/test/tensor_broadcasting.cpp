@@ -322,6 +322,26 @@ static void test_empty_broadcasting() {
   VERIFY_IS_EQUAL(broadcast.dimension(1), 9);
 }
 
+// broadcast() applied twice: the op's accessor of the same name must not hide TensorBase::broadcast(bcast).
+template <int DataLayout>
+static void test_chained_broadcasting() {
+  Tensor<float, 3, DataLayout> tensor(2, 3, 5);
+  tensor.setRandom();
+  Tensor<float, 3, DataLayout> chained =
+      tensor.broadcast(array<Index, 3>{{2, 1, 1}}).broadcast(array<Index, 3>{{1, 3, 1}});
+  Tensor<float, 3, DataLayout> expected = tensor.broadcast(array<Index, 3>{{2, 3, 1}});
+  VERIFY_IS_EQUAL(chained.dimension(0), 4);
+  VERIFY_IS_EQUAL(chained.dimension(1), 9);
+  VERIFY_IS_EQUAL(chained.dimension(2), 5);
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 9; ++j) {
+      for (int k = 0; k < 5; ++k) {
+        VERIFY_IS_EQUAL(chained(i, j, k), expected(i, j, k));
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_broadcasting) {
   CALL_SUBTEST(test_empty_broadcasting<ColMajor>());
   CALL_SUBTEST(test_empty_broadcasting<RowMajor>());
@@ -345,4 +365,6 @@ EIGEN_DECLARE_TEST(tensor_broadcasting) {
   CALL_SUBTEST(test_size_one_broadcasting<RowMajor>());
   CALL_SUBTEST(test_broadcasting_through_cast<ColMajor>());
   CALL_SUBTEST(test_broadcasting_through_cast<RowMajor>());
+  CALL_SUBTEST(test_chained_broadcasting<ColMajor>());
+  CALL_SUBTEST(test_chained_broadcasting<RowMajor>());
 }

@@ -160,13 +160,15 @@ static void test_striding_without_impl_packet_access() {
 
   // Pin the capabilities this test relies on: the nested TensorRef evaluator
   // must not have packet access (otherwise this test exercises nothing), while
-  // the striding evaluator on top of it must still advertise it.
+  // the striding evaluator on top of it must still advertise it whenever the
+  // scalar type has a vector packet (none exists with EIGEN_DONT_VECTORIZE).
   using RefType = Eigen::TensorRef<const Tensor<T, 3, DataLayout>>;
   using StrideExprType = decltype(std::declval<const RefType&>().stride(identity));
   using RefEvaluator = Eigen::TensorEvaluator<const RefType, Eigen::DefaultDevice>;
   using StrideEvaluator = Eigen::TensorEvaluator<const StrideExprType, Eigen::DefaultDevice>;
   EIGEN_STATIC_ASSERT(!RefEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
-  EIGEN_STATIC_ASSERT(StrideEvaluator::PacketAccess, YOU_MADE_A_PROGRAMMING_MISTAKE)
+  EIGEN_STATIC_ASSERT(bool(StrideEvaluator::PacketAccess) == (PacketType<T, DefaultDevice>::size > 1),
+                      YOU_MADE_A_PROGRAMMING_MISTAKE)
 
   Tensor<T, 3, DataLayout> result = ref.stride(identity);
   for (Index i = 0; i < result.size(); ++i) {
@@ -184,6 +186,25 @@ static void test_striding_without_impl_packet_access() {
   }
 }
 
+// The output extent is ceil(n / stride) in integer arithmetic, also for extents a float cannot represent.
+// Only the evaluator is constructed, so the tensor map may claim more elements than the buffer holds.
+template <int DataLayout>
+static void test_striding_large_extents() {
+  unsigned char dummy = 0;
+  const Index extents[] = {(Index(1) << 24) + 1, (Index(1) << 24) + 3, 3 * (Index(1) << 24) + 1};
+  const Index strides[] = {1, 2, 3, 5};
+  for (Index n : extents) {
+    for (Index stride : strides) {
+      TensorMap<Tensor<unsigned char, 2, DataLayout>> input(&dummy, n, 2);
+      array<Index, 2> stride_array{{stride, 1}};
+      auto expr = input.stride(stride_array);
+      TensorEvaluator<const decltype(expr), DefaultDevice> evaluator(expr, DefaultDevice());
+      VERIFY_IS_EQUAL(evaluator.dimensions()[0], (n + stride - 1) / stride);
+      VERIFY_IS_EQUAL(evaluator.dimensions()[1], 2);
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_striding) {
   CALL_SUBTEST(test_simple_striding<ColMajor>());
   CALL_SUBTEST(test_simple_striding<RowMajor>());
@@ -195,4 +216,6 @@ EIGEN_DECLARE_TEST(tensor_striding) {
   CALL_SUBTEST((test_striding_packet_paths<int, RowMajor>()));
   CALL_SUBTEST((test_striding_without_impl_packet_access<float, ColMajor>()));
   CALL_SUBTEST((test_striding_without_impl_packet_access<float, RowMajor>()));
+  CALL_SUBTEST(test_striding_large_extents<ColMajor>());
+  CALL_SUBTEST(test_striding_large_extents<RowMajor>());
 }

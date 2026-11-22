@@ -663,6 +663,7 @@ EIGEN_DECLARE_TEST(tensor_morphing) {
   CALL_SUBTESTS_TYPES_LAYOUTS(5, test_strided_slice_write);
   CALL_SUBTESTS_TYPES_LAYOUTS(6, test_strided_slice);
   CALL_SUBTESTS_TYPES_LAYOUTS(7, test_composition);
+  CALL_SUBTESTS_TYPES_LAYOUTS(7, test_empty_slice);
 
   CALL_SUBTEST_8((test_strided_slice_packet_access<float, ColMajor>()));
   CALL_SUBTEST_8((test_strided_slice_packet_access<float, RowMajor>()));

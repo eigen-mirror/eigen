@@ -196,6 +196,13 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+    m_impl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); });
+  }
+#endif  // EIGEN_USE_THREADS
+
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType /*data*/) {
     m_impl.evalSubExprsIfNeeded(nullptr);
     return true;
@@ -204,6 +211,15 @@ struct TensorEvaluator<const TensorTraceOp<Dims, ArgType>, Device> {
   EIGEN_DEVICE_FUNC EvaluatorPointerType data() const { return nullptr; }
 
   EIGEN_STRONG_INLINE void cleanup() { m_impl.cleanup(); }
+
+  // Both coeff() and packet() read the argument one coefficient at a time: m_traceDim reads per output coefficient,
+  // after one div/mul/add per preserved dimension to locate the first one.
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorOpCost costPerCoeff(bool /*vectorized*/) const {
+    const double compute_cost = NumOutputDims * (TensorOpCost::DivCost<Index>() + TensorOpCost::MulCost<Index>() +
+                                                 TensorOpCost::AddCost<Index>()) +
+                                m_traceDim * (TensorOpCost::AddCost<Scalar>() + TensorOpCost::AddCost<Index>());
+    return m_impl.costPerCoeff(false) * m_traceDim + TensorOpCost(0, 0, compute_cost);
+  }
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
     // Initialize the result

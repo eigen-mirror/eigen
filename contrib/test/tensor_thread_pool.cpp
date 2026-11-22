@@ -112,6 +112,114 @@ void test_async_multithread_chip() {
   }
 }
 
+// A trace has no block or packet access of its own, so the thread-pool executor sizes the work from its cost alone.
+template <int DataLayout>
+void test_multithread_trace() {
+  Tensor<float, 3, DataLayout> in(30, 40, 30);
+  in.setRandom();
+  Tensor<float, 1, DataLayout> out(40);
+
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  out.device(pool.device) = in.trace(array<Index, 2>{{0, 2}}) * 2.0f;
+
+  for (int j = 0; j < 40; ++j) {
+    float sum = 0.0f;
+    for (int i = 0; i < 30; ++i) {
+      sum += in(i, j, i);
+    }
+    VERIFY_IS_APPROX(out(j), 2.0f * sum);
+  }
+}
+
+// A TensorRef is a lazily evaluated read through a virtual coefficient accessor.
+template <int DataLayout>
+void test_multithread_tensor_ref() {
+  Tensor<float, 2, DataLayout> in(50, 60);
+  in.setRandom();
+  TensorRef<Tensor<float, 2, DataLayout>> ref(in);
+  Tensor<float, 2, DataLayout> out(50, 60);
+
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+  out.device(pool.device) = ref * 2.0f;
+  for (Index i = 0; i < in.size(); ++i) {
+    VERIFY_IS_EQUAL(out.data()[i], 2.0f * in.data()[i]);
+  }
+
+  out.device(pool.device) = ref;
+  for (Index i = 0; i < in.size(); ++i) {
+    VERIFY_IS_EQUAL(out.data()[i], in.data()[i]);
+  }
+}
+
+// Every worker copies the evaluator, and with it the TensorRef whose reference count it shares. The tensor must be
+// large enough that the cost model starts several workers; ThreadSanitizer reports a race on the count otherwise.
+template <int DataLayout, bool Async>
+void test_multithread_tensor_ref_shared_count() {
+  using Tensor2 = Tensor<float, 2, DataLayout>;
+  Tensor2 in(1024, 1024);
+  in.setRandom();
+  TensorRef<Tensor2> ref(in);
+  Tensor2 out(1024, 1024);
+
+  PoolDevice pool(8, 8);
+  const auto expr = ref * 2.0f;
+  {
+    TensorEvaluator<const decltype(expr), ThreadPoolDevice> evaluator(expr, pool.device);
+    VERIFY(TensorCostModel<ThreadPoolDevice>::numThreads(static_cast<double>(in.size()), evaluator.costPerCoeff(false),
+                                                         8) >= 2);
+  }
+  for (int iter = 0; iter < 10; ++iter) {
+    pool.assign<Async>(out, expr);
+    for (Index i = 0; i < in.size(); ++i) {
+      VERIFY_IS_EQUAL(out.data()[i], 2.0f * in.data()[i]);
+    }
+  }
+  // The reference must still be alive and usable after the copies were destroyed.
+  VERIFY_IS_EQUAL(ref(0, 0), in(0, 0));
+}
+
+struct SumOfCoordinates {
+  float operator()(const array<Index, 2>& coords) const { return static_cast<float>(10 * coords[0] + coords[1]); }
+};
+
+// Evaluates expr asynchronously and compares the result with the one of the default device.
+template <typename Output, typename Expression>
+void verify_async_matches_default_device(const PoolDevice& pool, const Expression& expr) {
+  Output expected = expr;
+  Output actual(expected.dimensions());
+  actual.setZero();
+  pool.assign<true>(actual, expr);
+  for (Index i = 0; i < expected.size(); ++i) {
+    VERIFY_IS_EQUAL(actual.data()[i], expected.data()[i]);
+  }
+}
+
+// Evaluators that forward the asynchronous evaluation of their argument.
+template <int DataLayout>
+void test_async_forwarding_evaluators() {
+  using Tensor2 = Tensor<float, 2, DataLayout>;
+  Tensor2 a(40, 30);
+  Tensor2 b(20, 30);
+  a.setRandom();
+  b.setRandom();
+  Tensor<float, 3, DataLayout> c(10, 11, 10);
+  c.setRandom();
+  PoolDevice pool(internal::random<int>(3, 11), internal::random<int>(3, 11));
+
+  verify_async_matches_default_device<Tensor2>(pool, a.stride(array<Index, 2>{{2, 3}}));
+  verify_async_matches_default_device<Tensor2>(
+      pool, a.stridedSlice(array<Index, 2>{{1, 2}}, array<Index, 2>{{37, 29}}, array<Index, 2>{{3, 2}}));
+  verify_async_matches_default_device<Tensor2>(pool, a.concatenate(b, 0));
+  verify_async_matches_default_device<Tensor2>(pool, a.inflate(array<Index, 2>{{2, 1}}));
+  verify_async_matches_default_device<Tensor<float, 2, DataLayout == ColMajor ? RowMajor : ColMajor>>(pool,
+                                                                                                      a.swap_layout());
+  verify_async_matches_default_device<Tensor<float, 1, DataLayout>>(pool, c.trace(array<Index, 2>{{0, 2}}) * 2.0f);
+  verify_async_matches_default_device<Tensor<float, 3, DataLayout>>(pool, a.extract_patches(array<Index, 2>{{3, 2}}));
+  verify_async_matches_default_device<Tensor2>(pool, a.generate(SumOfCoordinates()));
+  verify_async_matches_default_device<Tensor<Index, 1, DataLayout>>(pool, a.argmax(0));
+  verify_async_matches_default_device<Tensor2>(pool, TensorRef<Tensor2>(a) * 2.0f);
+}
+
 template <bool Async>
 void test_multithread_volume_patch() {
   Tensor<float, 5> in(4, 2, 3, 5, 7);
@@ -1231,6 +1339,7 @@ void test_multithread_zero_dim_contraction() {
   tensor_test::test_zero_dim_contraction_multidims<DataLayout, float>(assign);
   tensor_test::test_zero_dim_contraction_outer_zeros<DataLayout, float>(assign);
   tensor_test::test_zero_dim_contraction_output_kernel<DataLayout, float>(assign);
+  tensor_test::test_rank0_operand_contraction<DataLayout>(assign);
 }
 
 EIGEN_DECLARE_TEST(tensor_thread_pool) {
@@ -1244,6 +1353,15 @@ EIGEN_DECLARE_TEST(tensor_thread_pool) {
   CALL_SUBTEST_2(test_multithread_gemv_transpose<RowMajor>());
 
   CALL_SUBTEST_3(test_async_multithread_chip<>());
+  CALL_SUBTEST_3(test_multithread_trace<ColMajor>());
+  CALL_SUBTEST_3(test_multithread_trace<RowMajor>());
+  CALL_SUBTEST_3(test_multithread_tensor_ref<ColMajor>());
+  CALL_SUBTEST_3(test_multithread_tensor_ref<RowMajor>());
+  CALL_SUBTEST_3((test_multithread_tensor_ref_shared_count<ColMajor, false>()));
+  CALL_SUBTEST_3((test_multithread_tensor_ref_shared_count<RowMajor, false>()));
+  CALL_SUBTEST_3((test_multithread_tensor_ref_shared_count<ColMajor, true>()));
+  CALL_SUBTEST_3(test_async_forwarding_evaluators<ColMajor>());
+  CALL_SUBTEST_3(test_async_forwarding_evaluators<RowMajor>());
 
   CALL_SUBTEST_4(test_multithread_volume_patch<false>());
   CALL_SUBTEST_4(test_multithread_volume_patch<true>());

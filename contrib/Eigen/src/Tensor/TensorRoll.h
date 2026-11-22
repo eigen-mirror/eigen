@@ -54,6 +54,8 @@ class TensorRollOp : public TensorBase<TensorRollOp<RollDimensions, XprType>, Wr
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorRollOp(const XprType& expr, const RollDimensions& roll_dims)
       : m_xpr(expr), m_roll_dims(roll_dims) {}
 
+  // The accessor below would otherwise hide TensorBase::roll(shifts), so roll() could not be applied twice.
+  using Base::roll;
   EIGEN_DEVICE_FUNC const RollDimensions& roll() const { return m_roll_dims; }
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }

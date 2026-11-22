@@ -99,6 +99,7 @@ struct eval<TensorFFTOp<FFT, XprType, FFTResultType, FFTDirection>, Eigen::Dense
 template <typename FFT, typename XprType, int FFTResultType, int FFTDir>
 class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>, ReadOnlyAccessors> {
  public:
+  using Base = TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, FFTDir>, ReadOnlyAccessors>;
   using Scalar = typename Eigen::internal::traits<TensorFFTOp>::Scalar;
   using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
   using ComplexScalar = internal::make_complex_t<Scalar>;
@@ -111,6 +112,8 @@ class TensorFFTOp : public TensorBase<TensorFFTOp<FFT, XprType, FFTResultType, F
 
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorFFTOp(const XprType& expr, const FFT& fft) : m_xpr(expr), m_fft(fft) {}
 
+  // The accessor below would otherwise hide TensorBase::fft(dims), so fft() could not be applied twice.
+  using Base::fft;
   EIGEN_DEVICE_FUNC const FFT& fft() const { return m_fft; }
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }
@@ -279,11 +282,23 @@ struct TensorEvaluator<const TensorFFTOp<FFT, ArgType, FFTResultType, FFTDir>, D
           is_power_of_two ? nullptr : (ComplexScalar*)m_device.allocate(sizeof(ComplexScalar) * (line_len + 1));
       if (!is_power_of_two) {
         // Bluestein chirp factors t_n = exp(sqrt(-1) * pi * n^2 / line_len),
-        // n = 0..line_len. Computed in double for accuracy and cast down.
+        // n = 0..line_len. Computed in double for accuracy and cast down. The angle is reduced first,
+        //   t_n = exp(sqrt(-1) * pi * r_n / line_len),  r_n = n^2 mod 2 line_len,
+        // since pi n^2 / line_len grows to pi line_len and its rounding error would carry into every factor.
+        // r_n and the increment s_n = 2n + 1 mod 2 line_len follow r_{n+1} = r_n + s_n, s_{n+1} = s_n + 2 (mod
+        // 2 line_len) without forming n^2.
+        const Index two_len = 2 * line_len;
+        Index reduced_square = 0;
+        Index square_step = 1;
         for (Index j = 0; j < line_len + 1; ++j) {
-          double arg = ((EIGEN_PI * j) * j) / line_len;
+          // EIGEN_PI is a long double: the angle is formed in long double and rounded once to double.
+          double arg = static_cast<double>((EIGEN_PI * reduced_square) / line_len);
           std::complex<double> tmp(numext::cos(arg), numext::sin(arg));
           pos_j_base_powered[j] = static_cast<ComplexScalar>(tmp);
+          reduced_square += square_step;
+          if (reduced_square >= two_len) reduced_square -= two_len;
+          square_step += 2;
+          if (square_step >= two_len) square_step -= two_len;
         }
         // The b-sequence and its forward FFT depend only on n, m, and the
         // FFT direction — compute once and reuse for every line.

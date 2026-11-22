@@ -180,6 +180,14 @@ struct TensorEvaluator<const TensorConcatenationOp<Axis, LeftArgType, RightArgTy
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Dimensions& dimensions() const { return m_dimensions; }
 
   // TODO(phli): Add short-circuit memcpy evaluation if underlying data are linear.
+#ifdef EIGEN_USE_THREADS
+  template <typename EvalSubExprsCallback>
+  EIGEN_STRONG_INLINE void evalSubExprsIfNeededAsync(EvaluatorPointerType, EvalSubExprsCallback done) {
+    m_leftImpl.evalSubExprsIfNeededAsync(
+        nullptr, [this, done](bool) { m_rightImpl.evalSubExprsIfNeededAsync(nullptr, [done](bool) { done(true); }); });
+  }
+#endif  // EIGEN_USE_THREADS
+
   EIGEN_STRONG_INLINE bool evalSubExprsIfNeeded(EvaluatorPointerType) {
     m_leftImpl.evalSubExprsIfNeeded(nullptr);
     // The executor does not call cleanup() when evaluation throws, so release the operand evaluated first.

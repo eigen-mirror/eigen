@@ -318,6 +318,102 @@ static void test_fft_large_impulse() {
   }
 }
 
+// fft() applied twice: the op's accessor of the same name must not hide TensorBase::fft(dims).
+// A 2-D transform is the transform along each axis in turn.
+template <int DataLayout>
+static void test_chained_fft() {
+  using Complex = std::complex<float>;
+  Tensor<Complex, 2, DataLayout> input(4, 8);
+  input.setRandom();
+  Tensor<Complex, 2, DataLayout> chained = input.template fft<BothParts, FFT_FORWARD>(array<int, 1>{{0}})
+                                               .template fft<BothParts, FFT_FORWARD>(array<int, 1>{{1}});
+  Tensor<Complex, 2, DataLayout> expected = input.template fft<BothParts, FFT_FORWARD>(array<int, 2>{{0, 1}});
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 8; ++j) {
+      VERIFY(std::abs(chained(i, j) - expected(i, j)) <= 1e-4f * (1 + std::abs(expected(i, j))));
+    }
+  }
+}
+
+// Forward and inverse transforms of non-power-of-two lengths (Bluestein's algorithm) against an O(n^2) DFT in
+// long double. The error relative to the largest output must stay within 16 eps log2(n), as for a radix-2 transform;
+// a chirp evaluated at the unreduced angle pi j^2 / n exceeds that by an order of magnitude in double precision.
+template <typename RealScalar, int FFTDirection>
+static void test_fft_non_power_of_2_accuracy(int n) {
+  using Complex = std::complex<RealScalar>;
+  using WideComplex = std::complex<long double>;
+  const long double two_pi = 2 * std::acos(-1.L);
+  const long double sign = FFTDirection == FFT_FORWARD ? -1.L : 1.L;
+  std::vector<WideComplex> twiddles(n);
+  for (int k = 0; k < n; ++k) {
+    const long double angle = sign * two_pi * k / n;
+    twiddles[k] = WideComplex(std::cos(angle), std::sin(angle));
+  }
+  Tensor<Complex, 1> input(n);
+  for (int i = 0; i < n; ++i) {
+    input(i) = Complex(static_cast<RealScalar>(std::sin(0.37 * i) + 0.5 * std::cos(1.1 * i * i)),
+                       static_cast<RealScalar>(std::cos(0.91 * i)));
+  }
+  const array<int, 1> axis = {{0}};
+  Tensor<Complex, 1> output = input.template fft<BothParts, FFTDirection>(axis);
+
+  long double max_error = 0, max_value = 0;
+  for (int k = 0; k < n; ++k) {
+    WideComplex expected = 0;
+    for (int j = 0; j < n; ++j) {
+      expected += WideComplex(input(j)) * twiddles[(static_cast<long long>(j) * k) % n];
+    }
+    if (FFTDirection == FFT_REVERSE) expected /= n;
+    max_error = (std::max)(max_error, std::abs(WideComplex(output(k)) - expected));
+    max_value = (std::max)(max_value, std::abs(expected));
+  }
+  const long double bound =
+      16 * static_cast<long double>(NumTraits<RealScalar>::epsilon()) * std::log2(static_cast<long double>(n));
+  VERIFY(max_error <= bound * max_value);
+}
+
+// A unit impulse at position p has the closed-form transform X_k = exp(-2 pi i k p / n) (the inverse transform is
+// scaled by 1/n), which costs O(n) to evaluate. The phase k p is reduced mod n in integers before the angle is formed.
+template <typename RealScalar, int FFTDirection>
+static void test_fft_non_power_of_2_impulse_accuracy(int n, int p) {
+  using Complex = std::complex<RealScalar>;
+  using WideComplex = std::complex<long double>;
+  const long double two_pi = 2 * std::acos(-1.L);
+  const long double sign = FFTDirection == FFT_FORWARD ? -1.L : 1.L;
+  Tensor<Complex, 1> input(n);
+  input.setZero();
+  input(p) = Complex(1, 0);
+  const array<int, 1> axis = {{0}};
+  Tensor<Complex, 1> output = input.template fft<BothParts, FFTDirection>(axis);
+
+  const long double scale = FFTDirection == FFT_FORWARD ? 1.L : 1.L / n;
+  long double max_error = 0;
+  for (int k = 0; k < n; ++k) {
+    const long double angle = sign * two_pi * static_cast<long double>((static_cast<long long>(k) * p) % n) / n;
+    const WideComplex expected(scale * std::cos(angle), scale * std::sin(angle));
+    max_error = (std::max)(max_error, std::abs(WideComplex(output(k)) - expected));
+  }
+  // 64 eps log2(n): measured 3.7e-14 (double) and 1.1e-5 (float) at n = 100003 against 5.9e-14 and 3.2e-5 for
+  // 16 eps log2(n); the unreduced chirp gives 4.4e-11 (double). The slack covers platforms with another libm or no FMA.
+  const long double bound =
+      64 * static_cast<long double>(NumTraits<RealScalar>::epsilon()) * std::log2(static_cast<long double>(n));
+  VERIFY(max_error <= bound * scale);
+}
+
+template <typename RealScalar>
+static void test_fft_non_power_of_2_accuracy() {
+  // Prime (1009) and composite (1000 = 2^3 5^3) lengths against the O(n^2) DFT.
+  for (int n : {1000, 1009}) {
+    test_fft_non_power_of_2_accuracy<RealScalar, FFT_FORWARD>(n);
+    test_fft_non_power_of_2_accuracy<RealScalar, FFT_REVERSE>(n);
+  }
+  // Large lengths against the closed-form transform of an impulse: 4097 = 17 241 and the prime 100003.
+  for (int n : {4097, 100003}) {
+    test_fft_non_power_of_2_impulse_accuracy<RealScalar, FFT_FORWARD>(n, n / 3 + 1);
+    test_fft_non_power_of_2_impulse_accuracy<RealScalar, FFT_REVERSE>(n, n / 3 + 1);
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_fft) {
   test_fft_complex_input_golden();
   test_fft_real_input_golden();
@@ -384,4 +480,8 @@ EIGEN_DECLARE_TEST(tensor_fft) {
   test_fft_large_impulse<double, ColMajor>();
   test_fft_large_impulse<float, RowMajor>();
   test_fft_large_impulse<double, RowMajor>();
+  test_chained_fft<ColMajor>();
+  test_chained_fft<RowMajor>();
+  test_fft_non_power_of_2_accuracy<float>();
+  test_fft_non_power_of_2_accuracy<double>();
 }

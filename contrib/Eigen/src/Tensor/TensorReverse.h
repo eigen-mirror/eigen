@@ -55,6 +55,8 @@ class TensorReverseOp : public TensorBase<TensorReverseOp<ReverseDimensions, Xpr
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorReverseOp(const XprType& expr, const ReverseDimensions& reverse_dims)
       : m_xpr(expr), m_reverse_dims(reverse_dims) {}
 
+  // The accessor below would otherwise hide TensorBase::reverse(dims), so reverse() could not be applied twice.
+  using Base::reverse;
   EIGEN_DEVICE_FUNC const ReverseDimensions& reverse() const { return m_reverse_dims; }
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }

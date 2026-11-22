@@ -244,8 +244,10 @@ struct InnerMostDimReducer<Self, Op, true, false> {
 #if !defined(EIGEN_HIPCC)
 
 // The following implements tree-based reduction, which improves the accuracy
-// of sum and mean reductions, since each of the n inputs only participates in
-// O(log n) additions.
+// of sum reductions, since each of the n inputs only participates in
+// O(log n) additions. It is used only when UseTreeReduction holds (stateless,
+// not exactly associative reducers): mean() does not qualify because MeanReducer
+// is stateful (it counts its inputs), so it accumulates linearly.
 template <typename T>
 EIGEN_DEVICE_FUNC inline Index LeafSize() {
   return 1024;

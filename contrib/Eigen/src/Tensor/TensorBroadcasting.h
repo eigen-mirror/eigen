@@ -52,6 +52,7 @@ struct is_input_scalar<Sizes<Indices...>> : bool_constant<Sizes<Indices...>::tot
 template <typename Broadcast, typename XprType>
 class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors> {
  public:
+  using Base = TensorBase<TensorBroadcastingOp<Broadcast, XprType>, ReadOnlyAccessors>;
   using Scalar = typename Eigen::internal::traits<TensorBroadcastingOp>::Scalar;
   using RealScalar = typename Eigen::NumTraits<Scalar>::Real;
   using CoeffReturnType = typename XprType::CoeffReturnType;
@@ -62,6 +63,8 @@ class TensorBroadcastingOp : public TensorBase<TensorBroadcastingOp<Broadcast, X
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE TensorBroadcastingOp(const XprType& expr, const Broadcast& broadcast)
       : m_xpr(expr), m_broadcast(broadcast) {}
 
+  // The accessor below would otherwise hide TensorBase::broadcast(bcast), so broadcast() could not be applied twice.
+  using Base::broadcast;
   EIGEN_DEVICE_FUNC const Broadcast& broadcast() const { return m_broadcast; }
 
   EIGEN_DEVICE_FUNC const internal::remove_all_t<typename XprType::Nested>& expression() const { return m_xpr; }

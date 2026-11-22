@@ -296,6 +296,24 @@ static void test_reverse_write_blocks() {
   }
 }
 
+// reverse() applied twice: the op's accessor of the same name must not hide TensorBase::reverse(dims).
+template <int DataLayout>
+static void test_chained_reverse() {
+  Tensor<float, 3, DataLayout> tensor(2, 3, 5);
+  tensor.setRandom();
+  Tensor<float, 3, DataLayout> chained =
+      tensor.reverse(array<bool, 3>{{true, false, false}}).reverse(array<bool, 3>{{false, true, false}});
+  Tensor<float, 3, DataLayout> expected = tensor.reverse(array<bool, 3>{{true, true, false}});
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 5; ++k) {
+        VERIFY_IS_EQUAL(chained(i, j, k), expected(i, j, k));
+        VERIFY_IS_EQUAL(chained(i, j, k), tensor(1 - i, 2 - j, k));
+      }
+    }
+  }
+}
+
 EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST(test_simple_reverse<ColMajor>());
   CALL_SUBTEST(test_simple_reverse<RowMajor>());
@@ -313,4 +331,6 @@ EIGEN_DECLARE_TEST(tensor_reverse) {
   CALL_SUBTEST((test_reverse_write_blocks<float, RowMajor>()));
   CALL_SUBTEST((test_reverse_write_blocks<int, ColMajor>()));
   CALL_SUBTEST((test_reverse_write_blocks<int, RowMajor>()));
+  CALL_SUBTEST(test_chained_reverse<ColMajor>());
+  CALL_SUBTEST(test_chained_reverse<RowMajor>());
 }
