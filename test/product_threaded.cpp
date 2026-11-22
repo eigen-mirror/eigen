@@ -354,7 +354,7 @@ void test_parallelize_gemm_assign() {
 // part of a different product, and no product could finish. A watchdog turns such a hang into a failure.
 template <typename = void>
 void test_parallelize_gemm_concurrent_callers() {
-  constexpr int pool_threads = 3, callers = 4, iterations = 300, n = 192;
+  constexpr int pool_threads = 3, callers = 4, n = 192;
   static ThreadPool pool(pool_threads);
   Eigen::setGemmThreadPool(&pool);
   Eigen::setNbThreads(0);
@@ -375,6 +375,9 @@ void test_parallelize_gemm_concurrent_callers() {
   std::vector<std::thread> threads;
   for (int c = 0; c < callers; ++c)
     threads.emplace_back([&wrong, c, n] {
+      // Declared in the lambda: MSVC rejects the use of an uncaptured constexpr local of the enclosing function
+      // template, and clang warns when it is captured.
+      constexpr int iterations = 300;
       const MatrixXf a = MatrixXf::Constant(n, n, 1.f + c), b = MatrixXf::Constant(n, n, 1.f);
       MatrixXf r(n, n);
       for (int i = 0; i < iterations; ++i) {
