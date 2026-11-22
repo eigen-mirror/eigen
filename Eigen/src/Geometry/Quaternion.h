@@ -774,7 +774,9 @@ EIGEN_DEVICE_FUNC inline Derived& QuaternionBase<Derived>::setFromScaledAxis(
 
   const Scalar half_angle = Scalar(0.5) * angle;
   this->w() = numext::cos(half_angle);
-  this->vec() = (numext::sin(half_angle) / angle) * v;
+  // Scale by v / angle, whose coefficients lie in [-1, 1]: sin(half_angle) / angle is subnormal for
+  // angle above roughly 1e38 for float, and 32-bit Arm NEON flushes subnormals to zero.
+  this->vec() = numext::sin(half_angle) * (v / angle);
   return derived();
 }
 
