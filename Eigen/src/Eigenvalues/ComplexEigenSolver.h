@@ -323,10 +323,18 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
           numext::maxi(numext::abs(numext::real(matX.coeff(i, k))), numext::abs(numext::imag(matX.coeff(i, k))));
       const RealScalar zMax = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
       if (numMax > zMax * bigThreshold) {
-        // zMax * B < numMax, so the product cannot overflow; numMax / B can, for B < 1.
-        const RealScalar g = numMax / (zMax * bigThreshold);
-        matX.col(k).head(k) /= g;
-        diagonalScale /= g;
+        // zMax * B < numMax, so g = zMax * B / numMax is below one and forming it cannot overflow. It can underflow
+        // to zero; then divide and multiply separately, which is the same scaling of the column.
+        const RealScalar bound = zMax * bigThreshold;
+        const RealScalar g = bound / numMax;
+        if (g >= (std::numeric_limits<RealScalar>::min)()) {
+          matX.col(k).head(k) *= g;
+          diagonalScale *= g;
+        } else {
+          matX.col(k).head(k) /= numMax;
+          matX.col(k).head(k) *= bound;
+          diagonalScale = diagonalScale / numMax * bound;
+        }
       }
       matX.coeffRef(i, k) /= z;
     }
