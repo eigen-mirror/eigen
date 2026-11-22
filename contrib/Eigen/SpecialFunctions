@@ -54,10 +54,20 @@ namespace Eigen {
  * - bessel_y1
  *
  * The implementations are tuned for \c float and \c double, so they do not carry
- * over to an arbitrary scalar. \c erf and \c erfc accept any other scalar type
- * that declares its own \c erf / \c erfc in the namespace of that type, where
- * argument-dependent lookup finds it; a scalar type that declares neither is
- * rejected at compile time.
+ * over to an arbitrary scalar. For any other scalar type, each function calls the
+ * overload of the same name that the type declares in its own namespace, where
+ * argument-dependent lookup finds it; \c erf, \c erfc and \c lgamma also use
+ * the ones in namespace \c std, which cover \c long \c double. Such an
+ * overload must not call the \c numext function of the same name on its own
+ * type, since that calls the overload back.
+ *
+ * Without an overload, \c ndtri uses Eigen's generic implementation. \c erf,
+ * \c erfc, \c lgamma, \c digamma, \c zeta, \c polygamma, \c betainc and the
+ * Bessel functions reject the scalar type at compile time. \c igamma,
+ * \c igammac, \c igamma_der_a and \c gamma_sample_der_alpha compile only if
+ * \c lgamma (and, for the derivatives, \c digamma) does, and their convergence
+ * constants are defined only for \c float and \c double: for any other type
+ * they fail an \c eigen_assert at run time.
  *
  * \code
  * #include <contrib/Eigen/SpecialFunctions>
@@ -68,6 +78,7 @@ namespace Eigen {
 }  // namespace Eigen
 
 // IWYU pragma: begin_exports
+#include "src/SpecialFunctions/SpecialFunctionsOverloads.h"
 #include "src/SpecialFunctions/BesselFunctionsImpl.h"
 #include "src/SpecialFunctions/BesselFunctionsBFloat16.h"
 #include "src/SpecialFunctions/BesselFunctionsHalf.h"

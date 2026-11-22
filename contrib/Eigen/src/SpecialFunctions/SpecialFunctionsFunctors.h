@@ -27,8 +27,7 @@ namespace internal {
 template <typename Scalar>
 struct scalar_igamma_op : binary_op_base<Scalar, Scalar> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a, const Scalar& x) const {
-    using numext::igamma;
-    return igamma(a, x);
+    return numext::igamma(a, x);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& x) const {
@@ -53,8 +52,7 @@ struct functor_traits<scalar_igamma_op<Scalar> > {
 template <typename Scalar>
 struct scalar_igamma_der_a_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a, const Scalar& x) const {
-    using numext::igamma_der_a;
-    return igamma_der_a(a, x);
+    return numext::igamma_der_a(a, x);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& x) const {
@@ -80,8 +78,7 @@ struct functor_traits<scalar_igamma_der_a_op<Scalar> > {
 template <typename Scalar>
 struct scalar_gamma_sample_der_alpha_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& alpha, const Scalar& sample) const {
-    using numext::gamma_sample_der_alpha;
-    return gamma_sample_der_alpha(alpha, sample);
+    return numext::gamma_sample_der_alpha(alpha, sample);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& alpha, const Packet& sample) const {
@@ -105,8 +102,7 @@ struct functor_traits<scalar_gamma_sample_der_alpha_op<Scalar> > {
 template <typename Scalar>
 struct scalar_igammac_op : binary_op_base<Scalar, Scalar> {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a, const Scalar& x) const {
-    using numext::igammac;
-    return igammac(a, x);
+    return numext::igammac(a, x);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& a, const Packet& x) const {
@@ -130,8 +126,7 @@ template <typename Scalar>
 struct scalar_betainc_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x, const Scalar& a,
                                                                 const Scalar& b) const {
-    using numext::betainc;
-    return betainc(x, a, b);
+    return numext::betainc(x, a, b);
   }
   template <typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Packet packetOp(const Packet& x, const Packet& a, const Packet& b) const {
@@ -154,10 +149,7 @@ struct functor_traits<scalar_betainc_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_lgamma_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    using numext::lgamma;
-    return lgamma(a);
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return numext::lgamma(a); }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::plgamma(a); }
 };
@@ -176,10 +168,7 @@ struct functor_traits<scalar_lgamma_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_digamma_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    using numext::digamma;
-    return digamma(a);
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return numext::digamma(a); }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::pdigamma(a); }
 };
@@ -199,8 +188,7 @@ struct functor_traits<scalar_digamma_op<Scalar> > {
 template <typename Scalar>
 struct scalar_zeta_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& x, const Scalar& q) const {
-    using numext::zeta;
-    return zeta(x, q);
+    return numext::zeta(x, q);
   }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& x, const Packet& q) const {
@@ -223,8 +211,7 @@ struct functor_traits<scalar_zeta_op<Scalar> > {
 template <typename Scalar>
 struct scalar_polygamma_op {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& n, const Scalar& x) const {
-    using numext::polygamma;
-    return polygamma(n, x);
+    return numext::polygamma(n, x);
   }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& n, const Packet& x) const {
@@ -279,10 +266,7 @@ struct functor_traits<scalar_erf_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_erfc_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    using numext::erfc;
-    return erfc(a);
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return numext::erfc(a); }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::perfc(a); }
 };
@@ -302,10 +286,7 @@ struct functor_traits<scalar_erfc_op<Scalar> > {
  */
 template <typename Scalar>
 struct scalar_ndtri_op {
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const {
-    using numext::ndtri;
-    return ndtri(a);
-  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const Scalar operator()(const Scalar& a) const { return numext::ndtri(a); }
   using Packet = typename packet_traits<Scalar>::type;
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Packet packetOp(const Packet& a) const { return internal::pndtri(a); }
 };

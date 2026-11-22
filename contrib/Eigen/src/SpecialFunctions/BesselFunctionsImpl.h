@@ -173,9 +173,13 @@ struct generic_i0e<T, double> {
 };
 
 template <typename T>
-struct bessel_i0e_impl {
+struct bessel_i0e_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0e<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_i0e_impl
+    : special_function_overload_or<special_function_overloads::bessel_i0e_fn, bessel_i0e_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i0 {
@@ -201,9 +205,13 @@ struct generic_i0 {
 };
 
 template <typename T>
-struct bessel_i0_impl {
+struct bessel_i0_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i0<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_i0_impl
+    : special_function_overload_or<special_function_overloads::bessel_i0_fn, bessel_i0_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1e {
@@ -335,9 +343,13 @@ struct generic_i1e<T, double> {
 };
 
 template <typename T>
-struct bessel_i1e_impl {
+struct bessel_i1e_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1e<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_i1e_impl
+    : special_function_overload_or<special_function_overloads::bessel_i1e_fn, bessel_i1e_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_i1 {
@@ -361,9 +373,13 @@ struct generic_i1 {
 };
 
 template <typename T>
-struct bessel_i1_impl {
+struct bessel_i1_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_i1<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_i1_impl
+    : special_function_overload_or<special_function_overloads::bessel_i1_fn, bessel_i1_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k0e {
@@ -481,9 +497,13 @@ struct generic_k0e<T, double> {
 };
 
 template <typename T>
-struct bessel_k0e_impl {
+struct bessel_k0e_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0e<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_k0e_impl
+    : special_function_overload_or<special_function_overloads::bessel_k0e_fn, bessel_k0e_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k0 {
@@ -610,9 +630,13 @@ struct generic_k0<T, double> {
 };
 
 template <typename T>
-struct bessel_k0_impl {
+struct bessel_k0_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k0<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_k0_impl
+    : special_function_overload_or<special_function_overloads::bessel_k0_fn, bessel_k0_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k1e {
@@ -735,9 +759,13 @@ struct generic_k1e<T, double> {
 };
 
 template <typename T>
-struct bessel_k1e_impl {
+struct bessel_k1e_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1e<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_k1e_impl
+    : special_function_overload_or<special_function_overloads::bessel_k1e_fn, bessel_k1e_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_k1 {
@@ -867,9 +895,13 @@ struct generic_k1<T, double> {
 };
 
 template <typename T>
-struct bessel_k1_impl {
+struct bessel_k1_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_k1<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_k1_impl
+    : special_function_overload_or<special_function_overloads::bessel_k1_fn, bessel_k1_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_j0 {
@@ -1038,9 +1070,13 @@ struct generic_j0<T, double> {
 };
 
 template <typename T>
-struct bessel_j0_impl {
+struct bessel_j0_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j0<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_j0_impl
+    : special_function_overload_or<special_function_overloads::bessel_j0_fn, bessel_j0_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_y0 {
@@ -1209,9 +1245,13 @@ struct generic_y0<T, double> {
 };
 
 template <typename T>
-struct bessel_y0_impl {
+struct bessel_y0_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_y0<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_y0_impl
+    : special_function_overload_or<special_function_overloads::bessel_y0_fn, bessel_y0_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_j1 {
@@ -1371,9 +1411,13 @@ struct generic_j1<T, double> {
 };
 
 template <typename T>
-struct bessel_j1_impl {
+struct bessel_j1_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_j1<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_j1_impl
+    : special_function_overload_or<special_function_overloads::bessel_j1_fn, bessel_j1_default_impl<T>, T> {};
 
 template <typename T, typename ScalarType = typename unpacket_traits<T>::type>
 struct generic_y1 {
@@ -1542,9 +1586,13 @@ struct generic_y1<T, double> {
 };
 
 template <typename T>
-struct bessel_y1_impl {
+struct bessel_y1_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run(const T x) { return generic_y1<T>::run(x); }
 };
+
+template <typename T>
+struct bessel_y1_impl
+    : special_function_overload_or<special_function_overloads::bessel_y1_fn, bessel_y1_default_impl<T>, T> {};
 
 }  // end namespace internal
 

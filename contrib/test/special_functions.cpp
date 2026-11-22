@@ -794,7 +794,7 @@ void test_zeta_underflowing_terms() {
   const double xs[] = {1.0000001, 1.5, 2, 3.5, 20, 100};
   for (double xv : xs) {
     VERIFY_IS_EQUAL(numext::zeta(Scalar(xv), Scalar(1)),
-                    (internal::zeta_impl<Scalar>::sum(Scalar(xv), Scalar(1), Scalar(1))));
+                    (internal::zeta_default_impl<Scalar>::sum(Scalar(xv), Scalar(1), Scalar(1))));
   }
 }
 
@@ -859,8 +859,8 @@ void test_zeta_log_domain_range() {
     const double tol = 8 * eps * (1 + (c.x - 1) * std::log(c.q));
     if (c.form == 'L') {
       // The result is the rescaled form up to the rounding of its exponent, not the plain sum, which is off by more.
-      const double form = double(internal::zeta_impl<Scalar>::log_domain_sum_rescaled(x, q));
-      const double plain = double(internal::zeta_impl<Scalar>::sum(x, q, Scalar(1)));
+      const double form = double(internal::zeta_default_impl<Scalar>::log_domain_sum_rescaled(x, q));
+      const double plain = double(internal::zeta_default_impl<Scalar>::sum(x, q, Scalar(1)));
       VERIFY(std::abs(double(numext::zeta(x, q)) - form) <= denorm_min + tol * form);
       VERIFY(std::abs(plain - form) > tol * form);
     }
@@ -1179,6 +1179,96 @@ void test_igamma_limits() {
   }
 }
 
+// The other special functions also route to an overload that argument-dependent lookup finds: one each of the
+// unary, binary, ternary and Bessel dispatchers. Each overload returns a different value.
+namespace custom_scalar {
+inline CustomReal lgamma(const CustomReal& x) { return CustomReal(1 + x.value); }
+inline CustomReal igamma(const CustomReal& a, const CustomReal& x) { return CustomReal(2 + a.value + x.value); }
+inline CustomReal betainc(const CustomReal& a, const CustomReal& b, const CustomReal& x) {
+  return CustomReal(3 + a.value + b.value + x.value);
+}
+inline CustomReal bessel_i0(const CustomReal& x) { return CustomReal(4 + x.value); }
+}  // namespace custom_scalar
+
+// A constrained template, as expression-template libraries declare them.
+namespace generic_scalar {
+struct GenericReal {
+  double value;
+  GenericReal() : value(0) {}
+  explicit GenericReal(double v) : value(v) {}
+};
+template <typename T, std::enable_if_t<std::is_same<T, GenericReal>::value, int> = 0>
+T lgamma(const T& x) {
+  return T(1 + x.value);
+}
+}  // namespace generic_scalar
+
+// Converts to and from double and has no special functions of its own: std::erf, std::erfc and std::lgamma accept it
+// through double, at double's precision.
+namespace converting_scalar {
+struct ConvertingReal {
+  double value;
+  ConvertingReal(double v = 0) : value(v) {}
+  operator double() const { return value; }
+};
+
+// Its lgamma returns a different class type that converts to it.
+struct ProxyResult;
+struct ProxiedReal {
+  double value;
+  ProxiedReal(double v = 0) : value(v) {}
+  ProxiedReal(const ProxyResult& r);
+};
+struct ProxyResult {
+  double value;
+};
+inline ProxiedReal::ProxiedReal(const ProxyResult& r) : value(r.value) {}
+inline ProxyResult lgamma(const ProxiedReal& x) { return ProxyResult{x.value}; }
+}  // namespace converting_scalar
+
+namespace Eigen {
+template <>
+struct NumTraits<generic_scalar::GenericReal> : NumTraits<double> {
+  using Real = generic_scalar::GenericReal;
+  using NonInteger = generic_scalar::GenericReal;
+  using Nested = generic_scalar::GenericReal;
+};
+}  // namespace Eigen
+
+void custom_scalar_special_functions() {
+  using custom_scalar::CustomReal;
+  using generic_scalar::GenericReal;
+  // Neither type has arithmetic, so Eigen's own implementations cannot be instantiated for them; compiling shows that
+  // each call routes to the overload.
+  const CustomReal a(0.5), b(0.25), x(0.125);
+  VERIFY_IS_EQUAL(numext::lgamma(x).value, 1 + x.value);
+  VERIFY_IS_EQUAL(numext::igamma(a, x).value, 2 + a.value + x.value);
+  VERIFY_IS_EQUAL(numext::betainc(a, b, x).value, 3 + a.value + b.value + x.value);
+  VERIFY_IS_EQUAL(numext::bessel_i0(x).value, 4 + x.value);
+
+  Eigen::Array<GenericReal, 2, 1> g;
+  g << GenericReal(0.5), GenericReal(2.0);
+  const Eigen::Array<GenericReal, 2, 1> lgamma_g = g.lgamma();
+  for (int i = 0; i < 2; ++i) VERIFY_IS_EQUAL(lgamma_g(i).value, 1 + g(i).value);
+
+  // Built-in types keep Eigen's implementations; long double gains std::lgamma.
+  using internal::special_function_overloads::bessel_i0_fn;
+  using internal::special_function_overloads::lgamma_fn;
+  STATIC_CHECK((internal::has_special_function_overload<lgamma_fn, long double>::value));
+  STATIC_CHECK((!internal::has_special_function_overload<bessel_i0_fn, float>::value));
+  STATIC_CHECK((!internal::has_special_function_overload<bessel_i0_fn, double>::value));
+  STATIC_CHECK((!internal::has_special_function_overload<lgamma_fn, int>::value));
+
+  // An overload is used only if it returns the scalar type itself.
+  using converting_scalar::ConvertingReal;
+  using converting_scalar::ProxiedReal;
+  STATIC_CHECK((!internal::has_special_function_overload<lgamma_fn, ConvertingReal>::value));
+  STATIC_CHECK((!internal::has_erf<ConvertingReal>::value));
+  STATIC_CHECK((!internal::has_erfc<ConvertingReal>::value));
+  STATIC_CHECK((!internal::has_special_function_overload<lgamma_fn, ProxiedReal>::value));
+  VERIFY_IS_EQUAL(numext::lgamma(3.0L), std::lgamma(3.0L));
+}
+
 template <typename Scalar>
 void test_special_functions_edge_cases() {
   const Scalar plusinf = std::numeric_limits<Scalar>::infinity();
@@ -1350,6 +1440,7 @@ EIGEN_DECLARE_TEST(special_functions) {
   CALL_SUBTEST_3(scalar_ndtri<long double>());
   CALL_SUBTEST_4(scalar_erf_erfc<long double>());
   CALL_SUBTEST_5(custom_scalar_erf_erfc());
+  CALL_SUBTEST_5(custom_scalar_special_functions());
   // TODO(cantonios): half/bfloat16 don't have enough precision to reproduce results above.
   // CALL_SUBTEST_4(array_special_functions<ArrayX<Eigen::half>>());
   // CALL_SUBTEST_5(array_special_functions<ArrayX<Eigen::bfloat16>>());

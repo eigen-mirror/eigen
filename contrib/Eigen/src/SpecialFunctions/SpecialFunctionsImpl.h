@@ -45,12 +45,16 @@ namespace internal {
  ****************************************************************************/
 
 template <typename Scalar>
-struct lgamma_impl {
+struct lgamma_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar) {
     EIGEN_STATIC_ASSERT((!std::is_same<Scalar, Scalar>::value), THIS_TYPE_IS_NOT_SUPPORTED)
     return Scalar(0);
   }
 };
+
+template <typename Scalar>
+struct lgamma_impl
+    : special_function_overload_or<special_function_overloads::lgamma_fn, lgamma_default_impl<Scalar>, Scalar> {};
 
 // Since glibc 2.19
 #if defined(__GLIBC__) && ((__GLIBC__ >= 2 && __GLIBC_MINOR__ >= 19) || __GLIBC__ > 2) && \
@@ -90,6 +94,19 @@ struct lgamma_impl<double> {
     return cl::sycl::lgamma(x);
 #else
     return ::lgamma(x);
+#endif
+  }
+};
+
+template <>
+struct lgamma_impl<long double> {
+  EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE long double run(long double x) {
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) && defined(EIGEN_HAS_LGAMMA_R) && \
+    !defined(__APPLE__)
+    int dummy;
+    return ::lgammal_r(x, &dummy);
+#else
+    return std::lgamma(x);
 #endif
   }
 };
@@ -152,7 +169,7 @@ struct digamma_impl_maybe_poly<double> {
 };
 
 template <typename Scalar>
-struct digamma_impl {
+struct digamma_default_impl {
   EIGEN_DEVICE_FUNC static Scalar run(Scalar x) {
     /*
      *
@@ -267,26 +284,14 @@ struct digamma_impl {
   }
 };
 
-// Does unqualified lookup of erf/erfc succeed for T? The lookup below mirrors
-// the one at the call sites in erf_impl/erfc_impl, so it finds std::erf/std::erfc
-// and any overload visible through argument-dependent lookup.
-namespace unqualified_erf {
-EIGEN_USING_STD(erf)
-EIGEN_USING_STD(erfc)
-template <typename T>
-auto test_erf(int) -> decltype(void(erf(std::declval<const T&>())), std::true_type{});
-template <typename T>
-std::false_type test_erf(...);
-template <typename T>
-auto test_erfc(int) -> decltype(void(erfc(std::declval<const T&>())), std::true_type{});
-template <typename T>
-std::false_type test_erfc(...);
-}  // namespace unqualified_erf
+template <typename Scalar>
+struct digamma_impl
+    : special_function_overload_or<special_function_overloads::digamma_fn, digamma_default_impl<Scalar>, Scalar> {};
 
 template <typename T>
-struct has_erf : decltype(unqualified_erf::test_erf<T>(0)) {};
+struct has_erf : has_special_function_overload<special_function_overloads::erf_fn, T> {};
 template <typename T>
-struct has_erfc : decltype(unqualified_erf::test_erfc<T>(0)) {};
+struct has_erfc : has_special_function_overload<special_function_overloads::erfc_fn, T> {};
 
 /***************************************************************************
  * Implementation of erfc.
@@ -460,8 +465,7 @@ struct erfc_impl {
     return run_scalar(x, has_erfc<T>());
   }
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::true_type) {
-    EIGEN_USING_STD(erfc);
-    return erfc(x);
+    return special_function_overloads::erfc_fn::call<T>(x);
   }
   // Reject the type here instead of letting overload resolution fail inside the
   // call above: the approximations in this file are tuned for float and double
@@ -580,8 +584,7 @@ struct erf_impl {
     return run_scalar(x, has_erf<T>());
   }
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE T run_scalar(const T& x, std::true_type) {
-    EIGEN_USING_STD(erf);
-    return erf(x);
+    return special_function_overloads::erf_fn::call<T>(x);
   }
   // Reject the type here instead of letting overload resolution fail inside the
   // call above: the approximations in this file are tuned for float and double
@@ -808,9 +811,13 @@ EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE T generic_ndtri(const T& a) {
 }
 
 template <typename Scalar>
-struct ndtri_impl {
+struct ndtri_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(const Scalar x) { return generic_ndtri<Scalar, Scalar>(x); }
 };
+
+template <typename Scalar>
+struct ndtri_impl
+    : special_function_overload_or<special_function_overloads::ndtri_fn, ndtri_default_impl<Scalar>, Scalar> {};
 
 /**************************************************************************************************************
  * Implementation of igammac (complemented incomplete gamma integral), based on Cephes                       *
@@ -1276,7 +1283,7 @@ struct igamma_series_impl {
 };
 
 template <typename Scalar>
-struct igammac_impl {
+struct igammac_default_impl {
   EIGEN_DEVICE_FUNC static Scalar run(Scalar a, Scalar x) {
     /*  igamc()
      *
@@ -1362,6 +1369,10 @@ struct igammac_impl {
   }
 };
 
+template <typename Scalar>
+struct igammac_impl : special_function_overload_or<special_function_overloads::igammac_fn, igammac_default_impl<Scalar>,
+                                                   Scalar, Scalar> {};
+
 /************************************************************************************************
  * Implementation of igamma (incomplete gamma integral), based on Cephes                         *
  ************************************************************************************************/
@@ -1419,7 +1430,8 @@ struct igamma_generic_impl {
 };
 
 template <typename Scalar>
-struct igamma_impl : igamma_generic_impl<Scalar, VALUE> {
+struct igamma_impl : special_function_overload_or<special_function_overloads::igamma_fn,
+                                                  igamma_generic_impl<Scalar, VALUE>, Scalar, Scalar> {
   /* igam()
    * Incomplete gamma integral.
    *
@@ -1490,7 +1502,8 @@ struct igamma_impl : igamma_generic_impl<Scalar, VALUE> {
 };
 
 template <typename Scalar>
-struct igamma_der_a_impl : igamma_generic_impl<Scalar, DERIVATIVE> {
+struct igamma_der_a_impl : special_function_overload_or<special_function_overloads::igamma_der_a_fn,
+                                                        igamma_generic_impl<Scalar, DERIVATIVE>, Scalar, Scalar> {
   /* Derivative of the incomplete Gamma function with respect to a.
    *
    * Computes d/da igamma(a, x) by forward differentiation of the igamma code.
@@ -1508,7 +1521,9 @@ struct igamma_der_a_impl : igamma_generic_impl<Scalar, DERIVATIVE> {
 };
 
 template <typename Scalar>
-struct gamma_sample_der_alpha_impl : igamma_generic_impl<Scalar, SAMPLE_DERIVATIVE> {
+struct gamma_sample_der_alpha_impl
+    : special_function_overload_or<special_function_overloads::gamma_sample_der_alpha_fn,
+                                   igamma_generic_impl<Scalar, SAMPLE_DERIVATIVE>, Scalar, Scalar> {
   /* Derivative of a Gamma random variable sample with respect to alpha.
    *
    * Consider a sample of a Gamma random variable with the concentration
@@ -1599,7 +1614,7 @@ struct zeta_impl_series<double> {
 };
 
 template <typename Scalar>
-struct zeta_impl {
+struct zeta_default_impl {
   /* Euler-Maclaurin summation of the Hurwitz zeta function (see run()), for x > 1 and q > 0 or q < 0 non-integer, and
    * multiplied by scale^x where inv_scale = 1 / scale. Every term (k + q)^-x is computed as (inv_scale (k + q))^-x,
    * which does not underflow when scale is of the size of q, so scale = q gives a result of order 1 where zeta(x, q)
@@ -1813,12 +1828,16 @@ struct zeta_impl {
   }
 };
 
+template <typename Scalar>
+struct zeta_impl
+    : special_function_overload_or<special_function_overloads::zeta_fn, zeta_default_impl<Scalar>, Scalar, Scalar> {};
+
 /****************************************************************************
  * Implementation of polygamma function                                      *
  ****************************************************************************/
 
 template <typename Scalar>
-struct polygamma_impl {
+struct polygamma_default_impl {
   EIGEN_DEVICE_FUNC static Scalar run(Scalar n, Scalar x) {
     Scalar zero = 0.0, one = 1.0;
     Scalar nplus = n + one;
@@ -1853,7 +1872,7 @@ struct polygamma_impl {
         // product of inf and 0 is NaN). With Z = x^(n+1) zeta(n + 1, x), which is >= 1 and ~ x / n for x >> n, form
         // the product in the log domain:
         //   n! zeta(n + 1, x) = exp(lgamma(n + 1) - (n + 1) log x + log Z).
-        const Scalar log_z = numext::log(zeta_impl<Scalar>::sum(nplus, x, one / x));
+        const Scalar log_z = numext::log(zeta_default_impl<Scalar>::sum(nplus, x, one / x));
         if ((numext::isfinite)(log_z)) {
           return sign * numext::exp(lgamma_impl<Scalar>::run(nplus) - nplus * numext::log(x) + log_z);
         }
@@ -1866,12 +1885,16 @@ struct polygamma_impl {
   }
 };
 
+template <typename Scalar>
+struct polygamma_impl : special_function_overload_or<special_function_overloads::polygamma_fn,
+                                                     polygamma_default_impl<Scalar>, Scalar, Scalar> {};
+
 /************************************************************************************************
  * Implementation of betainc (incomplete beta integral), based on Cephes                         *
  ************************************************************************************************/
 
 template <typename Scalar>
-struct betainc_impl {
+struct betainc_default_impl {
   EIGEN_DEVICE_FUNC static EIGEN_STRONG_INLINE Scalar run(Scalar, Scalar, Scalar) {
     EIGEN_STATIC_ASSERT((!std::is_same<Scalar, Scalar>::value), THIS_TYPE_IS_NOT_SUPPORTED)
     /*	betaincf.c
@@ -1945,6 +1968,10 @@ struct betainc_impl {
     return Scalar(0);
   }
 };
+
+template <typename Scalar>
+struct betainc_impl : special_function_overload_or<special_function_overloads::betainc_fn, betainc_default_impl<Scalar>,
+                                                   Scalar, Scalar, Scalar> {};
 
 /* Continued fraction expansion #1 for incomplete beta integral (small_branch = True)
  * Continued fraction expansion #2 for incomplete beta integral (small_branch = False)

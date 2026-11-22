@@ -34,8 +34,6 @@ struct kiss_cpx_fft {
   static const Scalar m_pi4;  // constant pi / 4
 
   inline void make_twiddles(int nfft, bool inverse) {
-    using numext::cos;
-    using numext::sin;
     m_inverse = inverse;
     m_twiddles.resize(nfft);
     Scalar phinc = m_pi4 / nfft;
@@ -44,26 +42,26 @@ struct kiss_cpx_fft {
     if ((nfft & 1) == 0) m_twiddles[nfft / 2] = Complex(Scalar(-1), Scalar(0));
     int i = 1;
     for (; i * 8 < nfft; ++i) {
-      Scalar c = Scalar(cos(i * 8 * phinc));
-      Scalar s = Scalar(sin(i * 8 * phinc));
+      Scalar c = Scalar(numext::cos(i * 8 * phinc));
+      Scalar s = Scalar(numext::sin(i * 8 * phinc));
       m_twiddles[i] = Complex(c, s * flip);
       m_twiddles[nfft - i] = Complex(c, -s * flip);
     }
     for (; i * 4 < nfft; ++i) {
-      Scalar c = Scalar(cos((2 * nfft - 8 * i) * phinc));
-      Scalar s = Scalar(sin((2 * nfft - 8 * i) * phinc));
+      Scalar c = Scalar(numext::cos((2 * nfft - 8 * i) * phinc));
+      Scalar s = Scalar(numext::sin((2 * nfft - 8 * i) * phinc));
       m_twiddles[i] = Complex(s, c * flip);
       m_twiddles[nfft - i] = Complex(s, -c * flip);
     }
     for (; i * 8 < 3 * nfft; ++i) {
-      Scalar c = Scalar(cos((8 * i - 2 * nfft) * phinc));
-      Scalar s = Scalar(sin((8 * i - 2 * nfft) * phinc));
+      Scalar c = Scalar(numext::cos((8 * i - 2 * nfft) * phinc));
+      Scalar s = Scalar(numext::sin((8 * i - 2 * nfft) * phinc));
       m_twiddles[i] = Complex(-s, c * flip);
       m_twiddles[nfft - i] = Complex(-s, -c * flip);
     }
     for (; i * 2 < nfft; ++i) {
-      Scalar c = Scalar(cos((4 * nfft - 8 * i) * phinc));
-      Scalar s = Scalar(sin((4 * nfft - 8 * i) * phinc));
+      Scalar c = Scalar(numext::cos((4 * nfft - 8 * i) * phinc));
+      Scalar s = Scalar(numext::sin((4 * nfft - 8 * i) * phinc));
       m_twiddles[i] = Complex(-c, s * flip);
       m_twiddles[nfft - i] = Complex(-c, -s * flip);
     }
