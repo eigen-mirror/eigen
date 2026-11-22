@@ -508,6 +508,280 @@ void selfadjointeigensolver_dense_deflation_scale_invariance() {
   }
 }
 
+// computeFromTridiagonal must be scale covariant: T -> s*T gives eigenvalues s*lambda and the same eigenvectors, for
+// every s that keeps the entries in the normal range, including a scale at which the deflation threshold used to
+// discard every coupling.
+template <typename RealScalar>
+void selfadjointeigensolver_tridiagonal_scale_sweep() {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  const Index n = 30;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const int minExp = std::numeric_limits<RealScalar>::min_exponent - 1 + std::numeric_limits<RealScalar>::digits / 2;
+  const int maxExp = std::numeric_limits<RealScalar>::max_exponent - 8;
+  const int step = std::numeric_limits<RealScalar>::digits / 4;
+  for (int e = minExp; e <= maxExp; e += step) {
+    const RealScalar scale = std::ldexp(RealScalar(1), e);
+    VectorType unitDiag = VectorType::Random(n);
+    VectorType unitSubdiag = VectorType::Random(n - 1);
+    VectorType diag = unitDiag * scale;
+    VectorType subdiag = unitSubdiag * scale;
+    SelfAdjointEigenSolver<MatrixType> eig;
+    eig.computeFromTridiagonal(diag, subdiag, ComputeEigenvectors);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+
+    // |T V - V D| / |T| with T, D divided by the scale (exact for a power of two), and |V^T V - I|.
+    MatrixType T = MatrixType::Zero(n, n);
+    T.diagonal() = unitDiag;
+    T.template diagonal<1>() = unitSubdiag;
+    T.template diagonal<-1>() = unitSubdiag;
+    const MatrixType& V = eig.eigenvectors();
+    const VectorType lambda = eig.eigenvalues() / scale;
+    const RealScalar residual = (T * V - V * lambda.asDiagonal()).cwiseAbs().maxCoeff() / T.cwiseAbs().maxCoeff();
+    VERIFY(residual <= RealScalar(10 * n) * eps);
+    const RealScalar orth = (V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff();
+    VERIFY(orth <= RealScalar(10 * n) * eps);
+  }
+}
+
+// Graded tridiagonals: entries spanning 10^-range, with the exponent following a monotone ramp (small at the top
+// when "up" is set), a mountain, a valley (large at both ends) or a saw tooth. Positive definite with e_i = 0.4
+// sqrt(d_i d_{i+1}), or with a zero diagonal. Entries of a block far below its largest ones underflow in the
+// bulge chase and must be dropped by the absolute floor of the deflation test, else the iteration makes one rotation
+// per step and ends in NoConvergence. Both entry points must succeed with a small residual and orthonormal V.
+template <typename RealScalar>
+RealScalar selfadjointeigensolver_grade_exponent(int shape, Index i, Index count) {
+  const RealScalar t = count > 1 ? RealScalar(i) / RealScalar(count - 1) : RealScalar(0);
+  switch (shape) {
+    case 0:
+      return t;
+    case 1:
+      return numext::abs(RealScalar(2) * t - RealScalar(1));
+    case 2:
+      return RealScalar(1) - numext::abs(RealScalar(2) * t - RealScalar(1));
+    default:
+      return RealScalar(numext::mini<Index>(i % 10, 10 - i % 10)) / RealScalar(5);
+  }
+}
+
+template <typename RealScalar>
+void selfadjointeigensolver_tridiagonal_graded(int range, int shape, bool up, bool zeroDiagonal) {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  const Index n = 60;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  VectorType diag(n), subdiag(n - 1);
+  const auto grade = [&](Index i, Index count) {
+    return std::pow(RealScalar(10),
+                    -RealScalar(range) * selfadjointeigensolver_grade_exponent<RealScalar>(shape, i, count)) *
+           internal::random<RealScalar>(RealScalar(0.5), RealScalar(1));
+  };
+  for (Index i = 0; i < n; ++i) diag(i) = zeroDiagonal ? RealScalar(0) : grade(i, n);
+  for (Index i = 0; i < n - 1; ++i)
+    subdiag(i) = zeroDiagonal ? grade(i, n - 1) : RealScalar(0.4) * std::sqrt(diag(i)) * std::sqrt(diag(i + 1));
+  if (up) {
+    diag = diag.reverse().eval();
+    subdiag = subdiag.reverse().eval();
+  }
+  MatrixType T = MatrixType::Zero(n, n);
+  T.diagonal() = diag;
+  T.template diagonal<1>() = subdiag;
+  T.template diagonal<-1>() = subdiag;
+  const RealScalar normT = T.cwiseAbs().maxCoeff();
+
+  SelfAdjointEigenSolver<MatrixType> fromTridiagonal, dense;
+  fromTridiagonal.computeFromTridiagonal(diag, subdiag, ComputeEigenvectors);
+  dense.compute(T, ComputeEigenvectors);
+  for (const SelfAdjointEigenSolver<MatrixType>* eig : {&fromTridiagonal, &dense}) {
+    VERIFY_IS_EQUAL(eig->info(), Success);
+    const MatrixType& V = eig->eigenvectors();
+    const RealScalar residual = (T * V - V * eig->eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() / normT;
+    VERIFY(residual <= RealScalar(20 * n) * eps);
+    const RealScalar orth = (V.transpose() * V - MatrixType::Identity(n, n)).cwiseAbs().maxCoeff();
+    VERIFY(orth <= RealScalar(10 * n) * eps);
+    if (zeroDiagonal) {
+      // The spectrum is symmetric about zero.
+      VERIFY((eig->eigenvalues() + eig->eigenvalues().reverse()).cwiseAbs().maxCoeff() <=
+             RealScalar(20 * n) * eps * normT);
+    }
+  }
+  // The reversed matrix takes another path through the iteration, and the dense path another through the reduction.
+  // The eigenvalues agree to the backward error, normwise: the deflation test and its absolute floor sqrt(min) |T| do
+  // not preserve the relative accuracy of the small ones, so no relative comparison is made.
+  SelfAdjointEigenSolver<MatrixType> reversed;
+  reversed.computeFromTridiagonal(diag.reverse().eval(), subdiag.reverse().eval(), EigenvaluesOnly);
+  VERIFY_IS_EQUAL(reversed.info(), Success);
+  VERIFY((fromTridiagonal.eigenvalues() - reversed.eigenvalues()).cwiseAbs().maxCoeff() <=
+         RealScalar(20 * n) * eps * normT);
+  VERIFY((fromTridiagonal.eigenvalues() - dense.eigenvalues()).cwiseAbs().maxCoeff() <=
+         RealScalar(20 * n) * eps * normT);
+}
+
+template <typename RealScalar>
+void selfadjointeigensolver_tridiagonal_graded_all() {
+  const int maxRange = std::numeric_limits<RealScalar>::max_exponent10 * 19 / 20;
+  const int ranges[] = {maxRange / 6, maxRange / 2, maxRange};
+  for (int range : ranges)
+    for (int shape = 0; shape < 4; ++shape)
+      for (bool up : {false, true})
+        for (bool zeroDiagonal : {false, true})
+          selfadjointeigensolver_tridiagonal_graded<RealScalar>(range, shape, up, zeroDiagonal);
+}
+
+// An unreduced block of tiny entries, decoupled from the O(1) rest of the matrix, keeps its eigenvalues to a relative
+// accuracy of a few eps: the solver iterates on each unreduced block scaled to its own maximum, so the absolute floor
+// sqrt(min) of the deflation test is relative to the block, not to the whole matrix.
+template <typename RealScalar>
+void selfadjointeigensolver_isolated_tiny_block(RealScalar e, int blockSize, Index size, bool coupled) {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using VectorType = Matrix<RealScalar, Dynamic, 1>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  MatrixType block = MatrixType::Zero(blockSize, blockSize);
+  block(0, 0) = RealScalar(0.5);
+  block(1, 1) = RealScalar(-0.5);
+  block(0, 1) = block(1, 0) = RealScalar(1);
+  if (blockSize == 3) {
+    block(2, 2) = RealScalar(0.25);
+    block(1, 2) = block(2, 1) = RealScalar(1);
+  }
+  const VectorType expected = SelfAdjointEigenSolver<MatrixType>(block, EigenvaluesOnly).eigenvalues() * e;
+  block *= e;
+
+  MatrixType T = MatrixType::Zero(size, size);
+  T.topLeftCorner(blockSize, blockSize) = block;
+  for (Index i = blockSize; i < size; ++i) {
+    T(i, i) = RealScalar(2) + RealScalar(0.1) * RealScalar(i % 7);
+    if (i + 1 < size) T(i, i + 1) = T(i + 1, i) = RealScalar(0.3);
+  }
+  if (coupled && size > blockSize) {
+    // Below eps times the geometric mean of the diagonal entries it joins: negligible for the deflation test.
+    const RealScalar coupling =
+        RealScalar(0.25) * eps * std::sqrt(numext::abs(block(blockSize - 1, blockSize - 1)) * T(blockSize, blockSize));
+    T(blockSize - 1, blockSize) = T(blockSize, blockSize - 1) = coupling;
+  }
+
+  const auto check = [&](const VectorType& eigenvalues) {
+    VectorType tiny(blockSize);
+    Index count = 0;
+    for (Index i = 0; i < eigenvalues.size(); ++i)
+      if (numext::abs(eigenvalues(i)) < RealScalar(1e-3)) {
+        VERIFY(count < blockSize);
+        tiny(count++) = eigenvalues(i);
+      }
+    VERIFY_IS_EQUAL(count, blockSize);
+    for (Index i = 0; i < blockSize; ++i)
+      VERIFY(numext::abs(tiny(i) - expected(i)) <= RealScalar(8) * eps * numext::abs(expected(i)));
+  };
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    SelfAdjointEigenSolver<MatrixType> valuesOnly(T, EigenvaluesOnly), withVectors(T, ComputeEigenvectors),
+        fromTridiagonal;
+    VERIFY_IS_EQUAL(valuesOnly.info(), Success);
+    VERIFY_IS_EQUAL(withVectors.info(), Success);
+    check(valuesOnly.eigenvalues());
+    check(withVectors.eigenvalues());
+    fromTridiagonal.computeFromTridiagonal(T.diagonal(), T.template diagonal<-1>(), EigenvaluesOnly);
+    VERIFY_IS_EQUAL(fromTridiagonal.info(), Success);
+    check(fromTridiagonal.eigenvalues());
+  });
+}
+
+template <typename RealScalar>
+void selfadjointeigensolver_isolated_tiny_block_all() {
+  const RealScalar root = std::sqrt((std::numeric_limits<RealScalar>::min)());
+  std::vector<RealScalar> values;
+  for (int j : {0, 4, 8, 20}) values.push_back(std::ldexp(root, -j));
+  if (sizeof(RealScalar) == 8) {
+    values.push_back(RealScalar(1e-200));
+    values.push_back(RealScalar(1e-300));
+  } else {
+    values.push_back(RealScalar(1e-25));
+    values.push_back(RealScalar(1e-35));
+  }
+  for (RealScalar e : values)
+    for (int blockSize : {2, 3})
+      for (Index size : {3, 10, 60})
+        for (bool coupled : {false, true})
+          selfadjointeigensolver_isolated_tiny_block<RealScalar>(e, blockSize, size, coupled);
+}
+
+// MatrixBase::operatorNorm() forms A*A^*, so it must scale first: the norm of s*A0 is s*||A0||_2 over the whole
+// normal range, and a non-finite input gives a non-finite norm instead of a stale or finite value.
+template <typename Scalar>
+void matrix_operator_norm_scale_sweep() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index n = 5;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  const RealScalar inf = std::numeric_limits<RealScalar>::infinity();
+  const int minExp = std::numeric_limits<RealScalar>::min_exponent - 1 + std::numeric_limits<RealScalar>::digits / 2;
+  const int maxExp = std::numeric_limits<RealScalar>::max_exponent - 6;
+  const int step = std::numeric_limits<RealScalar>::digits / 4;
+
+  // A0 = U diag(sigma) W^* with unitary U, W, so that ||A0||_2 = sigma_max.
+  MatrixType h1 = MatrixType::Random(n, n), h2 = MatrixType::Random(n, n);
+  MatrixType U = SelfAdjointEigenSolver<MatrixType>(h1 + h1.adjoint()).eigenvectors();
+  MatrixType W = SelfAdjointEigenSolver<MatrixType>(h2 + h2.adjoint()).eigenvectors();
+  Matrix<RealScalar, Dynamic, 1> sigma(n);
+  for (Index i = 0; i < n; ++i) sigma(i) = RealScalar(1) / RealScalar(i + 1);
+  const MatrixType A0 = U * sigma.template cast<Scalar>().asDiagonal() * W.adjoint();
+  const RealScalar norm0 = sigma(0);
+
+  for (int e = minExp; e <= maxExp; e += step) {
+    const RealScalar scale = std::ldexp(RealScalar(1), e);
+    const MatrixType A = A0 * Scalar(scale);
+    const RealScalar expected = scale * norm0;
+    const RealScalar computed = A.operatorNorm();
+    VERIFY(numext::abs(computed - expected) <= RealScalar(10 * n) * eps * expected);
+  }
+
+  MatrixType B = A0;
+  B(1, 2) = Scalar(nan);
+  VERIFY((numext::isnan)(B.operatorNorm()));
+  B = A0;
+  B(3, 1) = Scalar(inf);
+  VERIFY((numext::isinf)(B.operatorNorm()) && B.operatorNorm() > RealScalar(0));
+  B(0, 0) = Scalar(nan);
+  VERIFY((numext::isnan)(B.operatorNorm()));
+  VERIFY_IS_EQUAL(MatrixType::Zero(n, n).operatorNorm(), RealScalar(0));
+  VERIFY_IS_EQUAL(MatrixType(0, 0).operatorNorm(), RealScalar(0));
+  VERIFY_IS_EQUAL(MatrixType(0, 0).template selfadjointView<Lower>().operatorNorm(), RealScalar(0));
+
+  // The self-adjoint view reports a NaN as NaN and an infinity as +infinity, as MatrixBase does, rather than the
+  // maximum of unspecified eigenvalues.
+  B = A0 + A0.adjoint();
+  const RealScalar viewNorm = B.template selfadjointView<Lower>().operatorNorm();
+  VERIFY(numext::abs(viewNorm - B.template selfadjointView<Lower>().eigenvalues().cwiseAbs().maxCoeff()) <=
+         RealScalar(10 * n) * eps * viewNorm);
+  B(1, 1) = Scalar(nan);
+  VERIFY((numext::isnan)(B.template selfadjointView<Lower>().operatorNorm()));
+  B(1, 1) = Scalar(inf);
+  const RealScalar infiniteViewNorm = B.template selfadjointView<Lower>().operatorNorm();
+  VERIFY((numext::isinf)(infiniteViewNorm) && infiniteViewNorm > RealScalar(0));
+}
+
+// SelfAdjointView::operatorNorm() uses what the solver uses: the lower triangle and the real part of the diagonal. A
+// non-finite entry above the diagonal or in the imaginary part of a diagonal entry changes nothing.
+template <typename Scalar>
+void selfadjoint_view_operator_norm_unreferenced() {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  const Index n = 5;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar nan = std::numeric_limits<RealScalar>::quiet_NaN();
+  const MatrixType base = MatrixType::Random(n, n) + MatrixType::Random(n, n).adjoint();
+  const RealScalar expected = base.template selfadjointView<Lower>().operatorNorm();
+  VERIFY(expected > RealScalar(0));
+  MatrixType B = base;
+  B(1, 3) = Scalar(nan);
+  VERIFY(numext::abs(B.template selfadjointView<Lower>().operatorNorm() - expected) <=
+         RealScalar(10 * n) * eps * expected);
+  B = base;
+  numext::imag_ref(B(2, 2)) = nan;
+  VERIFY(numext::abs(B.template selfadjointView<Lower>().operatorNorm() - expected) <=
+         RealScalar(10 * n) * eps * expected);
+}
+
 // Test computeFromTridiagonal with wide dynamic range across decoupled blocks.
 // This exercises the per-block scaling in computeFromTridiagonal_impl: a zero on the
 // subdiagonal decouples the matrix into blocks with vastly different scales. Global
@@ -1537,6 +1811,24 @@ void direct_selfadjoint_low_precision_boundary() {
     VERIFY((vectors.transpose() * vectors - WideMatrix::Identity()).norm() <= tolerance);
   }
 }
+
+// A coupling of a few eps between unit diagonal entries is significant. The deflation floor must stay below it also
+// where sqrt(min) is a multiple of eps, as in Eigen::half; dropping the coupling leaves a residual of 4 eps.
+template <typename Scalar>
+void selfadjoint_iterative_low_precision_coupling() {
+  using MatrixType = Matrix<Scalar, 3, 3>;
+  const double eps = double(NumTraits<Scalar>::epsilon());
+  MatrixType input = MatrixType::Identity();
+  const Scalar coupling = Scalar(5 * eps);
+  input(0, 1) = input(1, 0) = input(1, 2) = input(2, 1) = coupling;
+  SelfAdjointEigenSolver<MatrixType> solver(input);
+  VERIFY_IS_EQUAL(solver.info(), Success);
+  const Matrix<double, 3, 3> vectors = solver.eigenvectors().template cast<double>();
+  const Matrix<double, 3, 1> values = solver.eigenvalues().template cast<double>();
+  const double residual = (input.template cast<double>() * vectors - vectors * values.asDiagonal()).norm() /
+                          input.template cast<double>().norm();
+  VERIFY(residual <= 2 * eps);
+}
 #endif
 
 EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
@@ -1571,6 +1863,9 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
   CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<half, 3>()));
   CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<bfloat16, 2>()));
   CALL_SUBTEST_21((direct_selfadjoint_low_precision_boundary<bfloat16, 3>()));
+  CALL_SUBTEST_21((selfadjoint_iterative_low_precision_coupling<half>()));
+  CALL_SUBTEST_21((selfadjoint_iterative_low_precision_coupling<bfloat16>()));
+  CALL_SUBTEST_21((selfadjoint_iterative_low_precision_coupling<float>()));
   int s = 0;
   CALL_SUBTEST_4(generalizedselfadjointeigensolver_no_malloc<MatrixXd>());
   // An empty matrix took the maximum of no coefficients.
@@ -1642,6 +1937,18 @@ EIGEN_DECLARE_TEST(eigensolver_selfadjoint) {
     // wide dynamic range tridiagonal (per-block scaling regression)
     CALL_SUBTEST_4(selfadjointeigensolver_tridiagonal_wide_range<double>());
     CALL_SUBTEST_3(selfadjointeigensolver_tridiagonal_wide_range<float>());
+    CALL_SUBTEST_8(selfadjointeigensolver_tridiagonal_scale_sweep<double>());
+    CALL_SUBTEST_8(selfadjointeigensolver_tridiagonal_scale_sweep<float>());
+    CALL_SUBTEST_8(selfadjointeigensolver_tridiagonal_graded_all<double>());
+    CALL_SUBTEST_8(selfadjointeigensolver_tridiagonal_graded_all<float>());
+    CALL_SUBTEST_8(selfadjointeigensolver_isolated_tiny_block_all<double>());
+    CALL_SUBTEST_8(selfadjointeigensolver_isolated_tiny_block_all<float>());
+    CALL_SUBTEST_8(matrix_operator_norm_scale_sweep<float>());
+    CALL_SUBTEST_8(matrix_operator_norm_scale_sweep<double>());
+    CALL_SUBTEST_8(matrix_operator_norm_scale_sweep<std::complex<float>>());
+    CALL_SUBTEST_8(matrix_operator_norm_scale_sweep<std::complex<double>>());
+    CALL_SUBTEST_8(selfadjoint_view_operator_norm_unreferenced<std::complex<float>>());
+    CALL_SUBTEST_8(selfadjoint_view_operator_norm_unreferenced<std::complex<double>>());
 
     // diagonal matrices
     CALL_SUBTEST_17(selfadjointeigensolver_diagonal(Matrix3d()));

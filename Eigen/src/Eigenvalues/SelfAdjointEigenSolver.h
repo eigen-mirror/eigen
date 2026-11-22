@@ -517,11 +517,11 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
     mat.diagonal() = mat.diagonal().real();
   }
 
-  // Scale the matrix to O(1) to avoid overflow/underflow during tridiagonalization
-  // and subsequent QR iteration. Power-of-two factors avoid rounding representable scaled coefficients.
-  // Note: for block-diagonal matrices with widely separated scales, this
-  // can underflow small blocks. Users with such matrices should tridiagonalize separately
-  // and call computeFromTridiagonal(), which uses per-block scaling.
+  // Scale the matrix to O(1) to avoid overflow/underflow during tridiagonalization. Power-of-two factors avoid
+  // rounding representable scaled coefficients. The QR iteration then scales each unreduced block again by its own
+  // maximum. Note: for block-diagonal matrices with widely separated scales, the global scaling can underflow
+  // small blocks before the tridiagonalization. Users with such matrices should tridiagonalize separately
+  // and call computeFromTridiagonal().
   const RealScalar maxCoeff = internal::safe_scaling<RealScalar>::max_abs_component(mat);
   if (!(numext::isfinite)(maxCoeff)) {
     // Input contains Inf or NaN.
@@ -537,7 +537,10 @@ EIGEN_DEVICE_FUNC SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<Mat
   m_hcoeffs.resize(n - 1);
   internal::tridiagonalization_inplace(mat, diag, m_subdiag, m_hcoeffs, m_workspace, computeEigenvectors);
 
-  m_info = internal::computeFromTridiagonal_impl<false>(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
+  // Iterate on each unreduced block scaled to its own maximum, as xSTEQR does (Anderson et al., LAPACK Users' Guide):
+  // the deflation floor sqrt(min) is then relative to the block, and an isolated block of tiny entries keeps its
+  // accuracy.
+  m_info = internal::computeFromTridiagonal_impl<true>(diag, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
 
   // Scale back the eigenvalues.
   internal::safe_scaling<RealScalar>::unscale_in_place(m_eivalues, maxCoeff, factors);
@@ -571,7 +574,7 @@ SelfAdjointEigenSolver<MatrixType>& SelfAdjointEigenSolver<MatrixType>::computeF
   if (computeEigenvectors) {
     m_eivec.setIdentity(diag.size(), diag.size());
   }
-  // Use per-deflation-block scaling (like LAPACK's DSTERF) to avoid losing
+  // Use per-deflation-block scaling (the scaling, not the deflation test, of LAPACK's DSTERF) to avoid losing
   // precision when the tridiagonal entries span a wide range of magnitudes.
   m_info =
       internal::computeFromTridiagonal_impl<true>(m_eivalues, m_subdiag, m_maxIterations, computeEigenvectors, m_eivec);
@@ -587,9 +590,10 @@ namespace internal {
  * \brief Compute the eigendecomposition from a tridiagonal matrix
  *
  * \tparam PerBlockScaling If true, each deflation block is independently scaled to O(1) before
- *         QR iteration, following LAPACK's DSTERF approach. This prevents precision loss when entries
- *         span a wide range of magnitudes. When false, the caller is responsible for ensuring the
- *         entries are in a safe range (e.g. by pre-scaling the dense matrix before tridiagonalization).
+ *         QR iteration, as LAPACK's DSTERF scales its blocks (the deflation test differs: it is the normwise
+ *         |e_i| <= eps max(|d_i|, |d_{i+1}|), not DSTERF's e_i^2 <= eps^2 |d_i| |d_{i+1}|). This prevents
+ *         precision loss when entries span a wide range of magnitudes. When false, the caller is responsible for
+ * ensuring the entries are in a safe range (e.g. by pre-scaling the dense matrix before tridiagonalization).
  * \param[in,out] diag : On input, the diagonal of the matrix, on output the eigenvalues
  * \param[in,out] subdiag : The subdiagonal part of the matrix (entries are modified during the decomposition)
  * \param[in] maxIterations : the maximum number of iterations
@@ -609,27 +613,31 @@ EIGEN_DEVICE_FUNC ComputationInfo computeFromTridiagonal_impl(DiagType& diag, Su
   Index iter = 0;  // total number of iterations
 
   using RealScalar = typename DiagType::RealScalar;
-  const RealScalar considerAsZero = (std::numeric_limits<RealScalar>::min)();
+  // Absolute floor of the deflation test, used in coordinates scaled to max in [1, 2) of the unreduced block being
+  // iterated: from the second call of the test on, because the first one precedes the scaling of any block (a
+  // coupling below the floor can be significant for T = s T0 with s near min()). A dropped coupling is at most
+  // sqrt(min) times the norm of its block (1.5e-154 in double, 1.1e-19 in float), far below eps times it. It is the
+  // effective floor of the xSTEQR criterion e_i^2 <= eps^2 |d_i| |d_{i+1}| + safmin (Anderson et al., LAPACK Users'
+  // Guide). A floor of min() lets a block that is graded over more than ~1/sqrt(min) make one rotation per
+  // iteration, as the underflowing bulge entries never deflate: NoConvergence. The limit, as in LAPACK: eigenvalues
+  // below about sqrt(min) |block| inside a coupled graded chain are not accurate relative to themselves.
+  // The floor is capped at eps^2, and at min() from below: in Eigen::half sqrt(min) = 8 eps would deflate a coupling of
+  // a few eps, while eps^2 < min() leaves min(). The other types keep sqrt(min).
+  const RealScalar safmin = (std::numeric_limits<RealScalar>::min)();
   const RealScalar precision = NumTraits<RealScalar>::epsilon();
-  const RealScalar precision_inv = RealScalar(1) / precision;
+  const RealScalar considerAsZero =
+      numext::maxi<RealScalar>(safmin, numext::mini<RealScalar>(numext::sqrt(safmin), precision * precision));
 
   // Helper lambda for the deflation test.
   auto deflate = [&](Index lo, Index hi) {
     for (Index i = lo; i < hi; ++i) {
       const RealScalar absSubdiag = numext::abs(subdiag[i]);
-      if (absSubdiag < considerAsZero) {
+      // |e_i| <= eps * max(|d_i|, |d_{i+1}|) is homogeneous of degree one in the entries, so the decision is unchanged
+      // by any scaling of the block; it perturbs T by at most eps * ||T||. The absolute floor applies only in scaled
+      // coordinates; see considerAsZero.
+      const bool belowMin = (!PerBlockScaling || iter != 0) && absSubdiag < considerAsZero;
+      if (belowMin || absSubdiag <= precision * numext::maxi(numext::abs(diag[i]), numext::abs(diag[i + 1]))) {
         subdiag[i] = RealScalar(0);
-      } else if (!PerBlockScaling) {
-        // Homogeneous in the global scale: both sides are linear in it, so prescaling cannot change which couplings
-        // are discarded (the previous test was quadratic on the left).
-        if (absSubdiag <= precision * numext::maxi(numext::abs(diag[i]), numext::abs(diag[i + 1]))) {
-          subdiag[i] = RealScalar(0);
-        }
-      } else {
-        const RealScalar scaled_subdiag = precision_inv * subdiag[i];
-        if (scaled_subdiag * scaled_subdiag <= (numext::abs(diag[i]) + numext::abs(diag[i + 1]))) {
-          subdiag[i] = RealScalar(0);
-        }
       }
     }
   };

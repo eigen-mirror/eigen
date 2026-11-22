@@ -199,7 +199,7 @@ EIGEN_DEVICE_FUNC void JacobiRotation<Scalar>::makeGivens(const Scalar& p, const
       const Scalar phase = pn / numext::abs(pn);
       m_c = numext::abs(ps) / u;
       m_s = -numext::conj(phase) * (qs / u);
-      if (r) *r = phase * (q1 * u);
+      if (r) *r = phase * RealScalar(q1 * u);
     }
   } else if (p1 == RealScalar(0) && q1 >= negligible && q1 <= highest) {
     // One component of qn = q / max(|Re q|, |Im q|) is +-1, so |qn|^2 = 1 + t^2 with |t| <= 1 is safe to form, and
@@ -277,7 +277,7 @@ EIGEN_DEVICE_FUNC EIGEN_DONT_INLINE void JacobiRotation<Scalar>::makeGivensCompl
     }
     m_c = numext::abs(pn) / u;
     m_s = -numext::conj(phase) * (qn / u);
-    rs(0) = phase * (q1 * u);
+    rs(0) = phase * RealScalar(q1 * u);
   }
   if (r) {
     Scaling::unscale_in_place(rs, maxCoeff, factors);

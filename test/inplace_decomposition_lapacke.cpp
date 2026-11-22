@@ -142,9 +142,35 @@ void inplace_plain_lapacke_dispatch() {
   VERIFY_IS_EQUAL(complex, constComplex);
 }
 
+// An empty matrix is valid input for the generic solvers. LAPACK rejects a zero leading dimension, so the LAPACKE
+// specializations must answer it themselves instead of calling a routine that returns a failure code.
+template <int Options>
+void empty_lapacke_input() {
+  using RealMatrix = Matrix<double, Dynamic, Dynamic, Options>;
+  using ComplexMatrix = Matrix<std::complex<double>, Dynamic, Dynamic, Options>;
+  const int realBefore = real_schur_calls, complexBefore = complex_schur_calls, selfadjointBefore = selfadjoint_calls;
+  for (bool vectors : {false, true}) {
+    SelfAdjointEigenSolver<RealMatrix> selfadjoint(RealMatrix(0, 0), vectors ? ComputeEigenvectors : EigenvaluesOnly);
+    VERIFY_IS_EQUAL(selfadjoint.info(), Success);
+    VERIFY_IS_EQUAL(selfadjoint.eigenvalues().size(), 0);
+    if (vectors) VERIFY_IS_EQUAL(selfadjoint.eigenvectors().rows(), 0);
+    RealSchur<RealMatrix> realSchur(RealMatrix(0, 0), vectors);
+    VERIFY_IS_EQUAL(realSchur.info(), Success);
+    VERIFY_IS_EQUAL(realSchur.matrixT().rows(), 0);
+    ComplexSchur<ComplexMatrix> complexSchur(ComplexMatrix(0, 0), vectors);
+    VERIFY_IS_EQUAL(complexSchur.info(), Success);
+    VERIFY_IS_EQUAL(complexSchur.matrixT().rows(), 0);
+  }
+  VERIFY_IS_EQUAL(real_schur_calls, realBefore);
+  VERIFY_IS_EQUAL(complex_schur_calls, complexBefore);
+  VERIFY_IS_EQUAL(selfadjoint_calls, selfadjointBefore);
+}
+
 EIGEN_DECLARE_TEST(inplace_decomposition_lapacke) {
   inplace_plain_lapacke_dispatch<ColMajor>();
   inplace_plain_lapacke_dispatch<RowMajor>();
+  empty_lapacke_input<ColMajor>();
+  empty_lapacke_input<RowMajor>();
   colpiv_qr_lapacke_rejected_input();
   inplace_lapacke_inner_stride<ColMajor>();
   inplace_lapacke_inner_stride<RowMajor>();

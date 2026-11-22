@@ -273,7 +273,9 @@ template <typename MatrixType>
 ComplexEigenSolver<MatrixType>& ComplexEigenSolver<MatrixType>::computeFromSchur(bool computeEigenvectors) {
   if (m_schur.info() == Success) {
     m_eivalues = m_schur.matrixT().diagonal();
-    if (computeEigenvectors) doComputeEigenvectors(m_schur.matrixT().norm());
+    // |T|_F is infinite for a finite T with entries near max; every use below needs only a bound on max |t_ij|.
+    if (computeEigenvectors)
+      doComputeEigenvectors(numext::mini(m_schur.matrixT().stableNorm(), NumTraits<RealScalar>::highest()));
     sortEigenvalues(computeEigenvectors);
   }
 
@@ -292,7 +294,18 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
   // already computed.
   typename ComplexSchur<MatrixType>::MatrixTType& matX = m_schur.m_matT;
   matX.template triangularView<StrictlyLower>().setZero();
+  // Equal eigenvalues give z = eps * |T|, so one step can multiply the column by 1/eps and a chain of them overflows.
+  // A column of X is only defined up to a factor: if |X(i,k)| would exceed B, divide by g the part of the column
+  // computed so far, the pending entries T(0..i-1,k) and the diagonal entry (which tracks the factor), so that
+  // |X(i,k)| = |num| / (g |z|) = B. All entries of X then stay below B, and the products with T below max / 4
+  // for B <= max / (4 n |T|_F). Sizes are measured by the larger of the real and imaginary parts.
+  RealScalar bigThreshold = numext::sqrt(NumTraits<RealScalar>::highest());
+  // Divide in this order: 4 n |T|_F overflows for |T|_F > max / (4 n), and the bound would become 0.
+  if (matrixnorm > RealScalar(0))
+    bigThreshold =
+        numext::mini<RealScalar>(bigThreshold, NumTraits<RealScalar>::highest() / matrixnorm / RealScalar(4 * n));
   for (Index k = n - 1; k >= 0; k--) {
+    RealScalar diagonalScale(1);  // X(k,k) after the rescalings of column k
     // Compute X(i,k) using the (i,k) entry of the equation X T = D X
     for (Index i = k - 1; i >= 0; i--) {
       matX.coeffRef(i, k) = -matX.coeff(i, k);
@@ -302,12 +315,22 @@ void ComplexEigenSolver<MatrixType>::doComputeEigenvectors(RealScalar matrixnorm
       if (z == ComplexScalar(0)) {
         // If the i-th and k-th eigenvalue are equal, then z equals 0.
         // Use a small value instead, to prevent division by zero.
-        numext::real_ref(z) = numext::maxi(std::numeric_limits<RealScalar>::epsilon() * matrixnorm,
-                                           (std::numeric_limits<RealScalar>::min)());
+        // The perturbation eps |T| can be subnormal (|T| below min() / eps); only a zero one is replaced.
+        numext::real_ref(z) = std::numeric_limits<RealScalar>::epsilon() * matrixnorm;
+        if (numext::is_exactly_zero(numext::real(z))) numext::real_ref(z) = (std::numeric_limits<RealScalar>::min)();
+      }
+      const RealScalar numMax =
+          numext::maxi(numext::abs(numext::real(matX.coeff(i, k))), numext::abs(numext::imag(matX.coeff(i, k))));
+      const RealScalar zMax = numext::maxi(numext::abs(numext::real(z)), numext::abs(numext::imag(z)));
+      if (numMax > zMax * bigThreshold) {
+        // zMax * B < numMax, so the product cannot overflow; numMax / B can, for B < 1.
+        const RealScalar g = numMax / (zMax * bigThreshold);
+        matX.col(k).head(k) /= g;
+        diagonalScale /= g;
       }
       matX.coeffRef(i, k) /= z;
     }
-    matX.coeffRef(k, k) = ComplexScalar(1.0, 0.0);
+    matX.coeffRef(k, k) = ComplexScalar(diagonalScale, RealScalar(0));
   }
 
   // Compute V as V = U X; now A = U T U^* = U X D X^(-1) U^* = V D V^(-1)

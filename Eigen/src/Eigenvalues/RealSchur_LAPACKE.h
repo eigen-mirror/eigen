@@ -50,6 +50,14 @@ namespace Eigen {
     eigen_assert(matrix.cols() == matrix.rows());                                                                    \
                                                                                                                      \
     lapack_int n = internal::convert_index<lapack_int>(matrix.cols()), sdim, info;                                   \
+    if (n == 0) {                                                                                                    \
+      m_matT.resize(0, 0);                                                                                           \
+      m_matU.resize(0, 0);                                                                                           \
+      m_info = Success;                                                                                              \
+      m_isInitialized = true;                                                                                        \
+      m_matUisUptodate = computeU;                                                                                   \
+      return *this;                                                                                                  \
+    }                                                                                                                \
     lapack_int matrix_order = LAPACKE_COLROW;                                                                        \
     char jobvs, sort = 'N';                                                                                          \
     LAPACK_##LAPACKE_PREFIX_U##_SELECT2 select = 0;                                                                  \

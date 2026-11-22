@@ -132,6 +132,8 @@ void eigensolver_generic_extra() {
     a << 0, 0, 1, 1, 1, 1, 1, 1e+200, 1;
     Eigen::EigenSolver<MatrixXd> eig(a);
     double scale = 1e-200;  // scale to avoid overflow during the comparisons
+    // The eigenvalues are 0 and +-1e100, which depend on entries 1e-200 times the norm of the matrix.
+    VERIFY_IS_APPROX(eig.eigenvalues().cwiseAbs().maxCoeff() * scale * 1e100, 1.);
     VERIFY_IS_APPROX(a * eig.pseudoEigenvectors() * scale,
                      eig.pseudoEigenvectors() * eig.pseudoEigenvalueMatrix() * scale);
     VERIFY_IS_APPROX(a * eig.eigenvectors() * scale, eig.eigenvectors() * eig.eigenvalues().asDiagonal() * scale);
@@ -202,6 +204,114 @@ void eigensolver_generic_extra() {
   }
 }
 
+// max |A V - V D| / (max|A| max|V|) for the eigenpairs of the matrix A0 scaled by `scale`, computed in the scale-free
+// coordinates A0, D / scale, so that the check itself cannot overflow.
+template <typename RealScalar>
+RealScalar eigensolver_scaled_residual(const Matrix<RealScalar, Dynamic, Dynamic>& A0, RealScalar scale,
+                                       const EigenSolver<Matrix<RealScalar, Dynamic, Dynamic>>& eig) {
+  using Complex = std::complex<RealScalar>;
+  using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic>;
+  const ComplexMatrix& V = eig.eigenvectors();
+  const ComplexMatrix scaledEigenvalues = (eig.eigenvalues() / scale).matrix();
+  const ComplexMatrix residual = A0.template cast<Complex>() * V - V * scaledEigenvalues.col(0).asDiagonal();
+  return residual.cwiseAbs().maxCoeff() / (A0.cwiseAbs().maxCoeff() * V.cwiseAbs().maxCoeff());
+}
+
+// A real matrix with complex pairs must give finite eigenvectors with a small residual at every scale: the
+// back-substitution squares entries of T, which overflows or underflows far outside the normal range of the squares.
+template <typename RealScalar>
+void eigensolver_scale_sweep() {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const Index n = 6;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const int minExp = std::numeric_limits<RealScalar>::min_exponent - 1 + std::numeric_limits<RealScalar>::digits / 2;
+  const int maxExp = std::numeric_limits<RealScalar>::max_exponent - 6;
+  const int step = std::numeric_limits<RealScalar>::digits / 4;
+  MatrixType A0 = RealScalar(0.3) * MatrixType::Random(n, n);
+  A0.template topLeftCorner<2, 2>() << RealScalar(0), RealScalar(1.5), RealScalar(-1.5), RealScalar(0);
+  A0.template block<2, 2>(2, 2) << RealScalar(1), RealScalar(2), RealScalar(-2), RealScalar(1);
+  for (int e = minExp; e <= maxExp; e += step) {
+    const RealScalar scale = std::ldexp(RealScalar(1), e);
+    const MatrixType A = A0 * scale;
+    EigenSolver<MatrixType> eig(A);
+    VERIFY_IS_EQUAL(eig.info(), Success);
+    VERIFY(eig.eigenvectors().allFinite());
+    VERIFY((eigensolver_scaled_residual<RealScalar>(A0, scale, eig)) <= RealScalar(100 * n) * eps);
+  }
+}
+
+// Every eigenvector column has unit norm: a finite, small-residual check alone passes a zero column.
+template <typename RealScalar>
+void eigensolver_verify_unit_columns(const EigenSolver<Matrix<RealScalar, Dynamic, Dynamic>>& eig) {
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const Index n = eig.eigenvectors().cols();
+  for (Index j = 0; j < n; ++j)
+    VERIFY(numext::abs(eig.eigenvectors().col(j).norm() - RealScalar(1)) <= RealScalar(10 * n) * eps);
+}
+
+// T = [d, g; 0, 2d] has the eigenvectors (1, 0) and (g / d, 1) / norm: the second one has a component g / d that
+// overflows when d is tiny, though the normalized vector is representable.
+template <typename RealScalar>
+void eigensolver_triangular_overflow() {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar d = RealScalar(16) * (std::numeric_limits<RealScalar>::min)();
+  const RealScalar g = RealScalar(1024);
+  MatrixType A0(2, 2);
+  A0 << d, g, RealScalar(0), RealScalar(2) * d;
+  EigenSolver<MatrixType> eig(A0);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY(eig.eigenvectors().allFinite());
+  VERIFY((eigensolver_scaled_residual<RealScalar>(A0, RealScalar(1), eig)) <= RealScalar(100) * eps);
+  eigensolver_verify_unit_columns<RealScalar>(eig);
+}
+
+// A = [a, -1.5 s, 1.5 s; 0, s, 1.5 s; 0, 0, a / 2] with a << s: the back-substitution scales T by about 1/s, which
+// makes the divisor a - a / 2 of the third eigenvector subnormal, and the factor |divisor| / |r| that rescales the
+// column underflows to 0. The eigenvector (-1, 0, 0) must not be zeroed. sExp and aExp are the binary exponents of
+// s and a.
+template <typename RealScalar>
+void eigensolver_subnormal_divisor(int sExp, int aExp) {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  const RealScalar s = std::ldexp(RealScalar(1), sExp);
+  const RealScalar a = std::ldexp(RealScalar(1), aExp);
+  MatrixType A(3, 3);
+  A << a, RealScalar(-1.5) * s, RealScalar(1.5) * s, RealScalar(0), s, RealScalar(1.5) * s, RealScalar(0),
+      RealScalar(0), a / RealScalar(2);
+  EigenSolver<MatrixType> eig(A);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY(eig.eigenvectors().allFinite());
+  eigensolver_verify_unit_columns<RealScalar>(eig);
+  // A / s is exact: a power-of-two scaling of entries that stay representable.
+  MatrixType A0 = A / s;
+  VERIFY((eigensolver_scaled_residual<RealScalar>(A0, s, eig)) <= RealScalar(100 * 3) * eps);
+}
+
+// A pair of complex eigenvalues whose imaginary part is below 2*eps*|real part| is still a pair: the Schur form has
+// the 2x2 block, and the pseudo-eigenvectors hold (Re v, Im v) in two columns. [1, g; -1, 1] has eigenvalues
+// 1 +- i sqrt(g) = 1 +- i eps / 2.
+template <typename RealScalar>
+void eigensolver_tiny_imaginary_pair() {
+  using MatrixType = Matrix<RealScalar, Dynamic, Dynamic>;
+  using Complex = std::complex<RealScalar>;
+  using ComplexMatrix = Matrix<Complex, Dynamic, Dynamic>;
+  const RealScalar eps = NumTraits<RealScalar>::epsilon();
+  MatrixType A(2, 2);
+  A << RealScalar(1), eps * eps / RealScalar(4), RealScalar(-1), RealScalar(1);
+  EigenSolver<MatrixType> eig(A);
+  VERIFY_IS_EQUAL(eig.info(), Success);
+  VERIFY(numext::imag(eig.eigenvalues()(0)) != RealScalar(0));
+  VERIFY(numext::abs(numext::imag(eig.eigenvalues()(0))) < RealScalar(2) * eps);
+  const ComplexMatrix V = eig.eigenvectors();
+  const RealScalar residual =
+      (A.template cast<Complex>() * V - V * eig.eigenvalues().asDiagonal()).cwiseAbs().maxCoeff() /
+      V.cwiseAbs().maxCoeff();
+  VERIFY(residual <= RealScalar(100) * eps);
+  const MatrixType& U = eig.pseudoEigenvectors();
+  VERIFY((A * U - U * eig.pseudoEigenvalueMatrix()).cwiseAbs().maxCoeff() <= RealScalar(100) * eps);
+}
+
 EIGEN_DECLARE_TEST(eigensolver_generic) {
   int s = 0;
   for (int i = 0; i < g_repeat; i++) {
@@ -246,6 +356,15 @@ EIGEN_DECLARE_TEST(eigensolver_generic) {
   });
 
   CALL_SUBTEST_2(eigensolver_generic_extra<0>());
+
+  CALL_SUBTEST_5(eigensolver_scale_sweep<float>());
+  CALL_SUBTEST_5(eigensolver_scale_sweep<double>());
+  CALL_SUBTEST_5(eigensolver_triangular_overflow<float>());
+  CALL_SUBTEST_5(eigensolver_triangular_overflow<double>());
+  CALL_SUBTEST_5(eigensolver_subnormal_divisor<float>(75, -74));
+  CALL_SUBTEST_5(eigensolver_subnormal_divisor<double>(600, -473));
+  CALL_SUBTEST_5(eigensolver_tiny_imaginary_pair<float>());
+  CALL_SUBTEST_5(eigensolver_tiny_imaginary_pair<double>());
 
   TEST_SET_BUT_UNUSED_VARIABLE(s);
 }

@@ -391,7 +391,7 @@ inline void RealQZ<MatrixType>::splitOffTwoRows(Index i) {
       // smaller.
       const Scalar root = numext::sqrt(discriminant);
       const bool c1Negative = c1 < Scalar(0);
-      const Scalar r = Scalar(-0.5) * (c1Negative ? c1 - root : c1 + root);
+      const Scalar r = Scalar(-0.5) * (c1Negative ? Scalar(c1 - root) : Scalar(c1 + root));
       const bool firstIsLarger = (c1Negative == (c2 > Scalar(0))) == (sigmaB > Scalar(0));
       // Deflate first the larger eigenvalue if (S T^-1)(0, 0) >= (S T^-1)(1, 1), otherwise the smaller: a nearly
       // triangular block then keeps its diagonal order. That difference has the sign of

@@ -339,7 +339,6 @@ class EigenSolver {
 template <typename MatrixType>
 typename EigenSolver<MatrixType>::PlainMatrixType EigenSolver<MatrixType>::pseudoEigenvalueMatrix() const {
   eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
-  const RealScalar precision = RealScalar(2) * NumTraits<RealScalar>::epsilon();
   const Index n = m_eivalues.rows();
   PlainMatrixType matD = PlainMatrixType::Zero(n, n);
   Index i = 0;
@@ -347,7 +346,8 @@ typename EigenSolver<MatrixType>::PlainMatrixType EigenSolver<MatrixType>::pseud
     RealScalar real = numext::real(m_eivalues.coeff(i));
     RealScalar imag = numext::imag(m_eivalues.coeff(i));
     matD.coeffRef(i, i) = real;
-    if (!internal::isMuchSmallerThan(imag, real, precision)) {
+    // The eigenvalue of a real scalar block has an exactly zero imaginary part, whatever the size of the real part.
+    if (!numext::is_exactly_zero(imag)) {
       matD.coeffRef(i, i + 1) = imag;
       matD.coeffRef(i + 1, i) = -imag;
       matD.coeffRef(i + 1, i + 1) = real;
@@ -365,13 +365,11 @@ template <typename MatrixType>
 typename EigenSolver<MatrixType>::EigenvectorsType EigenSolver<MatrixType>::eigenvectors() const {
   eigen_assert(m_isInitialized && "EigenSolver is not initialized.");
   eigen_assert(m_eigenvectorsOk && "The eigenvectors have not been computed together with the eigenvalues.");
-  const RealScalar precision = RealScalar(2) * NumTraits<RealScalar>::epsilon();
   const PlainMatrixType& eivec = m_realSchur.m_matU;
   Index n = eivec.cols();
   EigenvectorsType matV(n, n);
   for (Index j = 0; j < n; ++j) {
-    if (internal::isMuchSmallerThan(numext::imag(m_eivalues.coeff(j)), numext::real(m_eivalues.coeff(j)), precision) ||
-        j + 1 == n) {
+    if (numext::is_exactly_zero(numext::imag(m_eivalues.coeff(j))) || j + 1 == n) {
       // we have a real eigen value
       matV.col(j) = eivec.col(j).template cast<ComplexScalar>();
       matV.col(j).normalize();
@@ -473,16 +471,36 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
   const Index size = eivec.cols();
   const Scalar eps = NumTraits<Scalar>::epsilon();
 
-  const Scalar norm = internal::hessenberg_abs_sum<Upper>(matT);
+  Scalar norm = internal::hessenberg_abs_sum<Upper>(matT);
 
   // Backsubstitute to find vectors of upper triangular form
   if (norm == Scalar(0)) {
     return;
   }
 
+  // The back-substitution squares and multiplies entries of T, which overflows or underflows once the entries are
+  // outside about [sqrt(min/eps), sqrt(max/(8n))]. The eigenvectors of T are those of T/s for a power of two s, so
+  // scale T and the eigenvalues together. Since max|t_ij| <= norm <= n^2 max|t_ij|, the test below is a cheap
+  // sufficient condition and the ordinary case does no further work.
+  const Scalar safeMin = numext::sqrt((std::numeric_limits<Scalar>::min)() / eps);
+  const Scalar safeMax = numext::sqrt(NumTraits<Scalar>::highest() / Scalar(8 * size));
+  EigenvalueType scaledEivalues;
+  bool scaled = false;
+  if (!(norm <= safeMax && norm >= Scalar(size) * Scalar(size) * safeMin)) {
+    Scalar maxCoeff(0);
+    for (Index j = 0; j < size; ++j)
+      maxCoeff = numext::maxi(maxCoeff, matT.col(j).head(numext::mini(j + 2, size)).cwiseAbs().maxCoeff());
+    const auto factors = internal::safe_scaling<Scalar>::scale_in_place(matT, maxCoeff);
+    scaledEivalues = m_eivalues;
+    internal::safe_scaling<Scalar>::scale_in_place(scaledEivalues, maxCoeff, factors);
+    norm = internal::hessenberg_abs_sum<Upper>(matT);
+    scaled = true;
+  }
+  const EigenvalueType& eivalues = scaled ? scaledEivalues : m_eivalues;
+
   for (Index n = size - 1; n >= 0; n--) {
-    Scalar p = m_eivalues.coeff(n).real();
-    Scalar q = m_eivalues.coeff(n).imag();
+    Scalar p = eivalues.coeff(n).real();
+    Scalar q = eivalues.coeff(n).imag();
 
     // Scalar vector
     if (q == Scalar(0)) {
@@ -494,22 +512,29 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
         Scalar w = matT.coeff(i, i) - p;
         Scalar r = matT.row(i).segment(l, n - l + 1).dot(matT.col(n).segment(l, n - l + 1));
 
-        if (m_eivalues.coeff(i).imag() < Scalar(0)) {
+        if (eivalues.coeff(i).imag() < Scalar(0)) {
           lastw = w;
           lastr = r;
         } else {
           l = i;
-          if (m_eivalues.coeff(i).imag() == Scalar(0)) {
-            if (w != Scalar(0))
-              matT.coeffRef(i, n) = -r / w;
-            else
-              matT.coeffRef(i, n) = -r / (eps * norm);
+          if (eivalues.coeff(i).imag() == Scalar(0)) {
+            const Scalar divisor = w != Scalar(0) ? w : eps * norm;
+            // |r / divisor| > max would overflow the component. The column is determined up to a factor, so scale
+            // the components computed so far, and r with them, by f = |divisor| / |r| to make |x_i| = 1. The scaled
+            // r is sign(r) |divisor| by construction; assign it, since r *= f gives 0 when f underflows (a subnormal
+            // divisor) and the column would be zeroed.
+            if (numext::abs(r) > numext::abs(divisor) * NumTraits<Scalar>::highest() && (numext::isfinite)(r)) {
+              const Scalar f = numext::abs(divisor) / numext::abs(r);
+              matT.col(n).tail(size - i - 1) *= f;
+              r = r < Scalar(0) ? -numext::abs(divisor) : numext::abs(divisor);
+            }
+            matT.coeffRef(i, n) = -r / divisor;
           } else  // Solve real equations
           {
             Scalar x = matT.coeff(i, i + 1);
             Scalar y = matT.coeff(i + 1, i);
-            Scalar denom = (m_eivalues.coeff(i).real() - p) * (m_eivalues.coeff(i).real() - p) +
-                           m_eivalues.coeff(i).imag() * m_eivalues.coeff(i).imag();
+            Scalar denom = (eivalues.coeff(i).real() - p) * (eivalues.coeff(i).real() - p) +
+                           eivalues.coeff(i).imag() * eivalues.coeff(i).imag();
             Scalar t = (x * lastr - lastw * r) / denom;
             matT.coeffRef(i, n) = t;
             if (numext::abs(x) > numext::abs(lastw))
@@ -545,13 +570,13 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
         Scalar sa = matT.row(i).segment(l, n - l + 1).dot(matT.col(n).segment(l, n - l + 1));
         Scalar w = matT.coeff(i, i) - p;
 
-        if (m_eivalues.coeff(i).imag() < Scalar(0)) {
+        if (eivalues.coeff(i).imag() < Scalar(0)) {
           lastw = w;
           lastra = ra;
           lastsa = sa;
         } else {
           l = i;
-          if (m_eivalues.coeff(i).imag() == RealScalar(0)) {
+          if (eivalues.coeff(i).imag() == RealScalar(0)) {
             ComplexScalar cc = ComplexScalar(-ra, -sa) / ComplexScalar(w, q);
             matT.coeffRef(i, n - 1) = numext::real(cc);
             matT.coeffRef(i, n) = numext::imag(cc);
@@ -559,9 +584,9 @@ void EigenSolver<MatrixType>::doComputeEigenvectors() {
             // Solve complex equations
             Scalar x = matT.coeff(i, i + 1);
             Scalar y = matT.coeff(i + 1, i);
-            Scalar vr = (m_eivalues.coeff(i).real() - p) * (m_eivalues.coeff(i).real() - p) +
-                        m_eivalues.coeff(i).imag() * m_eivalues.coeff(i).imag() - q * q;
-            Scalar vi = (m_eivalues.coeff(i).real() - p) * Scalar(2) * q;
+            Scalar vr = (eivalues.coeff(i).real() - p) * (eivalues.coeff(i).real() - p) +
+                        eivalues.coeff(i).imag() * eivalues.coeff(i).imag() - q * q;
+            Scalar vi = (eivalues.coeff(i).real() - p) * Scalar(2) * q;
             if ((vr == Scalar(0)) && (vi == Scalar(0)))
               vr =
                   eps * norm * (numext::abs(w) + numext::abs(q) + numext::abs(x) + numext::abs(y) + numext::abs(lastw));

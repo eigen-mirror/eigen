@@ -51,6 +51,14 @@ namespace Eigen {
     eigen_assert(matrix.cols() == matrix.rows());                                                                  \
                                                                                                                    \
     m_matUisUptodate = false;                                                                                      \
+    if (matrix.cols() == 0) {                                                                                      \
+      m_matT.resize(0, 0);                                                                                         \
+      m_matU.resize(0, 0);                                                                                         \
+      m_info = Success;                                                                                            \
+      m_isInitialized = true;                                                                                      \
+      m_matUisUptodate = computeU;                                                                                 \
+      return *this;                                                                                                \
+    }                                                                                                              \
     if (matrix.cols() == 1) {                                                                                      \
       m_matT = matrix.derived().template cast<ComplexScalar>();                                                    \
       if (computeU) m_matU = ComplexMatrixType::Identity(1, 1);                                                    \

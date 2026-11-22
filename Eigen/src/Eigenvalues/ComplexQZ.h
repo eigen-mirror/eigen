@@ -310,6 +310,15 @@ void ComplexQZ<MatrixType_>::computeInPlace(bool computeQZ) {
   // upper-triangular. This is what the hessenbergTriangular(...) method does
   reduceHessenbergTriangular();
 
+  // Entries the iteration annihilated or declared negligible keep rounding residues, measured at <= 2 eps max|S| and
+  // 2 eps max|T| (the reflectors and rotations are applied to whole rows and columns). When it converged, drop them, so
+  // that S and T are exactly upper triangular as documented; Q S Z changes by the rounding error of the product. When
+  // it did not, the subdiagonal of S is significant.
+  if (m_info == Success) {
+    m_S.template triangularView<StrictlyLower>().setZero();
+    m_T.template triangularView<StrictlyLower>().setZero();
+  }
+
   Scaling::unscale_in_place(m_S, maxS, factorsS);
   Scaling::unscale_in_place(m_T, maxT, factorsT);
   // A non-finite A or B is left unscaled and can still leave S and T finite: an infinite S(k, k-1) passes
