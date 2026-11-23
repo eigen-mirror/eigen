@@ -896,6 +896,29 @@ void check_expression_indices() {
   }
 }
 
+template <typename SelectXpr>
+struct check_direct_select_evaluator {
+  static constexpr bool value = false;
+};
+
+template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType,
+          internal::ComparisonName cmp>
+struct check_direct_select_evaluator<
+    CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
+                   CwiseBinaryOp<internal::scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>> {
+  using SelectXpr =
+      CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
+                     CwiseBinaryOp<internal::scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>;
+  using PacketXpr =
+      CwiseTernaryOp<internal::scalar_boolean_select_op<Scalar, Scalar, Scalar>, Arg1, Arg2,
+                     CwiseBinaryOp<internal::scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>>;
+  using Eval = internal::evaluator<SelectXpr>;
+  static constexpr bool value = std::is_same<typename Eval::XprType, SelectXpr>::value &&
+                                std::is_base_of<internal::evaluator_base<SelectXpr>, Eval>::value &&
+                                !std::is_base_of<internal::ternary_evaluator<SelectXpr>, Eval>::value &&
+                                !std::is_base_of<internal::ternary_evaluator<PacketXpr>, Eval>::value;
+};
+
 // Regression test for bug #3092: IndexedView nested in a comparison-based select expression.
 void check_indexed_view_select() {
   ArrayXXd values(3, 4);
@@ -904,6 +927,22 @@ void check_indexed_view_select() {
   ArrayXi indices(5);
   indices << 0, 1, 2, 1, 0;
   ArrayXd condition = ArrayXd::Zero(5);
+
+  using IndirectSelectXpr = std::decay_t<decltype((condition > 0.0).select(0.0, values(indices, 1)))>;
+  using DenseSelectXpr = std::decay_t<decltype((condition > 0.0).select(condition, condition))>;
+  using ColValues = Array<double, Dynamic, Dynamic, ColMajor>;
+  using RowValues = Array<double, Dynamic, Dynamic, RowMajor>;
+  using MixedOrderSelectXpr =
+      std::decay_t<decltype((std::declval<const ColValues&>() < std::declval<const RowValues&>())
+                                .select(std::declval<const ColValues&>(), std::declval<const ColValues&>()))>;
+  STATIC_CHECK(check_direct_select_evaluator<IndirectSelectXpr>::value);
+  STATIC_CHECK(check_direct_select_evaluator<DenseSelectXpr>::value);
+  STATIC_CHECK(check_direct_select_evaluator<MixedOrderSelectXpr>::value);
+  STATIC_CHECK((int(internal::evaluator<IndirectSelectXpr>::Flags) & PacketAccessBit) == 0);
+  STATIC_CHECK((int(internal::evaluator<MixedOrderSelectXpr>::Flags) & (PacketAccessBit | LinearAccessBit)) == 0);
+  constexpr bool expect_dense_packet =
+      ((int(internal::evaluator<ArrayXd>::Flags) & PacketAccessBit) != 0) && internal::packet_traits<double>::HasCmp;
+  STATIC_CHECK(((int(internal::evaluator<DenseSelectXpr>::Flags) & PacketAccessBit) != 0) == expect_dense_packet);
 
   ArrayXd expected(5);
   expected << 3, 4, 5, 4, 3;
@@ -920,6 +959,20 @@ void check_indexed_view_select() {
   expected << 0, 1, 1, 1, 0;
   result = (values(indices, 0) > 0.0).select(1.0, condition);
   VERIFY_IS_APPROX(result, expected);
+
+  for (Index n : {Index(0), Index(1), Index(3), Index(7), Index(9)}) {
+    ArrayXd lhs = ArrayXd::LinSpaced(n, -2.0, 2.0);
+    ArrayXd rhs = ArrayXd::Zero(n);
+    ArrayXd a = ArrayXd::LinSpaced(n, 10.0, 20.0);
+    ArrayXd b = ArrayXd::LinSpaced(n, -10.0, -5.0);
+    ArrayXi idx = ArrayXi::LinSpaced(n, 0, n > 0 ? 2 : 0);
+    ArrayXd dense_res = (lhs < rhs).select(a, b);
+    ArrayXd ind_res = (lhs < rhs).select(values(idx, 1), values(idx, 2));
+    for (Index i = 0; i < n; ++i) {
+      VERIFY_IS_EQUAL(dense_res(i), lhs(i) < rhs(i) ? a(i) : b(i));
+      VERIFY_IS_EQUAL(ind_res(i), lhs(i) < rhs(i) ? values(idx(i), 1) : values(idx(i), 2));
+    }
+  }
 }
 
 // A single-column IndexedView is column major and a single-row one is row major

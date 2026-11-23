@@ -991,44 +991,105 @@ struct ternary_evaluator<CwiseTernaryOp<TernaryOp, Arg1, Arg2, Arg3>, IndexBased
   Data m_d;
 };
 
-template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType, ComparisonName cmp>
-struct scalar_boolean_select_spec {
-  using DummyTernaryOp = scalar_boolean_select_op<Scalar, Scalar, bool>;
-  using DummyArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>;
-  using DummyXprType = CwiseTernaryOp<DummyTernaryOp, Arg1, Arg2, DummyArg3>;
-
-  using PacketTernaryOp = scalar_boolean_select_op<Scalar, Scalar, Scalar>;
-  using PacketArg3 = CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, true>, CmpLhsType, CmpRhsType>;
-  using PacketXprType = CwiseTernaryOp<PacketTernaryOp, Arg1, Arg2, PacketArg3>;
-
-  // Rebuild the comparison with a typed result only when the entire select expression can use packets. Otherwise,
-  // evaluate the original expression so indirect evaluators do not retain references into a temporary rewrite.
-  static constexpr bool UseTyped = (ternary_evaluator<PacketXprType>::Flags & PacketAccessBit) != 0;
-  using Arg3 = std::conditional_t<UseTyped, PacketArg3, DummyArg3>;
-  using XprType = std::conditional_t<UseTyped, PacketXprType, DummyXprType>;
-
-  using Base = ternary_evaluator<XprType>;
-
-  EIGEN_DEVICE_FUNC constexpr static const DummyXprType& expression(const DummyXprType& xpr, std::false_type) {
-    return xpr;
-  }
-
-  EIGEN_DEVICE_FUNC constexpr static XprType expression(const DummyXprType& xpr, std::true_type) {
-    return XprType(xpr.arg1(), xpr.arg2(), Arg3(xpr.arg3().lhs(), xpr.arg3().rhs()));
-  }
-};
-
-// specialization for expressions like (a < b).select(c, d) to enable full vectorization
+// Specialization for expressions like (a < b).select(c, d) to enable full vectorization without
+// rebuilding temporary expressions or changing evaluator layout across SIMD and non-SIMD TUs.
 template <typename Arg1, typename Arg2, typename Scalar, typename CmpLhsType, typename CmpRhsType, ComparisonName cmp>
 struct evaluator<CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
                                 CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>>
-    : public scalar_boolean_select_spec<Arg1, Arg2, Scalar, CmpLhsType, CmpRhsType, cmp>::Base {
-  using Helper = scalar_boolean_select_spec<Arg1, Arg2, Scalar, CmpLhsType, CmpRhsType, cmp>;
-  using Base = typename Helper::Base;
-  using DummyXprType = typename Helper::DummyXprType;
+    : public evaluator_base<
+          CwiseTernaryOp<scalar_boolean_select_op<Scalar, Scalar, bool>, Arg1, Arg2,
+                         CwiseBinaryOp<scalar_cmp_op<Scalar, Scalar, cmp, false>, CmpLhsType, CmpRhsType>>> {
+  using ScalarTernaryOp = scalar_boolean_select_op<Scalar, Scalar, bool>;
+  using ScalarCmpOp = scalar_cmp_op<Scalar, Scalar, cmp, false>;
+  using CmpXpr = CwiseBinaryOp<ScalarCmpOp, CmpLhsType, CmpRhsType>;
+  using XprType = CwiseTernaryOp<ScalarTernaryOp, Arg1, Arg2, CmpXpr>;
 
-  EIGEN_DEVICE_FUNC constexpr explicit evaluator(const DummyXprType& xpr)
-      : Base(Helper::expression(xpr, bool_constant<Helper::UseTyped>())) {}
+  using PacketTernaryOp = scalar_boolean_select_op<Scalar, Scalar, Scalar>;
+  using PacketCmpOp = scalar_cmp_op<Scalar, Scalar, cmp, true>;
+  using CoeffReturnType = typename XprType::CoeffReturnType;
+
+  static constexpr int Arg1Flags = evaluator<Arg1>::Flags;
+  static constexpr int Arg2Flags = evaluator<Arg2>::Flags;
+  static constexpr int CmpLhsFlags = evaluator<CmpLhsType>::Flags;
+  static constexpr int CmpRhsFlags = evaluator<CmpRhsType>::Flags;
+  static constexpr bool SameType = std::is_same<typename Arg1::Scalar, Scalar>::value &&
+                                   std::is_same<typename Arg2::Scalar, Scalar>::value &&
+                                   std::is_same<typename CmpLhsType::Scalar, Scalar>::value &&
+                                   std::is_same<typename CmpRhsType::Scalar, Scalar>::value;
+  static constexpr bool StorageOrdersAgree = (Arg1Flags & RowMajorBit) == (Arg2Flags & RowMajorBit) &&
+                                             (Arg1Flags & RowMajorBit) == (CmpLhsFlags & RowMajorBit) &&
+                                             (Arg1Flags & RowMajorBit) == (CmpRhsFlags & RowMajorBit);
+  static constexpr bool PacketAccess = functor_traits<PacketCmpOp>::PacketAccess &&
+                                       functor_traits<PacketTernaryOp>::PacketAccess && StorageOrdersAgree && SameType;
+  static constexpr int Flags0 =
+      (Arg1Flags | Arg2Flags | CmpLhsFlags | CmpRhsFlags) &
+      (HereditaryBits | (Arg1Flags & Arg2Flags & CmpLhsFlags & CmpRhsFlags &
+                         ((StorageOrdersAgree ? LinearAccessBit : 0) | (PacketAccess ? PacketAccessBit : 0))));
+  static constexpr int Flags = (Flags0 & ~RowMajorBit) | (Arg1Flags & RowMajorBit);
+  static constexpr int CoeffReadCost =
+      int(evaluator<Arg1>::CoeffReadCost) + int(evaluator<Arg2>::CoeffReadCost) +
+      int(evaluator<CmpLhsType>::CoeffReadCost) + int(evaluator<CmpRhsType>::CoeffReadCost) +
+      int(functor_traits<ScalarCmpOp>::Cost) + int(functor_traits<ScalarTernaryOp>::Cost);
+  static constexpr int Alignment =
+      plain_enum_min(plain_enum_min(int(evaluator<Arg1>::Alignment), int(evaluator<Arg2>::Alignment)),
+                     plain_enum_min(int(evaluator<CmpLhsType>::Alignment), int(evaluator<CmpRhsType>::Alignment)));
+
+  EIGEN_DEVICE_FUNC constexpr explicit evaluator(const XprType& xpr)
+      : m_arg1(xpr.arg1()), m_arg2(xpr.arg2()), m_cmpLhs(xpr.arg3().lhs()), m_cmpRhs(xpr.arg3().rhs()) {
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<ScalarCmpOp>::Cost);
+    EIGEN_INTERNAL_CHECK_COST_VALUE(functor_traits<ScalarTernaryOp>::Cost);
+    EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index row, Index col) const {
+    return ScalarTernaryOp()(m_arg1.coeff(row, col), m_arg2.coeff(row, col),
+                             ScalarCmpOp()(m_cmpLhs.coeff(row, col), m_cmpRhs.coeff(row, col)));
+  }
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE CoeffReturnType coeff(Index index) const {
+    return ScalarTernaryOp()(m_arg1.coeff(index), m_arg2.coeff(index),
+                             ScalarCmpOp()(m_cmpLhs.coeff(index), m_cmpRhs.coeff(index)));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index row, Index col) const {
+    return PacketTernaryOp().packetOp(m_arg1.template packet<LoadMode, PacketType>(row, col),
+                                      m_arg2.template packet<LoadMode, PacketType>(row, col),
+                                      PacketCmpOp().packetOp(m_cmpLhs.template packet<LoadMode, PacketType>(row, col),
+                                                             m_cmpRhs.template packet<LoadMode, PacketType>(row, col)));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packet(Index index) const {
+    return PacketTernaryOp().packetOp(m_arg1.template packet<LoadMode, PacketType>(index),
+                                      m_arg2.template packet<LoadMode, PacketType>(index),
+                                      PacketCmpOp().packetOp(m_cmpLhs.template packet<LoadMode, PacketType>(index),
+                                                             m_cmpRhs.template packet<LoadMode, PacketType>(index)));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index row, Index col, Index begin, Index count) const {
+    return PacketTernaryOp().packetOp(
+        m_arg1.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+        m_arg2.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+        PacketCmpOp().packetOp(m_cmpLhs.template packetSegment<LoadMode, PacketType>(row, col, begin, count),
+                               m_cmpRhs.template packetSegment<LoadMode, PacketType>(row, col, begin, count)));
+  }
+
+  template <int LoadMode, typename PacketType>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE PacketType packetSegment(Index index, Index begin, Index count) const {
+    return PacketTernaryOp().packetOp(
+        m_arg1.template packetSegment<LoadMode, PacketType>(index, begin, count),
+        m_arg2.template packetSegment<LoadMode, PacketType>(index, begin, count),
+        PacketCmpOp().packetOp(m_cmpLhs.template packetSegment<LoadMode, PacketType>(index, begin, count),
+                               m_cmpRhs.template packetSegment<LoadMode, PacketType>(index, begin, count)));
+  }
+
+ protected:
+  evaluator<Arg1> m_arg1;
+  evaluator<Arg2> m_arg2;
+  evaluator<CmpLhsType> m_cmpLhs;
+  evaluator<CmpRhsType> m_cmpRhs;
 };
 
 // -------------------- CwiseBinaryOp --------------------
