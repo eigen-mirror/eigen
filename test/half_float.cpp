@@ -7,6 +7,12 @@
 // SPDX-FileCopyrightText: The Eigen Authors
 // SPDX-License-Identifier: MPL-2.0
 
+// EIGEN_SUFFIXES;1;2
+
+#if defined(EIGEN_TEST_PART_2) && !defined(EIGEN_DONT_VECTORIZE)
+#define EIGEN_DONT_VECTORIZE
+#endif
+
 #include <sstream>
 
 #include "main.h"
@@ -409,15 +415,23 @@ void test_nextafter() {
 }
 
 // As in Eigen 5.0, half::x is a native fp16 type only with native fp16 arithmetic, and elsewhere holds the raw bits and
-// keeps half constants constexpr. Its type decides whether AAPCS64 passes half in a SIMD or a general-purpose register
-// (#3225).
+// keeps half constants constexpr. Its type decides whether the calling convention passes half in a floating-point/SIMD
+// or a general-purpose register (e.g. AAPCS64 #3225, x86-64 psABI, RISC-V Zfh).
 void test_storage() {
+  STATIC_CHECK(sizeof(half) == 2 && alignof(half) == 2 && std::is_trivially_copyable<half>::value);
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__) &&      \
+    ((defined(__AVX512FP16__) && defined(__AVX512VL__) && !EIGEN_COMP_NVHPC) || \
+     (EIGEN_ARCH_RISCV && defined(__riscv_zfh)))
+#ifndef EIGEN_HAS_BUILTIN_FLOAT16
+#error "Native _Float16 storage macro must remain enabled on host builds regardless of vectorization toggles"
+#endif
+#endif
 #if defined(EIGEN_HAS_ARM64_FP16_SCALAR_ARITHMETIC)
-  VERIFY((std::is_same<decltype(half().x), __fp16>::value));
+  STATIC_CHECK((std::is_same<decltype(half().x), __fp16>::value));
 #elif defined(EIGEN_HAS_BUILTIN_FLOAT16)
-  VERIFY((std::is_same<decltype(half().x), _Float16>::value));
+  STATIC_CHECK((std::is_same<decltype(half().x), _Float16>::value));
 #else
-  VERIFY((std::is_same<decltype(half().x), numext::uint16_t>::value));
+  STATIC_CHECK((std::is_same<decltype(half().x), numext::uint16_t>::value));
   half h;
   h.x = 0x3c00;
   VERIFY_IS_EQUAL(static_cast<float>(h), 1.0f);

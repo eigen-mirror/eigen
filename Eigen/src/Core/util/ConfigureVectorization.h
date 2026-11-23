@@ -235,7 +235,8 @@
 #include <malloc.h>  // for _alloca
 #endif
 
-#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC))
+#if !(defined(EIGEN_DONT_VECTORIZE) || defined(EIGEN_GPUCC) || defined(EIGEN_VECTORIZE_GENERIC) || \
+      defined(__SYCL_DEVICE_ONLY__))
 
 // Whether the ARM SME backend can be built at all. Two hard requirements, both
 // properties of the translation unit rather than of the CPU:
@@ -349,8 +350,6 @@
 // and 24.11-26.3 lower compare/blend intrinsics to unresolved __builtin_ia32_*ph* references.
 #elif defined(__AVX512VL__)
 #define EIGEN_VECTORIZE_AVX512FP16
-// Built-in _Float16.
-#define EIGEN_HAS_BUILTIN_FLOAT16 1
 #else
 #if EIGEN_COMP_GNUC
 #error Please add -mavx512vl to your compiler flags: compiling with -mavx512fp16 alone without AVX512-VL is not supported.
@@ -526,10 +525,6 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #elif EIGEN_ARCH_RISCV
 
-#if defined(__riscv_zfh)
-#define EIGEN_HAS_BUILTIN_FLOAT16
-#endif
-
 // We currently require RVV to be enabled explicitly via EIGEN_RISCV64_USE_RVV and
 // will not select the backend automatically
 #if (defined EIGEN_RISCV64_USE_RVV10)
@@ -632,6 +627,17 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 #include <arm_fp16.h>
 #endif
 
+// Native _Float16 determines the storage member type and register-passing ABI of Eigen::half on host
+// (e.g. XMM vs. GPR under the x86-64 psABI). Keep it independent of EIGEN_DONT_VECTORIZE, EIGEN_GPUCC,
+// and EIGEN_VECTORIZE_GENERIC so all host translation units compiled for the same target share one ABI.
+#if !defined(EIGEN_GPU_COMPILE_PHASE) && !defined(__SYCL_DEVICE_ONLY__)
+#if defined(__AVX512FP16__) && defined(__AVX512VL__) && !EIGEN_COMP_NVHPC
+#define EIGEN_HAS_BUILTIN_FLOAT16 1
+#elif EIGEN_ARCH_RISCV && defined(__riscv_zfh)
+#define EIGEN_HAS_BUILTIN_FLOAT16 1
+#endif
+#endif
+
 // Enable FMA for ARM.
 #if defined(__ARM_FEATURE_FMA)
 #define EIGEN_VECTORIZE_FMA
@@ -644,7 +650,7 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 #define EIGEN_VECTORIZE_FMA
 #endif
 
-#if defined(__F16C__) && !defined(EIGEN_GPUCC)
+#if defined(__F16C__) && !defined(EIGEN_GPUCC) && !defined(__SYCL_DEVICE_ONLY__)
 // We can use the optimized fp16 to float and float to fp16 conversion routines
 #define EIGEN_HAS_FP16_C
 

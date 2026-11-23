@@ -31,6 +31,9 @@
 #if defined(EIGEN_CUDA_ARCH) || defined(EIGEN_GPU_COMPILE_PHASE)
 #error SYCL device compilation alone must not select CUDA intrinsic paths
 #endif
+#ifdef EIGEN_HAS_BUILTIN_FLOAT16
+#error SYCL device compilation must not enable host native _Float16 storage
+#endif
 // Keep stringification nonempty for the MSVC traditional preprocessor.
 static_assert(sizeof(EIGEN_MAKESTRING((EIGEN_DEVICE_FUNC))) == 3,
               "Implicit SYCL use must not enable Eigen's flattening policy");
