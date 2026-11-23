@@ -1172,13 +1172,10 @@ struct unary_evaluator<CwiseUnaryView<UnaryOp, ArgType, StrideType>, IndexBased>
 // Read-only component evaluators can gather from contiguous std::complex storage. In particular,
 // PacketAccessBit on a custom expression does not imply array-oriented component access.
 template <typename XprType, int Component,
-          bool Vectorizable = bool(traits<typename XprType::NestedExpression>::Flags & DirectAccessBit) &&
-                              inner_stride_at_compile_time<typename XprType::NestedExpression>::value == 1 &&
-                              (std::is_same<typename XprType::Scalar, float>::value ||
-                               std::is_same<typename XprType::Scalar, double>::value) &&
-                              packet_traits<typename XprType::Scalar>::Vectorizable &&
-                              std::is_same<typename XprType::Scalar, typename unpacket_traits<typename packet_traits<
-                                                                         typename XprType::Scalar>::type>::type>::value>
+          bool DirectComponentAccess = bool(traits<typename XprType::NestedExpression>::Flags & DirectAccessBit) &&
+                                       inner_stride_at_compile_time<typename XprType::NestedExpression>::value == 1 &&
+                                       (std::is_same<typename XprType::Scalar, float>::value ||
+                                        std::is_same<typename XprType::Scalar, double>::value)>
 struct complex_component_evaluator : unary_evaluator<XprType> {
   using Base = unary_evaluator<XprType>;
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit complex_component_evaluator(const XprType& xpr)
@@ -1192,8 +1189,11 @@ struct complex_component_evaluator<XprType, Component, true> : unary_evaluator<X
   // Not named ArgType: MSVC 19.29 resolves the derived evaluator specializations' ArgType template
   // parameter to this member through the dependent base, and it drops the nested expression's const.
   using NestedXpr = typename XprType::NestedExpression;
+  static constexpr bool Vectorize =
+      packet_traits<Scalar>::Vectorizable &&
+      std::is_same<Scalar, typename unpacket_traits<typename packet_traits<Scalar>::type>::type>::value;
   // Blocks must delegate packet reads here rather than reinterpret this stride-2 view as a contiguous Map.
-  static constexpr unsigned int Flags = (Base::Flags & ~DirectAccessBit) | PacketAccessBit;
+  static constexpr unsigned int Flags = (Base::Flags & ~DirectAccessBit) | (Vectorize ? PacketAccessBit : 0);
   static constexpr int Alignment = 0;
 
   EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE explicit complex_component_evaluator(const XprType& xpr)

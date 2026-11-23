@@ -84,6 +84,9 @@ void component_reductions() {
                                 internal::packet_traits<Real>::Vectorizable;
   using View = decltype(std::declval<Vector&>().real());
   using ConstOp = decltype(std::declval<const Vector&>().imag());
+  constexpr bool is_ieee_real = std::is_same<Real, float>::value || std::is_same<Real, double>::value;
+  STATIC_CHECK(!is_ieee_real || !(internal::evaluator<const View>::Flags & DirectAccessBit));
+  STATIC_CHECK(!is_ieee_real || !(internal::evaluator<ConstOp>::Flags & DirectAccessBit));
   STATIC_CHECK(bool(internal::redux_evaluator<View>::Flags & PacketAccessBit) == vectorizable);
   STATIC_CHECK(bool(internal::evaluator<ConstOp>::Flags & PacketAccessBit) == vectorizable);
   STATIC_CHECK(!(internal::evaluator<View>::Flags & PacketAccessBit));
@@ -157,6 +160,46 @@ void component_custom_scalar() {
   check_component(const_values.imag());
 }
 
+template <typename MatrixType>
+void component_empty(Index rows, Index cols) {
+  using Complex = typename MatrixType::Scalar;
+  using Real = typename NumTraits<Complex>::Real;
+  using RealMatrix = Matrix<Real, Dynamic, Dynamic, MatrixType::IsRowMajor ? RowMajor : ColMajor>;
+  using RowVector = Matrix<Real, 1, Dynamic>;
+  using ColVector = Matrix<Real, Dynamic, 1>;
+  MatrixType values(rows, cols);
+  const MatrixType& const_values = values;
+
+  RealMatrix copy = const_values.real();
+  VERIFY_IS_EQUAL(copy.rows(), rows);
+  VERIFY_IS_EQUAL(copy.cols(), cols);
+  copy = const_values.imag();
+  VERIFY_IS_EQUAL(copy.rows(), rows);
+  VERIFY_IS_EQUAL(copy.cols(), cols);
+  copy = values.real();
+  VERIFY_IS_EQUAL(copy.rows(), rows);
+  VERIFY_IS_EQUAL(copy.cols(), cols);
+  const auto real_view = values.real();
+  copy = real_view.block(0, 0, rows, cols);
+  VERIFY_IS_EQUAL(copy.rows(), rows);
+  VERIFY_IS_EQUAL(copy.cols(), cols);
+
+  VERIFY_IS_EQUAL(const_values.real().sum(), Real(0));
+  VERIFY_IS_EQUAL(const_values.imag().sum(), Real(0));
+  VERIFY_IS_CWISE_EQUAL(const_values.real().colwise().sum().eval(), RowVector::Zero(1, cols));
+  VERIFY_IS_CWISE_EQUAL(const_values.imag().rowwise().sum().eval(), ColVector::Zero(rows, 1));
+  VERIFY_IS_EQUAL(values.real().sum(), Real(0));
+  VERIFY_IS_EQUAL(values.imag().sum(), Real(0));
+  VERIFY_IS_CWISE_EQUAL(values.real().colwise().sum().eval(), RowVector::Zero(1, cols));
+  VERIFY_IS_CWISE_EQUAL(values.imag().rowwise().sum().eval(), ColVector::Zero(rows, 1));
+
+  values.real() = const_values.imag();
+  values.imag().setConstant(Real(3));
+  values.real().array() += Real(2);
+  VERIFY_IS_EQUAL(values.rows(), rows);
+  VERIFY_IS_EQUAL(values.cols(), cols);
+}
+
 EIGEN_DECLARE_TEST(complex_components) {
   CALL_SUBTEST_1(component_reductions<float>());
   CALL_SUBTEST_2(component_reductions<double>());
@@ -171,6 +214,19 @@ EIGEN_DECLARE_TEST(complex_components) {
       CALL_SUBTEST_2((component_expressions<Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor>>(rows, cols)));
       CALL_SUBTEST_2((component_expressions<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>(rows, cols)));
     }
+  }
+  for (std::pair<Index, Index> shape :
+       {std::make_pair(Index(0), Index(3)), std::make_pair(Index(3), Index(0)), std::make_pair(Index(0), Index(0)),
+        std::make_pair(Index(0), Index(17)), std::make_pair(Index(17), Index(0))}) {
+    EIGEN_UNUSED_VARIABLE(shape);
+    CALL_SUBTEST_1(
+        (component_empty<Matrix<std::complex<float>, Dynamic, Dynamic, ColMajor>>(shape.first, shape.second)));
+    CALL_SUBTEST_1(
+        (component_empty<Matrix<std::complex<float>, Dynamic, Dynamic, RowMajor>>(shape.first, shape.second)));
+    CALL_SUBTEST_2(
+        (component_empty<Matrix<std::complex<double>, Dynamic, Dynamic, ColMajor>>(shape.first, shape.second)));
+    CALL_SUBTEST_2(
+        (component_empty<Matrix<std::complex<double>, Dynamic, Dynamic, RowMajor>>(shape.first, shape.second)));
   }
   CALL_SUBTEST_1((component_expressions<Matrix<std::complex<float>, 3, 5>>(3, 5)));
   CALL_SUBTEST_2((component_expressions<Matrix<std::complex<double>, 2, 2>>(2, 2)));
