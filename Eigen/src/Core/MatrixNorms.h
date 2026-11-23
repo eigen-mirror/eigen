@@ -67,11 +67,11 @@ EIGEN_DEVICE_FUNC typename Derived::RealScalar hessenberg_abs_sum(const MatrixBa
 // loses precision below sqrt(min), so the pass also records the largest component it has seen and
 // the caller recomputes the norm through numext::abs when that is out of range. The record is
 // exact and the range test finite, so neither depends on infinities surviving fast-math.
-template <typename Scalar_>
+template <typename Scalar_, typename Packet_ = typename packet_traits<Scalar_>::type>
 struct selfadjoint_l1norm_real_lanes {
   using Scalar = Scalar_;
   using Real = Scalar_;
-  using Packet = typename packet_traits<Scalar>::type;
+  using Packet = Packet_;
   using RPacket = Packet;
   static constexpr Index PacketSize = unpacket_traits<Packet>::size;
   // Up to this size the per-column form (mirrored term read as a row) beats the column pass, whose
@@ -102,11 +102,11 @@ struct selfadjoint_l1norm_real_lanes {
   };
 };
 
-template <typename T>
+template <typename T, typename Packet_ = typename packet_traits<std::complex<T>>::type>
 struct selfadjoint_l1norm_complex_lanes {
   using Scalar = std::complex<T>;
   using Real = T;
-  using Packet = typename packet_traits<Scalar>::type;
+  using Packet = Packet_;
   using RPacket = typename unpacket_traits<Packet>::as_real;
   static constexpr Index PacketSize = unpacket_traits<Packet>::size;
   static constexpr Index PerColumnUpTo = 0;
@@ -184,8 +184,8 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
     using Evaluator0 = evaluator<Derived0>;
     using Evaluator1 = evaluator<Derived1>;
     constexpr int Needed = PacketAccessBit | LinearAccessBit;
-    constexpr bool Vectorize = (SumsEvaluator::Flags & Needed) == Needed && (Evaluator0::Flags & Needed) == Needed &&
-                               (Evaluator1::Flags & Needed) == Needed;
+    constexpr bool Vectorize = unpacket_traits<Packet>::vectorizable && (SumsEvaluator::Flags & Needed) == Needed &&
+                               (Evaluator0::Flags & Needed) == Needed && (Evaluator1::Flags & Needed) == Needed;
     SumsEvaluator s(sums.derived());
     accumulate(s, j0, j1, begin, Evaluator0(x0.derived()), Evaluator1(x1.derived()), x0.size(),
                bool_constant<Vectorize>());
@@ -228,8 +228,11 @@ struct selfadjoint_l1norm_packet_impl : Lanes {
   }
 };
 
+template <typename Scalar>
+using selfadjoint_l1norm_packet_t = typename packet_traits<typename stable_norm_accumulator<Scalar>::type>::type;
+
 // Coefficient fallback: custom complex types, or complex packets without a plain real view.
-template <typename Scalar_, typename Enable = void>
+template <typename Scalar_, typename Packet_ = selfadjoint_l1norm_packet_t<Scalar_>, typename Enable = void>
 struct selfadjoint_l1norm_impl {
   using Scalar = Scalar_;
   using Real = typename NumTraits<Scalar>::Real;
@@ -253,9 +256,10 @@ struct selfadjoint_l1norm_impl {
   }
 };
 // half and bfloat16 accumulate in float, as stableNorm does.
-template <typename Scalar>
-struct selfadjoint_l1norm_impl<Scalar, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
-    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_real_lanes<typename stable_norm_accumulator<Scalar>::type>> {};
+template <typename Scalar, typename Packet>
+struct selfadjoint_l1norm_impl<Scalar, Packet, std::enable_if_t<!NumTraits<Scalar>::IsComplex>>
+    : selfadjoint_l1norm_packet_impl<
+          selfadjoint_l1norm_real_lanes<typename stable_norm_accumulator<Scalar>::type, Packet>> {};
 // The real view must lay the components out one per lane, which the lane masks assume.
 template <typename Packet, typename Enable = void>
 struct selfadjoint_l1norm_plain_real_view : std::false_type {};
@@ -263,13 +267,13 @@ template <typename Packet>
 struct selfadjoint_l1norm_plain_real_view<Packet, void_t<typename unpacket_traits<Packet>::as_real>>
     : bool_constant<sizeof(typename unpacket_traits<Packet>::as_real) ==
                     unpacket_traits<Packet>::size * sizeof(typename unpacket_traits<Packet>::type)> {};
-template <typename T>
-struct selfadjoint_l1norm_impl<
-    std::complex<T>,
-    std::enable_if_t<selfadjoint_l1norm_plain_real_view<typename packet_traits<std::complex<T>>::type>::value>>
-    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_complex_lanes<T>> {};
+template <typename T, typename Packet>
+struct selfadjoint_l1norm_impl<std::complex<T>, Packet,
+                               std::enable_if_t<selfadjoint_l1norm_plain_real_view<Packet>::value>>
+    : selfadjoint_l1norm_packet_impl<selfadjoint_l1norm_complex_lanes<T, Packet>> {};
 
-template <typename MatrixType, unsigned int UpLo>
+template <typename MatrixType, unsigned int UpLo,
+          typename Packet = selfadjoint_l1norm_packet_t<typename MatrixType::Scalar>>
 class selfadjoint_l1norm {
   using Scalar = typename MatrixType::Scalar;
   using RealScalar = typename MatrixType::RealScalar;
@@ -294,7 +298,7 @@ class selfadjoint_l1norm {
   }
 
  private:
-  using L1NormImpl = internal::selfadjoint_l1norm_impl<Scalar>;
+  using L1NormImpl = internal::selfadjoint_l1norm_impl<Scalar, Packet>;
   // float for half and bfloat16, Scalar otherwise.
   using L1NormScalar = typename L1NormImpl::Scalar;
   using L1NormAccumulator = typename L1NormImpl::Real;
@@ -372,11 +376,12 @@ class selfadjoint_l1norm {
 };
 
 // Matrix 1-norm of the implicit full self-adjoint matrix; only the stored triangle is read.
-template <unsigned int UpLo, typename Derived>
-EIGEN_DEVICE_FUNC typename Derived::RealScalar selfadjoint_l1_norm(const MatrixBase<Derived>& matrix) {
+template <unsigned int UpLo, typename Derived, typename Packet = selfadjoint_l1norm_packet_t<typename Derived::Scalar>>
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename Derived::RealScalar selfadjoint_l1_norm(
+    const MatrixBase<Derived>& matrix) {
   static_assert(UpLo == Upper || UpLo == Lower, "UpLo must be Upper or Lower");
   EIGEN_INTERNAL_ASSERT_SQUARE(matrix);
-  return selfadjoint_l1norm<Derived, UpLo>(matrix.derived()).run();
+  return selfadjoint_l1norm<Derived, UpLo, Packet>(matrix.derived()).run();
 }
 
 }  // namespace internal

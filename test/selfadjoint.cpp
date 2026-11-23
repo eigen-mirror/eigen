@@ -197,6 +197,49 @@ void selfadjoint_copy_fixed() {
   selfadjoint_copy<Lower>(m);
 }
 
+#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif
+void selfadjoint_l1norm_packet_param_check() {
+  STATIC_CHECK((
+      !internal::packet_traits<float>::Vectorizable ||
+      !std::is_same<internal::selfadjoint_l1norm_impl<float>, internal::selfadjoint_l1norm_impl<float, float>>::value));
+  STATIC_CHECK(
+      (!internal::packet_traits<float>::Vectorizable ||
+       !std::is_same<internal::selfadjoint_l1norm_impl<half>, internal::selfadjoint_l1norm_impl<half, float>>::value));
+  STATIC_CHECK((!internal::packet_traits<float>::Vectorizable ||
+                !std::is_same<internal::selfadjoint_l1norm<MatrixXf, Lower>,
+                              internal::selfadjoint_l1norm<MatrixXf, Lower, float>>::value));
+  STATIC_CHECK((!internal::selfadjoint_l1norm_plain_real_view<
+                    typename internal::packet_traits<std::complex<double>>::type>::value ||
+                !std::is_same<internal::selfadjoint_l1norm_impl<std::complex<double>>,
+                              internal::selfadjoint_l1norm_impl<std::complex<double>, std::complex<double>>>::value));
+  STATIC_CHECK((!internal::selfadjoint_l1norm_plain_real_view<
+                    typename internal::packet_traits<std::complex<double>>::type>::value ||
+                !std::is_same<internal::selfadjoint_l1norm<MatrixXcd, Lower>,
+                              internal::selfadjoint_l1norm<MatrixXcd, Lower, std::complex<double>>>::value));
+
+  MatrixXf mf = MatrixXf::Random(20, 20);
+  VERIFY_IS_APPROX((internal::selfadjoint_l1norm<MatrixXf, Lower, float>(mf).run()),
+                   mf.selfadjointView<Lower>().l1Norm());
+
+  using Complex = std::complex<double>;
+  MatrixXcd m = MatrixXcd::Random(5, 5);
+  Matrix<Complex, Dynamic, 1> sums = Matrix<Complex, Dynamic, 1>::Zero(5);
+  internal::selfadjoint_l1norm_impl<Complex, Complex> scalar_impl;
+  scalar_impl.accumulate(sums, m, 0, 1, 2, 5);
+  VERIFY(scalar_impl.inRange(5));
+  VERIFY_IS_APPROX(numext::real(sums(0)), m.col(0).segment(2, 3).cwiseAbs().sum());
+  VERIFY_IS_APPROX(numext::real(sums(1)), m.col(1).segment(2, 3).cwiseAbs().sum());
+  for (Index i = 2; i < 5; ++i) {
+    VERIFY_IS_APPROX(numext::real(sums(i)), scalar_impl.abs(m(i, 0)) + scalar_impl.abs(m(i, 1)));
+  }
+}
+#if EIGEN_GNUC_STRICT_AT_LEAST(6, 0, 0)
+#pragma GCC diagnostic pop
+#endif
+
 EIGEN_DECLARE_TEST(selfadjoint) {
   for (int i = 0; i < g_repeat; i++) {
     int s = internal::random<int>(1, EIGEN_TEST_MAX_SIZE);
@@ -229,4 +272,5 @@ EIGEN_DECLARE_TEST(selfadjoint) {
   CALL_SUBTEST_6(selfadjoint_l1norm_zero_sized<std::complex<float> >());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<half>());
   CALL_SUBTEST_7(selfadjoint_l1norm_lowprec<bfloat16>());
+  CALL_SUBTEST_4(selfadjoint_l1norm_packet_param_check());
 }
