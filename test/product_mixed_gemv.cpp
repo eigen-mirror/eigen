@@ -110,20 +110,20 @@ void mixed_gemv() {
   mixed_gemv_layout<Real, RowMajor, true>();
 }
 
-template <typename Real, int Order>
+template <typename Real, int Order, bool ReturnProxy = true>
 class MixedProxyMatrix;
 
 namespace Eigen {
 namespace internal {
-template <typename Real, int Order>
-struct traits<MixedProxyMatrix<Real, Order>> : traits<Matrix<Real, 2, 2, Order>> {
+template <typename Real, int Order, bool ReturnProxy>
+struct traits<MixedProxyMatrix<Real, Order, ReturnProxy>> : traits<Matrix<Real, 2, 2, Order>> {
   static constexpr unsigned int Flags = traits<Matrix<Real, 2, 2, Order>>::Flags & ~LvalueBit;
 };
 }  // namespace internal
 }  // namespace Eigen
 
-template <typename Real, int Order>
-class MixedProxyMatrix : public MatrixBase<MixedProxyMatrix<Real, Order>> {
+template <typename Real, int Order, bool ReturnProxy>
+class MixedProxyMatrix : public MatrixBase<MixedProxyMatrix<Real, Order, ReturnProxy>> {
  public:
   struct Proxy {
     const Real* value;
@@ -148,16 +148,19 @@ class MixedProxyMatrix : public MatrixBase<MixedProxyMatrix<Real, Order>> {
 
 namespace Eigen {
 namespace internal {
-template <typename Real, int Order>
-struct evaluator<MixedProxyMatrix<Real, Order>> : evaluator_base<MixedProxyMatrix<Real, Order>> {
-  using Xpr = MixedProxyMatrix<Real, Order>;
+template <typename Real, int Order, bool ReturnProxy>
+struct evaluator<MixedProxyMatrix<Real, Order, ReturnProxy>>
+    : evaluator_base<MixedProxyMatrix<Real, Order, ReturnProxy>> {
+  using Xpr = MixedProxyMatrix<Real, Order, ReturnProxy>;
   static constexpr int CoeffReadCost = 1;
   static constexpr unsigned int Flags = DirectAccessBit | PacketAccessBit | (Order == RowMajor ? RowMajorBit : 0);
   static constexpr int Alignment = 0;
   const Xpr& matrix;
   explicit evaluator(const Xpr& xpr) : matrix(xpr) {}
-  const typename Xpr::Proxy& coeff(Index row, Index col) const {
-    return matrix.proxies[Order == ColMajor ? row + 2 * col : 2 * row + col];
+  const typename Xpr::Proxy& coeff_impl(Index index, std::true_type) const { return matrix.proxies[index]; }
+  const Real& coeff_impl(Index index, std::false_type) const { return matrix.values[index]; }
+  std::conditional_t<ReturnProxy, const typename Xpr::Proxy&, const Real&> coeff(Index row, Index col) const {
+    return coeff_impl(Order == ColMajor ? row + 2 * col : 2 * row + col, bool_constant<ReturnProxy>());
   }
   template <int LoadMode, typename Packet>
   Packet packet(Index row, Index col) const {
@@ -182,6 +185,13 @@ void mixed_proxy_packets() {
   VERIFY_IS_EQUAL(column(1), Complex(14, 20));
   VERIFY_IS_EQUAL(row(0), Complex(7, 10));
   VERIFY_IS_EQUAL(row(1), Complex(15, 22));
+
+  const MixedProxyMatrix<Real, Order, false> direct_matrix;
+  STATIC_CHECK((internal::product_real_packet_access<MixedProxyMatrix<Real, Order, false>>::value));
+  VERIFY_IS_EQUAL(direct_matrix.lazyProduct(rhs).eval(), column);
+  VERIFY_IS_EQUAL(rhs.transpose().lazyProduct(direct_matrix).eval(), row);
+  VERIFY_IS_EQUAL((direct_matrix * rhs).eval(), column);
+  VERIFY_IS_EQUAL((rhs.transpose() * direct_matrix).eval(), row);
 }
 
 template <typename Product>
