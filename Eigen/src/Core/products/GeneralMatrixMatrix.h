@@ -653,9 +653,12 @@ class gemm_blocking_space<StorageOrder, LhsScalar_, RhsScalar_, MaxRows, MaxCols
   // A zero-sized fixed dimension must not declare a zero-length array, which MSVC rejects (C2229); every caller
   // returns before it touches the blocks of an empty product.
   static constexpr int SizeA = plain_enum_max(int(ActualRows) * MaxDepth, 1);
-  // One packet of slack: product_triangular_matrix_matrix with a triangular rhs realigns its packed general panel
-  // inside blockB to a packet boundary.
-  static constexpr int SizeB = plain_enum_max(int(ActualCols) * MaxDepth, 1) + int(packet_traits<RhsScalar>::size);
+  // Realignment slack: product_triangular_matrix_matrix with a triangular rhs realigns its packed general panel
+  // inside blockB up to the packet alignment (at most EIGEN_DEFAULT_ALIGN_BYTES). Sizing from EIGEN_DEFAULT_ALIGN_BYTES
+  // keeps gemm_blocking_space layout identical across all translation units with matching host alignment, including
+  // 2048-bit SVE, wide RVV, and EIGEN_GPUCC host passes.
+  static constexpr int PacketSlack = int(EIGEN_DEFAULT_ALIGN_BYTES / sizeof(RhsScalar));
+  static constexpr int SizeB = plain_enum_max(int(ActualCols) * MaxDepth, 1) + PacketSlack;
 
 #if EIGEN_MAX_STATIC_ALIGN_BYTES >= EIGEN_DEFAULT_ALIGN_BYTES
   EIGEN_ALIGN_MAX LhsScalar m_staticA[SizeA > 0 ? SizeA : 1];

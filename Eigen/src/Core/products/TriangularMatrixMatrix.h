@@ -245,7 +245,8 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
     Version>::run(Index _rows, Index _cols, Index _depth, const Scalar* lhs_, Index lhsStride, const Scalar* rhs_,
                   Index rhsStride, Scalar* res_, Index resIncr, Index resStride, const Scalar& alpha,
                   level3_blocking<Scalar, Scalar>& blocking) {
-  const Index PacketBytes = packet_traits<Scalar>::size * sizeof(Scalar);
+  constexpr int PanelAlignBytes = plain_enum_min(int(unpacket_traits<typename packet_traits<Scalar>::type>::alignment),
+                                                 int(EIGEN_DEFAULT_ALIGN_BYTES));
   // strip zeros
   Index diagSize = (std::min)(_cols, _depth);
   Index rows = _rows;
@@ -263,9 +264,9 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
   Index mc = (std::min)(rows, blocking.mc());  // cache block size along the M direction
 
   std::size_t sizeA = kc * mc;
-  // Room for realigning geb below, which moves it by less than one packet: more than EIGEN_MAX_ALIGN_BYTES when
-  // packets are wider than the allocation alignment (RVV with LMUL > 1, or a lowered EIGEN_MAX_ALIGN_BYTES).
-  std::size_t sizeB = kc * cols + PacketBytes / sizeof(Scalar);
+  // Room for realigning geb below to the packet's alignment requirement (bounded by EIGEN_DEFAULT_ALIGN_BYTES,
+  // since packet alignment caps at Aligned128 even for 2048-bit SVE or wide RVV packets).
+  std::size_t sizeB = kc * cols + PanelAlignBytes / sizeof(Scalar);
 
   ei_declare_aligned_stack_constructed_variable(Scalar, blockA, sizeA, blocking.blockA());
   ei_declare_aligned_stack_constructed_variable(Scalar, blockB, sizeB, blocking.blockB());
@@ -307,7 +308,9 @@ EIGEN_DONT_INLINE void product_triangular_matrix_matrix<
     Index ts = (IsLower && actual_k2 >= cols) ? 0 : actual_kc;
 
     Scalar* geb = blockB + ts * ts;
-    geb = geb + internal::first_aligned<PacketBytes>(geb, PacketBytes / sizeof(Scalar));
+    EIGEN_IF_CONSTEXPR (PanelAlignBytes > 0) {
+      geb += internal::first_aligned<plain_enum_max(PanelAlignBytes, 1)>(geb, PanelAlignBytes / sizeof(Scalar));
+    }
 
     pack_rhs(geb, rhs.getSubMapper(actual_k2, IsLower ? 0 : k2), actual_kc, rs);
 

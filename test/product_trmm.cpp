@@ -315,6 +315,34 @@ void trmm_wide_depth_blocks() {
   CALL_ALL_ORDERS(EIGEN_CAT(2, NB), SCALAR, UnitLower)     \
   CALL_ALL_ORDERS(EIGEN_CAT(3, NB), SCALAR, StrictlyLower)
 
+template <typename Scalar, int R, int C, int D>
+void trmm_blocking_space_size_check() {
+  constexpr int kExpectedSlack = int(EIGEN_DEFAULT_ALIGN_BYTES / sizeof(Scalar));
+  struct ExpectedGemmBlockingSpace : internal::level3_blocking<Scalar, Scalar> {
+#if EIGEN_MAX_STATIC_ALIGN_BYTES >= EIGEN_DEFAULT_ALIGN_BYTES
+    EIGEN_ALIGN_MAX Scalar a[R * D];
+    EIGEN_ALIGN_MAX Scalar b[C * D + kExpectedSlack];
+#else
+    EIGEN_ALIGN_MAX char a[R * D * sizeof(Scalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
+    EIGEN_ALIGN_MAX char b[(C * D + kExpectedSlack) * sizeof(Scalar) + EIGEN_DEFAULT_ALIGN_BYTES - 1];
+#endif
+  };
+  STATIC_CHECK(
+      (sizeof(internal::gemm_blocking_space<ColMajor, Scalar, Scalar, R, C, D>) == sizeof(ExpectedGemmBlockingSpace)));
+}
+
+void trmm_blocking_space_checks() {
+  trmm_blocking_space_size_check<float, 8, 9, 7>();
+  trmm_blocking_space_size_check<Eigen::half, 8, 9, 7>();
+  trmm_blocking_space_size_check<Eigen::half, 8, 11, 8>();
+  trmm_blocking_space_size_check<Eigen::half, 8, 16, 7>();
+  internal::gemm_blocking_space<ColMajor, float, float, 0, 0, 0> zero_space(0, 0, 0, 1, false);
+  zero_space.allocateAll();
+  VERIFY_IS_EQUAL(zero_space.mc(), 0);
+  VERIFY_IS_EQUAL(zero_space.nc(), 0);
+  VERIFY_IS_EQUAL(zero_space.kc(), 0);
+}
+
 EIGEN_DECLARE_TEST(product_trmm) {
   for (int i = 0; i < g_repeat; i++) {
     CALL_ALL(1, float);                 //  EIGEN_SUFFIXES;11;111;21;121;31;131
@@ -365,4 +393,5 @@ EIGEN_DECLARE_TEST(product_trmm) {
       (trmm_maps<StrictlyUpper, Matrix<double, Dynamic, Dynamic, RowMajor, 528, Dynamic>,
                  Matrix<double, Dynamic, Dynamic, RowMajor>, Matrix<double, Dynamic, Dynamic, RowMajor, 528, Dynamic>>(
           521, 513, 517)));
+  CALL_SUBTEST_11(trmm_blocking_space_checks());
 }
