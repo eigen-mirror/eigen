@@ -72,6 +72,27 @@ void check_vectorwise_norm_evaluations(const DenseBase<Derived>& input) {
   });
   using Expression = internal::remove_all_t<decltype(expression)>;
   STATIC_CHECK((int(internal::evaluator<Expression>::Flags) & (DirectAccessBit | PacketAccessBit)) == 0);
+  constexpr int InnerDir = Derived::IsRowMajor ? Horizontal : Vertical;
+  constexpr bool useVectorNorm = NumTraits<Scalar>::IsComplex && internal::complex_array_access<Scalar>::value;
+  using ExpectedSquaredNorm =
+      std::conditional_t<useVectorNorm,
+                         PartialReduxExpr<const Expression, internal::member_squaredNorm<Real, Scalar>, InnerDir>,
+                         PartialReduxExpr<const CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const Expression>,
+                                          internal::member_sum<Real, Real>, InnerDir>>;
+  using InnerOp = VectorwiseOp<const Expression, InnerDir>;
+  STATIC_CHECK((internal::is_same<typename InnerOp::SquaredNormReturnType, ExpectedSquaredNorm>::value));
+  STATIC_CHECK((internal::is_same<typename InnerOp::NormReturnType,
+                                  CwiseUnaryOp<internal::scalar_sqrt_op<Real>, const ExpectedSquaredNorm>>::value));
+  using SumExpr = internal::remove_all_t<decltype(input.derived() + input.derived())>;
+  using ExpectedSumSquaredNorm =
+      std::conditional_t<useVectorNorm,
+                         PartialReduxExpr<const SumExpr, internal::member_squaredNorm<Real, Scalar>, InnerDir>,
+                         PartialReduxExpr<const CwiseUnaryOp<internal::scalar_abs2_op<Scalar>, const SumExpr>,
+                                          internal::member_sum<Real, Real>, InnerDir>>;
+  using SumInnerOp = VectorwiseOp<const SumExpr, InnerDir>;
+  STATIC_CHECK((internal::is_same<typename SumInnerOp::SquaredNormReturnType, ExpectedSumSquaredNorm>::value));
+  STATIC_CHECK((internal::is_same<typename SumInnerOp::NormReturnType,
+                                  CwiseUnaryOp<internal::scalar_sqrt_op<Real>, const ExpectedSumSquaredNorm>>::value));
   Matrix<Real, 1, Dynamic> columns(input.cols());
   Matrix<Real, Dynamic, 1> rows(input.rows());
   const Matrix<Real, 1, Dynamic> columnSquares = input.colwise().squaredNorm();

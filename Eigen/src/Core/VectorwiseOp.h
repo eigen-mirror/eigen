@@ -129,16 +129,19 @@ struct member_squaredNorm {
                                                 (Size - 1) * NumTraits<ResultType>::AddCost> {};
   template <typename XprType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE ResultType operator()(const XprType& mat) const {
-    return mat.matrix().squaredNorm();
+    // Keep scalar-only expressions on cwiseAbs2(): realView() evaluates their coefficients twice.
+    EIGEN_IF_CONSTEXPR ((int(evaluator<XprType>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0) {
+      return mat.matrix().squaredNorm();
+    } else {
+      return mat.cwiseAbs2().sum();
+    }
   }
 };
 
 template <typename ExpressionType, int Direction,
-          bool ComplexInnerReduction =
-              NumTraits<typename ExpressionType::Scalar>::IsComplex &&
-              complex_array_access<typename ExpressionType::Scalar>::value &&
-              (Direction == (ExpressionType::IsRowMajor ? Horizontal : Vertical)) &&
-              ((int(evaluator<ExpressionType>::Flags) & (DirectAccessBit | PacketAccessBit)) != 0)>
+          bool ComplexInnerReduction = NumTraits<typename ExpressionType::Scalar>::IsComplex &&
+                                       complex_array_access<typename ExpressionType::Scalar>::value &&
+                                       (Direction == (ExpressionType::IsRowMajor ? Horizontal : Vertical))>
 struct partial_squared_norm {
   using Scalar = typename ExpressionType::Scalar;
   using RealScalar = typename ExpressionType::RealScalar;
@@ -147,8 +150,9 @@ struct partial_squared_norm {
   EIGEN_DEVICE_FUNC static Type run(const ExpressionType& matrix) { return Type(matrix.cwiseAbs2()); }
 };
 
-// Keep scalars without array-oriented access and scalar-only expressions on abs2(): realView()
-// copies/evaluates their coefficients twice. Packet expressions still evaluate scalar tails
+// Keep scalars without array-oriented access on abs2(), and select complex inner reductions purely from expression
+// traits so SquaredNormReturnType/NormReturnType remain identical across SIMD and non-SIMD translation units;
+// member_squaredNorm handles scalar-only expressions internally. Packet expressions still evaluate scalar tails
 // and reductions shorter than one packet twice.
 template <typename ExpressionType, int Direction>
 struct partial_squared_norm<ExpressionType, Direction, true> {
