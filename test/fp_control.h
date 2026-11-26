@@ -316,6 +316,25 @@ EIGEN_DONT_INLINE Scalar subnormalInputProbe() {
   return denorm_min * scale;
 }
 
+template <typename Packet>
+EIGEN_DONT_INLINE Packet packet_product_runtime(const Packet& lhs, const Packet& rhs) {
+  return internal::pmul(lhs, rhs);
+}
+
+// Whether the packet path flushes the subnormal product min * 1/2 to zero. Some SIMD units do so whatever the control
+// registers say (ARMv7 NEON is hard-wired FTZ while its scalar VFP unit honors subnormals), so underflowProbe(), which
+// multiplies scalars, cannot tell. The volatile load prevents constant folding, while the EIGEN_DONT_INLINE wrapper
+// prevents Clang from scalarizing the packet product and applying scalar IEEE semantics.
+template <typename RealScalar>
+bool packet_path_flushes_subnormals() {
+  using Packet = typename internal::packet_traits<RealScalar>::type;
+  volatile RealScalar vtiny = (std::numeric_limits<RealScalar>::min)();
+  const RealScalar tiny = vtiny;
+  const RealScalar half_tiny =
+      internal::pfirst(packet_product_runtime(internal::pset1<Packet>(tiny), internal::pset1<Packet>(RealScalar(0.5))));
+  return numext::is_exactly_zero(half_tiny);
+}
+
 // Whether dividing a normal value by a subnormal divisor yields its IEEE 754
 // quotient here.  Two things defeat it: hardware that flushes subnormal inputs
 // (x86 DAZ, Arm FZ, MIPS FS) reads the divisor as zero, and a compiler
