@@ -985,13 +985,18 @@ struct product_real_packet_access {
 };
 
 template <typename Xpr>
-struct product_real_packet_evaluator : evaluator<Xpr> {
+struct product_real_packet_evaluator {
   using Base = evaluator<Xpr>;
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_real_packet_evaluator(const Xpr& xpr) : Base(xpr) {}
+  const Base& m_base;
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_real_packet_evaluator(const Base& base) : m_base(base) {}
+
+  EIGEN_DEVICE_FUNC constexpr EIGEN_STRONG_INLINE decltype(auto) coeff(Index row, Index col) const {
+    return m_base.coeff(row, col);
+  }
 
   template <int LoadMode, typename Packet>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE typename unpacket_traits<Packet>::as_real packet(Index row, Index col) const {
-    return ploaddup<typename unpacket_traits<Packet>::as_real>(&this->coeff(row, col));
+    return ploaddup<typename unpacket_traits<Packet>::as_real>(&m_base.coeff(row, col));
   }
 
   template <int LoadMode, typename Packet>
@@ -1009,11 +1014,6 @@ struct product_real_packet_evaluator : evaluator<Xpr> {
 template <int StorageOrder, int UnrollingIndex, typename Lhs, typename Rhs, typename Packet, int LoadMode>
 struct etor_product_packet_impl;
 
-struct product_empty_packet_evaluator {
-  template <typename Xpr>
-  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit product_empty_packet_evaluator(const Xpr&) {}
-};
-
 // Coefficient-based evaluator of lhs * rhs whose packets run along rows if EvalToRowMajor_, else along columns.
 template <typename Lhs, typename Rhs, bool EvalToRowMajor_>
 struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProduct>> {
@@ -1027,11 +1027,7 @@ struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProd
   // Also construct directly from the product operands so packet-cascade callers
   // do not have to materialize a temporary Product expression first.
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE coeff_based_product_evaluator(const Lhs& lhs, const Rhs& rhs)
-      : m_lhs(lhs),
-        m_rhs(rhs),
-        m_lhsImpl(m_lhs),  // Real evaluator objects for packet products; empty placeholders for scalar-only products.
-        m_rhsImpl(m_rhs),
-        m_innerDim(lhs.cols()) {
+      : m_lhs(lhs), m_rhs(rhs), m_lhsImpl(m_lhs), m_rhsImpl(m_rhs), m_innerDim(lhs.cols()) {
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::MulCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(NumTraits<Scalar>::AddCost);
     EIGEN_INTERNAL_CHECK_COST_VALUE(CoeffReadCost);
@@ -1116,18 +1112,14 @@ struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProd
   static constexpr int Flags = ((int(LhsFlags) | int(RhsFlags)) & HereditaryBits & ~RowMajorBit) |
                                (EvalToRowMajor ? RowMajorBit : 0) | (Vectorize ? PacketAccessBit : 0) |
                                (XprType::IsVectorAtCompileTime ? LinearAccessBit : 0);
+  static constexpr bool WrapRealLhs = MixedRealComplex && RealPacketLhs && !EvalToRowMajor;
+  static constexpr bool WrapRealRhs = MixedRealComplex && RealPacketRhs && EvalToRowMajor;
   using LhsPacketEtorType =
-      std::conditional_t<bool(int(Flags) & PacketAccessBit),
-                         std::conditional_t<MixedRealComplex && RealPacketLhs && !EvalToRowMajor,
-                                            product_real_packet_evaluator<LhsNestedCleaned>, LhsEtorType>,
-                         product_empty_packet_evaluator>;
+      std::conditional_t<WrapRealLhs, product_real_packet_evaluator<LhsNestedCleaned>, LhsEtorType>;
   using RhsPacketEtorType =
-      std::conditional_t<bool(int(Flags) & PacketAccessBit),
-                         std::conditional_t<MixedRealComplex && RealPacketRhs && EvalToRowMajor,
-                                            product_real_packet_evaluator<RhsNestedCleaned>, RhsEtorType>,
-                         product_empty_packet_evaluator>;
+      std::conditional_t<WrapRealRhs, product_real_packet_evaluator<RhsNestedCleaned>, RhsEtorType>;
 
-  static constexpr bool SingleTermCoeff = InnerSize == 1 && Vectorize;
+  static constexpr bool SingleTermCoeff = InnerSize == 1;
 
   static constexpr int LhsOuterStrideBytes =
       int(LhsNestedCleaned::OuterStrideAtCompileTime) * int(sizeof(typename LhsNestedCleaned::Scalar));
@@ -1182,13 +1174,27 @@ struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProd
     return coeff(row, col);
   }
 
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const LhsEtorType& lhsPacketEvaluator(std::false_type) const {
+    return m_lhsImpl;
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE LhsPacketEtorType lhsPacketEvaluator(std::true_type) const {
+    return LhsPacketEtorType(m_lhsImpl);
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const RhsEtorType& rhsPacketEvaluator(std::false_type) const {
+    return m_rhsImpl;
+  }
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE RhsPacketEtorType rhsPacketEvaluator(std::true_type) const {
+    return RhsPacketEtorType(m_rhsImpl);
+  }
+
   template <int LoadMode, typename PacketType>
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE const PacketType packet(Index row, Index col) const {
     PacketType res;
     using PacketImpl = etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
                                                 Unroll ? int(InnerSize) : Dynamic, LhsPacketEtorType, RhsPacketEtorType,
                                                 PacketType, LoadMode>;
-    PacketImpl::run(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res);
+    PacketImpl::run(row, col, lhsPacketEvaluator(bool_constant<WrapRealLhs>()),
+                    rhsPacketEvaluator(bool_constant<WrapRealRhs>()), m_innerDim, res);
     return res;
   }
 
@@ -1220,7 +1226,8 @@ struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProd
     using PacketImpl = etor_product_packet_impl<bool(int(Flags) & RowMajorBit) ? RowMajor : ColMajor,
                                                 Unroll ? int(InnerSize) : Dynamic, LhsPacketEtorType, RhsPacketEtorType,
                                                 PacketType, LoadMode>;
-    PacketImpl::run_segment(row, col, m_lhsImpl, m_rhsImpl, m_innerDim, res, begin, count);
+    PacketImpl::run_segment(row, col, lhsPacketEvaluator(bool_constant<WrapRealLhs>()),
+                            rhsPacketEvaluator(bool_constant<WrapRealRhs>()), m_innerDim, res, begin, count);
     return res;
   }
 
@@ -1235,8 +1242,10 @@ struct coeff_based_product_evaluator : evaluator_base<Product<Lhs, Rhs, LazyProd
   add_const_on_value_type_t<LhsNested> m_lhs;
   add_const_on_value_type_t<RhsNested> m_rhs;
 
-  LhsPacketEtorType m_lhsImpl;
-  RhsPacketEtorType m_rhsImpl;
+  // Unconditionally store operand evaluators so layout is ODR-invariant
+  // across EIGEN_VECTORIZE settings.
+  LhsEtorType m_lhsImpl;
+  RhsEtorType m_rhsImpl;
 
   variable_if_dynamic<Index, InnerSize> m_innerDim;
 };
@@ -1255,15 +1264,14 @@ struct product_evaluator<Product<Lhs, Rhs, LazyProduct>, ProductTag, DenseShape,
 };
 
 // A dense assignment reads its source only through the evaluator, so it may evaluate a coefficient-based product
-// along the destination's storage order, which the destination's packets need. It does so only where that order
-// vectorizes; otherwise the assignment is scalar in either order, and the expression's evaluator is kept.
+// along the destination's storage order unconditionally, keeping the source evaluator type ODR-invariant across
+// EIGEN_VECTORIZE settings while clearing PacketAccessBit when that order does not vectorize.
 template <typename DstEvaluatorType, typename Lhs, typename Rhs>
 struct dense_assignment_source_evaluator<
     DstEvaluatorType, Product<Lhs, Rhs, LazyProduct>,
     std::enable_if_t<std::is_same<typename evaluator_traits<Lhs>::Shape, DenseShape>::value &&
                      std::is_same<typename evaluator_traits<Rhs>::Shape, DenseShape>::value>> {
-  using DstOrdered = coeff_based_product_evaluator<Lhs, Rhs, (int(DstEvaluatorType::Flags) & RowMajorBit) != 0>;
-  using type = std::conditional_t<DstOrdered::Vectorize, DstOrdered, evaluator<Product<Lhs, Rhs, LazyProduct>>>;
+  using type = coeff_based_product_evaluator<Lhs, Rhs, (int(DstEvaluatorType::Flags) & RowMajorBit) != 0>;
 };
 
 template <typename Lhs, typename Rhs>

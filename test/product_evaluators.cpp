@@ -244,7 +244,38 @@ void scaled_selfadjoint_diagonal_product() {
   VERIFY_IS_EQUAL(aliased, expectedLeft);
 }
 
+// The coefficient-based product evaluator must have the same layout in both storage orders, vectorized or not:
+// whether it vectorizes also depends on the vectorization settings of the translation unit, and translation units
+// that disagree on the layout of the same evaluator type violate the one-definition rule.
+template <typename Scalar>
+void coeff_based_evaluator_layout() {
+  using ColMat = Matrix<Scalar, 4, 4, ColMajor>;
+  using RowMat = Matrix<Scalar, 4, 4, RowMajor>;
+  using DynMat = Matrix<Scalar, Dynamic, Dynamic, ColMajor>;
+  using Vec = Matrix<Scalar, 4, 1>;
+  using ComplexVec = Matrix<std::complex<Scalar>, 4, 1>;
+  using Mat1 = Matrix<Scalar, 1, 1>;
+  VERIFY_IS_EQUAL(sizeof(internal::coeff_based_product_evaluator<ColMat, Vec, false>),
+                  sizeof(internal::coeff_based_product_evaluator<ColMat, Vec, true>));
+  VERIFY_IS_EQUAL(sizeof(internal::coeff_based_product_evaluator<RowMat, RowMat, false>),
+                  sizeof(internal::coeff_based_product_evaluator<RowMat, RowMat, true>));
+  VERIFY_IS_EQUAL(sizeof(internal::coeff_based_product_evaluator<DynMat, DynMat, false>),
+                  sizeof(internal::coeff_based_product_evaluator<DynMat, DynMat, true>));
+  VERIFY_IS_EQUAL(sizeof(internal::coeff_based_product_evaluator<ColMat, ComplexVec, false>),
+                  sizeof(internal::coeff_based_product_evaluator<ColMat, ComplexVec, true>));
+  VERIFY_IS_EQUAL(Mat1::Constant(Scalar(3)).lazyProduct(Mat1::Constant(Scalar(4))).coeff(0, 0), Scalar(12));
+  Matrix<std::complex<Scalar>, 4, 1> clhs = Matrix<std::complex<Scalar>, 4, 1>::Constant(std::complex<Scalar>(2, 1));
+  Matrix<Scalar, 1, 4> rrhs = Matrix<Scalar, 1, 4>::Constant(Scalar(3));
+  VERIFY_IS_EQUAL(clhs.lazyProduct(rrhs).coeff(2, 1), std::complex<Scalar>(6, 3));
+  // Dense assignments evaluate a lazy product along the destination's storage order, whether or not it vectorizes.
+  using SrcEvaluator = typename internal::dense_assignment_source_evaluator<internal::evaluator<RowMat>,
+                                                                            Product<ColMat, ColMat, LazyProduct>>::type;
+  STATIC_CHECK((std::is_same<SrcEvaluator, internal::coeff_based_product_evaluator<ColMat, ColMat, true>>::value));
+}
+
 EIGEN_DECLARE_TEST(product_evaluators) {
+  CALL_SUBTEST_1(coeff_based_evaluator_layout<float>());
+  CALL_SUBTEST_1(coeff_based_evaluator_layout<double>());
   for (int repeat = 0; repeat < g_repeat; ++repeat) {
     CALL_SUBTEST_4((outer_product_scalar_types<double, double, ColMajor>()));
     CALL_SUBTEST_4((outer_product_scalar_types<double, double, RowMajor>()));
