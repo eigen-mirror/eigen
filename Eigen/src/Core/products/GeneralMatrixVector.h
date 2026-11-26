@@ -209,6 +209,14 @@ struct general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, Conj
       conj_helper<LhsPacket, RhsPacket, ConjugateLhs, ConjugateRhs>&, Index) {}
 };
 
+// Apple AArch64 cores have four FMA pipes of latency four: the col-major kernel's eight accumulator chains sustain half
+// their rate, so real products there also take 16-packet row blocks. Other AArch64 cores are unmeasured.
+#if EIGEN_ARCH_ARM64 && defined(EIGEN_VECTORIZE_NEON) && EIGEN_OS_MAC
+static constexpr bool kGemvColMajorSixteenPackets = true;
+#else
+static constexpr bool kGemvColMajorSixteenPackets = false;
+#endif
+
 // Integer-sequence helper for col-major GEMV full-packet row blocks.
 template <int N>
 struct gemv_colmajor_unroller {
@@ -382,6 +390,11 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   // packet whose accumulator chain is bound by the FMA latency. Exact multiples of the packet size keep the 4, 3, 2
   // and 1-packet passes.
   const Index count = UseSegment ? Index(UnsignedIndex(rows) % ResPacketSize) : Index(0);
+  // The FMA-pipe model and the measurements cover float and double packets only.
+  constexpr bool Sixteen = kGemvColMajorSixteenPackets && bool(Traits::Vectorizable) &&
+                           (std::is_same<ResScalar, float>::value || std::is_same<ResScalar, double>::value) &&
+                           std::is_same<LhsPacket, ResPacket>::value && std::is_same<RhsPacket, ResPacket>::value;
+  const Index n16 = Sixteen ? rows - (count > 0 ? 18 : 16) * ResPacketSize + 1 : Index(0);
   const Index n8 = rows - (count > 0 ? 10 : 8) * ResPacketSize + 1;
   const Index n4 = rows - 4 * ResPacketSize + 1;
   const Index n3 = rows - 3 * ResPacketSize + 1;
@@ -403,6 +416,13 @@ general_matrix_vector_product<Index, LhsScalar, LhsMapper, ColMajor, ConjugateLh
   for (Index j2 = 0; j2 < cols; j2 += block_cols) {
     Index jend = numext::mini(j2 + block_cols, cols);
     Index i = 0;
+    EIGEN_IF_CONSTEXPR (Sixteen) {
+      // A batch of more than 16 columns spanning over l2 / 4 bytes of A runs about 12% slower in 16-packet passes.
+      if (jend - j2 <= 16 ||
+          (l2 > 0 && static_cast<std::size_t>(rows) * static_cast<std::size_t>(jend - j2) * sizeof(LhsScalar) <=
+                         static_cast<std::size_t>(l2) / 4))
+        for (; i < n16; i += ResPacketSize * 16) process_rows<16>(i, j2, jend, lhs, rhs, res, palpha, pcj);
+    }
     for (; i < n8; i += ResPacketSize * 8) process_rows<8>(i, j2, jend, lhs, rhs, res, palpha, pcj);
     if (count > 0) {
       process_segment_tail(bool_constant<UseSegment>(), Index(UnsignedIndex(rows - i) / ResPacketSize), i, j2, jend,

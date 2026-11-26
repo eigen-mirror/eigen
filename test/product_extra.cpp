@@ -983,8 +983,9 @@ void gemv_complex_conjugate() {
   (void)PS_d;
 }
 
-// y += alpha * A * x for every extent of the vectorized dimension from 1 to 12 packets + 2: the GEMV kernels split it
-// into passes of up to 8 packets, a final pass of up to 9 packets, and a partial packet (masked where segments exist).
+// y += alpha * A * x for every extent of the vectorized dimension from 1 to 36 packets + 2: the GEMV kernels split it
+// into passes of 16 (col-major on AArch64) and 8 packets, a final pass of up to 9 packets, and a partial packet (masked
+// where segments exist).
 // A is a block of a NaN-padded matrix and x a segment of a NaN-padded vector, so a load past the extent poisons the
 // result, and sentinels around y catch a store past it. The reference is an independent long-double loop.
 template <typename Scalar, int Order>
@@ -1001,7 +1002,7 @@ void gemv_remainder_sweep() {
   // Columns 130 > 128 make the col-major kernel block the columns.
   const Index others[] = {1, 2, 3, 5, 9, 17, 130};
 
-  for (Index vec_extent = 1; vec_extent <= 12 * PS + 2; ++vec_extent) {
+  for (Index vec_extent = 1; vec_extent <= 36 * PS + 2; ++vec_extent) {
     for (Index other : others) {
       // The vectorized dimension is the rows for col-major and the columns for row-major.
       const Index rows = Order == ColMajor ? vec_extent : other;
