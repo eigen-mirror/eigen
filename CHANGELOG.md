@@ -73,6 +73,7 @@ Other changes:
   build-group target were renamed accordingly: `Unsupported` → `Contrib`,
   `BuildUnsupported` → `BuildContrib`.
 - Removed the `demos/` directory, including its two Qt GUI demos, and the `EIGEN_BUILD_DEMOS` and `EIGEN_TEST_NOQT` CMake options. The sparse tutorial example no longer needs Qt; it writes a PGM image. [!3413]
+- The `sizeoverflow` test passes when `Index` is narrower than `size_t`, as with `EIGEN_DEFAULT_DENSE_INDEX_TYPE=int` on a 64-bit target [#3414, !3646]
 
 ## [5.0.1] - 2025-11-11
 
