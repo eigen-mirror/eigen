@@ -13,6 +13,7 @@
 #ifndef EIGEN_COMPLEX_SCHUR_H
 #define EIGEN_COMPLEX_SCHUR_H
 
+#include "../Jacobi/Jacobi.h"
 #include "./HessenbergDecomposition.h"
 
 // IWYU pragma: private
@@ -241,6 +242,38 @@ class ComplexSchur {
   ComplexSchur& computeFromHessenberg(const HessMatrixType& matrixH, const OrthMatrixType& matrixQ,
                                       bool computeU = true);
 
+  /** \brief Reorders the diagonal of the Schur form so that a selected set of eigenvalues comes first
+   *
+   * \param[in] select  Callable taking an eigenvalue and returning whether it belongs to the leading set.
+   *
+   * \returns The number of selected eigenvalues.
+   *
+   * The reordering applies unitary similarity transformations to the stored decomposition, so that
+   * \f$ A = U T U^* \f$ still holds and the selected eigenvalues lead the diagonal of \f$ T \f$, in the order the
+   * decomposition gave them. With \f$ m \f$ selected eigenvalues, the leading \f$ m \f$ columns of #matrixU() span the
+   * invariant subspace belonging to them:
+   * \f[
+   *   A U_1 = U_1 T_{11}, \qquad T = \begin{pmatrix} T_{11} & T_{12} \\ 0 & T_{22} \end{pmatrix},
+   * \f]
+   * where \f$ T_{11} \f$ is the leading \f$ m \times m \f$ block of \f$ T \f$.
+   *
+   * This is the reordering that LAPACK's \c xTREXC provides for the complex Schur form. Each selected eigenvalue is
+   * moved up by adjacent transpositions, each one a Givens rotation on a 2x2 block, for a total cost of \f$ O(n^2) \f$
+   * rotations of \f$ O(n) \f$ work.
+   *
+   * Only #matrixT() is reordered when the decomposition was computed with \c computeU = \c false. This method
+   * requires that #compute() or the constructor has completed successfully, that is #info() must be \c Success, but
+   * not that \c computeU was set.
+   *
+   * \code
+   * ComplexSchur<MatrixXcd> schur(A);
+   * const Index stable = schur.reorder([](const std::complex<double>& lambda) { return lambda.real() < 0; });
+   * MatrixXcd basis = schur.matrixU().leftCols(stable);  // spans the stable invariant subspace
+   * \endcode
+   */
+  template <typename SelectType>
+  Index reorder(SelectType select);
+
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
@@ -287,6 +320,7 @@ class ComplexSchur {
   friend class ComplexEigenSolver<MatrixType>;
 
   ComplexSchur& computeInPlace(bool computeU);
+  void swapAdjacentEigenvalues(Index k);
   bool subdiagonalEntryIsNeglegible(Index i);
   ComplexScalar computeShift(Index iu, Index iter);
   void reduceToTriangularForm(bool computeU);
@@ -409,6 +443,55 @@ ComplexSchur<MatrixType>& ComplexSchur<MatrixType>::computeFromHessenberg(const 
   reduceToTriangularForm(computeU);
   return *this;
 }
+
+/** \internal Swaps the eigenvalues at diagonal positions \p k and \p k+1.
+ *
+ * For T(k:k+2,k:k+2) = [a b; 0 c] the eigenvector of c is [b; c-a], so the rotation J whose first column has that
+ * direction satisfies J^* [a b; 0 c] J = [c b; 0 a], as in LAPACK's xTREXC. Building it with makeGivens from b and
+ * c-a rather than from a normalized eigenvector avoids dividing by |b| when b is small. Both are divided by the
+ * largest entry first, so a diagonal difference near the overflow threshold cannot form an infinity. */
+template <typename MatrixType>
+void ComplexSchur<MatrixType>::swapAdjacentEigenvalues(Index k) {
+  const ComplexScalar first = m_matT.coeff(k, k);
+  const ComplexScalar second = m_matT.coeff(k + 1, k + 1);
+  const ComplexScalar coupling = m_matT.coeff(k, k + 1);
+  const RealScalar magnitude = numext::maxi(
+      numext::maxi(numext::abs(first), numext::abs(second)), numext::abs(coupling));
+  // An uncoupled block with equal diagonal entries is a multiple of the identity, which the swap leaves unchanged.
+  if (numext::is_exactly_zero(magnitude)) return;
+  const ComplexScalar scaledCoupling = coupling / magnitude;
+  const ComplexScalar scaledSpread = second / magnitude - first / magnitude;
+  if (numext::is_exactly_zero(scaledCoupling) && numext::is_exactly_zero(scaledSpread)) return;
+  JacobiRotation<ComplexScalar> rotation;
+  rotation.makeGivens(scaledCoupling, scaledSpread);
+  // As in xTREXC, rotate only the entries outside the 2x2 block, then exchange its diagonal entries exactly. The
+  // block's off-diagonal entry is unchanged by J^* [a b; 0 c] J, and row k has no entries left of column k.
+  if (k > 0) m_matT.topRows(k).applyOnTheRight(k, k + 1, rotation);
+  if (k + 2 < m_matT.cols())
+    m_matT.rightCols(m_matT.cols() - k - 2).applyOnTheLeft(k, k + 1, rotation.adjoint());
+  m_matT.coeffRef(k, k) = second;
+  m_matT.coeffRef(k + 1, k + 1) = first;
+  m_matT.coeffRef(k + 1, k) = ComplexScalar(0);
+  if (m_matUisUptodate) m_matU.applyOnTheRight(k, k + 1, rotation);
+}
+
+template <typename MatrixType>
+template <typename SelectType>
+Index ComplexSchur<MatrixType>::reorder(SelectType select) {
+  eigen_assert(m_isInitialized && "ComplexSchur is not initialized.");
+  eigen_assert(m_info == Success && "ComplexSchur::reorder requires a successful decomposition.");
+  const Index n = m_matT.rows();
+  // Invariant at the top of each iteration: positions below k are untouched, so T(k,k) is still the k-th eigenvalue
+  // of the unreordered form and the first `leading` positions already hold the selected ones.
+  Index leading = 0;
+  for (Index k = 0; k < n; ++k) {
+    if (!select(m_matT.coeff(k, k))) continue;
+    for (Index j = k; j > leading; --j) swapAdjacentEigenvalues(j - 1);
+    ++leading;
+  }
+  return leading;
+}
+
 namespace internal {
 
 /* Reduce given matrix to Hessenberg form, and hold the workspace this takes. */
