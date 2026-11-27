@@ -863,6 +863,13 @@ void test_memcpy() {
       VERIFY_IS_EQUAL(t1(j), result[j]);
     }
   }
+
+  // An empty tensor has a null data pointer; UBSan reports it if it reaches ::memcpy.
+  PoolDevice pool(2);
+  Tensor<float, 1> empty(0);
+  float untouched = 1.0f;
+  pool.device.memcpy(&untouched, empty.data(), 0);
+  VERIFY_IS_EQUAL(untouched, 1.0f);
 }
 
 // The executors copy the evaluator per task; a copy must not destroy the forced-eval buffer's elements. The async path

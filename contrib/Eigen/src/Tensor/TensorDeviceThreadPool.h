@@ -52,6 +52,8 @@ struct ThreadPoolDevice {
   }
 
   EIGEN_STRONG_INLINE void memcpy(void* dst, const void* src, size_t n) const {
+    // An empty tensor has a null data pointer, which ::memcpy must not be given even with n == 0.
+    if (n == 0) return;
 #ifdef __ANDROID__
     ::memcpy(dst, src, n);
 #else

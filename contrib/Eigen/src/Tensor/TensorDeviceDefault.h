@@ -25,6 +25,8 @@ struct DefaultDevice {
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void* allocate_temp(size_t num_bytes) const { return allocate(num_bytes); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void deallocate_temp(void* buffer) const { deallocate(buffer); }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpy(void* dst, const void* src, size_t n) const {
+    // An empty tensor has a null data pointer, which ::memcpy must not be given even with n == 0.
+    if (n == 0) return;
     ::memcpy(dst, src, n);
   }
   EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void memcpyHostToDevice(void* dst, const void* src, size_t n) const {
