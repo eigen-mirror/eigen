@@ -414,6 +414,41 @@ void jacobisvd_complex_tiny_pivot() {
   jacobisvd_check_backward_error_all(matrices);
 }
 
+// jacobi_unit_phase(w) = conj(w) / |w| must be unit-modulus to rounding and point along conj(w) for w just above the
+// smallest normal number, in every flush-to-zero mode. There the term im + (re / im) re of Smith's complex division
+// is subnormal for |re| < |im| and FTZ or DAZ drops it, which leaves |z| = |w|^2 / im^2, up to 2. The reference is
+// formed from the entries scaled by a power of two, which is exact and leaves them normal and O(1).
+template <typename RealScalar>
+void jacobisvd_unit_phase_near_minimum() {
+  using ComplexScalar = std::complex<RealScalar>;
+  const RealScalar normalMin = (std::numeric_limits<RealScalar>::min)();
+  const int shift = 2 - std::numeric_limits<RealScalar>::min_exponent;
+  std::vector<ComplexScalar> values, references;
+  // Multiples of min, including the ones where re^2 / im is subnormal, with both orderings and all four signs.
+  for (const double a : {1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 16.0, 1024.0}) {
+    for (const double b : {1.0, 1.5, 2.0, 5.0, 64.0}) {
+      for (const int signs : {0, 1, 2, 3}) {
+        const RealScalar re = RealScalar(a) * normalMin * ((signs & 1) != 0 ? RealScalar(-1) : RealScalar(1));
+        const RealScalar im = RealScalar(b) * normalMin * ((signs & 2) != 0 ? RealScalar(-1) : RealScalar(1));
+        values.push_back(ComplexScalar(re, im));
+        const long double rs = std::ldexp(static_cast<long double>(re), shift);
+        const long double is = std::ldexp(static_cast<long double>(im), shift);
+        const long double n = std::sqrt(rs * rs + is * is);
+        references.push_back(ComplexScalar(RealScalar(rs / n), RealScalar(-is / n)));
+      }
+    }
+  }
+  const RealScalar tolerance = RealScalar(8) * NumTraits<RealScalar>::epsilon();
+  forEachFlushToZeroMode([&](FlushToZeroMode) {
+    for (std::size_t k = 0; k < values.size(); ++k) {
+      const ComplexScalar z = internal::jacobi_unit_phase(values[k]);
+      VERIFY_LE(numext::abs(numext::abs2(z) - RealScalar(1)), tolerance);
+      VERIFY_LE(numext::abs(numext::real(z) - numext::real(references[k])), tolerance);
+      VERIFY_LE(numext::abs(numext::imag(z) - numext::imag(references[k])), tolerance);
+    }
+  });
+}
+
 // A square matrix whose diagonal and strict upper triangle, the pivot columns of the sweeps, are scale times
 // a random complex matrix, and whose strict lower triangle is of order 1: the first column of every 2x2 pivot block
 // starts at the pivot scale. It reaches the non-blocking sweep for small n and the blocked sweep for large n.
@@ -568,6 +603,8 @@ EIGEN_DECLARE_TEST(jacobisvd) {
   CALL_SUBTEST_66(jacobisvd_subnormal_diagonals<double>());
   CALL_SUBTEST_70(jacobisvd_complex_tiny_pivot<float>());
   CALL_SUBTEST_70(jacobisvd_complex_tiny_pivot<double>());
+  CALL_SUBTEST_70(jacobisvd_unit_phase_near_minimum<float>());
+  CALL_SUBTEST_70(jacobisvd_unit_phase_near_minimum<double>());
   CALL_SUBTEST_73(jacobisvd_complex_tiny_pivot_sweeps<float>(6));
   CALL_SUBTEST_73(jacobisvd_complex_tiny_pivot_sweeps<double>(6));
   CALL_SUBTEST_71((jacobisvd_rank_deficient_family<float, ColPivHouseholderQRPreconditioner>(4, 20)));

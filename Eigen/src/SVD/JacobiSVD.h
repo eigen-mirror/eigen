@@ -399,6 +399,19 @@ EIGEN_STRONG_INLINE typename NumTraits<Scalar>::Real jacobi_pivot_norm(const Sca
   return jacobi_pivot_norm_scaled(a, b, a_scaled, b_scaled, sumSquares);
 }
 
+// Returns z = conj(w) / |w| with |z| = 1 to rounding, so that w z = |w|, for w with a normal component and
+// |w| < sqrt(max), which the scaled work matrix and the callers' |imag(w)| > min guarantee. abs(w) / w is not a
+// substitute: a std::complex division by Smith's formula (MSVC) forms im + (re / im) re for |re| < |im|, and when
+// the second term is subnormal FTZ flushes it and DAZ reads it as zero while abs() keeps it, which leaves
+// |z| = |w|^2 / im^2, up to 2.
+template <typename Scalar>
+EIGEN_STRONG_INLINE Scalar jacobi_unit_phase(const Scalar& w) {
+  using RealScalar = typename NumTraits<Scalar>::Real;
+  Scalar w_scaled, unused;
+  const RealScalar n = jacobi_pivot_norm(w, Scalar(0), w_scaled, unused);
+  return numext::conj(w_scaled) / n;
+}
+
 /*** 2x2 SVD implementation
  ***
  *** JacobiSVD consists in performing a series of 2x2 SVD subproblems
@@ -431,12 +444,12 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
 
       if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
         // n is zero only if both entries are zero, or are subnormal and flushed by FTZ/DAZ.
-        z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
+        z = jacobi_unit_phase(work_matrix.coeff(p, q));
         work_matrix.row(p) *= z;
         if (svd.computeU()) svd.m_matrixU.col(p) *= numext::conj(z);
       }
       if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
-        z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
+        z = jacobi_unit_phase(work_matrix.coeff(q, q));
         work_matrix.row(q) *= z;
         if (svd.computeU()) svd.m_matrixU.col(q) *= numext::conj(z);
       }
@@ -447,12 +460,12 @@ struct svd_precondition_2x2_block_to_be_real<MatrixType, Options, true> {
       work_matrix.applyOnTheLeft(p, q, rot);
       if (svd.computeU()) svd.m_matrixU.applyOnTheRight(p, q, rot.adjoint());
       if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
-        z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
+        z = jacobi_unit_phase(work_matrix.coeff(p, q));
         work_matrix.col(q) *= z;
         if (svd.computeV()) svd.m_matrixV.col(q) *= z;
       }
       if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
-        z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
+        z = jacobi_unit_phase(work_matrix.coeff(q, q));
         work_matrix.row(q) *= z;
         if (svd.computeU()) svd.m_matrixU.col(q) *= numext::conj(z);
       }
@@ -497,12 +510,12 @@ EIGEN_DONT_INLINE bool jacobi_svd_nonblocking_sweep(WorkMatrixType& work_matrix,
 
             if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
               // nn is zero only if both entries are zero, or are subnormal and flushed by FTZ/DAZ.
-              z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
+              z = jacobi_unit_phase(work_matrix.coeff(p, q));
               work_matrix.row(p) *= z;
               if (compute_u) matrix_u.col(p) *= numext::conj(z);
             }
             if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
-              z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
+              z = jacobi_unit_phase(work_matrix.coeff(q, q));
               work_matrix.row(q) *= z;
               if (compute_u) matrix_u.col(q) *= numext::conj(z);
             }
@@ -513,12 +526,12 @@ EIGEN_DONT_INLINE bool jacobi_svd_nonblocking_sweep(WorkMatrixType& work_matrix,
             work_matrix.applyOnTheLeft(p, q, rot);
             if (compute_u) matrix_u.applyOnTheRight(p, q, rot.adjoint());
             if (numext::abs(numext::imag(work_matrix.coeff(p, q))) > considerAsZero) {
-              z = numext::abs(work_matrix.coeff(p, q)) / work_matrix.coeff(p, q);
+              z = jacobi_unit_phase(work_matrix.coeff(p, q));
               work_matrix.col(q) *= z;
               if (compute_v) matrix_v.col(q) *= z;
             }
             if (numext::abs(numext::imag(work_matrix.coeff(q, q))) > considerAsZero) {
-              z = numext::abs(work_matrix.coeff(q, q)) / work_matrix.coeff(q, q);
+              z = jacobi_unit_phase(work_matrix.coeff(q, q));
               work_matrix.row(q) *= z;
               if (compute_u) matrix_u.col(q) *= numext::conj(z);
             }
@@ -961,7 +974,7 @@ JacobiSVD<MatrixType, Options>& JacobiSVD<MatrixType, Options>::compute_impl(con
     if (diagonal_has_imaginary_part) {
       RealScalar a = numext::abs(m_workMatrix.coeff(i, i));
       m_singularValues.coeffRef(i) = numext::abs(a);
-      if (computeU()) m_matrixU.col(i) *= m_workMatrix.coeff(i, i) / a;
+      if (computeU()) m_matrixU.col(i) *= numext::conj(internal::jacobi_unit_phase(m_workMatrix.coeff(i, i)));
     } else {
       // m_workMatrix.coeff(i,i) is already real. Its magnitude and sign are read from the representation for float
       // and double: a subnormal entry compares as zero under DAZ, and an abs() that widens flushes it under FTZ.
@@ -1092,13 +1105,13 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
 
               // Scale rows by z = e^{-i*arg(w)} to make remaining entries real.
               if (numext::abs(numext::imag(blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
-                z = numext::abs(blockBuffer.coeff(kBlockSize, qq)) / blockBuffer.coeff(kBlockSize, qq);
+                z = internal::jacobi_unit_phase(blockBuffer.coeff(kBlockSize, qq));
                 blockBuffer.row(kBlockSize) *= z;
                 accum.row(kBlockSize) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(p) *= numext::conj(z);
               }
               if (numext::abs(numext::imag(blockBuffer.coeff(qq, qq))) > considerAsZero) {
-                z = numext::abs(blockBuffer.coeff(qq, qq)) / blockBuffer.coeff(qq, qq);
+                z = internal::jacobi_unit_phase(blockBuffer.coeff(qq, qq));
                 blockBuffer.row(qq) *= z;
                 accum.row(qq) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(q + qq) *= numext::conj(z);
@@ -1117,14 +1130,14 @@ EIGEN_DONT_INLINE bool JacobiSVD<MatrixType, Options>::blocked_sweep(RealScalar 
 
               // Scale column qq by z = e^{-i*arg(w_pq)} to make w_pq real.
               if (numext::abs(numext::imag(blockBuffer.coeff(kBlockSize, qq))) > considerAsZero) {
-                z = numext::abs(blockBuffer.coeff(kBlockSize, qq)) / blockBuffer.coeff(kBlockSize, qq);
+                z = internal::jacobi_unit_phase(blockBuffer.coeff(kBlockSize, qq));
                 blockBuffer.col(qq) *= z;
                 m_workMatrix.col(q + qq) *= z;  // right op: apply directly
                 if (computeV()) m_matrixV.col(q + qq) *= z;
               }
               // Scale row qq by z = e^{-i*arg(w_qq)} to make w_qq real.
               if (numext::abs(numext::imag(blockBuffer.coeff(qq, qq))) > considerAsZero) {
-                z = numext::abs(blockBuffer.coeff(qq, qq)) / blockBuffer.coeff(qq, qq);
+                z = internal::jacobi_unit_phase(blockBuffer.coeff(qq, qq));
                 blockBuffer.row(qq) *= z;
                 accum.row(qq) *= z;  // accumulate left op
                 if (computeU()) m_matrixU.col(q + qq) *= numext::conj(z);
