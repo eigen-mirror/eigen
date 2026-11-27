@@ -499,9 +499,11 @@ test:linux:arm:clang-14:default:contrib:
     # product_mmtr all drive the SVL-sensitive SME micro-kernel and packers (trmm
     # packs in PanelMode with per-panel offsets; syrk and mmtr consume packed
     # panels in lcm(mr, nr)-sized blocks through tribb_kernel, which is wider than
-    # mr only for complex<float>), so they run at every SVL below (mixingtypes is
-    # added at one SVL only -- see the sme512 job).
-    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk|product_mmtr
+    # mr only for complex<float>), so they run at every SVL below. So does
+    # vector_sme: the SME dot, axpy and GEMV kernels it tests size their blocks
+    # and tail predicates by the SVL (mixingtypes is added at one SVL only -- see
+    # the sme512 job).
+    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk|product_mmtr|vector_sme
 
 # SVL=128: architectural minimum; exercises the most sub-block passes per
 # logical block.
@@ -526,7 +528,7 @@ test:linux:sme512:gcc-14:default:official:
     QEMU_CPU: max,sme=on,sme512=on,sme128=off,sme256=off,sme1024=off,sme2048=off
     # mixingtypes_[0-9] excludes mixingtypes_generic_32/64 (not built here), which
     # ctest would otherwise fail to find.
-    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk|product_mmtr|mixingtypes_[0-9]
+    EIGEN_CI_CTEST_REGEX: product_sme|product_symm|product_trsolve|product_trmm|product_syrk|product_mmtr|vector_sme|mixingtypes_[0-9]
 
 # SVL=2048: architectural maximum; exercises predication down to the logical
 # block.
@@ -551,8 +553,8 @@ test:linux:sme512:gcc-14:no-f64f64:official:
 # against the full build above, at a single representative SVL (512: the logical
 # block matches the ZA tile grid exactly, exercising the multi-vector-load fast
 # path in sme_process). Cross-SVL geometry is already covered by the per-SVL
-# product_* subset jobs above, so one SVL is enough for the full run. Extends
-# ...:default (not ...:default:official) so no product_* CTEST_REGEX is
+# subset jobs above, so one SVL is enough for the full run. Extends
+# ...:default (not ...:default:official) so the subset CTEST_REGEX is not
 # inherited -- these select by label instead. Official/Contrib are split
 # into two jobs, and Official is sharded further below. The 3h job timeout is
 # the GitLab SaaS hosted-runner maximum (a slow host overran 2h). Inherits

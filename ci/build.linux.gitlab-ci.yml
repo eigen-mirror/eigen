@@ -568,9 +568,11 @@ build:linux:cross:arm:clang-14:default:
     # triangular-result product, mixed-scalar) that product_sme can't reach; each
     # has double and complex subtests, so they cover all four SME scalar types.
     # product_mmtr additionally covers tribb_kernel's lcm(mr, nr) block, which is
-    # only larger than mr for complex<float>. Explicit list, not `buildtests`:
-    # cross-building every test under the SME flags overruns the runner timeout.
-    EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk product_mmtr mixingtypes
+    # only larger than mr for complex<float>. vector_sme covers the SME dot, axpy
+    # and GEMV kernels, whose blocks and tail predicates scale with the SVL.
+    # Explicit list, not `buildtests`: cross-building every test under the SME
+    # flags overruns the runner timeout.
+    EIGEN_CI_BUILD_TARGET: product_sme product_symm product_trsolve product_trmm product_syrk product_mmtr mixingtypes vector_sme
   # Inherit the 2xlarge runner from .build:linux:cross: GitLab's open-source
   # program bills small and large runners the same, so don't downsize.
 
