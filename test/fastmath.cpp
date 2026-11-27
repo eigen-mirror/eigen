@@ -637,7 +637,9 @@ void check_complex_sign_overflow() {
   VERIFY(close(fastmath_scalar_sign(Scalar(highest, highest)), Scalar(sqrt_half, sqrt_half)));
   VERIFY(close(fastmath_scalar_sign(Scalar(-highest, highest)), Scalar(-sqrt_half, sqrt_half)));
   VERIFY(close(fastmath_scalar_sign(Scalar(h, -h)), Scalar(sqrt_half, -sqrt_half)));
-  VERIFY(close(fastmath_scalar_sign(Scalar(RealScalar(0.6) * highest, unit)), Scalar(RealScalar(1), RealScalar(0))));
+  // std::complex's constructor may take const RealScalar&, which does not bind to a volatile lvalue.
+  const RealScalar one = unit;
+  VERIFY(close(fastmath_scalar_sign(Scalar(RealScalar(0.6) * highest, one)), Scalar(RealScalar(1), RealScalar(0))));
 }
 
 EIGEN_DECLARE_TEST(fastmath) {
