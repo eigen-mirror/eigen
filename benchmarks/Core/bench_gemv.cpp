@@ -232,7 +232,9 @@ static void BM_GemvLayout(benchmark::State& state) {
 // clang-format off
 #define GEMV_LAYOUT_SIZES ->ArgsProduct({{128, 256, 1024}, {4, 16, 32, 64, 128}, {0}, {0}, {0}}) \
   ->ArgsProduct({{129, 257}, {32, 128}, {0, 16}, {0, 16}, {0, 1}}) \
-  ->ArgsProduct({{4096, 10000}, {4, 8, 16}, {0}, {0}, {0}})
+  ->ArgsProduct({{4096, 10000}, {4, 8, 16}, {0}, {0}, {0}}) \
+  ->Args({128, 128, 0, 16, 0})->Args({512, 512, 0, 0, 0})->Args({512, 512, 0, 16, 0}) \
+  ->Args({1000, 1000, 0, 0, 0})->Args({1000, 1000, 0, 16, 0})->Args({4096, 4096, 0, 0, 0})->Args({4096, 4096, 0, 16, 0})
 BENCHMARK_TEMPLATE(BM_GemvLayout, float, false) GEMV_LAYOUT_SIZES ->Name("GemvLayout_float");
 BENCHMARK_TEMPLATE(BM_GemvLayout, double, false) GEMV_LAYOUT_SIZES ->Name("GemvLayout_double");
 BENCHMARK_TEMPLATE(BM_GemvLayout, float, true) GEMV_LAYOUT_SIZES ->Name("GemvMixed_float");
