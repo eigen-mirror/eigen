@@ -322,7 +322,12 @@ ei_add_test(io)
 ei_add_test(packetmath "-DEIGEN_FAST_MATH=1")
 ei_add_test(packetmath_loaddup)
 ei_add_test(packetmath_gather)
-ei_add_test(packet_madd_dispatch "${twoprod_test_flags}")
+# The directed-rounding checks need the compiler to keep -a * b as written instead of folding it to -(a * b).
+set(packet_madd_dispatch_flags "${twoprod_test_flags}")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(packet_madd_dispatch_flags "${packet_madd_dispatch_flags} -frounding-math")
+endif()
+ei_add_test(packet_madd_dispatch "${packet_madd_dispatch_flags}")
 ei_add_test(tanh_no_fast_math)
 # Generic clang vector backend tests for different vector sizes.
 include(CheckCXXSourceCompiles)

@@ -431,7 +431,11 @@ EIGEN_STRONG_INLINE Packet2cf pmsub(const Packet2cf& a, const Packet2cf& b, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet2cf pnmadd(const Packet2cf& a, const Packet2cf& b, const Packet2cf& c) {
-  return pnegate(pmsub(a, b, c));
+  return pmadd(a, pnegate(b), c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2cf pnmsub(const Packet2cf& a, const Packet2cf& b, const Packet2cf& c) {
+  return pmsub(a, pnegate(b), c);
 }
 // std::complex<double>
 template <>
@@ -452,7 +456,11 @@ EIGEN_STRONG_INLINE Packet1cd pmsub(const Packet1cd& a, const Packet1cd& b, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet1cd pnmadd(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
-  return pnegate(pmsub(a, b, c));
+  return pmadd(a, pnegate(b), c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet1cd pnmsub(const Packet1cd& a, const Packet1cd& b, const Packet1cd& c) {
+  return pmsub(a, pnegate(b), c);
 }
 #endif
 

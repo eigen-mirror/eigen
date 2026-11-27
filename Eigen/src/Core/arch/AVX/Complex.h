@@ -497,9 +497,15 @@ EIGEN_STRONG_INLINE Packet4cf pmsub(const Packet4cf& a, const Packet4cf& b, cons
   __m256 result = _mm256_fmaddsub_ps(a_even, b.v, _mm256_fmsubadd_ps(a_odd, b_swap, c.v));
   return Packet4cf(result);
 }
+// pnmadd and pnmsub negate b, which gives the same bits as negating a: g++ 15.2 spills a negated Packet2cd a to the
+// stack to feed vmovddup.
 template <>
 EIGEN_STRONG_INLINE Packet4cf pnmadd(const Packet4cf& a, const Packet4cf& b, const Packet4cf& c) {
-  return pnegate(pmsub(a, b, c));
+  return pmadd(a, pnegate(b), c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet4cf pnmsub(const Packet4cf& a, const Packet4cf& b, const Packet4cf& c) {
+  return pmsub(a, pnegate(b), c);
 }
 // std::complex<double>
 template <>
@@ -520,7 +526,11 @@ EIGEN_STRONG_INLINE Packet2cd pmsub(const Packet2cd& a, const Packet2cd& b, cons
 }
 template <>
 EIGEN_STRONG_INLINE Packet2cd pnmadd(const Packet2cd& a, const Packet2cd& b, const Packet2cd& c) {
-  return pnegate(pmsub(a, b, c));
+  return pmadd(a, pnegate(b), c);
+}
+template <>
+EIGEN_STRONG_INLINE Packet2cd pnmsub(const Packet2cd& a, const Packet2cd& b, const Packet2cd& c) {
+  return pmsub(a, pnegate(b), c);
 }
 #endif
 

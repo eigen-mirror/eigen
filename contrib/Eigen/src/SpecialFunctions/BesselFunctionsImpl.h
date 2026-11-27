@@ -432,7 +432,7 @@ struct generic_k0e<T, float> {
     const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A);
-    x_le_two = pmadd(generic_i0<T, float>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
+    x_le_two = pnmadd(generic_i0<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pmul(pexp(x), x_le_two);
     T x_gt_two = pmul(internal::pchebevl<T, 10>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x));
     return pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, pselect(pcmp_le(x, two), x_le_two, x_gt_two));
@@ -488,7 +488,7 @@ struct generic_k0e<T, double> {
     const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 10>::run(pmadd(x, x, pset1<T>(-2.0)), A);
-    x_le_two = pmadd(generic_i0<T, double>::run(x), pmul(pset1<T>(-1.0), plog(pmul(pset1<T>(0.5), x))), x_le_two);
+    x_le_two = pnmadd(generic_i0<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pmul(pexp(x), x_le_two);
     x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two = pmul(internal::pchebevl<T, 25>::run(psub(pdiv(pset1<T>(8.0), x), two), B), prsqrt(x));
@@ -565,7 +565,7 @@ struct generic_k0<T, float> {
     const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 7>::run(pmadd(x, x, pset1<T>(-2.0)), A);
-    x_le_two = pmadd(generic_i0<T, float>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
+    x_le_two = pnmadd(generic_i0<T, float>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two =
         pmul(pmul(pexp(pnegate(x)), internal::pchebevl<T, 10>::run(psub(pdiv(pset1<T>(8.0), x), two), B)), prsqrt(x));
@@ -622,7 +622,7 @@ struct generic_k0<T, double> {
     const T MAXNUM = pinf<T>();
     const T two = pset1<T>(2.0);
     T x_le_two = internal::pchebevl<T, 10>::run(pmadd(x, x, pset1<T>(-2.0)), A);
-    x_le_two = pmadd(generic_i0<T, double>::run(x), pnegate(plog(pmul(pset1<T>(0.5), x))), x_le_two);
+    x_le_two = pnmadd(generic_i0<T, double>::run(x), plog(pmul(pset1<T>(0.5), x)), x_le_two);
     x_le_two = pselect(pcmp_le(x, pset1<T>(0.0)), MAXNUM, x_le_two);
     T x_gt_two = pmul(pmul(pexp(-x), internal::pchebevl<T, 25>::run(psub(pdiv(pset1<T>(8.0), x), two), B)), prsqrt(x));
     return pselect(pcmp_le(x, two), x_le_two, x_gt_two);

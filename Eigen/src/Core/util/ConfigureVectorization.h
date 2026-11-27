@@ -609,7 +609,7 @@ static_assert((EIGEN_ARM64_SVE_VL >= 128) && (EIGEN_ARM64_SVE_VL <= 2048) &&
 
 #define EIGEN_VECTORIZE
 #define EIGEN_VECTORIZE_LSX
-// pmadd and its variants map to the fused vfmadd/vfmsub/vfnmadd/vfnmsub.
+// pmadd and its variants map to the fused vfmadd/vfmsub, with a negated first operand for pnmadd and pnmsub.
 #define EIGEN_VECTORIZE_FMA
 #include <lsxintrin.h>
 

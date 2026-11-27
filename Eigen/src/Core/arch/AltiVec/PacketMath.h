@@ -1184,11 +1184,12 @@ EIGEN_STRONG_INLINE Packet4f pmsub(const Packet4f& a, const Packet4f& b, const P
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return vec_nmsub(a, b, c);
+  // vec_nmsub is -(a * b - c) and vec_nmadd is -(a * b + c): each returns the other zero on an exact cancellation.
+  return vec_madd(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return vec_nmadd(a, b, c);
+  return vec_msub(pnegate(a), b, c);
 }
 #endif
 
@@ -3329,11 +3330,12 @@ EIGEN_STRONG_INLINE Packet2d pmsub(const Packet2d& a, const Packet2d& b, const P
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pnmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return vec_nmsub(a, b, c);
+  // vec_nmsub is -(a * b - c) and vec_nmadd is -(a * b + c): each returns the other zero on an exact cancellation.
+  return vec_madd(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pnmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return vec_nmadd(a, b, c);
+  return vec_msub(pnegate(a), b, c);
 }
 
 template <>

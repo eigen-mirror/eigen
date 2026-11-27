@@ -1698,7 +1698,7 @@ struct pmadd_impl {
     return internal::pmadd<Packet>(pnegate(a), b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
-    return pnegate(internal::pmadd<Packet>(a, b, c));
+    return internal::pmadd<Packet>(pnegate(a), b, pnegate(c));
   }
 };
 
@@ -1716,7 +1716,7 @@ struct pmadd_impl<Scalar, std::enable_if_t<std::is_same<Scalar, float>::value ||
     return numext::fma(Scalar(-a), b, c);
   }
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return -Scalar(numext::fma(a, b, c));
+    return numext::fma(Scalar(-a), b, Scalar(-c));
   }
 };
 
@@ -1737,12 +1737,24 @@ struct pmadd_impl<Scalar, std::enable_if_t<is_scalar<Scalar>::value && NumTraits
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmadd(const Scalar& a, const Scalar& b, const Scalar& c) {
     return numext::madd<Scalar>(Scalar(-a), b, c);
   }
+  // Negating the operands is exact and keeps the sign of a zero, but a signed integer must not negate its most negative
+  // value: pnmsub(min, 0, 1) is -1 and must not overflow. -(a * b + c) is the same integer, with no signed zero.
+  template <typename S = Scalar, std::enable_if_t<!NumTraits<S>::IsInteger, int> = 0>
   static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
-    return -Scalar(numext::madd<Scalar>(a, b, c));
+    return numext::madd<Scalar>(Scalar(-a), b, Scalar(-c));
+  }
+  template <typename S = Scalar, std::enable_if_t<NumTraits<S>::IsInteger, int> = 0>
+  static EIGEN_DEVICE_FUNC EIGEN_ALWAYS_INLINE Scalar pnmsub(const Scalar& a, const Scalar& b, const Scalar& c) {
+    return Scalar(-numext::madd<Scalar>(a, b, c));
   }
 };
 
-// Multiply-add instructions.
+// Multiply-add instructions: pmsub = pmadd(a, b, -c), pnmadd = pmadd(-a, b, c) and pnmsub = pmadd(-a, b, -c) bit for
+// bit, including the sign of a zero, with a * b unrounded where is_fused_madd holds. Negating the result instead,
+// -(a * b - c) or -(a * b + c) (Power and LoongArch nmsub and nmadd), returns the other zero on an exact cancellation.
+// Without fusion the identity holds for pmsub and pnmsub in every rounding mode, but for pnmadd only to nearest:
+// the generic c - round(a * b) differs from round(-a * b) + c under a directed mode. For complex packets the sign of a
+// zero also depends on the order in which the backend sums the partial products.
 /** \internal \returns a * b + c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pmadd(const Packet& a, const Packet& b, const Packet& c) {
@@ -1761,7 +1773,7 @@ EIGEN_DEVICE_FUNC inline Packet pnmadd(const Packet& a, const Packet& b, const P
   return pmadd_impl<Packet>::pnmadd(a, b, c);
 }
 
-/** \internal \returns -(a * b + c) (coeff-wise) */
+/** \internal \returns -(a * b) - c (coeff-wise) */
 template <typename Packet>
 EIGEN_DEVICE_FUNC inline Packet pnmsub(const Packet& a, const Packet& b, const Packet& c) {
   return pmadd_impl<Packet>::pnmsub(a, b, c);

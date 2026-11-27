@@ -11,7 +11,13 @@ struct Packet {
   friend Packet operator+(Packet a, Packet b) { return {a.value + b.value}; }
   friend Packet operator-(Packet a, Packet b) { return {a.value - b.value}; }
   friend Packet operator*(Packet a, Packet b) { return {a.value * b.value}; }
-  friend Packet operator-(Packet a) { return {-a.value}; }
+  // The barrier keeps the generic pnmsub, -a * b + -c, from folding into -c - a * b, which rounds a * b before
+  // negating it: GCC 10 and 11 emit vnmla for it on 32-bit Arm, even with -frounding-math.
+  friend Packet operator-(Packet a) {
+    float negated = -a.value;
+    EIGEN_OPTIMIZATION_BARRIER(negated);
+    return {negated};
+  }
 };
 
 // The generic dispatch must not accidentally select an unrelated ADL overload.
@@ -21,6 +27,11 @@ struct SubtractOnly {
   unsigned value;
   friend SubtractOnly operator*(SubtractOnly a, SubtractOnly b) { return {a.value * b.value}; }
   friend SubtractOnly operator-(SubtractOnly a, SubtractOnly b) { return {a.value - b.value}; }
+};
+
+// Provides exactly pmadd and pnegate, which is all that the generic pnmsub has always required.
+struct MaddNegateOnly {
+  float value;
 };
 }  // namespace pnmsub_test
 
@@ -44,6 +55,19 @@ struct unpacket_traits<pnmsub_test::Packet<3>> : unpacket_traits<float> {
 
 template <>
 struct unpacket_traits<pnmsub_test::Packet<4>> : unpacket_traits<uint32_t> {};
+
+template <>
+struct unpacket_traits<pnmsub_test::MaddNegateOnly> : unpacket_traits<float> {};
+template <>
+EIGEN_STRONG_INLINE pnmsub_test::MaddNegateOnly pmadd(const pnmsub_test::MaddNegateOnly& a,
+                                                      const pnmsub_test::MaddNegateOnly& b,
+                                                      const pnmsub_test::MaddNegateOnly& c) {
+  return {a.value * b.value + c.value};
+}
+template <>
+EIGEN_STRONG_INLINE pnmsub_test::MaddNegateOnly pnegate(const pnmsub_test::MaddNegateOnly& a) {
+  return {-a.value};
+}
 
 template <>
 struct is_fused_madd<pnmsub_test::Packet<1>> : true_type {};
@@ -80,6 +104,11 @@ struct pmadd_impl<pnmsub_test::Packet<2>> {
 }  // namespace internal
 }  // namespace Eigen
 
+template <typename Packet>
+EIGEN_DONT_INLINE float generic_pnmsub_value(float a, float b, float c) {
+  return internal::pnmsub(Packet{a}, Packet{b}, Packet{c}).value;
+}
+
 void generic_pnmsub_dispatch() {
   using Fused = pnmsub_test::Packet<1>;
   using Unfused = pnmsub_test::Packet<0>;
@@ -99,7 +128,22 @@ void generic_pnmsub_dispatch() {
   VERIFY_IS_EQUAL(internal::pnmsub(2u, 3u, 4u), (std::numeric_limits<unsigned>::max)() - 9u);
 }
 
-// op() under FE_UPWARD and under FE_DOWNWARD, where it must give the expected result of that mode.
+// Negating an operand of a signed integer would overflow here, though the result, -1, is representable. The operands
+// are read through volatile, so that the compiler cannot fold the call away.
+void integer_pnmsub_boundary() {
+  const volatile int int_min = (std::numeric_limits<int>::min)();
+  const volatile int zero = 0;
+  VERIFY_IS_EQUAL(internal::pnmsub(int(int_min), int(zero), 1), -1);
+  const volatile int64_t int64_min = (std::numeric_limits<int64_t>::min)();
+  VERIFY_IS_EQUAL(internal::pnmsub(int64_t(int64_min), int64_t(zero), int64_t(1)), int64_t(-1));
+}
+
+// A packet that provides pmadd and pnegate, and nothing else the generic pnmsub could use, must keep compiling.
+void generic_pnmsub_minimal_operations() {
+  using Minimal = pnmsub_test::MaddNegateOnly;
+  VERIFY_IS_EQUAL(internal::pnmsub(Minimal{1}, Minimal{2}, Minimal{3}).value, -5.0f);
+}
+
 template <typename Op>
 void verify_directed_roundings(const Op& op, float expected_upward, float expected_downward) {
   std::fenv_t environment;
@@ -110,6 +154,17 @@ void verify_directed_roundings(const Op& op, float expected_upward, float expect
     std::fesetenv(&environment);
     VERIFY_IS_EQUAL(result, mode == FE_UPWARD ? expected_upward : expected_downward);
   }
+}
+
+// Without fusion, pnmsub is pmadd(-a, b, -c) in every rounding mode: -a * b rounds the negated product, which is not
+// the negation of the rounded product when the mode is directed. (1 + e)^2 = 1 + 2e + e^2 lies between 1 + 2e and
+// 1 + 3e, with e the epsilon of float.
+void generic_pnmsub_directed_rounding() {
+  using Unfused = pnmsub_test::Packet<0>;
+  const float e = NumTraits<float>::epsilon();
+  verify_directed_roundings([e] { return generic_pnmsub_value<Unfused>(1 + e, 1 + e, 0); }, -(1 + 2 * e), -(1 + 3 * e));
+  verify_directed_roundings([e] { return generic_pnmsub_value<Unfused>(1 + e, 1 + e, -0.0f); }, -(1 + 2 * e),
+                            -(1 + 3 * e));
 }
 
 template <typename Packet>
@@ -227,6 +282,9 @@ void integer_packet_subtract() {
 EIGEN_DECLARE_TEST(packet_madd_dispatch) {
   for (int repeat = 0; repeat < g_repeat; ++repeat) {
     CALL_SUBTEST_1(generic_pnmsub_dispatch());
+    CALL_SUBTEST_1(integer_pnmsub_boundary());
+    CALL_SUBTEST_1(generic_pnmsub_minimal_operations());
+    CALL_SUBTEST_1(generic_pnmsub_directed_rounding());
     CALL_SUBTEST_1(generic_pmsub_dispatch());
     CALL_SUBTEST_1(generic_pnmadd_dispatch());
     CALL_SUBTEST_1(integer_packet_subtract<uint8_t>());

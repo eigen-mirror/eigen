@@ -751,19 +751,20 @@ EIGEN_STRONG_INLINE Packet2d pmsub(const Packet2d& a, const Packet2d& b, const P
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return __lsx_vfnmsub_s(a, b, c);
+  // vfnmsub is -(a * b - c) and vfnmadd is -(a * b + c): each returns the other zero on an exact cancellation.
+  return __lsx_vfmadd_s(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pnmadd(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return __lsx_vfnmsub_d(a, b, c);
+  return __lsx_vfmadd_d(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet4f pnmsub(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
-  return __lsx_vfnmadd_s(a, b, c);
+  return __lsx_vfmsub_s(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet2d pnmsub(const Packet2d& a, const Packet2d& b, const Packet2d& c) {
-  return __lsx_vfnmadd_d(a, b, c);
+  return __lsx_vfmsub_d(pnegate(a), b, c);
 }
 template <>
 EIGEN_STRONG_INLINE Packet16c pmadd(const Packet16c& a, const Packet16c& b, const Packet16c& c) {

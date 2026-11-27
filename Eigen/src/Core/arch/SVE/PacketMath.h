@@ -748,6 +748,19 @@ template <>
 EIGEN_STRONG_INLINE PacketXf pmadd(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
   return svmla_f32_x(svptrue_b32(), c, a, b);
 }
+// FNMLS, FMLS and FNMLA negate their operands: a * b - c, -(a * b) + c and -(a * b) - c.
+template <>
+EIGEN_STRONG_INLINE PacketXf pmsub(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
+  return svnmls_f32_x(svptrue_b32(), c, a, b);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXf pnmadd(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
+  return svmls_f32_x(svptrue_b32(), c, a, b);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXf pnmsub(const PacketXf& a, const PacketXf& b, const PacketXf& c) {
+  return svnmla_f32_x(svptrue_b32(), c, a, b);
+}
 
 template <>
 struct pminmax_propagates_nan<PacketXf> : bool_constant<true> {};
@@ -1129,6 +1142,19 @@ struct is_fused_madd<PacketXd> : true_type {};
 template <>
 EIGEN_STRONG_INLINE PacketXd pmadd(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
   return svmla_f64_x(svptrue_b64(), c, a, b);
+}
+// FNMLS, FMLS and FNMLA negate their operands: a * b - c, -(a * b) + c and -(a * b) - c.
+template <>
+EIGEN_STRONG_INLINE PacketXd pmsub(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
+  return svnmls_f64_x(svptrue_b64(), c, a, b);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd pnmadd(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
+  return svmls_f64_x(svptrue_b64(), c, a, b);
+}
+template <>
+EIGEN_STRONG_INLINE PacketXd pnmsub(const PacketXd& a, const PacketXd& b, const PacketXd& c) {
+  return svnmla_f64_x(svptrue_b64(), c, a, b);
 }
 
 template <>
