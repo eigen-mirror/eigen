@@ -2323,6 +2323,11 @@ template <>
 EIGEN_STRONG_INLINE Packet8bf plog<Packet8bf>(const Packet8bf& a) {
   BF16_TO_F32_UNARY_OP_WRAPPER(plog_float, a);
 }
+// The generic plog2 would round log(a) and its product with log2(e) to bfloat16 separately.
+template <>
+EIGEN_STRONG_INLINE Packet8bf plog2<Packet8bf>(const Packet8bf& a) {
+  BF16_TO_F32_UNARY_OP_WRAPPER(plog2_float, a);
+}
 template <>
 EIGEN_STRONG_INLINE Packet8bf pfloor<Packet8bf>(const Packet8bf& a) {
   BF16_TO_F32_UNARY_OP_WRAPPER(pfloor<Packet4f>, a);
