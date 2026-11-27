@@ -265,7 +265,7 @@ struct Assignment<
          std::is_same<Func, sub_assign_op<Scalar, Scalar>>::value)>> {
   using Src = CwiseBinaryOp<scalar_product_op<Scale, Scalar>, const CwiseNullaryOp<scalar_constant_op<Scale>, Plain>,
                             const Product<Lhs, Rhs, DefaultProduct>>;
-  static EIGEN_STRONG_INLINE void run(Dst& dst, const Src& src, const Func& func) {
+  static EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void run(Dst& dst, const Src& src, const Func& func) {
     Scalar alpha = src.lhs().functor().m_other;
     resize_if_allowed(dst, src, func);
     EIGEN_IF_CONSTEXPR ((std::is_same<Func, assign_op<Scalar, Scalar>>::value)) dst.setZero();
