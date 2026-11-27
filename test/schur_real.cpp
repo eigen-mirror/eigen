@@ -299,6 +299,225 @@ void schur_workspace_ref() {
   }
 }
 
+// Reordering keeps A = U T U^T while moving the selected eigenvalues into the leading diagonal blocks, so that the
+// leading columns of U span their invariant subspace.
+template <typename MatrixType>
+void schur_reorder(Index size = MatrixType::ColsAtCompileTime) {
+  using Scalar = typename MatrixType::Scalar;
+  using ComplexScalar = std::complex<Scalar>;
+  using DynamicMatrix = Matrix<Scalar, Dynamic, Dynamic>;
+  const auto negativeRealPart = [](const ComplexScalar& lambda) { return lambda.real() < Scalar(0); };
+  const MatrixType identity = MatrixType::Identity(size, size);
+  for (int counter = 0; counter < g_repeat; ++counter) {
+    const MatrixType a = MatrixType::Random(size, size);
+    const Scalar bound = Scalar(500 * size) * NumTraits<Scalar>::epsilon() * a.norm();
+    const Scalar orthogonalBound = Scalar(500 * size) * NumTraits<Scalar>::epsilon();
+
+    // reorder() decides on the eigenvalues of T, so take the reference from A and skip the comparison when an
+    // eigenvalue sits close enough to the selection boundary for the two to disagree.
+    const EigenSolver<MatrixType> eigenvalues(a);
+    Index expected = 0;
+    bool ambiguous = false;
+    for (Index i = 0; i < size; ++i) {
+      const ComplexScalar lambda = eigenvalues.eigenvalues()(i);
+      if (negativeRealPart(lambda)) ++expected;
+      if (numext::abs(lambda.real()) <= bound) ambiguous = true;
+    }
+
+    RealSchur<MatrixType> schur(a);
+    VERIFY_IS_EQUAL(schur.info(), Success);
+    const Index selected = schur.reorder(negativeRealPart);
+    const MatrixType& t = schur.matrixT();
+    const MatrixType& u = schur.matrixU();
+    verifyIsQuasiTriangular(t);
+    VERIFY((a - u * t * u.transpose()).norm() <= bound * Scalar(size));
+    VERIFY((u.transpose() * u - identity).norm() <= orthogonalBound * Scalar(size));
+    if (!ambiguous) VERIFY_IS_EQUAL(selected, expected);
+
+    // The leading block holds exactly the selected eigenvalues and spans an invariant subspace of A.
+    if (selected > 0) {
+      const EigenSolver<DynamicMatrix> leading(t.topLeftCorner(selected, selected));
+      for (Index i = 0; i < selected; ++i) VERIFY(leading.eigenvalues()(i).real() < bound);
+      const DynamicMatrix basis = u.leftCols(selected);
+      VERIFY((a * basis - basis * t.topLeftCorner(selected, selected)).norm() <= bound * Scalar(size));
+    }
+
+    // Selecting everything or nothing moves nothing, and reordering a second time is a no-op.
+    const MatrixType before = t;
+    VERIFY_IS_EQUAL(schur.reorder([](const ComplexScalar&) { return true; }), size);
+    VERIFY_IS_EQUAL(schur.matrixT(), before);
+    VERIFY_IS_EQUAL(schur.reorder([](const ComplexScalar&) { return false; }), Index(0));
+    VERIFY_IS_EQUAL(schur.matrixT(), before);
+    if (!ambiguous) {
+      VERIFY_IS_EQUAL(schur.reorder(negativeRealPart), selected);
+      VERIFY_IS_EQUAL(schur.matrixT(), before);
+    }
+  }
+}
+
+// Every eigenvalue of a block diagonal of rotations is a complex pair, so the swaps have to move whole 2x2 blocks,
+// including a 2x2 block past another 2x2 block.
+template <typename Scalar>
+void schur_reorder_complex_pairs() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using ComplexScalar = std::complex<Scalar>;
+  const Index size = 8;
+  const Scalar angles[4] = {Scalar(0.3), Scalar(2.5), Scalar(1.2), Scalar(2.9)};
+  MatrixType diagonal = MatrixType::Zero(size, size);
+  Index expected = 0;
+  for (int block = 0; block < 4; ++block) {
+    const Scalar cosine = std::cos(angles[block]), sine = std::sin(angles[block]);
+    diagonal(2 * block, 2 * block) = cosine;
+    diagonal(2 * block, 2 * block + 1) = -sine;
+    diagonal(2 * block + 1, 2 * block) = sine;
+    diagonal(2 * block + 1, 2 * block + 1) = cosine;
+    if (cosine < Scalar(0)) expected += 2;
+  }
+  // Spread the blocks with an orthogonal similarity so that T starts from a dense matrix.
+  const MatrixType orthogonal = RealSchur<MatrixType>(MatrixType::Random(size, size)).matrixU();
+  const MatrixType a = orthogonal * diagonal * orthogonal.transpose();
+  const Scalar bound = Scalar(500 * size) * NumTraits<Scalar>::epsilon() * a.norm();
+
+  RealSchur<MatrixType> schur(a);
+  VERIFY_IS_EQUAL(schur.info(), Success);
+  bool isComplexSelection = true;
+  const Index selected = schur.reorder([&isComplexSelection](const ComplexScalar& lambda) {
+    isComplexSelection = isComplexSelection && lambda.imag() != Scalar(0);
+    return lambda.real() < Scalar(0);
+  });
+  VERIFY(isComplexSelection);
+  VERIFY_IS_EQUAL(selected, expected);
+  const MatrixType& t = schur.matrixT();
+  const MatrixType& u = schur.matrixU();
+  verifyIsQuasiTriangular(t);
+  VERIFY((a - u * t * u.transpose()).norm() <= bound * Scalar(size));
+  const MatrixType basis = u.leftCols(selected);
+  VERIFY((a * basis - basis * t.topLeftCorner(selected, selected)).norm() <= bound * Scalar(size));
+  for (Index i = 0; i < selected; i += 2) {
+    VERIFY(!numext::is_exactly_zero(t(i + 1, i)));
+    const Scalar halfDifference = (t(i, i) - t(i + 1, i + 1)) / 2;
+    VERIFY(halfDifference * halfDifference + t(i, i + 1) * t(i + 1, i) < Scalar(0));
+  }
+}
+
+// Equal eigenvalues cannot be separated in floating point: such a reordering must leave the matrix in a valid Schur
+// form, with every eigenvalue it reports as leading really selected.
+template <typename Scalar>
+void schur_reorder_repeated() {
+  using MatrixType = Matrix<Scalar, Dynamic, Dynamic>;
+  using ComplexScalar = std::complex<Scalar>;
+  const Index size = 5;
+  MatrixType a = MatrixType::Zero(size, size);
+  a.diagonal() << Scalar(1), Scalar(1), Scalar(-1), Scalar(-1), Scalar(-2);
+  a(0, 2) = Scalar(1);
+  a(0, 3) = Scalar(-2);
+  a(1, 4) = Scalar(1);
+  const auto negativeRealPart = [](const ComplexScalar& lambda) { return lambda.real() < Scalar(0); };
+  const Scalar bound = Scalar(500 * size) * NumTraits<Scalar>::epsilon() * a.norm();
+
+  for (bool computeU : {true, false}) {
+    RealSchur<MatrixType> schur(a, computeU);
+    VERIFY_IS_EQUAL(schur.info(), Success);
+    const Scalar traceBefore = schur.matrixT().diagonal().sum();
+    const Index selected = schur.reorder(negativeRealPart);
+    const MatrixType& t = schur.matrixT();
+    verifyIsQuasiTriangular(t);
+    // The similarity keeps the trace and the size of the reordered block. The two equal -1 entries never have to
+    // pass each other, so all three negative eigenvalues can lead.
+    VERIFY(numext::abs(t.diagonal().sum() - traceBefore) <= bound);
+    VERIFY_IS_EQUAL(selected, 3);
+    if (selected > 0) {
+      const EigenSolver<MatrixType> leading(t.topLeftCorner(selected, selected));
+      for (Index i = 0; i < selected; ++i) VERIFY(leading.eigenvalues()(i).real() < bound);
+    }
+    if (computeU) {
+      const MatrixType& u = schur.matrixU();
+      VERIFY((a - u * t * u.transpose()).norm() <= bound * Scalar(size));
+      if (selected > 0) {
+        const MatrixType basis = u.leftCols(selected);
+        VERIFY((a * basis - basis * t.topLeftCorner(selected, selected)).norm() <= bound * Scalar(size));
+      }
+    } else {
+      VERIFY_RAISES_ASSERT(schur.matrixU());
+    }
+  }
+}
+
+// A swap whose blocks cannot be separated must be rejected, and the count must stop short of the blocks that did not
+// move. Two identical 2x2 blocks with a selector that accepts only the later one is the smallest such case.
+template <typename Scalar>
+void schur_reorder_rejected() {
+  using MatrixType = Matrix<Scalar, 4, 4>;
+  using ComplexScalar = std::complex<Scalar>;
+  MatrixType a = MatrixType::Zero();
+  for (int block = 0; block < 2; ++block) {
+    a(2 * block, 2 * block) = Scalar(1);
+    a(2 * block, 2 * block + 1) = Scalar(2);
+    a(2 * block + 1, 2 * block) = Scalar(-2);
+    a(2 * block + 1, 2 * block + 1) = Scalar(1);
+  }
+
+  RealSchur<MatrixType> schur;
+  schur.computeFromHessenberg(a, MatrixType::Identity(), true);
+  VERIFY_IS_EQUAL(schur.info(), Success);
+  int calls = 0;
+  const Index selected = schur.reorder([&calls](const ComplexScalar&) { return ++calls == 2; });
+  VERIFY_IS_EQUAL(selected, 0);
+  VERIFY_IS_EQUAL((schur.matrixT() - a).cwiseAbs().maxCoeff(), Scalar(0));
+}
+
+// Finite input near the scalar limits must not turn the decomposition into NaN.
+template <typename Scalar>
+void schur_reorder_overflow() {
+  using MatrixType = Matrix<Scalar, 2, 2>;
+  using ComplexScalar = std::complex<Scalar>;
+  const Scalar highest = NumTraits<Scalar>::highest();
+
+  {
+    // The via-Sylvester solution is highest/4, whose squared norm overflows.
+    MatrixType a;
+    a << Scalar(1), highest / 4, Scalar(0), Scalar(2);
+    RealSchur<MatrixType> schur;
+    schur.computeFromHessenberg(a, MatrixType::Identity(), true);
+    const Index selected = schur.reorder([](const ComplexScalar& lambda) { return lambda.real() > Scalar(1.5); });
+    VERIFY_IS_EQUAL(selected, 1);
+    VERIFY(schur.matrixT().allFinite());
+    VERIFY(schur.matrixU().allFinite());
+    VERIFY_IS_APPROX(schur.matrixT()(0, 0), Scalar(2));
+    VERIFY_IS_APPROX(schur.matrixT()(1, 1), Scalar(1));
+  }
+
+  {
+    // The eigenvalue difference overflows, so the uncoupled pair must take the Givens path.
+    MatrixType a = MatrixType::Zero();
+    a(0, 0) = highest;
+    a(1, 1) = -highest;
+    RealSchur<MatrixType> schur;
+    schur.computeFromHessenberg(a, MatrixType::Identity(), true);
+    const Index selected = schur.reorder([](const ComplexScalar& lambda) { return lambda.real() < Scalar(0); });
+    VERIFY_IS_EQUAL(selected, 1);
+    VERIFY(schur.matrixT().allFinite());
+    VERIFY_IS_APPROX(schur.matrixT()(0, 0), -highest);
+    VERIFY_IS_APPROX(schur.matrixT()(1, 1), highest);
+  }
+
+  // The discriminant must be formed without squaring the off-diagonal entries: highest/4 squares to infinity, and
+  // the selector must still see the finite 10^154-sized eigenvalue rather than (0, inf).
+  const Scalar magnitude = highest / Scalar(4);
+  {
+    MatrixType a = MatrixType::Zero();
+    a(0, 1) = -magnitude;
+    a(1, 0) = magnitude;
+    RealSchur<MatrixType> schur;
+    schur.computeFromHessenberg(a, MatrixType::Identity(), true);
+    const Index selected = schur.reorder([magnitude](const ComplexScalar& lambda) {
+      return lambda.imag() > Scalar(0) && lambda.imag() <= magnitude;
+    });
+    VERIFY_IS_EQUAL(selected, 2);
+    VERIFY(schur.matrixT().allFinite());
+  }
+}
+
 EIGEN_DECLARE_TEST(schur_real) {
   // RealSchur keeps these blocks (|c| > eps*(|a|+|d|)), but tr^2 and 4*det round to the same value.
   Matrix2f small_imaginary_float;
@@ -332,4 +551,16 @@ EIGEN_DECLARE_TEST(schur_real) {
   CALL_SUBTEST_14((schur_workspace_ref<double, RowMajor>()));
   CALL_SUBTEST_15((real_schur_structured_windows<float>()));
   CALL_SUBTEST_15((real_schur_structured_windows<double>()));
+
+  CALL_SUBTEST_16((schur_reorder<Matrix4f>()));
+  CALL_SUBTEST_16((schur_reorder<MatrixXd>(internal::random<int>(2, EIGEN_TEST_MAX_SIZE / 4))));
+  CALL_SUBTEST_16((schur_reorder<Matrix<double, Dynamic, Dynamic, RowMajor>>(9)));
+  CALL_SUBTEST_17(schur_reorder_complex_pairs<float>());
+  CALL_SUBTEST_17(schur_reorder_complex_pairs<double>());
+  CALL_SUBTEST_18(schur_reorder_repeated<float>());
+  CALL_SUBTEST_18(schur_reorder_repeated<double>());
+  CALL_SUBTEST_19(schur_reorder_rejected<float>());
+  CALL_SUBTEST_19(schur_reorder_rejected<double>());
+  CALL_SUBTEST_20(schur_reorder_overflow<float>());
+  CALL_SUBTEST_20(schur_reorder_overflow<double>());
 }

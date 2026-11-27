@@ -234,6 +234,52 @@ class RealSchur {
    */
   template <typename HessMatrixType, typename OrthMatrixType>
   RealSchur& computeFromHessenberg(const HessMatrixType& matrixH, const OrthMatrixType& matrixQ, bool computeU);
+
+  /** \brief Reorders the diagonal blocks of the Schur form so that a selected set of eigenvalues comes first
+   *
+   * \param[in] select  Callable taking an eigenvalue and returning whether it belongs to the leading set.
+   *
+   * \returns The number of selected eigenvalues, counted with multiplicity.
+   *
+   * The reordering applies orthogonal similarity transformations to the stored decomposition, so that
+   * \f$ A = U T U^T \f$ still holds and the selected eigenvalues lead the diagonal blocks of \f$ T \f$, in the order
+   * the decomposition gave them. With \f$ m \f$ selected eigenvalues, the leading \f$ m \f$ columns of #matrixU()
+   * span the invariant subspace belonging to them:
+   * \f[
+   *   A U_1 = U_1 T_{11}, \qquad T = \begin{pmatrix} T_{11} & T_{12} \\ 0 & T_{22} \end{pmatrix},
+   * \f]
+   * where \f$ T_{11} \f$ is the leading \f$ m \times m \f$ block of \f$ T \f$.
+   *
+   * This is the reordering that LAPACK's \c xTREXC provides for the real Schur form and the piece a
+   * continuous-time Riccati solver needs. A 2x2 block holds a complex conjugate pair, whose two eigenvalues cannot
+   * be separated by a real orthogonal transformation, so a block moves as a unit and \p select is called once for
+   * the pair, with the eigenvalue whose imaginary part is non-negative. A 2x2 block is therefore moved whenever
+   * \p select accepts that half of the pair, and the returned count includes both eigenvalues.
+   *
+   * Each selected block is moved up by adjacent transpositions. A transposition of neighbouring blocks of sizes
+   * \f$ p \f$ and \f$ q \f$ is one small Sylvester solve for the invariant subspace of the trailing block, followed by
+   * two Householder reflectors applied to a row and a column range of \f$ T \f$, so a transposition costs
+   * \f$ O(n) \f$ work. There can be \f$ O(n^2) \f$ transpositions, so the whole reordering is \f$ O(n^2) \f$ when
+   * few blocks move and \f$ O(n^3) \f$ in the worst case, the same order as LAPACK's \c xTRSEN. The cost of the
+   * decomposition itself is unchanged.
+   *
+   * Two adjacent blocks whose eigenvalues agree to working precision cannot be separated in floating point. Such a
+   * pair keeps the order the decomposition gave it, and the returned count then covers only the blocks that could be
+   * moved; the leading block still holds selected eigenvalues, just not all of them.
+   *
+   * Only #matrixT() is reordered when the decomposition was computed with \c computeU = \c false. This method
+   * requires that #compute() or the constructor has completed successfully, that is #info() must be \c Success, but
+   * not that \c computeU was set.
+   *
+   * \code
+   * RealSchur<MatrixXd> schur(A);
+   * const Index stable = schur.reorder([](const std::complex<double>& lambda) { return lambda.real() < 0; });
+   * MatrixXd basis = schur.matrixU().leftCols(stable);  // spans the stable invariant subspace
+   * \endcode
+   */
+  template <typename SelectType>
+  Index reorder(const SelectType& select);
+
   /** \brief Reports whether previous computation was successful.
    *
    * \returns \c Success if computation was successful, \c NoConvergence otherwise.
@@ -303,6 +349,16 @@ class RealSchur {
   template <typename TMatrix>
   void performFrancisQRStep(TMatrix& matT, Index il, Index im, Index iu, bool computeU,
                             const Vector3s& firstHouseholderVector, Scalar* workspace);
+
+  Index diagonalBlockStart(Index k) const;
+  Index diagonalBlockSize(Index k) const;
+  ComplexScalar blockEigenvalue(Index k) const;
+  bool swapAdjacentBlocks(Index k);
+  bool solveSylvesterForSwap(const Matrix<Scalar, 4, 4>& block, Index p, Index q, Matrix<Scalar, 4, 2>& solution) const;
+  template <typename TMatrix, typename ReflectorType>
+  static void applyReflectorOnTheLeft(TMatrix& matrix, Index k, Index m, const ReflectorType& reflector);
+  template <typename TMatrix, typename ReflectorType>
+  static void applyReflectorOnTheRight(TMatrix& matrix, Index k, Index m, const ReflectorType& reflector);
 };
 
 template <typename MatrixType>
@@ -397,6 +453,254 @@ RealSchur<MatrixType>& RealSchur<MatrixType>::computeFromHessenberg(const HessMa
     computeFromHessenbergInPlace(m_matT, computeU);
   }
   return *this;
+}
+
+template <typename MatrixType>
+template <typename SelectType>
+Index RealSchur<MatrixType>::reorder(const SelectType& select) {
+  eigen_assert(m_isInitialized && "RealSchur is not initialized.");
+  eigen_assert(m_info == Success && "RealSchur::reorder requires a successful decomposition.");
+  const Index n = m_matT.rows();
+  // Invariant at the top of each iteration: the blocks below position k are untouched, so the block at k is still the
+  // one the decomposition gave, and the first `leading` rows hold the selected blocks already moved up.
+  Index leading = 0;
+  for (Index k = 0; k < n;) {
+    const Index size = diagonalBlockSize(k);
+    if (!select(blockEigenvalue(k))) {
+      k += size;
+      continue;
+    }
+    Index position = k;
+    bool moved = true;
+    while (position > leading) {
+      const Index previous = diagonalBlockStart(position - 1);
+      if (!swapAdjacentBlocks(previous)) {
+        // The two blocks share an eigenvalue to working precision, so their order is not defined; leave it alone.
+        moved = false;
+        break;
+      }
+      position = previous;
+    }
+    if (moved) leading = position + size;
+    k = position + size;
+  }
+  return leading;
+}
+
+/** \internal Returns the index of the first row of the diagonal block that contains row \p k. */
+template <typename MatrixType>
+Index RealSchur<MatrixType>::diagonalBlockStart(Index k) const {
+  return (k > 0 && !numext::is_exactly_zero(m_matT.coeff(k, k - 1))) ? k - 1 : k;
+}
+
+/** \internal Returns 2 when row \p k starts a 2x2 block holding a complex pair, and 1 otherwise. */
+template <typename MatrixType>
+Index RealSchur<MatrixType>::diagonalBlockSize(Index k) const {
+  return (k + 1 < m_matT.rows() && !numext::is_exactly_zero(m_matT.coeff(k + 1, k))) ? 2 : 1;
+}
+
+/** \internal Returns the eigenvalue of the block starting at row \p k whose imaginary part is non-negative. */
+template <typename MatrixType>
+typename RealSchur<MatrixType>::ComplexScalar RealSchur<MatrixType>::blockEigenvalue(Index k) const {
+  if (diagonalBlockSize(k) == 1) return ComplexScalar(m_matT.coeff(k, k), Scalar(0));
+  // Scale before squaring, as EigenSolver does: the discriminant of a finite block can overflow to infinity or
+  // underflow to zero, and then select sees a wrong eigenvalue (or none at all).
+  const Scalar a = m_matT.coeff(k, k);
+  const Scalar b = m_matT.coeff(k, k + 1);
+  const Scalar c = m_matT.coeff(k + 1, k);
+  const Scalar d = m_matT.coeff(k + 1, k + 1);
+  const Scalar scale = numext::maxi(numext::maxi(numext::abs(a), numext::abs(d)),
+                                   numext::maxi(numext::abs(b), numext::abs(c)));
+  if (numext::is_exactly_zero(scale)) return ComplexScalar(Scalar(0), Scalar(0));
+  const Scalar half = scale / 2;
+  const Scalar halfTrace = (a / scale + d / scale) * half;
+  const Scalar halfDifference = (a / scale - d / scale) * half;
+  // The decomposition and the block swaps keep the discriminant of a 2x2 block negative; clamp against rounding so
+  // that a pair on the verge of being real still yields a finite eigenvalue.
+  const Scalar discriminant = halfDifference / scale * (halfDifference / scale) + (b / scale) * (c / scale);
+  return ComplexScalar(halfTrace, scale * numext::sqrt(discriminant < Scalar(0) ? -discriminant : Scalar(0)));
+}
+
+/** \internal Solves \f$ A X - X B = -C \f$ for the p-by-q matrix X, given \p block holding [[A, C], [0, B]].
+ *
+ * The system is at most 4x4, so it is eliminated here rather than by pulling a dense solver into this header. A
+ * vanishing pivot means that A and B share an eigenvalue, in which case the call reports failure. */
+template <typename MatrixType>
+bool RealSchur<MatrixType>::solveSylvesterForSwap(const Matrix<Scalar, 4, 4>& block, Index p, Index q,
+                                                  Matrix<Scalar, 4, 2>& solution) const {
+  const Index dim = p * q;
+  Matrix<Scalar, 4, 4> system = Matrix<Scalar, 4, 4>::Zero();
+  Matrix<Scalar, 4, 1> rightHandSide = Matrix<Scalar, 4, 1>::Zero();
+  // Column-major vectorization: entry (i, j) of X is the unknown i + p * j.
+  for (Index j = 0; j < q; ++j)
+    for (Index i = 0; i < p; ++i) {
+      const Index row = i + p * j;
+      rightHandSide(row) = -block(i, p + j);
+      for (Index l = 0; l < p; ++l) system(row, l + p * j) += block(i, l);
+      for (Index l = 0; l < q; ++l) system(row, i + p * l) -= block(p + l, p + j);
+    }
+
+  const Scalar scale = system.cwiseAbs().maxCoeff();
+  if (numext::is_exactly_zero(scale)) return false;
+  const Scalar tolerance = NumTraits<Scalar>::epsilon() * Scalar(dim) * scale;
+  for (Index col = 0; col < dim; ++col) {
+    Index pivot = col;
+    Scalar largest = numext::abs(system(col, col));
+    for (Index row = col + 1; row < dim; ++row) {
+      const Scalar candidate = numext::abs(system(row, col));
+      if (candidate > largest) {
+        largest = candidate;
+        pivot = row;
+      }
+    }
+    if (largest <= tolerance) return false;
+    if (pivot != col) {
+      const Matrix<Scalar, 1, 4> swappedRow = system.row(pivot);
+      system.row(pivot) = system.row(col);
+      system.row(col) = swappedRow;
+      const Scalar swappedEntry = rightHandSide(pivot);
+      rightHandSide(pivot) = rightHandSide(col);
+      rightHandSide(col) = swappedEntry;
+    }
+    for (Index row = col + 1; row < dim; ++row) {
+      const Scalar factor = system(row, col) / system(col, col);
+      if (numext::is_exactly_zero(factor)) continue;
+      system.row(row).segment(col, dim - col) -= factor * system.row(col).segment(col, dim - col);
+      rightHandSide(row) -= factor * rightHandSide(col);
+    }
+  }
+  for (Index col = dim; col-- > 0;) {
+    Scalar value = rightHandSide(col);
+    for (Index j = col + 1; j < dim; ++j) value -= system(col, j) * solution(j % p, j / p);
+    solution(col % p, col / p) = value / system(col, col);
+  }
+  return true;
+}
+
+/** \internal Multiplies rows k..k+m-1 of \p matrix on the left by the reflector \f$ I - 2 v v^T / (v^T v) \f$.
+ *
+ * Only columns k and beyond are touched. Row k starts a diagonal block, so those rows are exactly zero to the left
+ * of it and the form is preserved without revisiting the zeros. */
+template <typename MatrixType>
+template <typename TMatrix, typename ReflectorType>
+void RealSchur<MatrixType>::applyReflectorOnTheLeft(TMatrix& matrix, Index k, Index m, const ReflectorType& reflector) {
+  const Scalar squaredNorm = reflector.head(m).squaredNorm();
+  if (numext::is_exactly_zero(squaredNorm)) return;
+  for (Index col = k; col < matrix.cols(); ++col) {
+    const Scalar dot = reflector.head(m).dot(matrix.col(col).segment(k, m));
+    if (numext::is_exactly_zero(dot)) continue;
+    matrix.col(col).segment(k, m) -= (2 * dot / squaredNorm) * reflector.head(m);
+  }
+}
+
+/** \internal Multiplies columns k..k+m-1 of \p matrix on the right by the reflector \f$ I - 2 v v^T / (v^T v) \f$. */
+template <typename MatrixType>
+template <typename TMatrix, typename ReflectorType>
+void RealSchur<MatrixType>::applyReflectorOnTheRight(TMatrix& matrix, Index k, Index m,
+                                                     const ReflectorType& reflector) {
+  const Scalar squaredNorm = reflector.head(m).squaredNorm();
+  if (numext::is_exactly_zero(squaredNorm)) return;
+  for (Index row = 0; row < matrix.rows(); ++row) {
+    const Scalar dot = matrix.row(row).segment(k, m).dot(reflector.head(m));
+    if (numext::is_exactly_zero(dot)) continue;
+    matrix.row(row).segment(k, m) -= (2 * dot / squaredNorm) * reflector.head(m).transpose();
+  }
+}
+
+/** \internal Swaps the two adjacent diagonal blocks that start at row \p k.
+ *
+ * With A and B the two blocks and C the coupling above B, the swap wants the invariant subspace of
+ * [[A, C], [0, B]] belonging to the eigenvalues of B. Solving A X - X B = -C gives that subspace as the column space
+ * of [X; I], and the orthogonal Q built from it satisfies Q^T [[A, C], [0, B]] Q = [[B', C'], [0, A']], where B' and
+ * A' are the orthogonal images of B and A and keep their shape. The work is done on a copy of the small block first,
+ * so a swap that fails to separate the blocks is rejected before it reaches the matrix.
+ *
+ * Returns false, leaving the matrix untouched, when the blocks cannot be separated numerically. */
+template <typename MatrixType>
+bool RealSchur<MatrixType>::swapAdjacentBlocks(Index k) {
+  const Index p = diagonalBlockSize(k);
+  const Index q = diagonalBlockSize(k + p);
+  const Index m = p + q;
+
+  Matrix<Scalar, 4, 4> block = Matrix<Scalar, 4, 4>::Zero();
+  block.topLeftCorner(m, m) = m_matT.block(k, k, m, m);
+  const Scalar scale = block.cwiseAbs().maxCoeff();
+
+  // Two 1x1 blocks need no Sylvester solve: a Givens rotation built from the coupling and the eigenvalue difference
+  // exchanges them. The halves avoid overflowing the difference when both entries are near the largest scalar.
+  if (p == 1 && q == 1) {
+    const Scalar first = block(0, 0);
+    const Scalar second = block(1, 1);
+    const Scalar difference = second / 2 - first / 2;
+    if (numext::abs(difference) <=
+        NumTraits<Scalar>::epsilon() * numext::maxi(numext::abs(first), numext::abs(second)))
+      return false;
+    JacobiRotation<Scalar> rotation;
+    rotation.makeGivens(block(0, 1) / 2, difference);
+    block.applyOnTheLeft(0, 1, rotation.adjoint());
+    block.applyOnTheRight(0, 1, rotation);
+    if (!(numext::abs(block(1, 0)) <= numext::sqrt(NumTraits<Scalar>::epsilon()) * scale)) return false;
+    m_matT.block(k, k, 2, m_matT.cols() - k).applyOnTheLeft(0, 1, rotation.adjoint());
+    m_matT.block(0, k, k + 2, 2).applyOnTheRight(0, 1, rotation);
+    m_matT.coeffRef(k + 1, k) = Scalar(0);
+    if (m_matUisUptodate) m_matU.applyOnTheRight(k, k + 1, rotation);
+    return true;
+  }
+
+  Matrix<Scalar, 4, 2> solution = Matrix<Scalar, 4, 2>::Zero();
+  if (!solveSylvesterForSwap(block, p, q, solution)) return false;
+
+  Matrix<Scalar, 4, 2> spanning = Matrix<Scalar, 4, 2>::Zero();
+  spanning.topLeftCorner(p, q) = solution.topLeftCorner(p, q);
+  spanning.block(p, 0, q, q).setIdentity();
+
+  // The solution can be enormous when the blocks are nearly inseparable, and squaring it in the reflector would then
+  // overflow. Scaling the whole subspace leaves it unchanged and keeps the reflectors finite.
+  const Scalar largest = spanning.cwiseAbs().maxCoeff();
+  if (!(largest <= NumTraits<Scalar>::highest())) return false;
+  if (largest > Scalar(1)) spanning /= largest;
+
+  // Two reflectors turn the spanning vectors into the leading columns of an orthogonal matrix.
+  Matrix<Scalar, 4, 1> firstReflector = Matrix<Scalar, 4, 1>::Zero();
+  Matrix<Scalar, 4, 1> secondReflector = Matrix<Scalar, 4, 1>::Zero();
+  firstReflector.head(m) = spanning.col(0).head(m);
+  {
+    const Scalar norm = numext::sqrt(firstReflector.head(m).squaredNorm());
+    if (numext::is_exactly_zero(norm)) return false;
+    firstReflector(0) -= firstReflector(0) < Scalar(0) ? norm : -norm;
+  }
+  if (q == 2) {
+    Matrix<Scalar, 4, 1> second = spanning.col(1);
+    second.head(m) -= (2 * firstReflector.head(m).dot(second.head(m)) / firstReflector.head(m).squaredNorm()) *
+                      firstReflector.head(m);
+    // The second reflector is supported from row 1 on, which leaves the first column a multiple of the first unit
+    // vector and thus keeps the leading column of Q in the subspace spanned by the first spanning vector.
+    const Scalar tailNorm = numext::sqrt(second.segment(1, m - 1).squaredNorm());
+    if (!numext::is_exactly_zero(tailNorm)) {
+      secondReflector.segment(1, m - 1) = second.segment(1, m - 1);
+      secondReflector(1) -= second(1) < Scalar(0) ? tailNorm : -tailNorm;
+    }
+  }
+
+  // Reject the swap unless it separates the blocks on the small copy.
+  applyReflectorOnTheLeft(block, 0, m, firstReflector);
+  if (q == 2) applyReflectorOnTheLeft(block, 0, m, secondReflector);
+  applyReflectorOnTheRight(block, 0, m, firstReflector);
+  if (q == 2) applyReflectorOnTheRight(block, 0, m, secondReflector);
+  if (!(block.block(q, 0, p, q).cwiseAbs().maxCoeff() <= numext::sqrt(NumTraits<Scalar>::epsilon()) * scale))
+    return false;
+
+  applyReflectorOnTheLeft(m_matT, k, m, firstReflector);
+  if (q == 2) applyReflectorOnTheLeft(m_matT, k, m, secondReflector);
+  applyReflectorOnTheRight(m_matT, k, m, firstReflector);
+  if (q == 2) applyReflectorOnTheRight(m_matT, k, m, secondReflector);
+  // The two blocks are separated by an exact zero, which the rounding of the transformation leaves behind.
+  m_matT.block(k + q, k, p, q).setZero();
+  if (m_matUisUptodate) {
+    applyReflectorOnTheRight(m_matU, k, m, firstReflector);
+    if (q == 2) applyReflectorOnTheRight(m_matU, k, m, secondReflector);
+  }
+  return true;
 }
 
 template <typename MatrixType>
