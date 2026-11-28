@@ -7,7 +7,7 @@ FULL_PATH_NAMES        = YES
 STRIP_FROM_INC_PATH    = ${Eigen_SOURCE_DIR}/
 TAB_SIZE               = 8
 ALIASES                = "only_for_vectors=This is only for vectors (either row-vectors or column-vectors), i.e. matrices which are known at compile-time to have either one row or one column." \
-                         "not_reentrant=\warning This function is not re-entrant." \
+                         "not_reentrant=\warning By default this function draws from \c std::rand(), whose state is process-global and is not guaranteed to be thread-safe. The opt-in PCG backend uses per-thread state when \c EIGEN_HAS_THREAD_LOCAL_RANDOM is 1; see \ref TopicMultiThreading for configuration and fallback conditions." \
                          "array_module=This is defined in the %Array module. \code #include <Eigen/Array> \endcode" \
                          "cholesky_module=This is defined in the %Cholesky module. \code #include <Eigen/Cholesky> \endcode" \
                          "eigenvalues_module=This is defined in the %Eigenvalues module. \code #include <Eigen/Eigenvalues> \endcode" \

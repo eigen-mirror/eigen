@@ -9,7 +9,12 @@
 // SPDX-License-Identifier: MPL-2.0
 
 #include <cstdlib>
+#include <atomic>
+#include <thread>
+#include <vector>
+
 #include "main.h"
+#include <Eigen/Core>
 #include "SafeScalar.h"
 
 // SafeScalar<T> is used to simulate custom Scalar types, which use a more generalized approach to generate random
@@ -212,6 +217,115 @@ void check_histogram<bool>(int) {
   VERIFY(numext::abs(p - 0.5) < 0.05);
 }
 
+template <typename Scalar>
+void check_reproducibility() {
+  using Vector = Matrix<Scalar, Dynamic, 1>;
+  const uint64_t seeds[] = {0, 42, 0x10000002aULL, 0xffffffffffffffffULL};
+  Vector expected(100), actual(100);
+  for (uint64_t seed : seeds) {
+    Eigen::setRandomSeed(seed);
+    expected = Vector::Random(actual.size());
+    Eigen::setRandomSeed(seed);
+    actual.setRandom();
+    VERIFY((actual.array() == expected.array()).all());
+  }
+}
+
+void check_seed_backend() {
+  using Vector = Matrix<uint32_t, Dynamic, 1>;
+  constexpr uint64_t seed = 0x123456780000002aULL;
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+  static_assert(internal::eigen_random_device::Entropy == 32, "PCG supplies 32 random bits");
+  static_assert(internal::eigen_random_device::Highest == 0xffffffffu, "PCG spans uint32_t");
+  Eigen::setRandomSeed(seed);
+  const Vector expected = Vector::Random(100);
+  Eigen::setRandomSeed(seed);
+  std::srand(17);
+  const Vector actual = Vector::Random(100);
+  VERIFY((actual.array() == expected.array()).all());
+
+  Eigen::setRandomSeed(static_cast<unsigned>(seed));
+  const Vector truncated = Vector::Random(100);
+  VERIFY((truncated.array() != expected.array()).any());
+
+  std::srand(31);
+  const int expected_rand = std::rand();
+  std::srand(31);
+  Eigen::setRandomSeed(seed);
+  const Vector unused = Vector::Random(100);
+  EIGEN_UNUSED_VARIABLE(unused);
+  VERIFY_IS_EQUAL(std::rand(), expected_rand);
+#else
+  static_assert(internal::eigen_random_device::Highest == RAND_MAX, "Fallback retains the std::rand range");
+  std::srand(static_cast<unsigned>(seed));
+  const Vector expected = Vector::Random(100);
+  Eigen::setRandomSeed(seed);
+  const Vector actual = Vector::Random(100);
+  VERIFY((actual.array() == expected.array()).all());
+#endif
+}
+
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+// With inc = 2*seed+1, seeds s and s ^ 2^63 shared the increment and their states differed by exactly 2^63 at every
+// step, so each XSH-RS output of one stream equaled the other's shifted by 4 bits, up to one flipped bit.
+void check_seed_high_bit_streams() {
+  using Device = internal::eigen_random_device;
+  constexpr int samples = 64;
+  for (uint64_t seed : {uint64_t(0), uint64_t(7), uint64_t(0x123456780000002aULL)}) {
+    unsigned a[samples], b[samples];
+    Eigen::setRandomSeed(seed);
+    for (unsigned& x : a) x = Device::run();
+    Eigen::setRandomSeed(seed ^ (uint64_t(1) << 63));
+    for (unsigned& y : b) y = Device::run();
+    int shifted = 0;
+    for (int i = 0; i < samples; ++i) {
+      const int d1 = internal::popcount<unsigned>(((a[i] << 4) ^ b[i]) & 0xfffffff0u);
+      const int d2 = internal::popcount<unsigned>(((b[i] << 4) ^ a[i]) & 0xfffffff0u);
+      if (d1 <= 1 || d2 <= 1) ++shifted;
+    }
+    VERIFY(shifted <= 1);
+  }
+}
+
+void check_thread_safety() {
+  using Vector = Matrix<uint32_t, Dynamic, 1>;
+  constexpr int num_threads = 4;
+  constexpr int samples_per_thread = 10000;
+  const uint64_t seeds[num_threads] = {7, 7, 0x100000007ULL, 0xffffffffffffffffULL};
+  std::vector<Vector> expected(num_threads), results(num_threads);
+  for (int t = 0; t < num_threads; ++t) {
+    Eigen::setRandomSeed(seeds[t]);
+    expected[t] = Vector::Random(samples_per_thread);
+    results[t].resize(samples_per_thread);
+  }
+  Eigen::setRandomSeed(123);
+  const Vector expected_main = Vector::Random(samples_per_thread);
+
+  std::atomic<int> ready{0};
+  std::atomic<bool> start{false};
+  std::vector<std::thread> threads;
+  for (int t = 0; t < num_threads; ++t) {
+    threads.emplace_back([&, t]() {
+      Eigen::setRandomSeed(seeds[t]);
+      ready.fetch_add(1);
+      while (!start.load()) std::this_thread::yield();
+      results[t].setRandom();
+    });
+  }
+  while (ready.load() != num_threads) std::this_thread::yield();
+  // Reseeding the main thread must not reset any worker's stream.
+  Eigen::setRandomSeed(123);
+  start.store(true);
+  for (auto& th : threads) th.join();
+  for (int t = 0; t < num_threads; ++t) {
+    VERIFY((results[t].array() == expected[t].array()).all());
+  }
+  // Worker draws must leave the main thread's stream untouched.
+  const Vector actual_main = Vector::Random(samples_per_thread);
+  VERIFY((actual_main.array() == expected_main.array()).all());
+}
+#endif  // EIGEN_HAS_THREAD_LOCAL_RANDOM
+
 EIGEN_DECLARE_TEST(rand) {
   int64_t int64_ref = NumTraits<int64_t>::highest() / 10;
   // the minimum guarantees that these conversions are safe
@@ -324,4 +438,16 @@ EIGEN_DECLARE_TEST(rand) {
   CALL_SUBTEST_15(check_histogram<SafeScalar<float>>(/*bins=*/1024));
   CALL_SUBTEST_15(check_histogram<SafeScalar<half>>(/*bins=*/512));
   CALL_SUBTEST_15(check_histogram<SafeScalar<bfloat16>>(/*bins=*/64));
+
+  CALL_SUBTEST_16(check_reproducibility<float>());
+  CALL_SUBTEST_16(check_reproducibility<double>());
+  CALL_SUBTEST_16(check_reproducibility<int32_t>());
+  CALL_SUBTEST_16(check_reproducibility<uint64_t>());
+  CALL_SUBTEST_16(check_reproducibility<std::complex<double>>());
+  CALL_SUBTEST_16(check_seed_backend());
+
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+  CALL_SUBTEST_16(check_seed_high_bit_streams());
+  CALL_SUBTEST_17(check_thread_safety());
+#endif
 }

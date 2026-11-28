@@ -48,12 +48,79 @@ inline Scalar random() {
   return EIGEN_MATHFUNC_IMPL(random, Scalar)::run();
 }
 
-// TODO: replace or provide alternatives to this, e.g. std::random_device
+// PCG-XSH-RS: minimal, fast, high-quality 32-bit PRNG.
+// Shared step function used by both core Random and TensorRandom.
+EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE unsigned pcg_xsh_rs_step(uint64_t* state, uint64_t increment) {
+  uint64_t current = *state;
+  *state = current * 6364136223846793005ULL + (increment | 1);
+  return static_cast<unsigned>((current ^ (current >> 22)) >> (22 + (current >> 61)));
+}
+
+// Define EIGEN_USE_PCG_RANDOM before including Eigen to enable the thread-safe PCG-XSH-RS
+// backend instead of std::rand(). This provides 32 bits of entropy per call, is thread-safe
+// via thread_local state, and avoids the data races inherent in std::rand().
+//
+// thread_local is part of the C++14 baseline, so as in Memory.h only EIGEN_AVOID_THREAD_LOCAL and device passes
+// (CUDA/HIP, SYCL) disable it. Clang additionally reports per-target TLS support through cxx_thread_local.
+// __SYCL_DEVICE_ONLY__ rather than SYCL_DEVICE_ONLY, which Macros.h defines only under EIGEN_USE_SYCL.
+#if defined(EIGEN_USE_PCG_RANDOM) && !defined(EIGEN_AVOID_THREAD_LOCAL) && !defined(EIGEN_GPU_COMPILE_PHASE) && \
+    !defined(__SYCL_DEVICE_ONLY__) && (!EIGEN_COMP_CLANG || __has_feature(cxx_thread_local))
+#define EIGEN_HAS_THREAD_LOCAL_RANDOM 1
+#else
+#define EIGEN_HAS_THREAD_LOCAL_RANDOM 0
+#endif
+
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+
+struct eigen_pcg_state {
+  uint64_t state;
+  uint64_t inc;
+};
+
+inline eigen_pcg_state& eigen_tl_random_state() {
+  // Default seed: mix of two arbitrary constants to avoid zero-state.
+  thread_local eigen_pcg_state tl_state = {0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL};
+  return tl_state;
+}
+
+// pcg32_srandom_r (O'Neill, "PCG: A Family of Simple Fast Space-Efficient Statistically Good Algorithms for Random
+// Number Generation", HMC-CS-2014-0905) seeds from two words, initstate and initseq. Deriving both from one seed as
+// inc = 2*seed+1 would give seed and seed ^ 2^63 the same increment and states differing by 2^63 forever
+// (2^63 * a = 2^63 mod 2^64 for odd a), so each output of one stream would be the other's shifted by 4 bits.
+// Hashing the seed with splitmix64_mix for the increment decorrelates the two.
+inline void set_random_seed(uint64_t seed) {
+  eigen_pcg_state& s = eigen_tl_random_state();
+  s.state = 0;
+  s.inc = (splitmix64_mix(seed) << 1) | 1;
+  pcg_xsh_rs_step(&s.state, s.inc);
+  s.state += seed;
+  pcg_xsh_rs_step(&s.state, s.inc);
+}
+
+#else
+
+inline void set_random_seed(uint64_t seed) { std::srand(static_cast<unsigned>(seed)); }
+
+#endif  // EIGEN_HAS_THREAD_LOCAL_RANDOM
+
 struct eigen_random_device {
-  using ReturnType = int;
+  using ReturnType = unsigned;
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM
+  static constexpr int Entropy = 32;
+  static constexpr ReturnType Highest = 0xFFFFFFFFu;
+#else
   static constexpr int Entropy = floor_log2((unsigned int)(RAND_MAX) + 1);
   static constexpr ReturnType Highest = RAND_MAX;
-  static EIGEN_DEVICE_FUNC inline ReturnType run() { return std::rand(); }
+#endif
+  static EIGEN_DEVICE_FUNC inline ReturnType run() {
+#if EIGEN_HAS_THREAD_LOCAL_RANDOM && !defined(EIGEN_GPU_COMPILE_PHASE)
+    eigen_pcg_state& s = eigen_tl_random_state();
+    return pcg_xsh_rs_step(&s.state, s.inc);
+#else
+    // GPU or no thread_local: fall back to std::rand().
+    return static_cast<unsigned>(std::rand());
+#endif
+  }
 };
 
 // Fill a built-in unsigned integer with numRandomBits beginning with the least significant bit

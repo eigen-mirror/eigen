@@ -523,6 +523,7 @@ int main(int argc, char* argv[]) {
   ss << "Seed: " << g_seed;
   g_test_stack.push_back(ss.str());
   srand(g_seed);
+  Eigen::setRandomSeed(static_cast<uint64_t>(g_seed));
   std::cout << "Repeating each test " << g_repeat << " times" << std::endl;
 
 #if defined(EIGEN_USE_GPU)
